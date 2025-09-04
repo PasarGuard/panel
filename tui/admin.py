@@ -17,7 +17,7 @@ from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils.helpers import format_cli_validation_error, readable_datetime
 from app.utils.system import readable_size
-from cli import BaseModal
+from tui import BaseModal
 
 SYSTEM_ADMIN = AdminDetails(username="cli", is_sudo=True, telegram_id=None, discord_webhook=None)
 

@@ -385,6 +385,18 @@ pasarguard cli [OPTIONS] COMMAND [ARGS]...
 
 For more information, You can read [PasarGuard CLI's documentation](./cli/README.md).
 
+# PasarGuard TUI
+
+PasarGuard also provides a Terminal User Interface (TUI) for interactive management directly within your terminal.
+
+If you've installed PasarGuard using the easy install script, you can access the TUI by running:
+
+```bash
+pasarguard tui
+```
+
+For more information, you can read [PasarGuard TUI's documentation](./tui/README.md).
+
 # Node
 
 The PasarGuard project introduces the [node](https://github.com/PasarGuard/node), which revolutionizes infrastructure distribution. With node, you can distribute your infrastructure across multiple locations, unlocking benefits such as redundancy, high availability, scalability, flexibility. node empowers users to connect to different servers, offering them the flexibility to choose and connect to multiple servers instead of being limited to only one server.

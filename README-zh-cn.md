@@ -391,6 +391,18 @@ pasarguard cli [OPTIONS] COMMAND [ARGS]...
 
 更多信息，您可以阅读[PasarGuard CLI的文档](./cli/README.md)。
 
+# PasarGuard 终端用户界面 (TUI)
+
+PasarGuard 还提供了一个终端用户界面 (TUI)，用于直接在您的终端中进行交互式管理。
+
+如果您使用简易安装脚本安装了 PasarGuard，您可以通过运行以下命令访问 TUI：
+
+```bash
+pasarguard tui
+```
+
+更多信息，您可以阅读 [PasarGuard TUI 的文档](./tui/README.md)。
+
 # Node
 
 PasarGuard项目引入了[node](https://github.com/PasarGuard/node)，它彻底改变了基础设施的分布。通过node，您可以将您的基础设施分布到多个位置，从而获得冗余、高可用性、可伸缩性、灵活性等好处。node使用户能够连接到不同的服务器，为他们提供了选择和连接多个服务器的灵活性，而不是仅限于一个服务器。

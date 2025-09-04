@@ -1,5 +1,3 @@
-
-
 # Contribute to PasarGuard
 
 Thanks for considering contributing to **PasarGuard**!
@@ -8,17 +6,17 @@ Thanks for considering contributing to **PasarGuard**!
 
 Please **don’t use GitHub Issues** to ask questions. Instead, use one of the following platforms:
 
-* 💬 Telegram: [@Pasar_Guard](https://t.me/pasar_guard)
-* 🗣️ GitHub Discussions: [PasarGuard Discussions](https://github.com/pasarguard/panel/discussions)
+-   💬 Telegram: [@Pasar_Guard](https://t.me/pasar_guard)
+-   🗣️ GitHub Discussions: [PasarGuard Discussions](https://github.com/pasarguard/panel/discussions)
 
 ## 🐞 Reporting Issues
 
 When reporting a bug or issue, please include:
 
-* ✅ What you expected to happen
-* ❌ What actually happened (include server logs or browser errors)
-* ⚙️ Your `xray` JSON config and `.env` settings (censor sensitive info)
-* 🔢 Your PasarGuard version and Docker version (if applicable)
+-   ✅ What you expected to happen
+-   ❌ What actually happened (include server logs or browser errors)
+-   ⚙️ Your `xray` JSON config and `.env` settings (censor sensitive info)
+-   🔢 Your PasarGuard version and Docker version (if applicable)
 
 ---
 
@@ -28,15 +26,15 @@ If there's no open issue for your idea, consider opening one for discussion **be
 
 You can contribute to any issue that:
 
-* Has no PR linked
-* Has no maintainer assigned
+-   Has no PR linked
+-   Has no maintainer assigned
 
 No need to ask for permission!
 
 ## 🔀 Branching Strategy
 
-* Always branch off of the `next` branch
-* Keep `master` stable and production-ready
+-   Always branch off of the `next` branch
+-   Keep `master` stable and production-ready
 
 ---
 
@@ -46,6 +44,7 @@ No need to ask for permission!
 .
 ├── app          # Backend code (FastAPI - Python)
 ├── cli          # CLI code (Typer - Python)
+├── tui          # TUI code (Textual - Python)
 ├── dashboard    # Frontend code (React - TypeScript)
 └── tests        # API tests
 ```
@@ -56,10 +55,10 @@ No need to ask for permission!
 
 The backend is built with **FastAPI** and **SQLAlchemy**:
 
-* **Pydantic models**: `app/models`
-* **Database models & operations**: `app/db`
-* **backend logic should go in**: `app/operations`
-* **Migrations (Alembic)**: `app/db/migrations`
+-   **Pydantic models**: `app/models`
+-   **Database models & operations**: `app/db`
+-   **backend logic should go in**: `app/operations`
+-   **Migrations (Alembic)**: `app/db/migrations`
 
 🧩 **Note**: Ensure **all backend logic is organized and implemented in the `operations` module**. This keeps route handling, database access, and service logic clearly separated and easier to maintain.
 
@@ -67,8 +66,8 @@ The backend is built with **FastAPI** and **SQLAlchemy**:
 
 Enable the `DOCS` flag in your `.env` file to access:
 
-* Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
-* ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+-   Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+-   ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ### 🎯 Code Formatting
 
@@ -95,8 +94,8 @@ make run-migration
 
 The frontend is located in the `dashboard` directory and is built using:
 
-* **React + TypeScript**
-* **Tailwind CSS (Shadcn UI)**
+-   **React + TypeScript**
+-   **Tailwind CSS (Shadcn UI)**
 
 To build:
 
@@ -108,17 +107,25 @@ Remove the `dashboard/build` directory and restart the Python backend — the fr
 
 ### 🧩 Component Guidelines
 
-* Follow **Tailwind + Shadcn** best practices
-* Keep components **single-purpose**
-* Prioritize **readability** and **maintainability**
+-   Follow **Tailwind + Shadcn** best practices
+-   Keep components **single-purpose**
+-   Prioritize **readability** and **maintainability**
 
 ---
 
 ## 🛠️ PasarGuard CLI
 
-PasarGuard’s CLI is built using [Textual](https://textual.textualize.io/).
+PasarGuard’s CLI is built using [Typer](https://typer.tiangolo.com/).
 
-* CLI codebase: `cli/`
+-   CLI codebase: `cli/`
+
+---
+
+## 🛠️ PasarGuard TUI
+
+PasarGuard’s TUI is built using [Textual](https://textual.textualize.io/).
+
+-   TUI codebase: `tui/`
 
 ---
 

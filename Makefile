@@ -94,6 +94,12 @@ run:
 run-cli:
 	@uv run pasarguard-cli.py
 
+# run pasarguard-tui
+.PHONY: run-tui
+run-tui:
+	@uv run pasarguard-tui.py
+
+
 # Run tests
 .PHONY: test
 test:

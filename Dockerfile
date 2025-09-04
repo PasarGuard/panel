@@ -28,8 +28,12 @@ WORKDIR /code
 
 ENV PATH="/code/.venv/bin:$PATH"
 
-COPY cli_wrapper.sh /usr/bin/marzban-cli
-RUN chmod +x /usr/bin/marzban-cli
+COPY cli_wrapper.sh /usr/bin/pasargaurd-cli
+RUN chmod +x /usr/bin/pasargaurd-cli
+
+COPY tui_wrapper.sh /usr/bin/pasargaurd-tui
+RUN chmod +x /usr/bin/pasargaurd-tui
+
 RUN chmod +x /code/start.sh
 
 ENTRYPOINT ["/code/start.sh"]

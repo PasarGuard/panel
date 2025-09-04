@@ -1,7 +1,7 @@
 from textual.app import ComposeResult
 from textual.widgets import Static, Button
 from textual.containers import Container
-from cli import BaseModal
+from tui import BaseModal
 
 
 class HelpModal(BaseModal):
