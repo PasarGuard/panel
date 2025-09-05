@@ -34,7 +34,7 @@ No need to ask for permission!
 ## 🔀 Branching Strategy
 
 -   Always branch off of the `next` branch
--   Keep `master` stable and production-ready
+-   Keep `main` stable and production-ready
 
 ---
 
