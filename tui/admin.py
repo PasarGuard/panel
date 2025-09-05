@@ -15,11 +15,11 @@ from app.db.models import Admin, User
 from app.models.admin import AdminCreate, AdminDetails, AdminModify
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
-from app.utils.helpers import format_cli_validation_error, readable_datetime
+from app.utils.helpers import readable_datetime
 from app.utils.system import readable_size
 from tui import BaseModal
 
-SYSTEM_ADMIN = AdminDetails(username="cli", is_sudo=True, telegram_id=None, discord_webhook=None)
+SYSTEM_ADMIN = AdminDetails(username="tui", is_sudo=True, telegram_id=None, discord_webhook=None)
 
 
 class AdminDelete(BaseModal):
@@ -92,11 +92,20 @@ class AdminResetUsage(BaseModal):
 
 
 class AdminCreateModale(BaseModal):
-    def __init__(self, db: AsyncSession, operation: AdminOperation, on_close: callable, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        db: AsyncSession,
+        operation: AdminOperation,
+        on_close: callable,
+        format_tui_validation_error: callable,
+        *args,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.db = db
         self.operation = operation
         self.on_close = on_close
+        self.format_tui_validation_error = format_tui_validation_error
 
     def compose(self) -> ComposeResult:
         with Container(classes="modal-box-form"):
@@ -160,7 +169,7 @@ class AdminCreateModale(BaseModal):
                 await self.key_escape()
                 self.on_close()
             except ValidationError as e:
-                format_cli_validation_error(e, self.notify)
+                self.format_tui_validation_error(e)
             except ValueError as e:
                 self.notify(str(e), severity="error", title="Error")
         elif event.button.id == "cancel":
@@ -169,13 +178,21 @@ class AdminCreateModale(BaseModal):
 
 class AdminModifyModale(BaseModal):
     def __init__(
-        self, db: AsyncSession, operation: AdminOperation, admin: Admin, on_close: callable, *args, **kwargs
+        self,
+        db: AsyncSession,
+        operation: AdminOperation,
+        admin: Admin,
+        on_close: callable,
+        format_tui_validation_error: callable,
+        *args,
+        **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.db = db
         self.operation = operation
         self.admin = admin
         self.on_close = on_close
+        self.format_tui_validation_error = format_tui_validation_error
 
     def compose(self) -> ComposeResult:
         with Container(classes="modal-box-form"):
@@ -253,7 +270,7 @@ class AdminModifyModale(BaseModal):
                 await self.key_escape()
                 self.on_close()
             except ValidationError as e:
-                format_cli_validation_error(e, self.notify)
+                self.format_tui_validation_error(e)
             except ValueError as e:
                 self.notify(str(e), severity="error", title="Error")
         elif event.button.id == "cancel":
@@ -362,9 +379,11 @@ class AdminContent(Static):
             label = Text(f"{i + offset}")
             i += 1
             self.table.add_row(*centered_row, key=adnin.username, label=label)
-        
+
         total_pages = (self.total_admins + self.page_size - 1) // self.page_size
-        self.pagination_info.update(f"Page {self.current_page}/{total_pages} (Total admins: {self.total_admins})\nPress `n` for go to the next page and `p` to back to previose page")
+        self.pagination_info.update(
+            f"Page {self.current_page}/{total_pages} (Total admins: {self.total_admins})\nPress `n` for go to the next page and `p` to back to previose page"
+        )
 
     @property
     def selected_admin(self):
@@ -379,13 +398,19 @@ class AdminContent(Static):
         self.run_worker(self.admins_list)
 
     async def action_create_admin(self):
-        self.app.push_screen(AdminCreateModale(self.db, self.admin_operator, self._refresh_table))
+        self.app.push_screen(
+            AdminCreateModale(self.db, self.admin_operator, self._refresh_table, self.format_tui_validation_error)
+        )
 
     async def action_modify_admin(self):
         if not self.table.columns:
             return
         admin = await self.admin_operator.get_validated_admin(self.db, username=self.selected_admin)
-        self.app.push_screen(AdminModifyModale(self.db, self.admin_operator, admin, self._refresh_table))
+        self.app.push_screen(
+            AdminModifyModale(
+                self.db, self.admin_operator, admin, self._refresh_table, self.format_tui_validation_error
+            )
+        )
 
     async def action_import_from_env(self):
         try:
@@ -414,7 +439,7 @@ class AdminContent(Static):
             self.notify("Admin created successfully", severity="success", title="Success")
             self._refresh_table()
         except ValidationError as e:
-            format_cli_validation_error(e, self.notify)
+            self.format_tui_validation_error(e)
         except ValueError as e:
             self.notify(str(e), severity="error", title="Error")
 
@@ -445,3 +470,12 @@ class AdminContent(Static):
     async def on_prune(self, event):
         await self.db.close()
         return await super().on_prune(event)
+
+    def format_tui_validation_error(self, errors: ValidationError):
+        for error in errors.errors():
+            for err in error["msg"].split(";"):
+                self.notify(
+                    title=f"Error: {error['loc'][0].replace('_', ' ').capitalize()}",
+                    message=err.strip(),
+                    severity="error",
+                )

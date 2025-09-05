@@ -57,15 +57,6 @@ def format_validation_error(error: ValidationError) -> str:
     return "\n".join([e["loc"][0].replace("_", " ").capitalize() + ": " + e["msg"] for e in error.errors()])
 
 
-def format_cli_validation_error(errors: ValidationError, notify: callable):
-    for error in errors.errors():
-        for err in error["msg"].split(";"):
-            notify(
-                title=f"Error: {error['loc'][0].replace('_', ' ').capitalize()}",
-                message=err.strip(),
-                severity="error",
-            )
-
 
 def escape_tg_html(list: tuple[str]) -> tuple[str]:
     """Escapes HTML special characters for the telegram HTML parser."""
