@@ -10,12 +10,9 @@ from typing import Optional
 
 import typer
 
-from app.db.models import UserStatus
 from cli import console
 from cli.admin import create_admin, delete_admin, list_admins, modify_admin, reset_admin_usage
-from cli.node import list_nodes
 from cli.system import show_status
-from cli.users import list_users
 
 # Initialize Typer app
 app = typer.Typer(
@@ -54,22 +51,6 @@ def admins(
         asyncio.run(modify_admin(modify))
     elif reset_usage:
         asyncio.run(reset_admin_usage(reset_usage))
-
-
-@app.command()
-def users(
-    status: Optional[UserStatus] = typer.Option(None, "--status", "-s", help="Filter by status"),
-    offset: int = typer.Option(0, "--offset", "-o", help="Offset for pagination"),
-    limit: int = typer.Option(10, "--limit", "-n", help="Limit number of results"),
-):
-    """List user accounts."""
-    asyncio.run(list_users(status, offset, limit))
-
-
-@app.command()
-def nodes():
-    """List all nodes."""
-    asyncio.run(list_nodes())
 
 
 @app.command()

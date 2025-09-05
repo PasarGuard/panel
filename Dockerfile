@@ -28,11 +28,11 @@ WORKDIR /code
 
 ENV PATH="/code/.venv/bin:$PATH"
 
-COPY cli_wrapper.sh /usr/bin/PasarGuard-cli
-RUN chmod +x /usr/bin/PasarGuard-cli
+COPY cli_wrapper.sh /usr/bin/pasarguard-cli
+RUN chmod +x /usr/bin/pasarguard-cli
 
-COPY tui_wrapper.sh /usr/bin/PasarGuard-tui
-RUN chmod +x /usr/bin/PasarGuard-tui
+COPY tui_wrapper.sh /usr/bin/pasarguard-tui
+RUN chmod +x /usr/bin/pasarguard-tui
 
 RUN chmod +x /code/start.sh
 

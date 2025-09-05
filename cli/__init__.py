@@ -11,10 +11,7 @@ from rich.table import Table
 from app.models.admin import AdminDetails
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
-from app.operation.group import GroupOperation
-from app.operation.node import NodeOperation
 from app.operation.system import SystemOperation
-from app.operation.user import UserOperation
 
 # Initialize console for rich output
 console = Console()
@@ -26,21 +23,6 @@ SYSTEM_ADMIN = AdminDetails(username="cli", is_sudo=True, telegram_id=None, disc
 def get_admin_operation() -> AdminOperation:
     """Get admin operation instance."""
     return AdminOperation(OperatorType.CLI)
-
-
-def get_user_operation() -> UserOperation:
-    """Get user operation instance."""
-    return UserOperation(OperatorType.CLI)
-
-
-def get_group_operation() -> GroupOperation:
-    """Get group operation instance."""
-    return GroupOperation(OperatorType.CLI)
-
-
-def get_node_operation() -> NodeOperation:
-    """Get node operation instance."""
-    return NodeOperation(OperatorType.CLI)
 
 
 def get_system_operation() -> SystemOperation:
