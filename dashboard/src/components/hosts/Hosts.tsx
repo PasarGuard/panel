@@ -1,4 +1,4 @@
-import { BaseHost, CreateHost, createHost, modifyHosts } from '@/service/api'
+import { BaseHost, CreateHost, createHost, CreateHostTransportSettings, modifyHosts } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
@@ -673,7 +673,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
         fragment_settings: host.fragment_settings,
         noise_settings: host.noise_settings,
         mux_settings: host.mux_settings,
-        transport_settings: host.transport_settings as any, // Type cast needed due to Output/Input mismatch
+        transport_settings: host.transport_settings as CreateHostTransportSettings, // Type cast needed due to Output/Input mismatch
         http_headers: host.http_headers || {},
       }
 
@@ -685,13 +685,15 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
       // Refresh the hosts data
       refreshHostsData()
     } catch (error) {
+      console.log(error);
       // Show error toast
       toast.error(t('host.duplicateFailed', { name: host.remark || '' }))
     }
   }
-  const cleanEmptyValues = (obj: any) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const cleanEmptyValues = (obj: object) => {
     if (!obj) return undefined
-    const cleaned: any = {}
+    const cleaned: { [key: string]: unknown } = {}
     for (const [key, value] of Object.entries(obj)) {
       if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0) || (typeof value === 'object' && Object.keys(value).length === 0)) {
         continue
@@ -767,6 +769,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
     return () => {
       clearTimeout(handler)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hosts])
 
   // Save debounced hosts to the server
