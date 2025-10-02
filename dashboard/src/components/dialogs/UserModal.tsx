@@ -38,7 +38,6 @@ import { toast } from 'sonner'
 import { v4 as uuidv4, v5 as uuidv5, v7 as uuidv7 } from 'uuid'
 import { z } from 'zod'
 
-
 interface UserModalProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
@@ -275,95 +274,95 @@ const ExpiryDateField = ({
               </div>
             </FormControl>
           </PopoverTrigger>
-        <PopoverContent
-          className="w-auto p-0"
-          align="start"
-          onInteractOutside={(e: Event) => {
-            e.preventDefault()
-            setCalendarOpen(false)
-          }}
-          onEscapeKeyDown={() => setCalendarOpen(false)}
-        >
-          {usePersianCalendar ? (
-            <PersianCalendar
-              mode="single"
-              selected={displayDate || undefined}
-              onSelect={handleDateSelect}
-              disabled={isDateDisabled}
-              captionLayout="dropdown"
-              defaultMonth={displayDate || now}
-              startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
-              endMonth={new Date(now.getFullYear() + 15, 11, 31)}
-              formatters={{
-                formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
-              }}
-            />
-          ) : (
-            <Calendar
-              mode="single"
-              selected={displayDate || undefined}
-              onSelect={handleDateSelect}
-              disabled={isDateDisabled}
-              captionLayout="dropdown"
-              defaultMonth={displayDate || now}
-              startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
-              endMonth={new Date(now.getFullYear() + 15, 11, 31)}
-              formatters={{
-                formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
-              }}
-            />
-          )}
-          <div className="flex items-center gap-4 border-t p-3">
-            <FormControl>
-              <Input
-                type="time"
-                value={
-                  displayDate
-                    ? displayDate.toLocaleTimeString('sv-SE', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      })
-                    : now.toLocaleTimeString('sv-SE', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      })
-                }
-                min={
-                  displayDate && displayDate.toDateString() === now.toDateString()
-                    ? now.toLocaleTimeString('sv-SE', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      })
-                    : undefined
-                }
-                onChange={handleTimeChange}
-              />
-            </FormControl>
-            {displayDate && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={e => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  field.onChange('')
-                  handleFieldChange(fieldName, undefined)
-                  setCalendarOpen(false)
+          <PopoverContent
+            className="w-auto p-0"
+            align="start"
+            onInteractOutside={(e: Event) => {
+              e.preventDefault()
+              setCalendarOpen(false)
+            }}
+            onEscapeKeyDown={() => setCalendarOpen(false)}
+          >
+            {usePersianCalendar ? (
+              <PersianCalendar
+                mode="single"
+                selected={displayDate || undefined}
+                onSelect={handleDateSelect}
+                disabled={isDateDisabled}
+                captionLayout="dropdown"
+                defaultMonth={displayDate || now}
+                startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
+                endMonth={new Date(now.getFullYear() + 15, 11, 31)}
+                formatters={{
+                  formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
                 }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              />
+            ) : (
+              <Calendar
+                mode="single"
+                selected={displayDate || undefined}
+                onSelect={handleDateSelect}
+                disabled={isDateDisabled}
+                captionLayout="dropdown"
+                defaultMonth={displayDate || now}
+                startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
+                endMonth={new Date(now.getFullYear() + 15, 11, 31)}
+                formatters={{
+                  formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
+                }}
+              />
             )}
-          </div>
-        </PopoverContent>
+            <div className="flex items-center gap-4 border-t p-3">
+              <FormControl>
+                <Input
+                  type="time"
+                  value={
+                    displayDate
+                      ? displayDate.toLocaleTimeString('sv-SE', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })
+                      : now.toLocaleTimeString('sv-SE', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })
+                  }
+                  min={
+                    displayDate && displayDate.toDateString() === now.toDateString()
+                      ? now.toLocaleTimeString('sv-SE', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })
+                      : undefined
+                  }
+                  onChange={handleTimeChange}
+                />
+              </FormControl>
+              {displayDate && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    field.onChange('')
+                    handleFieldChange(fieldName, undefined)
+                    setCalendarOpen(false)
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </PopoverContent>
         </Popover>
         {expireInfo && (
-          <p className={cn("absolute top-full mt-1 text-xs text-muted-foreground whitespace-nowrap", !expireInfo.time && 'hidden',dir ==="rtl" ? 'right-0' : 'left-0')}  >
+          <p className={cn('absolute top-full mt-1 whitespace-nowrap text-xs text-muted-foreground', !expireInfo.time && 'hidden', dir === 'rtl' ? 'right-0' : 'left-0')}>
             {expireInfo.time !== '0' && expireInfo.time !== '0s'
               ? t('expires', { time: expireInfo.time, defaultValue: 'Expires in {{time}}' })
               : t('expired', { time: expireInfo.time, defaultValue: 'Expired in {{time}}' })}
@@ -383,7 +382,7 @@ const StatusSelect = ({
   onValueChange,
   placeholder,
   children,
-  disabled
+  disabled,
 }: {
   value?: string
   onValueChange?: (value: string) => void
@@ -403,32 +402,30 @@ const StatusSelect = ({
     if (!statusValue) return placeholder || t('userDialog.selectStatus', { defaultValue: 'Select status' })
 
     switch (statusValue) {
-      case 'active': return t('status.active', { defaultValue: 'Active' })
-      case 'disabled': return t('status.disabled', { defaultValue: 'Disabled' })
-      case 'on_hold': return t('status.on_hold', { defaultValue: 'On Hold' })
-      default: return placeholder || t('userDialog.selectStatus', { defaultValue: 'Select status' })
+      case 'active':
+        return t('status.active', { defaultValue: 'Active' })
+      case 'disabled':
+        return t('status.disabled', { defaultValue: 'Disabled' })
+      case 'on_hold':
+        return t('status.on_hold', { defaultValue: 'On Hold' })
+      default:
+        return placeholder || t('userDialog.selectStatus', { defaultValue: 'Select status' })
     }
   }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between h-9 px-3 py-2 text-sm"
-          disabled={disabled}
-        >
+        <Button variant="outline" role="combobox" aria-expanded={open} className="h-9 w-full justify-between px-3 py-2 text-sm" disabled={disabled}>
           <span className="truncate">{getStatusText(value)}</span>
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
-        {React.Children.map(children, (child) => {
+        {React.Children.map(children, child => {
           if (React.isValidElement(child) && child.props.value) {
             return React.cloneElement(child, {
-              onSelect: handleSelect
+              onSelect: handleSelect,
             })
           }
           return child
@@ -438,30 +435,26 @@ const StatusSelect = ({
   )
 }
 
-const StatusSelectItem = ({
-  value,
-  children,
-  onSelect
-}: {
-  value: string
-  children: React.ReactNode
-  onSelect?: (value: string) => void
-}) => {
+const StatusSelectItem = ({ value, children, onSelect }: { value: string; children: React.ReactNode; onSelect?: (value: string) => void }) => {
   const getDotColor = () => {
     switch (value) {
-      case 'active': return 'bg-green-500'
-      case 'disabled': return 'bg-zinc-500'
-      case 'on_hold': return 'bg-violet-500'
-      default: return 'bg-gray-500'
+      case 'active':
+        return 'bg-green-500'
+      case 'disabled':
+        return 'bg-zinc-500'
+      case 'on_hold':
+        return 'bg-violet-500'
+      default:
+        return 'bg-gray-500'
     }
   }
 
   return (
     <div
-      className="relative flex w-full min-w-0 cursor-pointer select-none items-center rounded-sm py-2 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors"
+      className="relative flex w-full min-w-0 cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
       onClick={() => onSelect?.(value)}
     >
-      <span className="truncate min-w-0 flex-1 pr-2">{children}</span>
+      <span className="min-w-0 flex-1 truncate pr-2">{children}</span>
       <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
         <div className={`h-2 w-2 rounded-full ${getDotColor()}`} />
       </span>
@@ -490,7 +483,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const { i18n } = useTranslation()
   const isPersianLocale = i18n.language === 'fa'
   const [usePersianCalendar, setUsePersianCalendar] = useState(isPersianLocale)
-
 
   // Reset calendar state when modal opens/closes
   useEffect(() => {
@@ -700,7 +692,8 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       const duration = form.getValues('on_hold_expire_duration')
       const touched = touchedFields['on_hold_expire_duration']
       // Only set default if the field hasn't been touched by user and has no value
-      if (!touched && (!duration || duration < 1)) {        const defaultDuration = 30 * 24 * 60 * 60 // 7 days in seconds
+      if (!touched && (!duration || duration < 1)) {
+        const defaultDuration = 30 * 24 * 60 * 60 // 7 days in seconds
         form.setValue('on_hold_expire_duration', defaultDuration)
         handleFieldChange('on_hold_expire_duration', defaultDuration)
       }
@@ -793,9 +786,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       // Special case for Next Plan enabled - if Next Plan is enabled and no other fields are touched,
       // consider the form valid (Next Plan fields are optional)
       if (nextPlanEnabled && editingUser && !isSubmit) {
-        const hasTouchedNonNextPlanFields = Object.keys(touchedFields).some(key => 
-          key !== 'next_plan' && !key.startsWith('next_plan.') && touchedFields[key]
-        )
+        const hasTouchedNonNextPlanFields = Object.keys(touchedFields).some(key => key !== 'next_plan' && !key.startsWith('next_plan.') && touchedFields[key])
         if (!hasTouchedNonNextPlanFields) {
           form.clearErrors()
           return true
@@ -804,8 +795,8 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
       // Only validate fields that have been touched
       const fieldsToValidate = isSubmit
-          ? currentValues
-          : Object.keys(touchedFields).reduce((acc, key) => {
+        ? currentValues
+        : Object.keys(touchedFields).reduce((acc, key) => {
             if (touchedFields[key]) {
               acc[key] = currentValues[key]
             }
@@ -902,10 +893,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
             },
           })
           toast.success(
-              t('userDialog.userEdited', {
-                username: values.username,
-                defaultValue: 'User «{{name}}» has been updated successfully',
-              }),
+            t('userDialog.userEdited', {
+              username: values.username,
+              defaultValue: 'User «{{name}}» has been updated successfully',
+            }),
           )
         } else {
           await createUserFromTemplateMutation.mutateAsync({
@@ -916,24 +907,22 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
             },
           })
           toast.success(
-              t('userDialog.userCreated', {
-                username: values.username,
-                defaultValue: 'User «{{name}}» has been created successfully',
-              }),
+            t('userDialog.userCreated', {
+              username: values.username,
+              defaultValue: 'User «{{name}}» has been created successfully',
+            }),
           )
         }
 
         onOpenChange(false)
         form.reset()
         setSelectedTemplateId(null)
-
       } catch (error: any) {
-          const fields = ['username' ,'note']
-          handleError({ error, fields, form, contextKey: 'users' })
+        const fields = ['username', 'note']
+        handleError({ error, fields, form, contextKey: 'users' })
       } finally {
         setLoading(false)
       }
-
     },
     [editingUser, selectedTemplateId, form, onOpenChange, t],
   )
@@ -1068,9 +1057,9 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
   // Helper for cryptographically secure random integer
   function getRandomInt(max: number): number {
-    const array = new Uint32Array(1);
-    window.crypto.getRandomValues(array);
-    return array[0] % max;
+    const array = new Uint32Array(1)
+    window.crypto.getRandomValues(array)
+    return array[0] % max
   }
 
   function generateUsername() {
@@ -1159,7 +1148,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     }
   }, [isDialogOpen, form, editingUser, status])
 
-
   // State for UUID version per field
   const [uuidVersions, setUuidVersions] = useState({
     vmess: 'v4',
@@ -1204,7 +1192,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   useEffect(() => {
     setUsePersianCalendar(i18n.language === 'fa')
   }, [i18n.language])
-
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
@@ -1360,7 +1347,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                             control={form.control}
                             name="data_limit"
                             render={({ field }) => (
-                              <FormItem className="flex-1 h-full">
+                              <FormItem className="h-full flex-1">
                                 <FormLabel>{t('userDialog.dataLimit', { defaultValue: 'Data Limit (GB)' })}</FormLabel>
                                 <FormControl>
                                   <Input
@@ -1369,7 +1356,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                     min="0"
                                     placeholder={t('userDialog.dataLimit', { defaultValue: 'e.g. 1' })}
                                     {...field}
-                                    value={field.value ? field.value : '' }
+                                    value={field.value ? field.value : ''}
                                     onChange={e => {
                                       const value = e.target.value === '' ? 0 : parseFloat(e.target.value)
                                       if (!isNaN(value) && value >= 0) {
@@ -1423,70 +1410,68 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                           )}
                         </>
                       )}
-                      <div className="flex items-start gap-4 lg:w-52 h-full">
+                      <div className="flex h-full items-start gap-4 lg:w-52">
                         {status === 'on_hold' ? (
-                            <FormField
-                                control={form.control}
-                                name="on_hold_expire_duration"
-                                render={({ field }) => {
-                                  const hasError = !!form.formState.errors.on_hold_expire_duration
-                                  const fieldValue = field.value ? Math.round(field.value / (24 * 60 * 60)): ''
-                                  const isZeroOrEmpty = fieldValue === 0 || fieldValue === ''
-                                  const isTouched = touchedFields['on_hold_expire_duration']
+                          <FormField
+                            control={form.control}
+                            name="on_hold_expire_duration"
+                            render={({ field }) => {
+                              const hasError = !!form.formState.errors.on_hold_expire_duration
+                              const fieldValue = field.value ? Math.round(field.value / (24 * 60 * 60)) : ''
+                              const isZeroOrEmpty = fieldValue === 0 || fieldValue === ''
+                              const isTouched = touchedFields['on_hold_expire_duration']
 
-                                  return (
-                                      <FormItem className="flex-1">
-                                        <FormLabel>{t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration (days)' })}</FormLabel>
-                                        <FormControl>
-                                          <Input
-                                              type="number"
-                                              min="1"
-                                              isError={hasError || (isTouched && isZeroOrEmpty)}
-                                              placeholder={t('userDialog.onHoldExpireDurationPlaceholder', { defaultValue: 'e.g. 7' })}
-                                              {...field}
-                                              value={fieldValue ? fieldValue : ''}
-                                              onChange={e => {
-                                                // Allow empty string for deletion
-                                                if (e.target.value === '') {
-                                                  field.onChange(0)
-                                                  handleFieldChange('on_hold_expire_duration', 0)
-                                                  // Mark field as touched to prevent auto-default
-                                                  setTouchedFields(prev => ({ ...prev, on_hold_expire_duration: true }))
-                                                } else {
-                                                  const value = parseInt(e.target.value, 10)
-                                                  if (!isNaN(value) && value >= 0) {
-                                                    field.onChange(value ? value * (24 * 60 * 60) : 0)
-                                                    handleFieldChange('on_hold_expire_duration', value)
-                                                    // Mark field as touched
-                                                    setTouchedFields(prev => ({ ...prev, on_hold_expire_duration: true }))
-                                                  }
-                                                }
-                                              }}
-                                              onBlur={() => {
-                                                handleFieldBlur('on_hold_expire_duration')
-                                                // Set validation error if value is 0 or empty
-                                                if (fieldValue === 0 || fieldValue === '') {
-                                                  form.setError('on_hold_expire_duration', {
-                                                    type: 'manual',
-                                                    message: t('validation.required', { field: t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }) }),
-                                                  })
-                                                } else {
-                                                  // Clear error if value is valid
-                                                  form.clearErrors('on_hold_expire_duration')
-                                                }
-                                              }}
-                                          />
-                                        </FormControl>
-                                        <FormMessage />
-                                        {isTouched && isZeroOrEmpty && !hasError && (
-                                            <p className="text-sm text-destructive">
-                                              {t('validation.required', { field: t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }) })}
-                                            </p>
-                                        )}
-                                      </FormItem>
-                                  )
-                                }}
-                            />
+                              return (
+                                <FormItem className="flex-1">
+                                  <FormLabel>{t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration (days)' })}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      isError={hasError || (isTouched && isZeroOrEmpty)}
+                                      placeholder={t('userDialog.onHoldExpireDurationPlaceholder', { defaultValue: 'e.g. 7' })}
+                                      {...field}
+                                      value={fieldValue ? fieldValue : ''}
+                                      onChange={e => {
+                                        // Allow empty string for deletion
+                                        if (e.target.value === '') {
+                                          field.onChange(0)
+                                          handleFieldChange('on_hold_expire_duration', 0)
+                                          // Mark field as touched to prevent auto-default
+                                          setTouchedFields(prev => ({ ...prev, on_hold_expire_duration: true }))
+                                        } else {
+                                          const value = parseInt(e.target.value, 10)
+                                          if (!isNaN(value) && value >= 0) {
+                                            field.onChange(value ? value * (24 * 60 * 60) : 0)
+                                            handleFieldChange('on_hold_expire_duration', value)
+                                            // Mark field as touched
+                                            setTouchedFields(prev => ({ ...prev, on_hold_expire_duration: true }))
+                                          }
+                                        }
+                                      }}
+                                      onBlur={() => {
+                                        handleFieldBlur('on_hold_expire_duration')
+                                        // Set validation error if value is 0 or empty
+                                        if (fieldValue === 0 || fieldValue === '') {
+                                          form.setError('on_hold_expire_duration', {
+                                            type: 'manual',
+                                            message: t('validation.required', { field: t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }) }),
+                                          })
+                                        } else {
+                                          // Clear error if value is valid
+                                          form.clearErrors('on_hold_expire_duration')
+                                        }
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                  {isTouched && isZeroOrEmpty && !hasError && (
+                                    <p className="text-sm text-destructive">{t('validation.required', { field: t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }) })}</p>
+                                  )}
+                                </FormItem>
+                              )
+                            }}
+                          />
                         ) : (
                           <FormField
                             control={form.control}
@@ -1547,7 +1532,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                       </FormItem>
                     )}
                   />
-
 
                   {/* Proxy Settings Accordion */}
                   {activeTab === 'groups' && (
@@ -1832,13 +1816,16 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                           <ListStart className="h-4 w-4" />
                           <div>{t('userDialog.nextPlanTitle', { defaultValue: 'Next Plan' })}</div>
                         </div>
-                        <Switch checked={nextPlanEnabled} onCheckedChange={value => {
-                          setNextPlanEnabled(value)
-                          // Trigger validation when Next Plan toggle changes
-                          const currentValues = form.getValues()
-                          const isValid = validateAllFields(currentValues, touchedFields)
-                          setIsFormValid(isValid)
-                        }} />
+                        <Switch
+                          checked={nextPlanEnabled}
+                          onCheckedChange={value => {
+                            setNextPlanEnabled(value)
+                            // Trigger validation when Next Plan toggle changes
+                            const currentValues = form.getValues()
+                            const isValid = validateAllFields(currentValues, touchedFields)
+                            setIsFormValid(isValid)
+                          }}
+                        />
                       </div>
                       {nextPlanEnabled && (
                         <div className="flex flex-col gap-4 py-4">
@@ -1941,12 +1928,15 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                               control={form.control}
                               name="next_plan.add_remaining_traffic"
                               render={({ field }) => (
-                                  <FormItem className="flex flex-row items-center justify-between w-full">
+                                <FormItem className="flex w-full flex-row items-center justify-between">
                                   <FormLabel>{t('userDialog.nextPlanAddRemainingTraffic', { defaultValue: 'Add Remaining Traffic' })}</FormLabel>
-                                  <Switch checked={!!field.value} onCheckedChange={value => {
-                                    field.onChange(value)
-                                    handleFieldChange('next_plan.add_remaining_traffic', value)
-                                  }} />
+                                  <Switch
+                                    checked={!!field.value}
+                                    onCheckedChange={value => {
+                                      field.onChange(value)
+                                      handleFieldChange('next_plan.add_remaining_traffic', value)
+                                    }}
+                                  />
                                   <FormMessage />
                                 </FormItem>
                               )}
@@ -2058,7 +2048,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         </Form>
       </DialogContent>
       {/* Subscription Clients Modal */}
-      
     </Dialog>
   )
 }

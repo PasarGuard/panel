@@ -88,7 +88,7 @@ export default function Settings() {
         // Helper function to extract nested error messages
         const extractErrorMessages = (obj: any, prefix = ''): string[] => {
           const messages: string[] = []
-          
+
           if (typeof obj === 'string') {
             messages.push(prefix ? `${prefix}: ${obj}` : obj)
           } else if (Array.isArray(obj)) {
@@ -101,7 +101,7 @@ export default function Settings() {
               messages.push(...extractErrorMessages(value, newPrefix))
             })
           }
-          
+
           return messages
         }
 
@@ -210,7 +210,7 @@ export default function Settings() {
         <div className="relative w-full">
           <div className="flex border-b">
             <div className="w-full">
-              <div className="scrollbar-hide flex lg:flex-wrap overflow-x-auto border-b px-4">
+              <div className="scrollbar-hide flex overflow-x-auto border-b px-4 lg:flex-wrap">
                 {tabs.map(tab => {
                   const isActive = activeTab === tab.id
                   return (

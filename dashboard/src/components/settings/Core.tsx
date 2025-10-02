@@ -25,9 +25,9 @@ export default function Core({ core, onEdit, onDuplicate, onDelete }: CoreProps)
   }
 
   return (
-    <Card className="px-4 py-5 relative group h-full hover:bg-accent transition-colors cursor-pointer" onClick={() => onEdit(core)}>
+    <Card className="group relative h-full cursor-pointer px-4 py-5 transition-colors hover:bg-accent" onClick={() => onEdit(core)}>
       <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div className={cn('min-h-2 min-w-2 rounded-full', 'bg-green-500')} />
@@ -35,40 +35,40 @@ export default function Core({ core, onEdit, onDuplicate, onDelete }: CoreProps)
             </div>
           </div>
         </div>
-        <div onClick={(e) => e.stopPropagation()}>
+        <div onClick={e => e.stopPropagation()}>
           <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onSelect={e => {
-                e.stopPropagation()
-                onEdit(core)
-              }}
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              {t('edit')}
-            </DropdownMenuItem>
-            {onDuplicate && (
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
               <DropdownMenuItem
                 onSelect={e => {
                   e.stopPropagation()
-                  onDuplicate()
+                  onEdit(core)
                 }}
               >
-                <Copy className="h-4 w-4 mr-2" />
-                {t('duplicate')}
+                <Pencil className="mr-2 h-4 w-4" />
+                {t('edit')}
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              {t('delete')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {onDuplicate && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onDuplicate()
+                  }}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  {t('duplicate')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('delete')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </Card>

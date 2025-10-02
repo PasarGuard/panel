@@ -184,11 +184,7 @@ export const Login: FC = () => {
         <div className="flex w-full items-center justify-center">
           <div className="mt-6 w-full max-w-[340px]">
             <div className="flex flex-col items-center gap-2">
-              <img
-                src={resolvedTheme === 'dark' ? '/statics/favicon/logo.png' : '/statics/favicon/logo-dark.png'}
-                alt="PasarGuard Logo"
-                className="h-20 w-20 object-contain"
-              />
+              <img src={resolvedTheme === 'dark' ? '/statics/favicon/logo.png' : '/statics/favicon/logo-dark.png'} alt="PasarGuard Logo" className="h-20 w-20 object-contain" />
               <span className="text-2xl font-semibold">{t('login.loginYourAccount')}</span>
               <span className="text-gray-600 dark:text-gray-400">{t('login.welcomeBack')}</span>
             </div>

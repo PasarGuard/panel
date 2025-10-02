@@ -132,7 +132,7 @@ export default function CleanupSettings() {
         onError: (error: any) => {
           // Extract detailed error message
           let errorMessage = t('settings.cleanup.expiredUsers.deleteFailed')
-          
+
           if (error?.data?.detail) {
             const detail = error.data.detail
             if (typeof detail === 'string') {
@@ -156,7 +156,7 @@ export default function CleanupSettings() {
           } else if (error?.message) {
             errorMessage = error.message
           }
-          
+
           toast.error(t('settings.cleanup.expiredUsers.deleteFailed'), {
             description: errorMessage,
           })
@@ -184,7 +184,7 @@ export default function CleanupSettings() {
       onError: (error: any) => {
         // Extract detailed error message
         let errorMessage = t('settings.cleanup.resetUsage.resetFailed')
-        
+
         if (error?.data?.detail) {
           const detail = error.data.detail
           if (typeof detail === 'string') {
@@ -208,7 +208,7 @@ export default function CleanupSettings() {
         } else if (error?.message) {
           errorMessage = error.message
         }
-        
+
         toast.error(t('settings.cleanup.resetUsage.resetFailed'), {
           description: errorMessage,
         })
@@ -238,7 +238,7 @@ export default function CleanupSettings() {
         onError: (error: any) => {
           // Extract detailed error message
           let errorMessage = t('settings.cleanup.clearUsageData.clearFailed')
-          
+
           if (error?.data?.detail) {
             const detail = error.data.detail
             if (typeof detail === 'string') {
@@ -262,7 +262,7 @@ export default function CleanupSettings() {
           } else if (error?.message) {
             errorMessage = error.message
           }
-          
+
           toast.error(t('settings.cleanup.clearUsageData.clearFailed'), {
             description: errorMessage,
           })

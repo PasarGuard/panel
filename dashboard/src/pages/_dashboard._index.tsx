@@ -325,9 +325,7 @@ const Dashboard = () => {
 
   // Only send admin_username if selectedAdmin is explicitly set and not 'Total'
   // When current admin is selected, we want to show their specific stats, not global stats
-  const systemStatsParams = is_sudo && selectedAdmin && selectedAdmin.username !== 'Total' 
-    ? { admin_username: selectedAdmin.username } 
-    : undefined
+  const systemStatsParams = is_sudo && selectedAdmin && selectedAdmin.username !== 'Total' ? { admin_username: selectedAdmin.username } : undefined
 
   const { data: systemStatsData } = useGetSystemStats(systemStatsParams, {
     query: {
@@ -379,9 +377,7 @@ const Dashboard = () => {
                               {selectedAdmin?.username === 'Total' ? <Sigma className="h-3 w-3" /> : selectedAdmin?.username?.charAt(0).toUpperCase() || '?'}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="truncate text-xs sm:text-sm">
-                            {selectedAdmin?.username === 'Total' ? t('admins.total') : selectedAdmin?.username || t('advanceSearch.selectAdmin')}
-                          </span>
+                          <span className="truncate text-xs sm:text-sm">{selectedAdmin?.username === 'Total' ? t('admins.total') : selectedAdmin?.username || t('advanceSearch.selectAdmin')}</span>
                           {selectedAdmin && selectedAdmin.username !== 'Total' && (
                             <div className="flex-shrink-0">{selectedAdmin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}</div>
                           )}

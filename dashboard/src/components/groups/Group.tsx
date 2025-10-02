@@ -68,60 +68,60 @@ export default function Group({ group, onEdit, onToggleStatus }: GroupProps) {
         description: t('group.deleteFailed', {
           name: group.name,
           defaultValue: 'Failed to delete group "{name}"',
-        })
+        }),
       })
     }
   }
 
   return (
     <>
-      <Card className="px-4 py-5 relative group h-full hover:bg-accent transition-colors cursor-pointer" onClick={() => onEdit(group)}>
+      <Card className="group relative h-full cursor-pointer px-4 py-5 transition-colors hover:bg-accent" onClick={() => onEdit(group)}>
         <div className="flex items-center gap-3">
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div className={cn('min-h-2 min-w-2 rounded-full', group.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
               <div className="flex items-center gap-2">
-                <div className="font-medium truncate">{group.name}</div>
+                <div className="truncate font-medium">{group.name}</div>
                 <div className="font-mono text-xs text-muted-foreground">({group.inbound_tags?.length || 0})</div>
               </div>
             </div>
-            <div className="text-sm text-muted-foreground truncate">
+            <div className="truncate text-sm text-muted-foreground">
               {t('admins.total.users')}: {group.total_users || 0}
             </div>
           </div>
-          <div onClick={(e) => e.stopPropagation()}>
+          <div onClick={e => e.stopPropagation()}>
             <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onToggleStatus(group)
-                }}
-              >
-                <Power className="h-4 w-4 mr-2" />
-                {group.is_disabled ? t('enable') : t('disable')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onEdit(group)
-                }}
-              >
-                <Pencil className="h-4 w-4 mr-2" />
-                {t('edit')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                {t('delete')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onToggleStatus(group)
+                  }}
+                >
+                  <Power className="mr-2 h-4 w-4" />
+                  {group.is_disabled ? t('enable') : t('disable')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onEdit(group)
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t('edit')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t('delete')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </Card>

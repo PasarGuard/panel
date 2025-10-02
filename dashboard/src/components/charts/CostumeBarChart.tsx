@@ -59,18 +59,40 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<any, any> & 
   if (i18n.language === 'fa') {
     try {
       if (period === 'day' && isToday) {
-        formattedDate = new Date().toLocaleString('fa-IR', {
-          year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-        }).replace(',', '')
+        formattedDate = new Date()
+          .toLocaleString('fa-IR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
+          .replace(',', '')
       } else if (period === 'day') {
         const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-        formattedDate = localDate.toLocaleString('fa-IR', {
-          year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-        }).replace(',', '')
+        formattedDate = localDate
+          .toLocaleString('fa-IR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
+          .replace(',', '')
       } else {
-        formattedDate = d.toDate().toLocaleString('fa-IR', {
-          year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-        }).replace(',', '')
+        formattedDate = d
+          .toDate()
+          .toLocaleString('fa-IR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
+          .replace(',', '')
       }
     } catch {
       formattedDate = d.format('YYYY/MM/DD HH:mm')
@@ -78,42 +100,69 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<any, any> & 
   } else {
     if (period === 'day' && isToday) {
       const now = new Date()
-      formattedDate = now.toLocaleString('en-US', {
-        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-      }).replace(',', '')
+      formattedDate = now
+        .toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+        .replace(',', '')
     } else if (period === 'day') {
       const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-      formattedDate = localDate.toLocaleString('en-US', {
-        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-      }).replace(',', '')
+      formattedDate = localDate
+        .toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+        .replace(',', '')
     } else {
-      formattedDate = d.toDate().toLocaleString('en-US', {
-        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-      }).replace(',', '')
+      formattedDate = d
+        .toDate()
+        .toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+        .replace(',', '')
     }
   }
 
   const isRTL = i18n.language === 'fa'
 
   return (
-    <div
-      className={`rounded border border-border bg-background shadow min-w-[140px] text-[11px] p-2 ${isRTL ? 'text-right' : 'text-left'}`}
-      dir={isRTL ? 'rtl' : 'ltr'}
-    >
-      <div className={`mb-1.5 font-semibold text-[11px] opacity-70 ${isRTL ? 'text-right' : 'text-center'}`}>
-        <span dir="ltr" className="inline-block">{formattedDate}</span>
+    <div className={`min-w-[140px] rounded border border-border bg-background p-2 text-[11px] shadow ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className={`mb-1.5 text-[11px] font-semibold opacity-70 ${isRTL ? 'text-right' : 'text-center'}`}>
+        <span dir="ltr" className="inline-block">
+          {formattedDate}
+        </span>
       </div>
-      <div className={`mb-1.5 text-muted-foreground text-[11px] ${isRTL ? 'text-right' : 'text-center'}`}>
+      <div className={`mb-1.5 text-[11px] text-muted-foreground ${isRTL ? 'text-right' : 'text-center'}`}>
         <span>{t('statistics.totalUsage', { defaultValue: 'Total' })}: </span>
-        <span dir="ltr" className="inline-block font-mono">{data.usage} GB</span>
+        <span dir="ltr" className="inline-block font-mono">
+          {data.usage} GB
+        </span>
       </div>
       <div className={`flex flex-col gap-1`}>
-        <div className={`flex items-center gap-1 text-muted-foreground text-[10px] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div className={`flex items-center gap-1 text-[10px] text-muted-foreground ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
           <Upload className="h-3 w-3 flex-shrink-0" />
-          <span dir="ltr" className="inline-block font-mono">{formatBytes(data._uplink)}</span>
+          <span dir="ltr" className="inline-block font-mono">
+            {formatBytes(data._uplink)}
+          </span>
           <span className={`opacity-60 ${isRTL ? 'mx-1' : 'mx-1'}`}>|</span>
           <Download className="h-3 w-3 flex-shrink-0" />
-          <span dir="ltr" className="inline-block font-mono">{formatBytes(data._downlink)}</span>
+          <span dir="ltr" className="inline-block font-mono">
+            {formatBytes(data._downlink)}
+          </span>
         </div>
       </div>
     </div>
@@ -238,7 +287,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
       }
       if (from) {
         // For 1w and 3d, set to end of current day to avoid extra bar
-        const to = (selectedTime === '1w' || selectedTime === '3d') ? dateUtils.toDayjs(now).endOf('day').toDate() : now
+        const to = selectedTime === '1w' || selectedTime === '3d' ? dateUtils.toDayjs(now).endOf('day').toDate() : now
         setDateRange({ from, to })
       }
     }
@@ -247,96 +296,102 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   return (
     <Card>
       <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 sm:flex-row">
-        <div className="flex flex-1 flex-col sm:flex-row gap-1 px-4 sm:px-6 py-4 sm:py-6 border-b">
-          <div className="flex flex-1 flex-col justify-center align-middle gap-1 px-1 py-1">
+        <div className="flex flex-1 flex-col gap-1 border-b px-4 py-4 sm:flex-row sm:px-6 sm:py-6">
+          <div className="flex flex-1 flex-col justify-center gap-1 px-1 py-1 align-middle">
             <CardTitle className="text-sm sm:text-base">{t('statistics.trafficUsage')}</CardTitle>
             <CardDescription className="text-xs sm:text-sm">{t('statistics.trafficUsageDescription')}</CardDescription>
           </div>
-          <div className="px-1 py-1 flex justify-center align-middle flex-col gap-2">
-            <div className="flex gap-2 items-center">
+          <div className="flex flex-col justify-center gap-2 px-1 py-1 align-middle">
+            <div className="flex items-center gap-2">
               {showCustomRange ? (
-                <TimeRangeSelector onRangeChange={range => { setDateRange(range); setShowCustomRange(true); }} initialRange={dateRange} />
+                <TimeRangeSelector
+                  onRangeChange={range => {
+                    setDateRange(range)
+                    setShowCustomRange(true)
+                  }}
+                  initialRange={dateRange}
+                />
               ) : (
-                <TimeSelector selectedTime={selectedTime} setSelectedTime={v => { setSelectedTime(v); setShowCustomRange(false); }} />
+                <TimeSelector
+                  selectedTime={selectedTime}
+                  setSelectedTime={v => {
+                    setSelectedTime(v)
+                    setShowCustomRange(false)
+                  }}
+                />
               )}
-              <button type="button" aria-label="Custom Range" className={`rounded p-1 border ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
+              <button type="button" aria-label="Custom Range" className={`rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
                 <Calendar className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
-        <div className="sm:border-l p-4 sm:p-6 m-0 flex flex-col justify-center px-2 sm:px-4">
-          <span className="text-muted-foreground text-xs">{t('statistics.usageDuringPeriod')}</span>
-          <span dir='ltr' className="text-foreground text-base sm:text-lg flex justify-center">{isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage}</span>
+        <div className="m-0 flex flex-col justify-center p-4 px-2 sm:border-l sm:p-6 sm:px-4">
+          <span className="text-xs text-muted-foreground">{t('statistics.usageDuringPeriod')}</span>
+          <span dir="ltr" className="flex justify-center text-base text-foreground sm:text-lg">
+            {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage}
+          </span>
         </div>
       </CardHeader>
-      <CardContent dir={dir} className="pt-4 sm:pt-8 px-4 sm:px-6">
+      <CardContent dir={dir} className="px-4 pt-4 sm:px-6 sm:pt-8">
         {isLoading ? (
-          <div className="max-h-[300px] sm:max-h-[400px] min-h-[150px] sm:min-h-[200px] w-full flex items-center justify-center">
-            <Skeleton className="h-[250px] sm:h-[300px] w-full" />
+          <div className="flex max-h-[300px] min-h-[150px] w-full items-center justify-center sm:max-h-[400px] sm:min-h-[200px]">
+            <Skeleton className="h-[250px] w-full sm:h-[300px]" />
           </div>
         ) : error ? (
-          <EmptyState type="error" className="max-h-[300px] sm:max-h-[400px] min-h-[150px] sm:min-h-[200px]" />
+          <EmptyState type="error" className="max-h-[300px] min-h-[150px] sm:max-h-[400px] sm:min-h-[200px]" />
         ) : !dateRange ? (
-          <EmptyState 
-            type="no-data" 
+          <EmptyState
+            type="no-data"
             title={t('statistics.selectTimeRange')}
             description={t('statistics.selectTimeRangeDescription')}
-            icon={<TrendingUp className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground/50" />}
-            className="max-h-[300px] sm:max-h-[400px] min-h-[150px] sm:min-h-[200px]" 
+            icon={<TrendingUp className="h-8 w-8 text-muted-foreground/50 sm:h-12 sm:w-12" />}
+            className="max-h-[300px] min-h-[150px] sm:max-h-[400px] sm:min-h-[200px]"
           />
         ) : (
-          <div className="w-full max-w-7xl mx-auto">
-            <ChartContainer 
-              dir={'ltr'} 
-              config={chartConfig} 
-              className="max-h-[300px] sm:max-h-[400px] min-h-[150px] sm:min-h-[200px] w-full overflow-x-auto"
-            >
-            {chartData && chartData.length > 0 ? (
-              <BarChart 
-                accessibilityLayer 
-                data={chartData}
-                margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
-              >
-                <CartesianGrid direction={'ltr'} vertical={false} />
-                <XAxis 
-                  direction={'ltr'} 
-                  dataKey="time" 
-                  tickLine={false} 
-                  tickMargin={8} 
-                  axisLine={false}
-                  tick={{
-                    fill: 'hsl(var(--muted-foreground))',
-                    fontSize: 8,
-                    fontWeight: 500,
-                  }}
-                  minTickGap={5}
+          <div className="mx-auto w-full max-w-7xl">
+            <ChartContainer dir={'ltr'} config={chartConfig} className="max-h-[300px] min-h-[150px] w-full overflow-x-auto sm:max-h-[400px] sm:min-h-[200px]">
+              {chartData && chartData.length > 0 ? (
+                <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid direction={'ltr'} vertical={false} />
+                  <XAxis
+                    direction={'ltr'}
+                    dataKey="time"
+                    tickLine={false}
+                    tickMargin={8}
+                    axisLine={false}
+                    tick={{
+                      fill: 'hsl(var(--muted-foreground))',
+                      fontSize: 8,
+                      fontWeight: 500,
+                    }}
+                    minTickGap={5}
+                  />
+                  <YAxis
+                    direction={'ltr'}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={value => `${value.toFixed(2)} GB`}
+                    tick={{
+                      fill: 'hsl(var(--muted-foreground))',
+                      fontSize: 8,
+                      fontWeight: 500,
+                    }}
+                    width={28}
+                    tickMargin={2}
+                  />
+                  <ChartTooltip cursor={false} content={<CustomBarTooltip period={getPeriodFromDateRange(dateRange)} />} />
+                  <Bar dataKey="usage" fill="var(--color-usage)" radius={6} />
+                </BarChart>
+              ) : (
+                <EmptyState
+                  type="no-data"
+                  title={t('statistics.noDataInRange')}
+                  description={t('statistics.noDataInRangeDescription')}
+                  className="max-h-[300px] min-h-[150px] sm:max-h-[400px] sm:min-h-[200px]"
                 />
-                <YAxis 
-                  direction={'ltr'} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tickFormatter={value => `${value.toFixed(2)} GB`} 
-                  tick={{
-                    fill: 'hsl(var(--muted-foreground))',
-                    fontSize: 8,
-                    fontWeight: 500,
-                  }}
-                  width={28}
-                  tickMargin={2}
-                />
-                <ChartTooltip cursor={false} content={<CustomBarTooltip period={getPeriodFromDateRange(dateRange)} />} />
-                <Bar dataKey="usage" fill="var(--color-usage)" radius={6} />
-              </BarChart>
-            ) : (
-              <EmptyState 
-                type="no-data" 
-                title={t('statistics.noDataInRange')}
-                description={t('statistics.noDataInRangeDescription')}
-                className="max-h-[300px] sm:max-h-[400px] min-h-[150px] sm:min-h-[200px]" 
-              />
-            )}
-          </ChartContainer>
+              )}
+            </ChartContainer>
           </div>
         )}
       </CardContent>

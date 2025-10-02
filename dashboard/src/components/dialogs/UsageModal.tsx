@@ -16,8 +16,8 @@ import { TooltipProps } from 'recharts'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts'
 
 // Define allowed period keys
-const PERIOD_KEYS = ['1h', '12h', '24h', '3d', '1w'] as const;
-type PeriodKey = typeof PERIOD_KEYS[number];
+const PERIOD_KEYS = ['1h', '12h', '24h', '3d', '1w'] as const
+type PeriodKey = (typeof PERIOD_KEYS)[number]
 
 const getPeriodMap = (now: number) => ({
   '1h': { period: Period.minute, start: new Date(now - 60 * 60 * 1000) },
@@ -25,12 +25,12 @@ const getPeriodMap = (now: number) => ({
   '24h': { period: Period.hour, start: new Date(now - 24 * 60 * 60 * 1000) },
   '3d': { period: Period.day, start: new Date(now - 3 * 24 * 60 * 60 * 1000) },
   '1w': { period: Period.day, start: new Date(now - 7 * 24 * 60 * 60 * 1000) },
-});
+})
 
 interface UsageModalProps {
-  open: boolean;
-  onClose: () => void;
-  username: string;
+  open: boolean
+  onClose: () => void
+  username: string
 }
 
 // Move this hook to a separate file if reused elsewhere
@@ -38,22 +38,22 @@ const useWindowSize = () => {
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
-  });
+  })
 
   useEffect(() => {
     const handleResize = () => {
       setWindowSize({
         width: window.innerWidth,
         height: window.innerHeight,
-      });
-    };
+      })
+    }
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
-  return windowSize;
-};
+  return windowSize
+}
 
 function CustomBarTooltip({ active, payload }: TooltipProps<any, any>) {
   const { t, i18n } = useTranslation()
@@ -64,16 +64,21 @@ function CustomBarTooltip({ active, payload }: TooltipProps<any, any>) {
   if (i18n.language === 'fa' && typeof window !== 'undefined' && (window as any).Intl && (window as any).Intl.DateTimeFormat) {
     try {
       formattedDate = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
-        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
       }).format(new Date(data.local_period_start || data._period_start))
     } catch {}
   }
   return (
     <div
-      className={`rounded border border-border bg-gradient-to-br from-background to-muted/80 shadow min-w-[160px] text-xs p-2 ${i18n.language === 'fa' ? 'text-right' : 'text-left'}`}
+      className={`min-w-[160px] rounded border border-border bg-gradient-to-br from-background to-muted/80 p-2 text-xs shadow ${i18n.language === 'fa' ? 'text-right' : 'text-left'}`}
       dir={i18n.language === 'fa' ? 'rtl' : 'ltr'}
     >
-      <div className={`mb-1 font-semibold text-xs ${i18n.language === 'fa' ? 'text-right' : 'text-center'}`}>
+      <div className={`mb-1 text-xs font-semibold ${i18n.language === 'fa' ? 'text-right' : 'text-center'}`}>
         {t('statistics.date', { defaultValue: 'Date' })}: {formattedDate}
       </div>
       <div className="flex flex-col gap-0.5 text-xs">
@@ -88,10 +93,10 @@ function CustomBarTooltip({ active, payload }: TooltipProps<any, any>) {
 
 const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   // Memoize now only once per modal open
-  const nowRef = useRef<number>(Date.now());
+  const nowRef = useRef<number>(Date.now())
   useEffect(() => {
-    if (open) nowRef.current = Date.now();
-  }, [open]);
+    if (open) nowRef.current = Date.now()
+  }, [open])
 
   const [period, setPeriod] = useState<PeriodKey>('1w')
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
@@ -112,35 +117,35 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }, [is_sudo])
 
   // Fetch nodes list - only for sudo admins
-  const { data: nodes, isLoading: isLoadingNodes } = useGetNodes(undefined, { 
-    query: { 
-      enabled: open && is_sudo // Only fetch nodes for sudo admins when modal is open
-    } 
+  const { data: nodes, isLoading: isLoadingNodes } = useGetNodes(undefined, {
+    query: {
+      enabled: open && is_sudo, // Only fetch nodes for sudo admins when modal is open
+    },
   })
 
   // Memoize periodMap only when modal opens
-  const periodMap = useMemo(() => getPeriodMap(nowRef.current), [open]);
-  let backendPeriod: Period;
-  let start: Date;
-  let end: Date | undefined = undefined;
+  const periodMap = useMemo(() => getPeriodMap(nowRef.current), [open])
+  let backendPeriod: Period
+  let start: Date
+  let end: Date | undefined = undefined
 
   if (showCustomRange && customRange?.from && customRange?.to) {
-    backendPeriod = Period.day;
-    start = customRange.from;
-    end = customRange.to;
+    backendPeriod = Period.day
+    start = customRange.from
+    end = customRange.to
   } else {
-    const map = periodMap[period];
-    backendPeriod = map.period;
-    start = map.start;
+    const map = periodMap[period]
+    backendPeriod = map.period
+    start = map.start
   }
-  
+
   const userUsageParams = useMemo(() => {
     if (showCustomRange && customRange?.from && customRange?.to) {
       return {
         period: backendPeriod,
         start: start.toISOString(),
         end: dateUtils.toDayjs(customRange.to).endOf('day').toISOString(),
-        node_id: selectedNodeId
+        node_id: selectedNodeId,
       }
     }
     return { period: backendPeriod, start: start.toISOString(), node_id: selectedNodeId }
@@ -178,32 +183,32 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
     }
     let filtered = flatStats
     if ((period === '12h' || period === '24h') && !showCustomRange) {
-      if (!start || !end) return flatStats.map((point: any) => {
-        const dateObj = dateUtils.toDayjs(point.period_start)
-        let timeFormat
-        if (period === '12h' || period === '24h' || (showCustomRange && backendPeriod === Period.hour)) {
-          timeFormat = dateObj.format('HH:mm')
-        } else {
-          timeFormat = dateObj.format('MM/DD')
-        }
-        const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
-        return {
-          time: timeFormat,
-          usage: parseFloat(usageInGB.toFixed(2)),
-          _period_start: point.period_start,
-          local_period_start: dateObj.toISOString(),
-        }
-      })
-      const from = dateUtils.toDayjs(start as Date || new Date(0))
-      const to = dateUtils.toDayjs(end as Date || new Date(0))
+      if (!start || !end)
+        return flatStats.map((point: any) => {
+          const dateObj = dateUtils.toDayjs(point.period_start)
+          let timeFormat
+          if (period === '12h' || period === '24h' || (showCustomRange && backendPeriod === Period.hour)) {
+            timeFormat = dateObj.format('HH:mm')
+          } else {
+            timeFormat = dateObj.format('MM/DD')
+          }
+          const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
+          return {
+            time: timeFormat,
+            usage: parseFloat(usageInGB.toFixed(2)),
+            _period_start: point.period_start,
+            local_period_start: dateObj.toISOString(),
+          }
+        })
+      const from = dateUtils.toDayjs((start as Date) || new Date(0))
+      const to = dateUtils.toDayjs((end as Date) || new Date(0))
       filtered = filtered.filter((point: any) => {
         const pointTime = dateUtils.toDayjs(point.period_start)
-        return (pointTime.isSame(from) || pointTime.isAfter(from)) &&
-               (pointTime.isSame(to) || pointTime.isBefore(to))
+        return (pointTime.isSame(from) || pointTime.isAfter(from)) && (pointTime.isSame(to) || pointTime.isBefore(to))
       })
     } else if (showCustomRange && customRange?.from && customRange?.to) {
       filtered = filtered.filter((point: any) => {
-        if (!customRange.from || !customRange.to) return false;
+        if (!customRange.from || !customRange.to) return false
         const dateObj = dateUtils.toDayjs(point.period_start)
         return dateObj.isAfter(dateUtils.toDayjs(customRange.from).subtract(1, 'minute')) && dateObj.isBefore(dateUtils.toDayjs(customRange.to).add(1, 'minute'))
       })
@@ -246,38 +251,38 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
 
   // Handlers
   const handleCustomRangeChange = useCallback((range: DateRange | undefined) => {
-    setCustomRange(range);
+    setCustomRange(range)
     if (range?.from && range?.to) {
-      setShowCustomRange(true);
-      const diffHours = (range.to.getTime() - range.from.getTime()) / (1000 * 60 * 60);
-      if (diffHours <= 1) setPeriod('1h');
-      else if (diffHours <= 12) setPeriod('12h');
-      else if (diffHours <= 24) setPeriod('24h');
-      else if (diffHours <= 72) setPeriod('3d');
-      else setPeriod('1w');
+      setShowCustomRange(true)
+      const diffHours = (range.to.getTime() - range.from.getTime()) / (1000 * 60 * 60)
+      if (diffHours <= 1) setPeriod('1h')
+      else if (diffHours <= 12) setPeriod('12h')
+      else if (diffHours <= 24) setPeriod('24h')
+      else if (diffHours <= 72) setPeriod('3d')
+      else setPeriod('1w')
     }
-  }, []);
+  }, [])
 
   const handleTimeSelect = useCallback((newPeriod: PeriodKey) => {
-    setPeriod(newPeriod);
-    setShowCustomRange(false);
-    setCustomRange(undefined);
-  }, []);
+    setPeriod(newPeriod)
+    setShowCustomRange(false)
+    setCustomRange(undefined)
+  }, [])
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl p-0.5">
         <Card className="w-full border-none shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg sm:text-xl text-center">{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</CardTitle>
+            <CardTitle className="text-center text-lg sm:text-xl">{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</CardTitle>
             <CardDescription className="flex flex-col items-center gap-4 pt-4">
-              <div className="flex justify-center items-center gap-2 w-full">
+              <div className="flex w-full items-center justify-center gap-2">
                 <TimeSelector selectedTime={period} setSelectedTime={handleTimeSelect as any} />
                 <Button
                   variant="ghost"
                   size="icon"
                   aria-label={t('usersTable.selectCustomRange', { defaultValue: 'Select custom range' })}
-                  className={showCustomRange ? "text-primary" : ""}
+                  className={showCustomRange ? 'text-primary' : ''}
                   onClick={() => {
                     setShowCustomRange(!showCustomRange)
                     if (!showCustomRange) {
@@ -290,18 +295,14 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
               </div>
               {/* Node selector - only show for sudo admins */}
               {is_sudo && (
-                <div className="flex justify-center items-center gap-2 w-full">
-                  <Select
-                    value={selectedNodeId?.toString() || 'all'}
-                    onValueChange={(value) => setSelectedNodeId(value === 'all' ? undefined : Number(value))}
-                    disabled={isLoadingNodes}
-                  >
+                <div className="flex w-full items-center justify-center gap-2">
+                  <Select value={selectedNodeId?.toString() || 'all'} onValueChange={value => setSelectedNodeId(value === 'all' ? undefined : Number(value))} disabled={isLoadingNodes}>
                     <SelectTrigger className="w-full sm:w-[180px]">
                       <SelectValue placeholder={t('userDialog.selectNode', { defaultValue: 'Select Node' })} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t('userDialog.allNodes', { defaultValue: 'All Nodes' })}</SelectItem>
-                      {nodes?.map((node) => (
+                      {nodes?.map(node => (
                         <SelectItem key={node.id} value={node.id.toString()}>
                           {node.name}
                         </SelectItem>
@@ -311,32 +312,32 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                 </div>
               )}
               {showCustomRange && (
-                <div className="flex justify-center w-full">
-                  <TimeRangeSelector
-                    onRangeChange={handleCustomRangeChange}
-                    initialRange={customRange}
-                    className="w-full sm:w-auto"
-                  />
+                <div className="flex w-full justify-center">
+                  <TimeRangeSelector onRangeChange={handleCustomRangeChange} initialRange={customRange} className="w-full sm:w-auto" />
                 </div>
               )}
             </CardDescription>
           </CardHeader>
-          <CardContent dir='ltr' className="p-0 mb-0">
+          <CardContent dir="ltr" className="mb-0 p-0">
             <div className="w-full">
               {isLoading ? (
-                <div className="flex items-center justify-center h-60 w-full">
-                  <div className="animate-pulse w-full h-40 rounded-lg" />
+                <div className="flex h-60 w-full items-center justify-center">
+                  <div className="h-40 w-full animate-pulse rounded-lg" />
                 </div>
               ) : chartData.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-60 text-muted-foreground gap-2">
-                  <PieChart className="w-12 h-12 opacity-30" />
+                <div className="flex h-60 flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <PieChart className="h-12 w-12 opacity-30" />
                   <div className="text-lg font-medium">{t('usersTable.noUsageData', { defaultValue: 'No usage data available for this period.' })}</div>
                   <div className="text-sm">{t('usersTable.tryDifferentRange', { defaultValue: 'Try a different time range.' })}</div>
                 </div>
               ) : (
                 <ChartContainer config={chartConfig}>
                   <ResponsiveContainer width="100%" height={width < 500 ? 200 : 320}>
-                    <BarChart data={chartData} margin={{ top: 16, right: chartData.length > 7 ? 0 : 8, left: chartData.length > 7 ? 0 : 8, bottom: 8 }} barSize={Math.max(16, Math.min(40, Math.floor(width / (chartData.length * 1.5))))}>
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 16, right: chartData.length > 7 ? 0 : 8, left: chartData.length > 7 ? 0 : 8, bottom: 8 }}
+                      barSize={Math.max(16, Math.min(40, Math.floor(width / (chartData.length * 1.5))))}
+                    >
                       <CartesianGrid vertical={false} strokeDasharray="3 3" />
                       <XAxis dataKey="time" tickLine={false} tickMargin={10} axisLine={false} />
                       <YAxis tick={{ fontSize: 12 }} unit="GB" />
@@ -352,20 +353,18 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
               )}
             </div>
           </CardContent>
-          <CardFooter className="flex-col items-start gap-2 text-xs sm:text-sm mt-0">
+          <CardFooter className="mt-0 flex-col items-start gap-2 text-xs sm:text-sm">
             {trend !== null && trend > 0 && (
-              <div className="flex gap-2 leading-none font-medium text-green-600 dark:text-green-400">
+              <div className="flex gap-2 font-medium leading-none text-green-600 dark:text-green-400">
                 {t('usersTable.trendingUp', { defaultValue: 'Trending up by' })} {trend.toFixed(1)}% <TrendingUp className="h-4 w-4" />
               </div>
             )}
             {trend !== null && trend < 0 && (
-              <div className="flex gap-2 leading-none font-medium text-red-600 dark:text-red-400">
+              <div className="flex gap-2 font-medium leading-none text-red-600 dark:text-red-400">
                 {t('usersTable.trendingDown', { defaultValue: 'Trending down by' })} {Math.abs(trend).toFixed(1)}%
               </div>
             )}
-            <div className="text-muted-foreground leading-none">
-              {t('usersTable.usageSummary', { defaultValue: 'Showing total usage for the selected period.' })}
-            </div>
+            <div className="leading-none text-muted-foreground">{t('usersTable.usageSummary', { defaultValue: 'Showing total usage for the selected period.' })}</div>
           </CardFooter>
         </Card>
       </DialogContent>
@@ -373,4 +372,4 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   )
 }
 
-export default UsageModal 
+export default UsageModal

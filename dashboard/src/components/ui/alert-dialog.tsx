@@ -42,33 +42,13 @@ AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 const AlertDialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => {
   const dir = useDirDetection()
-  return (
-    <div
-      dir={dir}
-      className={cn(
-        'flex flex-col space-y-2',
-        dir === 'rtl' ? 'text-center sm:text-right' : 'text-center sm:text-left',
-        className
-      )}
-      {...props}
-    />
-  )
+  return <div dir={dir} className={cn('flex flex-col space-y-2', dir === 'rtl' ? 'text-center sm:text-right' : 'text-center sm:text-left', className)} {...props} />
 }
 AlertDialogHeader.displayName = 'AlertDialogHeader'
 
 const AlertDialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => {
   const dir = useDirDetection()
-  return (
-    <div
-      dir={dir}
-      className={cn(
-        'flex flex-col-reverse sm:flex-row sm:justify-end',
-        dir === "rtl" ? 'sm:space-x-reverse sm:space-x-2' : 'sm:space-x-2',
-        className
-      )}
-      {...props}
-    />
-  )
+  return <div dir={dir} className={cn('flex flex-col-reverse sm:flex-row sm:justify-end', dir === 'rtl' ? 'sm:space-x-2 sm:space-x-reverse' : 'sm:space-x-2', className)} {...props} />
 }
 AlertDialogFooter.displayName = 'AlertDialogFooter'
 

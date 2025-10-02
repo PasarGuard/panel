@@ -25,8 +25,8 @@ Copy `example.env` to `.env` then set the backend api address:
 
 #### Environment variables
 
-| Name          | Description                                                                          |
-| ------------- | ------------------------------------------------------------------------------------ |
+| Name          | Description                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------- |
 | VITE_BASE_API | The api url of the deployed backend ([PasarGuard](https://github.com/PasarGuard/panel.git)) |
 
 ## Start development server

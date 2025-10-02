@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { debounce } from 'es-toolkit'
-import {RefreshCw, SearchIcon, Filter, X} from 'lucide-react'
+import { RefreshCw, SearchIcon, Filter, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGetUsers, UserStatus } from '@/service/api'
@@ -84,11 +84,7 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
   const hasActiveAdvanceFilters = () => {
     if (!advanceSearchForm) return false
     const values = advanceSearchForm.getValues()
-    return (
-      (values.admin && values.admin.length > 0) ||
-      (values.group && values.group.length > 0) ||
-      values.status !== '0'
-    )
+    return (values.admin && values.admin.length > 0) || (values.group && values.group.length > 0) || values.status !== '0'
   }
 
   // Get the count of active advance filters
@@ -103,69 +99,46 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
   }
 
   return (
-      <div dir={dir} className="flex items-center gap-4 py-4">
-        {/* Search Input */}
-        <div className="relative w-full md:w-[calc(100%/3-10px)]">
-          <SearchIcon
-              className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2 ', 'top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 text-input-placeholder')}/>
-          <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10 "/>
-          {search && (
-              <button onClick={clearSearch}
-                      className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
-                <X className="w-4 h-4"/>
-              </button>
-          )}
-        </div>
-        <div className="flex h-full items-center gap-1">
-          <Button 
-            size="icon-md" 
-            variant="ghost" 
-            className="flex items-center gap-2 border relative"
-            onClick={handleOpenAdvanceSearch}
-          >
-            <Filter className="h-4 w-4"/>
-            {hasActiveAdvanceFilters() && (
-              <Badge 
-                variant="destructive" 
-                className="absolute -top-1 -right-1 h-4 w-4 rounded-full p-0 text-xs flex items-center justify-center"
-              >
-                {getActiveFiltersCount()}
-              </Badge>
-            )}
-          </Button>
-          {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={cn(
-                    "h-8 w-8 p-0",
-                    dir === 'rtl' ? "border-r-0 rounded-r-none" : "border-l-0 rounded-l-none"
-                  )}
-                  onClick={onClearAdvanceSearch}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent 
-                className="w-auto p-2" 
-                side={dir === 'rtl' ? 'left' : 'right'}
-                align="center"
-              >
-                <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
-        {/* Refresh Button */}
-        <div className="flex items-center gap-2 h-full">
-          <Button size="icon-md" onClick={handleRefreshClick} variant="ghost" className="flex items-center gap-2 border"
-                  disabled={isRefreshing}>
-            <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')}/>
-          </Button>
-        </div>
+    <div dir={dir} className="flex items-center gap-4 py-4">
+      {/* Search Input */}
+      <div className="relative w-full md:w-[calc(100%/3-10px)]">
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
+        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10" />
+        {search && (
+          <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
+      <div className="flex h-full items-center gap-1">
+        <Button size="icon-md" variant="ghost" className="relative flex items-center gap-2 border" onClick={handleOpenAdvanceSearch}>
+          <Filter className="h-4 w-4" />
+          {hasActiveAdvanceFilters() && (
+            <Badge variant="destructive" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-xs">
+              {getActiveFiltersCount()}
+            </Badge>
+          )}
+        </Button>
+        {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" className={cn('h-8 w-8 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
+                <X className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" side={dir === 'rtl' ? 'left' : 'right'} align="center">
+              <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+      {/* Refresh Button */}
+      <div className="flex h-full items-center gap-2">
+        <Button size="icon-md" onClick={handleRefreshClick} variant="ghost" className="flex items-center gap-2 border" disabled={isRefreshing}>
+          <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -235,7 +208,7 @@ export const PaginationControls = ({ currentPage, totalPages, itemsPerPage, isLo
   const paginationRange = getPaginationRange(currentPage, totalPages)
   const dir = useDirDetection()
   return (
-    <div className="mt-4 flex flex-col-reverse md:flex-row gap-4 items-center justify-between">
+    <div className="mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
       <div className="flex items-center gap-2">
         <Select value={itemsPerPage.toString()} onValueChange={value => onItemsPerPageChange(parseInt(value, 10))} disabled={isLoading}>
           <SelectTrigger className="w-[70px]">
@@ -251,7 +224,7 @@ export const PaginationControls = ({ currentPage, totalPages, itemsPerPage, isLo
             </SelectGroup>
           </SelectContent>
         </Select>
-        <span className="text-sm text-muted-foreground whitespace-nowrap">{t('itemsPerPage')}</span>
+        <span className="whitespace-nowrap text-sm text-muted-foreground">{t('itemsPerPage')}</span>
       </div>
 
       <Pagination dir="ltr" className={`md:justify-end ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
@@ -274,7 +247,7 @@ export const PaginationControls = ({ currentPage, totalPages, itemsPerPage, isLo
                 >
                   {isLoading && currentPage === pageNumber ? (
                     <div className="flex items-center">
-                      <LoaderCircle className="h-3 w-3 mr-1 animate-spin" />
+                      <LoaderCircle className="mr-1 h-3 w-3 animate-spin" />
                       {(pageNumber as number) + 1}
                     </div>
                   ) : (

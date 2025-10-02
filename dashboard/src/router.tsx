@@ -55,130 +55,250 @@ const fetchAdminLoader = async (): Promise<any> => {
 // Wrap all route elements in <Suspense fallback={<LoadingSpinner />}>
 export const router = createHashRouter([
   {
-    element: <Suspense fallback={<LoadingSpinner />}><DashboardLayout /></Suspense>,
-    errorElement: <Suspense fallback={<LoadingSpinner />}><Login /></Suspense>,
+    element: (
+      <Suspense fallback={<LoadingSpinner />}>
+        <DashboardLayout />
+      </Suspense>
+    ),
+    errorElement: (
+      <Suspense fallback={<LoadingSpinner />}>
+        <Login />
+      </Suspense>
+    ),
     loader: fetchAdminLoader,
-          children: [
-        {
-          path: '/',
-          index: true,
-          element: <Suspense fallback={<LoadingSpinner />}><Dashboard /></Suspense>,
-        },
-        {
-          path: '/users',
-          element: <Suspense fallback={<LoadingSpinner />}><Users /></Suspense>,
-        },
-        {
-          path: '/statistics',
-          element: <Suspense fallback={<LoadingSpinner />}><Statistics /></Suspense>,
-        },
-        {
-          path: '/hosts',
-          element: <Suspense fallback={<LoadingSpinner />}><Hosts /></Suspense>,
-        },
-        {
-          path: '/nodes',
-          element: <Suspense fallback={<LoadingSpinner />}><Nodes /></Suspense>,
-          children: [
-            {
-              path: '/nodes',
-              element: <Suspense fallback={<LoadingSpinner />}><NodesPage /></Suspense>,
-            },
-            {
-              path: '/nodes/cores',
-              element: <Suspense fallback={<LoadingSpinner />}><CoreSettings /></Suspense>,
-            },
-            {
-              path: '/nodes/logs',
-              element: <Suspense fallback={<LoadingSpinner />}><NodeLogs /></Suspense>,
-            },
-          ],
-        },
-        {
-          path: '/groups',
-          element: <Suspense fallback={<LoadingSpinner />}><Groups /></Suspense>,
-        },
-        {
-          path: '/templates',
-          element: <Suspense fallback={<LoadingSpinner />}><UserTemplates /></Suspense>,
-        },
-        {
-          path: '/admins',
-          element: <Suspense fallback={<LoadingSpinner />}><AdminsPage /></Suspense>,
-        },
-              {
-          path: '/settings',
-          element: <Suspense fallback={<LoadingSpinner />}><Settings /></Suspense>,
-          children: [
-            {
-              path: '/settings',
-              index: true,
-              element: <Suspense fallback={<LoadingSpinner />}><SettingsIndex /></Suspense>,
-            },
-            {
-              path: '/settings/general',
-              element: <Suspense fallback={<LoadingSpinner />}><GeneralSettings /></Suspense>,
-            },
-            {
-              path: '/settings/notifications',
-              element: <Suspense fallback={<LoadingSpinner />}><NotificationSettings /></Suspense>,
-            },
-            {
-              path: '/settings/subscriptions',
-              element: <Suspense fallback={<LoadingSpinner />}><SubscriptionSettings /></Suspense>,
-            },
-            {
-              path: '/settings/telegram',
-              element: <Suspense fallback={<LoadingSpinner />}><TelegramSettings /></Suspense>,
-            },
-            {
-              path: '/settings/discord',
-              element: <Suspense fallback={<LoadingSpinner />}><DiscordSettings /></Suspense>,
-            },
-            {
-              path: '/settings/webhook',
-              element: <Suspense fallback={<LoadingSpinner />}><WebhookSettings /></Suspense>,
-            },
-            {
-              path: '/settings/cleanup',
-              element: <Suspense fallback={<LoadingSpinner />}><CleanupSettings /></Suspense>,
-            },
-            {
-              path: '/settings/theme',
-              element: <Suspense fallback={<LoadingSpinner />}><ThemePage /></Suspense>,
-            },
-          ],
-        },
-              {
-          path: '/bulk',
-          element: <Suspense fallback={<LoadingSpinner />}><BulkPage /></Suspense>,
-          children: [
-            {
-              path: '/bulk',
-              element: <Suspense fallback={<LoadingSpinner />}><BulkGroupsPage /></Suspense>,
-            },
-            {
-              path: '/bulk/proxy',
-              element: <Suspense fallback={<LoadingSpinner />}><BulkProxyPage /></Suspense>,
-            },
-            {
-              path: '/bulk/expire',
-              element: <Suspense fallback={<LoadingSpinner />}><BulkExpirePage /></Suspense>,
-            },
-            {
-              path: '/bulk/data',
-              element: <Suspense fallback={<LoadingSpinner />}><BulkDataPage /></Suspense>,
-            },
-          ],
-        },
-        {
-          path: 'theme',
-          element: <Suspense fallback={<LoadingSpinner />}><ThemePage /></Suspense>,
-        },
-      ],
-    },
-    {
-      path: '/login',
-      element: <Suspense fallback={<LoadingSpinner />}><Login /></Suspense>,
-    },
+    children: [
+      {
+        path: '/',
+        index: true,
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <Dashboard />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/users',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <Users />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/statistics',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <Statistics />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/hosts',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <Hosts />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/nodes',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <Nodes />
+          </Suspense>
+        ),
+        children: [
+          {
+            path: '/nodes',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <NodesPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/nodes/cores',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <CoreSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/nodes/logs',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <NodeLogs />
+              </Suspense>
+            ),
+          },
+        ],
+      },
+      {
+        path: '/groups',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <Groups />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/templates',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <UserTemplates />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/admins',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <AdminsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/settings',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <Settings />
+          </Suspense>
+        ),
+        children: [
+          {
+            path: '/settings',
+            index: true,
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <SettingsIndex />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/general',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <GeneralSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/notifications',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <NotificationSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/subscriptions',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <SubscriptionSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/telegram',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <TelegramSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/discord',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <DiscordSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/webhook',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <WebhookSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/cleanup',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <CleanupSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/theme',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <ThemePage />
+              </Suspense>
+            ),
+          },
+        ],
+      },
+      {
+        path: '/bulk',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <BulkPage />
+          </Suspense>
+        ),
+        children: [
+          {
+            path: '/bulk',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <BulkGroupsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/bulk/proxy',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <BulkProxyPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/bulk/expire',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <BulkExpirePage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/bulk/data',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <BulkDataPage />
+              </Suspense>
+            ),
+          },
+        ],
+      },
+      {
+        path: 'theme',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <ThemePage />
+          </Suspense>
+        ),
+      },
+    ],
+  },
+  {
+    path: '/login',
+    element: (
+      <Suspense fallback={<LoadingSpinner />}>
+        <Login />
+      </Suspense>
+    ),
+  },
 ] as RouteObject[])

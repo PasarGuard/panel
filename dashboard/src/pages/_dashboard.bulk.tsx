@@ -68,7 +68,7 @@ const BulkPage = () => {
         <PageHeader {...getPageHeaderProps()} />
       </PageTransition>
       <div className="w-full">
-        <div className="scrollbar-hide flex lg:flex-wrap overflow-x-auto border-b px-4">
+        <div className="scrollbar-hide flex overflow-x-auto border-b px-4 lg:flex-wrap">
           {tabs.map(tab => (
             <button
               key={tab.id}

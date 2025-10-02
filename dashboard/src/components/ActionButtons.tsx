@@ -66,7 +66,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const userForm = useForm<UseEditFormValues>({
     defaultValues: {
       username: user.username,
-      status: user.status === "expired" || user.status === "limited" ? "active" : user.status,
+      status: user.status === 'expired' || user.status === 'limited' ? 'active' : user.status,
       data_limit: user.data_limit ? Math.round((Number(user.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : undefined, // Convert bytes to GB
       expire: user.expire,
       note: user.note || '',
@@ -88,7 +88,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   useEffect(() => {
     const values: UseFormValues = {
       username: user.username,
-      status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? user.status as any : 'active',
+      status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as any) : 'active',
       data_limit: user.data_limit ? Math.round((Number(user.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
       expire: user.expire, // Pass raw expire value (timestamp)
       note: user.note || '',

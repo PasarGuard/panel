@@ -12,7 +12,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import UserModal from '../dialogs/UserModal'
 import { PaginationControls } from './filters'
-import AdvanceSearchModal, { AdvanceSearchFormValue } from "@/components/dialogs/AdvanceSearchModal.tsx";
+import AdvanceSearchModal, { AdvanceSearchFormValue } from '@/components/dialogs/AdvanceSearchModal.tsx'
 
 const UsersTable = memo(() => {
   const { t } = useTranslation()
@@ -24,8 +24,8 @@ const UsersTable = memo(() => {
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
-  const { admin } = useAdmin();
-  const isSudo = admin?.is_sudo || false;
+  const { admin } = useAdmin()
+  const isSudo = admin?.is_sudo || false
 
   const [filters, setFilters] = useState({
     limit: itemsPerPage,
@@ -37,7 +37,6 @@ const UsersTable = memo(() => {
     is_protocol: false, // add is_protocol
   })
 
-
   const advanceSearchForm = useForm<AdvanceSearchFormValue>({
     defaultValues: {
       is_username: true,
@@ -45,7 +44,7 @@ const UsersTable = memo(() => {
       admin: [],
       group: [],
       status: '0',
-    }
+    },
   })
 
   // Create form for user editing
@@ -63,11 +62,11 @@ const UsersTable = memo(() => {
       proxy_settings: selectedUser?.proxy_settings || undefined,
       next_plan: selectedUser?.next_plan
         ? {
-          user_template_id: selectedUser?.next_plan.user_template_id ? Number(selectedUser?.next_plan.user_template_id) : undefined,
-          data_limit: selectedUser?.next_plan.data_limit ? Number(selectedUser?.next_plan.data_limit) : undefined,
-          expire: selectedUser?.next_plan.expire ? Number(selectedUser?.next_plan.expire) : undefined,
-          add_remaining_traffic: selectedUser?.next_plan.add_remaining_traffic || false,
-        }
+            user_template_id: selectedUser?.next_plan.user_template_id ? Number(selectedUser?.next_plan.user_template_id) : undefined,
+            data_limit: selectedUser?.next_plan.data_limit ? Number(selectedUser?.next_plan.data_limit) : undefined,
+            expire: selectedUser?.next_plan.expire ? Number(selectedUser?.next_plan.expire) : undefined,
+            add_remaining_traffic: selectedUser?.next_plan.add_remaining_traffic || false,
+          }
         : undefined,
     },
   })
@@ -88,11 +87,11 @@ const UsersTable = memo(() => {
         proxy_settings: selectedUser.proxy_settings || undefined,
         next_plan: selectedUser.next_plan
           ? {
-            user_template_id: selectedUser.next_plan.user_template_id ? Number(selectedUser.next_plan.user_template_id) : undefined,
-            data_limit: selectedUser.next_plan.data_limit ? Number(selectedUser.next_plan.data_limit) : undefined,
-            expire: selectedUser.next_plan.expire ? Number(selectedUser.next_plan.expire) : undefined,
-            add_remaining_traffic: selectedUser.next_plan.add_remaining_traffic || false,
-          }
+              user_template_id: selectedUser.next_plan.user_template_id ? Number(selectedUser.next_plan.user_template_id) : undefined,
+              data_limit: selectedUser.next_plan.data_limit ? Number(selectedUser.next_plan.data_limit) : undefined,
+              expire: selectedUser.next_plan.expire ? Number(selectedUser.next_plan.expire) : undefined,
+              add_remaining_traffic: selectedUser.next_plan.add_remaining_traffic || false,
+            }
           : undefined,
       }
       userForm.reset(values)
@@ -125,19 +124,22 @@ const UsersTable = memo(() => {
   // Remove automatic refetch on filter change to prevent lag
   // Filters will trigger new queries automatically
 
-  const handleSort = useCallback((column: string) => {
-    let newSort: string
+  const handleSort = useCallback(
+    (column: string) => {
+      let newSort: string
 
-    if (filters.sort === column) {
-      newSort = '-' + column
-    } else if (filters.sort === '-' + column) {
-      newSort = '-created_at'
-    } else {
-      newSort = column
-    }
+      if (filters.sort === column) {
+        newSort = '-' + column
+      } else if (filters.sort === '-' + column) {
+        newSort = '-created_at'
+      } else {
+        newSort = column
+      }
 
-    setFilters(prev => ({ ...prev, sort: newSort }))
-  }, [filters.sort])
+      setFilters(prev => ({ ...prev, sort: newSort }))
+    },
+    [filters.sort],
+  )
 
   const handleStatusFilter = useCallback((value: any) => {
     // If value is '0' or empty, set status to undefined to remove it from the URL
@@ -160,22 +162,22 @@ const UsersTable = memo(() => {
 
   const handleFilterChange = useCallback((newFilters: Partial<typeof filters>) => {
     setFilters(prev => {
-      let updated = { ...prev, ...newFilters };
+      let updated = { ...prev, ...newFilters }
       if ('search' in newFilters) {
         if (prev.is_protocol) {
-          updated.proxy_id = newFilters.search;
-          updated.search = undefined;
+          updated.proxy_id = newFilters.search
+          updated.search = undefined
         } else {
-          updated.search = newFilters.search;
-          updated.proxy_id = undefined;
+          updated.search = newFilters.search
+          updated.proxy_id = undefined
         }
-        updated.offset = 0;
+        updated.offset = 0
       }
-      return updated;
-    });
+      return updated
+    })
 
     if (newFilters.search !== undefined) {
-      setCurrentPage(0);
+      setCurrentPage(0)
     }
   }, [])
 
@@ -206,7 +208,7 @@ const UsersTable = memo(() => {
   }
 
   const handleEdit = (user: UserResponse) => {
-    console.log(user);
+    console.log(user)
     setSelectedUser(user)
     setEditModalOpen(true)
   }
@@ -226,7 +228,7 @@ const UsersTable = memo(() => {
   })
 
   const handleAdvanceSearchSubmit = (values: AdvanceSearchFormValue) => {
-    setFilters((prev) => ({
+    setFilters(prev => ({
       ...prev,
       admin: values.admin && values.admin.length > 0 ? values.admin : undefined,
       group: values.group && values.group.length > 0 ? values.group : undefined,
@@ -259,7 +261,7 @@ const UsersTable = memo(() => {
             group: [],
             status: '0',
           })
-          setFilters((prev) => ({
+          setFilters(prev => ({
             ...prev,
             admin: undefined,
             group: undefined,

@@ -216,7 +216,7 @@ export const LoadingBarConfig = {
     if (index > -1) {
       IGNORED_MUTATION_KEYS.splice(index, 1)
     }
-  }
+  },
 }
 
 export const useTopLoadingBar = () => {
@@ -242,7 +242,6 @@ export const useTopLoadingBar = () => {
 
   useEffect(() => {
     loadingStateListeners.add(listener)
-
     ;(window as any).resetLoadingBarInitialState = resetInitialLoad
 
     return () => {
@@ -274,7 +273,6 @@ export const useTopLoadingBar = () => {
           }
           maxTimeoutRef.current = undefined
         }, 3000)
-
       } else if (!isLoading && globalLoadingState.isLoading) {
         if (maxTimeoutRef.current) {
           clearTimeout(maxTimeoutRef.current)
@@ -334,13 +332,16 @@ export const useTopLoadingBar = () => {
     setGlobalProgress(progress)
   }, [])
 
-  return useMemo(() => ({
-    isLoading: loadingState.isLoading,
-    progress: loadingState.progress,
-    startLoading,
-    stopLoading,
-    setProgress,
-  }), [loadingState.isLoading, loadingState.progress, startLoading, stopLoading, setProgress])
+  return useMemo(
+    () => ({
+      isLoading: loadingState.isLoading,
+      progress: loadingState.progress,
+      startLoading,
+      stopLoading,
+      setProgress,
+    }),
+    [loadingState.isLoading, loadingState.progress, startLoading, stopLoading, setProgress],
+  )
 }
 
 export const useLoadingBar = () => {

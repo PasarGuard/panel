@@ -8,20 +8,12 @@ interface LoadingSpinnerProps {
   className?: string
 }
 
-export function LoadingSpinner({ 
-  text = 'loading', 
-  size = 'medium',
-  className = ''
-}: LoadingSpinnerProps) {
+export function LoadingSpinner({ text = 'loading', size = 'medium', className = '' }: LoadingSpinnerProps) {
   const { t } = useTranslation()
   return (
-    <div className={`flex flex-col items-center justify-center min-h-screen ${className}`}>
+    <div className={`flex min-h-screen flex-col items-center justify-center ${className}`}>
       <Spinner size={size} />
-      {text && (
-        <p className="mt-4 text-sm text-muted-foreground">
-          {t(text)}
-        </p>
-      )}
+      {text && <p className="mt-4 text-sm text-muted-foreground">{t(text)}</p>}
     </div>
   )
-} 
+}

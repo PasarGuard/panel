@@ -16,12 +16,7 @@ interface GroupsSelectorProps<T extends FieldValues> {
   disabled?: boolean
 }
 
-export default function GroupsSelector<T extends FieldValues>({ 
-  control, 
-  name, 
-  onGroupsChange,
-  disabled = false 
-}: GroupsSelectorProps<T>) {
+export default function GroupsSelector<T extends FieldValues>({ control, name, onGroupsChange, disabled = false }: GroupsSelectorProps<T>) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')

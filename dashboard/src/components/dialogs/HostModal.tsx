@@ -83,12 +83,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, t }) => {
         render={({ field }) => (
           <FormItem>
             <FormControl>
-              <Input
-                placeholder={t('hostsDialog.noise.packetPlaceholder')}
-                {...field}
-                value={field.value || ''}
-                className="h-8"
-              />
+              <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -100,12 +95,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, t }) => {
         render={({ field }) => (
           <FormItem>
             <FormControl>
-              <Input
-                placeholder={t('hostsDialog.noise.delayPlaceholder')}
-                {...field}
-                value={field.value || ''}
-                className="h-8"
-              />
+              <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -115,7 +105,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, t }) => {
         type="button"
         variant="ghost"
         size="icon"
-        className="h-8 w-8 shrink-0 border-red-500/20 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+        className="h-8 w-8 shrink-0 border-red-500/20 transition-colors hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
         onClick={handleRemove}
         title={t('hostsDialog.noise.removeNoise')}
       >
@@ -161,11 +151,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
     field.onChange(newValue)
   }
 
-  const displayValue = field.value && field.value.length > 0
-    ? field.value.length <= 3
-      ? field.value.join(', ')
-      : `${field.value.slice(0, 3).join(', ')}... (+${field.value.length - 3} more)`
-    : ''
+  const displayValue = field.value && field.value.length > 0 ? (field.value.length <= 3 ? field.value.join(', ') : `${field.value.slice(0, 3).join(', ')}... (+${field.value.length - 3} more)`) : ''
 
   return (
     <FormItem>
@@ -247,18 +233,21 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       {
         shouldDirty: true,
         shouldTouch: true,
-      }
+      },
     )
   }, [form])
 
-  const removeNoiseSetting = useCallback((index: number) => {
-    const currentNoiseSettings = form.getValues('noise_settings.xray') || []
-    const newNoiseSettings = currentNoiseSettings.filter((_, i) => i !== index)
-    form.setValue('noise_settings.xray', newNoiseSettings, {
-      shouldDirty: true,
-      shouldTouch: true,
-    })
-  }, [form])
+  const removeNoiseSetting = useCallback(
+    (index: number) => {
+      const currentNoiseSettings = form.getValues('noise_settings.xray') || []
+      const newNoiseSettings = currentNoiseSettings.filter((_, i) => i !== index)
+      form.setValue('noise_settings.xray', newNoiseSettings, {
+        shouldDirty: true,
+        shouldTouch: true,
+      })
+    },
+    [form],
+  )
 
   // Memoized noise settings array to prevent unnecessary re-renders
   const noiseSettings = useMemo(() => {
@@ -342,8 +331,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       // If SingBox fragment is disabled, clear related fields
       if (!payload.fragment_settings?.sing_box?.fragment && payload.fragment_settings?.sing_box) {
         const singBox = payload.fragment_settings.sing_box!
-          ; (singBox as any).fragment_fallback_delay = undefined
-          ; (singBox as any).record_fragment = undefined
+        ;(singBox as any).fragment_fallback_delay = undefined
+        ;(singBox as any).record_fragment = undefined
       }
 
       // Convert fragment_fallback_delay number to ms format
@@ -377,7 +366,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
-      <DialogContent className="h-full sm:py-4 w-full max-w-2xl sm:max-h-[95dvh]" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="h-full w-full max-w-2xl sm:max-h-[95dvh] sm:py-4" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className={cn(dir === 'rtl' ? 'text-right' : 'text-left')}>{editingHost ? t('editHost.title') : t('hostsDialog.addHost')}</DialogTitle>
         </DialogHeader>

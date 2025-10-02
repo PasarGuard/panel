@@ -132,22 +132,25 @@ const detectOS = (userAgent: string, clientInfo?: { name: string; isKnownClient:
   if (ua.includes('slackware')) return 'Slackware'
 
   // iOS detection (comprehensive)
-  if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod') ||
-      ua.includes('ios') || ua.includes('darwin') || ua.includes('cfnetwork') ||
-      ua.includes('mobile safari') && (ua.includes('version/') || ua.includes('cpu iphone os'))) return 'iOS'
+  if (
+    ua.includes('iphone') ||
+    ua.includes('ipad') ||
+    ua.includes('ipod') ||
+    ua.includes('ios') ||
+    ua.includes('darwin') ||
+    ua.includes('cfnetwork') ||
+    (ua.includes('mobile safari') && (ua.includes('version/') || ua.includes('cpu iphone os')))
+  )
+    return 'iOS'
 
   // Android detection
   if (ua.includes('android')) return 'Android'
 
   // Windows detection (comprehensive)
-  if (ua.includes('windows nt') || ua.includes('windows phone') ||
-      ua.includes('win32') || ua.includes('win64') ||
-      ua.includes('windows') && !ua.includes('windows phone')) return 'Windows'
+  if (ua.includes('windows nt') || ua.includes('windows phone') || ua.includes('win32') || ua.includes('win64') || (ua.includes('windows') && !ua.includes('windows phone'))) return 'Windows'
 
   // macOS detection (comprehensive)
-  if (ua.includes('mac os x') || ua.includes('macos') ||
-      ua.includes('macintosh') || ua.includes('mac_powerpc') ||
-      ua.includes('macintel')) return 'macOS'
+  if (ua.includes('mac os x') || ua.includes('macos') || ua.includes('macintosh') || ua.includes('mac_powerpc') || ua.includes('macintel')) return 'macOS'
 
   // Chrome OS detection
   if (ua.includes('cros') || ua.includes('chromebook')) return 'Chrome OS'
@@ -202,17 +205,10 @@ const detectOS = (userAgent: string, clientInfo?: { name: string; isKnownClient:
 // Improved version detection from user agent
 const detectVersion = (userAgent: string): string => {
   const ua = userAgent
-  
+
   // Try to find version patterns
-  const patterns = [
-    /(?:v|version|ver)\s*(\d+\.\d+\.\d+)/i,
-    /(\d+\.\d+\.\d+)/,
-    /(?:v|version|ver)\s*(\d+\.\d+)/i,
-    /(\d+\.\d+)/,
-    /(?:v|version|ver)\s*(\d+)/i,
-    /(\d+)/
-  ]
-  
+  const patterns = [/(?:v|version|ver)\s*(\d+\.\d+\.\d+)/i, /(\d+\.\d+\.\d+)/, /(?:v|version|ver)\s*(\d+\.\d+)/i, /(\d+\.\d+)/, /(?:v|version|ver)\s*(\d+)/i, /(\d+)/]
+
   for (const pattern of patterns) {
     const match = ua.match(pattern)
     if (match && match[1]) {
@@ -226,7 +222,7 @@ const detectVersion = (userAgent: string): string => {
       return match[1]
     }
   }
-  
+
   // Special handling for CFNetwork format
   if (ua.includes('cfnetwork')) {
     const appVersionMatch = ua.match(/^([^\/]+)\/(\d+)/i)
@@ -234,15 +230,11 @@ const detectVersion = (userAgent: string): string => {
       return appVersionMatch[2]
     }
   }
-  
+
   return 'Unknown'
 }
 
-export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps> = ({
-  isOpen,
-  onOpenChange,
-  username
-}) => {
+export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps> = ({ isOpen, onOpenChange, username }) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
 
@@ -283,19 +275,21 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
     const os = detectOS(update.user_agent, clientInfo)
 
     return (
-      <div key={index} className="rounded-lg border bg-card p-4 hover:bg-accent/50 transition-colors" dir={dir}>
-        <div className={`flex items-start justify-between mb-3 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+      <div key={index} className="rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50" dir={dir}>
+        <div className={`mb-3 flex items-start justify-between ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
           <div className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-            <ClientIcon className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-            <span className="font-medium text-sm" dir="ltr">{formattedClient}</span>
+            <ClientIcon className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+            <span className="text-sm font-medium" dir="ltr">
+              {formattedClient}
+            </span>
           </div>
-          <span dir={dir} className="text-xs text-muted-foreground whitespace-nowrap">
+          <span dir={dir} className="whitespace-nowrap text-xs text-muted-foreground">
             {timeAgo || t('subscriptionClients.unknown', { defaultValue: 'Unknown' })}
           </span>
         </div>
-        
+
         <div className="flex gap-2">
-          <Badge variant="secondary" className="text-xs bg-orange-500 hover:bg-orange-600 text-white">
+          <Badge variant="secondary" className="bg-orange-500 text-xs text-white hover:bg-orange-600">
             v{version}
           </Badge>
           <Badge variant="secondary" className={`text-xs text-white ${getOSBadgeColor(os)}`}>
@@ -306,12 +300,14 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <p className="cursor-help truncate text-xs text-muted-foreground mt-2" dir="ltr">
+              <p className="mt-2 cursor-help truncate text-xs text-muted-foreground" dir="ltr">
                 {update.user_agent}
               </p>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
-              <p className="break-all text-xs" dir="ltr">{update.user_agent}</p>
+              <p className="break-all text-xs" dir="ltr">
+                {update.user_agent}
+              </p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -326,23 +322,21 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
           <DialogTitle className={`flex items-center gap-2`}>
             <Users className="h-5 w-5 flex-shrink-0" />
             <span>{t('subscriptionClients.title', { defaultValue: 'Subscription Clients' })}</span>
-            <Badge variant="outline" dir="ltr" className="flex-shrink-0">{username}</Badge>
+            <Badge variant="outline" dir="ltr" className="flex-shrink-0">
+              {username}
+            </Badge>
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex w-full flex-col gap-4">
           {isLoading && (
             <div className={`flex items-center justify-center py-8 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <Loader2 className="h-6 w-6 animate-spin flex-shrink-0" />
+              <Loader2 className="h-6 w-6 flex-shrink-0 animate-spin" />
               <span className={`${dir === 'rtl' ? 'mr-2' : 'ml-2'}`}>{t('loading', { defaultValue: 'Loading...' })}</span>
             </div>
           )}
 
-          {error && (
-            <div className="py-8 text-center text-destructive">
-              {t('subscriptionClients.error', { defaultValue: 'Failed to load subscription clients' })}
-            </div>
-          )}
+          {error && <div className="py-8 text-center text-destructive">{t('subscriptionClients.error', { defaultValue: 'Failed to load subscription clients' })}</div>}
 
           {!isLoading && !error && subUpdateList && (
             <>
@@ -365,9 +359,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
 
               <ScrollArea className="flex h-[500px] rounded-lg border p-4">
                 {subUpdateList.updates && subUpdateList.updates.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {subUpdateList.updates.map((update, index) => renderClientCard(update, index))}
-                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{subUpdateList.updates.map((update, index) => renderClientCard(update, index))}</div>
                 ) : (
                   <div className="flex items-center justify-center py-8 text-muted-foreground">
                     <div className="text-center">

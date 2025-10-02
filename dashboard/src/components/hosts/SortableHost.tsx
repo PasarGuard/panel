@@ -82,7 +82,7 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
         sni: host.sni || [],
         path: host.path || '',
         security: host.security || 'inbound_default',
-        alpn: (!host.alpn || host.alpn.length === 0) ? undefined : host.alpn,
+        alpn: !host.alpn || host.alpn.length === 0 ? undefined : host.alpn,
         fingerprint: host.fingerprint === '' ? undefined : host.fingerprint,
         allowinsecure: host.allowinsecure || false,
         is_disabled: !host.is_disabled,
@@ -154,79 +154,76 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
 
   return (
     <div ref={setNodeRef} className="cursor-default" style={style} {...attributes}>
-      <Card className="p-4 relative group h-full hover:bg-accent transition-colors cursor-pointer" onClick={() => onEdit(host)}>
+      <Card className="group relative h-full cursor-pointer p-4 transition-colors hover:bg-accent" onClick={() => onEdit(host)}>
         <div className="flex items-center gap-3">
-          <button 
-            style={{ cursor: disabled ? 'not-allowed' : cursor }} 
-            className={cn(
-              "touch-none transition-opacity",
-              disabled ? "opacity-30 cursor-not-allowed" : "opacity-50 group-hover:opacity-100"
-            )} 
+          <button
+            style={{ cursor: disabled ? 'not-allowed' : cursor }}
+            className={cn('touch-none transition-opacity', disabled ? 'cursor-not-allowed opacity-30' : 'opacity-50 group-hover:opacity-100')}
             {...(disabled ? {} : listeners)}
             disabled={disabled}
           >
             <GripVertical className="h-5 w-5" />
             <span className="sr-only">Drag to reorder</span>
           </button>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div className={cn('min-h-2 min-w-2 rounded-full', host.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
-              <div className="font-medium truncate">{host.remark ?? ''}</div>
+              <div className="truncate font-medium">{host.remark ?? ''}</div>
             </div>
             <div className={cn('flex items-center gap-1', dir === 'rtl' && 'justify-start')}>
               <ChevronsLeftRightEllipsis className="h-4 w-4 text-muted-foreground" />
-              <div dir="ltr" className="text-sm text-muted-foreground truncate">
-                {Array.isArray(host.address) ? host.address[0] || '' : host.address ?? ''}:{host.port === null ? <Settings className="h-3 w-3 inline" /> : host.port}
+              <div dir="ltr" className="truncate text-sm text-muted-foreground">
+                {Array.isArray(host.address) ? host.address[0] || '' : (host.address ?? '')}:{host.port === null ? <Settings className="inline h-3 w-3" /> : host.port}
               </div>
             </div>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground truncate">
+            <div className="flex items-center gap-1 truncate text-sm text-muted-foreground">
               <CloudCog className="h-4 w-4" />
               <span>{t('inbound')}: </span>
               <span dir="ltr">{host.inbound_tag ?? ''}</span>
             </div>
           </div>
-          <div onClick={(e) => e.stopPropagation()}>
+          <div onClick={e => e.stopPropagation()}>
             <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  handleToggleStatus()
-                }}
-              >
-                <Power className="h-4 w-4 mr-2" />
-                {host?.is_disabled ? t('enable') : t('disable')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onEdit(host)
-                }}
-              >
-                <Pencil className="h-4 w-4 mr-2" />
-                {t('edit')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onDuplicate(host)
-                }}
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                {t('duplicate')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                {t('delete')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    handleToggleStatus()
+                  }}
+                >
+                  <Power className="mr-2 h-4 w-4" />
+                  {host?.is_disabled ? t('enable') : t('disable')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onEdit(host)
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t('edit')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onDuplicate(host)
+                  }}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  {t('duplicate')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t('delete')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </Card>

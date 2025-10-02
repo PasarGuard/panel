@@ -65,8 +65,8 @@ export default function Nodes() {
   const handleToggleStatus = async (node: NodeResponse) => {
     try {
       // Determine the new status: enable if currently disabled, otherwise disable
-      const shouldEnable = node.status === 'disabled';
-      const newStatus = shouldEnable ? 'connected' : 'disabled';
+      const shouldEnable = node.status === 'disabled'
+      const newStatus = shouldEnable ? 'connected' : 'disabled'
 
       await modifyNodeMutation.mutateAsync({
         nodeId: node.id,
@@ -81,26 +81,26 @@ export default function Nodes() {
           max_logs: node.max_logs,
           status: newStatus,
         },
-      });
+      })
 
       toast.success(t('success', { defaultValue: 'Success' }), {
         description: t(shouldEnable ? 'nodes.enableSuccess' : 'nodes.disableSuccess', {
           name: node.name,
           defaultValue: `Node "{name}" has been ${shouldEnable ? 'enabled' : 'disabled'} successfully`,
         }),
-      });
+      })
 
       // Invalidate nodes queries
       queryClient.invalidateQueries({
         queryKey: ['/api/nodes'],
-      });
+      })
     } catch (error) {
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: t(node.status === 'disabled' ? 'nodes.enableFailed' : 'nodes.disableFailed', {
           name: node.name,
           defaultValue: `Failed to ${node.status === 'disabled' ? 'enable' : 'disable'} node "{name}"`,
         }),
-      });
+      })
     }
   }
 
@@ -109,13 +109,15 @@ export default function Nodes() {
   }
 
   return (
-    <div className="flex flex-col gap-2 w-full items-start">
-      <div className="flex-1 space-y-4 pt-6 w-full">
+    <div className="flex w-full flex-col items-start gap-2">
+      <div className="w-full flex-1 space-y-4 pt-6">
         <div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12 transform-gpu animate-slide-up"
+          className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
           style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
         >
-          {nodesData?.map(node => <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
+          {nodesData?.map(node => (
+            <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />
+          ))}
         </div>
 
         {(!nodesData || nodesData.length === 0) && (
@@ -123,14 +125,9 @@ export default function Nodes() {
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">{t('nodes.noNodes')}</h3>
-                <p className="text-muted-foreground max-w-2xl mx-auto">
+                <p className="mx-auto max-w-2xl text-muted-foreground">
                   {t('nodes.noNodesDescription')}{' '}
-                  <a
-                    href="https://github.com/PasarGuard/node"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline-offset-4 hover:underline font-medium"
-                  >
+                  <a href="https://github.com/PasarGuard/node" target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline-offset-4 hover:underline">
                     PasarGuard/node
                   </a>{' '}
                   {t('nodes.noNodesDescription2', { defaultValue: 'and connect it to the panel.' })}

@@ -1181,7 +1181,7 @@
     "radiusMedium": "متوسط",
     "radiusLarge": "بزرگ"
   },
-    "coreConfigModal": {
+  "coreConfigModal": {
     "addConfig": "افزودن پیکربندی هسته",
     "createNewConfig": "ایجاد پیکربندی جدید هسته",
     "editCore": "ویرایش پیکربندی هسته",

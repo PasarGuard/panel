@@ -159,18 +159,24 @@ export default function AdminsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2 w-full items-start">
+    <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader title="admins.title" description="admins.description" buttonIcon={Plus} buttonText="admins.createAdmin" onButtonClick={() => {
-          setEditingAdmin(null);
-          form.reset(initialDefaultValues);
-          setIsDialogOpen(true);
-        }} />
+        <PageHeader
+          title="admins.title"
+          description="admins.description"
+          buttonIcon={Plus}
+          buttonText="admins.createAdmin"
+          onButtonClick={() => {
+            setEditingAdmin(null)
+            form.reset(initialDefaultValues)
+            setIsDialogOpen(true)
+          }}
+        />
         <Separator />
       </div>
 
-      <div className="px-4 w-full pt-2">
-        <div className="transform-gpu animate-slide-up mb-6" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+      <div className="w-full px-4 pt-2">
+        <div className="mb-6 transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
           <AdminsStatistics data={admins} />
         </div>
 

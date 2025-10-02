@@ -71,7 +71,7 @@ const ToggleAdminStatusModal = ({ admin, isOpen, onClose, onConfirm }: { admin: 
             <span dir={dir} dangerouslySetInnerHTML={{ __html: t(admin.is_disabled ? 'activeUsers.prompt' : 'disableUsers.prompt', { name: admin.username }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className={cn(dir === 'rtl' && 'sm:gap-x-2 sm:flex-row-reverse')}>
+        <AlertDialogFooter className={cn(dir === 'rtl' && 'sm:flex-row-reverse sm:gap-x-2')}>
           <AlertDialogCancel onClick={onClose}>{t('cancel')}</AlertDialogCancel>
           <AlertDialogAction onClick={() => onConfirm(adminUsersToggle)}>{t('confirm')}</AlertDialogAction>
         </AlertDialogFooter>
@@ -93,7 +93,7 @@ const ResetUsersUsageConfirmationDialog = ({ adminUsername, isOpen, onClose, onC
             <span dir={dir} dangerouslySetInnerHTML={{ __html: t('resetUsersUsage.prompt', { name: adminUsername }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className={cn(dir === 'rtl' && 'sm:gap-x-2 sm:flex-row-reverse')}>
+        <AlertDialogFooter className={cn(dir === 'rtl' && 'sm:flex-row-reverse sm:gap-x-2')}>
           <AlertDialogCancel onClick={onClose}>{t('cancel')}</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm}>{t('confirm')}</AlertDialogAction>
         </AlertDialogFooter>
@@ -120,7 +120,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const [adminToToggleStatus, setAdminToToggleStatus] = useState<AdminDetails | null>(null)
   const [adminToReset, setAdminToReset] = useState<string | null>(null)
 
-  const { data : totalAdmins} = useGetAdmins()
+  const { data: totalAdmins } = useGetAdmins()
   const { data: adminsData, refetch, isLoading, isFetching } = useGetAdmins(filters)
 
   // Update filters when pagination changes
@@ -139,7 +139,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       return {
         ...prev,
         ...newFilters,
-        offset: resetPage ? 0 : (newFilters.offset !== undefined ? newFilters.offset : prev.offset),
+        offset: resetPage ? 0 : newFilters.offset !== undefined ? newFilters.offset : prev.offset,
       }
     })
     // Reset page if search changes
@@ -240,7 +240,6 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     onResetUsage: handleResetUsersUsageClick,
   })
 
-
   return (
     <div>
       <Filters filters={filters} onFilterChange={handleFilterChange} />
@@ -256,13 +255,13 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         isFetching={isFetching}
       />
       <PaginationControls
-          currentPage={currentPage}
-          totalPages={Math.ceil((totalAdmins?.length || 0) / itemsPerPage)}
-          itemsPerPage={itemsPerPage}
-          totalItems={adminsData?.length || 0}
-          isLoading={isLoading || isFetching}
-          onPageChange={handlePageChange}
-          onItemsPerPageChange={handleItemsPerPageChange}
+        currentPage={currentPage}
+        totalPages={Math.ceil((totalAdmins?.length || 0) / itemsPerPage)}
+        itemsPerPage={itemsPerPage}
+        totalItems={adminsData?.length || 0}
+        isLoading={isLoading || isFetching}
+        onPageChange={handlePageChange}
+        onItemsPerPageChange={handleItemsPerPageChange}
       />
       {adminToDelete && <DeleteAlertDialog admin={adminToDelete} isOpen={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />}
       {adminToToggleStatus && (

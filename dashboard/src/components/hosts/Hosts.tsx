@@ -341,8 +341,8 @@ export const HostFormSchema = z.object({
             delay: z
               .string()
               .optional()
-              .refine((val) => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
-                message: "Delay must be in format like '10-20' or '10'"
+              .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+                message: "Delay must be in format like '10-20' or '10'",
               }),
             apply_to: z.enum(['ip', 'ipv4', 'ipv6']).optional(),
           }),
@@ -486,11 +486,12 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
         : undefined,
       noise_settings: host.noise_settings
         ? {
-            xray: host.noise_settings.xray?.map(noise => ({
-              type: noise.type,
-              packet: noise.packet,
-              delay: noise.delay,
-            })) ?? undefined,
+            xray:
+              host.noise_settings.xray?.map(noise => ({
+                type: noise.type,
+                packet: noise.packet,
+                delay: noise.delay,
+              })) ?? undefined,
           }
         : undefined,
       mux_settings: host.mux_settings
@@ -621,7 +622,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
         sni: host.sni || [],
         path: host.path || '',
         security: host.security || 'inbound_default',
-        alpn: (!host.alpn || host.alpn.length === 0) ? undefined : host.alpn,
+        alpn: !host.alpn || host.alpn.length === 0 ? undefined : host.alpn,
         fingerprint: host.fingerprint === '' ? undefined : host.fingerprint,
         allowinsecure: host.allowinsecure || false,
         is_disabled: host.is_disabled || false,
@@ -701,7 +702,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
 
     const oldIndex = hosts.findIndex(item => item.id === active.id)
     const newIndex = hosts.findIndex(item => item.id === over.id)
-    
+
     if (oldIndex === -1 || newIndex === -1) return
 
     // Optimistically update the UI first
@@ -710,7 +711,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
       ...host,
       priority: index,
     }))
-    
+
     setHosts(updatedHosts)
     setIsUpdatingPriorities(true)
 
@@ -744,18 +745,18 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
 
       // Make the API call to update priorities
       await modifyHosts(hostsToUpdate)
-      
+
       // Update local state with the response data
       setHosts(updatedHosts)
-      
+
       // Show success message
       toast.success(t('host.priorityUpdated', { defaultValue: 'Host priorities updated' }))
     } catch (error) {
       console.error('Error updating host priorities:', error)
-      
+
       // Revert the optimistic update on error
       setHosts(hosts)
-      
+
       // Show error message
       toast.error(t('host.priorityUpdateError', { defaultValue: 'Failed to update priorities' }))
     } finally {
@@ -777,23 +778,12 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
   return (
     <div>
       <div>
-        <DndContext 
-          sensors={isUpdatingPriorities ? [] : sensors} 
-          collisionDetection={closestCenter} 
-          onDragEnd={handleDragEnd}
-        >
+        <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
             <div className="max-w-screen-[2000px] min-h-screen overflow-hidden">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {sortedHosts.map(host => (
-                  <SortableHost 
-                    key={host.id ?? 'new'} 
-                    host={host} 
-                    onEdit={handleEdit} 
-                    onDuplicate={handleDuplicate} 
-                    onDataChanged={refreshHostsData}
-                    disabled={isUpdatingPriorities}
-                  />
+                  <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
                 ))}
               </div>
             </div>

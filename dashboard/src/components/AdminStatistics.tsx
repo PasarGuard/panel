@@ -23,48 +23,50 @@ export default function AdminStatisticsSection({ data }: AdminsStatisticsProps) 
       icon: User,
       label: t('admins.total'),
       value: total,
-      color: ''
+      color: '',
     },
     {
       icon: UserCheck,
       label: t('admins.active'),
       value: active,
-      color: ''
+      color: '',
     },
     {
       icon: UserX,
       label: t('admins.disable'),
       value: disabled,
-      color: ''
-    }
+      color: '',
+    },
   ]
 
   return (
-    <div className={cn('flex flex-col lg:flex-row items-center justify-between gap-x-4 gap-y-4', dir === 'rtl' && 'lg:flex-row-reverse')}>
+    <div className={cn('flex flex-col items-center justify-between gap-x-4 gap-y-4 lg:flex-row', dir === 'rtl' && 'lg:flex-row-reverse')}>
       {stats.map((stat, idx) => (
         <Card
           key={stat.label}
           dir={dir}
-          className={cn(
-            "group relative w-full animate-fade-in rounded-md transition-all duration-300 hover:shadow-lg",
-          )}
+          className={cn('group relative w-full animate-fade-in rounded-md transition-all duration-300 hover:shadow-lg')}
           style={{
             animationDuration: '600ms',
             animationDelay: `${(idx + 1) * 100}ms`,
-            animationFillMode: 'both'
+            animationFillMode: 'both',
           }}
         >
-          <div className={cn(
-            'absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 transition-opacity duration-500',
-            'dark:from-primary/5 dark:to-transparent',
-            'group-hover:opacity-100'
-          )} />
-          <CardTitle className="flex items-center justify-between gap-x-4 relative z-10 p-5">
+          <div
+            className={cn(
+              'absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 transition-opacity duration-500',
+              'dark:from-primary/5 dark:to-transparent',
+              'group-hover:opacity-100',
+            )}
+          />
+          <CardTitle className="relative z-10 flex items-center justify-between gap-x-4 p-5">
             <div className="flex items-center gap-x-4">
-              {React.createElement(stat.icon, { className: "h-6 w-6" })}
+              {React.createElement(stat.icon, { className: 'h-6 w-6' })}
               <span>{stat.label}</span>
             </div>
-            <span className="text-3xl font-bold" dir="ltr">{numberWithCommas(stat.value)}</span>
+            <span className="text-3xl font-bold" dir="ltr">
+              {numberWithCommas(stat.value)}
+            </span>
           </CardTitle>
         </Card>
       ))}

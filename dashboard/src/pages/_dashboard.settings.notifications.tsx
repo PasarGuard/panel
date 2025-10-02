@@ -16,37 +16,40 @@ import { Shield, MessageSquare, FileText, Globe, RotateCcw, Bot, Webhook } from 
 
 // Validation schema
 const notificationSettingsSchema = z.object({
-  notification_enable: z.object({
-    admin: z.boolean().optional(),
-    core: z.boolean().optional(),
-    group: z.boolean().optional(),
-    host: z.boolean().optional(),
-    login: z.boolean().optional(),
-    node: z.boolean().optional(),
-    user: z.boolean().optional(),
-    user_template: z.boolean().optional(),
-    days_left: z.boolean().optional(),
-    percentage_reached: z.boolean().optional(),
-  }).optional(),
-  notification_settings: z.object({
-    notify_telegram: z.boolean().optional(),
-    notify_discord: z.boolean().optional(),
-    telegram_api_token: z.string().optional(),
-    telegram_admin_id: z.number().optional(),
-    telegram_channel_id: z.number().optional(),
-    telegram_topic_id: z.number().optional(),
-    discord_webhook_url: z.string().optional(),
-    proxy_url: z.string().optional(),
-    max_retries: z.number().min(1).max(10),
-  }).optional(),
+  notification_enable: z
+    .object({
+      admin: z.boolean().optional(),
+      core: z.boolean().optional(),
+      group: z.boolean().optional(),
+      host: z.boolean().optional(),
+      login: z.boolean().optional(),
+      node: z.boolean().optional(),
+      user: z.boolean().optional(),
+      user_template: z.boolean().optional(),
+      days_left: z.boolean().optional(),
+      percentage_reached: z.boolean().optional(),
+    })
+    .optional(),
+  notification_settings: z
+    .object({
+      notify_telegram: z.boolean().optional(),
+      notify_discord: z.boolean().optional(),
+      telegram_api_token: z.string().optional(),
+      telegram_admin_id: z.number().optional(),
+      telegram_channel_id: z.number().optional(),
+      telegram_topic_id: z.number().optional(),
+      discord_webhook_url: z.string().optional(),
+      proxy_url: z.string().optional(),
+      max_retries: z.number().min(1).max(10),
+    })
+    .optional(),
 })
 
 type NotificationSettingsForm = z.infer<typeof notificationSettingsSchema>
 
-
 export default function NotificationSettings() {
   const { t } = useTranslation()
-  
+
   // Use settings context instead of direct API calls
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
 
@@ -75,8 +78,8 @@ export default function NotificationSettings() {
         discord_webhook_url: '',
         proxy_url: '',
         max_retries: 3,
-      }
-    }
+      },
+    },
   })
 
   // Watch the telegram and discord switches to conditionally show/hide sections
@@ -98,7 +101,7 @@ export default function NotificationSettings() {
           discord_webhook_url: settings.notification_settings?.discord_webhook_url || '',
           proxy_url: settings.notification_settings?.proxy_url || '',
           max_retries: settings.notification_settings?.max_retries || 3,
-        }
+        },
       })
     }
   }, [settings, form])
@@ -123,14 +126,14 @@ export default function NotificationSettings() {
           discord_webhook_url: data.notification_settings?.discord_webhook_url || '',
         }),
         // Only include proxy if either Telegram or Discord is enabled AND proxy URL is not empty
-        ...((data.notification_settings?.notify_telegram || data.notification_settings?.notify_discord) && 
-            data.notification_settings?.proxy_url && 
-            data.notification_settings.proxy_url.trim() !== '' && {
-          proxy_url: data.notification_settings.proxy_url.trim(),
-        }),
-      }
+        ...((data.notification_settings?.notify_telegram || data.notification_settings?.notify_discord) &&
+          data.notification_settings?.proxy_url &&
+          data.notification_settings.proxy_url.trim() !== '' && {
+            proxy_url: data.notification_settings.proxy_url.trim(),
+          }),
+      },
     }
-    
+
     updateSettings(filteredData)
   }
 
@@ -148,7 +151,7 @@ export default function NotificationSettings() {
           discord_webhook_url: settings.notification_settings?.discord_webhook_url || '',
           proxy_url: settings.notification_settings?.proxy_url || '',
           max_retries: settings.notification_settings?.max_retries || 3,
-        }
+        },
       })
       toast.success(t('settings.notifications.cancelSuccess'))
     }
@@ -156,9 +159,9 @@ export default function NotificationSettings() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[600px] p-4 sm:py-6 lg:py-8">
-        <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+      <div className="flex min-h-[600px] items-center justify-center p-4 sm:py-6 lg:py-8">
+        <div className="space-y-3 text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
           <p className="text-sm text-muted-foreground">{t('loading')}.</p>
         </div>
       </div>
@@ -167,9 +170,9 @@ export default function NotificationSettings() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] p-4 sm:py-6 lg:py-8">
-        <div className="text-center space-y-3">
-          <div className="text-red-500 text-lg">⚠️</div>
+      <div className="flex min-h-[400px] items-center justify-center p-4 sm:py-6 lg:py-8">
+        <div className="space-y-3 text-center">
+          <div className="text-lg text-red-500">⚠️</div>
           <p className="text-sm text-red-500">Error loading settings</p>
         </div>
       </div>
@@ -177,162 +180,141 @@ export default function NotificationSettings() {
   }
 
   return (
-    <div className="w-full ">
+    <div className="w-full">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 sm:space-y-8 lg:space-y-10 p-4 sm:py-6 lg:py-8">
-          
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 p-4 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
           {/* Filter Notification */}
           <div className="space-y-4 sm:space-y-6">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold tracking-tight">{t('settings.notifications.filterTitle')}</h3>
               <p className="text-sm text-muted-foreground">{t('settings.notifications.filterDescription')}</p>
             </div>
-            
+
             {/* Mobile: 1 column, Tablet: 2 columns, Desktop: 3-5 columns */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6 xl:grid-cols-4 2xl:grid-cols-5">
               <FormField
                 control={form.control}
                 name="notification_enable.admin"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.admin')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm">{t('settings.notifications.types.admin')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.core"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.core')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.core')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.group"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.group')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.group')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.host"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.host')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.host')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.login"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.login')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.login')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.node"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.node')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.node')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.user_template"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.userTemplate')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.userTemplate')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.user"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.user')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.user')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.days_left"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.daysLeft')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.daysLeft')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="notification_enable.percentage_reached"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between space-y-0 p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                    <FormLabel className="text-xs sm:text-sm xl:text-base font-medium cursor-pointer truncate pr-2">
-                      {t('settings.notifications.types.percentageReached')}
-                    </FormLabel>
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <FormLabel className="cursor-pointer truncate pr-2 text-xs font-medium sm:text-sm xl:text-base">{t('settings.notifications.types.percentageReached')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
                     </FormControl>
@@ -344,18 +326,16 @@ export default function NotificationSettings() {
 
           {/* Telegram */}
           <div className="space-y-4 sm:space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="space-y-1">
-                <h3 className="text-lg font-semibold tracking-tight">
-                  {t('settings.notifications.telegram.title')}
-                </h3>
+                <h3 className="text-lg font-semibold tracking-tight">{t('settings.notifications.telegram.title')}</h3>
                 <p className="text-sm text-muted-foreground">{t('settings.notifications.telegram.description')}</p>
               </div>
               <FormField
                 control={form.control}
                 name="notification_settings.notify_telegram"
                 render={({ field }) => (
-                  <FormItem className="flex items-center gap-x-3 space-y-0 shrink-0">
+                  <FormItem className="flex shrink-0 items-center gap-x-3 space-y-0">
                     <FormLabel className="text-sm font-medium">{t('settings.notifications.title')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
@@ -364,12 +344,12 @@ export default function NotificationSettings() {
                 )}
               />
             </div>
-            
+
             {/* Only show Telegram settings when enabled */}
             {watchTelegramEnabled && (
               <div className="space-y-4 sm:space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
+                  <Label className="flex items-center gap-2 text-sm font-medium">
                     <Bot className="h-4 w-4" />
                     {t('settings.notifications.telegram.apiToken')}
                   </Label>
@@ -378,19 +358,15 @@ export default function NotificationSettings() {
                     name="notification_settings.telegram_api_token"
                     render={({ field }) => (
                       <FormControl>
-                        <PasswordInput 
-                          {...field} 
-                          className="w-full font-mono" 
-                          placeholder='1234567890:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
-                        />
+                        <PasswordInput {...field} className="w-full font-mono" placeholder="1234567890:ABC-DEF1234ghIkl-zyx57W2v1u123ew11" />
                       </FormControl>
                     )}
                   />
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium flex items-center gap-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium">
                       <Shield className="h-4 w-4" />
                       {t('settings.notifications.telegram.adminId')}
                     </Label>
@@ -398,12 +374,12 @@ export default function NotificationSettings() {
                       control={form.control}
                       name="notification_settings.telegram_admin_id"
                       render={({ field }) => {
-                        const [inputValue, setInputValue] = useState(field.value?.toString() ?? '');
+                        const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
 
                         // Sync input value when field value changes (e.g., from form reset)
                         useEffect(() => {
-                          setInputValue(field.value?.toString() ?? '');
-                        }, [field.value]);
+                          setInputValue(field.value?.toString() ?? '')
+                        }, [field.value])
 
                         return (
                           <FormControl>
@@ -412,15 +388,15 @@ export default function NotificationSettings() {
                               name={field.name}
                               ref={field.ref}
                               value={inputValue}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setInputValue(value);
+                              onChange={e => {
+                                const value = e.target.value
+                                setInputValue(value)
 
                                 // Update form value for valid inputs or empty
                                 if (value === '') {
-                                  field.onChange(undefined);
+                                  field.onChange(undefined)
                                 } else if (/^-?\d+$/.test(value)) {
-                                  field.onChange(parseInt(value));
+                                  field.onChange(parseInt(value))
                                 }
                                 // Keep invalid input in display but don't update form
                               }}
@@ -428,21 +404,21 @@ export default function NotificationSettings() {
                                 // On blur, ensure the display matches the form value
                                 // If current input is invalid, reset display to form value
                                 if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
-                                  setInputValue(field.value?.toString() ?? '');
+                                  setInputValue(field.value?.toString() ?? '')
                                 }
-                                field.onBlur();
+                                field.onBlur()
                               }}
                               className="w-full"
                               placeholder="123456789"
                             />
                           </FormControl>
-                        );
+                        )
                       }}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium flex items-center gap-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium">
                       <MessageSquare className="h-4 w-4" />
                       {t('settings.notifications.telegram.channelId')}
                     </Label>
@@ -450,12 +426,12 @@ export default function NotificationSettings() {
                       control={form.control}
                       name="notification_settings.telegram_channel_id"
                       render={({ field }) => {
-                        const [inputValue, setInputValue] = useState(field.value?.toString() ?? '');
+                        const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
 
                         // Sync input value when field value changes (e.g., from form reset)
                         useEffect(() => {
-                          setInputValue(field.value?.toString() ?? '');
-                        }, [field.value]);
+                          setInputValue(field.value?.toString() ?? '')
+                        }, [field.value])
 
                         return (
                           <FormControl>
@@ -464,15 +440,15 @@ export default function NotificationSettings() {
                               name={field.name}
                               ref={field.ref}
                               value={inputValue}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setInputValue(value);
+                              onChange={e => {
+                                const value = e.target.value
+                                setInputValue(value)
 
                                 // Update form value for valid inputs or empty
                                 if (value === '') {
-                                  field.onChange(undefined);
+                                  field.onChange(undefined)
                                 } else if (/^-?\d+$/.test(value)) {
-                                  field.onChange(parseInt(value));
+                                  field.onChange(parseInt(value))
                                 }
                                 // Keep invalid input in display but don't update form
                               }}
@@ -480,21 +456,21 @@ export default function NotificationSettings() {
                                 // On blur, ensure the display matches the form value
                                 // If current input is invalid, reset display to form value
                                 if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
-                                  setInputValue(field.value?.toString() ?? '');
+                                  setInputValue(field.value?.toString() ?? '')
                                 }
-                                field.onBlur();
+                                field.onBlur()
                               }}
                               className="w-full"
                               placeholder="-1001234567890"
                             />
                           </FormControl>
-                        );
+                        )
                       }}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium flex items-center gap-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium">
                       <FileText className="h-4 w-4" />
                       {t('settings.notifications.telegram.topicId')}
                     </Label>
@@ -502,12 +478,12 @@ export default function NotificationSettings() {
                       control={form.control}
                       name="notification_settings.telegram_topic_id"
                       render={({ field }) => {
-                        const [inputValue, setInputValue] = useState(field.value?.toString() ?? '');
+                        const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
 
                         // Sync input value when field value changes (e.g., from form reset)
                         useEffect(() => {
-                          setInputValue(field.value?.toString() ?? '');
-                        }, [field.value]);
+                          setInputValue(field.value?.toString() ?? '')
+                        }, [field.value])
 
                         return (
                           <FormControl>
@@ -516,15 +492,15 @@ export default function NotificationSettings() {
                               name={field.name}
                               ref={field.ref}
                               value={inputValue}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setInputValue(value);
+                              onChange={e => {
+                                const value = e.target.value
+                                setInputValue(value)
 
                                 // Update form value for valid inputs or empty
                                 if (value === '') {
-                                  field.onChange(undefined);
+                                  field.onChange(undefined)
                                 } else if (/^-?\d+$/.test(value)) {
-                                  field.onChange(parseInt(value));
+                                  field.onChange(parseInt(value))
                                 }
                                 // Keep invalid input in display but don't update form
                               }}
@@ -532,15 +508,15 @@ export default function NotificationSettings() {
                                 // On blur, ensure the display matches the form value
                                 // If current input is invalid, reset display to form value
                                 if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
-                                  setInputValue(field.value?.toString() ?? '');
+                                  setInputValue(field.value?.toString() ?? '')
                                 }
-                                field.onBlur();
+                                field.onBlur()
                               }}
                               className="w-full"
                               placeholder="123"
                             />
                           </FormControl>
-                        );
+                        )
                       }}
                     />
                   </div>
@@ -553,18 +529,16 @@ export default function NotificationSettings() {
 
           {/* Discord */}
           <div className="space-y-4 sm:space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="space-y-1">
-                <h3 className="text-lg font-semibold tracking-tight">
-                  {t('settings.notifications.discord.title')}
-                </h3>
+                <h3 className="text-lg font-semibold tracking-tight">{t('settings.notifications.discord.title')}</h3>
                 <p className="text-sm text-muted-foreground">{t('settings.notifications.discord.description')}</p>
               </div>
               <FormField
                 control={form.control}
                 name="notification_settings.notify_discord"
                 render={({ field }) => (
-                  <FormItem className="flex items-center gap-x-3 space-y-0 shrink-0">
+                  <FormItem className="flex shrink-0 items-center gap-x-3 space-y-0">
                     <FormLabel className="text-sm font-medium">{t('settings.notifications.title')}</FormLabel>
                     <FormControl>
                       <Switch checked={field.value || false} onCheckedChange={field.onChange} />
@@ -573,11 +547,11 @@ export default function NotificationSettings() {
                 )}
               />
             </div>
-            
+
             {/* Only show Discord settings when enabled */}
             {watchDiscordEnabled && (
               <div className="space-y-2">
-                <Label className="text-sm font-medium flex items-center gap-2">
+                <Label className="flex items-center gap-2 text-sm font-medium">
                   <Webhook className="h-4 w-4" />
                   {t('settings.notifications.discord.webhookUrl')}
                 </Label>
@@ -586,11 +560,7 @@ export default function NotificationSettings() {
                   name="notification_settings.discord_webhook_url"
                   render={({ field }) => (
                     <FormControl>
-                      <PasswordInput 
-                        {...field} 
-                        className="w-full font-mono" 
-                        placeholder='https://discord.com/api/webhooks/1234567890/ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
-                      />
+                      <PasswordInput {...field} className="w-full font-mono" placeholder="https://discord.com/api/webhooks/1234567890/ABC-DEF1234ghIkl-zyx57W2v1u123ew11" />
                     </FormControl>
                   )}
                 />
@@ -606,10 +576,10 @@ export default function NotificationSettings() {
                 <h3 className="text-lg font-semibold tracking-tight">{t('settings.notifications.advanced.title')}</h3>
                 <p className="text-sm text-muted-foreground">{t('settings.notifications.advanced.description')}</p>
               </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+
+              <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
+                  <Label className="flex items-center gap-2 text-sm font-medium">
                     <Globe className="h-4 w-4" />
                     {t('settings.notifications.advanced.proxyUrl')}
                   </Label>
@@ -618,18 +588,14 @@ export default function NotificationSettings() {
                     name="notification_settings.proxy_url"
                     render={({ field }) => (
                       <FormControl>
-                        <Input 
-                          {...field} 
-                          className="w-full" 
-                          placeholder="https://proxy.example.com:8080"
-                        />
+                        <Input {...field} className="w-full" placeholder="https://proxy.example.com:8080" />
                       </FormControl>
                     )}
                   />
                 </div>
-                
+
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
+                  <Label className="flex items-center gap-2 text-sm font-medium">
                     <RotateCcw className="h-4 w-4" />
                     {t('settings.notifications.advanced.maxRetries')}
                   </Label>
@@ -645,13 +611,13 @@ export default function NotificationSettings() {
                           name={field.name}
                           ref={field.ref}
                           value={field.value ?? ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
+                          onChange={e => {
+                            const value = e.target.value
                             // Allow typing any characters, but only set valid positive numbers or empty (defaults to 3)
                             if (value === '') {
-                              field.onChange(3);
+                              field.onChange(3)
                             } else if (/^\d+$/.test(value)) {
-                              field.onChange(parseInt(value));
+                              field.onChange(parseInt(value))
                             }
                             // Ignore invalid input
                           }}
@@ -668,26 +634,16 @@ export default function NotificationSettings() {
           )}
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6">
+          <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:gap-4 sm:pt-6">
             <div className="flex-1"></div>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:shrink-0">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={handleCancel}
-                className="w-full sm:w-auto min-w-[100px]"
-                disabled={isSaving}
-              >
+            <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
+              <Button type="button" variant="outline" onClick={handleCancel} className="w-full min-w-[100px] sm:w-auto" disabled={isSaving}>
                 {t('cancel')}
               </Button>
-              <Button 
-                type="submit" 
-                disabled={isSaving}
-                className="w-full sm:w-auto min-w-[100px]"
-              >
+              <Button type="submit" disabled={isSaving} className="w-full min-w-[100px] sm:w-auto">
                 {isSaving ? (
                   <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                     {t('saving')}
                   </div>
                 ) : (
@@ -700,4 +656,4 @@ export default function NotificationSettings() {
       </Form>
     </div>
   )
-} 
+}

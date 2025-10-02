@@ -85,15 +85,17 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
     try {
       await syncNodeMutation.mutateAsync({
         nodeId: node.id,
-        params: { flush_users: false }
+        params: { flush_users: false },
       })
       toast.success(t('nodeModal.syncSuccess'))
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
     } catch (error: any) {
-      toast.error(t('nodeModal.syncFailed', { 
-        message: error?.message || 'Unknown error'
-      }))
+      toast.error(
+        t('nodeModal.syncFailed', {
+          message: error?.message || 'Unknown error',
+        }),
+      )
     } finally {
       setSyncing(false)
     }
@@ -106,9 +108,11 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
     } catch (error: any) {
-      toast.error(t('nodeModal.reconnectFailed', { 
-        message: error?.message || 'Unknown error'
-      }))
+      toast.error(
+        t('nodeModal.reconnectFailed', {
+          message: error?.message || 'Unknown error',
+        }),
+      )
     } finally {
       setReconnecting(false)
     }
@@ -116,9 +120,9 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
 
   return (
     <>
-      <Card className="p-4 relative group h-full hover:bg-accent transition-colors cursor-pointer" onClick={() => onEdit(node)}>
+      <Card className="group relative h-full cursor-pointer p-4 transition-colors hover:bg-accent" onClick={() => onEdit(node)}>
         <div className="flex items-center gap-3">
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div
                 className={cn(
@@ -126,15 +130,15 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                   node.status === 'connected' ? 'bg-green-500' : node.status === 'connecting' ? 'bg-yellow-500' : node.status === 'error' ? 'bg-red-500' : 'bg-gray-500',
                 )}
               />
-              <div className="font-medium truncate">{node.name}</div>
+              <div className="truncate font-medium">{node.name}</div>
             </div>
-            <CardTitle className="text-sm text-muted-foreground truncate flex items-center gap-1">
+            <CardTitle className="flex items-center gap-1 truncate text-sm text-muted-foreground">
               <span>
                 {node.address}:{node.port}
               </span>
             </CardTitle>
             {(node.xray_version || node.node_version) && (
-              <div className="text-xs text-muted-foreground mt-1 flex gap-2">
+              <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
                 {node.xray_version && (
                   <span>
                     {t('node.xrayVersion', { defaultValue: 'Xray Core Version' })}: {node.xray_version}
@@ -148,91 +152,78 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
               </div>
             )}
           </div>
-          <div onClick={(e) => e.stopPropagation()}>
+          <div onClick={e => e.stopPropagation()}>
             <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onToggleStatus(node)
-                }}
-              >
-                <Power className="h-4 w-4 mr-2" />
-                {node.status === 'disabled' ? t('enable') : t('disable')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  setShowOnlineStats(true)
-                }}
-                disabled={syncing || reconnecting}
-              >
-                <Activity className="h-4 w-4 mr-2" />
-                {t('nodeModal.onlineStats.button')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  handleSync()
-                }}
-                disabled={syncing || reconnecting}
-              >
-                {syncing ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                )}
-                {syncing ? t('nodeModal.syncing') : t('nodeModal.sync')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  handleReconnect()
-                }}
-                disabled={reconnecting || syncing}
-              >
-                {reconnecting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Wifi className="h-4 w-4 mr-2" />
-                )}
-                {reconnecting ? t('nodeModal.reconnecting') : t('nodeModal.reconnect')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onEdit(node)
-                }}
-              >
-                <Pencil className="h-4 w-4 mr-2" />
-                {t('edit')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                {t('delete')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onToggleStatus(node)
+                  }}
+                >
+                  <Power className="mr-2 h-4 w-4" />
+                  {node.status === 'disabled' ? t('enable') : t('disable')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    setShowOnlineStats(true)
+                  }}
+                  disabled={syncing || reconnecting}
+                >
+                  <Activity className="mr-2 h-4 w-4" />
+                  {t('nodeModal.onlineStats.button')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    handleSync()
+                  }}
+                  disabled={syncing || reconnecting}
+                >
+                  {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                  {syncing ? t('nodeModal.syncing') : t('nodeModal.sync')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    handleReconnect()
+                  }}
+                  disabled={reconnecting || syncing}
+                >
+                  {reconnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wifi className="mr-2 h-4 w-4" />}
+                  {reconnecting ? t('nodeModal.reconnecting') : t('nodeModal.reconnect')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onEdit(node)
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t('edit')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t('delete')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </Card>
 
       <DeleteAlertDialog node={node} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />
-      
+
       {/* User Online Stats Dialog */}
-      <UserOnlineStatsDialog
-        isOpen={showOnlineStats}
-        onOpenChange={setShowOnlineStats}
-        nodeId={node.id}
-        nodeName={node.name}
-      />
+      <UserOnlineStatsDialog isOpen={showOnlineStats} onOpenChange={setShowOnlineStats} nodeId={node.id} nodeName={node.name} />
     </>
   )
 }

@@ -70,8 +70,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         name: values.name,
         data_limit: values.data_limit,
         expire_duration: values.expire_duration,
-        username_prefix: values.username_prefix || "",
-        username_suffix: values.username_suffix || "",
+        username_prefix: values.username_prefix || '',
+        username_suffix: values.username_suffix || '',
         group_ids: values.groups, // map groups to group_ids
         status: values.status,
         on_hold_timeout: values.status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
