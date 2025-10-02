@@ -1,11 +1,11 @@
-from app.notification.client import send_telegram_message
-from app.models.user import UserNotificationResponse
-from app.utils.system import readable_size
 from app.models.settings import NotificationSettings
+from app.models.user import UserNotificationResponse
+from app.notification.client import send_telegram_message
 from app.settings import notification_settings
+from app.utils.system import readable_size
 
-from .utils import escape_html_user
 from . import messages
+from .utils import escape_html_user
 
 _status = {
     "active": "<b>✅ #Activated</b>",
@@ -40,6 +40,7 @@ async def create_user(user: UserNotificationResponse, by: str):
         data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
         expire_date=user.expire if user.expire else "Never",
         data_limit_reset_strategy=user.data_limit_reset_strategy.value,
+        groups=", ".join(user.group_names),
         has_next_plan=bool(user.next_plan),
         admin_username=admin_username,
         by=by,
@@ -60,6 +61,7 @@ async def modify_user(user: UserNotificationResponse, by: str):
         data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
         expire_date=user.expire if user.expire else "Never",
         data_limit_reset_strategy=user.data_limit_reset_strategy.value,
+        groups=", ".join(user.group_names),
         has_next_plan=bool(user.next_plan),
         admin_username=admin_username,
         by=by,

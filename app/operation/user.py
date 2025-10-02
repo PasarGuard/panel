@@ -48,11 +48,10 @@ from app.models.user import (
 )
 from app.node import node_manager
 from app.operation import BaseOperation, OperatorType
-from app.utils.logger import get_logger
-from app.utils.jwt import create_subscription_token
 from app.settings import subscription_settings
+from app.utils.jwt import create_subscription_token
+from app.utils.logger import get_logger
 from config import SUBSCRIPTION_PATH
-
 
 logger = get_logger("user-operation")
 

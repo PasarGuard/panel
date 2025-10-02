@@ -101,6 +101,7 @@ class UserNotificationResponse(User):
     online_at: dt | None = Field(default=None)
     subscription_url: str = Field(default="")
     admin: AdminContactInfo | None = Field(default=None)
+    group_names: list[str] | None = Field(default_factory=list)
     model_config = ConfigDict(from_attributes=True)
 
     @field_validator("used_traffic", "lifetime_used_traffic", "data_limit", mode="before")
@@ -110,7 +111,8 @@ class UserNotificationResponse(User):
 
 
 class UserResponse(UserNotificationResponse):
-    admin: AdminBase | None = None
+    admin: AdminBase | None = Field(default=None)
+    group_names: list[str] | None = Field(default=None, exclude=True)
 
 
 class SubscriptionUserResponse(UserResponse):

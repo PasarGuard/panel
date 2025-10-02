@@ -52,6 +52,7 @@ CREATE_USER = {
     + "**Data Limit**: {data_limit}\n"
     + "**Expire Date:** {expire_date}\n"
     + "**Data Limit Reset Strategy:** {data_limit_reset_strategy}\n"
+    + "**Groups:** {groups}\n"
     + "**Has Next Plan**: {has_next_plan}",
     "footer": {"text": "Belongs To:{admin_username}\nBy: {by}"},
 }
@@ -62,6 +63,7 @@ MODIFY_USER = {
     + "**Data Limit**: {data_limit}\n"
     + "**Expire Date:** {expire_date}\n"
     + "**Data Limit Reset Strategy:** {data_limit_reset_strategy}\n"
+    + "**Groups:** {groups}\n"
     + "**Has Next Plan**: {has_next_plan}",
     "footer": {"text": "Belongs To:{admin_username}\nBy: {by}"},
 }
