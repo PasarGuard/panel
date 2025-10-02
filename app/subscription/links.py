@@ -3,7 +3,6 @@ import json
 import urllib.parse as urlparse
 from enum import Enum
 from random import choice
-from typing import Union
 from urllib.parse import quote
 from uuid import UUID
 
@@ -26,7 +25,7 @@ class StandardLinks(BaseSubscription):
             self.links.append(EXTERNAL_CONFIG)
         if reverse:
             self.links.reverse()
-        return "\n".join((self.links))
+        return "\n".join(self.links)
 
     def add(self, remark: str, address: str, inbound: dict, settings: dict):
         net = inbound["network"]
@@ -51,7 +50,7 @@ class StandardLinks(BaseSubscription):
             tls=inbound["tls"],
             sni=inbound.get("sni", ""),
             fp=inbound.get("fp", ""),
-            alpn=inbound.get("alpn", None),
+            alpn=inbound.get("alpn"),
             pbk=inbound.get("pbk", ""),
             sid=inbound.get("sid", ""),
             spx=inbound.get("spx", ""),
@@ -244,7 +243,7 @@ class StandardLinks(BaseSubscription):
         remark: str,
         address: str,
         port: int,
-        id: Union[str, UUID],
+        id: str | UUID,
         host="",
         net="tcp",
         path="",
@@ -319,7 +318,7 @@ class StandardLinks(BaseSubscription):
         remark: str,
         address: str,
         port: int,
-        id: Union[str, UUID],
+        id: str | UUID,
         encryption: str = "none",
         net="ws",
         path="",

@@ -1,4 +1,3 @@
-from typing import Optional
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -16,9 +15,8 @@ async def base():
 
 
 @router.get("/manifest.json")
-async def get_manifest(request: Request, start_url: Optional[str] = None):
-    """
-    Dynamic PWA manifest generator
+async def get_manifest(request: Request, start_url: str | None = None):
+    """Dynamic PWA manifest generator
     """
     # Get the base URL
     # base_url = str(request.base_url).rstrip("/")

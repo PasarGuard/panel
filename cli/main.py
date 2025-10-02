@@ -6,7 +6,6 @@ A modern, type-safe CLI built with Typer for managing PasarGuard instances.
 """
 
 import asyncio
-from typing import Optional
 
 import typer
 
@@ -34,13 +33,12 @@ def version():
 @app.command()
 def admins(
     list: bool = typer.Option(False, "--list", "-l", help="List all admins"),
-    create: Optional[str] = typer.Option(None, "--create", "-c", help="Create new admin"),
-    delete: Optional[str] = typer.Option(None, "--delete", "-d", help="Delete admin"),
-    modify: Optional[str] = typer.Option(None, "--modify", "-m", help="Modify admin"),
-    reset_usage: Optional[str] = typer.Option(None, "--reset-usage", "-r", help="Reset admin usage"),
+    create: str | None = typer.Option(None, "--create", "-c", help="Create new admin"),
+    delete: str | None = typer.Option(None, "--delete", "-d", help="Delete admin"),
+    modify: str | None = typer.Option(None, "--modify", "-m", help="Modify admin"),
+    reset_usage: str | None = typer.Option(None, "--reset-usage", "-r", help="Reset admin usage"),
 ):
     """List & manage admin accounts."""
-
     if list or not any([create, delete, modify, reset_usage]):
         asyncio.run(list_admins())
     elif create:

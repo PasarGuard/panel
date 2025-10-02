@@ -1,4 +1,5 @@
-from typing import Any, Awaitable, Callable, Dict
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.types import Update
@@ -6,13 +7,16 @@ from aiogram.types import Update
 from app.db import GetDB
 from app.db.crud.admin import get_admin_by_telegram_id
 from app.models.admin import AdminDetails
-from app.settings import telegram_settings
 from app.models.settings import Telegram
+from app.settings import telegram_settings
 
 
 class ACLMiddleware(BaseMiddleware):
     async def __call__(
-        self, handler: Callable[[Update, Dict[str, Any]], Awaitable[Any]], event: Update, data: Dict[str, Any]
+        self,
+        handler: Callable[[Update, dict[str, Any]], Awaitable[Any]],
+        event: Update,
+        data: dict[str, Any],
     ) -> Any:
         message_obj = event.message or event.callback_query or event.inline_query
         user_id = message_obj.from_user.id
@@ -22,14 +26,14 @@ class ACLMiddleware(BaseMiddleware):
             if admin:
                 if admin.is_disabled:
                     if settings.for_admins_only:
-                        return
+                        return None
                     data["admin"] = None
                 else:
                     admin = AdminDetails.model_validate(admin)
                     data["admin"] = admin
             else:
                 if settings.for_admins_only:
-                    return
+                    return None
                 data["admin"] = None
 
             data["db"] = db

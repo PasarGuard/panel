@@ -1,7 +1,6 @@
 import json
 from enum import Enum
 from random import choice
-from typing import Union
 
 from app.subscription.funcs import detect_shadowsocks_2022, get_grpc_gun, get_grpc_multi
 from app.templates import render_template
@@ -313,7 +312,7 @@ class XrayConfiguration(BaseSubscription):
             sni=inbound["sni"],
             host=inbound["host"],
             path=path,
-            alpn=inbound.get("alpn", None),
+            alpn=inbound.get("alpn"),
             fp=inbound.get("fp", ""),
             pbk=inbound.get("pbk", ""),
             sid=inbound.get("sid", ""),
@@ -418,7 +417,7 @@ class XrayConfiguration(BaseSubscription):
 
     def make_dialer_outbound(
         self, fragment: dict | None = None, noises: dict | None = None, dialer_tag: str = "dialer"
-    ) -> Union[dict, None]:
+    ) -> dict | None:
         xray_noises = noises.get("xray", []) if noises else []
         dialer_settings = {
             "fragment": fragment.get("xray") if fragment else None,
@@ -635,7 +634,7 @@ class XrayConfiguration(BaseSubscription):
             sni=inbound["sni"],
             host=inbound["host"],
             path=path,
-            alpn=inbound.get("alpn", None),
+            alpn=inbound.get("alpn"),
             fp=inbound.get("fp", ""),
             pbk=inbound.get("pbk", ""),
             sid=inbound.get("sid", ""),

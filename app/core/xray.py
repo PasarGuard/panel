@@ -4,7 +4,6 @@ import base64
 import json
 from copy import deepcopy
 from pathlib import PosixPath
-from typing import Union
 
 import commentjson
 
@@ -14,7 +13,7 @@ from app.utils.crypto import get_cert_SANs, get_x25519_public_key
 class XRayConfig(dict):
     def __init__(
         self,
-        config: Union[dict, str, PosixPath] = {},
+        config: dict | str | PosixPath = {},
         exclude_inbound_tags: set[str] | None = set(),
         fallbacks_inbound_tags: set[str] | None = set(),
     ):
@@ -104,8 +103,7 @@ class XRayConfig(dict):
             if inbound.get("settings", {}).get("fallbacks", []):
                 if not port_found:
                     raise ValueError(f"{settings['tag']} inbound doesn't have port")
-                else:
-                    return
+                return
             fallbacks = self._find_fallback_inbound(inbound)
             if fallbacks:
                 settings["is_fallback"] = True

@@ -1,15 +1,14 @@
 from enum import Enum
-from typing import List
 
+from aiogram.filters.callback_data import CallbackData
 from aiogram.types import CopyTextButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.filters.callback_data import CallbackData
 
 from app.models.user import UserResponse, UserStatus
 from app.models.user_template import UserTemplate
 from app.telegram.utils.texts import Button as Texts
-from .base import CancelAction, CancelKeyboard
 
+from .base import CancelAction, CancelKeyboard
 from .confim_action import ConfirmAction
 
 
@@ -81,10 +80,10 @@ class UserPanel(InlineKeyboardBuilder):
             callback_data=self.Callback(action=UserPanelAction.modify_expiry, user_id=user.id),
         )
         self.button(
-            text=Texts.modify_note, callback_data=self.Callback(action=UserPanelAction.modify_note, user_id=user.id)
+            text=Texts.modify_note, callback_data=self.Callback(action=UserPanelAction.modify_note, user_id=user.id),
         )
         self.button(
-            text=Texts.modify_groups, callback_data=self.Callback(action=UserPanelAction.modify_groups, user_id=user.id)
+            text=Texts.modify_groups, callback_data=self.Callback(action=UserPanelAction.modify_groups, user_id=user.id),
         )
         if not user.next_plan:
             self.button(
@@ -126,7 +125,7 @@ class ChooseTemplate(InlineKeyboardBuilder):
         template_id: int
         user_id: int = 0  # in case choose template for modify
 
-    def __init__(self, templates: List[UserTemplate], user_id: int = 0, *args, **kwargs):
+    def __init__(self, templates: list[UserTemplate], user_id: int = 0, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         for template in templates:

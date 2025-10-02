@@ -1,4 +1,3 @@
-from typing import Union, List
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,8 +13,7 @@ async def load_user_template_attrs(template: UserTemplate):
 
 
 async def create_user_template(db: AsyncSession, user_template: UserTemplateCreate) -> UserTemplate:
-    """
-    Creates a new user template in the database.
+    """Creates a new user template in the database.
 
     Args:
         db (AsyncSession): Database session.
@@ -23,8 +21,8 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
 
     Returns:
         UserTemplate: The created user template object.
-    """
 
+    """
     db_user_template = UserTemplate(
         name=user_template.name,
         data_limit=user_template.data_limit,
@@ -48,10 +46,9 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
 
 
 async def modify_user_template(
-    db: AsyncSession, db_user_template: UserTemplate, modified_user_template: UserTemplateModify
+    db: AsyncSession, db_user_template: UserTemplate, modified_user_template: UserTemplateModify,
 ) -> UserTemplate:
-    """
-    Updates a user template's details.
+    """Updates a user template's details.
 
     Args:
         db (AsyncSession): Database session.
@@ -60,6 +57,7 @@ async def modify_user_template(
 
     Returns:
         UserTemplate: The updated user template object.
+
     """
     if modified_user_template.name is not None:
         db_user_template.name = modified_user_template.name
@@ -93,20 +91,19 @@ async def modify_user_template(
 
 
 async def remove_user_template(db: AsyncSession, db_user_template: UserTemplate):
-    """
-    Removes a user template from the database.
+    """Removes a user template from the database.
 
     Args:
         db (AsyncSession): Database session.
         db_user_template (UserTemplate): The user template object to be removed.
+
     """
     await db.delete(db_user_template)
     await db.commit()
 
 
 async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemplate:
-    """
-    Retrieves a user template by its ID.
+    """Retrieves a user template by its ID.
 
     Args:
         db (AsyncSession): Database session.
@@ -114,6 +111,7 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
 
     Returns:
         UserTemplate: The user template object.
+
     """
     user_template = (
         (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id)))
@@ -126,10 +124,9 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
 
 
 async def get_user_templates(
-    db: AsyncSession, offset: Union[int, None] = None, limit: Union[int, None] = None
-) -> List[UserTemplate]:
-    """
-    Retrieves a list of user templates with optional pagination.
+    db: AsyncSession, offset: int | None = None, limit: int | None = None,
+) -> list[UserTemplate]:
+    """Retrieves a list of user templates with optional pagination.
 
     Args:
         db (AsyncSession): Database session.
@@ -138,6 +135,7 @@ async def get_user_templates(
 
     Returns:
         List[UserTemplate]: A list of user template objects.
+
     """
     query = select(UserTemplate)
     if offset:

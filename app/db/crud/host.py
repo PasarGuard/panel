@@ -1,17 +1,15 @@
 import asyncio
 from enum import Enum
-from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ProxyInbound, ProxyHost
+from app.db.models import ProxyHost, ProxyInbound
 from app.models.host import CreateHost
 
 
 async def get_or_create_inbound(db: AsyncSession, inbound_tag: str) -> ProxyInbound:
-    """
-    Retrieves or creates a proxy inbound based on the given tag.
+    """Retrieves or creates a proxy inbound based on the given tag.
 
     Args:
         db (AsyncSession): Database session.
@@ -19,6 +17,7 @@ async def get_or_create_inbound(db: AsyncSession, inbound_tag: str) -> ProxyInbo
 
     Returns:
         ProxyInbound: The retrieved or newly created proxy inbound.
+
     """
     stmt = select(ProxyInbound).where(ProxyInbound.tag == inbound_tag)
     result = await db.execute(stmt)
@@ -33,9 +32,8 @@ async def get_or_create_inbound(db: AsyncSession, inbound_tag: str) -> ProxyInbo
     return inbound
 
 
-async def get_inbounds_not_in_tags(db: AsyncSession, excluded_tags: List[str]) -> List[ProxyInbound]:
-    """
-    Get all inbounds where the tag is not in the provided list of tags.
+async def get_inbounds_not_in_tags(db: AsyncSession, excluded_tags: list[str]) -> list[ProxyInbound]:
+    """Get all inbounds where the tag is not in the provided list of tags.
 
     Args:
         db: Database session
@@ -43,19 +41,20 @@ async def get_inbounds_not_in_tags(db: AsyncSession, excluded_tags: List[str]) -
 
     Returns:
         List of ProxyInbound objects not matching any tag in the list
+
     """
     stmt = select(ProxyInbound).where(ProxyInbound.tag.not_in(excluded_tags))
     result = await db.execute(stmt)
     return result.scalars().all()
 
 
-async def remove_inbounds(db: AsyncSession, inbounds: List[ProxyInbound]) -> None:
-    """
-    Remove a list of inbounds from the database.
+async def remove_inbounds(db: AsyncSession, inbounds: list[ProxyInbound]) -> None:
+    """Remove a list of inbounds from the database.
 
     Args:
         db: Database session
         inbounds: List of ProxyInbound objects to remove
+
     """
     if not inbounds:
         return
@@ -77,12 +76,11 @@ ProxyHostSortingOptions = Enum(
 
 async def get_hosts(
     db: AsyncSession,
-    offset: Optional[int] = 0,
-    limit: Optional[int] = 0,
+    offset: int | None = 0,
+    limit: int | None = 0,
     sort: ProxyHostSortingOptions = "priority",
 ) -> list[ProxyHost]:
-    """
-    Retrieves hosts.
+    """Retrieves hosts.
 
     Args:
         db (AsyncSession): Database session.
@@ -91,6 +89,7 @@ async def get_hosts(
 
     Returns:
         List[ProxyHost]: List of hosts for the inbound.
+
     """
     stmt = select(ProxyHost).order_by(sort)
 
@@ -104,8 +103,7 @@ async def get_hosts(
 
 
 async def get_host_by_id(db: AsyncSession, id: int) -> ProxyHost:
-    """
-    Retrieves host by id.
+    """Retrieves host by id.
 
     Args:
         db (AsyncSession): Database session.
@@ -113,6 +111,7 @@ async def get_host_by_id(db: AsyncSession, id: int) -> ProxyHost:
 
     Returns:
         ProxyHost: The host if found.
+
     """
     stmt = select(ProxyHost).where(ProxyHost.id == id)
     result = await db.execute(stmt)
@@ -120,8 +119,7 @@ async def get_host_by_id(db: AsyncSession, id: int) -> ProxyHost:
 
 
 async def create_host(db: AsyncSession, new_host: CreateHost) -> ProxyHost:
-    """
-    Creates a proxy Host based on the host.
+    """Creates a proxy Host based on the host.
 
     Args:
         db (AsyncSession): Database session.
@@ -129,6 +127,7 @@ async def create_host(db: AsyncSession, new_host: CreateHost) -> ProxyHost:
 
     Returns:
         ProxyHost: The retrieved or newly created proxy host.
+
     """
     db_host = ProxyHost(**new_host.model_dump(exclude={"inbound_tag", "id"}))
     db_host.inbound = await get_or_create_inbound(db, new_host.inbound_tag)
@@ -151,8 +150,7 @@ async def modify_host(db: AsyncSession, db_host: ProxyHost, modified_host: Creat
 
 
 async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
-    """
-    Removes a proxy Host from the database.
+    """Removes a proxy Host from the database.
 
     Args:
         db (AsyncSession): Database session.
@@ -160,6 +158,7 @@ async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
 
     Returns:
         ProxyHost: The removed proxy host.
+
     """
     await db.delete(db_host)
     await db.commit()

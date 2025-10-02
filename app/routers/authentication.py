@@ -1,4 +1,4 @@
-from datetime import timezone as tz
+from datetime import UTC
 
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
 from fastapi import Depends, HTTPException, status
@@ -18,19 +18,19 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
 async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     payload = await get_admin_payload(token)
     if not payload:
-        return
+        return None
 
     db_admin = await get_admin_by_username(db, payload["username"])
     if db_admin:
         if db_admin.password_reset_at:
             if not payload.get("created_at"):
-                return
-            if db_admin.password_reset_at.astimezone(tz.utc) > payload.get("created_at"):
-                return
+                return None
+            if db_admin.password_reset_at.astimezone(UTC) > payload.get("created_at"):
+                return None
 
         return AdminDetails.model_validate(db_admin)
 
-    elif payload["username"] in SUDOERS and payload["is_sudo"] is True:
+    if payload["username"] in SUDOERS and payload["is_sudo"] is True:
         return AdminDetails(username=payload["username"], is_sudo=True)
 
 

@@ -1,5 +1,4 @@
-from datetime import datetime, timezone
-from typing import Optional, Union
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,9 +10,8 @@ from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageS
 from .general import _build_trunc_expression
 
 
-async def get_node(db: AsyncSession, name: str) -> Optional[Node]:
-    """
-    Retrieves a node by its name.
+async def get_node(db: AsyncSession, name: str) -> Node | None:
+    """Retrieves a node by its name.
 
     Args:
         db (AsyncSession): The database session.
@@ -21,13 +19,13 @@ async def get_node(db: AsyncSession, name: str) -> Optional[Node]:
 
     Returns:
         Optional[Node]: The Node object if found, None otherwise.
+
     """
     return (await db.execute(select(Node).where(Node.name == name))).unique().scalar_one_or_none()
 
 
-async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
-    """
-    Retrieves a node by its ID.
+async def get_node_by_id(db: AsyncSession, node_id: int) -> Node | None:
+    """Retrieves a node by its ID.
 
     Args:
         db (AsyncSession): The database session.
@@ -35,20 +33,20 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
 
     Returns:
         Optional[Node]: The Node object if found, None otherwise.
+
     """
     return (await db.execute(select(Node).where(Node.id == node_id))).unique().scalar_one_or_none()
 
 
 async def get_nodes(
     db: AsyncSession,
-    status: Optional[Union[NodeStatus, list]] = None,
+    status: NodeStatus | list | None = None,
     enabled: bool | None = None,
     core_id: int | None = None,
     offset: int | None = None,
     limit: int | None = None,
 ) -> list[Node]:
-    """
-    Retrieves nodes based on optional status and enabled filters.
+    """Retrieves nodes based on optional status and enabled filters.
 
     Args:
         db (AsyncSession): The database session.
@@ -57,6 +55,7 @@ async def get_nodes(
 
     Returns:
         List[Node]: A list of Node objects matching the criteria.
+
     """
     query = select(Node)
 
@@ -88,8 +87,7 @@ async def get_nodes_usage(
     node_id: int | None = None,
     group_by_node: bool = False,
 ) -> NodeUsageStatsList:
-    """
-    Retrieves usage data for all nodes within a specified time range.
+    """Retrieves usage data for all nodes within a specified time range.
 
     Args:
         db (AsyncSession): The database session.
@@ -98,6 +96,7 @@ async def get_nodes_usage(
 
     Returns:
         NodeUsageStatsList: A NodeUsageStatsList contain list of NodeUsageResponse objects containing usage data.
+
     """
     trunc_expr = _build_trunc_expression(period, NodeUsage.created_at)
 
@@ -145,7 +144,7 @@ async def get_nodes_usage(
 
 
 async def get_node_stats(
-    db: AsyncSession, node_id: int, start: datetime, end: datetime, period: Period
+    db: AsyncSession, node_id: int, start: datetime, end: datetime, period: Period,
 ) -> NodeStatsList:
     trunc_expr = _build_trunc_expression(period, NodeStat.created_at)
     conditions = [NodeStat.created_at >= start, NodeStat.created_at <= end, NodeStat.node_id == node_id]
@@ -169,8 +168,7 @@ async def get_node_stats(
 
 
 async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
-    """
-    Creates a new node in the database.
+    """Creates a new node in the database.
 
     Args:
         db (AsyncSession): The database session.
@@ -178,6 +176,7 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
 
     Returns:
         Node: The newly created Node object.
+
     """
     db_node = Node(**node.model_dump())
 
@@ -188,8 +187,7 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
 
 
 async def remove_node(db: AsyncSession, db_node: Node) -> Node:
-    """
-    Removes a node from the database.
+    """Removes a node from the database.
 
     Args:
         db (AsyncSession): The database session.
@@ -197,14 +195,14 @@ async def remove_node(db: AsyncSession, db_node: Node) -> Node:
 
     Returns:
         Node: The removed Node object.
+
     """
     await db.delete(db_node)
     await db.commit()
 
 
 async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> Node:
-    """
-    modify an existing node with new information.
+    """Modify an existing node with new information.
 
     Args:
         db (AsyncSession): The database session.
@@ -213,8 +211,8 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
 
     Returns:
         Node: The modified Node object.
-    """
 
+    """
     node_data = modify.model_dump(exclude_none=True)
 
     for key, value in node_data.items():
@@ -240,8 +238,7 @@ async def update_node_status(
     xray_version: str = "",
     node_version: str = "",
 ) -> Node:
-    """
-    Updates the status of a node.
+    """Updates the status of a node.
 
     Args:
         db (AsyncSession): The database session.
@@ -252,6 +249,7 @@ async def update_node_status(
 
     Returns:
         Node: The updated Node object.
+
     """
     stmt = (
         update(Node)
@@ -261,7 +259,7 @@ async def update_node_status(
             message=message,
             xray_version=xray_version,
             node_version=node_version,
-            last_status_change=datetime.now(timezone.utc),
+            last_status_change=datetime.now(UTC),
         )
     )
     await db.execute(stmt)
@@ -279,13 +277,13 @@ def _table_model(table: UsageTable):
 
 
 async def clear_usage_data(
-    db: AsyncSession, table: UsageTable, start: datetime | None = None, end: datetime | None = None
+    db: AsyncSession, table: UsageTable, start: datetime | None = None, end: datetime | None = None,
 ):
     filters = []
     if start:
-        filters.append(getattr(_table_model(table), "created_at") >= start.replace(tzinfo=timezone.utc))
+        filters.append(_table_model(table).created_at >= start.replace(tzinfo=UTC))
     if end:
-        filters.append(getattr(_table_model(table), "created_at") < end.replace(tzinfo=timezone.utc))
+        filters.append(_table_model(table).created_at < end.replace(tzinfo=UTC))
 
     stmt = delete(_table_model(table))
     if filters:
