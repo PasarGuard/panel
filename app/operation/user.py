@@ -1,6 +1,6 @@
 import asyncio
 import secrets
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime
 
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -398,14 +398,14 @@ class UserOperation(BaseOperation):
 
         if template.status == UserStatus.active:
             if template.expire_duration:
-                user_args["expire"] = dt.now(tz.utc) + td(seconds=template.expire_duration)
+                user_args["expire"] = datetime.now(UTC) + td(seconds=template.expire_duration)
             else:
                 user_args["expire"] = None
         else:
             user_args["expire"] = 0
             user_args["on_hold_expire_duration"] = template.expire_duration
             if template.on_hold_timeout:
-                user_args["on_hold_timeout"] = dt.now(tz.utc) + td(seconds=template.on_hold_timeout)
+                user_args["on_hold_timeout"] = datetime.now(UTC) + td(seconds=template.on_hold_timeout)
             else:
                 user_args["on_hold_timeout"] = None
 

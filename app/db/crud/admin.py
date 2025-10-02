@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +13,7 @@ async def load_admin_attrs(admin: Admin):
 
 
 async def get_admin(db: AsyncSession, username: str) -> Admin:
-    """
-    Retrieves an admin by username.
+    """Retrieves an admin by username.
 
     Args:
         db (AsyncSession): Database session.
@@ -22,6 +21,7 @@ async def get_admin(db: AsyncSession, username: str) -> Admin:
 
     Returns:
         Admin: The admin object.
+
     """
     admin = (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
     if admin:
@@ -30,8 +30,7 @@ async def get_admin(db: AsyncSession, username: str) -> Admin:
 
 
 async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
-    """
-    Creates a new admin in the database.
+    """Creates a new admin in the database.
 
     Args:
         db (AsyncSession): Database session.
@@ -39,6 +38,7 @@ async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
 
     Returns:
         Admin: The created admin object.
+
     """
     db_admin = Admin(**admin.model_dump(exclude={"password"}), hashed_password=admin.hashed_password)
     db.add(db_admin)
@@ -49,8 +49,7 @@ async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
 
 
 async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminModify) -> Admin:
-    """
-    Updates an admin's details.
+    """Updates an admin's details.
 
     Args:
         db (AsyncSession): Database session.
@@ -59,6 +58,7 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
 
     Returns:
         Admin: The updated admin object.
+
     """
     if modified_admin.is_sudo is not None:
         db_admin.is_sudo = modified_admin.is_sudo
@@ -66,7 +66,7 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.is_disabled = modified_admin.is_disabled
     if modified_admin.hashed_password is not None and db_admin.hashed_password != modified_admin.hashed_password:
         db_admin.hashed_password = modified_admin.hashed_password
-        db_admin.password_reset_at = datetime.now(timezone.utc)
+        db_admin.password_reset_at = datetime.now(UTC)
     if modified_admin.telegram_id is not None:
         db_admin.telegram_id = modified_admin.telegram_id
     if modified_admin.discord_webhook is not None:
@@ -88,20 +88,19 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
 
 
 async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
-    """
-    Removes an admin from the database.
+    """Removes an admin from the database.
 
     Args:
         db (AsyncSession): Database session.
         dbadmin (Admin): The admin object to be removed.
+
     """
     await db.delete(dbadmin)
     await db.commit()
 
 
 async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
-    """
-    Retrieves an admin by their ID.
+    """Retrieves an admin by their ID.
 
     Args:
         db (AsyncSession): Database session.
@@ -109,6 +108,7 @@ async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
 
     Returns:
         Admin: The admin object.
+
     """
     admin = (await db.execute(select(Admin).where(Admin.id == id))).first()
     if admin:
@@ -117,8 +117,7 @@ async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
 
 
 async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
-    """
-    Retrieves an admin by their Telegram ID.
+    """Retrieves an admin by their Telegram ID.
 
     Args:
         db (AsyncSession): Database session.
@@ -126,6 +125,7 @@ async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
 
     Returns:
         Admin: The admin object.
+
     """
     admin = (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id))).scalar_one_or_none()
     if admin:
@@ -134,8 +134,7 @@ async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
 
 
 async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
-    """
-    Retrieves an admin by their Discord ID.
+    """Retrieves an admin by their Discord ID.
 
     Args:
         db (AsyncSession): Database session.
@@ -143,6 +142,7 @@ async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
 
     Returns:
         Admin: The admin object.
+
     """
     admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).first()
     if admin:
@@ -151,10 +151,9 @@ async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
 
 
 async def get_admins(
-    db: AsyncSession, offset: int | None = None, limit: int | None = None, username: str | None = None
+    db: AsyncSession, offset: int | None = None, limit: int | None = None, username: str | None = None,
 ) -> list[Admin]:
-    """
-    Retrieves a list of admins with optional filters and pagination.
+    """Retrieves a list of admins with optional filters and pagination.
 
     Args:
         db (AsyncSession): Database session.
@@ -164,6 +163,7 @@ async def get_admins(
 
     Returns:
         List[Admin]: A list of admin objects.
+
     """
     query = select(Admin)
     if username:
@@ -182,13 +182,15 @@ async def get_admins(
 
 
 async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
-    """
-    Retrieves an admin's usage by their username.
+    """Retrieves an admin's usage by their username.
+
     Args:
         db (AsyncSession): Database session.
         db_admin (Admin): The admin object to be updated.
+
     Returns:
         Admin: The updated admin.
+
     """
     if db_admin.used_traffic == 0:
         return db_admin
@@ -204,14 +206,14 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
 
 
 async def get_admins_count(db: AsyncSession) -> int:
-    """
-    Retrieves the total count of admins.
+    """Retrieves the total count of admins.
 
     Args:
         db (AsyncSession): Database session.
 
     Returns:
         int: The total number of admins.
+
     """
     count = (await db.execute(select(func.count(Admin.id)))).scalar_one()
     return count

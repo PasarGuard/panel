@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import status
 
@@ -8,7 +8,7 @@ from tests.api.test_f_user_template import test_user_template_create  # noqa
 
 def test_user_create_active(access_token):
     """Test that the user create active route is accessible."""
-    expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    expire = datetime.now(UTC).replace(microsecond=0) + timedelta(days=30)
     response = client.post(
         "/api/user",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -42,7 +42,7 @@ def test_user_create_active(access_token):
 
 def test_user_create_on_hold(access_token):
     """Test that the user create on hold route is accessible."""
-    expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    expire = datetime.now(UTC).replace(microsecond=0) + timedelta(days=30)
     response = client.post(
         "/api/user",
         headers={"Authorization": f"Bearer {access_token}"},

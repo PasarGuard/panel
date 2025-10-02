@@ -1,6 +1,6 @@
-from datetime import datetime as dt, timezone as tz, timedelta as td
+from datetime import UTC, datetime, timedelta
 
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -12,7 +12,7 @@ from app.operation import OperatorType
 from app.operation.user import UserOperation
 from app.telegram.keyboards.admin import AdminPanel, AdminPanelAction
 from app.telegram.keyboards.base import CancelKeyboard
-from app.telegram.keyboards.bulk_actions import BulkActionPanel, BulkAction
+from app.telegram.keyboards.bulk_actions import BulkAction, BulkActionPanel
 from app.telegram.keyboards.confim_action import ConfirmAction
 from app.telegram.utils import forms
 from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
@@ -64,14 +64,17 @@ async def process_expire_before(event: Message, state: FSMContext):
 
 @router.callback_query(BulkActionPanel.Callback.filter((BulkAction.delete_expired == F.action) & F.amount))
 async def delete_expired_done(
-    event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
+    event: CallbackQuery,
+    db: AsyncSession,
+    admin: AdminDetails,
+    callback_data: BulkActionPanel.Callback,
 ):
-    expire_before = dt.now(tz.utc) - td(days=int(callback_data.amount))
+    expire_before = datetime.now(UTC) - timedelta(days=int(callback_data.amount))
     result = await user_operations.delete_expired_users(
         db,
         admin,
         expired_before=expire_before,
-        expired_after=dt.fromtimestamp(0, tz.utc),
+        expired_after=datetime.fromtimestamp(0, UTC),
     )
     await event.answer(Texts.users_deleted(result.count))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())

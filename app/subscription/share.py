@@ -2,7 +2,7 @@ import base64
 import random
 import secrets
 from collections import defaultdict
-from datetime import datetime as dt, timedelta, timezone
+from datetime import UTC, datetime as dt, timedelta
 
 from jdatetime import date as jd
 
@@ -90,7 +90,7 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
     user_status = user.status
     expire = user.expire
     on_hold_expire_duration = user.on_hold_expire_duration
-    now = dt.now(timezone.utc)
+    now = dt.now(UTC)
 
     admin_username = ""
     if admin_data := user.admin:
@@ -115,25 +115,23 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
             time_left = "∞"
             expire_date = "∞"
             jalali_expire_date = "∞"
+    elif on_hold_expire_duration:
+        days_left = timedelta(seconds=on_hold_expire_duration).days
+        time_left = format_time_left(on_hold_expire_duration)
+        expire_date = "-"
+        jalali_expire_date = "-"
     else:
-        if on_hold_expire_duration:
-            days_left = timedelta(seconds=on_hold_expire_duration).days
-            time_left = format_time_left(on_hold_expire_duration)
-            expire_date = "-"
-            jalali_expire_date = "-"
-        else:
-            days_left = "∞"
-            time_left = "∞"
-            expire_date = "∞"
-            jalali_expire_date = "∞"
+        days_left = "∞"
+        time_left = "∞"
+        expire_date = "∞"
+        jalali_expire_date = "∞"
 
     if user.data_limit:
         data_limit = readable_size(user.data_limit)
         data_left = user.data_limit - user.used_traffic
         usage_Percentage = round((user.used_traffic / user.data_limit) * 100.0, 2)
 
-        if data_left < 0:
-            data_left = 0
+        data_left = max(data_left, 0)
         data_left = readable_size(data_left)
     else:
         data_limit = "∞"
@@ -177,14 +175,14 @@ async def process_host(
     tag = host["inbound_tag"]
 
     if tag not in inbounds:
-        return
+        return None
 
     host_inbound: dict = await core_manager.get_inbound_by_tag(tag)
     protocol = host_inbound["protocol"]
 
     settings = proxies.get(protocol)
     if not settings:
-        return
+        return None
 
     if "flow" in host_inbound:
         if settings["flow"] == "":

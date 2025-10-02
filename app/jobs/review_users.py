@@ -1,12 +1,12 @@
 import asyncio
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import notification, scheduler
 from app.db import GetDB
-from app.db.models import User, UserStatus, ReminderType
 from app.db.crud.user import (
+    bulk_create_notification_reminders,
     get_active_to_expire_users,
     get_active_to_limited_users,
     get_days_left_reached_users,
@@ -15,8 +15,8 @@ from app.db.crud.user import (
     reset_user_by_next,
     start_users_expire,
     update_users_status,
-    bulk_create_notification_reminders,
 )
+from app.db.models import ReminderType, User, UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import Webhook
 from app.models.user import UserNotificationResponse
@@ -95,9 +95,11 @@ async def usage_percent_notification_job():
                 webhook_tasks.append(
                     notification.wh.notify(
                         notification.wh.ReachedUsagePercent(
-                            username=user_model.username, user=user_model, used_percent=usage_percentage
-                        )
-                    )
+                            username=user_model.username,
+                            user=user_model,
+                            used_percent=usage_percentage,
+                        ),
+                    ),
                 )
 
                 # Prepare reminder data for bulk insert
@@ -107,7 +109,7 @@ async def usage_percent_notification_job():
                         "type": ReminderType.data_usage,
                         "threshold": percent,
                         "expires_at": user.expire if user.expire else None,
-                    }
+                    },
                 )
 
             # Send webhooks first
@@ -139,7 +141,9 @@ async def days_left_notification_job():
                 webhook_tasks.append(
                     notification.wh.notify(
                         notification.wh.ReachedDaysLeft(
-                            username=user_model.username, user=user_model, days_left=days_left
+                            username=user_model.username,
+                            user=user_model,
+                            days_left=days_left,
                         )
                     )
                 )
@@ -162,7 +166,7 @@ async def days_left_notification_job():
                 await asyncio.gather(*webhook_tasks, return_exceptions=True)
 
 
-now = dt.now(tz.utc)
+now = dt.now(UTC)
 interval = int(JOB_REVIEW_USERS_INTERVAL / 5)
 
 # Register each job separately

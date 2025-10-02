@@ -1,8 +1,7 @@
-import re
-import json
 import html
-from datetime import datetime as dt, timezone as tz
-from typing import Union
+import json
+import re
+from datetime import UTC, datetime as dt
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -12,7 +11,7 @@ def yml_uuid_representer(dumper, data):
     return dumper.represent_scalar("tag:yaml.org,2002:str", str(data))
 
 
-def readable_datetime(date_time: Union[dt, int, None], include_date: bool = True, include_time: bool = True):
+def readable_datetime(date_time: dt | int | None, include_date: bool = True, include_time: bool = True):
     def get_datetime_format():
         dt_format = ""
         if include_date:
@@ -34,13 +33,12 @@ def fix_datetime_timezone(value: dt | int):
     if isinstance(value, dt):
         # If datetime is naive (no timezone), assume it's UTC
         if value.tzinfo is None:
-            return value.replace(tzinfo=tz.utc)
+            return value.replace(tzinfo=UTC)
         # If datetime has timezone, convert to UTC
-        else:
-            return value.astimezone(tz.utc)
-    elif isinstance(value, int):
+        return value.astimezone(UTC)
+    if isinstance(value, int):
         # Timestamp will be assume it's UTC
-        return dt.fromtimestamp(value, tz=tz.utc)
+        return dt.fromtimestamp(value, tz=UTC)
 
     raise ValueError("input can be datetime or timestamp")
 

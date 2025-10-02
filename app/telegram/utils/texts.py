@@ -1,14 +1,13 @@
+from datetime import UTC, datetime as dt, timedelta as td
+from html import escape
+
 from aiogram.utils.formatting import html_decoration
 
 from app.models.group import Group
-from app.models.user import UserResponse, UserStatus
 from app.models.system import SystemStats
-from app.telegram.utils.shared import readable_size
+from app.models.user import UserResponse, UserStatus
 from app.subscription.share import STATUS_EMOJIS
-
-from datetime import datetime as dt, timedelta as td, timezone as tz
-from html import escape
-
+from app.telegram.utils.shared import readable_size
 
 b = html_decoration.bold
 c = html_decoration.code
@@ -110,7 +109,7 @@ class Message:
         data_limit = c(readable_size(user.data_limit)) if user.data_limit else "∞"
         used_traffic = c(readable_size(user.used_traffic))
         expire = user.expire.strftime("%Y-%m-%d %H:%M") if user.expire else "∞"
-        days_left = (user.expire - dt.now(tz.utc)).days if user.expire else "∞"
+        days_left = (user.expire - dt.now(UTC)).days if user.expire else "∞"
         on_hold_timeout = user.on_hold_timeout.strftime("%Y-%m-%d %H:%M") if user.on_hold_timeout else "-"
         on_hold_expire_duration = td(seconds=user.on_hold_expire_duration).days if user.on_hold_expire_duration else "0"
         online_at = bl(user.online_at.strftime("%Y-%m-%d %H:%M:%S")) if user.online_at else "-"
@@ -148,7 +147,7 @@ class Message:
         if user.status == UserStatus.on_hold:
             expiry = int(user.on_hold_expire_duration / 24 / 60 / 60)
         else:
-            expiry = (user.expire - dt.now(tz.utc)).days if user.expire else "∞"
+            expiry = (user.expire - dt.now(UTC)).days if user.expire else "∞"
         return f"{used_traffic} / {data_limit} | {expiry} days\n{user.note or ''}"
 
     @classmethod
@@ -156,7 +155,7 @@ class Message:
         data_limit = c(readable_size(user.data_limit)) if user.data_limit else "∞"
         used_traffic = c(readable_size(user.used_traffic))
         expire = user.expire.strftime("%Y-%m-%d %H:%M") if user.expire else "∞"
-        days_left = (user.expire - dt.now(tz.utc)).days if user.expire else "∞"
+        days_left = (user.expire - dt.now(UTC)).days if user.expire else "∞"
         online_at = bl(user.online_at.strftime("%Y-%m-%d %H:%M:%S")) if user.online_at else "-"
         emojy_status = cls.status_emoji(user.status)
 
@@ -235,29 +234,25 @@ class Message:
     def confirm_modify_expiry(cls, days: int) -> str:
         if days > 0:
             return f"⚠ Are you sure you want to extend users expiry by {c(days)} days?"
-        else:
-            return f"⚠ Are you sure you want to subtract {c(abs(days))} days from users expiry?"
+        return f"⚠ Are you sure you want to subtract {c(abs(days))} days from users expiry?"
 
     @classmethod
     def users_expiry_changed(cls, result: int, amount: int):
         if amount > 0:
             return f"✅ {result} users successfully extended by {amount} days."
-        else:
-            return f"✅ {result} users successfully subtracted by {abs(amount)} days."
+        return f"✅ {result} users successfully subtracted by {abs(amount)} days."
 
     @classmethod
     def confirm_modify_data_limit(cls, amount: int) -> str:
         if amount > 0:
             return f"⚠ Are you sure you want to increase users data limit by {c(amount)} GB?"
-        else:
-            return f"⚠ Are you sure you want to decrease users data limit by {c(abs(amount))} GB?"
+        return f"⚠ Are you sure you want to decrease users data limit by {c(abs(amount))} GB?"
 
     @classmethod
     def users_data_limit_changed(cls, result: int, amount: int):
         if amount > 0:
             return f"✅ {result} users successfully increased by {amount} GB."
-        else:
-            return f"✅ {result} users successfully decreased by {abs(amount)} GB."
+        return f"✅ {result} users successfully decreased by {abs(amount)} GB."
 
 
 __all__ = ["Button", "Message"]

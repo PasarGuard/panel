@@ -1,4 +1,4 @@
-from datetime import datetime as dt, timezone as tz
+from datetime import UTC, datetime as dt, timezone as tz
 from typing import Union
 
 import jinja2
@@ -14,8 +14,8 @@ if CUSTOM_TEMPLATES_DIRECTORY:
 
 env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_directories))
 env.filters.update(CUSTOM_FILTERS)
-env.globals["now"] = lambda: dt.now(tz.utc)
+env.globals["now"] = lambda: dt.now(UTC)
 
 
-def render_template(template: str, context: Union[dict, None] = None) -> str:
+def render_template(template: str, context: dict | None = None) -> str:
     return env.get_template(template).render(context or {})

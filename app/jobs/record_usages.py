@@ -1,9 +1,9 @@
 import asyncio
 from collections import defaultdict
-from datetime import datetime as dt, timezone as tz
+from datetime import UTC, datetime
 from operator import attrgetter
 
-from PasarGuardNodeBridge import PasarGuardNode, NodeAPIError
+from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
 from sqlalchemy import and_, bindparam, insert, select, update
 from sqlalchemy.exc import DatabaseError, OperationalError
@@ -24,14 +24,14 @@ logger = get_logger("record-usages")
 
 
 async def safe_execute(db: AsyncSession, stmt, params=None, max_retries: int = 3):
-    """
-    Safely execute database operations with deadlock and connection handling.
+    """Safely execute database operations with deadlock and connection handling.
 
     Args:
         db (AsyncSession): Async database session
         stmt: SQLAlchemy statement to execute
         params (list[dict], optional): Parameters for the statement
         max_retries (int, optional): Maximum number of retry attempts
+
     """
     dialect = db.bind.dialect.name
 
@@ -68,23 +68,23 @@ async def safe_execute(db: AsyncSession, stmt, params=None, max_retries: int = 3
 
 
 async def record_user_stats(params: list[dict], node_id: int, usage_coefficient: int = 1):
-    """
-    Record user statistics for a specific node.
+    """Record user statistics for a specific node.
 
     Args:
         params (list[dict]): User statistic parameters
         node_id (int): Node identifier
         usage_coefficient (int, optional): usage multiplier
+
     """
     if not params:
         return
 
-    created_at = dt.now(tz.utc).replace(minute=0, second=0, microsecond=0)
+    created_at = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
     async with GetDB() as db:
         # Find existing user entries for this node and time
         select_stmt = select(NodeUserUsage.user_id).where(
-            and_(NodeUserUsage.node_id == node_id, NodeUserUsage.created_at == created_at)
+            and_(NodeUserUsage.node_id == node_id, NodeUserUsage.created_at == created_at),
         )
         existing_users = set((await db.execute(select_stmt)).scalars().all())
 
@@ -94,7 +94,7 @@ async def record_user_stats(params: list[dict], node_id: int, usage_coefficient:
         # Insert missing user entries
         if new_users:
             insert_stmt = insert(NodeUserUsage).values(
-                user_id=bindparam("uid"), created_at=created_at, node_id=node_id, used_traffic=0
+                user_id=bindparam("uid"), created_at=created_at, node_id=node_id, used_traffic=0,
             )
             await safe_execute(db, insert_stmt, new_users)
 
@@ -108,29 +108,29 @@ async def record_user_stats(params: list[dict], node_id: int, usage_coefficient:
                     NodeUserUsage.user_id == bindparam("uid"),
                     NodeUserUsage.node_id == node_id,
                     NodeUserUsage.created_at == created_at,
-                )
-            )
+                ),
+            )dt
         )
         await safe_execute(db, update_stmt, update_params)
 
 
 async def record_node_stats(params: dict, node_id: int):
-    """
-    Record node-level statistics.
+    """Record node-level statistics.
 
     Args:
         params (Dict): Node statistic parameters
         node_id (int): Node identifier
+
     """
     if not params:
         return
 
-    created_at = dt.now(tz.utc).replace(minute=0, second=0, microsecond=0)
+    created_at = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
     async with GetDB() as db:
         # Check if node usage entry exists
         select_stmt = select(NodeUsage.node_id).where(
-            and_(NodeUsage.node_id == node_id, NodeUsage.created_at == created_at)
+            and_(NodeUsage.node_id == node_id, NodeUsage.created_at == created_at),
         )
         result = await db.execute(select_stmt)
         node_exists = result.scalar() is not None  # Correctly check if row exists
@@ -224,7 +224,7 @@ async def record_user_usages():
     nodes: tuple[int, PasarGuardNode] = await node_manager.get_healthy_nodes()
 
     node_data = await asyncio.gather(*[asyncio.create_task(node.get_extra()) for _, node in nodes])
-    usage_coefficient = {node_id: data.get("usage_coefficient", 1) for (node_id, _), data in zip(nodes, node_data)}
+    usage_coefficient = {node_id: data.get("usage_coefficient", 1) for (node_id, _), data in zip(nodes, node_data, strict=False)}
 
     stats_tasks = [asyncio.create_task(get_users_stats(node)) for _, node in nodes]
     await asyncio.gather(*stats_tasks)
@@ -239,7 +239,7 @@ async def record_user_usages():
         user_stmt = (
             update(User)
             .where(User.id == bindparam("uid"))
-            .values(used_traffic=User.used_traffic + bindparam("value"), online_at=dt.now(tz.utc))
+            .values(used_traffic=User.used_traffic + bindparam("value"), online_at=datetime.now(UTC))
             .execution_options(synchronize_session=False)
         )
         await safe_execute(db, user_stmt, users_usage)
@@ -260,7 +260,7 @@ async def record_user_usages():
 
     record_tasks = [
         asyncio.create_task(
-            record_user_stats(params=api_params[node_id], node_id=node_id, usage_coefficient=usage_coefficient[node_id])
+            record_user_stats(params=api_params[node_id], node_id=node_id, usage_coefficient=usage_coefficient[node_id]),
         )
         for node_id in api_params
     ]
@@ -286,7 +286,7 @@ async def record_node_usages():
 
     async with GetDB() as db:
         system_update_stmt = update(System).values(
-            uplink=System.uplink + total_up, downlink=System.downlink + total_down
+            uplink=System.uplink + total_up, downlink=System.downlink + total_down,
         )
         await safe_execute(db, system_update_stmt)
 
@@ -298,8 +298,8 @@ async def record_node_usages():
 
 
 scheduler.add_job(
-    record_user_usages, "interval", seconds=JOB_RECORD_USER_USAGES_INTERVAL, coalesce=True, max_instances=1
+    record_user_usages, "interval", seconds=JOB_RECORD_USER_USAGES_INTERVAL, coalesce=True, max_instances=1,
 )
 scheduler.add_job(
-    record_node_usages, "interval", seconds=JOB_RECORD_NODE_USAGES_INTERVAL, coalesce=True, max_instances=1
+    record_node_usages, "interval", seconds=JOB_RECORD_NODE_USAGES_INTERVAL, coalesce=True, max_instances=1,
 )

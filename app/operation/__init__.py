@@ -1,4 +1,4 @@
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td, timezone as tz
 from enum import IntEnum
 
 from fastapi import HTTPException
@@ -44,8 +44,7 @@ class BaseOperation:
             code = 408
         if self.operator_type in [OperatorType.API, OperatorType.WEB]:
             raise HTTPException(status_code=code, detail=str(message))
-        else:
-            raise ValueError(message)
+        raise ValueError(message)
 
     async def validate_dates(self, start: dt | None, end: dt | None) -> tuple[dt, dt]:
         """Validate if start and end dates are correct and if end is after start."""
@@ -53,12 +52,12 @@ class BaseOperation:
             if start:
                 start_date = fix_datetime_timezone(start)
             else:
-                start_date = dt.now(tz.utc) - td(days=30)
+                start_date = dt.now(UTC) - td(days=30)
 
             if end:
                 end_date = fix_datetime_timezone(end)
             else:
-                end_date = dt.now(tz.utc)
+                end_date = dt.now(UTC)
 
             # Compare dates only after both are set
             if end_date < start_date:
@@ -80,10 +79,10 @@ class BaseOperation:
             await self.raise_error(message="Not Found", code=404)
 
         db_user = await get_user(db, sub["username"])
-        if not db_user or db_user.created_at.astimezone(tz.utc) > sub["created_at"]:
+        if not db_user or db_user.created_at.astimezone(UTC) > sub["created_at"]:
             await self.raise_error(message="Not Found", code=404)
 
-        if db_user.sub_revoked_at and db_user.sub_revoked_at.astimezone(tz.utc) > sub["created_at"]:
+        if db_user.sub_revoked_at and db_user.sub_revoked_at.astimezone(UTC) > sub["created_at"]:
             await self.raise_error(message="Not Found", code=404)
 
         return db_user

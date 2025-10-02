@@ -1,15 +1,14 @@
 import asyncio
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 
-from app import scheduler
-from app.db import GetDB
-from app.db.models import UserStatus
-from app.db.crud.user import get_users_to_reset_data_usage, bulk_reset_user_data_usage
-from app.models.user import UserNotificationResponse
-from app import notification
+from app import notification, scheduler
 from app.core.manager import core_manager
-from app.node import node_manager
+from app.db import GetDB
+from app.db.crud.user import bulk_reset_user_data_usage, get_users_to_reset_data_usage
+from app.db.models import UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
+from app.models.user import UserNotificationResponse
+from app.node import node_manager
 from app.utils.logger import get_logger
 from config import JOB_RESET_USER_DATA_USAGE_INTERVAL
 
@@ -42,6 +41,6 @@ scheduler.add_job(
     "interval",
     seconds=JOB_RESET_USER_DATA_USAGE_INTERVAL,
     coalesce=True,
-    start_date=dt.now(tz.utc) + td(minutes=1),
+    start_date=dt.now(UTC) + td(minutes=1),
     max_instances=1,
 )
