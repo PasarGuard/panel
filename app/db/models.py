@@ -124,7 +124,9 @@ class User(Base):
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan", init=False,
+        back_populates="user",
+        cascade="all, delete-orphan",
+        init=False,
     )
     notification_reminders: Mapped[List["NotificationReminder"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
