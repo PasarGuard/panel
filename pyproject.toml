@@ -50,8 +50,10 @@ dependencies = [
 
 [tool.ruff]
 line-length = 120
+indent-width = 4
 exclude = ["app/db/migrations"]
 fix = true
+respect-gitignore = true
 
 [tool.ruff.lint]
 fixable = ["ALL"]
@@ -62,7 +64,7 @@ combine-as-imports = true
 [tool.ruff.format]
 quote-style = "double"
 line-ending = "auto"
-docstring-code-format = false
+docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
 [dependency-groups]
