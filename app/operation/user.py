@@ -400,14 +400,14 @@ class UserOperation(BaseOperation):
             if template.expire_duration:
                 user_args["expire"] = dt.now(tz.utc) + td(seconds=template.expire_duration)
             else:
-                user_args["expire"] = None
+                user_args["expire"] = 0
         else:
             user_args["expire"] = 0
             user_args["on_hold_expire_duration"] = template.expire_duration
             if template.on_hold_timeout:
                 user_args["on_hold_timeout"] = dt.now(tz.utc) + td(seconds=template.on_hold_timeout)
             else:
-                user_args["on_hold_timeout"] = None
+                user_args["on_hold_timeout"] = 0
 
         return user_args
 

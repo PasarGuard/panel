@@ -454,10 +454,13 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     Returns:
         User: Created user object.
     """
-    db_user = User(**new_user.model_dump(exclude={"group_ids", "expire", "proxy_settings", "next_plan"}))
+    db_user = User(
+        **new_user.model_dump(exclude={"group_ids", "expire", "proxy_settings", "next_plan", "on_hold_timeout"})
+    )
     db_user.admin = admin
     db_user.groups = groups
     db_user.expire = new_user.expire or None
+    db_user.on_hold_timeout = new_user.on_hold_timeout or None
     db_user.proxy_settings = new_user.proxy_settings.dict()
 
     db.add(db_user)
