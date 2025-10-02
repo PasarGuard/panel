@@ -39,7 +39,7 @@ def check_port(port: int) -> bool:
     try:
         s.connect(("127.0.0.1", port))
         return True
-    except socket.error:
+    except OSError:
         return False
     finally:
         s.close()
@@ -76,7 +76,7 @@ def get_public_ip():
         resp = sock.getsockname()[0]
         if ipaddress.IPv4Address(resp).is_global:
             return resp
-    except (socket.error, IndexError):
+    except (OSError, IndexError):
         pass
     finally:
         sock.close()

@@ -37,11 +37,10 @@ async def lifespan(app: FastAPI):
                     await func(app)
                 else:
                     await func()
+            elif "app" in func.__code__.co_varnames:
+                func(app)
             else:
-                if "app" in func.__code__.co_varnames:
-                    func(app)
-                else:
-                    func()
+                func()
     yield
 
     for func in shutdown_functions:
@@ -51,11 +50,10 @@ async def lifespan(app: FastAPI):
                     await func(app)
                 else:
                     await func()
+            elif "app" in func.__code__.co_varnames:
+                func(app)
             else:
-                if "app" in func.__code__.co_varnames:
-                    func(app)
-                else:
-                    func()
+                func()
 
 
 app = FastAPI(

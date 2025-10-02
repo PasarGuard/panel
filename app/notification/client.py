@@ -1,18 +1,17 @@
-import httpx
 import asyncio
 
+import httpx
+
+from app import on_startup
 from app.models.settings import NotificationSettings
 from app.settings import notification_settings
 from app.utils.logger import get_logger
-from app import on_startup
-
 
 client = None
 
 
 async def define_client():
-    """
-    Re-create the global httpx.AsyncClient.
+    """Re-create the global httpx.AsyncClient.
     Call this function after changing the proxy setting.
     """
     global client
@@ -39,7 +38,7 @@ async def send_discord_webhook(json_data, webhook):
             if response.status_code in [200, 204]:
                 logger.debug(f"Discord webhook payload delivered successfully, code {response.status_code}.")
                 return
-            elif response.status_code == 429:
+            if response.status_code == 429:
                 retries += 1
                 if retries < max_retries:
                     await asyncio.sleep(0.5)
@@ -49,17 +48,17 @@ async def send_discord_webhook(json_data, webhook):
                 logger.error(f"Discord webhook failed: {response.status_code} - {response_text}")
                 return
         except Exception as err:
-            logger.error(f"Discord webhook failed Exception: {str(err)}")
+            logger.error(f"Discord webhook failed Exception: {err!s}")
             return
 
     logger.error(f"Discord webhook failed after {max_retries} retries")
 
 
 async def send_telegram_message(
-    message, chat_id: int | None = None, channel_id: int | None = None, topic_id: int | None = None
+    message, chat_id: int | None = None, channel_id: int | None = None, topic_id: int | None = None,
 ):
-    """
-    Send a message to Telegram based on the available IDs.
+    """Send a message to Telegram based on the available IDs.
+
     Args:
         message (str): The message to send
         chat_id (int, optional): The chat ID for direct messages
@@ -67,6 +66,7 @@ async def send_telegram_message(
         topic_id (int, optional): The topic ID for forum topics in channels
     Returns:
         bool: True if message was sent successfully, False otherwise
+
     """
     # Ensure TELEGRAM_API_TOKEN is available
     settings: NotificationSettings = await notification_settings()
@@ -97,7 +97,7 @@ async def send_telegram_message(
             if response.status_code == 200:
                 logger.debug(f"Telegram message sent successfully, code {response.status_code}.")
                 return
-            elif response.status_code == 429:
+            if response.status_code == 429:
                 retries += 1
                 if retries < max_retries:
                     await asyncio.sleep(0.5)
@@ -107,7 +107,7 @@ async def send_telegram_message(
                 logger.error(f"Telegram message failed: {response.status_code} - {response_text}")
                 return
         except Exception as err:
-            logger.error(f"Telegram message failed: {str(err)}")
+            logger.error(f"Telegram message failed: {err!s}")
             return
 
     logger.error(f"Telegram message failed after {max_retries} retries")

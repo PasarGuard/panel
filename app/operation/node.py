@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime as dt
 
-from PasarGuardNodeBridge import PasarGuardNode, NodeAPIError
+from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
@@ -347,4 +347,4 @@ class NodeOperation(BaseOperation):
             await clear_usage_data(db, table, start, end)
             return {"detail": f"All data from '{table}' has been deleted successfully."}
         except Exception as e:
-            await self.raise_error(code=400, message=f"Deletion failed due to server error: {str(e)}")
+            await self.raise_error(code=400, message=f"Deletion failed due to server error: {e!s}")

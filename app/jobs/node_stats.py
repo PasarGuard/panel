@@ -9,7 +9,6 @@ from app.node import node_manager
 from app.utils.logger import get_logger
 from config import ENABLE_RECORDING_NODES_STATS, JOB_GHATER_NODES_STATS_INTERVAL
 
-
 logger = get_logger("jobs")
 
 
@@ -17,10 +16,10 @@ async def get_stat(id: int, node: PasarGuardNode) -> NodeStat:
     try:
         stats = await node.get_system_stats()
     except Exception:
-        return
+        return None
 
     if not stats:
-        return
+        return None
 
     return NodeStat(
         node_id=id,

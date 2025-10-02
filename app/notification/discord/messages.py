@@ -49,20 +49,20 @@ USER_STATUS_CHANGE = {
 CREATE_USER = {
     "title": "🆕 Create User",
     "description": "**Username:** {username}\n"
-    + "**Data Limit**: {data_limit}\n"
-    + "**Expire Date:** {expire_date}\n"
-    + "**Data Limit Reset Strategy:** {data_limit_reset_strategy}\n"
-    + "**Has Next Plan**: {has_next_plan}",
+     "**Data Limit**: {data_limit}\n"
+     "**Expire Date:** {expire_date}\n"
+     "**Data Limit Reset Strategy:** {data_limit_reset_strategy}\n"
+     "**Has Next Plan**: {has_next_plan}",
     "footer": {"text": "Belongs To:{admin_username}\nBy: {by}"},
 }
 
 MODIFY_USER = {
     "title": "✏️ Modify User",
     "description": "**Username:** {username}\n"
-    + "**Data Limit**: {data_limit}\n"
-    + "**Expire Date:** {expire_date}\n"
-    + "**Data Limit Reset Strategy:** {data_limit_reset_strategy}\n"
-    + "**Has Next Plan**: {has_next_plan}",
+     "**Data Limit**: {data_limit}\n"
+     "**Expire Date:** {expire_date}\n"
+     "**Data Limit Reset Strategy:** {data_limit_reset_strategy}\n"
+     "**Has Next Plan**: {has_next_plan}",
     "footer": {"text": "Belongs To:{admin_username}\nBy: {by}"},
 }
 
@@ -93,18 +93,18 @@ USER_SUBSCRIPTION_REVOKED = {
 CREATE_ADMIN = {
     "title": "Create Admin",
     "description": "**Username:** {username}\n"
-    + "**Is Sudo:** {is_sudo}\n"
-    + "**Is Disabled:** {is_disabled}\n"
-    + "**Used Traffic:** {used_traffic}\n",
+     "**Is Sudo:** {is_sudo}\n"
+     "**Is Disabled:** {is_disabled}\n"
+     "**Used Traffic:** {used_traffic}\n",
     "footer": {"text": "By: {by}"},
 }
 
 MODIFY_ADMIN = {
     "title": "Modify Admin",
     "description": "**Username:** {username}\n"
-    + "**Is Sudo:** {is_sudo}\n"
-    + "**Is Disabled:** {is_disabled}\n"
-    + "**Used Traffic:** {used_traffic}\n",
+     "**Is Sudo:** {is_sudo}\n"
+     "**Is Disabled:** {is_disabled}\n"
+     "**Used Traffic:** {used_traffic}\n",
     "footer": {"text": "By: {by}"},
 }
 
@@ -129,18 +129,18 @@ ADMIN_LOGIN = {
 CREATE_HOST = {
     "title": "Create Host",
     "description": "**Remark:** {remark}\n"
-    + "**Address:** {address}\n"
-    + "**Inbound Tag:** {inbound_tag}\n"
-    + "**Port:** {port}",
+     "**Address:** {address}\n"
+     "**Inbound Tag:** {inbound_tag}\n"
+     "**Port:** {port}",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
 
 MODIFY_HOST = {
     "title": "Modify Host",
     "description": "**Remark:** {remark}\n"
-    + "**Address:** {address}\n"
-    + "**Inbound Tag:** {inbound_tag}\n"
-    + "**Port:** {port}",
+     "**Address:** {address}\n"
+     "**Inbound Tag:** {inbound_tag}\n"
+     "**Port:** {port}",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
 
@@ -188,20 +188,20 @@ ERROR_NODE = {
 CREATE_USER_TEMPLATE = {
     "title": "Create User Template",
     "description": "**Name:** {name}\n"
-    + "**Data Limit**: {data_limit}\n"
-    + "**Expire Duration**: {expire_duration}\n"
-    + "**Username Prefix**: {username_prefix}\n"
-    + "**Username Suffix**: {username_suffix}\n",
+     "**Data Limit**: {data_limit}\n"
+     "**Expire Duration**: {expire_duration}\n"
+     "**Username Prefix**: {username_prefix}\n"
+     "**Username Suffix**: {username_suffix}\n",
     "footer": {"text": "By: {by}"},
 }
 
 MODIFY_USER_TEMPLATE = {
     "title": "Modify User Template",
     "description": "**Name:** {name}\n"
-    + "**Data Limit**: {data_limit}\n"
-    + "**Expire Duration**: {expire_duration}\n"
-    + "**Username Prefix**: {username_prefix}\n"
-    + "**Username Suffix**: {username_suffix}\n",
+     "**Data Limit**: {data_limit}\n"
+     "**Expire Duration**: {expire_duration}\n"
+     "**Username Prefix**: {username_prefix}\n"
+     "**Username Suffix**: {username_suffix}\n",
     "footer": {"text": "By: {by}"},
 }
 
@@ -214,16 +214,16 @@ REMOVE_USER_TEMPLATE = {
 CREATE_CORE = {
     "title": "Create core",
     "description": "**Name:** {name}\n"
-    + "**Exclude inbound tags:** {exclude_inbound_tags}\n"
-    + "**Fallbacks inbound tags:** {fallbacks_inbound_tags}\n",
+     "**Exclude inbound tags:** {exclude_inbound_tags}\n"
+     "**Fallbacks inbound tags:** {fallbacks_inbound_tags}\n",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
 
 MODIFY_CORE = {
     "title": "Modify core",
     "description": "**Name:** {name}\n"
-    + "**Exclude inbound tags:** {exclude_inbound_tags}\n"
-    + "**Fallbacks inbound tags:** {fallbacks_inbound_tags}\n",
+     "**Exclude inbound tags:** {exclude_inbound_tags}\n"
+     "**Fallbacks inbound tags:** {fallbacks_inbound_tags}\n",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
 

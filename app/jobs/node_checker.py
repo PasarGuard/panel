@@ -1,18 +1,16 @@
 import asyncio
 
-from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode, Health
+from PasarGuardNodeBridge import Health, NodeAPIError, PasarGuardNode
 
 from app import on_shutdown, on_startup, scheduler
 from app.db import GetDB
-from app.db.models import Node, NodeStatus
 from app.db.crud.node import get_nodes
+from app.db.models import Node, NodeStatus
 from app.node import node_manager
-from app.utils.logger import get_logger
-from app.operation.node import NodeOperation
 from app.operation import OperatorType
-
+from app.operation.node import NodeOperation
+from app.utils.logger import get_logger
 from config import JOB_CORE_HEALTH_CHECK_INTERVAL
-
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 logger = get_logger("node-checker")
@@ -24,7 +22,7 @@ async def node_health_check():
             await node.get_backend_stats(timeout=8)
 
             await node_operator.update_node_status(
-                id, NodeStatus.connected, await node.core_version(), await node.node_version()
+                id, NodeStatus.connected, await node.core_version(), await node.node_version(),
             )
         except NodeAPIError as e:
             if e.code > -3:
@@ -37,7 +35,7 @@ async def node_health_check():
             return
         try:
             health = await asyncio.wait_for(node.get_health(), timeout=10)
-        except (asyncio.TimeoutError, NodeAPIError):
+        except (TimeoutError, NodeAPIError):
             await node_operator.update_node_status(db_node.id, NodeStatus.error, err="Get health timeout")
 
         if db_node.status in (NodeStatus.connecting, NodeStatus.error) and health is Health.HEALTHY:
@@ -83,7 +81,7 @@ async def initialize_nodes():
     logger.info("All nodes' cores have been started.")
 
     scheduler.add_job(
-        node_health_check, "interval", seconds=JOB_CORE_HEALTH_CHECK_INTERVAL, coalesce=True, max_instances=1
+        node_health_check, "interval", seconds=JOB_CORE_HEALTH_CHECK_INTERVAL, coalesce=True, max_instances=1,
     )
 
 

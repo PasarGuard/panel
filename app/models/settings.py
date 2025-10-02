@@ -61,7 +61,7 @@ class Telegram(BaseModel):
         ):
             if self.method == RunMethod.WEBHOOK:
                 raise ValueError("Telegram bot cannot be enabled without token, webhook_url and webhook_secret.")
-            elif self.method == RunMethod.LONGPOLLING:
+            if self.method == RunMethod.LONGPOLLING:
                 raise ValueError("Telegram bot cannot be enabled without token.")
         return self
 

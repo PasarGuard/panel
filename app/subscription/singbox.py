@@ -307,7 +307,7 @@ class SingBoxConfiguration(BaseSubscription):
             sni=inbound["sni"],
             host=inbound["host"],
             path=path,
-            alpn=inbound.get("alpn", None),
+            alpn=inbound.get("alpn"),
             fp=inbound.get("fp", ""),
             pbk=inbound.get("pbk", ""),
             sid=inbound.get("sid", ""),
@@ -324,10 +324,7 @@ class SingBoxConfiguration(BaseSubscription):
             ech_config_list=inbound.get("ech_config_list"),
         )
 
-        if inbound["protocol"] == "vmess":
-            outbound["uuid"] = settings["id"]
-
-        elif inbound["protocol"] == "vless":
+        if inbound["protocol"] == "vmess" or inbound["protocol"] == "vless":
             outbound["uuid"] = settings["id"]
 
         elif inbound["protocol"] == "trojan":

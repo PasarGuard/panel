@@ -23,33 +23,32 @@ def _build_trunc_expression(period: Period, column):
     """Builds the appropriate truncation SQL expression based on DATABASE_DIALECT and period."""
     if DATABASE_DIALECT == "postgresql":
         return func.date_trunc(period.value, column)
-    elif DATABASE_DIALECT == "mysql":
+    if DATABASE_DIALECT == "mysql":
         return func.date_format(column, MYSQL_FORMATS[period.value])
-    elif DATABASE_DIALECT == "sqlite":
+    if DATABASE_DIALECT == "sqlite":
         return func.strftime(SQLITE_FORMATS[period.value], column)
 
     raise ValueError(f"Unsupported dialect: {DATABASE_DIALECT}")
 
 
 def get_datetime_add_expression(datetime_column, seconds: int):
-    """
-    Get database-specific datetime addition expression
+    """Get database-specific datetime addition expression
     """
     if DATABASE_DIALECT == "mysql":
         return func.date_add(datetime_column, text("INTERVAL :seconds SECOND").bindparams(seconds=seconds))
-    elif DATABASE_DIALECT == "postgresql":
+    if DATABASE_DIALECT == "postgresql":
         return datetime_column + func.make_interval(0, 0, 0, 0, 0, 0, seconds)
-    elif DATABASE_DIALECT == "sqlite":
+    if DATABASE_DIALECT == "sqlite":
         return func.datetime(func.strftime("%s", datetime_column) + seconds, "unixepoch")
 
     raise ValueError(f"Unsupported dialect: {DATABASE_DIALECT}")
 
 
 def json_extract(column, path: str):
-    """
-    Args:
-        column: The JSON column in your model
-        path: JSON path (e.g., '$.theme')
+    """Args:
+    column: The JSON column in your model
+    path: JSON path (e.g., '$.theme')
+
     """
     match DATABASE_DIALECT:
         case "postgresql":
@@ -65,8 +64,7 @@ def json_extract(column, path: str):
 
 
 def build_json_proxy_settings_search_condition(column, value: str):
-    """
-    Builds a condition to search JSON column for UUIDs or passwords.
+    """Builds a condition to search JSON column for UUIDs or passwords.
     Supports PostgresSQL, MySQL, SQLite.
     """
     return or_(
@@ -78,26 +76,26 @@ def build_json_proxy_settings_search_condition(column, value: str):
 
 
 async def get_system_usage(db: AsyncSession) -> System:
-    """
-    Retrieves system usage information.
+    """Retrieves system usage information.
 
     Args:
         db (AsyncSession): Database session.
 
     Returns:
         System: System usage information.
+
     """
     return (await db.execute(select(System))).scalar_one_or_none()
 
 
 async def get_jwt_secret_key(db: AsyncSession) -> str:
-    """
-    Retrieves the JWT secret key.
+    """Retrieves the JWT secret key.
 
     Args:
         db (AsyncSession): Database session.
 
     Returns:
         str: JWT secret key.
+
     """
     return (await db.execute(select(JWT))).scalar_one_or_none().secret_key

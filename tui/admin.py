@@ -347,9 +347,8 @@ class AdminContent(Static):
             self.no_admins.styles.display = "block"
             self.pagination_info.update("")
             return
-        else:
-            self.no_admins.styles.display = "none"
-            self.table.styles.display = "block"
+        self.no_admins.styles.display = "none"
+        self.table.styles.display = "block"
         users_usages = await asyncio.gather(*[self.calculate_admin_usage(admin.id) for admin in admins])
 
         admins_data = [
@@ -374,7 +373,7 @@ class AdminContent(Static):
         centered_columns = [self._center_text(column, column_widths[i]) for i, column in enumerate(columns)]
         self.table.add_columns(*centered_columns)
         i = 1
-        for row, adnin in zip(admins_data, admins):
+        for row, adnin in zip(admins_data, admins, strict=False):
             centered_row = [self._center_text(str(cell), column_widths[i]) for i, cell in enumerate(row)]
             label = Text(f"{i + offset}")
             i += 1

@@ -1,7 +1,6 @@
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from urllib.parse import urlparse
 
 from app.db.models import UserStatusCreate
@@ -22,19 +21,16 @@ class NumericValidatorMixin:
         Raises:
             ValueError: If the input cannot be converted to an integer
         """
-        if v is None:  # Allow None values
+        if v is None or isinstance(v, int):  # Allow None and integers directly
             return v
-        elif isinstance(v, float) or isinstance(v, Decimal):  # Allow float or Decimal to int conversion
+        if isinstance(v, float) or isinstance(v, Decimal):  # Allow float or Decimal to int conversion
             return int(v)
-        elif isinstance(v, int):  # Allow integers directly
-            return v
 
         raise ValueError("must be an integer, Decimal or a float, not a string")  # Reject strings
 
     @staticmethod
     def cast_to_float(v):
-        """
-        Static method to validate and convert numeric values to floats.
+        """Static method to validate and convert numeric values to floats.
 
         Args:
             v: Input value to be converted
@@ -44,13 +40,12 @@ class NumericValidatorMixin:
 
         Raises:
             ValueError: If the input cannot be converted to an float
+
         """
-        if v is None:
+        if v is None or isinstance(v, float):
             return v
-        elif isinstance(v, int) or isinstance(v, Decimal):
+        if isinstance(v, int) or isinstance(v, Decimal):
             return float(v)
-        elif isinstance(v, float):
-            return v
 
         raise ValueError("must be an integer, Decimal or a float, not a string")
 
@@ -70,9 +65,7 @@ class ListValidator:
 
     @staticmethod
     def remove_duplicates_preserve_order(list_: list) -> list:
-        """
-        Remove duplicates from list while preserving order using dict.fromkeys()
-        """
+        """Remove duplicates from list while preserving order using dict.fromkeys()"""
         return list(dict.fromkeys(list_))
 
 
@@ -140,21 +133,21 @@ class UserValidator:
     def validator_on_hold_timeout(value):
         if value == 0 or isinstance(value, datetime) or value is None:
             return value
-        else:
-            raise ValueError("on_hold_timeout can be datetime or 0")
+        raise ValueError("on_hold_timeout can be datetime or 0")
 
 
 class ProxyValidator:
     @staticmethod
     def validate_proxy_url(value: str | None) -> str | None:
-        """
-        Validates a proxy URL. Accepts HTTP, HTTPS, SOCKS4, SOCKS5, with or without authentication.
+        """Validates a proxy URL. Accepts HTTP, HTTPS, SOCKS4, SOCKS5, with or without authentication.
+
         Examples:
             http://host:port
             https://host:port
             socks5://host:port
             http://user:pass@host:port
             socks5://user:pass@host:port
+
         """
         if value is None:
             return value
@@ -166,7 +159,7 @@ class ProxyValidator:
         )
         if not re.match(pattern, value):
             raise ValueError(
-                "proxy_url must be a valid proxy address (e.g., http://host:port, socks5://user:pass@host:port)"
+                "proxy_url must be a valid proxy address (e.g., http://host:port, socks5://user:pass@host:port)",
             )
         return value
 
@@ -184,12 +177,13 @@ class DiscordValidator:
 
 class URLValidator:
     @staticmethod
-    def validate_url(value: Optional[str]) -> Optional[str]:
-        """
-        Validates a general-purpose URL.
+    def validate_url(value: str | None) -> str | None:
+        """Validates a general-purpose URL.
+
         Examples:
             http://example.com
             https://example.com:8443
+
         """
         if not value:
             return value

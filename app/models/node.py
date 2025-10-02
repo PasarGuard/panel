@@ -51,8 +51,8 @@ class NodeCreate(Node):
                 "core_config_id": 1,
                 "api_key": "valid uuid",
                 "gather_logs": True,
-            }
-        }
+            },
+        },
     )
 
     @field_validator("address")
@@ -99,7 +99,6 @@ class NodeCreate(Node):
 
         try:
             load_pem_x509_certificate(v.encode("utf-8"))
-            pass
         except Exception:
             raise ValueError("Invalid certificate structure")
 
@@ -109,7 +108,7 @@ class NodeCreate(Node):
     @classmethod
     def validate_api_key(cls, v) -> str:
         if not v:
-            return
+            return None
         try:
             UUID(v)
         except ValueError:
@@ -147,8 +146,8 @@ class NodeModify(NodeCreate):
                 "core_config_id": 1,
                 "api_key": "valid uuid",
                 "gather_logs": True,
-            }
-        }
+            },
+        },
     )
 
 
