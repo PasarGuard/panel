@@ -1,0 +1,43 @@
+name: Telegram Notification on Pull Request Events
+
+on:
+  pull_request_target:
+    types: [opened, closed]
+
+jobs:
+  notify-telegram:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram Message
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_IDS: "-1002287270359 -1001234567890" # space separated chat IDs
+          TOPIC_ID: 4
+        run: |
+          # Decide PR message
+          if [[ "${{ github.event.action }}" == "opened" ]]; then
+            PR_STATUS="📢 *New Pull Request Opened*"
+          elif [[ "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
+            PR_STATUS="✅ *Pull Request Merged*"
+          else
+            PR_STATUS="❌ *Pull Request Closed Without Merging*"
+          fi
+
+          # Fetch commits for this PR
+          COMMITS=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits" \
+            | jq -r '.[] | "- " + .commit.message + " (`" + .sha[0:7] + "`)"' \
+            | head -n 10)  # limit to 10 commits for readability
+
+          # Format final message
+          MESSAGE="$PR_STATUS%0A%0A👤 By: ${{ github.actor }}%0ATitle: ${{ github.event.pull_request.title }}%0A🔗 [View Pull Request](${{ github.event.pull_request.html_url }})%0A%0A*Commits:*%0A$COMMITS"
+
+          # Loop through chat IDs and send message
+          for CHAT_ID in $CHAT_IDS; do
+            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+              -d chat_id="$CHAT_ID" \
+              -d message_thread_id="$TOPIC_ID" \
+              -d parse_mode="Markdown" \
+              -d text="$MESSAGE"
+          done
