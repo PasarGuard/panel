@@ -694,18 +694,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     }
   }, [selectedTemplateId, form, t])
 
-  // Initialize form as valid when editing a user with existing template
-  useEffect(() => {
-    if (isDialogOpen && editingUser && selectedTemplateId) {
-      const username = form.getValues('username')
-      if (username && username.length >= 3) {
-        form.clearErrors()
-        setIsFormValid(true)
-        setTouchedFields({ username: true })
-      }
-    }
-  }, [isDialogOpen, editingUser, selectedTemplateId, form])
-
   useEffect(() => {
     if (status === 'on_hold') {
       // Set default on_hold_expire_duration if not set
@@ -800,15 +788,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           return false
         }
         return true
-      }
-
-      // Special case for editing user with template - if no fields touched, form is valid
-      if (editingUser && selectedTemplateId !== null && !isSubmit) {
-        const hasTouchedFields = Object.keys(touchedFields).some(key => touchedFields[key])
-        if (!hasTouchedFields) {
-          form.clearErrors()
-          return true
-        }
       }
 
       // Special case for Next Plan enabled - if Next Plan is enabled and no other fields are touched,
