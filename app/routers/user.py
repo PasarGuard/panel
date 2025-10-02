@@ -27,7 +27,7 @@ from .authentication import check_sudo_admin, get_current
 
 user_operator = UserOperation(operator_type=OperatorType.API)
 node_operator = NodeOperation(operator_type=OperatorType.API)
-router = APIRouter(tags=["User"], prefix="/api/v1/user", responses={401: responses._401})
+router = APIRouter(tags=["User"], prefix="/user", responses={401: responses._401})
 
 
 @router.post(

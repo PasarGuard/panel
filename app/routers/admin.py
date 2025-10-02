@@ -13,7 +13,7 @@ from app.utils.jwt import create_admin_token
 
 from .authentication import check_sudo_admin, get_current, validate_admin, validate_mini_app_admin
 
-router = APIRouter(tags=["Admin"], prefix="/api/v1/admin", responses={401: responses._401, 403: responses._403})
+router = APIRouter(tags=["Admin"], prefix="/admin", responses={401: responses._401, 403: responses._403})
 admin_operator = AdminOperation(operator_type=OperatorType.API)
 
 

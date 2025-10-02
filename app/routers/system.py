@@ -19,12 +19,12 @@ from config import DO_NOT_LOG_TELEGRAM_BOT
 from .authentication import get_current
 
 system_operator = SystemOperation(operator_type=OperatorType.API)
-router = APIRouter(tags=["System"], prefix="/api/v1", responses={401: responses._401})
+router = APIRouter(tags=["System"], responses={401: responses._401})
 
 TELEGRAM_WEBHOOK_PATH = "/tghook"
 if DO_NOT_LOG_TELEGRAM_BOT:
     uvicorn_access_logger = get_logger("uvicorn.access")
-    uvicorn_access_logger.addFilter(EndpointFilter([f"{router.prefix}{TELEGRAM_WEBHOOK_PATH}"]))
+    uvicorn_access_logger.addFilter(EndpointFilter([f"{TELEGRAM_WEBHOOK_PATH}"]))
 
 
 @router.get("/system", response_model=SystemStats)
