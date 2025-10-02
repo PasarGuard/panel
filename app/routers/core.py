@@ -12,7 +12,7 @@ from .authentication import check_sudo_admin
 
 core_operator = CoreOperation(operator_type=OperatorType.API)
 node_operator = NodeOperation(operator_type=OperatorType.API)
-router = APIRouter(tags=["Core"], prefix="/api/v1/core", responses={401: responses._401, 403: responses._403})
+router = APIRouter(tags=["Core"], prefix="/core", responses={401: responses._401, 403: responses._403})
 
 
 @router.post("", response_model=CoreResponse, status_code=status.HTTP_201_CREATED)
