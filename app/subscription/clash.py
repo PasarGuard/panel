@@ -29,9 +29,8 @@ class ClashConfiguration(BaseSubscription):
 
         yaml.add_representer(UUID, yml_uuid_representer)
         return yaml.dump(
-            yaml.load(
+            yaml.safe_load(
                 render_template(CLASH_SUBSCRIPTION_TEMPLATE, {"conf": self.data, "proxy_remarks": self.proxy_remarks}),
-                Loader=yaml.SafeLoader,
             ),
             sort_keys=False,
             allow_unicode=True,
