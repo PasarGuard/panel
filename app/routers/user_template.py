@@ -9,7 +9,7 @@ from app.operation.user_template import UserTemplateOperation
 from app.utils import responses
 
 
-router = APIRouter(tags=["User Template"], prefix="/api/user_template")
+router = APIRouter(tags=["User Template"], prefix="/api/v1/user_template")
 template_operator = UserTemplateOperation(OperatorType.API)
 
 

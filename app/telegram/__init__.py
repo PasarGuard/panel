@@ -64,7 +64,7 @@ async def startup_telegram_bot():
                     _polling_task = asyncio.create_task(_dp.start_polling(_bot, handle_signals=False))
                 else:
                     # register webhook
-                    webhook_address = f"{settings.webhook_url}/api/tghook"
+                    webhook_address = f"{settings.webhook_url}/api/v1/tghook"
                     logger.info(webhook_address)
                     await _bot.set_webhook(
                         webhook_address,

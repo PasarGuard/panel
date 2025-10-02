@@ -1616,19 +1616,19 @@ export interface Brutal {
   down_mbps: number
 }
 
-export type BodyAdminTokenApiAdminTokenPostClientSecret = string | null
+export type BodyAdminTokenApiV1AdminTokenPostClientSecret = string | null
 
-export type BodyAdminTokenApiAdminTokenPostClientId = string | null
+export type BodyAdminTokenApiV1AdminTokenPostClientId = string | null
 
-export type BodyAdminTokenApiAdminTokenPostGrantType = string | null
+export type BodyAdminTokenApiV1AdminTokenPostGrantType = string | null
 
-export interface BodyAdminTokenApiAdminTokenPost {
-  grant_type?: BodyAdminTokenApiAdminTokenPostGrantType
+export interface BodyAdminTokenApiV1AdminTokenPost {
+  grant_type?: BodyAdminTokenApiV1AdminTokenPostGrantType
   username: string
   password: string
   scope?: string
-  client_id?: BodyAdminTokenApiAdminTokenPostClientId
-  client_secret?: BodyAdminTokenApiAdminTokenPostClientSecret
+  client_id?: BodyAdminTokenApiV1AdminTokenPostClientId
+  client_secret?: BodyAdminTokenApiV1AdminTokenPostClientSecret
 }
 
 export type BaseHostEchConfigList = string | null
@@ -1914,28 +1914,28 @@ export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, 
  * Authenticate an admin and issue a token.
  * @summary Admin Token
  */
-export const adminToken = (bodyAdminTokenApiAdminTokenPost: BodyType<BodyAdminTokenApiAdminTokenPost>, signal?: AbortSignal) => {
+export const adminToken = (bodyAdminTokenApiV1AdminTokenPost: BodyType<BodyAdminTokenApiV1AdminTokenPost>, signal?: AbortSignal) => {
   const formUrlEncoded = new URLSearchParams()
-  if (bodyAdminTokenApiAdminTokenPost.grant_type !== undefined && bodyAdminTokenApiAdminTokenPost.grant_type !== null) {
-    formUrlEncoded.append('grant_type', bodyAdminTokenApiAdminTokenPost.grant_type)
+  if (bodyAdminTokenApiV1AdminTokenPost.grant_type !== undefined && bodyAdminTokenApiV1AdminTokenPost.grant_type !== null) {
+    formUrlEncoded.append('grant_type', bodyAdminTokenApiV1AdminTokenPost.grant_type)
   }
-  formUrlEncoded.append('username', bodyAdminTokenApiAdminTokenPost.username)
-  formUrlEncoded.append('password', bodyAdminTokenApiAdminTokenPost.password)
-  if (bodyAdminTokenApiAdminTokenPost.scope !== undefined) {
-    formUrlEncoded.append('scope', bodyAdminTokenApiAdminTokenPost.scope)
+  formUrlEncoded.append('username', bodyAdminTokenApiV1AdminTokenPost.username)
+  formUrlEncoded.append('password', bodyAdminTokenApiV1AdminTokenPost.password)
+  if (bodyAdminTokenApiV1AdminTokenPost.scope !== undefined) {
+    formUrlEncoded.append('scope', bodyAdminTokenApiV1AdminTokenPost.scope)
   }
-  if (bodyAdminTokenApiAdminTokenPost.client_id !== undefined && bodyAdminTokenApiAdminTokenPost.client_id !== null) {
-    formUrlEncoded.append('client_id', bodyAdminTokenApiAdminTokenPost.client_id)
+  if (bodyAdminTokenApiV1AdminTokenPost.client_id !== undefined && bodyAdminTokenApiV1AdminTokenPost.client_id !== null) {
+    formUrlEncoded.append('client_id', bodyAdminTokenApiV1AdminTokenPost.client_id)
   }
-  if (bodyAdminTokenApiAdminTokenPost.client_secret !== undefined && bodyAdminTokenApiAdminTokenPost.client_secret !== null) {
-    formUrlEncoded.append('client_secret', bodyAdminTokenApiAdminTokenPost.client_secret)
+  if (bodyAdminTokenApiV1AdminTokenPost.client_secret !== undefined && bodyAdminTokenApiV1AdminTokenPost.client_secret !== null) {
+    formUrlEncoded.append('client_secret', bodyAdminTokenApiV1AdminTokenPost.client_secret)
   }
 
-  return orvalFetcher<Token>({ url: `/api/admin/token`, method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: formUrlEncoded, signal })
+  return orvalFetcher<Token>({ url: `/api/v1/admin/token`, method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: formUrlEncoded, signal })
 }
 
 export const getAdminTokenMutationOptions = <TData = Awaited<ReturnType<typeof adminToken>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext>
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiV1AdminTokenPost> }, TContext>
 }) => {
   const mutationKey = ['adminToken']
   const { mutation: mutationOptions } = options
@@ -1944,25 +1944,25 @@ export const getAdminTokenMutationOptions = <TData = Awaited<ReturnType<typeof a
       : { ...options, mutation: { ...options.mutation, mutationKey } }
     : { mutation: { mutationKey } }
 
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminToken>>, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }> = props => {
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminToken>>, { data: BodyType<BodyAdminTokenApiV1AdminTokenPost> }> = props => {
     const { data } = props ?? {}
 
     return adminToken(data)
   }
 
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext>
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiV1AdminTokenPost> }, TContext>
 }
 
 export type AdminTokenMutationResult = NonNullable<Awaited<ReturnType<typeof adminToken>>>
-export type AdminTokenMutationBody = BodyType<BodyAdminTokenApiAdminTokenPost>
+export type AdminTokenMutationBody = BodyType<BodyAdminTokenApiV1AdminTokenPost>
 export type AdminTokenMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
 /**
  * @summary Admin Token
  */
 export const useAdminToken = <TData = Awaited<ReturnType<typeof adminToken>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext>
-}): UseMutationResult<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext> => {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiV1AdminTokenPost> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BodyAdminTokenApiV1AdminTokenPost> }, TContext> => {
   const mutationOptions = getAdminTokenMutationOptions(options)
 
   return useMutation(mutationOptions)
@@ -1973,7 +1973,7 @@ export const useAdminToken = <TData = Awaited<ReturnType<typeof adminToken>>, TE
  * @summary Admin Mini App Token
  */
 export const adminMiniAppToken = (signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/admin/miniapp/token`, method: 'POST', signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/admin/miniapp/token`, method: 'POST', signal })
 }
 
 export const getAdminMiniAppTokenMutationOptions = <
@@ -2017,11 +2017,11 @@ export const useAdminMiniAppToken = <TData = Awaited<ReturnType<typeof adminMini
  * @summary Get Current Admin
  */
 export const getCurrentAdmin = (signal?: AbortSignal) => {
-  return orvalFetcher<AdminDetails>({ url: `/api/admin`, method: 'GET', signal })
+  return orvalFetcher<AdminDetails>({ url: `/api/v1/admin`, method: 'GET', signal })
 }
 
 export const getGetCurrentAdminQueryKey = () => {
-  return [`/api/admin`] as const
+  return [`/api/v1/admin`] as const
 }
 
 export const getGetCurrentAdminQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentAdmin>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
@@ -2071,7 +2071,7 @@ export function useGetCurrentAdmin<TData = Awaited<ReturnType<typeof getCurrentA
  * @summary Create Admin
  */
 export const createAdmin = (adminCreate: BodyType<AdminCreate>, signal?: AbortSignal) => {
-  return orvalFetcher<AdminDetails>({ url: `/api/admin`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: adminCreate, signal })
+  return orvalFetcher<AdminDetails>({ url: `/api/v1/admin`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: adminCreate, signal })
 }
 
 export const getCreateAdminMutationOptions = <
@@ -2117,7 +2117,7 @@ export const useCreateAdmin = <TData = Awaited<ReturnType<typeof createAdmin>>, 
  * @summary Modify Admin
  */
 export const modifyAdmin = (username: string, adminModify: BodyType<AdminModify>) => {
-  return orvalFetcher<AdminDetails>({ url: `/api/admin/${username}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: adminModify })
+  return orvalFetcher<AdminDetails>({ url: `/api/v1/admin/${username}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: adminModify })
 }
 
 export const getModifyAdminMutationOptions = <
@@ -2163,7 +2163,7 @@ export const useModifyAdmin = <TData = Awaited<ReturnType<typeof modifyAdmin>>, 
  * @summary Remove Admin
  */
 export const removeAdmin = (username: string) => {
-  return orvalFetcher<void>({ url: `/api/admin/${username}`, method: 'DELETE' })
+  return orvalFetcher<void>({ url: `/api/v1/admin/${username}`, method: 'DELETE' })
 }
 
 export const getRemoveAdminMutationOptions = <TData = Awaited<ReturnType<typeof removeAdmin>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -2205,11 +2205,11 @@ export const useRemoveAdmin = <TData = Awaited<ReturnType<typeof removeAdmin>>, 
  * @summary Get Admins
  */
 export const getAdmins = (params?: GetAdminsParams, signal?: AbortSignal) => {
-  return orvalFetcher<AdminDetails[]>({ url: `/api/admins`, method: 'GET', params, signal })
+  return orvalFetcher<AdminDetails[]>({ url: `/api/v1/admins`, method: 'GET', params, signal })
 }
 
 export const getGetAdminsQueryKey = (params?: GetAdminsParams) => {
-  return [`/api/admins`, ...(params ? [params] : [])] as const
+  return [`/api/v1/admins`, ...(params ? [params] : [])] as const
 }
 
 export const getGetAdminsQueryOptions = <TData = Awaited<ReturnType<typeof getAdmins>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -2266,7 +2266,7 @@ export function useGetAdmins<TData = Awaited<ReturnType<typeof getAdmins>>, TErr
  * @summary Disable All Active Users
  */
 export const disableAllActiveUsers = (username: string, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/admin/${username}/users/disable`, method: 'POST', signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/admin/${username}/users/disable`, method: 'POST', signal })
 }
 
 export const getDisableAllActiveUsersMutationOptions = <
@@ -2316,7 +2316,7 @@ export const useDisableAllActiveUsers = <
  * @summary Activate All Disabled Users
  */
 export const activateAllDisabledUsers = (username: string, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/admin/${username}/users/activate`, method: 'POST', signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/admin/${username}/users/activate`, method: 'POST', signal })
 }
 
 export const getActivateAllDisabledUsersMutationOptions = <
@@ -2366,7 +2366,7 @@ export const useActivateAllDisabledUsers = <
  * @summary Reset Admin Usage
  */
 export const resetAdminUsage = (username: string, signal?: AbortSignal) => {
-  return orvalFetcher<AdminDetails>({ url: `/api/admin/${username}/reset`, method: 'POST', signal })
+  return orvalFetcher<AdminDetails>({ url: `/api/v1/admin/${username}/reset`, method: 'POST', signal })
 }
 
 export const getResetAdminUsageMutationOptions = <
@@ -2412,11 +2412,11 @@ export const useResetAdminUsage = <TData = Awaited<ReturnType<typeof resetAdminU
  * @summary Get System Stats
  */
 export const getSystemStats = (params?: GetSystemStatsParams, signal?: AbortSignal) => {
-  return orvalFetcher<SystemStats>({ url: `/api/system`, method: 'GET', params, signal })
+  return orvalFetcher<SystemStats>({ url: `/api/v1/system`, method: 'GET', params, signal })
 }
 
 export const getGetSystemStatsQueryKey = (params?: GetSystemStatsParams) => {
-  return [`/api/system`, ...(params ? [params] : [])] as const
+  return [`/api/v1/system`, ...(params ? [params] : [])] as const
 }
 
 export const getGetSystemStatsQueryOptions = <TData = Awaited<ReturnType<typeof getSystemStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
@@ -2475,11 +2475,11 @@ export function useGetSystemStats<TData = Awaited<ReturnType<typeof getSystemSta
  * @summary Get Inbounds
  */
 export const getInbounds = (signal?: AbortSignal) => {
-  return orvalFetcher<string[]>({ url: `/api/inbounds`, method: 'GET', signal })
+  return orvalFetcher<string[]>({ url: `/api/v1/inbounds`, method: 'GET', signal })
 }
 
 export const getGetInboundsQueryKey = () => {
-  return [`/api/inbounds`] as const
+  return [`/api/v1/inbounds`] as const
 }
 
 export const getGetInboundsQueryOptions = <TData = Awaited<ReturnType<typeof getInbounds>>, TError = ErrorType<Unauthorized>>(options?: {
@@ -2526,11 +2526,11 @@ export function useGetInbounds<TData = Awaited<ReturnType<typeof getInbounds>>, 
  * @summary Get Settings
  */
 export const getSettings = (signal?: AbortSignal) => {
-  return orvalFetcher<SettingsSchemaOutput>({ url: `/api/settings`, method: 'GET', signal })
+  return orvalFetcher<SettingsSchemaOutput>({ url: `/api/v1/settings`, method: 'GET', signal })
 }
 
 export const getGetSettingsQueryKey = () => {
-  return [`/api/settings`] as const
+  return [`/api/v1/settings`] as const
 }
 
 export const getGetSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getSettings>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
@@ -2577,7 +2577,7 @@ export function useGetSettings<TData = Awaited<ReturnType<typeof getSettings>>, 
  * @summary Modify Settings
  */
 export const modifySettings = (settingsSchemaInput: BodyType<SettingsSchemaInput>) => {
-  return orvalFetcher<SettingsSchemaOutput>({ url: `/api/settings`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: settingsSchemaInput })
+  return orvalFetcher<SettingsSchemaOutput>({ url: `/api/v1/settings`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: settingsSchemaInput })
 }
 
 export const getModifySettingsMutationOptions = <TData = Awaited<ReturnType<typeof modifySettings>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -2618,11 +2618,11 @@ export const useModifySettings = <TData = Awaited<ReturnType<typeof modifySettin
  * @summary Get General Settings
  */
 export const getGeneralSettings = (signal?: AbortSignal) => {
-  return orvalFetcher<General>({ url: `/api/settings/general`, method: 'GET', signal })
+  return orvalFetcher<General>({ url: `/api/v1/settings/general`, method: 'GET', signal })
 }
 
 export const getGetGeneralSettingsQueryKey = () => {
-  return [`/api/settings/general`] as const
+  return [`/api/v1/settings/general`] as const
 }
 
 export const getGetGeneralSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getGeneralSettings>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
@@ -2672,7 +2672,7 @@ export function useGetGeneralSettings<TData = Awaited<ReturnType<typeof getGener
  * @summary Create a new group
  */
 export const createGroup = (groupCreate: BodyType<GroupCreate>, signal?: AbortSignal) => {
-  return orvalFetcher<GroupResponse>({ url: `/api/group`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: groupCreate, signal })
+  return orvalFetcher<GroupResponse>({ url: `/api/v1/group`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: groupCreate, signal })
 }
 
 export const getCreateGroupMutationOptions = <TData = Awaited<ReturnType<typeof createGroup>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -2714,11 +2714,11 @@ export const useCreateGroup = <TData = Awaited<ReturnType<typeof createGroup>>, 
  * @summary List all groups
  */
 export const getAllGroups = (params?: GetAllGroupsParams, signal?: AbortSignal) => {
-  return orvalFetcher<GroupsResponse>({ url: `/api/groups`, method: 'GET', params, signal })
+  return orvalFetcher<GroupsResponse>({ url: `/api/v1/groups`, method: 'GET', params, signal })
 }
 
 export const getGetAllGroupsQueryKey = (params?: GetAllGroupsParams) => {
-  return [`/api/groups`, ...(params ? [params] : [])] as const
+  return [`/api/v1/groups`, ...(params ? [params] : [])] as const
 }
 
 export const getGetAllGroupsQueryOptions = <TData = Awaited<ReturnType<typeof getAllGroups>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -2776,11 +2776,11 @@ export function useGetAllGroups<TData = Awaited<ReturnType<typeof getAllGroups>>
  * @summary Get group details
  */
 export const getGroup = (groupId: number, signal?: AbortSignal) => {
-  return orvalFetcher<GroupResponse>({ url: `/api/group/${groupId}`, method: 'GET', signal })
+  return orvalFetcher<GroupResponse>({ url: `/api/v1/group/${groupId}`, method: 'GET', signal })
 }
 
 export const getGetGroupQueryKey = (groupId: number) => {
-  return [`/api/group/${groupId}`] as const
+  return [`/api/v1/group/${groupId}`] as const
 }
 
 export const getGetGroupQueryOptions = <TData = Awaited<ReturnType<typeof getGroup>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
@@ -2837,7 +2837,7 @@ export function useGetGroup<TData = Awaited<ReturnType<typeof getGroup>>, TError
  * @summary Modify group
  */
 export const modifyGroup = (groupId: number, groupModify: BodyType<GroupModify>) => {
-  return orvalFetcher<GroupResponse>({ url: `/api/group/${groupId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: groupModify })
+  return orvalFetcher<GroupResponse>({ url: `/api/v1/group/${groupId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: groupModify })
 }
 
 export const getModifyGroupMutationOptions = <
@@ -2883,7 +2883,7 @@ export const useModifyGroup = <TData = Awaited<ReturnType<typeof modifyGroup>>, 
  * @summary Remove group
  */
 export const removeGroup = (groupId: number) => {
-  return orvalFetcher<void>({ url: `/api/group/${groupId}`, method: 'DELETE' })
+  return orvalFetcher<void>({ url: `/api/v1/group/${groupId}`, method: 'DELETE' })
 }
 
 export const getRemoveGroupMutationOptions = <
@@ -2938,7 +2938,7 @@ Notes:
  * @summary Bulk add groups to users
  */
 export const bulkAddGroupsToUsers = (bulkGroup: BodyType<BulkGroup>, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/groups/bulk/add`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkGroup, signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/groups/bulk/add`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkGroup, signal })
 }
 
 export const getBulkAddGroupsToUsersMutationOptions = <
@@ -2993,7 +2993,7 @@ Notes:
  * @summary Bulk remove groups from users
  */
 export const bulkRemoveUsersFromGroups = (bulkGroup: BodyType<BulkGroup>, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/groups/bulk/remove`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkGroup, signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/groups/bulk/remove`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkGroup, signal })
 }
 
 export const getBulkRemoveUsersFromGroupsMutationOptions = <
@@ -3043,7 +3043,7 @@ export const useBulkRemoveUsersFromGroups = <
  * @summary Create Core Config
  */
 export const createCoreConfig = (coreCreate: BodyType<CoreCreate>, signal?: AbortSignal) => {
-  return orvalFetcher<CoreResponse>({ url: `/api/core`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: coreCreate, signal })
+  return orvalFetcher<CoreResponse>({ url: `/api/v1/core`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: coreCreate, signal })
 }
 
 export const getCreateCoreConfigMutationOptions = <
@@ -3089,11 +3089,11 @@ export const useCreateCoreConfig = <TData = Awaited<ReturnType<typeof createCore
  * @summary Get Core Config
  */
 export const getCoreConfig = (coreId: number, signal?: AbortSignal) => {
-  return orvalFetcher<CoreResponse>({ url: `/api/core/${coreId}`, method: 'GET', signal })
+  return orvalFetcher<CoreResponse>({ url: `/api/v1/core/${coreId}`, method: 'GET', signal })
 }
 
 export const getGetCoreConfigQueryKey = (coreId: number) => {
-  return [`/api/core/${coreId}`] as const
+  return [`/api/v1/core/${coreId}`] as const
 }
 
 export const getGetCoreConfigQueryOptions = <TData = Awaited<ReturnType<typeof getCoreConfig>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -3151,7 +3151,7 @@ export function useGetCoreConfig<TData = Awaited<ReturnType<typeof getCoreConfig
  * @summary Modify Core Config
  */
 export const modifyCoreConfig = (coreId: number, coreCreate: BodyType<CoreCreate>, params: ModifyCoreConfigParams) => {
-  return orvalFetcher<CoreResponse>({ url: `/api/core/${coreId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: coreCreate, params })
+  return orvalFetcher<CoreResponse>({ url: `/api/v1/core/${coreId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: coreCreate, params })
 }
 
 export const getModifyCoreConfigMutationOptions = <
@@ -3197,7 +3197,7 @@ export const useModifyCoreConfig = <TData = Awaited<ReturnType<typeof modifyCore
  * @summary Delete Core Config
  */
 export const deleteCoreConfig = (coreId: number, params?: DeleteCoreConfigParams) => {
-  return orvalFetcher<void>({ url: `/api/core/${coreId}`, method: 'DELETE', params })
+  return orvalFetcher<void>({ url: `/api/v1/core/${coreId}`, method: 'DELETE', params })
 }
 
 export const getDeleteCoreConfigMutationOptions = <
@@ -3243,11 +3243,11 @@ export const useDeleteCoreConfig = <TData = Awaited<ReturnType<typeof deleteCore
  * @summary Get All Cores
  */
 export const getAllCores = (params?: GetAllCoresParams, signal?: AbortSignal) => {
-  return orvalFetcher<CoreResponseList>({ url: `/api/cores`, method: 'GET', params, signal })
+  return orvalFetcher<CoreResponseList>({ url: `/api/v1/cores`, method: 'GET', params, signal })
 }
 
 export const getGetAllCoresQueryKey = (params?: GetAllCoresParams) => {
-  return [`/api/cores`, ...(params ? [params] : [])] as const
+  return [`/api/v1/cores`, ...(params ? [params] : [])] as const
 }
 
 export const getGetAllCoresQueryOptions = <TData = Awaited<ReturnType<typeof getAllCores>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -3304,7 +3304,7 @@ export function useGetAllCores<TData = Awaited<ReturnType<typeof getAllCores>>, 
  * @summary Restart Core
  */
 export const restartCore = (coreId: number, signal?: AbortSignal) => {
-  return orvalFetcher<void>({ url: `/api/core/${coreId}/restart`, method: 'POST', signal })
+  return orvalFetcher<void>({ url: `/api/v1/core/${coreId}/restart`, method: 'POST', signal })
 }
 
 export const getRestartCoreMutationOptions = <TData = Awaited<ReturnType<typeof restartCore>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -3346,11 +3346,11 @@ export const useRestartCore = <TData = Awaited<ReturnType<typeof restartCore>>, 
  * @summary Get Host
  */
 export const getHost = (hostId: number, signal?: AbortSignal) => {
-  return orvalFetcher<BaseHost>({ url: `/api/host/${hostId}`, method: 'GET', signal })
+  return orvalFetcher<BaseHost>({ url: `/api/v1/host/${hostId}`, method: 'GET', signal })
 }
 
 export const getGetHostQueryKey = (hostId: number) => {
-  return [`/api/host/${hostId}`] as const
+  return [`/api/v1/host/${hostId}`] as const
 }
 
 export const getGetHostQueryOptions = <TData = Awaited<ReturnType<typeof getHost>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -3407,7 +3407,7 @@ export function useGetHost<TData = Awaited<ReturnType<typeof getHost>>, TError =
  * @summary Modify Host
  */
 export const modifyHost = (hostId: number, createHost: BodyType<CreateHost>) => {
-  return orvalFetcher<BaseHost>({ url: `/api/host/${hostId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: createHost })
+  return orvalFetcher<BaseHost>({ url: `/api/v1/host/${hostId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: createHost })
 }
 
 export const getModifyHostMutationOptions = <
@@ -3453,7 +3453,7 @@ export const useModifyHost = <TData = Awaited<ReturnType<typeof modifyHost>>, TE
  * @summary Remove Host
  */
 export const removeHost = (hostId: number) => {
-  return orvalFetcher<void>({ url: `/api/host/${hostId}`, method: 'DELETE' })
+  return orvalFetcher<void>({ url: `/api/v1/host/${hostId}`, method: 'DELETE' })
 }
 
 export const getRemoveHostMutationOptions = <
@@ -3499,11 +3499,11 @@ export const useRemoveHost = <TData = Awaited<ReturnType<typeof removeHost>>, TE
  * @summary Get Hosts
  */
 export const getHosts = (params?: GetHostsParams, signal?: AbortSignal) => {
-  return orvalFetcher<BaseHost[]>({ url: `/api/hosts`, method: 'GET', params, signal })
+  return orvalFetcher<BaseHost[]>({ url: `/api/v1/hosts`, method: 'GET', params, signal })
 }
 
 export const getGetHostsQueryKey = (params?: GetHostsParams) => {
-  return [`/api/hosts`, ...(params ? [params] : [])] as const
+  return [`/api/v1/hosts`, ...(params ? [params] : [])] as const
 }
 
 export const getGetHostsQueryOptions = <TData = Awaited<ReturnType<typeof getHosts>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -3560,7 +3560,7 @@ export function useGetHosts<TData = Awaited<ReturnType<typeof getHosts>>, TError
  * @summary Modify Hosts
  */
 export const modifyHosts = (createHost: BodyType<CreateHost[]>) => {
-  return orvalFetcher<BaseHost[]>({ url: `/api/hosts`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: createHost })
+  return orvalFetcher<BaseHost[]>({ url: `/api/v1/hosts`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: createHost })
 }
 
 export const getModifyHostsMutationOptions = <TData = Awaited<ReturnType<typeof modifyHosts>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -3604,7 +3604,7 @@ export const useModifyHosts = <TData = Awaited<ReturnType<typeof modifyHosts>>, 
  * @summary Create Host
  */
 export const createHost = (createHost: BodyType<CreateHost>, signal?: AbortSignal) => {
-  return orvalFetcher<BaseHost>({ url: `/api/host/`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: createHost, signal })
+  return orvalFetcher<BaseHost>({ url: `/api/v1/host/`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: createHost, signal })
 }
 
 export const getCreateHostMutationOptions = <TData = Awaited<ReturnType<typeof createHost>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -3646,11 +3646,11 @@ export const useCreateHost = <TData = Awaited<ReturnType<typeof createHost>>, TE
  * @summary Get Node Settings
  */
 export const getNodeSettings = (signal?: AbortSignal) => {
-  return orvalFetcher<NodeSettings>({ url: `/api/node/settings`, method: 'GET', signal })
+  return orvalFetcher<NodeSettings>({ url: `/api/v1/node/settings`, method: 'GET', signal })
 }
 
 export const getGetNodeSettingsQueryKey = () => {
-  return [`/api/node/settings`] as const
+  return [`/api/v1/node/settings`] as const
 }
 
 export const getGetNodeSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getNodeSettings>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
@@ -3700,11 +3700,11 @@ export function useGetNodeSettings<TData = Awaited<ReturnType<typeof getNodeSett
  * @summary Get Usage
  */
 export const getUsage = (params?: GetUsageParams, signal?: AbortSignal) => {
-  return orvalFetcher<NodeUsageStatsList>({ url: `/api/node/usage`, method: 'GET', params, signal })
+  return orvalFetcher<NodeUsageStatsList>({ url: `/api/v1/node/usage`, method: 'GET', params, signal })
 }
 
 export const getGetUsageQueryKey = (params?: GetUsageParams) => {
-  return [`/api/node/usage`, ...(params ? [params] : [])] as const
+  return [`/api/v1/node/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUsageQueryOptions = <TData = Awaited<ReturnType<typeof getUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -3761,11 +3761,11 @@ export function useGetUsage<TData = Awaited<ReturnType<typeof getUsage>>, TError
  * @summary Get Nodes
  */
 export const getNodes = (params?: GetNodesParams, signal?: AbortSignal) => {
-  return orvalFetcher<NodeResponse[]>({ url: `/api/nodes`, method: 'GET', params, signal })
+  return orvalFetcher<NodeResponse[]>({ url: `/api/v1/nodes`, method: 'GET', params, signal })
 }
 
 export const getGetNodesQueryKey = (params?: GetNodesParams) => {
-  return [`/api/nodes`, ...(params ? [params] : [])] as const
+  return [`/api/v1/nodes`, ...(params ? [params] : [])] as const
 }
 
 export const getGetNodesQueryOptions = <TData = Awaited<ReturnType<typeof getNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -3822,7 +3822,7 @@ export function useGetNodes<TData = Awaited<ReturnType<typeof getNodes>>, TError
  * @summary Create Node
  */
 export const createNode = (nodeCreate: BodyType<NodeCreate>, signal?: AbortSignal) => {
-  return orvalFetcher<NodeResponse>({ url: `/api/node`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: nodeCreate, signal })
+  return orvalFetcher<NodeResponse>({ url: `/api/v1/node`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: nodeCreate, signal })
 }
 
 export const getCreateNodeMutationOptions = <
@@ -3868,11 +3868,11 @@ export const useCreateNode = <TData = Awaited<ReturnType<typeof createNode>>, TE
  * @summary Get Node
  */
 export const getNode = (nodeId: number, signal?: AbortSignal) => {
-  return orvalFetcher<NodeResponse>({ url: `/api/node/${nodeId}`, method: 'GET', signal })
+  return orvalFetcher<NodeResponse>({ url: `/api/v1/node/${nodeId}`, method: 'GET', signal })
 }
 
 export const getGetNodeQueryKey = (nodeId: number) => {
-  return [`/api/node/${nodeId}`] as const
+  return [`/api/v1/node/${nodeId}`] as const
 }
 
 export const getGetNodeQueryOptions = <TData = Awaited<ReturnType<typeof getNode>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -3927,7 +3927,7 @@ export function useGetNode<TData = Awaited<ReturnType<typeof getNode>>, TError =
  * @summary Modify Node
  */
 export const modifyNode = (nodeId: number, nodeModify: BodyType<NodeModify>) => {
-  return orvalFetcher<NodeResponse>({ url: `/api/node/${nodeId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: nodeModify })
+  return orvalFetcher<NodeResponse>({ url: `/api/v1/node/${nodeId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: nodeModify })
 }
 
 export const getModifyNodeMutationOptions = <TData = Awaited<ReturnType<typeof modifyNode>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -3969,7 +3969,7 @@ export const useModifyNode = <TData = Awaited<ReturnType<typeof modifyNode>>, TE
  * @summary Remove Node
  */
 export const removeNode = (nodeId: number) => {
-  return orvalFetcher<void>({ url: `/api/node/${nodeId}`, method: 'DELETE' })
+  return orvalFetcher<void>({ url: `/api/v1/node/${nodeId}`, method: 'DELETE' })
 }
 
 export const getRemoveNodeMutationOptions = <TData = Awaited<ReturnType<typeof removeNode>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -4011,7 +4011,7 @@ export const useRemoveNode = <TData = Awaited<ReturnType<typeof removeNode>>, TE
  * @summary Reconnect Node
  */
 export const reconnectNode = (nodeId: number, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/node/${nodeId}/reconnect`, method: 'POST', signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/node/${nodeId}/reconnect`, method: 'POST', signal })
 }
 
 export const getReconnectNodeMutationOptions = <TData = Awaited<ReturnType<typeof reconnectNode>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -4052,7 +4052,7 @@ export const useReconnectNode = <TData = Awaited<ReturnType<typeof reconnectNode
  * @summary Sync Node
  */
 export const syncNode = (nodeId: number, params?: SyncNodeParams) => {
-  return orvalFetcher<unknown>({ url: `/api/node/${nodeId}/sync`, method: 'PUT', params })
+  return orvalFetcher<unknown>({ url: `/api/v1/node/${nodeId}/sync`, method: 'PUT', params })
 }
 
 export const getSyncNodeMutationOptions = <TData = Awaited<ReturnType<typeof syncNode>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -4094,11 +4094,11 @@ export const useSyncNode = <TData = Awaited<ReturnType<typeof syncNode>>, TError
  * @summary Node Logs
  */
 export const nodeLogs = (nodeId: number, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/node/${nodeId}/logs`, method: 'GET', signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/node/${nodeId}/logs`, method: 'GET', signal })
 }
 
 export const getNodeLogsQueryKey = (nodeId: number) => {
-  return [`/api/node/${nodeId}/logs`] as const
+  return [`/api/v1/node/${nodeId}/logs`] as const
 }
 
 export const getNodeLogsQueryOptions = <TData = Awaited<ReturnType<typeof nodeLogs>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -4154,11 +4154,11 @@ export function useNodeLogs<TData = Awaited<ReturnType<typeof nodeLogs>>, TError
  * @summary Get Node Stats Periodic
  */
 export const getNodeStatsPeriodic = (nodeId: number, params?: GetNodeStatsPeriodicParams, signal?: AbortSignal) => {
-  return orvalFetcher<NodeStatsList>({ url: `/api/node/${nodeId}/stats`, method: 'GET', params, signal })
+  return orvalFetcher<NodeStatsList>({ url: `/api/v1/node/${nodeId}/stats`, method: 'GET', params, signal })
 }
 
 export const getGetNodeStatsPeriodicQueryKey = (nodeId: number, params?: GetNodeStatsPeriodicParams) => {
-  return [`/api/node/${nodeId}/stats`, ...(params ? [params] : [])] as const
+  return [`/api/v1/node/${nodeId}/stats`, ...(params ? [params] : [])] as const
 }
 
 export const getGetNodeStatsPeriodicQueryOptions = <TData = Awaited<ReturnType<typeof getNodeStatsPeriodic>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -4222,11 +4222,11 @@ export function useGetNodeStatsPeriodic<TData = Awaited<ReturnType<typeof getNod
  * @summary Realtime Node Stats
  */
 export const realtimeNodeStats = (nodeId: number, signal?: AbortSignal) => {
-  return orvalFetcher<NodeRealtimeStats>({ url: `/api/node/${nodeId}/realtime_stats`, method: 'GET', signal })
+  return orvalFetcher<NodeRealtimeStats>({ url: `/api/v1/node/${nodeId}/realtime_stats`, method: 'GET', signal })
 }
 
 export const getRealtimeNodeStatsQueryKey = (nodeId: number) => {
-  return [`/api/node/${nodeId}/realtime_stats`] as const
+  return [`/api/v1/node/${nodeId}/realtime_stats`] as const
 }
 
 export const getRealtimeNodeStatsQueryOptions = <TData = Awaited<ReturnType<typeof realtimeNodeStats>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -4285,11 +4285,11 @@ export function useRealtimeNodeStats<TData = Awaited<ReturnType<typeof realtimeN
  * @summary Realtime Nodes Stats
  */
 export const realtimeNodesStats = (signal?: AbortSignal) => {
-  return orvalFetcher<RealtimeNodesStats200>({ url: `/api/nodes/realtime_stats`, method: 'GET', signal })
+  return orvalFetcher<RealtimeNodesStats200>({ url: `/api/v1/nodes/realtime_stats`, method: 'GET', signal })
 }
 
 export const getRealtimeNodesStatsQueryKey = () => {
-  return [`/api/nodes/realtime_stats`] as const
+  return [`/api/v1/nodes/realtime_stats`] as const
 }
 
 export const getRealtimeNodesStatsQueryOptions = <TData = Awaited<ReturnType<typeof realtimeNodesStats>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
@@ -4339,11 +4339,11 @@ export function useRealtimeNodesStats<TData = Awaited<ReturnType<typeof realtime
  * @summary User Online Stats
  */
 export const userOnlineStats = (nodeId: number, username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserOnlineStats200>({ url: `/api/node/${nodeId}/online_stats/${username}`, method: 'GET', signal })
+  return orvalFetcher<UserOnlineStats200>({ url: `/api/v1/node/${nodeId}/online_stats/${username}`, method: 'GET', signal })
 }
 
 export const getUserOnlineStatsQueryKey = (nodeId: number, username: string) => {
-  return [`/api/node/${nodeId}/online_stats/${username}`] as const
+  return [`/api/v1/node/${nodeId}/online_stats/${username}`] as const
 }
 
 export const getUserOnlineStatsQueryOptions = <TData = Awaited<ReturnType<typeof userOnlineStats>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -4409,11 +4409,11 @@ export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineS
  * @summary User Online Ip List
  */
 export const userOnlineIpList = (nodeId: number, username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserOnlineIpList200>({ url: `/api/node/${nodeId}/online_stats/${username}/ip`, method: 'GET', signal })
+  return orvalFetcher<UserOnlineIpList200>({ url: `/api/v1/node/${nodeId}/online_stats/${username}/ip`, method: 'GET', signal })
 }
 
 export const getUserOnlineIpListQueryKey = (nodeId: number, username: string) => {
-  return [`/api/node/${nodeId}/online_stats/${username}/ip`] as const
+  return [`/api/v1/node/${nodeId}/online_stats/${username}/ip`] as const
 }
 
 export const getUserOnlineIpListQueryOptions = <TData = Awaited<ReturnType<typeof userOnlineIpList>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
@@ -4489,7 +4489,7 @@ Allowed tables:
  * @summary Clear usage data from a specified table
  */
 export const clearUsageData = (table: UsageTable, params?: ClearUsageDataParams) => {
-  return orvalFetcher<unknown>({ url: `/api/nodes/clear_usage_data/${table}`, method: 'DELETE', params })
+  return orvalFetcher<unknown>({ url: `/api/v1/nodes/clear_usage_data/${table}`, method: 'DELETE', params })
 }
 
 export const getClearUsageDataMutationOptions = <TData = Awaited<ReturnType<typeof clearUsageData>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -4543,7 +4543,7 @@ export const useClearUsageData = <TData = Awaited<ReturnType<typeof clearUsageDa
  * @summary Create User
  */
 export const createUser = (userCreate: BodyType<UserCreate>, signal?: AbortSignal) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: userCreate, signal })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: userCreate, signal })
 }
 
 export const getCreateUserMutationOptions = <
@@ -4603,7 +4603,7 @@ Note: Fields set to `null` or omitted will not be modified.
  * @summary Modify User
  */
 export const modifyUser = (username: string, userModify: BodyType<UserModify>) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/${username}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userModify })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user/${username}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userModify })
 }
 
 export const getModifyUserMutationOptions = <
@@ -4653,7 +4653,7 @@ export const useModifyUser = <
  * @summary Remove User
  */
 export const removeUser = (username: string) => {
-  return orvalFetcher<void>({ url: `/api/user/${username}`, method: 'DELETE' })
+  return orvalFetcher<void>({ url: `/api/v1/user/${username}`, method: 'DELETE' })
 }
 
 export const getRemoveUserMutationOptions = <
@@ -4699,11 +4699,11 @@ export const useRemoveUser = <TData = Awaited<ReturnType<typeof removeUser>>, TE
  * @summary Get User
  */
 export const getUser = (username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/${username}`, method: 'GET', signal })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user/${username}`, method: 'GET', signal })
 }
 
 export const getGetUserQueryKey = (username: string) => {
-  return [`/api/user/${username}`] as const
+  return [`/api/v1/user/${username}`] as const
 }
 
 export const getGetUserQueryOptions = <TData = Awaited<ReturnType<typeof getUser>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
@@ -4758,7 +4758,7 @@ export function useGetUser<TData = Awaited<ReturnType<typeof getUser>>, TError =
  * @summary Reset User Data Usage
  */
 export const resetUserDataUsage = (username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/${username}/reset`, method: 'POST', signal })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user/${username}/reset`, method: 'POST', signal })
 }
 
 export const getResetUserDataUsageMutationOptions = <
@@ -4808,7 +4808,7 @@ export const useResetUserDataUsage = <
  * @summary Revoke User Subscription
  */
 export const revokeUserSubscription = (username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/${username}/revoke_sub`, method: 'POST', signal })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user/${username}/revoke_sub`, method: 'POST', signal })
 }
 
 export const getRevokeUserSubscriptionMutationOptions = <
@@ -4858,7 +4858,7 @@ export const useRevokeUserSubscription = <
  * @summary Reset Users Data Usage
  */
 export const resetUsersDataUsage = (signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/users/reset`, method: 'POST', signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/users/reset`, method: 'POST', signal })
 }
 
 export const getResetUsersDataUsageMutationOptions = <TData = Awaited<ReturnType<typeof resetUsersDataUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound>, TContext = unknown>(options?: {
@@ -4898,7 +4898,7 @@ export const useResetUsersDataUsage = <TData = Awaited<ReturnType<typeof resetUs
  * @summary Set Owner
  */
 export const setOwner = (username: string, params: SetOwnerParams) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/${username}/set_owner`, method: 'PUT', params })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user/${username}/set_owner`, method: 'PUT', params })
 }
 
 export const getSetOwnerMutationOptions = <TData = Awaited<ReturnType<typeof setOwner>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -4940,7 +4940,7 @@ export const useSetOwner = <TData = Awaited<ReturnType<typeof setOwner>>, TError
  * @summary Active Next Plan
  */
 export const activeNextPlan = (username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/${username}/active_next`, method: 'POST', signal })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user/${username}/active_next`, method: 'POST', signal })
 }
 
 export const getActiveNextPlanMutationOptions = <
@@ -4986,11 +4986,11 @@ export const useActiveNextPlan = <TData = Awaited<ReturnType<typeof activeNextPl
  * @summary Get User Sub Update List
  */
 export const getUserSubUpdateList = (username: string, params?: GetUserSubUpdateListParams, signal?: AbortSignal) => {
-  return orvalFetcher<UserSubscriptionUpdateList>({ url: `/api/user/${username}/sub_update`, method: 'GET', params, signal })
+  return orvalFetcher<UserSubscriptionUpdateList>({ url: `/api/v1/user/${username}/sub_update`, method: 'GET', params, signal })
 }
 
 export const getGetUserSubUpdateListQueryKey = (username: string, params?: GetUserSubUpdateListParams) => {
-  return [`/api/user/${username}/sub_update`, ...(params ? [params] : [])] as const
+  return [`/api/v1/user/${username}/sub_update`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUserSubUpdateListQueryOptions = <TData = Awaited<ReturnType<typeof getUserSubUpdateList>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
@@ -5056,11 +5056,11 @@ export function useGetUserSubUpdateList<TData = Awaited<ReturnType<typeof getUse
  * @summary Get Users
  */
 export const getUsers = (params?: GetUsersParams, signal?: AbortSignal) => {
-  return orvalFetcher<UsersResponse>({ url: `/api/users`, method: 'GET', params, signal })
+  return orvalFetcher<UsersResponse>({ url: `/api/v1/users`, method: 'GET', params, signal })
 }
 
 export const getGetUsersQueryKey = (params?: GetUsersParams) => {
-  return [`/api/users`, ...(params ? [params] : [])] as const
+  return [`/api/v1/users`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUsersQueryOptions = <TData = Awaited<ReturnType<typeof getUsers>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
@@ -5117,11 +5117,11 @@ export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError
  * @summary Get User Usage
  */
 export const getUserUsage = (username: string, params: GetUserUsageParams, signal?: AbortSignal) => {
-  return orvalFetcher<UserUsageStatsList>({ url: `/api/user/${username}/usage`, method: 'GET', params, signal })
+  return orvalFetcher<UserUsageStatsList>({ url: `/api/v1/user/${username}/usage`, method: 'GET', params, signal })
 }
 
 export const getGetUserUsageQueryKey = (username: string, params: GetUserUsageParams) => {
-  return [`/api/user/${username}/usage`, ...(params ? [params] : [])] as const
+  return [`/api/v1/user/${username}/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUserUsageQueryOptions = <TData = Awaited<ReturnType<typeof getUserUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
@@ -5184,11 +5184,11 @@ export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>
  * @summary Get Users Usage
  */
 export const getUsersUsage = (params: GetUsersUsageParams, signal?: AbortSignal) => {
-  return orvalFetcher<UserUsageStatsList>({ url: `/api/users/usage`, method: 'GET', params, signal })
+  return orvalFetcher<UserUsageStatsList>({ url: `/api/v1/users/usage`, method: 'GET', params, signal })
 }
 
 export const getGetUsersUsageQueryKey = (params: GetUsersUsageParams) => {
-  return [`/api/users/usage`, ...(params ? [params] : [])] as const
+  return [`/api/v1/users/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUsersUsageQueryOptions = <TData = Awaited<ReturnType<typeof getUsersUsage>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
@@ -5251,11 +5251,11 @@ export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage
  * @summary Get Expired Users
  */
 export const getExpiredUsers = (params?: GetExpiredUsersParams, signal?: AbortSignal) => {
-  return orvalFetcher<string[]>({ url: `/api/users/expired`, method: 'GET', params, signal })
+  return orvalFetcher<string[]>({ url: `/api/v1/users/expired`, method: 'GET', params, signal })
 }
 
 export const getGetExpiredUsersQueryKey = (params?: GetExpiredUsersParams) => {
-  return [`/api/users/expired`, ...(params ? [params] : [])] as const
+  return [`/api/v1/users/expired`, ...(params ? [params] : [])] as const
 }
 
 export const getGetExpiredUsersQueryOptions = <TData = Awaited<ReturnType<typeof getExpiredUsers>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
@@ -5318,7 +5318,7 @@ export function useGetExpiredUsers<TData = Awaited<ReturnType<typeof getExpiredU
  * @summary Delete Expired Users
  */
 export const deleteExpiredUsers = (params?: DeleteExpiredUsersParams) => {
-  return orvalFetcher<RemoveUsersResponse>({ url: `/api/users/expired`, method: 'DELETE', params })
+  return orvalFetcher<RemoveUsersResponse>({ url: `/api/v1/users/expired`, method: 'DELETE', params })
 }
 
 export const getDeleteExpiredUsersMutationOptions = <TData = Awaited<ReturnType<typeof deleteExpiredUsers>>, TError = ErrorType<Unauthorized | HTTPValidationError>, TContext = unknown>(options?: {
@@ -5359,7 +5359,7 @@ export const useDeleteExpiredUsers = <TData = Awaited<ReturnType<typeof deleteEx
  * @summary Create User From Template
  */
 export const createUserFromTemplate = (createUserFromTemplate: BodyType<CreateUserFromTemplate>, signal?: AbortSignal) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/from_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: createUserFromTemplate, signal })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user/from_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: createUserFromTemplate, signal })
 }
 
 export const getCreateUserFromTemplateMutationOptions = <
@@ -5404,7 +5404,7 @@ export const useCreateUserFromTemplate = <TData = Awaited<ReturnType<typeof crea
  * @summary Modify User With Template
  */
 export const modifyUserWithTemplate = (username: string, modifyUserByTemplate: BodyType<ModifyUserByTemplate>) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/from_template/${username}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: modifyUserByTemplate })
+  return orvalFetcher<UserResponse>({ url: `/api/v1/user/from_template/${username}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: modifyUserByTemplate })
 }
 
 export const getModifyUserWithTemplateMutationOptions = <
@@ -5456,7 +5456,7 @@ export const useModifyUserWithTemplate = <TData = Awaited<ReturnType<typeof modi
  * @summary Bulk sum/sub to expire of users
  */
 export const bulkModifyUsersExpire = (bulkUser: BodyType<BulkUser>, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/users/bulk/expire`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUser, signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/users/bulk/expire`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUser, signal })
 }
 
 export const getBulkModifyUsersExpireMutationOptions = <
@@ -5508,7 +5508,7 @@ export const useBulkModifyUsersExpire = <TData = Awaited<ReturnType<typeof bulkM
  * @summary Bulk sum/sub to data limit of users
  */
 export const bulkModifyUsersDatalimit = (bulkUser: BodyType<BulkUser>, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/users/bulk/data_limit`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUser, signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/users/bulk/data_limit`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUser, signal })
 }
 
 export const getBulkModifyUsersDatalimitMutationOptions = <
@@ -5553,7 +5553,7 @@ export const useBulkModifyUsersDatalimit = <TData = Awaited<ReturnType<typeof bu
  * @summary Bulk modify users proxy settings
  */
 export const bulkModifyUsersProxySettings = (bulkUsersProxy: BodyType<BulkUsersProxy>, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/api/users/bulk/proxy_settings`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersProxy, signal })
+  return orvalFetcher<unknown>({ url: `/api/v1/users/bulk/proxy_settings`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersProxy, signal })
 }
 
 export const getBulkModifyUsersProxySettingsMutationOptions = <
@@ -5872,7 +5872,7 @@ export function useUserSubscriptionWithClientType<TData = Awaited<ReturnType<typ
  * @summary Create User Template
  */
 export const createUserTemplate = (userTemplateCreate: BodyType<UserTemplateCreate>, signal?: AbortSignal) => {
-  return orvalFetcher<UserTemplateResponse>({ url: `/api/user_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: userTemplateCreate, signal })
+  return orvalFetcher<UserTemplateResponse>({ url: `/api/v1/user_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: userTemplateCreate, signal })
 }
 
 export const getCreateUserTemplateMutationOptions = <TData = Awaited<ReturnType<typeof createUserTemplate>>, TError = ErrorType<Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -5914,11 +5914,11 @@ export const useCreateUserTemplate = <TData = Awaited<ReturnType<typeof createUs
  * @summary Get User Template
  */
 export const getUserTemplate = (templateId: number, signal?: AbortSignal) => {
-  return orvalFetcher<UserTemplateResponse>({ url: `/api/user_template/${templateId}`, method: 'GET', signal })
+  return orvalFetcher<UserTemplateResponse>({ url: `/api/v1/user_template/${templateId}`, method: 'GET', signal })
 }
 
 export const getGetUserTemplateQueryKey = (templateId: number) => {
-  return [`/api/user_template/${templateId}`] as const
+  return [`/api/v1/user_template/${templateId}`] as const
 }
 
 export const getGetUserTemplateQueryOptions = <TData = Awaited<ReturnType<typeof getUserTemplate>>, TError = ErrorType<HTTPValidationError>>(
@@ -5982,7 +5982,7 @@ export function useGetUserTemplate<TData = Awaited<ReturnType<typeof getUserTemp
  * @summary Modify User Template
  */
 export const modifyUserTemplate = (templateId: number, userTemplateModify: BodyType<UserTemplateModify>) => {
-  return orvalFetcher<UserTemplateResponse>({ url: `/api/user_template/${templateId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userTemplateModify })
+  return orvalFetcher<UserTemplateResponse>({ url: `/api/v1/user_template/${templateId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userTemplateModify })
 }
 
 export const getModifyUserTemplateMutationOptions = <TData = Awaited<ReturnType<typeof modifyUserTemplate>>, TError = ErrorType<Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -6024,7 +6024,7 @@ export const useModifyUserTemplate = <TData = Awaited<ReturnType<typeof modifyUs
  * @summary Remove User Template
  */
 export const removeUserTemplate = (templateId: number) => {
-  return orvalFetcher<void>({ url: `/api/user_template/${templateId}`, method: 'DELETE' })
+  return orvalFetcher<void>({ url: `/api/v1/user_template/${templateId}`, method: 'DELETE' })
 }
 
 export const getRemoveUserTemplateMutationOptions = <TData = Awaited<ReturnType<typeof removeUserTemplate>>, TError = ErrorType<Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
@@ -6066,11 +6066,11 @@ export const useRemoveUserTemplate = <TData = Awaited<ReturnType<typeof removeUs
  * @summary Get User Templates
  */
 export const getUserTemplates = (params?: GetUserTemplatesParams, signal?: AbortSignal) => {
-  return orvalFetcher<UserTemplateResponse[]>({ url: `/api/user_templates`, method: 'GET', params, signal })
+  return orvalFetcher<UserTemplateResponse[]>({ url: `/api/v1/user_templates`, method: 'GET', params, signal })
 }
 
 export const getGetUserTemplatesQueryKey = (params?: GetUserTemplatesParams) => {
-  return [`/api/user_templates`, ...(params ? [params] : [])] as const
+  return [`/api/v1/user_templates`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUserTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof getUserTemplates>>, TError = ErrorType<HTTPValidationError>>(

@@ -108,7 +108,7 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture
 def access_token() -> str:
     response = client.post(
-        url="/api/admin/token",
+        url="/api/v1/admin/token",
         data={"username": "testadmin", "password": "testadmin", "grant_type": "password"},
     )
     return response.json()["access_token"]

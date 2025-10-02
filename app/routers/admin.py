@@ -1,6 +1,8 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Header
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+
 from app import notification
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token
@@ -8,9 +10,10 @@ from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
 from app.utils.jwt import create_admin_token
+
 from .authentication import check_sudo_admin, get_current, validate_admin, validate_mini_app_admin
 
-router = APIRouter(tags=["Admin"], prefix="/api/admin", responses={401: responses._401, 403: responses._403})
+router = APIRouter(tags=["Admin"], prefix="/api/v1/admin", responses={401: responses._401, 403: responses._403})
 admin_operator = AdminOperation(operator_type=OperatorType.API)
 
 

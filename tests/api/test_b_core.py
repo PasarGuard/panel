@@ -310,7 +310,7 @@ def test_core_create(access_token):
     """Test that the core create route is accessible."""
 
     response = client.post(
-        url="/api/core",
+        url="/api/v1/core",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "config": xray_config,
@@ -332,7 +332,7 @@ def test_core_update(access_token):
     """Test that the core update route is accessible."""
 
     response = client.put(
-        url="/api/core/1",
+        url="/api/v1/core/1",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "config": xray_config,
@@ -357,7 +357,7 @@ def test_core_get(access_token):
     """Test that the core get route is accessible."""
 
     response = client.get(
-        url="/api/core/1",
+        url="/api/v1/core/1",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -368,7 +368,7 @@ def test_core_delete_1(access_token):
     """Test that the core delete route is accessible."""
 
     response = client.delete(
-        url="/api/core/1", headers={"Authorization": f"Bearer {access_token}"}, params={"restart_nodes": True}
+        url="/api/v1/core/1", headers={"Authorization": f"Bearer {access_token}"}, params={"restart_nodes": True}
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -377,7 +377,7 @@ def test_core_delete_2(access_token):
     """Test that the core delete route is accessible."""
 
     response = client.post(
-        url="/api/core",
+        url="/api/v1/core",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "config": xray_config,
@@ -396,7 +396,7 @@ def test_core_delete_2(access_token):
         assert v in {"fallback-A", "fallback-B"}
 
     response = client.delete(
-        url=f"/api/core/{response.json()['id']}",
+        url=f"/api/v1/core/{response.json()['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -406,7 +406,7 @@ def test_inbounds_get(access_token):
     """Test that the inbounds get route is accessible."""
 
     response = client.get(
-        url="/api/inbounds",
+        url="/api/v1/inbounds",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     config_tags = [

@@ -200,7 +200,7 @@ uv run alembic upgrade head
 If you want to use `PasarGuard-cli`, you should link it to a file in your `$PATH`, make it executable, and install the auto-completion:
 
 ```bash
-sudo ln -s $(pwd)/PasarGuard-cli.py /usr/bin/pasarguard-cli
+sudo ln -s $(pwd)/pasarguard-cli.py /usr/bin/pasarguard-cli
 sudo chmod +x /usr/bin/pasarguard-cli
 pasarguard-cli completion install
 ```

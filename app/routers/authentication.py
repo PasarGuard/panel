@@ -12,7 +12,7 @@ from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
 from config import DEBUG, SUDOERS
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/admin/token")
 
 
 async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:

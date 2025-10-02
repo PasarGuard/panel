@@ -11,7 +11,7 @@ def test_group_create(access_token):
     """Test that the group create route is accessible."""
 
     inbounds = client.get(
-        url="/api/inbounds",
+        url="/api/v1/inbounds",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert inbounds.status_code == status.HTTP_200_OK
@@ -21,7 +21,7 @@ def test_group_create(access_token):
             k=min(3, len(inbounds.json())),
         )
         response = client.post(
-            url="/api/group",
+            url="/api/v1/group",
             headers={"Authorization": f"Bearer {access_token}"},
             json={"name": group_name, "inbound_tags": random_inbound},
         )
@@ -34,7 +34,7 @@ def test_group_create(access_token):
 def test_group_update(access_token):
     """Test that the group update route is accessible."""
     response = client.put(
-        url="/api/group/1",
+        url="/api/v1/group/1",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"name": "testgroup4", "is_disabled": True},
     )
@@ -46,7 +46,7 @@ def test_group_update(access_token):
 def test_group_delete(access_token):
     """Test that the group delete route is accessible."""
     response = client.delete(
-        url="/api/group/1",
+        url="/api/v1/group/1",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -55,7 +55,7 @@ def test_group_delete(access_token):
 def test_group_get_by_id(access_token):
     """Test that the group get by id route is accessible."""
     response = client.get(
-        url="/api/group/2",
+        url="/api/v1/group/2",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -65,7 +65,7 @@ def test_group_get_by_id(access_token):
 def test_groups_get(access_token):
     """Test that the group get route is accessible."""
     response = client.get(
-        url="/api/groups",
+        url="/api/v1/groups",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK

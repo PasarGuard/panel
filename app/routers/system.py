@@ -19,7 +19,7 @@ from config import DO_NOT_LOG_TELEGRAM_BOT
 from .authentication import get_current
 
 system_operator = SystemOperation(operator_type=OperatorType.API)
-router = APIRouter(tags=["System"], prefix="/api", responses={401: responses._401})
+router = APIRouter(tags=["System"], prefix="/api/v1", responses={401: responses._401})
 
 TELEGRAM_WEBHOOK_PATH = "/tghook"
 if DO_NOT_LOG_TELEGRAM_BOT:

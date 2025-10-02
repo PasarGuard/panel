@@ -10,7 +10,7 @@ from app.utils import responses
 from .authentication import check_sudo_admin
 
 host_operator = HostOperation(operator_type=OperatorType.API)
-router = APIRouter(tags=["Host"], prefix="/api/host", responses={401: responses._401, 403: responses._403})
+router = APIRouter(tags=["Host"], prefix="/api/v1/host", responses={401: responses._401, 403: responses._403})
 
 
 @router.get("/{host_id}", response_model=BaseHost)
