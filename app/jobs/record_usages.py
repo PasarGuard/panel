@@ -94,7 +94,10 @@ async def record_user_stats(params: list[dict], node_id: int, usage_coefficient:
         # Insert missing user entries
         if new_users:
             insert_stmt = insert(NodeUserUsage).values(
-                user_id=bindparam("uid"), created_at=created_at, node_id=node_id, used_traffic=0,
+                user_id=bindparam("uid"),
+                created_at=created_at,
+                node_id=node_id,
+                used_traffic=0,
             )
             await safe_execute(db, insert_stmt, new_users)
 
@@ -109,7 +112,7 @@ async def record_user_stats(params: list[dict], node_id: int, usage_coefficient:
                     NodeUserUsage.node_id == node_id,
                     NodeUserUsage.created_at == created_at,
                 ),
-            )dt
+            )
         )
         await safe_execute(db, update_stmt, update_params)
 
@@ -224,7 +227,9 @@ async def record_user_usages():
     nodes: tuple[int, PasarGuardNode] = await node_manager.get_healthy_nodes()
 
     node_data = await asyncio.gather(*[asyncio.create_task(node.get_extra()) for _, node in nodes])
-    usage_coefficient = {node_id: data.get("usage_coefficient", 1) for (node_id, _), data in zip(nodes, node_data, strict=False)}
+    usage_coefficient = {
+        node_id: data.get("usage_coefficient", 1) for (node_id, _), data in zip(nodes, node_data, strict=False)
+    }
 
     stats_tasks = [asyncio.create_task(get_users_stats(node)) for _, node in nodes]
     await asyncio.gather(*stats_tasks)
@@ -260,7 +265,11 @@ async def record_user_usages():
 
     record_tasks = [
         asyncio.create_task(
-            record_user_stats(params=api_params[node_id], node_id=node_id, usage_coefficient=usage_coefficient[node_id]),
+            record_user_stats(
+                params=api_params[node_id],
+                node_id=node_id,
+                usage_coefficient=usage_coefficient[node_id],
+            ),
         )
         for node_id in api_params
     ]
@@ -286,7 +295,8 @@ async def record_node_usages():
 
     async with GetDB() as db:
         system_update_stmt = update(System).values(
-            uplink=System.uplink + total_up, downlink=System.downlink + total_down,
+            uplink=System.uplink + total_up,
+            downlink=System.downlink + total_down,
         )
         await safe_execute(db, system_update_stmt)
 
@@ -298,8 +308,16 @@ async def record_node_usages():
 
 
 scheduler.add_job(
-    record_user_usages, "interval", seconds=JOB_RECORD_USER_USAGES_INTERVAL, coalesce=True, max_instances=1,
+    record_user_usages,
+    "interval",
+    seconds=JOB_RECORD_USER_USAGES_INTERVAL,
+    coalesce=True,
+    max_instances=1,
 )
 scheduler.add_job(
-    record_node_usages, "interval", seconds=JOB_RECORD_NODE_USAGES_INTERVAL, coalesce=True, max_instances=1,
+    record_node_usages,
+    "interval",
+    seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
+    coalesce=True,
+    max_instances=1,
 )
