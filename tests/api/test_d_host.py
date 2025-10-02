@@ -25,7 +25,7 @@ def test_host_create(access_token):
             host_data["sni"] = [f"test_sni_{i}_{j}.com"]
             host_data["remark"] = f"test_host_{i}_{j}"
             response = client.post(
-                "/api/host",
+                "/api/v1/host",
                 headers={"Authorization": f"Bearer {access_token}"},
                 json=host_data,
             )
@@ -40,7 +40,7 @@ def test_host_create(access_token):
 def test_host_get(access_token):
     """Test that the host get route is accessible."""
     response = client.get(
-        "/api/hosts",
+        "/api/v1/hosts",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -50,7 +50,7 @@ def test_host_get(access_token):
 def test_host_update(access_token):
     """Test that the host update route is accessible."""
     response = client.put(
-        "/api/host/1",
+        "/api/v1/host/1",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "remark": "test_host_updated",
@@ -73,7 +73,7 @@ def test_host_update(access_token):
 def test_host_delete(access_token):
     """Test that the host delete route is accessible."""
     response = client.delete(
-        "/api/host/1",
+        "/api/v1/host/1",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT

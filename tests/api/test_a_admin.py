@@ -7,7 +7,7 @@ def test_admin_login():
     """Test that the admin login route is accessible."""
 
     response = client.post(
-        url="/api/admin/token",
+        url="/api/v1/admin/token",
         data={"username": "testadmin", "password": "testadmin", "grant_type": "password"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -21,7 +21,7 @@ def test_get_admin(access_token):
     # mock_settings(monkeypatch)
     username = "testadmin"
     response = client.get(
-        url="/api/admin",
+        url="/api/v1/admin",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -34,7 +34,7 @@ def test_admin_create(access_token):
     username = "testadmincreate"
     password = "TestAdmincreate#11"
     response = client.post(
-        url="/api/admin",
+        url="/api/v1/admin",
         json={"username": username, "password": password, "is_sudo": False},
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -48,7 +48,7 @@ def test_admin_db_login():
     username = "testadmincreate"
     password = "TestAdmincreate#11"
     response = client.post(
-        url="/api/admin/token",
+        url="/api/v1/admin/token",
         data={"username": username, "password": password, "grant_type": "password"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -61,7 +61,7 @@ def test_update_admin(access_token):
     username = "testadmincreate"
     password = "TestAdminupdate#11"
     response = client.put(
-        url=f"/api/admin/{username}",
+        url=f"/api/v1/admin/{username}",
         json={
             "password": password,
             "is_sudo": True,
@@ -80,7 +80,7 @@ def test_get_admins(access_token):
 
     username = "testadmincreate"
     response = client.get(
-        url="/api/admins",
+        url="/api/v1/admins",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -93,7 +93,7 @@ def test_disable_admin():
     username = "testadmincreate"
     password = "TestAdminupdate#11"
     response = client.post(
-        url="/api/admin/token",
+        url="/api/v1/admin/token",
         data={"username": username, "password": password, "grant_type": "password"},
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -105,7 +105,7 @@ def test_admin_delete(access_token):
 
     username = "testadmincreate"
     response = client.delete(
-        url=f"/api/admin/{username}",
+        url=f"/api/v1/admin/{username}",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT

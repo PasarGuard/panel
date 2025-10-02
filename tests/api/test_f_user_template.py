@@ -8,7 +8,7 @@ id = 1
 def test_user_template_delete(access_token):
     """Test that the user template delete route is accessible."""
     response = client.delete(
-        f"/api/user_template/{id}",
+        f"/api/v1/user_template/{id}",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -17,7 +17,7 @@ def test_user_template_delete(access_token):
 def test_user_template_create(access_token):
     """Test that the user template create route is accessible."""
     response = client.post(
-        "/api/user_template",
+        "/api/v1/user_template",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "name": "test_user_template",
@@ -46,7 +46,7 @@ def test_user_template_create(access_token):
 def test_user_templates_get(access_token):
     """Test that the user template get route is accessible."""
     response = client.get(
-        "/api/user_templates",
+        "/api/v1/user_templates",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -56,7 +56,7 @@ def test_user_templates_get(access_token):
 def test_user_template_update(access_token):
     """Test that the user template update route is accessible."""
     response = client.put(
-        f"/api/user_template/{id}",
+        f"/api/v1/user_template/{id}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "name": "test_user_template_updated",
@@ -80,7 +80,7 @@ def test_user_template_update(access_token):
 def test_user_template_get_by_id(access_token):
     """Test that the user template get by id route is accessible."""
     response = client.get(
-        f"/api/user_template/{id}",
+        f"/api/v1/user_template/{id}",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK

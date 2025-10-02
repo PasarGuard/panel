@@ -9,7 +9,7 @@ from app.utils import responses
 from .authentication import check_sudo_admin, get_current
 
 settings_operator = SettingsOperation(operator_type=OperatorType.API)
-router = APIRouter(tags=["Settings"], prefix="/api/settings", responses={401: responses._401, 403: responses._403})
+router = APIRouter(tags=["Settings"], prefix="/api/v1/settings", responses={401: responses._401, 403: responses._403})
 
 
 @router.get("", response_model=SettingsSchema)

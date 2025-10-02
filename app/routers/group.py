@@ -9,7 +9,7 @@ from app.utils import responses
 
 from .authentication import check_sudo_admin, get_current
 
-router = APIRouter(prefix="/api/group", tags=["Groups"], responses={401: responses._401, 403: responses._403})
+router = APIRouter(prefix="/api/v1/group", tags=["Groups"], responses={401: responses._401, 403: responses._403})
 group_operator = GroupOperation(OperatorType.API)
 
 

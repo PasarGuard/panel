@@ -16,7 +16,7 @@ from app.utils import responses
 from .authentication import check_sudo_admin
 
 node_operator = NodeOperation(operator_type=OperatorType.API)
-router = APIRouter(tags=["Node"], prefix="/api/node", responses={401: responses._401, 403: responses._403})
+router = APIRouter(tags=["Node"], prefix="/api/v1/node", responses={401: responses._401, 403: responses._403})
 
 
 @router.get("/settings", response_model=NodeSettings)

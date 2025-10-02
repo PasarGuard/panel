@@ -14,7 +14,7 @@ def test_system(access_token, monkeypatch: MonkeyPatch):
     monkeypatch.setattr("app.operation.system.get_system_usage", system_mock)
 
     response = client.get(
-        "/api/system",
+        "/api/v1/system",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK

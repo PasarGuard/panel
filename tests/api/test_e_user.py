@@ -10,7 +10,7 @@ def test_user_create_active(access_token):
     """Test that the user create active route is accessible."""
     expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
     response = client.post(
-        "/api/user",
+        "/api/v1/user",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "username": "test_user_active",
@@ -44,7 +44,7 @@ def test_user_create_on_hold(access_token):
     """Test that the user create on hold route is accessible."""
     expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
     response = client.post(
-        "/api/user",
+        "/api/v1/user",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "username": "test_user_on_hold",
@@ -79,7 +79,7 @@ def test_user_create_on_hold(access_token):
 def test_users_get(access_token):
     """Test that the users get route is accessible."""
     response = client.get(
-        "/api/users?load_sub=true",
+        "/api/v1/users?load_sub=true",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -118,7 +118,7 @@ def test_user_sub_update_user_agent(access_token):
     user_agent = "v2rayNG/1.9.46 This is Marzban Test"
     client.get(url, headers={"User-Agent": user_agent})
     response = client.get(
-        f"/api/user/{user['username']}/sub_update",
+        f"/api/v1/user/{user['username']}/sub_update",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -128,7 +128,7 @@ def test_user_sub_update_user_agent(access_token):
 def test_user_get(access_token):
     """Test that the user get by id route is accessible."""
     response = client.get(
-        "/api/users?username=test_user_active",
+        "/api/v1/users?username=test_user_active",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -139,7 +139,7 @@ def test_user_get(access_token):
 def test_reset_user_usage(access_token):
     """Test that the user usage can be reset."""
     response = client.post(
-        "/api/user/test_user_active/reset",
+        "/api/v1/user/test_user_active/reset",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -148,7 +148,7 @@ def test_reset_user_usage(access_token):
 def test_user_update(access_token):
     """Test that the user update route is accessible."""
     response = client.put(
-        "/api/user/test_user_active",
+        "/api/v1/user/test_user_active",
         headers={"Authorization": f"Bearer {access_token}"},
         json={
             "group_ids": [3],
@@ -168,7 +168,7 @@ def test_user_update(access_token):
 def test_reset_by_next_user_usage(access_token):
     """Test that the user next plan is available."""
     response = client.post(
-        "/api/user/test_user_active/active_next",
+        "/api/v1/user/test_user_active/active_next",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -177,7 +177,7 @@ def test_reset_by_next_user_usage(access_token):
 def test_revoke_user_subscription(access_token):
     """Test revoke user subscription info."""
     response = client.post(
-        "/api/user/test_user_active/revoke_sub",
+        "/api/v1/user/test_user_active/revoke_sub",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -186,7 +186,7 @@ def test_revoke_user_subscription(access_token):
 def test_user_delete(access_token):
     """Test that the user delete route is accessible."""
     response = client.delete(
-        "/api/user/test_user_active",
+        "/api/v1/user/test_user_active",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -194,7 +194,7 @@ def test_user_delete(access_token):
 
 def test_create_user_with_template(access_token):
     response = client.post(
-        "/api/user/from_template",
+        "/api/v1/user/from_template",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"username": "test_user_template", "user_template_id": 1},
     )
@@ -207,7 +207,7 @@ def test_create_user_with_template(access_token):
 
 def test_modify_user_with_template(access_token):
     response = client.put(
-        "/api/user/from_template/test_user_template",
+        "/api/v1/user/from_template/test_user_template",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"user_template_id": 1},
     )
