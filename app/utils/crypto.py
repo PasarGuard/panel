@@ -6,6 +6,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import x25519
 from OpenSSL import crypto
+from config import CERTIFICATE_SUBJECT_CN, CERTIFICATE_VALIDITY_DAYS, CERTIFICATE_HASH_ALGORITHM
 
 
 def get_cert_SANs(cert: bytes):
@@ -19,16 +20,16 @@ def get_cert_SANs(cert: bytes):
     return san_list
 
 
-def generate_certificate():
+def generate_certificate() -> dict[str, str]:
     k = crypto.PKey()
     k.generate_key(crypto.TYPE_RSA, 4096)
     cert = crypto.X509()
-    cert.get_subject().CN = "Gozargah"
+    cert.get_subject().CN = CERTIFICATE_SUBJECT_CN
     cert.gmtime_adj_notBefore(0)
-    cert.gmtime_adj_notAfter(100 * 365 * 24 * 60 * 60)
+    cert.gmtime_adj_notAfter(CERTIFICATE_VALIDITY_DAYS * 24 * 60 * 60)
     cert.set_issuer(cert.get_subject())
     cert.set_pubkey(k)
-    cert.sign(k, "sha512")
+    cert.sign(k, CERTIFICATE_HASH_ALGORITHM)
     cert_pem = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode("utf-8")
     key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, k).decode("utf-8")
 
