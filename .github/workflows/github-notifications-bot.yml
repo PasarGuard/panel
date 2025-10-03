@@ -22,21 +22,25 @@ jobs:
             echo "$1" | sed 's/&/\&amp;/g; s/</\</g; s/>/\>/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
           }
 
-          # Buffer for debug logs (only printed on failure)
+          # Buffer logs for failure-only output
           LOG_BUFFER=""
 
           log() {
             LOG_BUFFER+="$1"$'\n'
           }
 
-          # Determine event type and create appropriate message
+          # Determine event type
           if [[ "${{ github.event_name }}" == "push" ]]; then
             BRANCH=$(html_escape "${{ github.ref_name }}")
             ACTOR=$(html_escape "${{ github.actor }}")
-            COMPARE_URL=$(echo "${{ github.event.compare }}" | xargs)
+
+            # Trim and URL-encode the compare URL (critical fix for trailing spaces)
+            COMPARE_URL=$(printf '%s' "${{ github.event.compare }}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            ENCODED_COMPARE_URL=$(printf '%s' "$COMPARE_URL" | sed 's/ /%20/g')
 
             EVENT_STATUS="🔔 <b>New Push to $BRANCH</b>"
 
+            # Safely extract and sanitize commit messages
             COMMITS_RAW=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + (.message | gsub("\n"; " ") | gsub("\r"; " ") | gsub("\""; "\\\"")) + " (" + (.id | .[0:7]) + ")"' | head -n 10)
 
             ESCAPED_COMMITS=""
@@ -54,8 +58,10 @@ jobs:
               fi
             done <<< "$COMMITS_RAW"
 
-            MESSAGE="$EVENT_STATUS%0A%0A👤 By: $ACTOR%0A🔗 <a href=\"$COMPARE_URL\">View Commits</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
+            MESSAGE="$EVENT_STATUS%0A%0A👤 By: $ACTOR%0A🔗 <a href=\"$ENCODED_COMPARE_URL\">View Commits</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
+
           else
+            # Pull Request event
             ACTOR=$(html_escape "${{ github.actor }}")
             PR_TITLE=$(html_escape "${{ github.event.pull_request.title }}")
             PR_URL="${{ github.event.pull_request.html_url }}"
@@ -69,6 +75,7 @@ jobs:
               PR_STATUS="❌ <b>Pull Request Closed Without Merging</b>"
             fi
 
+            # Fetch and sanitize PR commits
             COMMITS_RAW=$(curl -s \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Accept: application/vnd.github.v3+json" \
@@ -94,7 +101,7 @@ jobs:
             MESSAGE="$PR_STATUS%0A%0A👤 By: $ACTOR%0ATitle: $PR_TITLE%0A🔗 <a href=\"$PR_URL\">View Pull Request</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
           fi
 
-          # Prepare debug info (but don't print yet)
+          # Prepare debug info (not printed yet)
           DECODED_MESSAGE=$(echo "$MESSAGE" | sed 's/%0A/\n/g; s/%20/ /g; s/%21/!/g; s/%2A/*/g; s/%28/(/g; s/%29/)/g; s/%3A/:/g; s/%3B/;/g; s/%3D/=/g; s/%3F/?/g; s/%40/@/g')
 
           log "=== GitHub Event Details ==="
@@ -124,6 +131,7 @@ jobs:
               TOPIC_ID=""
             fi
 
+            # Build and send request
             CURL_CMD="curl -s -X POST \"https://api.telegram.org/bot$BOT_TOKEN/sendMessage\""
             CURL_CMD="$CURL_CMD -d chat_id=\"$CHAT_ID\""
             if [[ -n "$TOPIC_ID" ]]; then
