@@ -23,10 +23,6 @@ UVICORN_SSL_CA_TYPE = config("UVICORN_SSL_CA_TYPE", default="public").lower()
 DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
 UVICORN_LOOP = config("UVICORN_LOOP", default="auto", cast=str)
 
-CERTIFICATE_SUBJECT_CN = config("CERTIFICATE_SUBJECT_CN", cast=str, default="PasarGuard")
-CERTIFICATE_VALIDITY_DAYS = config("CERTIFICATE_VALIDITY_DAYS", cast=int, default=3650)
-CERTIFICATE_HASH_ALGORITHM = config("CERTIFICATE_HASH_ALGORITHM", cast=str, default="sha256")
-
 DEBUG = config("DEBUG", default=False, cast=bool)
 DOCS = config("DOCS", default=False, cast=bool)
 
