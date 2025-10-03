@@ -19,29 +19,48 @@ jobs:
         run: |
           # Function to escape HTML special characters
           html_escape() {
-            echo "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
+            echo "$1" | sed 's/&/\&amp;/g; s/</\</g; s/>/\>/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
+          }
+
+          # Buffer for debug logs (only printed on failure)
+          LOG_BUFFER=""
+
+          log() {
+            LOG_BUFFER+="$1"$'\n'
           }
 
           # Determine event type and create appropriate message
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Push event - escape all dynamic content
             BRANCH=$(html_escape "${{ github.ref_name }}")
             ACTOR=$(html_escape "${{ github.actor }}")
-            COMPARE_URL="${{ github.event.compare }}"
-            
+            COMPARE_URL=$(echo "${{ github.event.compare }}" | xargs)
+
             EVENT_STATUS="🔔 <b>New Push to $BRANCH</b>"
 
-            # Get commit messages and escape them
-            COMMITS=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + .message + " (<code>" + .id[0:7] + "</code>)"' | head -n 10)
-            ESCAPED_COMMITS=$(echo "$COMMITS" | while IFS= read -r line; do html_escape "$line"; done)
+            COMMITS_RAW=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + (.message | gsub("\n"; " ") | gsub("\r"; " ") | gsub("\""; "\\\"")) + " (" + (.id | .[0:7]) + ")"' | head -n 10)
+
+            ESCAPED_COMMITS=""
+            while IFS= read -r line; do
+              if [[ -n "$line" ]]; then
+                if [[ "$line" =~ \(([a-f0-9]{7})\)$ ]]; then
+                  HASH="${BASH_REMATCH[1]}"
+                  PREFIX="${line% (*}"
+                  ESC_PREFIX=$(html_escape "$PREFIX")
+                  ESC_HASH=$(html_escape "$HASH")
+                  ESCAPED_COMMITS+="$ESC_PREFIX (<code>$ESC_HASH</code>)"$'\n'
+                else
+                  ESCAPED_COMMITS+=$(html_escape "$line")$'\n'
+                fi
+              fi
+            done <<< "$COMMITS_RAW"
 
             MESSAGE="$EVENT_STATUS%0A%0A👤 By: $ACTOR%0A🔗 <a href=\"$COMPARE_URL\">View Commits</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
           else
-            # Pull request event
             ACTOR=$(html_escape "${{ github.actor }}")
             PR_TITLE=$(html_escape "${{ github.event.pull_request.title }}")
             PR_URL="${{ github.event.pull_request.html_url }}"
-            
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+
             if [[ "${{ github.event.action }}" == "opened" ]]; then
               PR_STATUS="📢 <b>New Pull Request Opened</b>"
             elif [[ "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
@@ -50,48 +69,53 @@ jobs:
               PR_STATUS="❌ <b>Pull Request Closed Without Merging</b>"
             fi
 
-            # Fetch commits for this PR and escape them
-            COMMITS=$(curl -s \
+            COMMITS_RAW=$(curl -s \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits" \
-              | jq -r '.[] | "- " + .commit.message + " (<code>" + .sha[0:7] + "</code>)"' \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER/commits" \
+              | jq -r '.[] | "- " + (.commit.message | gsub("\n"; " ") | gsub("\r"; " ") | gsub("\""; "\\\"")) + " (" + (.sha | .[0:7]) + ")"' \
               | head -n 10)
-            ESCAPED_COMMITS=$(echo "$COMMITS" | while IFS= read -r line; do html_escape "$line"; done)
+
+            ESCAPED_COMMITS=""
+            while IFS= read -r line; do
+              if [[ -n "$line" ]]; then
+                if [[ "$line" =~ \(([a-f0-9]{7})\)$ ]]; then
+                  HASH="${BASH_REMATCH[1]}"
+                  PREFIX="${line% (*}"
+                  ESC_PREFIX=$(html_escape "$PREFIX")
+                  ESC_HASH=$(html_escape "$HASH")
+                  ESCAPED_COMMITS+="$ESC_PREFIX (<code>$ESC_HASH</code>)"$'\n'
+                else
+                  ESCAPED_COMMITS+=$(html_escape "$line")$'\n'
+                fi
+              fi
+            done <<< "$COMMITS_RAW"
 
             MESSAGE="$PR_STATUS%0A%0A👤 By: $ACTOR%0ATitle: $PR_TITLE%0A🔗 <a href=\"$PR_URL\">View Pull Request</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
           fi
 
-          # Log the event details
-          echo "=== GitHub Event Details ==="
-          echo "Event: ${{ github.event_name }}"
-          echo "Action: ${{ github.event.action }}"
-          echo "Actor: ${{ github.actor }}"
-          echo "Repository: ${{ github.repository }}"
-          echo "Ref: ${{ github.ref_name }}"
-          echo ""
-
-          # Log the message that will be sent (URL decoded for readability)
-          echo "=== Telegram Message Content ==="
+          # Prepare debug info (but don't print yet)
           DECODED_MESSAGE=$(echo "$MESSAGE" | sed 's/%0A/\n/g; s/%20/ /g; s/%21/!/g; s/%2A/*/g; s/%28/(/g; s/%29/)/g; s/%3A/:/g; s/%3B/;/g; s/%3D/=/g; s/%3F/?/g; s/%40/@/g')
-          echo -e "$DECODED_MESSAGE"
-          echo ""
 
-          # Parse and loop through targets
+          log "=== GitHub Event Details ==="
+          log "Event: ${{ github.event_name }}"
+          log "Action: ${{ github.event.action }}"
+          log "Actor: ${{ github.actor }}"
+          log "Repository: ${{ github.repository }}"
+          log "Ref: ${{ github.ref_name }}"
+          log ""
+          log "=== Telegram Message Content ==="
+          log "$DECODED_MESSAGE"
+          log ""
+
           IFS=',' read -ra TARGETS <<< "$TELEGRAM_TARGETS"
-          echo "=== Telegram Targets ==="
-          echo "Number of targets: ${#TARGETS[@]}"
-          echo "Targets: $TELEGRAM_TARGETS"
-          
-          # Track if any message failed to send
+          log "=== Telegram Targets ==="
+          log "Number of targets: ${#TARGETS[@]}"
+          log "Targets: $TELEGRAM_TARGETS"
+
           SEND_FAILED=false
-          
+
           for TARGET in "${TARGETS[@]}"; do
-            echo "---"
-            echo "Processing target: $TARGET"
-            
-            # Parse chat_id and topic_id - handle both formats:
-            # Format 1: just chat_id (no ^ character)
-            # Format 2: chat_id^topic_id
             if [[ "$TARGET" == *"^"* ]]; then
               CHAT_ID=$(echo "$TARGET" | cut -d'^' -f1)
               TOPIC_ID=$(echo "$TARGET" | cut -d'^' -f2)
@@ -100,76 +124,36 @@ jobs:
               TOPIC_ID=""
             fi
 
-            echo "Chat ID: $CHAT_ID"
-            
-            # Only use topic_id if provided and not empty
-            if [[ -n "$TOPIC_ID" ]]; then
-              echo "Topic/Thread ID: $TOPIC_ID"
-            else
-              echo "Topic/Thread ID: Not provided (sending to main chat)"
-            fi
-
-            # Build curl command
-            CURL_CMD="curl -s -X POST \"https://api.telegram.org/bot$BOT_TOKEN/sendMessage\" -d chat_id=\"$CHAT_ID\""
-
-            # Add topic_id only if it's provided and not empty
+            CURL_CMD="curl -s -X POST \"https://api.telegram.org/bot$BOT_TOKEN/sendMessage\""
+            CURL_CMD="$CURL_CMD -d chat_id=\"$CHAT_ID\""
             if [[ -n "$TOPIC_ID" ]]; then
               CURL_CMD="$CURL_CMD -d message_thread_id=\"$TOPIC_ID\""
             fi
+            CURL_CMD="$CURL_CMD -d parse_mode=\"HTML\""
+            CURL_CMD="$CURL_CMD -d text=\"$MESSAGE\""
 
-            CURL_CMD="$CURL_CMD -d parse_mode=\"HTML\" -d text=\"$MESSAGE\""
+            RESPONSE=$(eval "$CURL_CMD" 2>/dev/null)
 
-            # Log POST data (without sensitive token)
-            echo "=== POST Data Details ==="
-            echo "API URL: https://api.telegram.org/bot***REDACTED***/sendMessage"
-            echo "POST Parameters:"
-            echo "  chat_id: $CHAT_ID"
-            if [[ -n "$TOPIC_ID" ]]; then
-              echo "  message_thread_id: $TOPIC_ID"
-            fi
-            echo "  parse_mode: HTML"
-            echo "  text: $(echo "$MESSAGE" | sed 's/%0A/\\n/g; s/%20/ /g; s/%21/!/g; s/%2A/*/g; s/%28/(/g; s/%29/)/g; s/%3A/:/g; s/%3B/;/g; s/%3D/=/g; s/%3F/?/g; s/%40/@/g' | head -c 200)"
-            echo ""
-
-            # Execute the command
-            echo "Sending message..."
-            RESPONSE=$(eval $CURL_CMD 2>/dev/null)
-            
-            # Check if the request was successful
             if echo "$RESPONSE" | grep -q '"ok":true'; then
-              echo "✅ Message sent successfully!"
+              echo "✅ Telegram notification sent successfully."
             else
-              echo "❌ Failed to send message"
-              # Don't log the full response as it might contain sensitive info
-              ERROR_CODE=$(echo "$RESPONSE" | grep -o '"error_code":[0-9]*' | cut -d: -f2 || echo "unknown")
-              ERROR_DESC=$(echo "$RESPONSE" | grep -o '"description":"[^"]*' | cut -d'"' -f4 || echo "unknown error")
-              echo "Error: $ERROR_DESC (code: $ERROR_CODE)"
-              
-              # Additional debug: Show the exact text that's causing HTML parsing issues
-              echo ""
-              echo "=== HTML Validation Debug ==="
-              echo "Checking for unescaped HTML characters in message..."
-              PROBLEMATIC_TEXT=$(echo "$DECODED_MESSAGE" | sed -n '68p' 2>/dev/null || echo "Cannot get line 68")
-              echo "Text around byte offset 68: '$PROBLEMATIC_TEXT'"
-              
-              # Check for common HTML issues
-              if echo "$DECODED_MESSAGE" | grep -q '[&<>"'"'"']' | grep -v '&[a-z0-9#]\+;'; then
-                echo "⚠️  Found potentially unescaped HTML characters"
-              else
-                echo "✅ No obvious unescaped HTML characters found"
-              fi
-              
               SEND_FAILED=true
+              ERROR_DESC=$(echo "$RESPONSE" | jq -r '.description // "unknown error"' 2>/dev/null)
+              ERROR_CODE=$(echo "$RESPONSE" | jq -r '.error_code // "unknown"' 2>/dev/null)
+              log "---"
+              log "❌ Failed to send to target: $TARGET"
+              log "Chat ID: $CHAT_ID"
+              [[ -n "$TOPIC_ID" ]] && log "Topic ID: $TOPIC_ID"
+              log "Error: $ERROR_DESC (code: $ERROR_CODE)"
+              log "Response: $RESPONSE"
+              log ""
             fi
-            echo ""
           done
 
-          echo "=== Notification Process Completed ==="
-          
-          # Fail the job if any message failed to send
           if [[ "$SEND_FAILED" == "true" ]]; then
-            echo "❌ One or more Telegram messages failed to send. Failing job."
+            echo "❌ Job failed. Showing debug logs:"
+            echo "$LOG_BUFFER"
             exit 1
           else
-            echo "✅ All Telegram messages sent successfully."
+            echo "✅ All Telegram notifications sent successfully."
           fi
