@@ -21,7 +21,7 @@ jobs:
           escape_markdown() {
             local input="$1"
             # Escape: _ * [ ] ( ) ~ ` > # + - = | { } . !
-            printf '%s' "$input" | sed 's/[[\*_\(\)\~\`\>\#\+\-\=\|\{\}\.\!]/\\&/g'
+            printf '%s' "$input" | sed 's/[]\\_*\[\]()~`>#+\-=|{}.!]/\\&/g'
           }
 
           # Determine event type and create appropriate message
