@@ -422,16 +422,7 @@ class XrayConfiguration(BaseSubscription):
         xray_noises = noises.get("xray", []) if noises else []
         dialer_settings = {
             "fragment": fragment.get("xray") if fragment else None,
-            "noises": [
-                {
-                    "type": noise["type"],
-                    "packet": noise["packet"],
-                    "delay": noise["delay"],
-                    "applyTo": noise["apply_to"],
-                }
-                for noise in xray_noises
-            ]
-            or None,
+            "noises": [{self.snake_to_camel(k): v for k, v in noise.items()} for noise in xray_noises] or None,
         }
         dialer_settings = self._remove_none_values(dialer_settings)
 

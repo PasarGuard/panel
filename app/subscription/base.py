@@ -1,4 +1,5 @@
 import json
+import re
 
 from app.templates import render_template
 from config import GRPC_USER_AGENT_TEMPLATE, USER_AGENT_TEMPLATE
@@ -45,3 +46,6 @@ class BaseSubscription:
             return new_dict
 
         return clean_dict(data)
+
+    def snake_to_camel(self, snake_str):
+        return re.sub(r"_([a-z])", lambda match: match.group(1).upper(), snake_str)

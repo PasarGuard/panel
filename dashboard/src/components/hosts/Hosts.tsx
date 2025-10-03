@@ -89,6 +89,7 @@ export interface HostFormValues {
       type: string
       packet: string
       delay: string
+      apply_to: 'ip' | 'ipv4' | 'ipv6'
     }[]
   }
   mux_settings?: MuxSettings
@@ -344,7 +345,7 @@ export const HostFormSchema = z.object({
               .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
                 message: "Delay must be in format like '10-20' or '10'",
               }),
-            apply_to: z.enum(['ip', 'ipv4', 'ipv6']).optional(),
+            apply_to: z.enum(['ip', 'ipv4', 'ipv6']).default('ip'),
           }),
         )
         .optional(),
@@ -491,6 +492,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
                 type: noise.type,
                 packet: noise.packet,
                 delay: noise.delay,
+                apply_to: noise.apply_to || 'ip',
               })) ?? undefined,
           }
         : undefined,

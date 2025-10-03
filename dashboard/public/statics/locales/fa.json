@@ -661,7 +661,11 @@
       "rand": "تصادفی",
       "info": "بسته،تاخیر (مثال: rand:10-20,100-200)",
       "info.attention": "توجه: در حال حاضر، این ویژگی فقط در streisand >= 1.6.32 و v2rayNG >= 1.8.39 (پیکربندی سفارشی) پشتیبانی می‌شود",
-      "info.examples": "مثال‌ها:"
+      "info.examples": "مثال‌ها:",
+      "applyTo": "اعمال به",
+      "applyTo.ip": "IP",
+      "applyTo.ipv4": "IPv4",
+      "applyTo.ipv6": "IPv6"
     },
     "muxSettings": "تنظیمات Mux",
     "enableMux": "فعال‌سازی Mux",

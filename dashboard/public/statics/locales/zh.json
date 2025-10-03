@@ -658,7 +658,8 @@
     "packetPlaceholder": "输入数据包值（例如：rand:10-20）",
     "delay": "延迟",
     "delayPlaceholder": "输入延迟",
-    "rand": "随机"
+    "rand": "随机",
+    "applyTo": "应用到"
   },
   "hostsDialog.noise.info": "packet,delay (e.g. rand:10-20,100-200)",
   "hostsDialog.noise.info.attention": "Attention: currently, this feature only supported in streisand >= 1.6.32 and v2rayNG >= 1.8.39 (custom config)",

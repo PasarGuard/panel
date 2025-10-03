@@ -139,6 +139,16 @@ export default function HostsPage() {
           }
           return undefined
         })(),
+        noise_settings: formData.noise_settings?.xray
+          ? {
+              xray: formData.noise_settings.xray.map(noise => ({
+                type: noise.type,
+                packet: noise.packet,
+                delay: noise.delay,
+                apply_to: noise.apply_to,
+              })),
+            }
+          : undefined,
       }
 
       if (editingHost?.id) {

@@ -54,7 +54,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, t }) => {
   }, [index, onRemove])
 
   return (
-    <div className="grid grid-cols-[minmax(100px,120px),1fr,1fr,auto] gap-2">
+    <div className="grid grid-cols-[minmax(100px,120px),1fr,1fr,1fr,auto] gap-2">
       <FormField
         control={form.control}
         name={`noise_settings.xray.${index}.type`}
@@ -97,6 +97,27 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, t }) => {
             <FormControl>
               <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
             </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name={`noise_settings.xray.${index}.apply_to`}
+        render={({ field }) => (
+          <FormItem>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder={t('hostsDialog.noise.applyTo')} />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="ip">ip</SelectItem>
+                <SelectItem value="ipv4">ipv4</SelectItem>
+                <SelectItem value="ipv6">ipv6</SelectItem>
+              </SelectContent>
+            </Select>
             <FormMessage />
           </FormItem>
         )}
@@ -228,6 +249,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           type: 'rand',
           packet: '',
           delay: '',
+          apply_to: 'ip',
         },
       ],
       {

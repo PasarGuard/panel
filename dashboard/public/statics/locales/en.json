@@ -774,7 +774,11 @@
       "rand": "Random",
       "info": "packet,delay (e.g. rand:10-20,100-200)",
       "info.attention": "Attention: currently, this feature only supported in streisand >= 1.6.32 and v2rayNG >= 1.8.39 (custom config)",
-      "info.examples": "Examples:"
+      "info.examples": "Examples:",
+      "applyTo": "Apply To",
+      "applyTo.ip": "IP",
+      "applyTo.ipv4": "IPv4",
+      "applyTo.ipv6": "IPv6"
     },
     "muxSettings": "Mux Settings",
     "enableMux": "Enable Mux",
