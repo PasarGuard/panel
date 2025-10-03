@@ -17,15 +17,32 @@ jobs:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_TARGETS: ${{ vars.TELEGRAM_TARGETS }}
         run: |
+          # Function to escape special characters for Telegram MarkdownV2
+          escape_markdown() {
+            local input="$1"
+            # Escape: _ * [ ] ( ) ~ ` > # + - = | { } . !
+            printf '%s' "$input" | sed 's/[[\*_\(\)\~\`\>\#\+\-\=\|\{\}\.\!]/\\&/g'
+          }
+
           # Determine event type and create appropriate message
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Push event
             EVENT_STATUS="🔔 *New Push to ${{ github.ref_name }}*"
+            EVENT_STATUS_ESCAPED=$(escape_markdown "$EVENT_STATUS")
 
-            # Get commit messages from the push
-            COMMITS=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + .message + " (`" + .id[0:7] + "`)"' | head -n 10)
+            # Extract and escape commit messages
+            COMMITS_RAW=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + .message + " (`" + .id[0:7] + "`)"' | head -n 10)
+            ESCAPED_COMMITS=""
+            while IFS= read -r line; do
+              if [[ -n "$line" ]]; then
+                escaped_line=$(escape_markdown "$line")
+                ESCAPED_COMMITS+="$escaped_line"$'\n'
+              fi
+            done <<< "$COMMITS_RAW"
+            ESCAPED_COMMITS=${ESCAPED_COMMITS%$'\n'}
 
-            MESSAGE="$EVENT_STATUS%0A%0A👤 By: ${{ github.actor }}%0A🔗 [View Commits](${{ github.event.compare }})%0A%0A*Commits:*%0A$COMMITS"
+            COMPARE_URL="${{ github.event.compare }}"
+            MESSAGE="$EVENT_STATUS_ESCAPED%0A%0A👤 By: ${{ github.actor }}%0A🔗 [View Commits]($COMPARE_URL)%0A%0A*Commits:*%0A$ESCAPED_COMMITS"
+
           else
             # Pull request event
             if [[ "${{ github.event.action }}" == "opened" ]]; then
@@ -36,14 +53,29 @@ jobs:
               PR_STATUS="❌ *Pull Request Closed Without Merging*"
             fi
 
-            # Fetch commits for this PR
-            COMMITS=$(curl -s \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits" \
-              | jq -r '.[] | "- " + .commit.message + " (`" + .sha[0:7] + "`)"' \
-              | head -n 10)  # limit to 10 commits for readability
+            PR_STATUS_ESCAPED=$(escape_markdown "$PR_STATUS")
+            PR_TITLE_ESCAPED=$(escape_markdown "${{ github.event.pull_request.title }}")
+            PR_URL="${{ github.event.pull_request.html_url }}"
+            ACTOR="${{ github.actor }}"
 
-            MESSAGE="$PR_STATUS%0A%0A👤 By: ${{ github.actor }}%0ATitle: ${{ github.event.pull_request.title }}%0A🔗 [View Pull Request](${{ github.event.pull_request.html_url }})%0A%0A*Commits:*%0A$COMMITS"
+            # Fetch commits for this PR
+            COMMITS_API="https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits"
+            COMMITS_RAW=$(curl -s \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "$COMMITS_API" \
+              | jq -r '.[] | "- " + .commit.message + " (`" + .sha[0:7] + "`)"' \
+              | head -n 10)
+
+            ESCAPED_COMMITS=""
+            while IFS= read -r line; do
+              if [[ -n "$line" ]]; then
+                escaped_line=$(escape_markdown "$line")
+                ESCAPED_COMMITS+="$escaped_line"$'\n'
+              fi
+            done <<< "$COMMITS_RAW"
+            ESCAPED_COMMITS=${ESCAPED_COMMITS%$'\n'}
+
+            MESSAGE="$PR_STATUS_ESCAPED%0A%0A👤 By: $ACTOR%0ATitle: $PR_TITLE_ESCAPED%0A🔗 [View Pull Request]($PR_URL)%0A%0A*Commits:*%0A$ESCAPED_COMMITS"
           fi
 
           # Parse and loop through targets in format: chat_id^topic_id,chat_id^topic_id
@@ -53,14 +85,15 @@ jobs:
             TOPIC_ID=$(echo "$TARGET" | cut -d'^' -f2)
 
             # Build curl command
-            CURL_CMD="curl -s -X POST \"https://api.telegram.org/bot$BOT_TOKEN/sendMessage\" -d chat_id=\"$CHAT_ID\""
+            CURL_CMD="curl -s -X POST \"https://api.telegram.org/bot${BOT_TOKEN}/sendMessage\""
+            CURL_CMD="$CURL_CMD -d chat_id=\"$CHAT_ID\""
+            CURL_CMD="$CURL_CMD -d parse_mode=\"MarkdownV2\""
+            CURL_CMD="$CURL_CMD -d text=\"$MESSAGE\""
 
-            # Add topic_id only if it's not empty
-            if [[ -n "$TOPIC_ID" ]]; then
+            # Add message_thread_id only if topic_id is provided
+            if [[ -n "$TOPIC_ID" && "$TOPIC_ID" != " " ]]; then
               CURL_CMD="$CURL_CMD -d message_thread_id=\"$TOPIC_ID\""
             fi
-
-            CURL_CMD="$CURL_CMD -d parse_mode=\"Markdown\" -d text=\"$MESSAGE\""
 
             # Execute the command
             eval $CURL_CMD
