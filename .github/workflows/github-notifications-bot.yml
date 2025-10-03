@@ -1,67 +1,84 @@
 name: Telegram Notification on Push and Pull Request Events
 
 on:
-  push:
-    branches:
-      - main
-      - next
-  pull_request_target:
-    types: [opened, closed]
+    push:
+        branches:
+            - main
+            - next
+    pull_request_target:
+        types: [opened, closed]
 
 jobs:
-  notify-telegram:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send Telegram Message
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_TARGETS: ${{ vars.TELEGRAM_TARGETS }}
-        run: |
-          # Determine event type and create appropriate message
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Push event
-            EVENT_STATUS="🔔 <b>New Push to ${{ github.ref_name }}</b>"
+    notify-telegram:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Send Telegram Message
+              env:
+                  BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+                  TELEGRAM_TARGETS: ${{ vars.TELEGRAM_TARGETS }}
+              run: |
+                  # Function to escape HTML special characters
+                  html_escape() {
+                    echo "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
+                  }
 
-            # Get commit messages from the push
-            COMMITS=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + .message + " (<code>" + .id[0:7] + "</code>)"' | head -n 10)
+                  # Determine event type and create appropriate message
+                  if [[ "${{ github.event_name }}" == "push" ]]; then
+                    # Push event - escape all dynamic content
+                    BRANCH=$(html_escape "${{ github.ref_name }}")
+                    ACTOR=$(html_escape "${{ github.actor }}")
+                    COMPARE_URL="${{ github.event.compare }}"
+                    
+                    EVENT_STATUS="🔔 <b>New Push to $BRANCH</b>"
 
-            MESSAGE="$EVENT_STATUS%0A%0A👤 By: ${{ github.actor }}%0A🔗 <a href=\"${{ github.event.compare }}\">View Commits</a>%0A%0A<b>Commits:</b>%0A$COMMITS"
-          else
-            # Pull request event
-            if [[ "${{ github.event.action }}" == "opened" ]]; then
-              PR_STATUS="📢 <b>New Pull Request Opened</b>"
-            elif [[ "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
-              PR_STATUS="✅ <b>Pull Request Merged</b>"
-            else
-              PR_STATUS="❌ <b>Pull Request Closed Without Merging</b>"
-            fi
+                    # Get commit messages and escape them
+                    COMMITS=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + .message + " (<code>" + .id[0:7] + "</code>)"' | head -n 10)
+                    ESCAPED_COMMITS=$(echo "$COMMITS" | while IFS= read -r line; do html_escape "$line"; done)
 
-            # Fetch commits for this PR
-            COMMITS=$(curl -s \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits" \
-              | jq -r '.[] | "- " + .commit.message + " (<code>" + .sha[0:7] + "</code>)"' \
-              | head -n 10)  # limit to 10 commits for readability
+                    MESSAGE="$EVENT_STATUS%0A%0A👤 By: $ACTOR%0A🔗 <a href=\"$COMPARE_URL\">View Commits</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
+                  else
+                    # Pull request event
+                    ACTOR=$(html_escape "${{ github.actor }}")
+                    PR_TITLE=$(html_escape "${{ github.event.pull_request.title }}")
+                    PR_URL="${{ github.event.pull_request.html_url }}"
+                    
+                    if [[ "${{ github.event.action }}" == "opened" ]]; then
+                      PR_STATUS="📢 <b>New Pull Request Opened</b>"
+                    elif [[ "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
+                      PR_STATUS="✅ <b>Pull Request Merged</b>"
+                    else
+                      PR_STATUS="❌ <b>Pull Request Closed Without Merging</b>"
+                    fi
 
-            MESSAGE="$PR_STATUS%0A%0A👤 By: ${{ github.actor }}%0ATitle: ${{ github.event.pull_request.title }}%0A🔗 <a href=\"${{ github.event.pull_request.html_url }}\">View Pull Request</a>%0A%0A<b>Commits:</b>%0A$COMMITS"
-          fi
+                    # Fetch commits for this PR and escape them
+                    COMMITS=$(curl -s \
+                      -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                      "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits" \
+                      | jq -r '.[] | "- " + .commit.message + " (<code>" + .sha[0:7] + "</code>)"' \
+                      | head -n 10)
+                    ESCAPED_COMMITS=$(echo "$COMMITS" | while IFS= read -r line; do html_escape "$line"; done)
 
-          # Parse and loop through targets in format: chat_id^topic_id,chat_id^topic_id
-          IFS=',' read -ra TARGETS <<< "$TELEGRAM_TARGETS"
-          for TARGET in "${TARGETS[@]}"; do
-            CHAT_ID=$(echo "$TARGET" | cut -d'^' -f1)
-            TOPIC_ID=$(echo "$TARGET" | cut -d'^' -f2)
+                    MESSAGE="$PR_STATUS%0A%0A👤 By: $ACTOR%0ATitle: $PR_TITLE%0A🔗 <a href=\"$PR_URL\">View Pull Request</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
+                  fi
 
-            # Build curl command
-            CURL_CMD="curl -s -X POST \"https://api.telegram.org/bot$BOT_TOKEN/sendMessage\" -d chat_id=\"$CHAT_ID\""
+                  # Parse and loop through targets in format: chat_id^topic_id,chat_id^topic_id
+                  IFS=',' read -ra TARGETS <<< "$TELEGRAM_TARGETS"
+                  for TARGET in "${TARGETS[@]}"; do
+                    CHAT_ID=$(echo "$TARGET" | cut -d'^' -f1)
+                    TOPIC_ID=$(echo "$TARGET" | cut -d'^' -f2)
 
-            # Add topic_id only if it's not empty
-            if [[ -n "$TOPIC_ID" ]]; then
-              CURL_CMD="$CURL_CMD -d message_thread_id=\"$TOPIC_ID\""
-            fi
+                    # Build curl command
+                    CURL_CMD="curl -s -X POST \"https://api.telegram.org/bot$BOT_TOKEN/sendMessage\" -d chat_id=\"$CHAT_ID\""
 
-            CURL_CMD="$CURL_CMD -d parse_mode=\"HTML\" -d text=\"$MESSAGE\""
+                    # Add topic_id only if it's not empty
+                    if [[ -n "$TOPIC_ID" ]]; then
+                      CURL_CMD="$CURL_CMD -d message_thread_id=\"$TOPIC_ID\""
+                    fi
 
-            # Execute the command
-            eval $CURL_CMD
-          done
+                    CURL_CMD="$CURL_CMD -d parse_mode=\"HTML\" -d text=\"$MESSAGE\""
+
+                    # Execute the command
+                    echo "Sending message to chat $CHAT_ID..."
+                    eval $CURL_CMD
+                    echo ""  # Add newline for better logging
+                  done
