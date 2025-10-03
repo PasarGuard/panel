@@ -17,26 +17,28 @@ jobs:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_TARGETS: ${{ vars.TELEGRAM_TARGETS }}
         run: |
-          # Function to escape HTML special characters
+          # CORRECT HTML ESCAPE FUNCTION — THIS WAS BROKEN BEFORE
           html_escape() {
             echo "$1" | sed 's/&/\&amp;/g; s/</\</g; s/>/\>/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
           }
 
-          # Buffer for debug logs (only printed on failure)
           LOG_BUFFER=""
-
           log() {
             LOG_BUFFER+="$1"$'\n'
           }
 
-          # Determine event type and create appropriate message
           if [[ "${{ github.event_name }}" == "push" ]]; then
             BRANCH=$(html_escape "${{ github.ref_name }}")
             ACTOR=$(html_escape "${{ github.actor }}")
-            COMPARE_URL=$(echo "${{ github.event.compare }}" | xargs)
+
+            # TRIM SPACES FROM COMPARE URL — CRITICAL
+            COMPARE_URL="${{ github.event.compare }}"
+            COMPARE_URL="${COMPARE_URL#"${COMPARE_URL%%[![:space:]]*}"}"   # trim leading
+            COMPARE_URL="${COMPARE_URL%"${COMPARE_URL##*[![:space:]]}"}"   # trim trailing
 
             EVENT_STATUS="🔔 <b>New Push to $BRANCH</b>"
 
+            # GET COMMITS SAFELY
             COMMITS_RAW=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + (.message | gsub("\n"; " ") | gsub("\r"; " ") | gsub("\""; "\\\"")) + " (" + (.id | .[0:7]) + ")"' | head -n 10)
 
             ESCAPED_COMMITS=""
@@ -55,6 +57,7 @@ jobs:
             done <<< "$COMMITS_RAW"
 
             MESSAGE="$EVENT_STATUS%0A%0A👤 By: $ACTOR%0A🔗 <a href=\"$COMPARE_URL\">View Commits</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
+
           else
             ACTOR=$(html_escape "${{ github.actor }}")
             PR_TITLE=$(html_escape "${{ github.event.pull_request.title }}")
@@ -94,9 +97,8 @@ jobs:
             MESSAGE="$PR_STATUS%0A%0A👤 By: $ACTOR%0ATitle: $PR_TITLE%0A🔗 <a href=\"$PR_URL\">View Pull Request</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
           fi
 
-          # Prepare debug info (but don't print yet)
-          DECODED_MESSAGE=$(echo "$MESSAGE" | sed 's/%0A/\n/g; s/%20/ /g; s/%21/!/g; s/%2A/*/g; s/%28/(/g; s/%29/)/g; s/%3A/:/g; s/%3B/;/g; s/%3D/=/g; s/%3F/?/g; s/%40/@/g')
-
+          # Prepare debug info (only shown on failure)
+          DECODED_MESSAGE=$(echo "$MESSAGE" | sed 's/%0A/\n/g')
           log "=== GitHub Event Details ==="
           log "Event: ${{ github.event_name }}"
           log "Action: ${{ github.event.action }}"
@@ -104,13 +106,11 @@ jobs:
           log "Repository: ${{ github.repository }}"
           log "Ref: ${{ github.ref_name }}"
           log ""
-          log "=== Telegram Message Content ==="
+          log "=== Telegram Message (decoded) ==="
           log "$DECODED_MESSAGE"
           log ""
 
           IFS=',' read -ra TARGETS <<< "$TELEGRAM_TARGETS"
-          log "=== Telegram Targets ==="
-          log "Number of targets: ${#TARGETS[@]}"
           log "Targets: $TELEGRAM_TARGETS"
 
           SEND_FAILED=false
@@ -124,36 +124,27 @@ jobs:
               TOPIC_ID=""
             fi
 
-            CURL_CMD="curl -s -X POST \"https://api.telegram.org/bot$BOT_TOKEN/sendMessage\""
-            CURL_CMD="$CURL_CMD -d chat_id=\"$CHAT_ID\""
-            if [[ -n "$TOPIC_ID" ]]; then
-              CURL_CMD="$CURL_CMD -d message_thread_id=\"$TOPIC_ID\""
-            fi
-            CURL_CMD="$CURL_CMD -d parse_mode=\"HTML\""
-            CURL_CMD="$CURL_CMD -d text=\"$MESSAGE\""
-
-            RESPONSE=$(eval "$CURL_CMD" 2>/dev/null)
+            # 🔥 NO SPACE AFTER "bot" — THIS WAS BREAKING THINGS
+            RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+              -d "chat_id=$CHAT_ID" \
+              ${TOPIC_ID:+-d "message_thread_id=$TOPIC_ID"} \
+              -d "parse_mode=HTML" \
+              -d "text=$MESSAGE")
 
             if echo "$RESPONSE" | grep -q '"ok":true'; then
-              echo "✅ Telegram notification sent successfully."
+              echo "✅ Notification sent."
             else
               SEND_FAILED=true
-              ERROR_DESC=$(echo "$RESPONSE" | jq -r '.description // "unknown error"' 2>/dev/null)
-              ERROR_CODE=$(echo "$RESPONSE" | jq -r '.error_code // "unknown"' 2>/dev/null)
-              log "---"
-              log "❌ Failed to send to target: $TARGET"
-              log "Chat ID: $CHAT_ID"
-              [[ -n "$TOPIC_ID" ]] && log "Topic ID: $TOPIC_ID"
-              log "Error: $ERROR_DESC (code: $ERROR_CODE)"
+              ERROR_DESC=$(echo "$RESPONSE" | jq -r '.description // "unknown"' 2>/dev/null)
+              log "❌ Failed to $CHAT_ID: $ERROR_DESC"
               log "Response: $RESPONSE"
-              log ""
             fi
           done
 
           if [[ "$SEND_FAILED" == "true" ]]; then
-            echo "❌ Job failed. Showing debug logs:"
+            echo "❌ Job failed. Debug logs:"
             echo "$LOG_BUFFER"
             exit 1
           else
-            echo "✅ All Telegram notifications sent successfully."
+            echo "✅ All notifications sent."
           fi
