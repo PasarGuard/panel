@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import x25519
 
 
 def generate_certificate(): #TODO: remove this fuction, migration needs 
-    return {"key": b"dummy_key", "cert": b"dummy_cert"}  # Placeholder implementation
+    return {"key": "dummy_key", "cert": "dummy_cert"}  # Placeholder implementation
 
 
 def get_cert_SANs(cert: bytes):
