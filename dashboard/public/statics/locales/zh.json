@@ -84,7 +84,13 @@
         "1h": "1小时",
         "2h": "2小时"
       }
-    }
+    },
+    "reconnectinfo": "刷新所有节点连接以解决连接问题",
+    "reconnectAll": "重新连接所有节点",
+    "reconnectingAll": "重新连接中...",
+    "reconnectAllSuccess": "所有节点已成功重新连接",
+    "reconnectAllFailed": "重新连接所有节点失败",
+    "reconnectAllPrompt": "您确定要重新连接所有节点吗？这将暂时断开所有活动连接，可能需要几分钟时间。"
   },
   "groups": "群组",
   "documentation": "文档",
@@ -1537,5 +1543,13 @@
     "message": "您的支持帮助我们改进 PasarGuard 并为所有人构建更好的功能！",
     "donate": "立即捐赠",
     "starOnGitHub": "在 GitHub 上加星"
+  },
+  "goal": {
+    "currentGoal": "当前目标",
+    "of": "共",
+    "remaining": "剩余",
+    "contribute": "贡献",
+    "completed": "已完成",
+    "pending": "进行中"
   }
 }

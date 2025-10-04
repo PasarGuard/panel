@@ -1,16 +1,19 @@
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
-import { ShadowsocksMethods, XTLSFlows } from '@/service/api'
+import { ShadowsocksMethods, XTLSFlows, useReconnectAllNode } from '@/service/api'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { XIcon } from 'lucide-react'
-import { useEffect } from 'react'
+import { XIcon, Loader2, RefreshCcw } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { useSettingsContext } from './_dashboard.settings'
+import { queryClient } from '@/utils/query-client'
 
 // general settings validation schema
 const generalSettingsSchema = z.object({
@@ -23,6 +26,8 @@ type GeneralSettingsForm = z.infer<typeof generalSettingsSchema>
 export default function General() {
   const { t } = useTranslation()
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
+  const [isReconnectAllDialogOpen, setIsReconnectAllDialogOpen] = useState(false)
+  const reconnectAllNodeMutation = useReconnectAllNode()
 
   const form = useForm<GeneralSettingsForm>({
     resolver: zodResolver(generalSettingsSchema),
@@ -63,6 +68,33 @@ export default function General() {
         default_method: DEFAULT_SHADOWSOCKS_METHOD,
       })
       toast.success(t('settings.general.cancelSuccess'))
+    }
+  }
+
+  const handleReconnectAll = async () => {
+    try {
+      await reconnectAllNodeMutation.mutateAsync({
+        params: {},
+      })
+
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.reconnectAllSuccess', {
+          defaultValue: 'All nodes have been reconnected successfully',
+        }),
+      })
+
+      // Invalidate nodes queries to refresh data
+      queryClient.invalidateQueries({
+        queryKey: ['/api/nodes'],
+      })
+
+      setIsReconnectAllDialogOpen(false)
+    } catch (error) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: t('nodes.reconnectAllFailed', {
+          defaultValue: 'Failed to reconnect all nodes',
+        }),
+      })
     }
   }
 
@@ -129,7 +161,7 @@ export default function General() {
     <div className="flex min-h-[calc(100vh-200px)] w-full flex-col">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col p-4 sm:py-6 lg:py-8">
-          <div className="flex-1 space-y-6 sm:space-y-8 lg:space-y-10">
+          <div className="mb-4 sm:mb-6 lg:mb-8">
             {/* General Settings */}
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               <FormField
@@ -198,8 +230,65 @@ export default function General() {
             </div>
           </div>
 
+          <Separator className="my-4" />
+
+          {/* Reconnect All Nodes Section */}
+          <div className="flex items-start justify-between gap-4 py-3">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium">{t('nodes.title', { defaultValue: 'Reconnect All Nodes' })}</h3>
+              <p className="text-xs text-muted-foreground">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              type="button"
+              onClick={() => setIsReconnectAllDialogOpen(true)}
+              disabled={reconnectAllNodeMutation.isPending}
+              className="gap-2 shrink-0"
+            >
+              {reconnectAllNodeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {t('nodes.reconnectingAll', { defaultValue: 'Reconnecting...' })}
+                </>
+              ) : (
+                <>
+                  <RefreshCcw className="h-3 w-3" />
+                  {t('nodes.reconnectAll', { defaultValue: 'Reconnect All Nodes' })}
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Reconnect All Dialog */}
+          <AlertDialog open={isReconnectAllDialogOpen} onOpenChange={setIsReconnectAllDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('nodes.reconnectAll', { defaultValue: 'Reconnect All Nodes' })}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t('nodes.reconnectAllPrompt', {
+                    defaultValue: 'Are you sure you want to reconnect all nodes? This will temporarily disconnect all active connections and may take a few moments to complete.',
+                  })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={reconnectAllNodeMutation.isPending}>{t('cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
+                <AlertDialogAction onClick={handleReconnectAll} disabled={reconnectAllNodeMutation.isPending} className="gap-2">
+                  {reconnectAllNodeMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t('nodes.reconnectingAll', { defaultValue: 'Reconnecting...' })}
+                    </>
+                  ) : (
+                    t('nodes.reconnectAll', { defaultValue: 'Reconnect All Nodes' })
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* Action Buttons */}
-          <div className="mt-6 flex flex-col gap-3 border-t pt-6 sm:flex-row sm:gap-4">
+          <div className="flex flex-col gap-3 pt-6 sm:flex-row sm:gap-4 mt-auto">
             <div className="flex-1"></div>
             <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
               <Button type="button" variant="outline" onClick={handleCancel} className="w-full min-w-[100px] sm:w-auto" disabled={isSaving}>

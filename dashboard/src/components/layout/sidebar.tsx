@@ -1,4 +1,5 @@
 import { GithubStar } from '@/components/github-star'
+import { GoalProgress } from '@/components/goal-progress'
 import { Language } from '@/components/Language'
 import { NavMain } from '@/components/nav-main'
 import { NavSecondary } from '@/components/nav-secondary'
@@ -131,143 +132,143 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       },
       ...(admin?.is_sudo
         ? [
-            {
-              title: 'statistics',
-              url: '/statistics',
-              icon: PieChart,
-            },
-            {
-              title: 'hosts',
-              url: '/hosts',
-              icon: ListTodo,
-            },
-            {
-              title: 'groups',
-              url: '/groups',
-              icon: Users2,
-            },
-            {
-              title: 'admins.title',
-              url: '/admins',
-              icon: UserCog,
-            },
-            {
-              title: 'nodes.title',
-              url: '/nodes',
-              icon: Share2Icon,
-              items: [
-                {
-                  title: 'nodes.title',
-                  url: '/nodes',
-                  icon: Share2Icon,
-                },
-                {
-                  title: 'settings.cores.title',
-                  url: '/nodes/cores',
-                  icon: Cpu,
-                },
-                {
-                  title: 'nodes.logs.title',
-                  url: '/nodes/logs',
-                  icon: FileText,
-                },
-              ],
-            },
-            {
-              title: 'templates.title',
-              url: '/templates',
-              icon: LayoutTemplate,
-            },
-            {
-              title: 'bulk.title',
-              url: '/bulk',
-              icon: Layers,
-              items: [
-                {
-                  title: 'bulk.groups',
-                  url: '/bulk',
-                  icon: Users2,
-                },
-                {
-                  title: 'bulk.expireDate',
-                  url: '/bulk/expire',
-                  icon: Calendar,
-                },
-                {
-                  title: 'bulk.dataLimit',
-                  url: '/bulk/data',
-                  icon: ArrowUpDown,
-                },
-                {
-                  title: 'bulk.proxySettings',
-                  url: '/bulk/proxy',
-                  icon: Lock,
-                },
-              ],
-            },
-            {
-              title: 'settings.title',
-              url: '/settings',
-              icon: Settings2,
-              items: [
-                {
-                  title: 'settings.general.title',
-                  url: '/settings/general',
-                  icon: Settings,
-                },
-                {
-                  title: 'settings.notifications.title',
-                  url: '/settings/notifications',
-                  icon: Bell,
-                },
-                {
-                  title: 'settings.subscriptions.title',
-                  url: '/settings/subscriptions',
-                  icon: ListTodo,
-                },
-                {
-                  title: 'settings.telegram.title',
-                  url: '/settings/telegram',
-                  icon: Send,
-                },
-                {
-                  title: 'settings.discord.title',
-                  url: '/settings/discord',
-                  icon: MessageCircle,
-                },
-                {
-                  title: 'settings.webhook.title',
-                  url: '/settings/webhook',
-                  icon: Webhook,
-                },
-                {
-                  title: 'settings.cleanup.title',
-                  url: '/settings/cleanup',
-                  icon: Database,
-                },
-                {
-                  title: 'theme.title',
-                  url: '/settings/theme',
-                  icon: Palette,
-                },
-              ],
-            },
-          ]
+          {
+            title: 'statistics',
+            url: '/statistics',
+            icon: PieChart,
+          },
+          {
+            title: 'hosts',
+            url: '/hosts',
+            icon: ListTodo,
+          },
+          {
+            title: 'groups',
+            url: '/groups',
+            icon: Users2,
+          },
+          {
+            title: 'admins.title',
+            url: '/admins',
+            icon: UserCog,
+          },
+          {
+            title: 'nodes.title',
+            url: '/nodes',
+            icon: Share2Icon,
+            items: [
+              {
+                title: 'nodes.title',
+                url: '/nodes',
+                icon: Share2Icon,
+              },
+              {
+                title: 'settings.cores.title',
+                url: '/nodes/cores',
+                icon: Cpu,
+              },
+              {
+                title: 'nodes.logs.title',
+                url: '/nodes/logs',
+                icon: FileText,
+              },
+            ],
+          },
+          {
+            title: 'templates.title',
+            url: '/templates',
+            icon: LayoutTemplate,
+          },
+          {
+            title: 'bulk.title',
+            url: '/bulk',
+            icon: Layers,
+            items: [
+              {
+                title: 'bulk.groups',
+                url: '/bulk',
+                icon: Users2,
+              },
+              {
+                title: 'bulk.expireDate',
+                url: '/bulk/expire',
+                icon: Calendar,
+              },
+              {
+                title: 'bulk.dataLimit',
+                url: '/bulk/data',
+                icon: ArrowUpDown,
+              },
+              {
+                title: 'bulk.proxySettings',
+                url: '/bulk/proxy',
+                icon: Lock,
+              },
+            ],
+          },
+          {
+            title: 'settings.title',
+            url: '/settings',
+            icon: Settings2,
+            items: [
+              {
+                title: 'settings.general.title',
+                url: '/settings/general',
+                icon: Settings,
+              },
+              {
+                title: 'settings.notifications.title',
+                url: '/settings/notifications',
+                icon: Bell,
+              },
+              {
+                title: 'settings.subscriptions.title',
+                url: '/settings/subscriptions',
+                icon: ListTodo,
+              },
+              {
+                title: 'settings.telegram.title',
+                url: '/settings/telegram',
+                icon: Send,
+              },
+              {
+                title: 'settings.discord.title',
+                url: '/settings/discord',
+                icon: MessageCircle,
+              },
+              {
+                title: 'settings.webhook.title',
+                url: '/settings/webhook',
+                icon: Webhook,
+              },
+              {
+                title: 'settings.cleanup.title',
+                url: '/settings/cleanup',
+                icon: Database,
+              },
+              {
+                title: 'theme.title',
+                url: '/settings/theme',
+                icon: Palette,
+              },
+            ],
+          },
+        ]
         : [
-            // For non-sudo admins, show only theme settings
-            {
-              title: 'settings.title',
-              url: '/settings',
-              icon: Settings2,
-              items: [
-                {
-                  title: 'theme.title',
-                  url: '/settings/theme',
-                  icon: Palette,
-                },
-              ],
-            },
-          ]),
+          // For non-sudo admins, show only theme settings
+          {
+            title: 'settings.title',
+            url: '/settings',
+            icon: Settings2,
+            items: [
+              {
+                title: 'theme.title',
+                url: '/settings/theme',
+                icon: Palette,
+              },
+            ],
+          },
+        ]),
     ],
     navSecondary: [
       {
@@ -339,6 +340,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <NavMain items={data.navMain} />
           {admin?.is_sudo && <NavSecondary items={data.community} label={t('community')} />}
           <NavSecondary items={data.navSecondary} className="mt-auto" />
+          <GoalProgress />
           <div className="flex justify-between px-4 [&>:first-child]:[direction:ltr]">
             <GithubStar />
             <div className="flex items-start gap-2">

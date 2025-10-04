@@ -89,7 +89,13 @@
         "1h": "1 hour",
         "2h": "2 hours"
       }
-    }
+    },
+    "reconnectinfo": "Refresh all nodes connections to resolve connectivity issues",
+    "reconnectAll": "Reconnect All Nodes",
+    "reconnectingAll": "Reconnecting...",
+    "reconnectAllSuccess": "All nodes have been reconnected successfully",
+    "reconnectAllFailed": "Failed to reconnect all nodes",
+    "reconnectAllPrompt": "Are you sure you want to reconnect all nodes? This will temporarily disconnect all active connections and may take a few moments to complete."
   },
   "groups": "Groups",
   "documentation": "Documentation",
@@ -1508,5 +1514,13 @@
     "message": "Your support helps us improve PasarGuard and build better features for everyone!",
     "donate": "Donate Now",
     "starOnGitHub": "Star on GitHub"
+  },
+  "goal": {
+    "currentGoal": "Current Goal",
+    "of": "of",
+    "remaining": "Remaining",
+    "contribute": "Contribute",
+    "completed": "Completed",
+    "pending": "In Progress"
   }
 }

@@ -104,6 +104,10 @@ export type SyncNodeParams = {
   flush_users?: boolean
 }
 
+export type ReconnectAllNodeParams = {
+  core_id?: number | null
+}
+
 export type GetNodesParams = {
   backend_id?: number | null
   offset?: number
@@ -3815,6 +3819,52 @@ export function useGetNodes<TData = Awaited<ReturnType<typeof getNodes>>, TError
   query.queryKey = queryOptions.queryKey
 
   return query
+}
+
+/**
+ * Trigger reconnection for all nodes or a specific core.
+ * @summary Reconnect All Node
+ */
+export const reconnectAllNode = (params?: ReconnectAllNodeParams, signal?: AbortSignal) => {
+  return orvalFetcher<unknown>({ url: `/api/nodes/reconnect`, method: 'POST', params, signal })
+}
+
+export const getReconnectAllNodeMutationOptions = <
+  TData = Awaited<ReturnType<typeof reconnectAllNode>>,
+  TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { params?: ReconnectAllNodeParams }, TContext>
+}) => {
+  const mutationKey = ['reconnectAllNode']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof reconnectAllNode>>, { params?: ReconnectAllNodeParams }> = props => {
+    const { params } = props ?? {}
+
+    return reconnectAllNode(params)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { params?: ReconnectAllNodeParams }, TContext>
+}
+
+export type ReconnectAllNodeMutationResult = NonNullable<Awaited<ReturnType<typeof reconnectAllNode>>>
+
+export type ReconnectAllNodeMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Reconnect All Node
+ */
+export const useReconnectAllNode = <TData = Awaited<ReturnType<typeof reconnectAllNode>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { params?: ReconnectAllNodeParams }, TContext>
+}): UseMutationResult<TData, TError, { params?: ReconnectAllNodeParams }, TContext> => {
+  const mutationOptions = getReconnectAllNodeMutationOptions(options)
+
+  return useMutation(mutationOptions)
 }
 
 /**

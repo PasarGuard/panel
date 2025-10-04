@@ -74,15 +74,15 @@ def format_time_left(seconds_left: int) -> str:
 
     result = []
     if months:
-        result.append(f"{months}m")
+        result.append(f"{int(months)}m")
     if days:
-        result.append(f"{days}d")
+        result.append(f"{int(days)}d")
     if hours and (days < 7):
-        result.append(f"{hours}h")
+        result.append(f"{int(hours)}h")
     if minutes and not (months or days):
-        result.append(f"{minutes}m")
+        result.append(f"{int(minutes)}m")
     if seconds and not (months or days):
-        result.append(f"{seconds}s")
+        result.append(f"{int(seconds)}s")
     return " ".join(result)
 
 
