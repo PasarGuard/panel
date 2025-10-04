@@ -1,6 +1,6 @@
 import ipaddress
 import logging
-import os
+import pathlib
 import socket
 import ssl
 
@@ -24,8 +24,7 @@ from config import (
 
 
 def check_and_modify_ip(ip_address: str) -> str:
-    """
-    Check if an IP address is private. If not, return localhost.
+    """Check if an IP address is private. If not, return localhost.
 
     IPv4 Private range = [
         "192.168.0.0",
@@ -44,6 +43,7 @@ def check_and_modify_ip(ip_address: str) -> str:
 
     Raises:
         ValueError: If the provided IP address is invalid, return localhost.
+
     """
     try:
         # Attempt to resolve hostname to IP address
@@ -54,19 +54,18 @@ def check_and_modify_ip(ip_address: str) -> str:
 
         if ip == ipaddress.ip_address("0.0.0.0"):
             return "localhost"
-        elif ip.is_private:
+        if ip.is_private:
             return ip_address
-        else:
-            return "localhost"
+        return "localhost"
 
     except ValueError:
         return "localhost"
 
 
 def validate_cert_and_key(cert_file_path, key_file_path):
-    if not os.path.isfile(cert_file_path):
+    if not pathlib.Path(cert_file_path).is_file():
         raise ValueError(f"SSL certificate file '{cert_file_path}' does not exist.")
-    if not os.path.isfile(key_file_path):
+    if not pathlib.Path(key_file_path).is_file():
         raise ValueError(f"SSL key file '{key_file_path}' does not exist.")
 
     try:
@@ -95,30 +94,26 @@ if __name__ == "__main__":
 
     if UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE:
         validate_cert_and_key(UVICORN_SSL_CERTFILE, UVICORN_SSL_KEYFILE)
+        bind_args.update(
+            ssl_certfile=UVICORN_SSL_CERTFILE,
+            ssl_keyfile=UVICORN_SSL_KEYFILE,
+        )
 
-        bind_args["ssl_certfile"] = UVICORN_SSL_CERTFILE
-        bind_args["ssl_keyfile"] = UVICORN_SSL_KEYFILE
-
-        if UVICORN_UDS:
-            bind_args["uds"] = UVICORN_UDS
-        else:
-            bind_args["host"] = UVICORN_HOST
-            bind_args["port"] = UVICORN_PORT
-
+    # Set host/port or UDS based on configuration
+    if UVICORN_UDS:
+        bind_args["uds"] = UVICORN_UDS
+    elif UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE:
+        bind_args.update(host=UVICORN_HOST, port=UVICORN_PORT)
     else:
-        if UVICORN_UDS:
-            bind_args["uds"] = UVICORN_UDS
-        else:
-            ip = check_and_modify_ip(UVICORN_HOST)
-
-            logger.warning(f"""
+        ip = check_and_modify_ip(UVICORN_HOST)
+        logger.warning(f"""
 {click.style("IMPORTANT!", blink=True, bold=True, fg="yellow")}
 You're running PasarGuard without specifying {click.style("UVICORN_SSL_CERTFILE", italic=True, fg="magenta")} and {click.style("UVICORN_SSL_KEYFILE", italic=True, fg="magenta")}.
 The application will only be accessible through localhost. This means that {click.style("Marzban and subscription URLs will not be accessible externally", bold=True)}.
 
 If you need external access, please provide the SSL files to allow the server to bind to 0.0.0.0. Alternatively, you can run the server on localhost or a Unix socket and use a reverse proxy, such as Nginx or Caddy, to handle SSL termination and provide external access.
 
-If you wish to continue without SSL, you can use SSH port forwarding to access the application from your machine. note that in this case, subscription functionality will not work. 
+If you wish to continue without SSL, you can use SSH port forwarding to access the application from your machine. note that in this case, subscription functionality will not work.
 
 Use the following command:
 
@@ -126,9 +121,8 @@ Use the following command:
 
 Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on your computer.
             """)
-
-            bind_args["host"] = ip
-            bind_args["port"] = UVICORN_PORT
+        bind_args["host"] = ip
+        bind_args["port"] = UVICORN_PORT
 
     if DEBUG:
         bind_args["uds"] = None
