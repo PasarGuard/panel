@@ -22,7 +22,3 @@ jobs:
               uses: astral-sh/ruff-action@v3
               with:
                   args: check --respect-gitignore --config pyproject.toml --output-format=github .
-            - name: Run Ruff format
-              uses: astral-sh/ruff-action@v3
-              with:
-                  args: format --respect-gitignore --config pyproject.toml .
