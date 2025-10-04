@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, status
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup, GroupCreate, GroupModify, GroupResponse, GroupsResponse
+from app.models.user import BulkOperationResponse
 from app.operation import OperatorType
 from app.operation.group import GroupOperation
 from app.utils import responses
@@ -21,10 +22,11 @@ group_operator = GroupOperation(OperatorType.API)
     description="Creates a new group in the system. Only sudo administrators can create groups.",
 )
 async def create_group(
-    new_group: GroupCreate, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    new_group: GroupCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
 ):
-    """
-    Create a new group in the system.
+    """Create a new group in the system.
 
     The group model has the following properties:
     - **name**: String (3-64 chars) containing only a-z and 0-9
@@ -39,6 +41,7 @@ async def create_group(
     Raises:
         401: Unauthorized - If not authenticated
         403: Forbidden - If not sudo admin
+
     """
     return await group_operator.create_group(db, new_group, admin)
 
@@ -50,10 +53,12 @@ async def create_group(
     description="Retrieves a paginated list of all groups in the system. Requires admin authentication.",
 )
 async def get_all_groups(
-    offset: int = None, limit: int = None, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    offset: int | None = None,
+    limit: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(get_current),
 ):
-    """
-    Retrieve a list of all groups with optional pagination.
+    """Retrieve a list of all groups with optional pagination.
 
     The response includes:
     - **groups**: List of GroupResponse objects containing:
@@ -69,6 +74,7 @@ async def get_all_groups(
 
     Raises:
         401: Unauthorized - If not authenticated
+
     """
     return await group_operator.get_all_groups(db, offset, limit)
 
@@ -81,8 +87,7 @@ async def get_all_groups(
     responses={404: responses._404},
 )
 async def get_group(group_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)):
-    """
-    Get a specific group by its **ID**.
+    """Get a specific group by its **ID**.
 
     The response includes:
     - **id**: Unique identifier
@@ -96,6 +101,7 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db), _: AdminD
 
     Raises:
         404: Not Found - If group doesn't exist
+
     """
     return await group_operator.get_validated_group(db, group_id)
 
@@ -113,8 +119,7 @@ async def modify_group(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(check_sudo_admin),
 ):
-    """
-    Modify an existing group's information.
+    """Modify an existing group's information.
 
     The group model can be modified with:
     - **name**: String (3-64 chars) containing only a-z and 0-9
@@ -130,6 +135,7 @@ async def modify_group(
         401: Unauthorized - If not authenticated
         403: Forbidden - If not sudo admin
         404: Not Found - If group doesn't exist
+
     """
     return await group_operator.modify_group(db, group_id, modified_group, admin)
 
@@ -142,10 +148,11 @@ async def modify_group(
     responses={404: responses._404},
 )
 async def remove_group(
-    group_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    group_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
 ):
-    """
-    Remove a group by its **ID**.
+    """Remove a group by its **ID**.
 
     Returns:
         dict: Empty dictionary on successful deletion
@@ -154,6 +161,7 @@ async def remove_group(
         401: Unauthorized - If not authenticated
         403: Forbidden - If not sudo admin
         404: Not Found - If group doesn't exist
+
     """
     await group_operator.remove_group(db, group_id, admin)
     return {}
@@ -161,14 +169,16 @@ async def remove_group(
 
 @router.post(
     "s/bulk/add",
+    response_model=BulkOperationResponse,
     summary="Bulk add groups to users",
     response_description="Success confirmation",
 )
 async def bulk_add_groups_to_users(
-    bulk_group: BulkGroup, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    bulk_group: BulkGroup,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(get_current),
 ):
-    """
-    Bulk assign groups to multiple users, users under specific admins, or all users.
+    """Bulk assign groups to multiple users, users under specific admins, or all users.
 
     - **group_ids**: List of group IDs to add (required)
     - **users**: Optional list of user IDs to assign the groups to
@@ -178,20 +188,23 @@ async def bulk_add_groups_to_users(
     - If neither 'users' nor 'admins' are provided, groups will be added to *all users*
     - Existing user-group associations will be ignored (no duplication)
     - Returns list of affected users (those who received new group associations)
+
     """
     return await group_operator.bulk_add_groups(db, bulk_group)
 
 
 @router.post(
     "s/bulk/remove",
+    response_model=BulkOperationResponse,
     summary="Bulk remove groups from users",
     response_description="Success confirmation",
 )
 async def bulk_remove_users_from_groups(
-    bulk_group: BulkGroup, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    bulk_group: BulkGroup,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(get_current),
 ):
-    """
-    Bulk remove groups from multiple users, users under specific admins, or all users.
+    """Bulk remove groups from multiple users, users under specific admins, or all users.
 
     - **group_ids**: List of group IDs to remove (required)
     - **users**: Optional list of user IDs to remove the groups from
@@ -201,5 +214,6 @@ async def bulk_remove_users_from_groups(
     - If neither 'users' nor 'admins' are provided, groups will be removed from *all users*
     - Only existing user-group associations will be removed
     - Returns list of affected users (those who had groups removed)
+
     """
     return await group_operator.bulk_remove_groups(db, bulk_group)

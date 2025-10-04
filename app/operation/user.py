@@ -1,6 +1,6 @@
 import asyncio
 import secrets
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -34,6 +34,7 @@ from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
+    BulkOperationResponse,
     BulkUser,
     BulkUsersProxy,
     CreateUserFromTemplate,
@@ -106,7 +107,11 @@ class UserOperation(BaseOperation):
         return user
 
     async def _modify_user(
-        self, db: AsyncSession, db_user: User, modified_user: UserModify, admin: AdminDetails
+        self,
+        db: AsyncSession,
+        db_user: User,
+        modified_user: UserModify,
+        admin: AdminDetails,
     ) -> UserResponse:
         if modified_user.group_ids:
             await self.validate_all_groups(db, modified_user)
@@ -131,7 +136,11 @@ class UserOperation(BaseOperation):
         return user
 
     async def modify_user(
-        self, db: AsyncSession, username: str, modified_user: UserModify, admin: AdminDetails
+        self,
+        db: AsyncSession,
+        username: str,
+        modified_user: UserModify,
+        admin: AdminDetails,
     ) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
 
@@ -209,7 +218,11 @@ class UserOperation(BaseOperation):
         return user
 
     async def set_owner(
-        self, db: AsyncSession, username: str, admin_username: str, admin: AdminDetails
+        self,
+        db: AsyncSession,
+        username: str,
+        admin_username: str,
+        admin: AdminDetails,
     ) -> UserResponse:
         """Set a new owner (admin) for a user."""
         new_admin = await self.get_validated_admin(db, username=admin_username)
@@ -293,7 +306,7 @@ class UserOperation(BaseOperation):
             tasks = [self.generate_subscription_url(user) for user in users]
             urls = await asyncio.gather(*tasks)
 
-            for user, url in zip(users, urls):
+            for user, url in zip(users, urls, strict=False):
                 user.subscription_url = url
 
         response = UsersResponse(users=users, total=count)
@@ -331,7 +344,7 @@ class UserOperation(BaseOperation):
     @staticmethod
     async def remove_users_logger(users: list[str], by: str):
         for user in users:
-            logger.info(f'User "{user}" deleted by admin "{by}"')
+            logger.info('User "%s" deleted by admin "%s"', user, by)
 
     async def get_expired_users(
         self,
@@ -340,15 +353,13 @@ class UserOperation(BaseOperation):
         expired_before: dt = None,
         admin_username: str = None,
     ) -> list[str]:
-        """
-        Get users who have expired within the specified date range.
+        """Get users who have expired within the specified date range.
 
         - **expired_after** UTC datetime (optional)
         - **expired_before** UTC datetime (optional)
         - At least one of expired_after or expired_before must be provided for filtering
         - If both are omitted, returns all expired users
         """
-
         expired_after, expired_before = await self.validate_dates(expired_after, expired_before)
         if admin_username:
             admin_id = (await self.get_validated_admin(db, admin_username)).id
@@ -365,14 +376,12 @@ class UserOperation(BaseOperation):
         expired_before: dt = None,
         admin_username: str = None,
     ) -> RemoveUsersResponse:
-        """
-        Delete users who have expired within the specified date range.
+        """Delete users who have expired within the specified date range.
 
         - **expired_after** UTC datetime (optional)
         - **expired_before** UTC datetime (optional)
         - At least one of expired_after or expired_before must be provided
         """
-
         expired_after, expired_before = await self.validate_dates(expired_after, expired_before)
         if admin_username:
             admin_id = (await self.get_validated_admin(db, admin_username)).id
@@ -397,14 +406,14 @@ class UserOperation(BaseOperation):
 
         if template.status == UserStatus.active:
             if template.expire_duration:
-                user_args["expire"] = dt.now(tz.utc) + td(seconds=template.expire_duration)
+                user_args["expire"] = dt.now(UTC) + td(seconds=template.expire_duration)
             else:
                 user_args["expire"] = 0
         else:
             user_args["expire"] = 0
             user_args["on_hold_expire_duration"] = template.expire_duration
             if template.on_hold_timeout:
-                user_args["on_hold_timeout"] = dt.now(tz.utc) + td(seconds=template.on_hold_timeout)
+                user_args["on_hold_timeout"] = dt.now(UTC) + td(seconds=template.on_hold_timeout)
             else:
                 user_args["on_hold_timeout"] = 0
 
@@ -425,7 +434,10 @@ class UserOperation(BaseOperation):
         return user_args
 
     async def create_user_from_template(
-        self, db: AsyncSession, new_template_user: CreateUserFromTemplate, admin: AdminDetails
+        self,
+        db: AsyncSession,
+        new_template_user: CreateUserFromTemplate,
+        admin: AdminDetails,
     ) -> UserResponse:
         user_template = await self.get_validated_user_template(db, new_template_user.user_template_id)
 
@@ -434,7 +446,7 @@ class UserOperation(BaseOperation):
 
         new_user_args = self.load_base_user_args(user_template)
         new_user_args["username"] = (
-            f"{user_template.username_prefix if user_template.username_prefix else ''}{new_template_user.username}{user_template.username_suffix if user_template.username_suffix else ''}"
+            f"{user_template.username_prefix or ''}{new_template_user.username}{user_template.username_suffix or ''}"
         )
 
         try:
@@ -448,7 +460,11 @@ class UserOperation(BaseOperation):
         return await self.create_user(db, new_user, admin)
 
     async def modify_user_with_template(
-        self, db: AsyncSession, username: str, modified_template: ModifyUserByTemplate, admin: AdminDetails
+        self,
+        db: AsyncSession,
+        username: str,
+        modified_template: ModifyUserByTemplate,
+        admin: AdminDetails,
     ) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
         user_template = await self.get_validated_user_template(db, modified_template.user_template_id)
@@ -478,7 +494,10 @@ class UserOperation(BaseOperation):
         await node_manager.update_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
-            return {"detail": f"operation has been successfuly done on {users_count} users"}
+            return BulkOperationResponse(
+                detail=f"operation has been successfully done on {users_count} users",
+                affected_count=users_count,
+            )
         return users_count
 
     async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
@@ -487,7 +506,10 @@ class UserOperation(BaseOperation):
         await node_manager.update_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
-            return {"detail": f"operation has been successfuly done on {users_count} users"}
+            return BulkOperationResponse(
+                detail=f"operation has been successfully done on {users_count} users",
+                affected_count=users_count,
+            )
         return users_count
 
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
@@ -496,11 +518,19 @@ class UserOperation(BaseOperation):
         await node_manager.update_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
-            return {"detail": f"operation has been successfuly done on {users_count} users"}
+            return BulkOperationResponse(
+                detail=f"operation has been successfully done on {users_count} users",
+                affected_count=users_count,
+            )
         return users_count
 
     async def get_user_sub_update_list(
-        self, db: AsyncSession, username: str, admin: AdminDetails, offset: int = 0, limit: int = 10
+        self,
+        db: AsyncSession,
+        username: str,
+        admin: AdminDetails,
+        offset: int = 0,
+        limit: int = 10,
     ) -> UserSubscriptionUpdateList:
         db_user = await self.get_validated_user(db, username, admin)
         user_sub_data, count = await get_user_sub_update_list(db, user_id=db_user.id, offset=offset, limit=limit)

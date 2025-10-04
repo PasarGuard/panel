@@ -7,6 +7,7 @@ from app.db.crud.group import create_group, get_group, modify_group, remove_grou
 from app.db.crud.user import get_users
 from app.db.models import Admin
 from app.models.group import BulkGroup, Group, GroupCreate, GroupModify, GroupResponse, GroupsResponse
+from app.models.user import BulkOperationResponse
 from app.node import node_manager
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
@@ -28,7 +29,10 @@ class GroupOperation(BaseOperation):
         return group
 
     async def get_all_groups(
-        self, db: AsyncSession, offset: int | None = None, limit: int | None = None
+        self,
+        db: AsyncSession,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> GroupsResponse:
         db_groups, count = await get_group(db, offset, limit)
         return GroupsResponse(groups=db_groups, total=count)
@@ -64,18 +68,19 @@ class GroupOperation(BaseOperation):
 
         asyncio.create_task(notification.remove_group(db_group.id, admin.username))
 
-    async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup):
-        await self.validate_all_groups(db, bulk_model)
-
+    async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup) -> BulkOperationResponse | int:
         users, users_count = await add_groups_to_users(db, bulk_model)
 
         await node_manager.update_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
-            return {"detail": f"operation has been successfuly done on {users_count} users"}
+            return BulkOperationResponse(
+                detail=f"operation has been successfully done on {users_count} users",
+                affected_count=users_count,
+            )
         return users_count
 
-    async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup):
+    async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup) -> BulkOperationResponse | int:
         await self.validate_all_groups(db, bulk_model)
 
         users, users_count = await remove_groups_from_users(db, bulk_model)
@@ -83,5 +88,8 @@ class GroupOperation(BaseOperation):
         await node_manager.update_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
-            return {"detail": f"operation has been successfuly done on {users_count} users"}
+            return BulkOperationResponse(
+                detail=f"operation has been successfully done on {users_count} users",
+                affected_count=users_count,
+            )
         return users_count

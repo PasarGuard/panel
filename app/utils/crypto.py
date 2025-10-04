@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import x25519
 
 
-def generate_certificate(): #TODO: remove this fuction, migration needs 
+def generate_certificate():  # TODO: remove this fuction, migration needs
     return {"key": "dummy_key", "cert": "dummy_cert"}  # Placeholder implementation
 
 

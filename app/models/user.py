@@ -146,6 +146,13 @@ class UserSubscriptionUpdateList(BaseModel):
     count: int
 
 
+class BulkOperationResponse(BaseModel):
+    """Standardized response for bulk operations."""
+
+    detail: str
+    affected_count: int
+
+
 class RemoveUsersResponse(BaseModel):
     users: list[str]
     count: int

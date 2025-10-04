@@ -7,6 +7,7 @@ from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
+    BulkOperationResponse,
     BulkUser,
     BulkUsersProxy,
     CreateUserFromTemplate,
@@ -37,10 +38,11 @@ router = APIRouter(tags=["User"], prefix="/api/user", responses={401: responses.
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user(
-    new_user: UserCreate, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+    new_user: UserCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
 ):
-    """
-    Create a new user
+    """Create a new user
 
     - **username**: 3 to 32 characters, can include a-z, 0-9, and underscores.
     - **status**: User's status, defaults to `active`. Special rules if `on_hold`.
@@ -54,7 +56,6 @@ async def create_user(
     - **on_hold_expire_duration**: Duration (in seconds) for how long the user should stay in `on_hold` status.
     - **next_plan**: Next user plan (resets after use).
     """
-
     return await user_operator.create_user(db, new_user=new_user, admin=admin)
 
 
@@ -69,8 +70,7 @@ async def modify_user(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
 ):
-    """
-    Modify an existing user
+    """Modify an existing user
 
     - **username**: Cannot be changed. Used to identify the user.
     - **status**: User's new status. Can be 'active', 'disabled', 'on_hold', 'limited', or 'expired'.
@@ -90,7 +90,9 @@ async def modify_user(
 
 
 @router.delete(
-    "/{username}", responses={403: responses._403, 404: responses._404}, status_code=status.HTTP_204_NO_CONTENT
+    "/{username}",
+    responses={403: responses._403, 404: responses._404},
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_user(username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)):
     """Remove a user"""
@@ -99,17 +101,23 @@ async def remove_user(username: str, db: AsyncSession = Depends(get_db), admin: 
 
 @router.post("/{username}/reset", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
 async def reset_user_data_usage(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
 ):
     """Reset user data usage"""
     return await user_operator.reset_user_data_usage(db, username=username, admin=admin)
 
 
 @router.post(
-    "/{username}/revoke_sub", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
+    "/{username}/revoke_sub",
+    response_model=UserResponse,
+    responses={403: responses._403, 404: responses._404},
 )
 async def revoke_user_subscription(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
 ):
     """Revoke users subscription (Subscription link and proxies)"""
     return await user_operator.revoke_user_sub(db, username=username, admin=admin)
@@ -135,10 +143,14 @@ async def set_owner(
 
 
 @router.post(
-    "/{username}/active_next", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
+    "/{username}/active_next",
+    response_model=UserResponse,
+    responses={403: responses._403, 404: responses._404},
 )
 async def active_next_plan(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
 ):
     """Reset user by next plan"""
     return await user_operator.active_next_plan(db, username=username, admin=admin)
@@ -167,7 +179,9 @@ async def get_user_sub_update_list(
 
 
 @router.get(
-    "s", response_model=UsersResponse, responses={400: responses._400, 403: responses._403, 404: responses._404}
+    "s",
+    response_model=UsersResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
 )
 async def get_users(
     offset: int = None,
@@ -201,7 +215,9 @@ async def get_users(
 
 
 @router.get(
-    "/{username}/usage", response_model=UserUsageStatsList, responses={403: responses._403, 404: responses._404}
+    "/{username}/usage",
+    response_model=UserUsageStatsList,
+    responses={403: responses._403, 404: responses._404},
 )
 async def get_user_usage(
     username: str,
@@ -258,15 +274,13 @@ async def get_expired_users(
     expired_after: dt | None = Query(None, example="2024-01-01T00:00:00+03:30"),
     expired_before: dt | None = Query(None, example="2024-01-31T23:59:59+03:30"),
 ):
-    """
-    Get users who have expired within the specified date range.
+    """Get users who have expired within the specified date range.
 
     - **expired_after** UTC datetime (optional)
     - **expired_before** UTC datetime (optional)
     - At least one of expired_after or expired_before must be provided for filtering
     - If both are omitted, returns all expired users
     """
-
     return await user_operator.get_expired_users(db, expired_after, expired_before, admin_username)
 
 
@@ -278,15 +292,18 @@ async def delete_expired_users(
     expired_after: dt | None = Query(None, example="2024-01-01T00:00:00+03:30"),
     expired_before: dt | None = Query(None, example="2024-01-31T23:59:59+03:30"),
 ):
-    """
-    Delete users who have expired within the specified date range.
+    """Delete users who have expired within the specified date range.
 
     - **expired_after** UTC datetime (optional)
     - **expired_before** UTC datetime (optional)
     - At least one of expired_after or expired_before must be provided
     """
     return await user_operator.delete_expired_users(
-        db, admin, expired_after, expired_before, admin_username=admin_username
+        db=db,
+        admin=admin,
+        expired_after=expired_after,
+        expired_before=expired_before,
+        admin_username=admin_username,
     )
 
 
@@ -309,14 +326,18 @@ async def modify_user_with_template(
     return await user_operator.modify_user_with_template(db, username, modify_template_user, admin)
 
 
-@router.post("s/bulk/expire", summary="Bulk sum/sub to expire of users", response_description="Success confirmation")
+@router.post(
+    "s/bulk/expire",
+    response_model=BulkOperationResponse,
+    summary="Bulk sum/sub to expire of users",
+    response_description="Success confirmation",
+)
 async def bulk_modify_users_expire(
     bulk_model: BulkUser,
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(check_sudo_admin),
 ):
-    """
-    Bulk expire users based on the provided criteria.
+    """Bulk expire users based on the provided criteria.
 
     - **amount**: amount to adjust the user's quota (in seconds, positive to increase, negative to decrease) required
     - **user_ids**: Optional list of user IDs to modify
@@ -328,15 +349,17 @@ async def bulk_modify_users_expire(
 
 
 @router.post(
-    "s/bulk/data_limit", summary="Bulk sum/sub to data limit of users", response_description="Success confirmation"
+    "s/bulk/data_limit",
+    response_model=BulkOperationResponse,
+    summary="Bulk sum/sub to data limit of users",
+    response_description="Success confirmation",
 )
 async def bulk_modify_users_datalimit(
     bulk_model: BulkUser,
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(check_sudo_admin),
 ):
-    """
-    Bulk modify users' data limit based on the provided criteria.
+    """Bulk modify users' data limit based on the provided criteria.
 
     - **amount**: amount to adjust the user's quota (positive to increase, negative to decrease) required
     - **user_ids**: Optional list of user IDs to modify
@@ -348,7 +371,10 @@ async def bulk_modify_users_datalimit(
 
 
 @router.post(
-    "s/bulk/proxy_settings", summary="Bulk modify users proxy settings", response_description="Success confirmation"
+    "s/bulk/proxy_settings",
+    response_model=BulkOperationResponse,
+    summary="Bulk modify users proxy settings",
+    response_description="Success confirmation",
 )
 async def bulk_modify_users_proxy_settings(
     bulk_model: BulkUsersProxy,
