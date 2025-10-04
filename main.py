@@ -135,7 +135,7 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
 
     try:
         uvicorn.run(
-            "main:app",
+            app="main:app",
             **bind_args,
             workers=1,
             reload=DEBUG,
