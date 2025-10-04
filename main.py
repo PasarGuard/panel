@@ -45,7 +45,7 @@ def check_and_modify_ip(ip_address: str) -> str:
     Raises:
         ValueError: If the provided IP address is invalid, return localhost.
     """
-    try:
+       try:
         # Attempt to resolve hostname to IP address
         resolved_ip = socket.gethostbyname(ip_address)
 
@@ -59,7 +59,7 @@ def check_and_modify_ip(ip_address: str) -> str:
         else:
             return "localhost"
 
-    except ValueError:
+    except (ValueError, socket.gaierror):
         return "localhost"
 
 
