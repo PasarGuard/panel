@@ -44,7 +44,7 @@ async def get_inbounds_not_in_tags(db: AsyncSession, excluded_tags: List[str]) -
     Returns:
         List of ProxyInbound objects not matching any tag in the list
     """
-    stmt = select(ProxyInbound).where(ProxyInbound.tag.not_in(excluded_tags))
+    stmt = select(ProxyInbound).where(ProxyInbound.tag.notin_(excluded_tags))
     result = await db.execute(stmt)
     return result.scalars().all()
 

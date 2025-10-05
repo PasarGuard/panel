@@ -44,7 +44,7 @@ async def cleanup_user_subscription_updates():
                     # Delete records not in keep list
                     result = await db.execute(
                         delete(UserSubscriptionUpdate).where(
-                            UserSubscriptionUpdate.user_id == user_id, UserSubscriptionUpdate.id.not_in(keep_ids)
+                            UserSubscriptionUpdate.user_id == user_id, UserSubscriptionUpdate.id.notin_(keep_ids)
                         )
                     )
                     total_deleted += result.rowcount
@@ -63,7 +63,7 @@ async def cleanup_user_subscription_updates():
 
             result = await db.execute(
                 delete(UserSubscriptionUpdate).where(
-                    UserSubscriptionUpdate.user_id.in_(user_ids), UserSubscriptionUpdate.id.not_in(keep_subquery)
+                    UserSubscriptionUpdate.user_id.in_(user_ids), UserSubscriptionUpdate.id.notin_(keep_subquery)
                 )
             )
             logger.info(f"Cleaned up {result.rowcount} old subscription updates")
