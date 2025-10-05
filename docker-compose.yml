@@ -1,0 +1,8 @@
+services:
+  pasarguard:
+    image: pasarguard/panel:latest
+    restart: always
+    env_file: .env
+    network_mode: host
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard

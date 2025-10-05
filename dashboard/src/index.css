@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 5% 96%;
+    --foreground: 240 5% 10%;
+    --muted: 240 5% 90%;
+    --muted-foreground: 240 5% 40%;
+    --card: 240 5% 98%;
+    --card-foreground: var(--foreground);
+    --popover: var(--background);
+    --popover-foreground: var(--foreground);
+    --border: 240 5% 80%;
+    --input: 240 6% 91%;
+    --input-placeholder: 240 5% 70%;
+    --primary: 216 46% 40%;
+    --primary-foreground: 240 5% 98%;
+    --secondary: 240 5% 90%;
+    --secondary-foreground: 240 5% 20%;
+    --accent: 240 5% 90%;
+    --accent-foreground: 240 5% 20%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --ring: 216 46% 40%;
+    --radius: 0.5rem;
+    --hover-primary: 216 46% 30%;
+    --hover-secondary: 240 5% 85%;
+    --hover-destructive: 0 84% 60%;
+    --success: 142 76% 36%;
+    --hover-success: 142 72% 29%;
+    --border-destructive-50: 0 72% 51%;
+    --bg-destructive-10: 0 72% 51%;
+    --hover-destructive-20: 0 72% 51%;
+    --bg-muted-50: 210 40% 96%;
+    --bg-accent-50: 210 40% 96%;
+    --bg-muted-40: 210 40% 96%;
+    --border-muted-40: 210 40% 96%;
+    --sidebar-background: 240 5% 90%;
+    --sidebar-foreground: 240 5% 20%;
+    --sidebar-primary: 216 46% 40%;
+    --sidebar-primary-foreground: 240 5% 98%;
+    --sidebar-accent: 240 5% 85%;
+    --sidebar-accent-foreground: 240 5% 10%;
+    --sidebar-border: 240 5% 80%;
+    --sidebar-ring: 216 46% 40%;
+    --sidebar-foreground-70: 240 5% 30%;
+    --neon-green: 81 96% 55%;
+    --background-custom: 240 5% 96%;
+    --chart-1: 221.2 83.2% 53.3%;
+    --chart-2: 212 95% 68%;
+    --chart-3: 216 92% 60%;
+    --chart-4: 210 98% 78%;
+    --chart-5: 212 97% 87%;
+    /* Scrollbar variables */
+    --scrollbar-track: 240 5% 96%;
+    --scrollbar-thumb: 240 5% 80%;
+    --scrollbar-thumb-hover: 240 5% 70%;
+    --scrollbar-thumb-active: 240 5% 60%;
+  }
+
+  .dark {
+    --chart-1: 221.2 83.2% 53.3%;
+    --chart-2: 212 95% 68%;
+    --chart-3: 216 92% 60%;
+    --chart-4: 210 98% 78%;
+    --chart-5: 212 97% 87%;
+    --background: 240 2% 11%;
+    --foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --card: 240 2% 11.5%;
+    --card-foreground: var(--foreground);
+    --popover: var(--background);
+    --popover-foreground: var(--foreground);
+    --border: 0 0% 18%;
+    --input: 240 2% 16.5%;
+    --input-placeholder: 0 0 30%;
+    --primary: 216 46% 53%;
+    --primary-foreground: 0 0% 5%;
+    --secondary: 216 46% 53%;
+    --secondary-foreground: 0 0% 5%;
+    --accent: 240 4% 16%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 215 16% 47%;
+    --radius: 0.5rem;
+    --hover-primary: 216 41% 49%;
+    --hover-secondary: 216 41% 49%;
+    --hover-destructive: 0 84% 60%;
+    --success: 142 76% 36%;
+    --hover-success: 142 72% 29%;
+    --border-destructive-50: 0 72% 51%;
+    --bg-destructive-10: 0 72% 51%;
+    --hover-destructive-20: 0 72% 51%;
+    --bg-muted-50: 210 40% 96%;
+    --bg-accent-50: 210 40% 96%;
+    --bg-muted-40: 210 40% 96%;
+    --border-muted-40: 210 40% 96%;
+    --sidebar-background: 240 2% 11%;
+    --sidebar-foreground: 0 0 71%;
+    --sidebar-primary: 0 100% 81%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: 0 0% 20% / 0.8;
+    --sidebar-ring: 0 0% 64%;
+    --sidebar-foreground-70: 0 0% 98%;
+    --neon-green: 81 96% 55%;
+    --background-custom: 240 4% 8%;
+    /* Dark mode scrollbar variables */
+    --scrollbar-track: 240 2% 11%;
+    --scrollbar-thumb: 0 0% 25%;
+    --scrollbar-thumb-hover: 0 0% 35%;
+    --scrollbar-thumb-active: 0 0% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    overflow-x: hidden; /* Prevent horizontal scroll from drag-and-drop elements */
+  }
+
+  /* Enhanced shadcn-style scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--scrollbar-track));
+    border-radius: calc(var(--radius) * 0.5);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--scrollbar-thumb));
+    border-radius: calc(var(--radius) * 0.5);
+    border: 1px solid hsl(var(--scrollbar-track));
+    transition: background-color 0.2s ease-in-out;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--scrollbar-thumb-hover));
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background: hsl(var(--scrollbar-thumb-active));
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: hsl(var(--scrollbar-track));
+  }
+
+  /* Thin scrollbar variant for smaller containers */
+  .scrollbar-thin::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    border: none;
+  }
+
+  /* Hidden scrollbar but still scrollable */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Custom scrollbar for specific components */
+  .scrollbar-primary::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.6);
+  }
+
+  .scrollbar-primary::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.8);
+  }
+
+  .scrollbar-muted::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+  }
+
+  .scrollbar-muted::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* Fix for drag-and-drop elements causing horizontal overflow in RTL */
+  [data-rbd-draggable-id],
+  [data-rbd-drag-handle-draggable-id],
+  [data-dnd-kit-drag-overlay] {
+    max-width: 100vw !important;
+    left: 0 !important;
+    right: auto !important;
+  }
+
+  /* Ensure drag overlay elements don't extend beyond viewport */
+  [data-dnd-kit-drag-overlay] {
+    position: fixed !important;
+    z-index: 9999 !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 20px) !important;
+  }
+}
+
+@layer utilities {
+  /* Scrollbar utility classes */
+  .scrollbar-default {
+    scrollbar-width: auto;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
+  }
+
+  .scrollbar-thin-util {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}

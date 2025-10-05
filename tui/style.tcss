@@ -1,0 +1,91 @@
+ModalScreen {
+  align: center middle;
+}
+.label {
+  height: 3;
+  content-align: center middle;
+  width: auto;
+}
+.modal-box-delete {
+  width: 50%;
+  height: 40%;
+  border: solid white;
+  padding-top: 2;
+  align: center middle;
+}
+.modal-box-form {
+  width: 50%;
+  height: auto;
+  border: solid white;
+  align: center middle;
+  margin-bottom: 4;
+}
+.button-container {
+  align: center middle;
+  position: relative;
+  margin: 1;
+  padding: 1;
+  position: relative;
+  height: auto;
+}
+Button {
+  height: 3;
+  padding: 0 2;
+  margin: 0 1;
+  text-align: center;
+}
+
+.title {
+  margin-bottom: 1;
+  margin-top: 1;
+  margin-left: 1;
+  margin-right: 1;
+  align: center middle;
+  text-align: center;
+}
+
+.input-container {
+  margin: 1;
+  padding: 1;
+  max-height: 70%;
+  overflow-y: auto;
+}
+.switch-container {
+  height: auto;
+  width: auto;
+}
+.box {
+  margin: 9 5;
+  padding: 1;
+  content-align: center middle;
+}
+
+.modal-box-help {
+  background: $surface;
+  border: solid $accent;
+  padding: 1 2;
+  width: 60;
+  height: auto;
+  min-height: 20;
+}
+
+.modal-box-help .title {
+  content-align: center middle;
+  text-style: bold;
+  color: $accent;
+  padding: 1 0;
+  text-align: center;
+  border-bottom: solid $accent;
+}
+
+.modal-box-help .help-content {
+  padding: 1 0;
+  height: auto;
+  min-height: 15;
+  color: $text;
+}
+
+.modal-box-help Button {
+  margin-top: 1;
+  width: 100%;
+}

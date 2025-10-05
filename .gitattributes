@@ -1,0 +1,10 @@
+# Ignore frontend files for language detection
+dashboard/** linguist-vendored
+*.ts linguist-vendored
+*.tsx linguist-vendored
+*.js linguist-vendored
+*.jsx linguist-vendored
+
+# Emphasize Python files
+*.py linguist-detectable
+app/** linguist-detectable

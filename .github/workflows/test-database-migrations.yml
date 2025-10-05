@@ -1,0 +1,103 @@
+name: Test Database Migrations
+
+on:
+    push:
+        paths:
+            - "**.py"
+    pull_request:
+        paths:
+            - "**.py"
+
+jobs:
+    test-databases:
+        runs-on: ubuntu-latest
+        services:
+            postgres:
+                image: postgres:latest
+                env:
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: testdb
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd="pg_isready"
+                    --health-interval=10s
+                    --health-timeout=5s
+                    --health-retries=5
+            timescaledb:
+                image: timescale/timescaledb:latest-pg17
+                env:
+                    POSTGRES_PASSWORD: timescale
+                    POSTGRES_DB: testdb
+                ports:
+                    - 5433:5432
+                options: >-
+                    --health-cmd="pg_isready"
+                    --health-interval=10s
+                    --health-timeout=5s
+                    --health-retries=5
+            mysql:
+                image: mysql:latest
+                env:
+                    MYSQL_ROOT_PASSWORD: root
+                    MYSQL_DATABASE: testdb
+                ports:
+                    - 3306:3306
+                options: >-
+                    --health-cmd="mysqladmin ping -hlocalhost -uroot -proot"
+                    --health-interval=10s
+                    --health-timeout=5s
+                    --health-retries=5
+            mariadb:
+                image: mariadb:10.6
+                env:
+                    MYSQL_ROOT_PASSWORD: root
+                    MYSQL_DATABASE: testdb
+                    MYSQL_USER: testuser
+                    MYSQL_PASSWORD: testpassword
+                ports:
+                    - 3307:3306
+                options: >-
+                    --health-cmd "mysqladmin ping -h localhost -u testuser --password=testpassword"
+                    --health-interval=10s
+                    --health-timeout=5s
+                    --health-retries=5
+
+        strategy:
+            matrix:
+                db: [sqlite, postgres, timescaledb, mysql, mariadb]
+                include:
+                    - db: sqlite
+                      url: sqlite+aiosqlite:///./test.db
+
+                    - db: postgres
+                      url: postgresql+asyncpg://postgres:postgres@localhost:5432/testdb
+
+                    - db: timescaledb
+                      url: postgresql+asyncpg://postgres:timescale@localhost:5433/testdb
+
+                    - db: mysql
+                      url: mysql+asyncmy://root:root@localhost:3306/testdb
+
+                    - db: mariadb
+                      url: mysql+asyncmy://testuser:testpassword@localhost:3307/testdb
+
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: Set DATABASE_URL
+              run: |
+                  echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=${{ matrix.url }}" >> $GITHUB_ENV
+
+            - name: Install dependencies
+              run: make setup
+
+            - name: Run Alembic Migrations
+              run: make run-migration
+
+            - name: Run Tests
+              run: make test
