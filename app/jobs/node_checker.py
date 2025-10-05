@@ -39,6 +39,7 @@ async def node_health_check():
             health = await asyncio.wait_for(node.get_health(), timeout=10)
         except (asyncio.TimeoutError, NodeAPIError):
             await node_operator.update_node_status(db_node.id, NodeStatus.error, err="Get health timeout")
+            return
 
         if db_node.status in (NodeStatus.connecting, NodeStatus.error) and health is Health.HEALTHY:
             await node_operator.update_node_status(db_node.id, NodeStatus.connected)
