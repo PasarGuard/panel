@@ -110,7 +110,7 @@ async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    admin = (await db.execute(select(Admin).where(Admin.id == id))).first()
+    admin = (await db.execute(select(Admin).where(Admin.id == id))).scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin)
     return admin
@@ -144,7 +144,7 @@ async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).first()
+    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin)
     return admin
