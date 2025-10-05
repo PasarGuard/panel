@@ -50,7 +50,7 @@ class UUIDEncoder(json.JSONEncoder):
         if isinstance(obj, UUID):
             # if the obj is uuid, we simply return the value of uuid
             return str(obj)
-        return super().default(self, obj)
+        return super().default(obj)
 
 
 def format_validation_error(error: ValidationError) -> str:
