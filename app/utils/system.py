@@ -70,6 +70,7 @@ def get_public_ip():
         except httpx.RequestError:
             pass
 
+    sock = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.connect(("8.8.8.8", 80))
@@ -79,11 +80,10 @@ def get_public_ip():
     except (socket.error, IndexError):
         pass
     finally:
-        sock.close()
+        if sock:
+            sock.close()
 
     return "127.0.0.1"
-
-
 def get_public_ipv6():
     try:
         resp = httpx.get("http://api6.ipify.org/", timeout=5).text.strip()
