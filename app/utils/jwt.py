@@ -60,34 +60,52 @@ async def get_subscription_payload(token: str) -> dict | None:
             return
 
         if token.startswith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."):
-            payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"])
+            try:
+                payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"])
+            except jwt.exceptions.PyJWTError:
+                return
+
             if payload.get("access") == "subscription":
                 return {
-                    "username": payload["sub"],
-                    "created_at": datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+                    "username": payload.get("sub"),
+                    "created_at": datetime.fromtimestamp(payload.get("iat", 0), tz=timezone.utc),
                 }
-            else:
-                return
-        else:
-            u_token = token[:-10]
-            u_signature = token[-10:]
-            try:
-                u_token_dec = b64decode(
-                    (u_token.encode("utf-8") + b"=" * (-len(u_token.encode("utf-8")) % 4)),
-                    altchars=b"-_",
-                    validate=True,
-                )
-                u_token_dec_str = u_token_dec.decode("utf-8")
-            except Exception:
-                return
-            u_token_resign = b64encode(
-                sha256((u_token + await get_secret_key()).encode("utf-8")).digest(), altchars=b"-_"
-            ).decode("utf-8")[:10]
-            if u_signature == u_token_resign:
-                u_username = u_token_dec_str.split(",")[0]
-                u_created_at = int(u_token_dec_str.split(",")[1])
-                return {"username": u_username, "created_at": datetime.fromtimestamp(u_created_at, tz=timezone.utc)}
-            else:
-                return
-    except jwt.exceptions.PyJWTError:
+            return
+
+        u_token = token[:-10]
+        u_signature = token[-10:]
+
+        try:
+            u_token_dec = b64decode(
+                (u_token.encode("utf-8") + b"=" * (-len(u_token.encode("utf-8")) % 4)),
+                altchars=b"-_",
+                validate=True,
+            )
+            u_token_dec_str = u_token_dec.decode("utf-8")
+        except Exception:
+            return
+
+        u_token_resign = b64encode(
+            sha256((u_token + await get_secret_key()).encode("utf-8")).digest(),
+            altchars=b"-_",
+        ).decode("utf-8")[:10]
+
+        if u_signature != u_token_resign:
+            return
+
+        parts = u_token_dec_str.split(",")
+        if len(parts) != 2:
+            return
+
+        u_username, u_created_at_str = parts
+        if not u_created_at_str.isdigit():
+            return
+
+        u_created_at = int(u_created_at_str)
+        return {
+            "username": u_username,
+            "created_at": datetime.fromtimestamp(u_created_at, tz=timezone.utc),
+        }
+
+    except Exception:
         return
