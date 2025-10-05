@@ -174,8 +174,6 @@ async def list_admins():
             await admin_cli.list_admins(db)
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
-        finally:
-            return
 
 
 async def create_admin(username: str):
@@ -186,8 +184,6 @@ async def create_admin(username: str):
             await admin_cli.create_admin(db, username)
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
-        finally:
-            return
 
 
 async def delete_admin(username: str):
@@ -198,8 +194,6 @@ async def delete_admin(username: str):
             await admin_cli.delete_admin(db, username)
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
-        finally:
-            return
 
 
 async def modify_admin(username: str):
@@ -210,8 +204,6 @@ async def modify_admin(username: str):
             await admin_cli.modify_admin(db, username)
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
-        finally:
-            return
 
 
 async def reset_admin_usage(username: str):
@@ -222,5 +214,3 @@ async def reset_admin_usage(username: str):
             await admin_cli.reset_admin_usage(db, username)
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
-        finally:
-            return

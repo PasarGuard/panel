@@ -54,5 +54,3 @@ async def show_status():
             await system_cli.show_status(db)
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
-        finally:
-            return
