@@ -103,7 +103,7 @@ class NodeManager:
         proto_user = serialize_user_for_node(user.id, user.username, user.proxy_settings.dict())
 
         async with self._lock.reader_lock:
-            remove_tasks = [node.update_user(proto_user) for node in self._nodes.values()]
+            remove_tasks = [node.remove_user(proto_user) for node in self._nodes.values()]
             await asyncio.gather(*remove_tasks, return_exceptions=True)
 
 
