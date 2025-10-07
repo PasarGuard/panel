@@ -235,4 +235,8 @@ If PasarGuard helps you, consider supporting its development:
 
 ---
 
+<p align="center">
+  Made with ❤️ for Internet freedom
+</p>
+
 
