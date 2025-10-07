@@ -373,7 +373,7 @@ server {
 
 # 📚 Documentation
 
-<div align="center">
+<div align="left">
 
 **📖 Official Documentation** - Complete guides available in:
 
@@ -391,7 +391,7 @@ server {
 
 # 💖 Donation
 
-<div align="center">
+<div align="left">
 
 > **Support PasarGuard Development**
 
@@ -407,7 +407,7 @@ If PasarGuard helps you, consider supporting its development:
 
 # 📄 License
 
-<div align="center">
+<div align="left">
 
 **📜 License:** [AGPL-3.0](./LICENSE) ✅ **Open Source**
 
