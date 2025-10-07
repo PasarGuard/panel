@@ -72,7 +72,6 @@
 -   [⚙️ Configuration](#-configuration)
 -   [📚 Documentation](#-documentation)
 -   [💖 Donation](#-donation)
--   [📄 License](#-license)
 -   [🌟 Contributors](#-contributors)
 
 ---
@@ -337,7 +336,10 @@ server {
 
 # ⚙️ Configuration
 
-> **Environment Variables** - Configure these settings using environment variables or by adding them to your `.env` file.
+<details markdown="1">
+<summary><h3>🔧 Environment Variables</h3></summary>
+
+> **Configure these settings** using environment variables or by adding them to your `.env` file.
 
 ---
 
@@ -369,7 +371,7 @@ server {
 | USERS_AUTODELETE_DAYS                    | Delete expired (and optionally limited users) after this many days (Negative values disable this feature, default: `-1`) |
 | USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS | Whether to include limited accounts in the auto-delete feature (default: `False`)                                        |
 | XRAY_SUBSCRIPTION_PATH                   | You can change your api path for subscrtiption (default: `sub`)                                                          |
-| ENABLE_RECORDING_NODES_STATS             | Due to high amount of data, this job is only available for postgresql and timescaledb                                    |
+</details>
 
 # 📚 Documentation
 
@@ -405,21 +407,10 @@ If PasarGuard helps you, consider supporting its development:
 
 ---
 
-# 📄 License
-
-<div align="left">
-
-**📜 License:** [AGPL-3.0](./LICENSE) ✅ **Open Source**
-
-**Made with ❤️**
-
-</div>
-
----
 
 # 🌟 Contributors
 
-<div align="center">
+<div align="left">
 
 > **We ❤️ contributors!**
 
