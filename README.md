@@ -10,7 +10,7 @@
 <h1 align="center">🛡️ PasarGuard</h1>
 
 <p align="center">
-    <strong>Unified GUI Censorship Resistant Solution</strong>
+    <strong>Unified & Censorship-Resistant Proxy Management Solution</strong>
 </p>
 
 ---
