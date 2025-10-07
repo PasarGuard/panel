@@ -67,12 +67,6 @@
 -   [🚀 Installation guide](#-installation-guide)
 -   [⚙️ Configuration](#-configuration)
 -   [📚 Documentation](#-documentation)
--   [🔌 API](#-api)
--   [💾 Backup](#-backup)
--   [🤖 Telegram Bot](#-telegram-bot)
--   [💻 PasarGuard CLI](#-pasarguard-cli)
--   [🌐 PasarGuard Node](#-node)
--   [🔔 Webhook notifications](#-webhook-notifications)
 -   [💖 Donation](#-donation)
 -   [📄 License](#-license)
 -   [🌟 Contributors](#-contributors)
@@ -104,7 +98,7 @@ PasarGuard is user-friendly, feature-rich and reliable. It lets you to create di
 -   🤖 Integrated **Telegram Bot**
 -   💻 Integrated **Command Line Interface (CLI)**
 -   🌐 **Multi-language**
--   👨‍💼 **Multi-admin** support
+-   👨‍💼 **Multi-admin** support (WIP)
 
 # 🚀 Installation guide
 
@@ -330,104 +324,6 @@ By default the app will be run on `http://localhost:8000/dashboard`. You can con
 # 📚 Documentation
 
 The [PasarGuard Documentation](https://PasarGuard.github.io/PasarGuard) provides all the essential guides to get you started, available in three languages: Farsi, English, and Russian. This documentation requires significant effort to cover all aspects of the project comprehensively. We welcome and appreciate your contributions to help us improve it. You can contribute on this [GitHub repository](https://github.com/PasarGuard/PasarGuard.github.io).
-
-# 🔌 API
-
-PasarGuard provides a REST API that enables developers to interact with PasarGuard services programmatically. To view the API documentation in Swagger UI or ReDoc, set the configuration variable `DOCS=True` and navigate to the `/docs` and `/redoc`.
-
-# 💾 Backup
-
-It's always a good idea to backup your PasarGuard files regularly to prevent data loss in case of system failures or accidental deletion. Here are the steps to backup PasarGuard:
-
-1. By default, all PasarGuard important files are saved in `/var/lib/pasarguard` (Docker versions). Copy the entire `/var/lib/pasarguard` directory to a backup location of your choice, such as an external hard drive or cloud storage.
-2. Additionally, make sure to backup your env file, which contains your configuration variables, and also, your Xray config file. If you installed PasarGuard using PasarGuard-scripts (recommended installation approach), the env and other configurations should be inside `/opt/pasarguard/` directory.
-
-PasarGuard's backup service efficiently zips all necessary files and sends them to your specified Telegram bot. It supports SQLite, MySQL, and MariaDB databases. One of its key features is automation, allowing you to schedule backups every hour. There are no limitations concerning Telegram's upload limits for bots; if a file exceeds the limit, it will be split and sent in multiple parts. Additionally, you can initiate an immediate backup at any time.
-
-Install the Latest Version of PasarGuard Command:
-
-```bash
-sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install-script
-```
-
-Setup the Backup Service:
-
-```bash
-pasarguard backup-service
-```
-
-Get an Immediate Backup:
-
-```bash
-pasarguard backup
-```
-
-By following these steps, you can ensure that you have a backup of all your PasarGuard files and data, as well as your configuration variables and Xray configuration, in case you need to restore them in the future. Remember to update your backups regularly to keep them up-to-date.
-
-# 🤖 Telegram Bot
-
-PasarGuard comes with an integrated Telegram bot that can handle server management, user creation and removal, and send notifications. This bot can be easily enabled by following a few simple steps, and it provides a convenient way to interact with PasarGuard without having to log in to the server every time.
-
-To enable Telegram Bot:
-
-1. set `TELEGRAM_API_TOKEN` to your bot's API Token
-2. set `TELEGRAM_ADMIN_ID` to your Telegram account's numeric ID, you can get your ID from [@userinfobot](https://t.me/userinfobot)
-
-# 💻 PasarGuard CLI
-
-PasarGuard comes with an integrated CLI named `PasarGuard-cli` which allows administrators to have direct interaction with it.
-
-If you've installed PasarGuard using easy install script, you can access the cli commands by running
-
-```bash
-pasarguard cli [OPTIONS] COMMAND [ARGS]...
-```
-
-For more information, You can read [PasarGuard CLI's documentation](./cli/README.md).
-
-# 🖥️ PasarGuard TUI
-
-PasarGuard also provides a Terminal User Interface (TUI) for interactive management directly within your terminal.
-
-If you've installed PasarGuard using the easy install script, you can access the TUI by running:
-
-```bash
-pasarguard tui
-```
-
-For more information, you can read [PasarGuard TUI's documentation](./tui/README.md).
-
-# 🌐 PasarGuard Node
-
-The PasarGuard project introduces the [node](https://github.com/PasarGuard/node), which revolutionizes infrastructure distribution. With node, you can distribute your infrastructure across multiple locations, unlocking benefits such as redundancy, high availability, scalability, flexibility. node empowers users to connect to different servers, offering them the flexibility to choose and connect to multiple servers instead of being limited to only one server.
-For more detailed information and installation instructions, please refer to the [PasarGuard-node official documentation](https://github.com/PasarGuard/node)
-
-# 🔔 Webhook notifications
-
-You can set a webhook address and PasarGuard will send the notifications to that address.
-
-the requests will be sent as a post request to the adress provided by `WEBHOOK_ADDRESS` with `WEBHOOK_SECRET` as `x-webhook-secret` in the headers.
-
-Example request sent from PasarGuard:
-
-```
-Headers:
-Host: 0.0.0.0:9000
-User-Agent: python-requests/2.28.1
-Accept-Encoding: gzip, deflate
-Accept: */*
-Connection: keep-alive
-x-webhook-secret: something-very-very-secret
-Content-Length: 107
-Content-Type: application/json
-
-
-
-Body:
-{"username": "PasarGuard_test_user", "action": "user_updated", "enqueued_at": 1680506457.636369, "tries": 0}
-```
-
-Different action typs are: `user_created`, `user_updated`, `user_deleted`, `user_limited`, `user_expired`, `user_disabled`, `user_enabled`
 
 # 💖 Donation
 
