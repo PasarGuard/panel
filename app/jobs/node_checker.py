@@ -55,7 +55,7 @@ async def node_health_check():
         db_nodes = await get_nodes(db=db, enabled=True)
         dict_nodes = await node_manager.get_nodes()
 
-        check_tasks = [check_health(db_node, dict_nodes[db_node.id]) for db_node in db_nodes]
+        check_tasks = [check_health(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
         await asyncio.gather(*check_tasks, return_exceptions=True)
 
 
