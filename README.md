@@ -132,11 +132,16 @@ PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool.
 
 > **Quick Start** - Get PasarGuard running in minutes
 
-### ⚠️ These commands install pre-release versions (alpha/beta)
+### For a quick setup, use the following commands based on your preferred database.
 
 ---
 
-**SQLite (Default):**
+***TimescaledB (Recommended):**
+```bash
+sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb --pre-release
+```
+
+**SQLite:**
 ```bash
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --pre-release
 ```
