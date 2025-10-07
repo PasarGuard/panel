@@ -95,7 +95,7 @@ PasarGuard is user-friendly, feature-rich, and reliable. You can create differen
 
 ### ✨ Features
 
-<div align="center">
+<div align="left">
 
 **🌐 Web Interface & API**
 - Built-in **Web UI** dashboard
