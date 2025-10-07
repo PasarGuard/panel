@@ -39,7 +39,7 @@
 
 <p align="center">
  <a href="./README.md">
- English
+ 🇺🇸 English
  </a>
  /
  <a href="./README-fa.md">
@@ -47,11 +47,11 @@
  </a>
   /
   <a href="./README-zh-cn.md">
- 简体中文
+ 🇨🇳 简体中文
  </a>
    /
   <a href="./README-ru.md">
- Русский
+ 🇷🇺 Русский
  </a>
 </p>
 
