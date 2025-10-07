@@ -136,7 +136,7 @@ PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool.
 
 ---
 
-***TimescaledB (Recommended):**
+**TimescaledB (Recommended):**
 ```bash
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb --pre-release
 ```
