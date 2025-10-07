@@ -73,11 +73,11 @@
 
 # 📖 Overview
 
-PasarGuard is a proxy management tool that provides a simple and easy-to-use user interface for managing hundreds of proxy accounts powered by [Xray-core](https://github.com/XTLS/Xray-core) and built using Python and Reactjs.
+PasarGuard is a powerful proxy management tool that makes it easy to manage hundreds of proxy accounts. Built with Python and React, it's powered by [Xray-core](https://github.com/XTLS/Xray-core) for maximum performance.
 
 ## 🤔 Why using PasarGuard?
 
-PasarGuard is user-friendly, feature-rich and reliable. It lets you to create different proxies for your users without any complicated configuration. Using its built-in web UI, you are able to monitor, modify and limit users.
+PasarGuard is user-friendly, feature-rich, and reliable. You can create different proxies for your users without complicated configuration. The built-in web UI lets you easily monitor, modify, and limit users.
 
 ### ✨ Features
 
@@ -102,79 +102,70 @@ PasarGuard is user-friendly, feature-rich and reliable. It lets you to create di
 
 # 🚀 Installation guide
 
-### ⚠️ The following commands will install the pre release versions (alpha/beta)
+### ⚠️ These commands install pre-release versions (alpha/beta)
 
-Run the following command to install PasarGuard with SQLite database:
-
+**SQLite (Default):**
 ```bash
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --pre-release
 ```
 
-Run the following command to install PasarGuard with MySQL database:
-
+**MySQL:**
 ```bash
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mysql --pre-release
 ```
 
-Run the following command to install PasarGuard with MariaDB database:
-
+**MariaDB:**
 ```bash
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb --pre-release
 ```
 
-Run the following command to install PasarGuard with PostgreSQL database:
-
+**PostgreSQL:**
 ```bash
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql --pre-release
 ```
 
-Once the installation is complete:
+**After installation:**
 
--   📋 You will see the logs that you can stop watching them by closing the terminal or pressing `Ctrl+C`
--   📁 The PasarGuard files will be located at `/opt/pasarguard`
--   ⚙️ The configuration file can be found at `/opt/pasarguard/.env` (refer to [configurations](#-configuration) section to see variables)
--   💾 The data files will be placed at `/var/lib/pasarguard`
--   🔒 For security reasons, the PasarGuard dashboard is not accessible via IP address. Therefore, you must [obtain SSL certificate](https://PasarGuard.github.io/PasarGuard/en/examples/issue-ssl-certificate) and access your PasarGuard dashboard by opening a web browser and navigating to `https://YOUR_DOMAIN:8000/dashboard/` (replace YOUR_DOMAIN with your actual domain)
--   🔗 You can also use SSH port forwarding to access the PasarGuard dashboard locally without a domain. Replace `user@serverip` with your actual SSH username and server IP and Run the command below:
+-   📋 Watch the logs (press `Ctrl+C` to stop)
+-   📁 Files are located at `/opt/pasarguard`
+-   ⚙️ Config file: `/opt/pasarguard/.env` (see [Configuration](#-configuration) for details)
+-   💾 Data files: `/var/lib/pasarguard`
+-   🔒 **Important:** Dashboard requires SSL certificate for security
+    - Get SSL certificate: [Guide](https://PasarGuard.github.io/PasarGuard/en/examples/issue-ssl-certificate)
+    - Access: `https://YOUR_DOMAIN:8000/dashboard/`
+-   🔗 **For testing without domain:** Use SSH port forwarding:
 
 ```bash
 ssh -L 8000:localhost:8000 user@serverip
 ```
 
-Finally, you can enter the following link in your browser to access your PasarGuard dashboard:
+Then access: `http://localhost:8000/dashboard/`
 
-http://localhost:8000/dashboard/
+> ⚠️ This method is for testing only - you'll lose access when you close the SSH terminal.
 
-You will lose access to the dashboard as soon as you close the SSH terminal. Therefore, this method is recommended only for testing purposes.
-
-Next, you need to create a sudo admin for logging into the PasarGuard dashboard by the following command
-
+**Create admin account:**
 ```bash
 pasarguard cli admin create --sudo
 ```
 
-That's it! You can login to your dashboard using these credentials
-
-To see the help message of the PasarGuard script, run the following command
-
+**Get help:**
 ```bash
 pasarguard --help
 ```
 
-If you are eager to run the project using the source code, check the section below
+**For source code installation, see the advanced section below:**
 
 <details markdown="1">
 <summary><h3>🏗️ Manual install (advanced)</h3></summary>
 
-Install xray on your machine
-
-You can install it using [Xray-install](https://github.com/XTLS/Xray-install)
+**1. Install Xray:**
+Use [Xray-install](https://github.com/XTLS/Xray-install)
 
 ```bash
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 ```
 
-Clone this project and install the dependencies (you need Python >= 3.12.7)
+**2. Clone and setup (Python >= 3.12.7 required):**
 
 ```bash
 git clone https://github.com/PasarGuard/panel.git
@@ -183,15 +174,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
-Alternatively, to have an isolated environment you can use [Python Virtualenv](https://pypi.org/project/virtualenv/)
-
-Then run the following command to run the database migration scripts
+**3. Database migration:**
 
 ```bash
 uv run alembic upgrade head
 ```
 
-If you want to use `PasarGuard-cli`, you should link it to a file in your `$PATH`, make it executable, and install the auto-completion:
+**4. Setup CLI (optional):**
 
 ```bash
 sudo ln -s $(pwd)/pasarguard-cli.py /usr/bin/pasarguard-cli
@@ -199,11 +188,8 @@ sudo chmod +x /usr/bin/pasarguard-cli
 pasarguard-cli completion install
 ```
 
-Now it's time to configuration
-
-Make a copy of `.env.example` file, take a look and edit it using a text editor like `nano`.
-
-You probably like to modify the admin credentials.
+**5. Configuration:**
+Copy and edit the config file (modify admin credentials):
 
 ```bash
 cp .env.example .env
@@ -212,20 +198,21 @@ nano .env
 
 > 📖 Check [configurations](#-configuration) section for more information
 
-Eventually, launch the application using command below
+**6. Launch the application:**
 
 ```bash
 uv run main.py
 ```
 
-To launch with linux systemctl (copy PasarGuard.service file to `/var/lib/pasarguard/PasarGuard.service`)
+**7. Run as service (optional):**
+Copy PasarGuard.service to `/var/lib/pasarguard/PasarGuard.service`
 
 ```
 systemctl enable /var/lib/pasarguard/PasarGuard.service
 systemctl start PasarGuard
 ```
 
-To use with nginx
+**8. Nginx configuration:**
 
 ```
 server {
@@ -283,13 +270,14 @@ server {
 }
 ```
 
-By default the app will be run on `http://localhost:8000/dashboard`. You can configure it using changing the `UVICORN_HOST` and `UVICORN_PORT` environment variables.
+**Default:** App runs on `http://localhost:8000/dashboard`
+**Customize:** Change `UVICORN_HOST` and `UVICORN_PORT` in your `.env` file
 
 </details>
 
 # ⚙️ Configuration
 
-> You can set settings below using environment variables or placing them in `.env` file.
+> Configure these settings using environment variables or by adding them to your `.env` file.
 
 
 
@@ -323,13 +311,17 @@ By default the app will be run on `http://localhost:8000/dashboard`. You can con
 
 # 📚 Documentation
 
-The [PasarGuard Documentation](https://PasarGuard.github.io/PasarGuard) provides all the essential guides to get you started, available in three languages: Farsi, English, and Russian. This documentation requires significant effort to cover all aspects of the project comprehensively. We welcome and appreciate your contributions to help us improve it. You can contribute on this [GitHub repository](https://github.com/PasarGuard/PasarGuard.github.io).
+📖 **[Official Documentation](https://PasarGuard.github.io/PasarGuard)** - Complete guides in Farsi, English, and Russian.
+
+We welcome contributions to help improve the documentation. You can contribute on this [GitHub repository](https://github.com/PasarGuard/PasarGuard.github.io).
 
 # 💖 Donation
 
-If you found PasarGuard useful and would like to support its development, you can make a donation, [Click Here](http://donate.pasarguard.org)
+If PasarGuard helps you, consider supporting its development:
 
-Thank you for your support!
+[![Donate](https://img.shields.io/badge/Donate-Support%20Us-green?style=for-the-badge)](http://donate.pasarguard.org)
+
+Thank you for your support! 💖
 
 # 📄 License
 
@@ -337,9 +329,11 @@ Made in [Unknown!] and Published under [AGPL-3.0](./LICENSE).
 
 # 🌟 Contributors
 
-We ❤️‍🔥 contributors! If you'd like to contribute, please check out our [Contributing Guidelines](CONTRIBUTING.md) and feel free to submit a pull request or open an issue. We also welcome you to join our [Telegram](https://t.me/Pasar_Guard) group for either support or contributing guidance.
+We ❤️ contributors! Help us improve PasarGuard:
 
-Check [open issues](https://github.com/PasarGuard/panel/issues) to help the progress of this project.
+- 🐛 [Report Issues](https://github.com/PasarGuard/panel/issues)
+- 📝 [Contribute Code](CONTRIBUTING.md)
+- 💬 [Join Telegram](https://t.me/Pasar_Guard) for support and guidance
 
 <p align="center">
 Thanks to the all contributors who have helped improve PasarGuard:
