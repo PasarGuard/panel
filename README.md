@@ -43,7 +43,7 @@
  </a>
  /
  <a href="./README-fa.md">
- فارسی
+ 🇮🇷 فارسی
  </a>
   /
   <a href="./README-zh-cn.md">
