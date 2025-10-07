@@ -80,7 +80,7 @@
 
 > **What is PasarGuard?**
 
-PasarGuard is a powerful proxy management tool that makes it easy to manage hundreds of proxy accounts. Built with Python and React, it's powered by [Xray-core](https://github.com/XTLS/Xray-core) for maximum performance.
+PasarGuard is a powerful proxy management tool that offers an intuitive and efficient interface for handling hundreds of proxy accounts. Built with Python and React.js it combines performance, scalability, and ease of use to simplify large-scale proxy management. it's powered by [Xray-core](https://github.com/XTLS/Xray-core) for maximum performance.
 
 ---
 
@@ -88,7 +88,7 @@ PasarGuard is a powerful proxy management tool that makes it easy to manage hund
 
 > **Simple, Powerful, Reliable**
 
-PasarGuard is user-friendly, feature-rich, and reliable. You can create different proxies for your users without complicated configuration. The built-in web UI lets you easily monitor, modify, and limit users.
+PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool. It allows you to create and manage multiple proxies for your users without the need for complex configuration. With its built-in web interface, you can easily monitor activity, modify settings, and control user access limits — all from one convenient dashboard.
 
 ---
 
@@ -433,5 +433,5 @@ Thanks to the all contributors who have helped improve PasarGuard:
 </a>
 </p>
 <p align="center">
-  Made with <a rel="noopener noreferrer" target="_blank" href="https://contrib.rocks">contrib.rocks</a>
+  Made with ❤️ for Internet freedom — powered by <a href="https://contrib.rocks" target="_blank" rel="noopener noreferrer">contrib.rocks</a>
 </p>
