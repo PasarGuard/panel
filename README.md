@@ -10,8 +10,10 @@
 <h1 align="center">🛡️ PasarGuard</h1>
 
 <p align="center">
-    Unified GUI Censorship Resistant Solution
+    <strong>Unified GUI Censorship Resistant Solution</strong>
 </p>
+
+---
 
 <br/>
 <p align="center">
@@ -61,6 +63,8 @@
 
 ## 📋 Table of Contents
 
+> **Quick Navigation** - Jump to any section below
+
 -   [📖 Overview](#-overview)
     -   [🤔 Why using PasarGuard?](#-why-using-pasarguard)
         -   [✨ Features](#-features)
@@ -71,38 +75,55 @@
 -   [📄 License](#-license)
 -   [🌟 Contributors](#-contributors)
 
+---
+
 # 📖 Overview
+
+> **What is PasarGuard?**
 
 PasarGuard is a powerful proxy management tool that makes it easy to manage hundreds of proxy accounts. Built with Python and React, it's powered by [Xray-core](https://github.com/XTLS/Xray-core) for maximum performance.
 
+---
+
 ## 🤔 Why using PasarGuard?
+
+> **Simple, Powerful, Reliable**
 
 PasarGuard is user-friendly, feature-rich, and reliable. You can create different proxies for your users without complicated configuration. The built-in web UI lets you easily monitor, modify, and limit users.
 
+---
+
 ### ✨ Features
 
--   🌐 Built-in **Web UI**
--   🔌 Fully **REST API** backend
--   🌍 [**Multiple Nodes**](#-node) support (for infrastructure distribution & scalability)
--   🔐 Supports protocols **Vmess**, **VLESS**, **Trojan** and **Shadowsocks**
--   🔄 **Multi-protocol** for a single user
--   👥 **Multi-user** on a single inbound
--   🔗 **Multi-inbound** on a **single port** (fallbacks support)
--   📊 **Traffic** and **expiry date** limitations
--   ⏰ **Periodic** traffic limit (e.g. daily, weekly, etc.)
--   🔗 **Subscription link** compatible with **V2ray** _(such as V2RayNG, SingBox, Nekoray, etc.)_, **Clash** and **ClashMeta**
--   🤖 Automated **Share link** and **QRcode** generator
--   📈 System monitoring and **traffic statistics**
--   ⚙️ Customizable xray configuration
--   🔒 **TLS** and **REALITY** support
--   🤖 Integrated **Telegram Bot**
--   💻 Integrated **Command Line Interface (CLI)**
--   🌐 **Multi-language**
--   👨‍💼 **Multi-admin** support (WIP)
+<div align="center">
+
+| 🌐 **Web UI** | 🔌 **REST API** | 🌍 **Multi-Node** |
+|:---:|:---:|:---:|
+| Built-in dashboard | Full backend API | Infrastructure distribution |
+
+| 🔐 **Protocols** | 👥 **Multi-User** | 📊 **Traffic Control** |
+|:---:|:---:|:---:|
+| VMess, VLESS, Trojan, Shadowsocks | Single inbound support | Limits & expiry dates |
+
+| 🔗 **Subscriptions** | 🤖 **Automation** | 📈 **Monitoring** |
+|:---:|:---:|:---:|
+| V2Ray, Clash, ClashMeta | Share links & QR codes | Real-time statistics |
+
+| 🔒 **Security** | 💻 **CLI/TUI** | 🌐 **Multi-Language** |
+|:---:|:---:|:---:|
+| TLS & REALITY support | Command line tools | Multiple languages |
+
+</div>
+
+---
 
 # 🚀 Installation guide
 
+> **Quick Start** - Get PasarGuard running in minutes
+
 ### ⚠️ These commands install pre-release versions (alpha/beta)
+
+---
 
 **SQLite (Default):**
 ```bash
@@ -124,16 +145,23 @@ sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasargua
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql --pre-release
 ```
 
-**After installation:**
+### 📋 After installation:
 
--   📋 Watch the logs (press `Ctrl+C` to stop)
--   📁 Files are located at `/opt/pasarguard`
--   ⚙️ Config file: `/opt/pasarguard/.env` (see [Configuration](#-configuration) for details)
--   💾 Data files: `/var/lib/pasarguard`
--   🔒 **Important:** Dashboard requires SSL certificate for security
-    - Get SSL certificate: [Guide](https://PasarGuard.github.io/PasarGuard/en/examples/issue-ssl-certificate)
-    - Access: `https://YOUR_DOMAIN:8000/dashboard/`
--   🔗 **For testing without domain:** Use SSH port forwarding:
+<div align="left">
+
+| Step | Action | Details |
+|:---:|:---|:---|
+| 📋 | **Watch logs** | Press `Ctrl+C` to stop |
+| 📁 | **Files location** | `/opt/pasarguard` |
+| ⚙️ | **Config file** | `/opt/pasarguard/.env` |
+| 💾 | **Data files** | `/var/lib/pasarguard` |
+| 🔒 | **SSL Required** | [Get certificate](https://PasarGuard.github.io/PasarGuard/en/examples/issue-ssl-certificate) |
+| 🌐 | **Access dashboard** | `https://YOUR_DOMAIN:8000/dashboard/` |
+| 🔗 | **Testing mode** | SSH port forwarding (see below) |
+
+</div>
+
+---
 
 ```bash
 ssh -L 8000:localhost:8000 user@serverip
@@ -141,31 +169,40 @@ ssh -L 8000:localhost:8000 user@serverip
 
 Then access: `http://localhost:8000/dashboard/`
 
-> ⚠️ This method is for testing only - you'll lose access when you close the SSH terminal.
+> ⚠️ **Testing only** - You'll lose access when you close the SSH terminal.
 
-**Create admin account:**
+### 🔧 Next Steps:
+
 ```bash
+# Create admin account
 pasarguard cli admin create --sudo
-```
 
-**Get help:**
-```bash
+# Get help
 pasarguard --help
 ```
 
-**For source code installation, see the advanced section below:**
+> 📖 **Advanced users:** See manual installation section below
+
+---
 
 <details markdown="1">
 <summary><h3>🏗️ Manual install (advanced)</h3></summary>
 
-**1. Install Xray:**
-Use [Xray-install](https://github.com/XTLS/Xray-install)
+> **For developers and advanced users**
+
+---
+
+### **1. Install Xray:**
+
+> Use [Xray-install](https://github.com/XTLS/Xray-install)
 
 ```bash
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 ```
 
-**2. Clone and setup (Python >= 3.12.7 required):**
+### **2. Clone and setup:**
+
+> **Requires Python >= 3.12.7**
 
 ```bash
 git clone https://github.com/PasarGuard/panel.git
@@ -174,13 +211,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
-**3. Database migration:**
+### **3. Database migration:**
 
 ```bash
 uv run alembic upgrade head
 ```
 
-**4. Setup CLI (optional):**
+### **4. Setup CLI (optional):**
 
 ```bash
 sudo ln -s $(pwd)/pasarguard-cli.py /usr/bin/pasarguard-cli
@@ -188,8 +225,9 @@ sudo chmod +x /usr/bin/pasarguard-cli
 pasarguard-cli completion install
 ```
 
-**5. Configuration:**
-Copy and edit the config file (modify admin credentials):
+### **5. Configuration:**
+
+> Copy and edit the config file (modify admin credentials):
 
 ```bash
 cp .env.example .env
@@ -198,21 +236,22 @@ nano .env
 
 > 📖 Check [configurations](#-configuration) section for more information
 
-**6. Launch the application:**
+### **6. Launch the application:**
 
 ```bash
 uv run main.py
 ```
 
-**7. Run as service (optional):**
-Copy PasarGuard.service to `/var/lib/pasarguard/PasarGuard.service`
+### **7. Run as service (optional):**
+
+> Copy PasarGuard.service to `/var/lib/pasarguard/PasarGuard.service`
 
 ```
 systemctl enable /var/lib/pasarguard/PasarGuard.service
 systemctl start PasarGuard
 ```
 
-**8. Nginx configuration:**
+### **8. Nginx configuration:**
 
 ```
 server {
@@ -270,14 +309,21 @@ server {
 }
 ```
 
-**Default:** App runs on `http://localhost:8000/dashboard`
-**Customize:** Change `UVICORN_HOST` and `UVICORN_PORT` in your `.env` file
+### **Default Settings:**
+
+| Setting | Value | Customize |
+|:---:|:---|:---|
+| **URL** | `http://localhost:8000/dashboard` | Change `UVICORN_HOST` and `UVICORN_PORT` in `.env` |
+
+---
 
 </details>
 
 # ⚙️ Configuration
 
-> Configure these settings using environment variables or by adding them to your `.env` file.
+> **Environment Variables** - Configure these settings using environment variables or by adding them to your `.env` file.
+
+---
 
 
 
@@ -311,29 +357,65 @@ server {
 
 # 📚 Documentation
 
-📖 **[Official Documentation](https://PasarGuard.github.io/PasarGuard)** - Complete guides in Farsi, English, and Russian.
+<div align="center">
 
-We welcome contributions to help improve the documentation. You can contribute on this [GitHub repository](https://github.com/PasarGuard/PasarGuard.github.io).
+| Language | Documentation |
+|:---:|:---|
+| 🇺🇸 | [English](https://PasarGuard.github.io/PasarGuard) |
+| 🇮🇷 | [فارسی](https://PasarGuard.github.io/PasarGuard) |
+| 🇷🇺 | [Русский](https://PasarGuard.github.io/PasarGuard) |
+
+</div>
+
+> **Contributing:** Help improve documentation on [GitHub](https://github.com/PasarGuard/PasarGuard.github.io)
+
+---
 
 # 💖 Donation
+
+<div align="center">
+
+> **Support PasarGuard Development**
 
 If PasarGuard helps you, consider supporting its development:
 
 [![Donate](https://img.shields.io/badge/Donate-Support%20Us-green?style=for-the-badge)](http://donate.pasarguard.org)
 
-Thank you for your support! 💖
+**Thank you for your support!** 💖
+
+</div>
+
+---
 
 # 📄 License
 
-Made in [Unknown!] and Published under [AGPL-3.0](./LICENSE).
+<div align="center">
+
+| License | Status |
+|:---:|:---|
+| [AGPL-3.0](./LICENSE) | ✅ Open Source |
+
+**Made with ❤️**
+
+</div>
+
+---
 
 # 🌟 Contributors
 
-We ❤️ contributors! Help us improve PasarGuard:
+<div align="center">
 
-- 🐛 [Report Issues](https://github.com/PasarGuard/panel/issues)
-- 📝 [Contribute Code](CONTRIBUTING.md)
-- 💬 [Join Telegram](https://t.me/Pasar_Guard) for support and guidance
+> **We ❤️ contributors!**
+
+| Action | Link |
+|:---:|:---|
+| 🐛 **Report Issues** | [GitHub Issues](https://github.com/PasarGuard/panel/issues) |
+| 📝 **Contribute Code** | [Contributing Guide](CONTRIBUTING.md) |
+| 💬 **Get Support** | [Telegram Group](https://t.me/Pasar_Guard) |
+
+</div>
+
+---
 
 <p align="center">
 Thanks to the all contributors who have helped improve PasarGuard:
