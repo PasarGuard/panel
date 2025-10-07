@@ -97,21 +97,33 @@ PasarGuard is user-friendly, feature-rich, and reliable. You can create differen
 
 <div align="center">
 
-| 🌐 **Web UI** | 🔌 **REST API** | 🌍 **Multi-Node** |
-|:---:|:---:|:---:|
-| Built-in dashboard | Full backend API | Infrastructure distribution |
+**🌐 Web Interface & API**
+- Built-in **Web UI** dashboard
+- Fully **REST API** backend
+- **Multi-Node** support for infrastructure distribution
 
-| 🔐 **Protocols** | 👥 **Multi-User** | 📊 **Traffic Control** |
-|:---:|:---:|:---:|
-| VMess, VLESS, Trojan, Shadowsocks | Single inbound support | Limits & expiry dates |
+**🔐 Protocols & Security**
+- Supports **Vmess**, **VLESS**, **Trojan** and **Shadowsocks**
+- **TLS** and **REALITY** support
+- **Multi-protocol** for a single user
 
-| 🔗 **Subscriptions** | 🤖 **Automation** | 📈 **Monitoring** |
-|:---:|:---:|:---:|
-| V2Ray, Clash, ClashMeta | Share links & QR codes | Real-time statistics |
+**👥 User Management**
+- **Multi-user** on a single inbound
+- **Multi-inbound** on a **single port** (fallbacks support)
+- **Traffic** and **expiry date** limitations
+- **Periodic** traffic limit (daily, weekly, etc.)
 
-| 🔒 **Security** | 💻 **CLI/TUI** | 🌐 **Multi-Language** |
-|:---:|:---:|:---:|
-| TLS & REALITY support | Command line tools | Multiple languages |
+**🔗 Subscriptions & Sharing**
+- **Subscription link** compatible with **V2ray**, **Clash** and **ClashMeta**
+- Automated **Share link** and **QRcode** generator
+- System monitoring and **traffic statistics**
+
+**🛠️ Tools & Customization**
+- Customizable xray configuration
+- Integrated **Telegram Bot**
+- **Command Line Interface (CLI)**
+- **Multi-language** support
+- **Multi-admin** support (WIP)
 
 </div>
 
