@@ -7,10 +7,10 @@
   </a>
 </p>
 
-<h1 align="center"/>PasarGuard</h1>
+<h1 align="center">🛡️ PasarGuard</h1>
 
 <p align="center">
-    Unified GUI Censorship Resistant Solution
+    <strong>Unified GUI Censorship Resistant Solution</strong>
 </p>
 
 <br/>
@@ -59,400 +59,185 @@
   </a>
 </p>
 
-## Table of Contents
+## ✨ What is PasarGuard?
 
--   [Overview](#overview)
-    -   [Why using PasarGuard?](#why-using-PasarGuard)
-        -   [Features](#features)
--   [Installation guide](#installation-guide)
--   [Configuration](#configuration)
--   [Documentation](#documentation)
--   [API](#api)
--   [Backup](#backup)
--   [Telegram Bot](#telegram-bot)
--   [PasarGuard CLI](#PasarGuard-cli)
--   [PasarGuard Node](#node)
--   [Webhook notifications](#webhook-notifications)
--   [Donation](#donation)
--   [License](#license)
--   [Contributors](#contributors)
+PasarGuard is a powerful proxy management tool that provides a simple, user-friendly interface for managing hundreds of proxy accounts. Built with Python and React, it's powered by [Xray-core](https://github.com/XTLS/Xray-core) for maximum performance and reliability.
 
-# Overview
+### 🚀 Key Features
 
-PasarGuard is a proxy management tool that provides a simple and easy-to-use user interface for managing hundreds of proxy accounts powered by [Xray-core](https://github.com/XTLS/Xray-core) and built using Python and Reactjs.
+- 🌐 **Built-in Web UI** - Intuitive dashboard for easy management
+- 🔌 **REST API** - Full programmatic access
+- 🌍 **Multi-Node Support** - Distribute infrastructure across locations
+- 🔐 **Multiple Protocols** - VMess, VLESS, Trojan, Shadowsocks
+- 📊 **Traffic Management** - Limits, expiry dates, periodic restrictions
+- 🔗 **Subscription Links** - Compatible with V2Ray, Clash, ClashMeta
+- 📱 **QR Code Generation** - Instant sharing capabilities
+- 📈 **Real-time Statistics** - Monitor usage and performance
+- 🔒 **TLS & REALITY** - Advanced security features
+- 🤖 **Telegram Bot** - Manage via Telegram
+- 💻 **CLI & TUI** - Command-line interfaces
+- 🌐 **Multi-language** - Support for multiple languages
 
-## Why using PasarGuard?
+## 🚀 Quick Start
 
-PasarGuard is user-friendly, feature-rich and reliable. It lets you to create different proxies for your users without any complicated configuration. Using its built-in web UI, you are able to monitor, modify and limit users.
+### One-Command Installation
 
-### Features
-
--   Built-in **Web UI**
--   Fully **REST API** backend
--   [**Multiple Nodes**](#node) support (for infrastructure distribution & scalability)
--   Supports protocols **Vmess**, **VLESS**, **Trojan** and **Shadowsocks**
--   **Multi-protocol** for a single user
--   **Multi-user** on a single inbound
--   **Multi-inbound** on a **single port** (fallbacks support)
--   **Traffic** and **expiry date** limitations
--   **Periodic** traffic limit (e.g. daily, weekly, etc.)
--   **Subscription link** compatible with **V2ray** _(such as V2RayNG, SingBox, Nekoray, etc.)_, **Clash** and **ClashMeta**
--   Automated **Share link** and **QRcode** generator
--   System monitoring and **traffic statistics**
--   Customizable xray configuration
--   **TLS** and **REALITY** support
--   Integrated **Telegram Bot**
--   Integrated **Command Line Interface (CLI)**
--   **Multi-language**
--   **Multi-admin** support (WIP)
-
-# Installation guide
-
-### ⚠️ The following commands will install the pre release versions (alpha/beta)
-
-Run the following command to install PasarGuard with SQLite database:
+Choose your preferred database:
 
 ```bash
+# SQLite (Default)
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --pre-release
-```
 
-Run the following command to install PasarGuard with MySQL database:
-
-```bash
+# MySQL
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mysql --pre-release
-```
 
-Run the following command to install PasarGuard with MariaDB database:
-
-```bash
+# MariaDB
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb --pre-release
-```
 
-Run the following command to install PasarGuard with PostgreSQL database:
-
-```bash
+# PostgreSQL
 sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql --pre-release
 ```
 
-Once the installation is complete:
+### 🎯 Post-Installation Steps
 
--   You will see the logs that you can stop watching them by closing the terminal or pressing `Ctrl+C`
--   The PasarGuard files will be located at `/opt/pasarguard`
--   The configuration file can be found at `/opt/pasarguard/.env` (refer to [configurations](#configuration) section to see variables)
--   The data files will be placed at `/var/lib/pasarguard`
--   For security reasons, the PasarGuard dashboard is not accessible via IP address. Therefore, you must [obtain SSL certificate](https://PasarGuard.github.io/PasarGuard/en/examples/issue-ssl-certificate) and access your PasarGuard dashboard by opening a web browser and navigating to `https://YOUR_DOMAIN:8000/dashboard/` (replace YOUR_DOMAIN with your actual domain)
--   You can also use SSH port forwarding to access the PasarGuard dashboard locally without a domain. Replace `user@serverip` with your actual SSH username and server IP and Run the command below:
+1. **Access Dashboard**: Navigate to `https://YOUR_DOMAIN:8000/dashboard/`
+2. **Create Admin**: Run `pasarguard cli admin create --sudo`
+3. **Login**: Use your credentials to access the dashboard
 
+> 💡 **Tip**: For testing without a domain, use SSH port forwarding:
+> ```bash
+> ssh -L 8000:localhost:8000 user@serverip
+> ```
+> Then access: `http://localhost:8000/dashboard/`
+
+## ⚙️ Configuration
+
+Key environment variables (set in `.env` file):
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SUDO_USERNAME` | Superuser username | - |
+| `SUDO_PASSWORD` | Superuser password | - |
+| `SQLALCHEMY_DATABASE_URL` | Database connection URL | - |
+| `UVICORN_HOST` | Application host | `0.0.0.0` |
+| `UVICORN_PORT` | Application port | `8000` |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Token expiry (minutes) | `1440` |
+| `DOCS` | Enable API documentation | `False` |
+
+> 📖 **Full Configuration**: See the [Configuration Section](#configuration) for complete details
+
+## 📚 Documentation & Resources
+
+- 📖 **[Official Documentation](https://PasarGuard.github.io/PasarGuard)** - Complete guides in Farsi, English, and Russian
+- 🔧 **[API Documentation](./docs)** - REST API reference (enable with `DOCS=True`)
+- 💬 **[Telegram Support](https://t.me/Pasar_Guard)** - Community help and updates
+
+## 🛠️ Advanced Features
+
+### 🤖 Telegram Bot
+Enable server management via Telegram:
 ```bash
-ssh -L 8000:localhost:8000 user@serverip
+# Set in .env file
+TELEGRAM_API_TOKEN=your_bot_token
+TELEGRAM_ADMIN_ID=your_telegram_id
 ```
 
-Finally, you can enter the following link in your browser to access your PasarGuard dashboard:
-
-http://localhost:8000/dashboard/
-
-You will lose access to the dashboard as soon as you close the SSH terminal. Therefore, this method is recommended only for testing purposes.
-
-Next, you need to create a sudo admin for logging into the PasarGuard dashboard by the following command
-
-```bash
-pasarguard cli admin create --sudo
-```
-
-That's it! You can login to your dashboard using these credentials
-
-To see the help message of the PasarGuard script, run the following command
-
-```bash
-pasarguard --help
-```
-
-If you are eager to run the project using the source code, check the section below
-
-<details markdown="1">
-<summary><h3>Manual install (advanced)</h3></summary>
-
-Install xray on your machine
-
-You can install it using [Xray-install](https://github.com/XTLS/Xray-install)
-
-```bash
-bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-```
-
-Clone this project and install the dependencies (you need Python >= 3.12.7)
-
-```bash
-git clone https://github.com/PasarGuard/panel.git
-cd PasarGuard
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv sync
-```
-
-Alternatively, to have an isolated environment you can use [Python Virtualenv](https://pypi.org/project/virtualenv/)
-
-Then run the following command to run the database migration scripts
-
-```bash
-uv run alembic upgrade head
-```
-
-If you want to use `PasarGuard-cli`, you should link it to a file in your `$PATH`, make it executable, and install the auto-completion:
-
-```bash
-sudo ln -s $(pwd)/pasarguard-cli.py /usr/bin/pasarguard-cli
-sudo chmod +x /usr/bin/pasarguard-cli
-pasarguard-cli completion install
-```
-
-Now it's time to configuration
-
-Make a copy of `.env.example` file, take a look and edit it using a text editor like `nano`.
-
-You probably like to modify the admin credentials.
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-> Check [configurations](#configuration) section for more information
-
-Eventually, launch the application using command below
-
-```bash
-uv run main.py
-```
-
-To launch with linux systemctl (copy PasarGuard.service file to `/var/lib/pasarguard/PasarGuard.service`)
-
-```
-systemctl enable /var/lib/pasarguard/PasarGuard.service
-systemctl start PasarGuard
-```
-
-To use with nginx
-
-```
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name  example.com;
-
-    ssl_certificate      /etc/letsencrypt/live/example.com/fullchain.pem;
-    ssl_certificate_key  /etc/letsencrypt/live/example.com/privkey.pem;
-
-    location ~* /(dashboard|statics|sub|api|docs|redoc|openapi.json) {
-        proxy_pass http://0.0.0.0:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # xray-core ws-path: /
-    # client ws-path: /PasarGuard/me/2087
-    #
-    # All traffic is proxed through port 443, and send to the xray port(2087, 2088 etc.).
-    # The '/PasarGuard' in location regex path can changed any characters by yourself.
-    #
-    # /${path}/${username}/${xray-port}
-    location ~* /PasarGuard/.+/(.+)$ {
-        proxy_redirect off;
-        proxy_pass http://127.0.0.1:$1/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
-
-or
-
-```
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name  PasarGuard.example.com;
-
-    ssl_certificate      /etc/letsencrypt/live/example.com/fullchain.pem;
-    ssl_certificate_key  /etc/letsencrypt/live/example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://0.0.0.0:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
-
-By default the app will be run on `http://localhost:8000/dashboard`. You can configure it using changing the `UVICORN_HOST` and `UVICORN_PORT` environment variables.
-
-</details>
-
-# Configuration
-
-> You can set settings below using environment variables or placing them in `.env` file.
-
-
-
-| Variable                                 | Description                                                                                                              |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| SUDO_USERNAME                            | Superuser's username                                                                                                     |
-| SUDO_PASSWORD                            | Superuser's password                                                                                                     |
-| SQLALCHEMY_DATABASE_URL                  | Database URL ([SQLAlchemy's docs](https://docs.sqlalchemy.org/en/20/core/engines.html#database-urls))                    |
-| SQLALCHEMY_POOL_SIZE                     | (default: `10`)                                                                                                          |
-| SQLALCHEMY_MAX_OVERFLOW                  | (default: `30`)                                                                                                          |
-| UVICORN_HOST                             | Bind application to this host (default: `0.0.0.0`)                                                                       |
-| UVICORN_PORT                             | Bind application to this port (default: `8000`)                                                                          |
-| UVICORN_UDS                              | Bind application to a UNIX domain socket                                                                                 |
-| UVICORN_SSL_CERTFILE                     | SSL certificate file to have application on https                                                                        |
-| UVICORN_SSL_KEYFILE                      | SSL key file to have application on https                                                                                |
-| UVICORN_SSL_CA_TYPE                      | Type of authority SSL certificate. Use `private` for testing self-signed CA (default: `public`)                          |
-| XRAY_JSON                                | Path of Xray's json config file (default: `xray_config.json`)                                                            |
-| CUSTOM_TEMPLATES_DIRECTORY               | Customized templates directory (default: `app/templates`)                                                                |
-| CLASH_SUBSCRIPTION_TEMPLATE              | The template that will be used for generating clash configs (default: `clash/default.yml`)                               |
-| SUBSCRIPTION_PAGE_TEMPLATE               | The template used for generating subscription info page (default: `subscription/index.html`)                             |
-| XRAY_SUBSCRIPTION_TEMPLATE               | The template that will be used for generating xray configs (default: `xray/default.yml`)                                 |
-| SINGBOX_SUBSCRIPTION_TEMPLATE            | The template that will be used for generating xray configs (default: `xray/default.yml`)                                 |
-| HOME_PAGE_TEMPLATE                       | Decoy page template (default: `home/index.html`)                                                                         |
-| JWT_ACCESS_TOKEN_EXPIRE_MINUTES          | Expire time for the Access Tokens in minutes, `0` considered as infinite (default: `1440`)                               |
-| DOCS                                     | Whether API documents should be available on `/docs` and `/redoc` or not (default: `False`)                              |
-| DEBUG                                    | Debug mode for development (default: `False`)                                                                            |
-| USERS_AUTODELETE_DAYS                    | Delete expired (and optionally limited users) after this many days (Negative values disable this feature, default: `-1`) |
-| USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS | Whether to include limited accounts in the auto-delete feature (default: `False`)                                        |
-| XRAY_SUBSCRIPTION_PATH                   | You can change your api path for subscrtiption (default: `sub`)                                                          |
-| ENABLE_RECORDING_NODES_STATS             | Due to high amount of data, this job is only available for postgresql and timescaledb                                    |
-
-# Documentation
-
-The [PasarGuard Documentation](https://PasarGuard.github.io/PasarGuard) provides all the essential guides to get you started, available in three languages: Farsi, English, and Russian. This documentation requires significant effort to cover all aspects of the project comprehensively. We welcome and appreciate your contributions to help us improve it. You can contribute on this [GitHub repository](https://github.com/PasarGuard/PasarGuard.github.io).
-
-# API
-
-PasarGuard provides a REST API that enables developers to interact with PasarGuard services programmatically. To view the API documentation in Swagger UI or ReDoc, set the configuration variable `DOCS=True` and navigate to the `/docs` and `/redoc`.
-
-# Backup
-
-It's always a good idea to backup your PasarGuard files regularly to prevent data loss in case of system failures or accidental deletion. Here are the steps to backup PasarGuard:
-
-1. By default, all PasarGuard important files are saved in `/var/lib/pasarguard` (Docker versions). Copy the entire `/var/lib/pasarguard` directory to a backup location of your choice, such as an external hard drive or cloud storage.
-2. Additionally, make sure to backup your env file, which contains your configuration variables, and also, your Xray config file. If you installed PasarGuard using PasarGuard-scripts (recommended installation approach), the env and other configurations should be inside `/opt/pasarguard/` directory.
-
-PasarGuard's backup service efficiently zips all necessary files and sends them to your specified Telegram bot. It supports SQLite, MySQL, and MariaDB databases. One of its key features is automation, allowing you to schedule backups every hour. There are no limitations concerning Telegram's upload limits for bots; if a file exceeds the limit, it will be split and sent in multiple parts. Additionally, you can initiate an immediate backup at any time.
-
-Install the Latest Version of PasarGuard Command:
-
-```bash
-sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install-script
-```
-
-Setup the Backup Service:
-
-```bash
-pasarguard backup-service
-```
-
-Get an Immediate Backup:
-
-```bash
-pasarguard backup
-```
-
-By following these steps, you can ensure that you have a backup of all your PasarGuard files and data, as well as your configuration variables and Xray configuration, in case you need to restore them in the future. Remember to update your backups regularly to keep them up-to-date.
-
-# Telegram Bot
-
-PasarGuard comes with an integrated Telegram bot that can handle server management, user creation and removal, and send notifications. This bot can be easily enabled by following a few simple steps, and it provides a convenient way to interact with PasarGuard without having to log in to the server every time.
-
-To enable Telegram Bot:
-
-1. set `TELEGRAM_API_TOKEN` to your bot's API Token
-2. set `TELEGRAM_ADMIN_ID` to your Telegram account's numeric ID, you can get your ID from [@userinfobot](https://t.me/userinfobot)
-
-# PasarGuard CLI
-
-PasarGuard comes with an integrated CLI named `PasarGuard-cli` which allows administrators to have direct interaction with it.
-
-If you've installed PasarGuard using easy install script, you can access the cli commands by running
-
+### 💻 Command Line Interface
 ```bash
 pasarguard cli [OPTIONS] COMMAND [ARGS]...
 ```
 
-For more information, You can read [PasarGuard CLI's documentation](./cli/README.md).
-
-# PasarGuard TUI
-
-PasarGuard also provides a Terminal User Interface (TUI) for interactive management directly within your terminal.
-
-If you've installed PasarGuard using the easy install script, you can access the TUI by running:
-
+### 🖥️ Terminal User Interface
 ```bash
 pasarguard tui
 ```
 
-For more information, you can read [PasarGuard TUI's documentation](./tui/README.md).
+### 🌐 Multi-Node Support
+Distribute your infrastructure across multiple locations for:
+- ✅ High availability
+- ✅ Load balancing
+- ✅ Geographic distribution
+- ✅ Redundancy
 
-# Node
+[Learn more about PasarGuard Node](https://github.com/PasarGuard/node)
 
-The PasarGuard project introduces the [node](https://github.com/PasarGuard/node), which revolutionizes infrastructure distribution. With node, you can distribute your infrastructure across multiple locations, unlocking benefits such as redundancy, high availability, scalability, flexibility. node empowers users to connect to different servers, offering them the flexibility to choose and connect to multiple servers instead of being limited to only one server.
-For more detailed information and installation instructions, please refer to the [PasarGuard-node official documentation](https://github.com/PasarGuard/node)
+### 🔔 Webhook Notifications
+Set `WEBHOOK_ADDRESS` and `WEBHOOK_SECRET` in your `.env` file to receive real-time notifications.
 
-# Webhook notifications
+## 💾 Backup & Recovery
 
-You can set a webhook address and PasarGuard will send the notifications to that address.
+### Automated Backup Service
+```bash
+# Install backup service
+pasarguard backup-service
 
-the requests will be sent as a post request to the adress provided by `WEBHOOK_ADDRESS` with `WEBHOOK_SECRET` as `x-webhook-secret` in the headers.
-
-Example request sent from PasarGuard:
-
-```
-Headers:
-Host: 0.0.0.0:9000
-User-Agent: python-requests/2.28.1
-Accept-Encoding: gzip, deflate
-Accept: */*
-Connection: keep-alive
-x-webhook-secret: something-very-very-secret
-Content-Length: 107
-Content-Type: application/json
-
-
-
-Body:
-{"username": "PasarGuard_test_user", "action": "user_updated", "enqueued_at": 1680506457.636369, "tries": 0}
+# Create immediate backup
+pasarguard backup
 ```
 
-Different action typs are: `user_created`, `user_updated`, `user_deleted`, `user_limited`, `user_expired`, `user_disabled`, `user_enabled`
+### Manual Backup
+Backup these directories:
+- `/var/lib/pasarguard` (data files)
+- `/opt/pasarguard/.env` (configuration)
 
-# Donation
+## 🏗️ Manual Installation (Advanced)
 
-If you found PasarGuard useful and would like to support its development, you can make a donation, [Click Here](http://donate.pasarguard.org)
+<details>
+<summary>Click to expand manual installation steps</summary>
 
-Thank you for your support!
+```bash
+# Install Xray
+bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 
-# License
+# Clone and setup
+git clone https://github.com/PasarGuard/panel.git
+cd PasarGuard
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync
 
-Made in [Unknown!] and Published under [AGPL-3.0](./LICENSE).
+# Database migration
+uv run alembic upgrade head
 
-# Contributors
+# Configuration
+cp .env.example .env
+nano .env
 
-We ❤️‍🔥 contributors! If you'd like to contribute, please check out our [Contributing Guidelines](CONTRIBUTING.md) and feel free to submit a pull request or open an issue. We also welcome you to join our [Telegram](https://t.me/Pasar_Guard) group for either support or contributing guidance.
+# Run application
+uv run main.py
+```
 
-Check [open issues](https://github.com/PasarGuard/panel/issues) to help the progress of this project.
+</details>
 
-<p align="center">
-Thanks to the all contributors who have helped improve PasarGuard:
-</p>
-<p align="center">
+## 🤝 Contributing
+
+We ❤️ contributors! Help us improve PasarGuard:
+
+- 🐛 [Report Issues](https://github.com/PasarGuard/panel/issues)
+- 📝 [Contribute Code](CONTRIBUTING.md)
+- 💬 [Join Telegram](https://t.me/Pasar_Guard)
+
+## 💖 Support PasarGuard
+
+If PasarGuard helps you, consider supporting its development:
+
+[![Donate](https://img.shields.io/badge/Donate-Support%20Us-green?style=for-the-badge)](http://donate.pasarguard.org)
+
+## 📄 License
+
+Made with ❤️ and published under [AGPL-3.0](./LICENSE).
+
+---
+
+<div align="center">
+
+### 🌟 Contributors
+
+Thanks to all contributors who help improve PasarGuard:
+
 <a href="https://github.com/PasarGuard/panel/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=PasarGuard/panel" />
 </a>
-</p>
-<p align="center">
-  Made with <a rel="noopener noreferrer" target="_blank" href="https://contrib.rocks">contrib.rocks</a>
-</p>
+
+Made with [contrib.rocks](https://contrib.rocks)
+
+</div>
