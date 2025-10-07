@@ -161,15 +161,19 @@ sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pasargua
 
 <div align="left">
 
-| Step | Action | Details |
-|:---:|:---|:---|
-| 📋 | **Watch logs** | Press `Ctrl+C` to stop |
-| 📁 | **Files location** | `/opt/pasarguard` |
-| ⚙️ | **Config file** | `/opt/pasarguard/.env` |
-| 💾 | **Data files** | `/var/lib/pasarguard` |
-| 🔒 | **SSL Required** | [Get certificate](https://PasarGuard.github.io/PasarGuard/en/examples/issue-ssl-certificate) |
-| 🌐 | **Access dashboard** | `https://YOUR_DOMAIN:8000/dashboard/` |
-| 🔗 | **Testing mode** | SSH port forwarding (see below) |
+**📋 Watch the logs** (press `Ctrl+C` to stop)
+
+**📁 Files are located at** `/opt/pasarguard`
+
+**⚙️ Config file:** `/opt/pasarguard/.env` (see [Configuration](#-configuration) for details)
+
+**💾 Data files:** `/var/lib/pasarguard`
+
+**🔒 Important:** Dashboard requires SSL certificate for security
+- Get SSL certificate: [Guide](https://PasarGuard.github.io/PasarGuard/en/examples/issue-ssl-certificate)
+- Access: `https://YOUR_DOMAIN:8000/dashboard/`
+
+**🔗 For testing without domain:** Use SSH port forwarding (see below)
 
 </div>
 
@@ -323,9 +327,9 @@ server {
 
 ### **Default Settings:**
 
-| Setting | Value | Customize |
-|:---:|:---|:---|
-| **URL** | `http://localhost:8000/dashboard` | Change `UVICORN_HOST` and `UVICORN_PORT` in `.env` |
+**🌐 Default URL:** `http://localhost:8000/dashboard`
+
+**⚙️ Customize:** Change `UVICORN_HOST` and `UVICORN_PORT` in your `.env` file
 
 ---
 
@@ -371,11 +375,13 @@ server {
 
 <div align="center">
 
-| Language | Documentation |
-|:---:|:---|
-| 🇺🇸 | [English](https://PasarGuard.github.io/PasarGuard) |
-| 🇮🇷 | [فارسی](https://PasarGuard.github.io/PasarGuard) |
-| 🇷🇺 | [Русский](https://PasarGuard.github.io/PasarGuard) |
+**📖 Official Documentation** - Complete guides available in:
+
+🇺🇸 **[English](https://PasarGuard.github.io/PasarGuard)**
+
+🇮🇷 **[فارسی](https://PasarGuard.github.io/PasarGuard)**
+
+🇷🇺 **[Русский](https://PasarGuard.github.io/PasarGuard)**
 
 </div>
 
@@ -403,9 +409,7 @@ If PasarGuard helps you, consider supporting its development:
 
 <div align="center">
 
-| License | Status |
-|:---:|:---|
-| [AGPL-3.0](./LICENSE) | ✅ Open Source |
+**📜 License:** [AGPL-3.0](./LICENSE) ✅ **Open Source**
 
 **Made with ❤️**
 
@@ -419,11 +423,11 @@ If PasarGuard helps you, consider supporting its development:
 
 > **We ❤️ contributors!**
 
-| Action | Link |
-|:---:|:---|
-| 🐛 **Report Issues** | [GitHub Issues](https://github.com/PasarGuard/panel/issues) |
-| 📝 **Contribute Code** | [Contributing Guide](CONTRIBUTING.md) |
-| 💬 **Get Support** | [Telegram Group](https://t.me/Pasar_Guard) |
+**🐛 Report Issues** → [GitHub Issues](https://github.com/PasarGuard/panel/issues)
+
+**📝 Contribute Code** → [Contributing Guide](CONTRIBUTING.md)
+
+**💬 Get Support** → [Telegram Group](https://t.me/Pasar_Guard)
 
 </div>
 
