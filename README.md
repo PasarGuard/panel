@@ -104,7 +104,7 @@ PasarGuard is user-friendly, feature-rich and reliable. It lets you to create di
 -   🤖 Integrated **Telegram Bot**
 -   💻 Integrated **Command Line Interface (CLI)**
 -   🌐 **Multi-language**
--   👨‍💼 **Multi-admin** support (WIP)
+-   👨‍💼 **Multi-admin** support
 
 # 🚀 Installation guide
 
