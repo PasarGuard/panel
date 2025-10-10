@@ -1,4 +1,5 @@
 import logging
+import logging.config
 from copy import copy
 from urllib.parse import unquote
 
@@ -88,7 +89,7 @@ class EndpointFilter(logging.Filter):
         self.excluded_endpoints = excluded_endpoints
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if record.args and len(record.args) >= 2:
+        if record.args and len(record.args) >= 3:
             path = unquote(record.args[2])
             return path not in self.excluded_endpoints
         return True
