@@ -14,11 +14,13 @@ from app.utils.crypto import get_cert_SANs, get_x25519_public_key
 class XRayConfig(dict):
     def __init__(
         self,
-        config: Union[dict, str, PosixPath] = {},
-        exclude_inbound_tags: set[str] | None = set(),
-        fallbacks_inbound_tags: set[str] | None = set(),
+        config: Union[dict, str, PosixPath] | None = None,
+        exclude_inbound_tags: set[str] | None = None,
+        fallbacks_inbound_tags: set[str] | None = None,
     ):
         """Initialize the XRay config."""
+        if config is None:
+            config = {}
         if isinstance(config, str):
             # considering string as json
             config = commentjson.loads(config)
