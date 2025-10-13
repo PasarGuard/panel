@@ -310,7 +310,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             className="h-8 w-8 object-contain"
           />
           <span dir={isRTL ? 'rtl' : 'ltr'} className="text-sm font-bold">
-            {t('pasargaurd')}
+            {t('pasarguard')}
           </span>
         </div>
         <SidebarTrigger />
@@ -328,7 +328,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="h-8 w-8 flex-shrink-0 object-contain"
                   />
                   <div className="flex flex-col">
-                    <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasargaurd')}</span>
+                    <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
                     <span className="text-xs opacity-45">{version}</span>
                   </div>
                 </a>
