@@ -1,5 +1,5 @@
-const NUM_USERS_PER_PAGE_LOCAL_STORAGE_KEY = 'pasargaurd-num-users-per-page'
-const NUM_ADMINS_PER_PAGE_LOCAL_STORAGE_KEY = 'pasargaurd-num-admins-per-page'
+const NUM_USERS_PER_PAGE_LOCAL_STORAGE_KEY = 'pasarguard-num-users-per-page'
+const NUM_ADMINS_PER_PAGE_LOCAL_STORAGE_KEY = 'pasarguard-num-admins-per-page'
 const NUM_ITEMS_PER_PAGE_DEFAULT = 10
 
 // Generic function for any table type

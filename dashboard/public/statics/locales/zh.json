@@ -1133,7 +1133,7 @@
     "priorityUpdated": "主机已成功更新",
     "priorityUpdateError": "更新主机失败"
   },
-  "pasargaurd": "PasarGuard",
+  "pasarguard": "PasarGuard",
   "group": {
     "createSuccess": "群组「{{name}}」已成功创建",
     "createFailed": "创建群组「{{name}}」失败",
