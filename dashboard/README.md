@@ -1,4 +1,4 @@
-# Dashboard UI for pasargaurd
+# Dashboard UI for pasarguard
 
 ## Requirements
 
