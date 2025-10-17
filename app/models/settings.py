@@ -192,6 +192,38 @@ class SubFormatEnable(BaseModel):
     outline: bool = Field(default=True)
 
 
+class Platform(StrEnum):
+    ANDROID = "android"
+    IOS = "ios"
+    WIINDOWS = "windows"
+    MACOS = "macos"
+    LINUX = "linux"
+    APPLETV = "appletv"
+    ANDROIDTV = "androidtv"
+
+
+class Language(StrEnum):
+    FA = "fa"
+    EN = "en"
+    RU = "ru"
+    ZH = "zh"
+
+
+class DownloadLink(BaseModel):
+    name: str = Field(max_length=64)
+    url: str
+    language: Language
+
+
+class Application(BaseModel):
+    name: str = Field(max_length=32)
+    import_url: str = Field(max_length=256, pattern=r"^(?:[a-zA-Z0-9_\-./]|{url})*$")
+    description: dict[Language, str] = Field(default_factory=dict)
+    recommended: bool = Field(False)
+    platform: Platform
+    download_links: list[DownloadLink]
+
+
 class Subscription(BaseModel):
     url_prefix: str = Field(default="")
     update_interval: int = Field(default=12)
@@ -203,6 +235,21 @@ class Subscription(BaseModel):
     # Rules To Seperate Clients And Send Config As Needed
     rules: list[SubRule]
     manual_sub_request: SubFormatEnable = Field(default_factory=SubFormatEnable)
+    applications: list[Application] = Field(default_factory=list)
+
+    @field_validator("applications")
+    @classmethod
+    def validate_recommended_apps(cls, v: list[Application]) -> list[Application]:
+        """Validate that each platform has at most one recommended application"""
+        platform_recommended = {}
+
+        for app in v:
+            if app.recommended:
+                if app.platform in platform_recommended:
+                    raise ValueError(f"Multiple recommended applications found for platform '{app.platform}'.")
+                platform_recommended[app.platform] = app.name
+
+        return v
 
 
 class General(BaseModel):

@@ -1,13 +1,13 @@
 import re
 from datetime import datetime as dt
 
-from fastapi import Response
+from fastapi import Request, Response
 from fastapi.responses import HTMLResponse
 
 from app.db import AsyncSession
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
-from app.models.settings import ConfigFormat, SubRule, Subscription as SubSettings
+from app.models.settings import Application, ConfigFormat, SubRule, Subscription as SubSettings
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import subscription_settings
@@ -107,7 +107,9 @@ class SubscriptionOperation(BaseOperation):
             )
             conf, media_type = await self.fetch_config(user, ConfigFormat.links)
 
-            return HTMLResponse(render_template(template, {"user": user, "links": conf.split("\n")}))
+            return HTMLResponse(
+                render_template(template, {"user": user, "links": conf.split("\n"), "apps": sub_settings.applications})
+            )
         else:
             client_type = await self.detect_client_type(user_agent, sub_settings.rules)
             if client_type == ConfigFormat.block or not client_type:
@@ -140,6 +142,22 @@ class SubscriptionOperation(BaseOperation):
     async def user_subscription_info(self, db: AsyncSession, token: str) -> SubscriptionUserResponse:
         """Retrieves detailed information about the user's subscription."""
         return await self.get_validated_sub(db, token=token)
+
+    async def user_subscription_apps(self, db: AsyncSession, token: str, request: Request) -> list[Application]:
+        """
+        Get available applications for user's subscription.
+        """
+        await self.user_subscription_info(db, token)
+        sub_settings: SubSettings = await subscription_settings()
+        url = str(request.url)
+
+        apps_with_updated_urls = []
+        for app in sub_settings.applications:
+            updated_app = app.model_copy()
+            updated_app.import_url = app.import_url.format(url=url)
+            apps_with_updated_urls.append(updated_app)
+
+        return apps_with_updated_urls
 
     async def get_user_usage(
         self,

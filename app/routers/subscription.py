@@ -3,7 +3,7 @@ from datetime import datetime as dt
 from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.db import AsyncSession, get_db
-from app.models.settings import ConfigFormat
+from app.models.settings import Application, ConfigFormat
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse
 from app.operation import OperatorType
@@ -36,6 +36,14 @@ async def user_subscription(
 async def user_subscription_info(token: str, db: AsyncSession = Depends(get_db)):
     """Retrieves detailed information about the user's subscription."""
     return await subscription_operator.user_subscription_info(db, token=token)
+
+
+@router.get("/{token}/apps", response_model=list[Application])
+async def user_subscription_apps(token: str, request:Request, db: AsyncSession = Depends(get_db)):
+    """
+    Get applications available for user's subscription.
+    """
+    return await subscription_operator.user_subscription_apps(db, token,request)
 
 
 @router.get("/{token}/usage", response_model=UserUsageStatsList)
