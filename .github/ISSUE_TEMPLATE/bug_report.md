@@ -24,7 +24,7 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Machine details (please complete the following information):**
- - OS: [e.g. ubuntu 20]
+- OS: [e.g. ubuntu 20]
 - Python version: [e.g 3.8]
 - Nodejs version: [e.g 16.17]
 - Browser [e.g. chrome, safari]
