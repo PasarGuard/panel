@@ -217,11 +217,19 @@ class DownloadLink(BaseModel):
 
 class Application(BaseModel):
     name: str = Field(max_length=32)
-    import_url: str = Field(max_length=256, pattern=r"^[a-zA-Z0-9_\-./]*(?:\{url\})[a-zA-Z0-9_\-./]*$")
+    import_url: str = Field(default="", max_length=256)
     description: dict[Language, str] = Field(default_factory=dict)
     recommended: bool = Field(False)
     platform: Platform
     download_links: list[DownloadLink]
+
+    @field_validator("import_url")
+    @classmethod
+    def validate_import_url(cls, v: str) -> str:
+        """Validate import_url contains {url} if not empty."""
+        if v and "{url}" not in v:
+            raise ValueError("import_url must contain {url} placeholder for URL replacement")
+        return v
 
 
 class Subscription(BaseModel):

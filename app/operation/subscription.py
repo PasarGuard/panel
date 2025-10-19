@@ -1,7 +1,7 @@
 import re
 from datetime import datetime as dt
 
-from fastapi import Request, Response
+from fastapi import Response
 from fastapi.responses import HTMLResponse
 
 from app.db import AsyncSession
@@ -108,7 +108,14 @@ class SubscriptionOperation(BaseOperation):
             conf, media_type = await self.fetch_config(user, ConfigFormat.links)
 
             return HTMLResponse(
-                render_template(template, {"user": user, "links": conf.split("\n"), "apps": sub_settings.applications})
+                render_template(
+                    template,
+                    {
+                        "user": user,
+                        "links": conf.split("\n"),
+                        "apps": self._make_apps_import_urls(request_url, sub_settings.applications),
+                    },
+                )
             )
         else:
             client_type = await self.detect_client_type(user_agent, sub_settings.rules)
@@ -143,18 +150,19 @@ class SubscriptionOperation(BaseOperation):
         """Retrieves detailed information about the user's subscription."""
         return await self.get_validated_sub(db, token=token)
 
-    async def user_subscription_apps(self, db: AsyncSession, token: str, request: Request) -> list[Application]:
+    async def user_subscription_apps(self, db: AsyncSession, token: str, request_url: str) -> list[Application]:
         """
         Get available applications for user's subscription.
         """
         await self.user_subscription_info(db, token)
         sub_settings: SubSettings = await subscription_settings()
-        url = str(request.url)
+        return self._make_apps_import_urls(request_url, sub_settings.applications)
 
+    def _make_apps_import_urls(self, request_url: str, applications: list[Application]):
         apps_with_updated_urls = []
-        for app in sub_settings.applications:
+        for app in applications:
             updated_app = app.model_copy()
-            updated_app.import_url = app.import_url.format(url=url)
+            updated_app.import_url = app.import_url.format(url=request_url)
             apps_with_updated_urls.append(updated_app)
 
         return apps_with_updated_urls
