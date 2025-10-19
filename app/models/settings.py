@@ -217,7 +217,7 @@ class DownloadLink(BaseModel):
 
 class Application(BaseModel):
     name: str = Field(max_length=32)
-    import_url: str = Field(max_length=256, pattern=r"^(?:[a-zA-Z0-9_\-./]|{url})*$")
+    import_url: str = Field(max_length=256, pattern=r"^[a-zA-Z0-9_\-./]*(?:\{url\})[a-zA-Z0-9_\-./]*$")
     description: dict[Language, str] = Field(default_factory=dict)
     recommended: bool = Field(False)
     platform: Platform
