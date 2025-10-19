@@ -163,26 +163,21 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
     return format_variables
 
 
-async def filter_hosts(hosts: list, user_status: UserStatus) -> list:
+async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list:
     if not (await subscription_settings()).host_status_filter:
         return hosts
 
-    return [
-        host
-        for host in hosts
-        if not host["subscription_data"].status or user_status in host["subscription_data"].status
-    ]
+    return [host for host in hosts if not host.status or user_status in host.status]
 
 
-async def process_host(host_data: dict, format_variables: dict, inbounds: list[str], proxies: dict) -> tuple:
+async def process_host(
+    inbound: SubscriptionInboundData, format_variables: dict, inbounds: list[str], proxies: dict
+) -> tuple:
     """
     Process host data for subscription generation.
     Now only does random selection and user-specific formatting!
     All merging and data preparation is done in hosts.py.
     """
-
-    # Get the prepared subscription data from hosts.py
-    inbound: SubscriptionInboundData = host_data["subscription_data"]
 
     if inbound.inbound_tag not in inbounds:
         return None
@@ -205,16 +200,14 @@ async def process_host(host_data: dict, format_variables: dict, inbounds: list[s
 
     sni = ""
     if isinstance(inbound.tls_config.sni, list) and inbound.tls_config.sni:
-        sni = random.choice(inbound.tls_config.sni).replace("*", salt)
-    elif isinstance(inbound.tls_config.sni, str):
-        sni = inbound.tls_config.sni.replace("*", salt)
+        sni = random.choice(inbound.tls_config.sni)
+    sni = sni.replace("*", salt)
 
     req_host = ""
     host_list = inbound.transport_config.host
     if isinstance(host_list, list) and host_list:
-        req_host = random.choice(host_list).replace("*", salt)
-    elif isinstance(host_list, str):
-        req_host = host_list.replace("*", salt)
+        req_host = random.choice(host_list)
+    req_host = req_host.replace("*", salt)
 
     address = ""
     if inbound.address:
@@ -248,10 +241,10 @@ async def process_host(host_data: dict, format_variables: dict, inbounds: list[s
     inbound_copy.transport_config.path = path
 
     # Update address and port with selected values
-    inbound_copy.address = [address] if address else inbound.address
-    inbound_copy.port = [port]  # Store selected port as list
+    inbound_copy.address = address
+    inbound_copy.port = port
 
-    return inbound_copy, settings, address
+    return inbound_copy, settings
 
 
 async def process_inbounds_and_tags(
@@ -270,11 +263,13 @@ async def process_inbounds_and_tags(
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
         if not result:
             continue
-        inbound_copy, settings, address = result
+
+        inbound_copy: SubscriptionInboundData
+        inbound_copy, settings = result
 
         # Format remark and address with user variables
-        remark = host_data["subscription_data"].remark.format_map(format_variables)
-        formatted_address = address.format_map(format_variables)
+        remark = inbound_copy.remark.format_map(format_variables)
+        formatted_address = inbound_copy.address.format_map(format_variables)
 
         conf.add(
             remark=remark,

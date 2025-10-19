@@ -22,7 +22,7 @@ from app.models.subscription import (
 )
 
 
-async def _prepare_subscription_inbound_data(host: BaseHost) -> SubscriptionInboundData:
+async def _prepare_subscription_inbound_data(host: BaseHost, down_settings: dict | None) -> SubscriptionInboundData:
     """
     Prepare host data - creates small config instances ONCE.
     Merges inbound config with host config.
@@ -118,7 +118,7 @@ async def _prepare_subscription_inbound_data(host: BaseHost) -> SubscriptionInbo
             sc_min_posts_interval_ms=xs.sc_min_posts_interval_ms if xs else None,
             x_padding_bytes=xs.x_padding_bytes if xs else None,
             xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else None,
-            download_settings={"host_id": xs.download_settings} if xs and xs.download_settings else None,
+            download_settings=down_settings if xs and down_settings else None,
             http_headers=host.http_headers,
             random_user_agent=host.random_user_agent,
         )
@@ -228,8 +228,7 @@ class HostManager:
         if host.is_disabled or (host.inbound_tag not in inbounds_list):
             return None
 
-        subscription_data = await _prepare_subscription_inbound_data(host)
-
+        downstream_dict = None
         # Handle downstream for xhttp
         if (
             host.transport_settings
@@ -237,15 +236,13 @@ class HostManager:
             and (ds_host := host.transport_settings.xhttp_settings.download_settings)
         ):
             downstream = await get_host_by_id(db, ds_host)
-            downstream_subscription_data = await _prepare_subscription_inbound_data(downstream)
-        else:
-            downstream_subscription_data = None
+            downstream_data: SubscriptionInboundData = await _prepare_subscription_inbound_data(downstream)
+            downstream_dict = downstream_data.model_dump(by_alias=True, exclude_none=True)
 
-        # Return subscription data directly (no more legacy dict!)
-        return (
-            host.id,
-            {"subscription_data": subscription_data, "downstream_subscription_data": downstream_subscription_data},
-        )
+        subscription_data = await _prepare_subscription_inbound_data(host, downstream_dict)
+
+        # Return subscription data directly
+        return subscription_data
 
     async def add_host(self, db: AsyncSession, host: BaseHost):
         await self.add_hosts(db, [host])

@@ -84,7 +84,7 @@ class BaseTransportConfig(BaseModel):
 class GRPCTransportConfig(BaseTransportConfig):
     """GRPC/Gun transport - only grpc-specific fields"""
 
-    multi_mode: bool = False
+    multi_mode: bool = Field(False, serialization_alias="multiMode")
     idle_timeout: int | None = None
     health_check_timeout: int | None = None
     permit_without_stream: bool = False
@@ -96,7 +96,7 @@ class GRPCTransportConfig(BaseTransportConfig):
 class WebSocketTransportConfig(BaseTransportConfig):
     """WebSocket transport - only ws-specific fields"""
 
-    heartbeat_period: int | None = None
+    heartbeat_period: int | None = Field(None, serialization_alias="heartbeatPeriod")
     http_headers: dict[str, str] | None = None
     random_user_agent: bool = False
 
@@ -106,11 +106,11 @@ class XHTTPTransportConfig(BaseTransportConfig):
 
     mode: str = "auto"
     no_grpc_header: bool | None = None
-    sc_max_each_post_bytes: int | None = None
-    sc_min_posts_interval_ms: int | None = None
-    x_padding_bytes: str | None = None
+    sc_max_each_post_bytes: int | None = Field(None, serialization_alias="scMaxEachPostBytes")
+    sc_min_posts_interval_ms: int | None = Field(None, serialization_alias="scMinPostsIntervalMs")
+    x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes")
     xmux: dict[str, Any] | None = None
-    download_settings: dict[str, Any] | None = None
+    download_settings: dict[str, Any] | None = Field(None, serialization_alias="downloadSettings")
     http_headers: dict[str, str] | None = None
     random_user_agent: bool = False
 
@@ -207,8 +207,8 @@ class SubscriptionInboundData(BaseModel):
     remark: str
     inbound_tag: str
     protocol: str
-    address: list[str]
-    port: list[int]  # List of ports for random selection in share.py
+    address: list[str] | str = Field(default_factory=list)
+    port: list[int] | int = Field(default_factory=list)
     network: str
 
     # Store small config instances directly (created once!)
