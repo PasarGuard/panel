@@ -242,7 +242,7 @@ class HostManager:
         subscription_data = await _prepare_subscription_inbound_data(host, downstream_dict)
 
         # Return subscription data directly
-        return subscription_data
+        return host.id, subscription_data
 
     async def add_host(self, db: AsyncSession, host: BaseHost):
         await self.add_hosts(db, [host])
@@ -285,7 +285,7 @@ class HostManager:
     async def get_hosts(self) -> dict[int, dict]:
         async with self._lock:
             # Return hosts sorted by priority (accessing from subscription_data)
-            sorted_hosts = dict(sorted(self._hosts.items(), key=lambda x: x[1]["subscription_data"].priority))
+            sorted_hosts = dict(sorted(self._hosts.items(), key=lambda x: x[1].priority))
             return deepcopy(sorted_hosts)
 
 
