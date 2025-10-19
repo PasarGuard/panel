@@ -1,7 +1,13 @@
 import json
 from random import choice
 
-from app.subscription.funcs import detect_shadowsocks_2022, get_grpc_gun
+from app.models.subscription import (
+    SubscriptionInboundData,
+    TLSConfig,
+    GRPCTransportConfig,
+    WebSocketTransportConfig,
+    TCPTransportConfig,
+)
 from app.templates import render_template
 from app.utils.helpers import UUIDEncoder
 from config import SINGBOX_SUBSCRIPTION_TEMPLATE
@@ -13,6 +19,25 @@ class SingBoxConfiguration(BaseSubscription):
     def __init__(self):
         super().__init__()
         self.config = json.loads(render_template(SINGBOX_SUBSCRIPTION_TEMPLATE))
+
+        # Registry for transport handlers
+        self.transport_handlers = {
+            "http": self._transport_http,
+            "ws": self._transport_ws,
+            "grpc": self._transport_grpc,
+            "gun": self._transport_grpc,
+            "httpupgrade": self._transport_httpupgrade,
+            "h2": self._transport_http,
+            "h3": self._transport_http,
+        }
+
+        # Registry for protocol builders
+        self.protocol_handlers = {
+            "vmess": self._build_vmess,
+            "vless": self._build_vless,
+            "trojan": self._build_trojan,
+            "shadowsocks": self._build_shadowsocks,
+        }
 
     def add_outbound(self, outbound_data):
         self.config["outbounds"].append(outbound_data)
@@ -35,311 +60,270 @@ class SingBoxConfiguration(BaseSubscription):
             self.config["outbounds"].reverse()
         return json.dumps(self.config, indent=4, cls=UUIDEncoder)
 
-    def tls_config(
-        self, sni=None, fp=None, tls=None, pbk=None, sid=None, alpn=None, ais=None, fragment=None, ech_config_list=None
-    ):
+    def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+        """Add outbound using registry pattern"""
+        # Not supported by sing-box
+        if inbound.network in ("kcp", "splithttp", "xhttp"):
+            return
+        if inbound.network == "quic" and getattr(inbound.transport_config, "header_type", "none") != "none":
+            return
+
+        remark = self._remark_validation(remark)
+        self.proxy_remarks.append(remark)
+
+        # Get protocol handler from registry
+        handler = self.protocol_handlers.get(inbound.protocol)
+        if not handler:
+            return
+
+        # Build outbound
+        outbound = handler(remark=remark, address=address, inbound=inbound, settings=settings)
+        if outbound:
+            self.add_outbound(outbound)
+
+    # ========== Transport Handlers ==========
+
+    def _transport_http(self, config: TCPTransportConfig, path: str, network: str) -> dict:
+        """Handle HTTP/H2/H3 transport - only gets TCP config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+
+        transport = {
+            "type": network if network in ("http", "h2", "h3") else "http",
+            "idle_timeout": "15s",
+            "ping_timeout": "15s",
+            "path": path,
+            "host": [host] if host else None,
+        }
+
+        if config.header_type == "http" and config.request:
+            transport.update(config.request)
+        else:
+            transport["headers"] = {k: [v] for k, v in config.http_headers.items()} if config.http_headers else {}
+
+        if config.random_user_agent:
+            transport.setdefault("headers", {})["User-Agent"] = choice(self.user_agent_list)
+
+        return self._normalize_and_remove_none_values(transport)
+
+    def _transport_ws(self, config: WebSocketTransportConfig, path: str) -> dict:
+        """Handle WebSocket transport - only gets WS config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+
+        # Parse early data from path
+        max_early_data = None
+        early_data_header_name = None
+        if "?ed=" in path:
+            path, ed_part = path.split("?ed=")
+            max_early_data = int(ed_part.split("/")[0])
+            early_data_header_name = "Sec-WebSocket-Protocol"
+
+        transport = {
+            "type": "ws",
+            "headers": {k: [v] for k, v in config.http_headers.items()} if config.http_headers else {},
+            "path": path,
+            "max_early_data": max_early_data,
+            "early_data_header_name": early_data_header_name,
+        }
+        transport["headers"]["host"] = [host] if host else None
+
+        if config.random_user_agent:
+            transport["headers"]["User-Agent"] = [choice(self.user_agent_list)]
+
+        return self._normalize_and_remove_none_values(transport)
+
+    def _transport_grpc(self, config: GRPCTransportConfig, path: str) -> dict:
+        """Handle GRPC transport - only gets GRPC config"""
+        return self._normalize_and_remove_none_values(
+            {
+                "type": "grpc",
+                "service_name": path,
+                "idle_timeout": f"{config.idle_timeout}s" if config.idle_timeout else "15s",
+                "ping_timeout": f"{config.health_check_timeout}s" if config.health_check_timeout else "15s",
+                "permit_without_stream": config.permit_without_stream,
+            }
+        )
+
+    def _transport_httpupgrade(self, config: WebSocketTransportConfig, path: str) -> dict:
+        """Handle HTTPUpgrade transport - only gets WS config (similar to WS)"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+
+        transport = {
+            "type": "httpupgrade",
+            "headers": {k: [v] for k, v in config.http_headers.items()} if config.http_headers else {},
+            "host": host,
+            "path": path,
+        }
+
+        if config.random_user_agent:
+            transport["headers"]["User-Agent"] = choice(self.user_agent_list)
+
+        return self._normalize_and_remove_none_values(transport)
+
+    def _apply_transport(self, network: str, inbound: SubscriptionInboundData, path: str) -> dict | None:
+        """Apply transport settings using registry pattern"""
+        # Map network types
+        if network in ("tcp", "raw") and getattr(inbound.transport_config, "header_type", "none") == "http":
+            network = "http"
+
+        handler = self.transport_handlers.get(network)
+        if not handler:
+            return None
+
+        # Pass only the config this transport needs
+        if network in ("http", "h2", "h3"):
+            return handler(inbound.transport_config, path, network)
+        else:
+            return handler(inbound.transport_config, path)
+
+    def _apply_tls(self, tls_config: TLSConfig) -> dict:
+        """Apply TLS settings - only receives TLS config"""
         config = {
-            "enabled": tls in ("tls", "reality"),
-            "server_name": sni,
-            "insecure": ais,
-            "utls": {"enabled": bool(fp), "fingerprint": fp} if fp else None,
-            "alpn": alpn if alpn else None,
+            "enabled": tls_config.tls in ("tls", "reality"),
+            "server_name": tls_config.sni
+            if isinstance(tls_config.sni, str)
+            else (tls_config.sni[0] if tls_config.sni else None),
+            "insecure": tls_config.allowinsecure,
+            "utls": {"enabled": bool(tls_config.fingerprint), "fingerprint": tls_config.fingerprint}
+            if tls_config.fingerprint
+            else None,
+            "alpn": tls_config.alpn_singbox,  # Pre-formatted for sing-box!
             "ech": {
                 "enabled": True,
                 "config": [],
                 "config_path": "",
             }
-            if ech_config_list
+            if tls_config.ech_config_list
             else None,
             "reality": {
-                "enabled": tls == "reality",
-                "public_key": pbk,
-                "short_id": sid,
+                "enabled": tls_config.tls == "reality",
+                "public_key": tls_config.reality_public_key,
+                "short_id": tls_config.reality_short_id,
             }
-            if tls == "reality"
+            if tls_config.tls == "reality"
             else None,
         }
-        if fragment and (singbox_fragment := fragment.get("sing_box")):
+
+        if tls_config.fragment_settings and (singbox_fragment := tls_config.fragment_settings.get("sing_box")):
             config.update(singbox_fragment)
 
         return self._normalize_and_remove_none_values(config)
 
-    def http_config(
-        self,
-        host="",
-        path="",
-        random_user_agent: bool = False,
-        request: dict | None = None,
-        http_headers: dict | None = None,
-        headers="none",
-    ):
-        config = {
-            "idle_timeout": "15s",
-            "ping_timeout": "15s",
-            "path": path,
-        }
+    # ========== Protocol Builders ==========
 
-        if headers == "http" and request:
-            config.update(request)
-        else:
-            config["headers"] = {k: [v] for k, v in http_headers.items()} if http_headers else {}
-        config["host"] = [host] if host else None
-        if random_user_agent:
-            config["headers"]["User-Agent"] = choice(self.user_agent_list)
+    def _build_vmess(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build VMess outbound"""
+        return self._build_outbound(
+            protocol_type="vmess",
+            remark=remark,
+            address=address,
+            inbound=inbound,
+            user_settings={"uuid": str(settings["id"]), "alterId": 0},
+        )
 
-        return self._normalize_and_remove_none_values(config)
+    def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build VLESS outbound"""
+        return self._build_outbound(
+            protocol_type="vless",
+            remark=remark,
+            address=address,
+            inbound=inbound,
+            user_settings={"uuid": str(settings["id"]), "flow": settings.get("flow", "")},
+        )
 
-    def ws_config(
-        self,
-        host="",
-        path="",
-        random_user_agent: bool = False,
-        max_early_data=None,
-        early_data_header_name=None,
-        http_headers: dict | None = None,
-    ):
-        config = {
-            "headers": {k: [v] for k, v in http_headers.items()} if http_headers else {},
-            "path": path,
-            "max_early_data": max_early_data,
-            "early_data_header_name": early_data_header_name,
-        }
-        config["headers"]["host"] = [host] if host else None
-        if random_user_agent:
-            config["headers"]["User-Agent"] = [choice(self.user_agent_list)]
+    def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build Trojan outbound"""
+        return self._build_outbound(
+            protocol_type="trojan",
+            remark=remark,
+            address=address,
+            inbound=inbound,
+            user_settings={"password": settings["password"], "flow": settings.get("flow", "")},
+        )
 
-        return self._normalize_and_remove_none_values(config)
-
-    def grpc_config(self, path="", idle_timeout: str = "", ping_timeout: str = "", permit_without_stream: bool = False):
-        config = {
-            "service_name": path,
-            "idle_timeout": f"{idle_timeout}s" if idle_timeout else "15s",
-            "ping_timeout": f"{ping_timeout}s" if ping_timeout else "15s",
-            "permit_without_stream": permit_without_stream,
-        }
-        return self._normalize_and_remove_none_values(config)
-
-    def httpupgrade_config(self, host="", path="", random_user_agent: bool = False, http_headers: dict | None = None):
-        config = {
-            "headers": {k: [v] for k, v in http_headers.items()} if http_headers else {},
-            "host": host,
-            "path": path,
-        }
-        if random_user_agent:
-            config["headers"]["User-Agent"] = choice(self.user_agent_list)
-        return self._normalize_and_remove_none_values(config)
-
-    def transport_config(
-        self,
-        transport_type="",
-        host="",
-        path="",
-        ping_timeout="",
-        idle_timeout="",
-        max_early_data=None,
-        early_data_header_name=None,
-        random_user_agent: bool = False,
-        http_headers: dict | None = None,
-        permit_without_stream: bool = False,
-        request: dict | None = None,
-        headers="none",
-    ):
-        transport_config = {}
-
-        if transport_type:
-            if transport_type == "http":
-                transport_config = self.http_config(
-                    host=host,
-                    path=path,
-                    random_user_agent=random_user_agent,
-                    request=request,
-                    http_headers=http_headers,
-                    headers=headers,
-                )
-
-            elif transport_type == "ws":
-                transport_config = self.ws_config(
-                    host=host,
-                    path=path,
-                    random_user_agent=random_user_agent,
-                    max_early_data=max_early_data,
-                    early_data_header_name=early_data_header_name,
-                    http_headers=http_headers,
-                )
-
-            elif transport_type == "grpc":
-                transport_config = self.grpc_config(
-                    path=path,
-                    idle_timeout=idle_timeout,
-                    ping_timeout=ping_timeout,
-                    permit_without_stream=permit_without_stream,
-                )
-
-            elif transport_type == "httpupgrade":
-                transport_config = self.httpupgrade_config(
-                    host=host,
-                    path=path,
-                    random_user_agent=random_user_agent,
-                    http_headers=http_headers,
-                )
-
-        transport_config["type"] = transport_type
-        return transport_config
-
-    def make_outbound(
-        self,
-        type: str,
-        remark: str,
-        address: str,
-        port: int,
-        net="",
-        path="",
-        host="",
-        flow="",
-        tls="",
-        sni="",
-        fp="",
-        alpn=None,
-        pbk="",
-        sid="",
-        headers="",
-        ais="",
-        ping_timeout="",
-        idle_timeout="",
-        http_headers: dict | None = None,
-        mux_settings: dict | None = None,
-        request: dict | None = None,
-        random_user_agent: bool = False,
-        permit_without_stream: bool = False,
-        fragment: dict | None = None,
-        ech_config_list: str | None = None,
-    ):
-        if isinstance(port, str):
-            ports = port.split(",")
-            port = int(choice(ports))
+    def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build Shadowsocks outbound"""
+        method, password = self.detect_shadowsocks_2022(
+            inbound.is_2022,
+            inbound.method,
+            settings["method"],
+            getattr(inbound, "password", None),
+            settings["password"],
+        )
 
         config = {
-            "type": type,
+            "type": "shadowsocks",
             "tag": remark,
             "server": address,
-            "server_port": port,
+            "server_port": self._select_port(inbound.port),
+            "method": method,
+            "password": password,
         }
 
-        if net in ("tcp", "raw", "kcp") and headers != "http" and (tls or tls != "none"):
-            if flow:
-                config["flow"] = flow
+        return self._normalize_and_remove_none_values(config)
 
-        if net == "h2":
-            net = "http"
-            alpn = ["h2"]
-        elif net == "h3":
-            net = "http"
-            alpn = ["h3"]
-        elif net in ("tcp", "raw") and headers == "http":
-            net = "http"
+    def _build_outbound(
+        self,
+        protocol_type: str,
+        remark: str,
+        address: str,
+        inbound: SubscriptionInboundData,
+        user_settings: dict,
+    ) -> dict:
+        """Generic outbound builder"""
+        network = inbound.network
+        path = inbound.transport_config.path
 
-        if net in ("http", "ws", "quic", "grpc", "httpupgrade"):
-            max_early_data = None
-            early_data_header_name = None
+        # Process GRPC path
+        if network in ("grpc", "gun"):
+            path = self.get_grpc_gun(path)
 
-            if "?ed=" in path:
-                path, max_early_data = path.split("?ed=")
-                (max_early_data,) = max_early_data.split("/")
-                max_early_data = int(max_early_data)
-                early_data_header_name = "Sec-WebSocket-Protocol"
+        # Map network aliases
+        if network == "h2":
+            network = "http"
+            # Override ALPN for h2
+            inbound.tls_config.alpn_list = ["h2"]
+        elif network == "h3":
+            network = "http"
+            inbound.tls_config.alpn_list = ["h3"]
 
-            config["transport"] = self.transport_config(
-                transport_type=net,
-                host=host,
-                path=path,
-                max_early_data=max_early_data,
-                early_data_header_name=early_data_header_name,
-                random_user_agent=random_user_agent,
-                ping_timeout=ping_timeout,
-                idle_timeout=idle_timeout,
-                permit_without_stream=permit_without_stream,
-                http_headers=http_headers,
-                request=request,
-                headers=headers,
-            )
+        config = {
+            "type": protocol_type,
+            "tag": remark,
+            "server": address,
+            "server_port": self._select_port(inbound.port),
+            **user_settings,
+        }
 
-        if tls in ("tls", "reality"):
-            config["tls"] = self.tls_config(
-                sni=sni,
-                fragment=fragment,
-                fp=fp,
-                tls=tls,
-                pbk=pbk,
-                sid=sid,
-                alpn=alpn,
-                ais=ais,
-                ech_config_list=ech_config_list,
-            )
+        # Add flow for specific combinations
+        header_type = getattr(inbound.transport_config, "header_type", "none")
+        if (
+            network in ("tcp", "raw", "kcp")
+            and header_type != "http"
+            and inbound.tls_config.tls in ("tls", "reality")
+            and user_settings.get("flow")
+        ):
+            config["flow"] = user_settings["flow"]
 
-        if mux_settings and (singbox_mux := mux_settings.get("sing_box")):
+        # Add transport
+        if network in ("http", "ws", "quic", "grpc", "httpupgrade", "h2", "h3"):
+            transport = self._apply_transport(network, inbound, path)
+            if transport:
+                config["transport"] = transport
+
+        # Add TLS
+        if inbound.tls_config.tls in ("tls", "reality"):
+            config["tls"] = self._apply_tls(inbound.tls_config)
+
+        # Add mux
+        if inbound.mux_settings and (singbox_mux := inbound.mux_settings.get("sing_box")):
             singbox_mux = self._normalize_and_remove_none_values(singbox_mux)
             config["multiplex"] = singbox_mux
 
-        return config
+        return self._normalize_and_remove_none_values(config)
 
-    def add(self, remark: str, address: str, inbound: dict, settings: dict):
-        net = inbound["network"]
-        path = inbound["path"]
-
-        # not supported by sing-box
-        if net in ("kcp", "splithttp", "xhttp") or (net == "quic" and inbound["header_type"] != "none"):
-            return
-
-        if net in ("grpc", "gun"):
-            path = get_grpc_gun(path)
-
-        remark = self._remark_validation(remark)
-        self.proxy_remarks.append(remark)
-
-        outbound = self.make_outbound(
-            remark=remark,
-            type=inbound["protocol"],
-            address=address,
-            port=inbound["port"],
-            net=net,
-            tls=(inbound["tls"]),
-            flow=settings.get("flow", ""),
-            sni=inbound["sni"],
-            host=inbound["host"],
-            path=path,
-            alpn=inbound.get("alpn", None),
-            fp=inbound.get("fp", ""),
-            pbk=inbound.get("pbk", ""),
-            sid=inbound.get("sid", ""),
-            headers=inbound["header_type"],
-            ais=inbound.get("ais", ""),
-            random_user_agent=inbound.get("random_user_agent", False),
-            idle_timeout=inbound.get("idle_timeout", ""),
-            ping_timeout=inbound.get("health_check_timeout", ""),
-            permit_without_stream=inbound.get("permit_without_stream", False),
-            http_headers=inbound.get("http_headers"),
-            request=inbound.get("request"),
-            mux_settings=inbound.get("mux_settings", {}),
-            fragment=inbound.get("fragment_settings", {}),
-            ech_config_list=inbound.get("ech_config_list"),
-        )
-
-        if inbound["protocol"] == "vmess":
-            outbound["uuid"] = settings["id"]
-
-        elif inbound["protocol"] == "vless":
-            outbound["uuid"] = settings["id"]
-
-        elif inbound["protocol"] == "trojan":
-            outbound["password"] = settings["password"]
-
-        elif inbound["protocol"] == "shadowsocks":
-            outbound["method"], outbound["password"] = detect_shadowsocks_2022(
-                inbound.get("is_2022", False),
-                inbound.get("method", ""),
-                settings["method"],
-                inbound.get("password"),
-                settings["password"],
-            )
-
-        self.add_outbound(outbound)
+    def _select_port(self, port: int | str) -> int:
+        """Select a random port if multiple are provided"""
+        if isinstance(port, str):
+            ports = port.split(",")
+            return int(choice(ports))
+        return port

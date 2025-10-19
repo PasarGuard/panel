@@ -2,11 +2,18 @@ import base64
 import json
 import urllib.parse as urlparse
 from random import choice
-from typing import Union
 from urllib.parse import quote
-from uuid import UUID
 
-from app.subscription.funcs import detect_shadowsocks_2022, get_grpc_gun, get_grpc_multi
+from app.models.subscription import (
+    SubscriptionInboundData,
+    TLSConfig,
+    GRPCTransportConfig,
+    WebSocketTransportConfig,
+    XHTTPTransportConfig,
+    KCPTransportConfig,
+    QUICTransportConfig,
+    TCPTransportConfig,
+)
 from config import EXTERNAL_CONFIG
 
 from . import BaseSubscription
@@ -16,6 +23,29 @@ class StandardLinks(BaseSubscription):
     def __init__(self):
         super().__init__()
         self.links = []
+
+        # Registry pattern for transport handlers
+        self.transport_handlers = {
+            "grpc": self._transport_grpc,
+            "gun": self._transport_grpc,
+            "splithttp": self._transport_xhttp,
+            "xhttp": self._transport_xhttp,
+            "ws": self._transport_ws,
+            "quic": self._transport_quic,
+            "kcp": self._transport_kcp,
+            "tcp": self._transport_tcp,
+            "raw": self._transport_tcp,
+            "http": self._transport_tcp,
+            "h2": self._transport_tcp,
+        }
+
+        # Registry pattern for protocol handlers
+        self.protocol_handlers = {
+            "vmess": self._build_vmess,
+            "vless": self._build_vless,
+            "trojan": self._build_trojan,
+            "shadowsocks": self._build_shadowsocks,
+        }
 
     def add_link(self, link):
         self.links.append(link)
@@ -27,435 +57,249 @@ class StandardLinks(BaseSubscription):
             self.links.reverse()
         return "\n".join((self.links))
 
-    def add(self, remark: str, address: str, inbound: dict, settings: dict):
-        net = inbound["network"]
-        multi_mode = inbound.get("multi_mode", False)
-        old_path: str = inbound["path"]
-
-        if net in ("grpc", "gun"):
-            if multi_mode:
-                path = get_grpc_multi(old_path)
-            else:
-                path = get_grpc_gun(old_path)
-            if old_path.startswith("/"):
-                path = quote(path, safe="-_.!~*'()")
-
-        else:
-            path = old_path
-        func_args = dict(
-            remark=remark,
-            address=address,
-            port=inbound["port"],
-            net=net,
-            tls=inbound["tls"],
-            sni=inbound.get("sni", ""),
-            fp=inbound.get("fp", ""),
-            alpn=inbound.get("alpn", None),
-            pbk=inbound.get("pbk", ""),
-            sid=inbound.get("sid", ""),
-            spx=inbound.get("spx", ""),
-            host=inbound["host"],
-            path=path,
-            type=inbound["header_type"],
-            ais=inbound.get("ais", ""),
-            fs=inbound.get("fragment_settings", ""),
-            multiMode=multi_mode,
-            sc_max_each_post_bytes=inbound.get("sc_max_each_post_bytes"),
-            sc_max_concurrent_posts=inbound.get("sc_max_concurrent_posts"),
-            sc_min_posts_interval_ms=inbound.get("sc_min_posts_interval_ms"),
-            x_padding_bytes=inbound.get("x_padding_bytes"),
-            mode=inbound.get("mode", ""),
-            noGRPCHeader=inbound.get("no_grpc_header"),
-            heartbeatPeriod=inbound.get("heartbeat_period", 0),
-            scStreamUpServerSecs=inbound.get("sc_stream_up_server_secs"),
-            xmux=inbound.get("xmux"),
-            downloadSettings=inbound.get("downloadSettings"),
-            http_headers=inbound.get("http_headers"),
-            ech_config_list=inbound.get("ech_config_list"),
-            mldsa65_verify=inbound.get("mldsa65Verify"),
-        )
-        if inbound["protocol"] == "vmess":
-            link = self.vmess(
-                id=settings["id"],
-                **func_args,
-            )
-
-        elif inbound["protocol"] == "vless":
-            link = self.vless(
-                id=settings["id"],
-                flow=settings.get("flow", ""),
-                encryption=inbound.get("encryption", "none"),
-                **func_args,
-            )
-
-        elif inbound["protocol"] == "trojan":
-            link = self.trojan(
-                password=settings["password"],
-                flow=settings.get("flow", ""),
-                **func_args,
-            )
-
-        elif inbound["protocol"] == "shadowsocks":
-            method, password = detect_shadowsocks_2022(
-                inbound.get("is_2022", False),
-                inbound.get("method", ""),
-                settings["method"],
-                inbound.get("password"),
-                settings["password"],
-            )
-
-            link = self.shadowsocks(
-                remark=remark,
-                address=address,
-                port=inbound["port"],
-                password=password,
-                method=method,
-            )
-        else:
+    def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+        """
+        Add a proxy link using registry pattern.
+        No if/else chains - just lookup the handler and call it.
+        """
+        # Get protocol handler from registry
+        handler = self.protocol_handlers.get(inbound.protocol)
+        if not handler:
             return
 
-        self.add_link(link=link)
+        # Call the handler
+        link = handler(remark=remark, address=address, inbound=inbound, settings=settings)
+        if link:
+            self.add_link(link)
 
-    def _make_net_settings(
-        self,
-        payload: dict,
-        protocol: str,
-        net: str,
-        multiMode: bool,
-        path: str,
-        host: str,
-        sc_max_each_post_bytes: int | None = None,
-        sc_max_concurrent_posts: int | None = None,
-        sc_min_posts_interval_ms: int | None = None,
-        x_padding_bytes: str | None = None,
-        mode: str = "",
-        noGRPCHeader: bool | None = None,
-        heartbeatPeriod: int | None = None,
-        scStreamUpServerSecs: int | None = None,
-        xmux: dict | None = None,
-        downloadSettings: dict | None = None,
-        random_user_agent: bool = False,
-        http_headers: dict | None = None,
-    ):
-        if net == "grpc":
-            if protocol == "vmess":
-                if multiMode:
-                    payload["type"] = "multi"
-                else:
-                    payload["type"] = "gun"
-            else:
-                payload["serviceName"] = path
-                payload["authority"] = host
-                if multiMode:
-                    payload["mode"] = "multi"
-                else:
-                    payload["mode"] = "gun"
-        elif net in ("splithttp", "xhttp"):
-            payload["path"] = path
-            payload["host"] = host
-            if protocol == "vmess":
-                payload["type"] = mode
-            else:
-                payload["mode"] = mode
-            extra = {
-                "scMaxEachPostBytes": sc_max_each_post_bytes,
-                "scMaxConcurrentPosts": sc_max_concurrent_posts,
-                "scMinPostsIntervalMs": sc_min_posts_interval_ms,
-                "xPaddingBytes": x_padding_bytes,
-                "noGRPCHeader": noGRPCHeader,
-                "scStreamUpServerSecs": scStreamUpServerSecs,
-                "xmux": xmux,
-                "headers": http_headers if http_headers is not None else {},
-                "downloadSettings": downloadSettings,
-            }
-            if random_user_agent:
-                if mode in ("stream-one", "stream-up") and not noGRPCHeader:
-                    extra["headers"]["User-Agent"] = choice(self.grpc_user_agent_data)
-                else:
-                    extra["headers"]["User-Agent"] = choice(self.user_agent_list)
+    # ========== Transport Handlers (Only receive what they need) ==========
 
-            extra = self._normalize_and_remove_none_values(extra)
+    def _transport_grpc(self, payload: dict, protocol: str, config: GRPCTransportConfig, path: str):
+        """Handle grpc/gun transport - only gets GRPC config"""
+        host = config.host if isinstance(config.host, str) else ""
 
-            if extra:
-                payload["extra"] = (json.dumps(extra)).replace(" ", "")
-        elif net == "ws":
-            if heartbeatPeriod:
-                payload["heartbeatPeriod"] = heartbeatPeriod
-            payload["path"] = path
-            payload["host"] = host
-
-        elif net == "quic":
-            if protocol != "vmess":
-                payload["key"] = path
-                payload["quicSecurity"] = host
-        elif net == "kcp":
-            if protocol != "vmess":
-                payload["seed"] = path
-                payload["host"] = host
+        if protocol == "vmess":
+            payload["type"] = "multi" if config.multi_mode else "gun"
         else:
-            payload["path"] = path
+            payload["serviceName"] = path
+            payload["authority"] = host
+            payload["mode"] = "multi" if config.multi_mode else "gun"
+
+    def _transport_xhttp(self, payload: dict, protocol: str, config: XHTTPTransportConfig, path: str):
+        """Handle splithttp/xhttp transport - only gets xHTTP config"""
+        host = config.host if isinstance(config.host, str) else ""
+        payload["path"] = path
+        payload["host"] = host
+
+        if protocol == "vmess":
+            payload["type"] = config.mode
+        else:
+            payload["mode"] = config.mode
+
+        extra = {
+            "scMaxEachPostBytes": config.sc_max_each_post_bytes,
+            "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
+            "xPaddingBytes": config.x_padding_bytes,
+            "noGRPCHeader": config.no_grpc_header,
+            "xmux": config.xmux,
+            "headers": config.http_headers if config.http_headers else {},
+            "downloadSettings": config.download_settings,
+        }
+
+        if config.random_user_agent:
+            if config.mode in ("stream-one", "stream-up") and not config.no_grpc_header:
+                extra["headers"]["User-Agent"] = choice(self.grpc_user_agent_data)
+            else:
+                extra["headers"]["User-Agent"] = choice(self.user_agent_list)
+
+        extra = self._normalize_and_remove_none_values(extra)
+        if extra:
+            payload["extra"] = json.dumps(extra).replace(" ", "")
+
+    def _transport_ws(self, payload: dict, protocol: str, config: WebSocketTransportConfig, path: str):
+        """Handle websocket transport - only gets WS config"""
+        host = config.host if isinstance(config.host, str) else ""
+        if config.heartbeat_period:
+            payload["heartbeatPeriod"] = config.heartbeat_period
+        payload["path"] = path
+        payload["host"] = host
+
+    def _transport_quic(self, payload: dict, protocol: str, config: QUICTransportConfig, path: str):
+        """Handle quic transport - only gets QUIC config"""
+        if protocol != "vmess":
+            host = config.host if isinstance(config.host, str) else ""
+            payload["key"] = path
+            payload["quicSecurity"] = host
+
+    def _transport_kcp(self, payload: dict, protocol: str, config: KCPTransportConfig, path: str):
+        """Handle kcp transport - only gets KCP config"""
+        if protocol != "vmess":
+            host = config.host if isinstance(config.host, str) else ""
+            payload["seed"] = path
             payload["host"] = host
 
-    def _make_tls_settings(
-        self,
-        payload: dict,
-        tls: str,
-        sni: str,
-        fp: str,
-        alpn: list | None,
-        pbk: str,
-        sid: str,
-        spx: str,
-        fs: str,
-        ais: bool,
-        ech_config_list: str,
-        mldsa65_verify: str,
-    ):
+    def _transport_tcp(self, payload: dict, protocol: str, config: TCPTransportConfig, path: str):
+        """Handle tcp/raw/http transport - only gets TCP config"""
+        host = config.host if isinstance(config.host, str) else ""
+        payload["path"] = path
+        payload["host"] = host
+
+    def _apply_transport_settings(self, payload: dict, protocol: str, inbound: SubscriptionInboundData, path: str):
+        """Apply transport settings - uses pre-created config instance"""
+        handler = self.transport_handlers.get(inbound.network)
+        if handler:
+            # Just use the stored instance, no extraction needed!
+            handler(payload, protocol, inbound.transport_config, path)
+
+    def _apply_tls_settings(self, payload: dict, tls_config: TLSConfig):
+        """Apply TLS settings - only receives TLS config, not full inbound"""
+        sni = tls_config.sni if isinstance(tls_config.sni, str) else ""
         payload["sni"] = sni
-        payload["fp"] = fp
-        if alpn:
-            payload["alpn"] = ",".join(alpn)
-        if fs:
-            xray_fragment = fs["xray"]
-            payload["fragment"] = (
-                f"{xray_fragment['length']},{xray_fragment['interval']},{xray_fragment['packets']}"
-                if xray_fragment
-                else ""
-            )
+        payload["fp"] = tls_config.fingerprint
 
-        if ech_config_list:
-            payload["echConfigList"] = ech_config_list
+        # Use pre-formatted alpn for links (comma-separated string)
+        if tls_config.alpn_links:
+            payload["alpn"] = tls_config.alpn_links
 
-        if tls == "reality":
-            payload["pbk"] = pbk
-            payload["sid"] = sid
-            if spx:
-                payload["spx"] = spx
-            if mldsa65_verify:
-                payload["pqv"] = mldsa65_verify
+        if tls_config.fragment_settings:
+            xray_fragment = tls_config.fragment_settings.get("xray")
+            if xray_fragment:
+                payload["fragment"] = (
+                    f"{xray_fragment['length']},{xray_fragment['interval']},{xray_fragment['packets']}"
+                )
 
-        if ais:
+        if tls_config.ech_config_list:
+            payload["echConfigList"] = tls_config.ech_config_list
+
+        if tls_config.tls == "reality":
+            payload["pbk"] = tls_config.reality_public_key
+            payload["sid"] = tls_config.reality_short_id
+            if tls_config.reality_spx:
+                payload["spx"] = tls_config.reality_spx
+            if tls_config.mldsa65_verify:
+                payload["pqv"] = tls_config.mldsa65_verify
+
+        if tls_config.allowinsecure:
             payload["allowInsecure"] = 1
 
-    def vmess(
-        self,
-        remark: str,
-        address: str,
-        port: int,
-        id: Union[str, UUID],
-        host="",
-        net="tcp",
-        path="",
-        type="",
-        tls="none",
-        sni="",
-        fp="",
-        alpn=None,
-        pbk="",
-        sid="",
-        spx="",
-        ais="",
-        fs="",
-        multiMode: bool = False,
-        sc_max_each_post_bytes: int | None = None,
-        sc_max_concurrent_posts: int | None = None,
-        sc_min_posts_interval_ms: int | None = None,
-        x_padding_bytes: str | None = None,
-        mode: str = "",
-        noGRPCHeader: bool | None = None,
-        heartbeatPeriod: int | None = None,
-        scStreamUpServerSecs: int | None = None,
-        xmux: dict | None = None,
-        downloadSettings: dict | None = None,
-        random_user_agent: bool = False,
-        http_headers: dict | None = None,
-        ech_config_list: str | None = None,
-        mldsa65_verify: str | None = None,
-    ):
+    # ========== Protocol Builders ==========
+
+    def _build_vmess(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
+        """Build VMess link"""
+        # Process grpc path
+        path = self._process_path(inbound)
+        host = inbound.transport_config.host if isinstance(inbound.transport_config.host, str) else ""
+
         payload = {
             "add": address,
             "aid": "0",
             "host": host,
-            "id": str(id),
-            "net": net,
+            "id": str(settings["id"]),
+            "net": inbound.network,
             "path": path,
-            "port": port,
+            "port": inbound.port,
             "ps": remark,
             "scy": "auto",
-            "tls": tls,
-            "type": type,
+            "tls": inbound.tls_config.tls,
+            "type": getattr(inbound.transport_config, "header_type", "none"),
             "v": "2",
         }
-        self._make_net_settings(
-            payload=payload,
-            protocol="vmess",
-            net=net,
-            multiMode=multiMode,
-            path=path,
-            host=host,
-            sc_max_each_post_bytes=sc_max_each_post_bytes,
-            sc_max_concurrent_posts=sc_max_concurrent_posts,
-            sc_min_posts_interval_ms=sc_min_posts_interval_ms,
-            x_padding_bytes=x_padding_bytes,
-            mode=mode,
-            noGRPCHeader=noGRPCHeader,
-            heartbeatPeriod=heartbeatPeriod,
-            scStreamUpServerSecs=scStreamUpServerSecs,
-            http_headers=http_headers,
-            xmux=xmux,
-            random_user_agent=random_user_agent,
-            downloadSettings=downloadSettings,
-        )
-        if tls in ("tls", "reality"):
-            self._make_tls_settings(
-                payload, tls, sni, fp, alpn, pbk, sid, spx, fs, ais, ech_config_list, mldsa65_verify
-            )
+
+        self._apply_transport_settings(payload, "vmess", inbound, path)
+
+        if inbound.tls_config.tls in ("tls", "reality"):
+            # Use stored TLS config instance
+            self._apply_tls_settings(payload, inbound.tls_config)
+
         payload = self._normalize_and_remove_none_values(payload)
         return "vmess://" + base64.b64encode(json.dumps(payload, sort_keys=True).encode("utf-8")).decode()
 
-    def vless(
-        self,
-        remark: str,
-        address: str,
-        port: int,
-        id: Union[str, UUID],
-        encryption: str = "none",
-        net="ws",
-        path="",
-        host="",
-        type="",
-        flow="",
-        tls="none",
-        sni="",
-        fp="",
-        alpn=None,
-        pbk="",
-        sid="",
-        spx="",
-        ais="",
-        fs="",
-        multiMode: bool = False,
-        sc_max_each_post_bytes: int | None = None,
-        sc_max_concurrent_posts: int | None = None,
-        sc_min_posts_interval_ms: int | None = None,
-        x_padding_bytes: str | None = None,
-        mode: str = "",
-        noGRPCHeader: bool | None = None,
-        heartbeatPeriod: int | None = None,
-        scStreamUpServerSecs: int | None = None,
-        http_headers: dict | None = None,
-        xmux: dict | None = None,
-        random_user_agent: bool = False,
-        downloadSettings: dict | None = None,
-        ech_config_list: str | None = None,
-        mldsa65_verify: str | None = None,
-    ):
-        payload = {"encryption": encryption, "security": tls, "type": net, "headerType": type}
-        if flow and (tls in ("tls", "reality") and net in ("tcp", "raw", "kcp") and type != "http"):
+    def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
+        """Build VLESS link"""
+        # Process grpc path
+        path = self._process_path(inbound)
+        flow = settings.get("flow", "")
+
+        payload = {
+            "encryption": inbound.encryption,
+            "security": inbound.tls_config.tls,
+            "type": inbound.network,
+            "headerType": getattr(inbound.transport_config, "header_type", "none"),
+        }
+
+        header_type = getattr(inbound.transport_config, "header_type", "none")
+        if flow and (
+            inbound.tls_config.tls in ("tls", "reality")
+            and inbound.network in ("tcp", "raw", "kcp")
+            and header_type != "http"
+        ):
             payload["flow"] = flow
 
-        self._make_net_settings(
-            payload=payload,
-            protocol="vless",
-            net=net,
-            multiMode=multiMode,
-            path=path,
-            host=host,
-            sc_max_each_post_bytes=sc_max_each_post_bytes,
-            sc_max_concurrent_posts=sc_max_concurrent_posts,
-            sc_min_posts_interval_ms=sc_min_posts_interval_ms,
-            x_padding_bytes=x_padding_bytes,
-            mode=mode,
-            noGRPCHeader=noGRPCHeader,
-            heartbeatPeriod=heartbeatPeriod,
-            scStreamUpServerSecs=scStreamUpServerSecs,
-            http_headers=http_headers,
-            xmux=xmux,
-            random_user_agent=random_user_agent,
-            downloadSettings=downloadSettings,
-        )
-        if tls in ("tls", "reality"):
-            self._make_tls_settings(
-                payload, tls, sni, fp, alpn, pbk, sid, spx, fs, ais, ech_config_list, mldsa65_verify
-            )
-        payload = self._normalize_and_remove_none_values(payload)
-        return "vless://" + f"{id}@{address}:{port}?" + urlparse.urlencode(payload) + f"#{(urlparse.quote(remark))}"
+        self._apply_transport_settings(payload, "vless", inbound, path)
 
-    def trojan(
-        self,
-        remark: str,
-        address: str,
-        port: int,
-        password: str,
-        net="tcp",
-        path="",
-        host="",
-        type="",
-        flow="",
-        tls="none",
-        sni="",
-        fp="",
-        alpn=None,
-        pbk="",
-        sid="",
-        spx="",
-        ais="",
-        fs="",
-        multiMode: bool = False,
-        sc_max_each_post_bytes: int | None = None,
-        sc_max_concurrent_posts: int | None = None,
-        sc_min_posts_interval_ms: int | None = None,
-        x_padding_bytes: str | None = None,
-        mode: str = "",
-        noGRPCHeader: bool | None = None,
-        heartbeatPeriod: int | None = None,
-        scStreamUpServerSecs: int | None = None,
-        http_headers: dict | None = None,
-        xmux: dict | None = None,
-        random_user_agent: bool = False,
-        downloadSettings: dict | None = None,
-        ech_config_list: str | None = None,
-        mldsa65_verify: str | None = None,
-    ):
-        payload = {"security": tls, "type": net, "headerType": type}
-        if flow and (tls in ("tls", "reality") and net in ("tcp", "raw", "kcp") and type != "http"):
+        if inbound.tls_config.tls in ("tls", "reality"):
+            # Use stored TLS config instance
+            self._apply_tls_settings(payload, inbound.tls_config)
+
+        payload = self._normalize_and_remove_none_values(payload)
+        return (
+            f"vless://{settings['id']}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
+        )
+
+    def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
+        """Build Trojan link"""
+        # Process grpc path
+        path = self._process_path(inbound)
+        flow = settings.get("flow", "")
+
+        payload = {
+            "security": inbound.tls_config.tls,
+            "type": inbound.network,
+            "headerType": getattr(inbound.transport_config, "header_type", "none"),
+        }
+
+        header_type = getattr(inbound.transport_config, "header_type", "none")
+        if flow and (
+            inbound.tls_config.tls in ("tls", "reality")
+            and inbound.network in ("tcp", "raw", "kcp")
+            and header_type != "http"
+        ):
             payload["flow"] = flow
 
-        self._make_net_settings(
-            payload=payload,
-            protocol="trojan",
-            net=net,
-            multiMode=multiMode,
-            path=path,
-            host=host,
-            sc_max_each_post_bytes=sc_max_each_post_bytes,
-            sc_max_concurrent_posts=sc_max_concurrent_posts,
-            sc_min_posts_interval_ms=sc_min_posts_interval_ms,
-            x_padding_bytes=x_padding_bytes,
-            mode=mode,
-            noGRPCHeader=noGRPCHeader,
-            heartbeatPeriod=heartbeatPeriod,
-            scStreamUpServerSecs=scStreamUpServerSecs,
-            http_headers=http_headers,
-            xmux=xmux,
-            random_user_agent=random_user_agent,
-            downloadSettings=downloadSettings,
-        )
-        if tls in ("tls", "reality"):
-            self._make_tls_settings(
-                payload, tls, sni, fp, alpn, pbk, sid, spx, fs, ais, ech_config_list, mldsa65_verify
-            )
+        self._apply_transport_settings(payload, "trojan", inbound, path)
+
+        if inbound.tls_config.tls in ("tls", "reality"):
+            # Use stored TLS config instance
+            self._apply_tls_settings(payload, inbound.tls_config)
+
         payload = self._normalize_and_remove_none_values(payload)
-        return (
-            "trojan://"
-            + f"{urlparse.quote(password, safe=':')}@{address}:{port}?"
-            + urlparse.urlencode(payload)
-            + f"#{urlparse.quote(remark)}"
+        password = urlparse.quote(settings["password"], safe=":")
+        return f"trojan://{password}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
+
+    def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
+        """Build Shadowsocks link"""
+        method, password = self.detect_shadowsocks_2022(
+            inbound.is_2022,
+            inbound.method,
+            settings["method"],
+            getattr(inbound, "password", None),
+            settings["password"],
         )
 
-    def shadowsocks(self, remark: str, address: str, port: int, password: str, method: str):
-        return (
-            "ss://"
-            + base64.b64encode(f"{method}:{password}".encode()).decode()
-            + f"@{address}:{port}#{urlparse.quote(remark)}"
-        )
+        encoded = base64.b64encode(f"{method}:{password}".encode()).decode()
+        return f"ss://{encoded}@{address}:{inbound.port}#{urlparse.quote(remark)}"
+
+    # ========== Helper Methods ==========
+
+    def _process_path(self, inbound: SubscriptionInboundData) -> str:
+        """Process path for grpc if needed"""
+        path = inbound.transport_config.path
+        if inbound.network in ("grpc", "gun"):
+            multi_mode = getattr(inbound.transport_config, "multi_mode", False)
+            if multi_mode:
+                path = self.get_grpc_multi(path)
+            else:
+                path = self.get_grpc_gun(path)
+            if inbound.transport_config.path.startswith("/"):
+                path = quote(path, safe="-_.!~*'()")
+        return path

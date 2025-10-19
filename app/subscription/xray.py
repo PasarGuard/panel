@@ -1,8 +1,16 @@
 import json
 from random import choice
-from typing import Union
 
-from app.subscription.funcs import detect_shadowsocks_2022, get_grpc_gun, get_grpc_multi
+from app.models.subscription import (
+    SubscriptionInboundData,
+    TLSConfig,
+    GRPCTransportConfig,
+    WebSocketTransportConfig,
+    XHTTPTransportConfig,
+    KCPTransportConfig,
+    QUICTransportConfig,
+    TCPTransportConfig,
+)
 from app.templates import render_template
 from app.utils.helpers import UUIDEncoder
 from config import XRAY_SUBSCRIPTION_TEMPLATE
@@ -16,6 +24,28 @@ class XrayConfiguration(BaseSubscription):
         self.config = []
         self.template = render_template(XRAY_SUBSCRIPTION_TEMPLATE)
 
+        # Registry for transport handlers
+        self.transport_handlers = {
+            "ws": self._transport_ws,
+            "httpupgrade": self._transport_httpupgrade,
+            "splithttp": self._transport_xhttp,
+            "xhttp": self._transport_xhttp,
+            "grpc": self._transport_grpc,
+            "gun": self._transport_grpc,
+            "tcp": self._transport_tcp,
+            "kcp": self._transport_kcp,
+            "quic": self._transport_quic,
+            "h2": self._transport_http,
+        }
+
+        # Registry for protocol builders
+        self.protocol_handlers = {
+            "vmess": self._build_vmess,
+            "vless": self._build_vless,
+            "trojan": self._build_trojan,
+            "shadowsocks": self._build_shadowsocks,
+        }
+
     def add_config(self, remarks, outbounds):
         json_template = json.loads(self.template)
         json_template["remarks"] = remarks
@@ -27,97 +57,76 @@ class XrayConfiguration(BaseSubscription):
             self.config.reverse()
         return json.dumps(self.config, indent=4, cls=UUIDEncoder)
 
-    def tls_config(self, sni=None, fp=None, alpn=None, ais=False, ech_config_list=None) -> dict:
-        tls_settings = {
-            "serverName": sni,
-            "allowInsecure": ais if ais else False,
-            "show": False,
-            "fingerprint": fp,
-            "echConfigList": ech_config_list,
-        }
-        if alpn:
-            tls_settings["alpn"] = alpn
+    def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+        """Add outbound using registry pattern"""
+        remark = self._remark_validation(remark)
+        self.proxy_remarks.append(remark)
 
-        return self._normalize_and_remove_none_values(tls_settings)
+        # Get protocol handler from registry
+        handler = self.protocol_handlers.get(inbound.protocol)
+        if not handler:
+            return
 
-    def reality_config(self, sni=None, fp=None, pbk=None, sid=None, spx=None, mldsa65_verify=None) -> dict:
-        reality_settings = {
-            "serverName": sni,
-            "fingerprint": fp,
-            "show": False,
-            "publicKey": pbk,
-            "shortId": sid,
-            "spiderX": spx,
-            "mldsa65Verify": mldsa65_verify,
-        }
+        # Build outbound
+        outbound = handler(remark=remark, address=address, inbound=inbound, settings=settings)
+        if outbound:
+            self.add_config(remarks=remark, outbounds=[outbound])
 
-        return self._normalize_and_remove_none_values(reality_settings)
+    # ========== Transport Handlers (Registry Methods) ==========
 
-    def ws_config(
-        self,
-        path: str = "",
-        host: str = "",
-        random_user_agent: bool = False,
-        heartbeat_period: int | None = None,
-        http_headers: dict | None = None,
-    ) -> dict:
+    def _transport_ws(self, config: WebSocketTransportConfig, path: str) -> dict:
+        """Handle WebSocket transport - only gets WS config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+
         ws_settings = {
-            "headers": http_headers if http_headers is not None else {},
-            "heartbeatPeriod": heartbeat_period,
+            "headers": config.http_headers if config.http_headers else {},
+            "heartbeatPeriod": config.heartbeat_period,
             "path": path,
             "host": host,
         }
-        if random_user_agent:
+
+        if config.random_user_agent:
             ws_settings["headers"]["User-Agent"] = choice(self.user_agent_list)
+
         return self._normalize_and_remove_none_values(ws_settings)
 
-    def httpupgrade_config(
-        self, path: str = "", host: str = "", random_user_agent: bool = False, http_headers=None
-    ) -> dict:
+    def _transport_httpupgrade(self, config: WebSocketTransportConfig, path: str) -> dict:
+        """Handle HTTPUpgrade transport - only gets WS config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+
         httpupgrade_settings = {
-            "headers": http_headers if http_headers is not None else {},
+            "headers": config.http_headers if config.http_headers else {},
             "path": path,
             "host": host,
         }
-        if random_user_agent:
+
+        if config.random_user_agent:
             httpupgrade_settings["headers"]["User-Agent"] = choice(self.user_agent_list)
 
         return self._normalize_and_remove_none_values(httpupgrade_settings)
 
-    def xhttp_config(
-        self,
-        path: str = "",
-        host: str = "",
-        random_user_agent: bool = False,
-        sc_max_each_post_bytes: int | None = None,
-        sc_max_concurrent_posts: int | None = None,
-        sc_min_posts_interval_ms: int | None = None,
-        x_padding_bytes: str | None = None,
-        xmux: dict | None = None,
-        download_settings: dict | None = None,
-        mode: str = "",
-        no_grpc_header: bool | None = None,
-        http_headers: dict | None = None,
-    ) -> dict:
-        xhttp_settings = {}
+    def _transport_xhttp(self, config: XHTTPTransportConfig, path: str) -> dict:
+        """Handle xHTTP/SplitHTTP transport - only gets xHTTP config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
-        xhttp_settings["mode"] = mode
-        if path:
-            xhttp_settings["path"] = path
-        if host:
-            xhttp_settings["host"] = host
-        extra = {
-            "headers": http_headers if http_headers is not None else {},
-            "scMaxEachPostBytes": sc_max_each_post_bytes,
-            "scMaxConcurrentPosts": sc_max_concurrent_posts,
-            "scMinPostsIntervalMs": sc_min_posts_interval_ms,
-            "xPaddingBytes": x_padding_bytes,
-            "noGRPCHeader": no_grpc_header,
-            "xmux": xmux,
-            "downloadSettings": self.download_config(download_settings, False) if download_settings else None,
+        xhttp_settings = {
+            "mode": config.mode,
+            "path": path if path else None,
+            "host": host if host else None,
         }
-        if random_user_agent:
-            if mode in ("stream-one", "stream-up") and not no_grpc_header:
+
+        extra = {
+            "headers": config.http_headers if config.http_headers else {},
+            "scMaxEachPostBytes": config.sc_max_each_post_bytes,
+            "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
+            "xPaddingBytes": config.x_padding_bytes,
+            "noGRPCHeader": config.no_grpc_header,
+            "xmux": config.xmux,
+            "downloadSettings": self._download_config(config.download_settings) if config.download_settings else None,
+        }
+
+        if config.random_user_agent:
+            if config.mode in ("stream-one", "stream-up") and not config.no_grpc_header:
                 extra["headers"]["User-Agent"] = choice(self.grpc_user_agent_data)
             else:
                 extra["headers"]["User-Agent"] = choice(self.user_agent_list)
@@ -125,48 +134,39 @@ class XrayConfiguration(BaseSubscription):
         xhttp_settings["extra"] = extra
         return self._normalize_and_remove_none_values(xhttp_settings)
 
-    def grpc_config(
-        self,
-        path: str = "",
-        host: str = "",
-        multi_mode: bool = False,
-        random_user_agent: bool = False,
-        idle_timeout=None,
-        health_check_timeout=None,
-        permit_without_stream=False,
-        initial_windows_size=None,
-        http_headers=None,
-    ) -> dict:
+    def _transport_grpc(self, config: GRPCTransportConfig, path: str) -> dict:
+        """Handle GRPC transport - only gets GRPC config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+
         grpc_settings = {
-            "idle_timeout": idle_timeout if idle_timeout is not None else 60,
-            "health_check_timeout": health_check_timeout if health_check_timeout is not None else 20,
-            "permit_without_stream": permit_without_stream,
-            "initial_windows_size": initial_windows_size if initial_windows_size is not None else 35538,
+            "idle_timeout": config.idle_timeout if config.idle_timeout is not None else 60,
+            "health_check_timeout": config.health_check_timeout if config.health_check_timeout is not None else 20,
+            "permit_without_stream": config.permit_without_stream,
+            "initial_windows_size": config.initial_windows_size if config.initial_windows_size is not None else 35538,
             "serviceName": path,
             "authority": host,
-            "multiMode": multi_mode,
+            "multiMode": config.multi_mode,
         }
-        if http_headers and "user-agent" in http_headers:
-            grpc_settings["user_agent"] = http_headers["user-agent"]
-        if random_user_agent:
+
+        if config.http_headers and "user-agent" in config.http_headers:
+            grpc_settings["user_agent"] = config.http_headers["user-agent"]
+
+        if config.random_user_agent:
             grpc_settings["user_agent"] = choice(self.grpc_user_agent_data)
+
         return self._normalize_and_remove_none_values(grpc_settings)
 
-    def tcp_config(
-        self,
-        headers="none",
-        path: str = "",
-        host: str = "",
-        random_user_agent: bool = False,
-        request: dict | None = None,
-        response: dict | None = None,
-    ) -> dict:
+    def _transport_tcp(self, config: TCPTransportConfig, path: str) -> dict:
+        """Handle TCP transport - only gets TCP config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+        headers = config.header_type
+
         if headers == "http":
             tcp_settings = {
                 "header": {
                     "type": headers,
-                    "request": request
-                    if request
+                    "request": config.request
+                    if config.request
                     else {
                         "version": "1.1",
                         "method": "GET",
@@ -179,8 +179,8 @@ class XrayConfiguration(BaseSubscription):
                             "Pragma": "no-cache",
                         },
                     },
-                    "response": response
-                    if response
+                    "response": config.response
+                    if config.response
                     else {
                         "version": "1.1",
                         "status": "200",
@@ -194,15 +194,14 @@ class XrayConfiguration(BaseSubscription):
                     },
                 }
             }
-
         else:
             tcp_settings = {"header": {"type": headers}}
 
-        if any((path, host, random_user_agent)):
+        if any((path, host, config.random_user_agent)):
             if "request" not in tcp_settings["header"]:
                 tcp_settings["header"]["request"] = {}
 
-        if any((random_user_agent, host)):
+        if any((config.random_user_agent, host)):
             if (
                 "headers" not in tcp_settings["header"]["request"]
                 or tcp_settings["header"]["request"]["headers"] is None
@@ -215,57 +214,238 @@ class XrayConfiguration(BaseSubscription):
         if host:
             tcp_settings["header"]["request"]["headers"]["Host"] = [host]
 
-        if random_user_agent:
+        if config.random_user_agent:
             tcp_settings["header"]["request"]["headers"]["User-Agent"] = [choice(self.user_agent_list)]
 
         return self._normalize_and_remove_none_values(tcp_settings)
 
-    def http_config(
-        self, path: str = "", host: str = "", random_user_agent: bool = False, http_headers: dict | None = None
-    ) -> dict:
+    def _transport_http(self, config: TCPTransportConfig, path: str) -> dict:
+        """Handle HTTP (h2) transport - only gets TCP config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+
         http_settings = {
-            "headers": {k: [v] for k, v in http_headers.items()} if http_headers is not None else {},
+            "headers": {k: [v] for k, v in config.http_headers.items()} if config.http_headers else {},
             "path": path,
             "host": [host] if host else [],
         }
-        if random_user_agent:
+
+        if config.random_user_agent:
             http_settings["headers"]["User-Agent"] = [choice(self.user_agent_list)]
+
         return self._normalize_and_remove_none_values(http_settings)
 
-    def quic_config(self, path=None, host=None, header="none") -> dict:
-        quicSettings = {"security": host, "header": {"type": header}, "key": path}
-        return self._normalize_and_remove_none_values(quicSettings)
+    def _transport_quic(self, config: QUICTransportConfig, path: str) -> dict:
+        """Handle QUIC transport - only gets QUIC config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
-    def kcp_config(
-        self,
-        seed=None,
-        host=None,
-        header="none",
-        mtu=None,
-        tti=None,
-        uplinkCapacity=None,
-        downlinkCapacity=None,
-        congestion=False,
-        readBufferSize=None,
-        writeBufferSize=None,
-    ) -> dict:
-        kcp_settings = {
-            "header": {"type": header, "domain": host},
-            "mtu": mtu if mtu else 1350,
-            "tti": tti if tti else 50,
-            "uplinkCapacity": uplinkCapacity if uplinkCapacity else 12,
-            "downlinkCapacity": downlinkCapacity if downlinkCapacity else 100,
-            "congestion": congestion,
-            "readBufferSize": readBufferSize if readBufferSize else 2,
-            "writeBufferSize": writeBufferSize if writeBufferSize else 2,
-            "seed": seed,
+        return self._normalize_and_remove_none_values(
+            {
+                "security": host,
+                "header": {"type": config.header_type},
+                "key": path,
+            }
+        )
+
+    def _transport_kcp(self, config: KCPTransportConfig, path: str) -> dict:
+        """Handle KCP transport - only gets KCP config"""
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+
+        return self._normalize_and_remove_none_values(
+            {
+                "header": {"type": config.header_type, "domain": host},
+                "mtu": config.mtu if config.mtu else 1350,
+                "tti": config.tti if config.tti else 50,
+                "uplinkCapacity": config.uplink_capacity if config.uplink_capacity else 12,
+                "downlinkCapacity": config.downlink_capacity if config.downlink_capacity else 100,
+                "congestion": config.congestion,
+                "readBufferSize": config.read_buffer_size if config.read_buffer_size else 2,
+                "writeBufferSize": config.write_buffer_size if config.write_buffer_size else 2,
+                "seed": path,
+            }
+        )
+
+    def _apply_transport(self, network: str, inbound: SubscriptionInboundData, path: str) -> dict | None:
+        """Apply transport settings using registry pattern"""
+        handler = self.transport_handlers.get(network)
+        if not handler:
+            return None
+
+        # Use stored config instance
+        return handler(inbound.transport_config, path)
+
+    def _apply_tls(self, tls_config: TLSConfig, security: str) -> dict:
+        """Apply TLS/Reality settings - only receives TLS config"""
+        sni = tls_config.sni if isinstance(tls_config.sni, str) else (tls_config.sni[0] if tls_config.sni else None)
+
+        if security == "reality":
+            return self._normalize_and_remove_none_values(
+                {
+                    "serverName": sni,
+                    "fingerprint": tls_config.fingerprint,
+                    "show": False,
+                    "publicKey": tls_config.reality_public_key,
+                    "shortId": tls_config.reality_short_id,
+                    "spiderX": tls_config.reality_spx,
+                    "mldsa65Verify": tls_config.mldsa65_verify,
+                }
+            )
+        else:  # tls
+            config = {
+                "serverName": sni,
+                "allowInsecure": tls_config.allowinsecure,
+                "show": False,
+                "fingerprint": tls_config.fingerprint,
+                "echConfigList": tls_config.ech_config_list,
+            }
+            if tls_config.alpn_list:
+                config["alpn"] = tls_config.alpn_list  # Use list for xray
+
+            return self._normalize_and_remove_none_values(config)
+
+    def _download_config(self, download_settings: dict) -> dict:
+        """Process download settings for xHTTP"""
+        # This would need to be filled from actual download host data
+        # For now, just return the settings as-is
+        return download_settings
+
+    # ========== Protocol Builders (Registry Methods) ==========
+
+    def _build_vmess(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build VMess outbound"""
+        return self._build_outbound(
+            protocol_type="vmess",
+            remark=remark,
+            address=address,
+            inbound=inbound,
+            user_settings={"id": str(settings["id"]), "alterId": 0, "security": "auto"},
+        )
+
+    def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build VLESS outbound"""
+        flow = settings.get("flow", "")
+        user_settings = {"id": str(settings["id"]), "encryption": inbound.encryption}
+        if flow:
+            user_settings["flow"] = flow
+
+        return self._build_outbound(
+            protocol_type="vless",
+            remark=remark,
+            address=address,
+            inbound=inbound,
+            user_settings=user_settings,
+        )
+
+    def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build Trojan outbound"""
+        flow = settings.get("flow", "")
+        user_settings = {"password": settings["password"]}
+        if flow:
+            user_settings["flow"] = flow
+
+        return self._build_outbound(
+            protocol_type="trojan",
+            remark=remark,
+            address=address,
+            inbound=inbound,
+            user_settings=user_settings,
+        )
+
+    def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build Shadowsocks outbound"""
+        method, password = self.detect_shadowsocks_2022(
+            inbound.is_2022,
+            inbound.method,
+            settings["method"],
+            getattr(inbound, "password", None),
+            settings["password"],
+        )
+
+        outbound = {
+            "protocol": "shadowsocks",
+            "tag": remark,
+            "settings": {
+                "servers": [
+                    {
+                        "address": address,
+                        "port": self._select_port(inbound.port),
+                        "password": password,
+                        "method": method,
+                    }
+                ]
+            },
         }
-        return self._normalize_and_remove_none_values(kcp_settings)
+
+        return self._normalize_and_remove_none_values(outbound)
+
+    def _build_outbound(
+        self,
+        protocol_type: str,
+        remark: str,
+        address: str,
+        inbound: SubscriptionInboundData,
+        user_settings: dict,
+    ) -> dict:
+        """Generic outbound builder"""
+        network = inbound.network
+        path = inbound.transport_config.path
+
+        # Process GRPC path
+        if network in ("grpc", "gun"):
+            if getattr(inbound.transport_config, "multi_mode", False):
+                path = self.get_grpc_multi(path)
+            else:
+                path = self.get_grpc_gun(path)
+
+        outbound = {
+            "protocol": protocol_type,
+            "tag": remark,
+            "settings": {
+                "vnext" if protocol_type in ("vmess", "vless") else "servers": [
+                    {
+                        "address": address,
+                        "port": self._select_port(inbound.port),
+                        "users": [user_settings],
+                    }
+                ]
+            },
+        }
+
+        # Build stream settings
+        network_setting = self._apply_transport(network, inbound, path)
+
+        security = inbound.tls_config.tls if inbound.tls_config.tls != "none" else None
+        tls_settings = self._apply_tls(inbound.tls_config, security) if security else None
+
+        # Add fragment/noise to sockopt
+        sockopt = None
+        if inbound.tls_config.fragment_settings or inbound.tls_config.noise_settings:
+            sockopt = {}
+            if inbound.tls_config.fragment_settings and (
+                xray_fragment := inbound.tls_config.fragment_settings.get("xray")
+            ):
+                sockopt["tcpFragmentSettings"] = xray_fragment
+            if inbound.tls_config.noise_settings and (xray_noise := inbound.tls_config.noise_settings.get("xray")):
+                sockopt["tcpNoiseSettings"] = xray_noise
+
+        outbound["streamSettings"] = self._stream_setting_config(
+            network=network,
+            security=security,
+            network_setting=network_setting,
+            tls_settings=tls_settings,
+            sockopt=sockopt,
+        )
+
+        # Add mux
+        if inbound.mux_settings and (xray_mux := inbound.mux_settings.get("xray")):
+            outbound["mux"] = xray_mux
+
+        return self._normalize_and_remove_none_values(outbound)
 
     @staticmethod
-    def stream_setting_config(
+    def _stream_setting_config(
         network=None, security=None, network_setting=None, tls_settings=None, sockopt=None
     ) -> dict:
+        """Build stream settings"""
         stream_settings = {"network": network}
 
         if security and security != "none":
@@ -280,390 +460,9 @@ class XrayConfiguration(BaseSubscription):
 
         return stream_settings
 
-    def download_config(self, inbound: dict, link_format: bool = False) -> dict:
-        net = inbound["network"]
-        port = inbound["port"]
+    def _select_port(self, port: int | str) -> int:
+        """Select a random port if multiple are provided"""
         if isinstance(port, str):
             ports = port.split(",")
-            port = int(choice(ports))
-
-        address = inbound["address"]
-        tls = inbound["tls"]
-        headers = inbound["header_type"]
-        fragment = inbound["fragment_settings"]
-        noise = inbound["noise_settings"]
-        path = inbound["path"]
-        multi_mode = inbound.get("multi_mode", False)
-
-        if net in ("grpc", "gun"):
-            if multi_mode:
-                path = get_grpc_multi(path)
-            else:
-                path = get_grpc_gun(path)
-
-        dialer_proxy = ""
-        if (fragment or noise) and not link_format:
-            dialer_proxy = "dsdialer"
-
-        download_settings = self.make_stream_setting(
-            net=net,
-            tls=tls,
-            sni=inbound["sni"],
-            host=inbound["host"],
-            path=path,
-            alpn=inbound.get("alpn", None),
-            fp=inbound.get("fp", ""),
-            pbk=inbound.get("pbk", ""),
-            sid=inbound.get("sid", ""),
-            spx=inbound.get("spx", ""),
-            headers=headers,
-            ais=inbound.get("ais", ""),
-            multi_mode=multi_mode,
-            random_user_agent=inbound.get("random_user_agent", False),
-            sc_max_each_post_bytes=inbound.get("sc_max_each_post_bytes"),
-            sc_max_concurrent_posts=inbound.get("sc_max_concurrent_posts"),
-            sc_min_posts_interval_ms=inbound.get("sc_min_posts_interval_ms"),
-            x_padding_bytes=inbound.get("x_padding_bytes"),
-            xmux=inbound.get("xmux", {}),
-            download_settings=inbound.get("downloadSettings"),
-            mode=inbound.get("mode", "auto"),
-            no_grpc_header=inbound.get("no_grpc_header"),
-            heartbeat_period=inbound.get("heartbeat_period"),
-            http_headers=inbound.get("http_headers"),
-            request=inbound.get("request"),
-            response=inbound.get("response"),
-            mtu=inbound.get("mtu"),
-            tti=inbound.get("tti"),
-            uplink_capacity=inbound.get("uplink_capacity"),
-            downlink_capacity=inbound.get("downlink_capacity"),
-            congestion=inbound.get("congestion"),
-            read_buffer_size=inbound.get("read_buffer_size"),
-            write_buffer_size=inbound.get("write_buffer_size"),
-            idle_timeout=inbound.get("idle_timeout"),
-            health_check_timeout=inbound.get("health_check_timeout"),
-            permit_without_stream=inbound.get("permit_without_stream", False),
-            initial_windows_size=inbound.get("initial_windows_size"),
-            dialer_proxy=dialer_proxy,
-            ech_config_list=inbound.get("ech_config_list"),
-        )
-
-        return {
-            "address": address,
-            "port": port,
-            **download_settings,
-        }
-
-    @staticmethod
-    def vmess_config(address=None, port=None, id=None) -> dict:
-        return {
-            "vnext": [
-                {
-                    "address": address,
-                    "port": port,
-                    "users": [{"id": id, "alterId": 0, "email": "t@t.com", "security": "auto"}],
-                }
-            ]
-        }
-
-    @staticmethod
-    def vless_config(address=None, port=None, id=None, flow="", encryption="none") -> dict:
-        return {
-            "vnext": [
-                {
-                    "address": address,
-                    "port": port,
-                    "users": [
-                        {
-                            "id": id,
-                            "security": "auto",
-                            "encryption": encryption,
-                            "email": "t@t.com",
-                            "alterId": 0,
-                            "flow": flow,
-                        }
-                    ],
-                }
-            ]
-        }
-
-    @staticmethod
-    def trojan_config(address=None, port=None, password=None) -> dict:
-        return {
-            "servers": [
-                {
-                    "address": address,
-                    "port": port,
-                    "password": password,
-                    "email": "t@t.com",
-                }
-            ]
-        }
-
-    @staticmethod
-    def shadowsocks_config(address=None, port=None, password=None, method=None) -> dict:
-        return {
-            "servers": [
-                {
-                    "address": address,
-                    "port": port,
-                    "password": password,
-                    "email": "t@t.com",
-                    "method": method,
-                    "uot": False,
-                }
-            ]
-        }
-
-    def make_dialer_outbound(
-        self, fragment: dict | None = None, noises: dict | None = None, dialer_tag: str = "dialer"
-    ) -> Union[dict, None]:
-        xray_noises = noises.get("xray", []) if noises else []
-        dialer_settings = {
-            "fragment": fragment.get("xray") if fragment else None,
-            "noises": [{self.snake_to_camel(k): v for k, v in noise.items()} for noise in xray_noises] or None,
-        }
-        dialer_settings = self._normalize_and_remove_none_values(dialer_settings)
-
-        if dialer_settings:
-            return {"tag": dialer_tag, "protocol": "freedom", "settings": dialer_settings}
-
-    def make_stream_setting(
-        self,
-        net="",
-        path="",
-        host="",
-        tls="",
-        sni="",
-        fp="",
-        alpn=None,
-        pbk="",
-        sid="",
-        spx="",
-        headers="",
-        ais="",
-        dialer_proxy="",
-        multi_mode: bool = False,
-        random_user_agent: bool = False,
-        sc_max_each_post_bytes: int | None = None,
-        sc_max_concurrent_posts: int | None = None,
-        sc_min_posts_interval_ms: int | None = None,
-        x_padding_bytes: str | None = None,
-        xmux: dict = {},
-        download_settings: dict = {},
-        mode: str = "",
-        no_grpc_header: bool | None = None,
-        heartbeat_period: int = 0,
-        http_headers: dict | None = None,
-        idle_timeout=None,
-        health_check_timeout=None,
-        permit_without_stream=False,
-        initial_windows_size=None,
-        request: dict | None = None,
-        response: dict | None = None,
-        mtu=None,
-        tti=None,
-        uplink_capacity=None,
-        downlink_capacity=None,
-        congestion=False,
-        read_buffer_size=None,
-        write_buffer_size=None,
-        ech_config_list=None,
-        mldsa65_verify=None,
-    ) -> dict:
-        if net == "ws":
-            network_setting = self.ws_config(
-                path=path,
-                host=host,
-                random_user_agent=random_user_agent,
-                heartbeat_period=heartbeat_period,
-                http_headers=http_headers,
-            )
-        elif net == "grpc":
-            network_setting = self.grpc_config(
-                path=path,
-                host=host,
-                multi_mode=multi_mode,
-                random_user_agent=random_user_agent,
-                idle_timeout=idle_timeout,
-                health_check_timeout=health_check_timeout,
-                permit_without_stream=permit_without_stream,
-                initial_windows_size=initial_windows_size,
-                http_headers=http_headers,
-            )
-        elif net in ("h3", "h2", "http"):
-            network_setting = self.http_config(
-                path=path, host=host, random_user_agent=random_user_agent, http_headers=http_headers
-            )
-        elif net == "kcp":
-            network_setting = self.kcp_config(
-                seed=path,
-                host=host,
-                header=headers,
-                mtu=mtu,
-                tti=tti,
-                uplinkCapacity=uplink_capacity,
-                downlinkCapacity=downlink_capacity,
-                congestion=congestion,
-                readBufferSize=read_buffer_size,
-                writeBufferSize=write_buffer_size,
-            )
-        elif net in ("tcp", "raw") and tls != "reality":
-            network_setting = self.tcp_config(
-                headers=headers,
-                path=path,
-                host=host,
-                random_user_agent=random_user_agent,
-                request=request,
-                response=response,
-            )
-        elif net == "quic":
-            network_setting = self.quic_config(path=path, host=host, header=headers)
-        elif net == "httpupgrade":
-            network_setting = self.httpupgrade_config(
-                path=path, host=host, random_user_agent=random_user_agent, http_headers=http_headers
-            )
-        elif net in ("splithttp", "xhttp"):
-            network_setting = self.xhttp_config(
-                path=path,
-                host=host,
-                random_user_agent=random_user_agent,
-                sc_max_each_post_bytes=sc_max_each_post_bytes,
-                sc_max_concurrent_posts=sc_max_concurrent_posts,
-                sc_min_posts_interval_ms=sc_min_posts_interval_ms,
-                x_padding_bytes=x_padding_bytes,
-                xmux=xmux,
-                download_settings=download_settings,
-                mode=mode,
-                no_grpc_header=no_grpc_header,
-                http_headers=http_headers,
-            )
-        else:
-            network_setting = {}
-
-        if tls == "tls":
-            tls_settings = self.tls_config(sni=sni, fp=fp, alpn=alpn, ais=ais, ech_config_list=ech_config_list)
-        elif tls == "reality":
-            tls_settings = self.reality_config(sni=sni, fp=fp, pbk=pbk, sid=sid, spx=spx, mldsa65_verify=mldsa65_verify)
-        else:
-            tls_settings = None
-
-        if dialer_proxy:
-            sockopt = {"dialerProxy": dialer_proxy}
-        else:
-            sockopt = None
-
-        return self.stream_setting_config(
-            network=net, security=tls, network_setting=network_setting, tls_settings=tls_settings, sockopt=sockopt
-        )
-
-    def add(self, remark: str, address: str, inbound: dict, settings: dict):
-        net = inbound["network"]
-        protocol = inbound["protocol"]
-        port = inbound["port"]
-        if isinstance(port, str):
-            ports = port.split(",")
-            port = int(choice(ports))
-
-        tls = inbound["tls"]
-        headers = inbound["header_type"]
-        fragment = inbound["fragment_settings"]
-        noise = inbound["noise_settings"]
-        path = inbound["path"]
-        multi_mode = inbound.get("multi_mode", False)
-
-        if net in ("grpc", "gun"):
-            if multi_mode:
-                path = get_grpc_multi(path)
-            else:
-                path = get_grpc_gun(path)
-
-        outbound = {"tag": "proxy", "protocol": protocol}
-
-        if inbound["protocol"] == "vmess":
-            outbound["settings"] = self.vmess_config(address=address, port=port, id=settings["id"])
-
-        elif inbound["protocol"] == "vless":
-            if net in ("tcp", "raw", "kcp") and headers != "http" and tls in ("tls", "reality"):
-                flow = settings.get("flow", "")
-            else:
-                flow = None
-            encryption = inbound.get("encryption", "none")
-
-            outbound["settings"] = self.vless_config(
-                address=address, port=port, id=settings["id"], flow=flow, encryption=encryption
-            )
-
-        elif inbound["protocol"] == "trojan":
-            outbound["settings"] = self.trojan_config(address=address, port=port, password=settings["password"])
-
-        elif inbound["protocol"] == "shadowsocks":
-            method, password = detect_shadowsocks_2022(
-                inbound.get("is_2022", False),
-                inbound.get("method", ""),
-                settings["method"],
-                inbound.get("password"),
-                settings["password"],
-            )
-            outbound["settings"] = self.shadowsocks_config(address=address, port=port, password=password, method=method)
-
-        outbounds = [outbound]
-        dialer_proxy = ""
-        extra_outbound = self.make_dialer_outbound(fragment, noise)
-        if extra_outbound:
-            dialer_proxy = extra_outbound["tag"]
-            outbounds.append(extra_outbound)
-
-        if (ds := inbound.get("downloadSettings", {})) and (ds.get("fragment_settings") or ds.get("noise_settings")):
-            ds_outbound = self.make_dialer_outbound(ds.get("fragment_settings"), ds.get("noise_settings"), "dsdialer")
-            if ds_outbound:
-                outbounds.append(ds_outbound)
-
-        outbound["streamSettings"] = self.make_stream_setting(
-            net=net,
-            tls=tls,
-            sni=inbound["sni"],
-            host=inbound["host"],
-            path=path,
-            alpn=inbound.get("alpn", None),
-            fp=inbound.get("fp", ""),
-            pbk=inbound.get("pbk", ""),
-            sid=inbound.get("sid", ""),
-            spx=inbound.get("spx", ""),
-            headers=headers,
-            ais=inbound.get("ais", ""),
-            dialer_proxy=dialer_proxy,
-            multi_mode=multi_mode,
-            random_user_agent=inbound.get("random_user_agent", False),
-            sc_max_each_post_bytes=inbound.get("sc_max_each_post_bytes"),
-            sc_max_concurrent_posts=inbound.get("sc_max_concurrent_posts"),
-            sc_min_posts_interval_ms=inbound.get("sc_min_posts_interval_ms"),
-            x_padding_bytes=inbound.get("x_padding_bytes"),
-            xmux=inbound.get("xmux", {}),
-            download_settings=inbound.get("downloadSettings"),
-            mode=inbound.get("mode", "auto"),
-            no_grpc_header=inbound.get("no_grpc_header"),
-            heartbeat_period=inbound.get("heartbeat_period"),
-            http_headers=inbound.get("http_headers"),
-            request=inbound.get("request"),
-            response=inbound.get("response"),
-            mtu=inbound.get("mtu"),
-            tti=inbound.get("tti"),
-            uplink_capacity=inbound.get("uplink_capacity"),
-            downlink_capacity=inbound.get("downlink_capacity"),
-            congestion=inbound.get("congestion"),
-            read_buffer_size=inbound.get("read_buffer_size"),
-            write_buffer_size=inbound.get("write_buffer_size"),
-            idle_timeout=inbound.get("idle_timeout"),
-            health_check_timeout=inbound.get("health_check_timeout"),
-            permit_without_stream=inbound.get("permit_without_stream", False),
-            initial_windows_size=inbound.get("initial_windows_size"),
-            ech_config_list=inbound.get("ech_config_list"),
-            mldsa65_verify=inbound.get("mldsa65Verify"),
-        )
-
-        mux_settings: dict = inbound.get("mux_settings", {})
-        if mux_settings and (xray_mux := mux_settings.get("xray")):
-            xray_mux = self._normalize_and_remove_none_values(xray_mux)
-            outbound["mux"] = xray_mux
-
-        self.add_config(remarks=remark, outbounds=outbounds)
+            return int(choice(ports))
+        return port
