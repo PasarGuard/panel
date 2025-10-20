@@ -217,6 +217,7 @@ class DownloadLink(BaseModel):
 
 class Application(BaseModel):
     name: str = Field(max_length=32)
+    icon_url: str = Field(default="", max_length=512)
     import_url: str = Field(default="", max_length=256)
     description: dict[Language, str] = Field(default_factory=dict)
     recommended: bool = Field(False)
