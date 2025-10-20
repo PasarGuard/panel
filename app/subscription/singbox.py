@@ -175,8 +175,8 @@ class SingBoxConfiguration(BaseSubscription):
         else:
             return handler(inbound.transport_config, path)
 
-    def _apply_tls(self, tls_config: TLSConfig) -> dict:
-        """Apply TLS settings - only receives TLS config"""
+    def _apply_tls(self, tls_config: TLSConfig, fragment_settings: dict | None = None) -> dict:
+        """Apply TLS settings - receives TLS config and optional fragment settings"""
         config = {
             "enabled": tls_config.tls in ("tls", "reality"),
             "server_name": tls_config.sni
@@ -203,7 +203,8 @@ class SingBoxConfiguration(BaseSubscription):
             else None,
         }
 
-        if tls_config.fragment_settings and (singbox_fragment := tls_config.fragment_settings.get("sing_box")):
+        # Fragment settings (from inbound, not TLS) - sing-box embeds in TLS config
+        if fragment_settings and (singbox_fragment := fragment_settings.get("sing_box")):
             config.update(singbox_fragment)
 
         return self._normalize_and_remove_none_values(config)
@@ -312,7 +313,7 @@ class SingBoxConfiguration(BaseSubscription):
 
         # Add TLS
         if inbound.tls_config.tls in ("tls", "reality"):
-            config["tls"] = self._apply_tls(inbound.tls_config)
+            config["tls"] = self._apply_tls(inbound.tls_config, inbound.fragment_settings)
 
         # Add mux
         if inbound.mux_settings and (singbox_mux := inbound.mux_settings.get("sing_box")):

@@ -32,8 +32,6 @@ class TLSConfig(BaseModel):
     allowinsecure: bool = False
     alpn_list: list[str] = Field(default_factory=list)
     ech_config_list: str | None = None
-    fragment_settings: dict[str, Any] | None = None
-    noise_settings: dict[str, Any] | None = None
 
     # Reality specific
     reality_public_key: str = ""
@@ -239,6 +237,10 @@ class SubscriptionInboundData(BaseModel):
     # Additional settings
     random_user_agent: bool = False
     use_sni_as_host: bool = False
+
+    # Fragment and noise settings
+    fragment_settings: dict[str, Any] | None = None
+    noise_settings: dict[str, Any] | None = None
 
     # Priority and status
     priority: int = 0

@@ -67,10 +67,21 @@ class XrayConfiguration(BaseSubscription):
         if not handler:
             return
 
-        # Build outbound
-        outbound = handler(remark=remark, address=address, inbound=inbound, settings=settings)
-        if outbound:
-            self.add_config(remarks=remark, outbounds=[outbound])
+        # Build outbound(s)
+        result = handler(remark=remark, address=address, inbound=inbound, settings=settings)
+        if not result:
+            return
+
+        # Handle different return types
+        if isinstance(result, tuple):
+            # VMess, VLESS, Trojan return (main_outbound, extra_outbounds_list)
+            main_outbound, extra_outbounds = result
+            all_outbounds = [main_outbound] + extra_outbounds
+        else:
+            # Shadowsocks returns just a dict
+            all_outbounds = [result]
+
+        self.add_config(remarks=remark, outbounds=all_outbounds)
 
     # ========== Transport Handlers (Registry Methods) ==========
 
@@ -302,6 +313,24 @@ class XrayConfiguration(BaseSubscription):
 
             return self._normalize_and_remove_none_values(config)
 
+    def make_dialer_outbound(
+        self, fragment: dict | None = None, noises: dict | None = None, dialer_tag: str = "dialer"
+    ) -> dict | None:
+        """
+        Create Freedom protocol outbound with fragment/noise settings.
+        This is the CORRECT way to handle fragment/noise in xray-core.
+        """
+        xray_noises = noises.get("xray", []) if noises else []
+        dialer_settings = {
+            "fragment": fragment.get("xray") if fragment else None,
+            "noises": [{self.snake_to_camel(k): v for k, v in noise.items()} for noise in xray_noises] or None,
+        }
+        dialer_settings = self._normalize_and_remove_none_values(dialer_settings)
+
+        if dialer_settings:
+            return {"tag": dialer_tag, "protocol": "freedom", "settings": dialer_settings}
+        return None
+
     def _download_config(self, download_settings: dict) -> dict:
         """Process download settings for xHTTP"""
         # This would need to be filled from actual download host data
@@ -310,8 +339,8 @@ class XrayConfiguration(BaseSubscription):
 
     # ========== Protocol Builders (Registry Methods) ==========
 
-    def _build_vmess(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
-        """Build VMess outbound"""
+    def _build_vmess(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
+        """Build VMess outbound - returns (main_outbound, extra_outbounds_list)"""
         return self._build_outbound(
             protocol_type="vmess",
             remark=remark,
@@ -320,8 +349,8 @@ class XrayConfiguration(BaseSubscription):
             user_settings={"id": str(settings["id"]), "alterId": 0, "security": "auto"},
         )
 
-    def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
-        """Build VLESS outbound"""
+    def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
+        """Build VLESS outbound - returns (main_outbound, extra_outbounds_list)"""
         flow = settings.get("flow", "")
         user_settings = {"id": str(settings["id"]), "encryption": inbound.encryption}
         if flow:
@@ -335,8 +364,8 @@ class XrayConfiguration(BaseSubscription):
             user_settings=user_settings,
         )
 
-    def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
-        """Build Trojan outbound"""
+    def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
+        """Build Trojan outbound - returns (main_outbound, extra_outbounds_list)"""
         flow = settings.get("flow", "")
         user_settings = {"password": settings["password"]}
         if flow:
@@ -416,16 +445,14 @@ class XrayConfiguration(BaseSubscription):
         security = inbound.tls_config.tls if inbound.tls_config.tls != "none" else None
         tls_settings = self._apply_tls(inbound.tls_config, security) if security else None
 
-        # Add fragment/noise to sockopt
+        # Handle fragment/noise - create dialer outbound
+        extra_outbounds = []
         sockopt = None
-        if inbound.tls_config.fragment_settings or inbound.tls_config.noise_settings:
-            sockopt = {}
-            if inbound.tls_config.fragment_settings and (
-                xray_fragment := inbound.tls_config.fragment_settings.get("xray")
-            ):
-                sockopt["tcpFragmentSettings"] = xray_fragment
-            if inbound.tls_config.noise_settings and (xray_noise := inbound.tls_config.noise_settings.get("xray")):
-                sockopt["tcpNoiseSettings"] = xray_noise
+        if inbound.fragment_settings or inbound.noise_settings:
+            dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
+            if dialer_outbound:
+                extra_outbounds.append(dialer_outbound)
+                sockopt = {"dialerProxy": "dialer"}
 
         outbound["streamSettings"] = self._stream_setting_config(
             network=network,
@@ -439,7 +466,7 @@ class XrayConfiguration(BaseSubscription):
         if inbound.mux_settings and (xray_mux := inbound.mux_settings.get("xray")):
             outbound["mux"] = xray_mux
 
-        return self._normalize_and_remove_none_values(outbound)
+        return self._normalize_and_remove_none_values(outbound), extra_outbounds
 
     @staticmethod
     def _stream_setting_config(

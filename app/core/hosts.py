@@ -63,8 +63,6 @@ async def _prepare_subscription_inbound_data(host: BaseHost, down_settings: dict
         allowinsecure=ais,
         alpn_list=alpn_list,
         ech_config_list=host.ech_config_list,
-        fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
-        noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
         reality_public_key=reality_pbk,
         reality_short_id=reality_sid,
         reality_short_ids=reality_sids,
@@ -204,6 +202,8 @@ async def _prepare_subscription_inbound_data(host: BaseHost, down_settings: dict
         inbound_flow=inbound_flow,
         random_user_agent=host.random_user_agent,
         use_sni_as_host=host.use_sni_as_host,
+        fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
+        noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
         priority=host.priority,
         status=list(host.status) if host.status else None,
     )
