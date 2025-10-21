@@ -16,6 +16,7 @@ from app.models.user import (
     UserModify,
     UserResponse,
     UsersResponse,
+    UserSubscriptionUpdateChart,
     UserSubscriptionUpdateList,
 )
 from app.operation import OperatorType
@@ -142,6 +143,23 @@ async def active_next_plan(
 ):
     """Reset user by next plan"""
     return await user_operator.active_next_plan(db, username=username, admin=admin)
+
+
+@router.get(
+    "/sub_update/chart",
+    response_model=UserSubscriptionUpdateChart,
+    responses={403: responses._403, 404: responses._404},
+)
+async def get_user_sub_update_chart(
+    username: str | None = None,
+    admin_username: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Get subscription agent distribution percentages (optionally filtered by username)"""
+    return await user_operator.get_user_sub_update_chart(
+        db, admin=admin, username=username, admin_username=admin_username
+    )
 
 
 @router.get("/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404})

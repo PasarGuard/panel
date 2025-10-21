@@ -786,6 +786,22 @@ async def get_user_sub_update_list(
     return result, count
 
 
+async def get_user_subscription_agents(
+    db: AsyncSession, user_id: int | None = None, admin_username: str | None = None
+) -> list[str]:
+    stmt = select(UserSubscriptionUpdate.user_agent)
+
+    if user_id is not None:
+        stmt = stmt.where(UserSubscriptionUpdate.user_id == user_id)
+    else:
+        stmt = stmt.join(User, UserSubscriptionUpdate.user_id == User.id)
+    if admin_username:
+        stmt = stmt.where(Admin.username == admin_username)
+
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
 async def autodelete_expired_users(
     db: AsyncSession, include_limited_users: bool = False
 ) -> list[UserNotificationResponse]:

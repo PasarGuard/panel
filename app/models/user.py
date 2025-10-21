@@ -146,6 +146,17 @@ class UserSubscriptionUpdateList(BaseModel):
     count: int
 
 
+class UserSubscriptionUpdateChartSegment(BaseModel):
+    name: str
+    count: int
+    percentage: float
+
+
+class UserSubscriptionUpdateChart(BaseModel):
+    total: int
+    segments: list[UserSubscriptionUpdateChartSegment] = Field(default_factory=list)
+
+
 class RemoveUsersResponse(BaseModel):
     users: list[str]
     count: int

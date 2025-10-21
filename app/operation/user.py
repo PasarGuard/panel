@@ -1,5 +1,7 @@
 import asyncio
+import re
 import secrets
+from collections import Counter
 from datetime import datetime as dt, timedelta as td, timezone as tz
 
 from pydantic import ValidationError
@@ -20,6 +22,7 @@ from app.db.crud.user import (
     get_all_users_usages,
     get_expired_users,
     get_user_sub_update_list,
+    get_user_subscription_agents,
     get_user_usages,
     get_users,
     modify_user,
@@ -44,6 +47,8 @@ from app.models.user import (
     UserNotificationResponse,
     UserResponse,
     UsersResponse,
+    UserSubscriptionUpdateChart,
+    UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateList,
 )
 from app.node import node_manager
@@ -506,3 +511,67 @@ class UserOperation(BaseOperation):
         user_sub_data, count = await get_user_sub_update_list(db, user_id=db_user.id, offset=offset, limit=limit)
 
         return UserSubscriptionUpdateList(updates=user_sub_data, count=count)
+
+    async def get_user_sub_update_chart(
+        self, db: AsyncSession, admin: AdminDetails, username: str | None = None, admin_username: str | None = None
+    ) -> UserSubscriptionUpdateChart:
+        user_id: int | None = None
+
+        if admin_username and admin.is_sudo:
+            await self.get_validated_admin(db, admin_username)
+        elif admin_username or (not admin_username and not admin.is_sudo):
+            admin_username = admin.username
+
+        if username:
+            db_user = await self.get_validated_user(db, username, admin)
+            user_id = db_user.id
+
+        user_agents = await get_user_subscription_agents(db, user_id=user_id, admin_username=admin_username)
+        return self._build_user_agent_chart(user_agents)
+
+    @classmethod
+    def _build_user_agent_chart(cls, user_agents: list[str]) -> UserSubscriptionUpdateChart:
+        if not user_agents:
+            return UserSubscriptionUpdateChart(total=0, segments=[])
+
+        counts = Counter()
+        display_names: dict[str, str] = {}
+
+        for agent in user_agents:
+            normalized = cls._normalize_user_agent(agent)
+            key = normalized.lower()
+            counts[key] += 1
+            display_names.setdefault(key, normalized)
+
+        total = sum(counts.values())
+        segments = [
+            UserSubscriptionUpdateChartSegment(
+                name=display_names[key],
+                count=count,
+                percentage=round((count / total) * 100, 2) if total else 0.0,
+            )
+            for key, count in counts.most_common()
+        ]
+
+        return UserSubscriptionUpdateChart(total=total, segments=segments)
+
+    @staticmethod
+    def _normalize_user_agent(user_agent: str) -> str:
+        if not user_agent:
+            return "Unknown"
+
+        cleaned = user_agent.strip()
+        if not cleaned:
+            return "Unknown"
+
+        tokens = [token for token in re.split(r"[;/\s\(\)]+", cleaned) if token]
+
+        for token in tokens:
+            if re.fullmatch(r"v?\d+(\.\d+)*", token, flags=re.IGNORECASE):
+                continue
+
+            sanitized = token.strip("-_")
+            if sanitized:
+                return sanitized
+
+        return "Unknown"
