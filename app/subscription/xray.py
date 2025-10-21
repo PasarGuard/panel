@@ -339,19 +339,13 @@ class XrayConfiguration(BaseSubscription):
         security = security if security and security != "none" else None
         tls_settings = self._apply_tls(download_settings.tls_config, security) if security else None
 
-        sockopt = None
-        if not link_format and (
-            download_settings.tls_config.fragment_settings or download_settings.tls_config.noise_settings
-        ):
-            sockopt = {}
-            if download_settings.tls_config.fragment_settings and (
-                xray_fragment := download_settings.tls_config.fragment_settings.get("xray")
-            ):
-                sockopt["fragmentSettings"] = xray_fragment
-            if download_settings.tls_config.noise_settings and (
-                xray_noise := download_settings.tls_config.noise_settings.get("xray")
-            ):
-                sockopt["noiseSettings"] = xray_noise
+        dialer_proxy = ""
+        if (download_settings.fragment_settings or download_settings.noise_settings) and not link_format:
+            dialer_proxy = "dsdialer"
+        if dialer_proxy:
+            sockopt = {"dialerProxy": dialer_proxy}
+        else:
+            sockopt = None
 
         stream_settings = self._stream_setting_config(
             network=network,
