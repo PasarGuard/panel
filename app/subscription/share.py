@@ -2,15 +2,15 @@ import base64
 import random
 import secrets
 from collections import defaultdict
-from datetime import datetime as dt, timedelta, timezone
 from copy import deepcopy
+from datetime import datetime as dt, timedelta, timezone
 
 from jdatetime import date as jd
 
 from app.core.hosts import host_manager
 from app.db.models import UserStatus
-from app.models.user import UsersResponseWithInbounds
 from app.models.subscription import SubscriptionInboundData
+from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
@@ -163,7 +163,7 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
     return format_variables
 
 
-async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list:
+async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list[SubscriptionInboundData]:
     if not (await subscription_settings()).host_status_filter:
         return hosts
 
@@ -180,12 +180,12 @@ async def process_host(
     """
 
     if inbound.inbound_tag not in inbounds:
-        return None
+        return
 
     # Get user settings for this protocol
     settings = proxies.get(inbound.protocol)
     if not settings:
-        return None
+        return
 
     # Handle flow: user settings have priority, fall back to inbound flow
     if "flow" in settings and settings["flow"] == "":
@@ -247,6 +247,36 @@ async def process_host(
     return inbound_copy, settings
 
 
+async def _prepare_download_settings(
+    download_data: SubscriptionInboundData,
+    format_variables: dict,
+    inbounds: list[str],
+    proxies: dict,
+    conf: StandardLinks
+    | XrayConfiguration
+    | SingBoxConfiguration
+    | ClashConfiguration
+    | ClashMetaConfiguration
+    | OutlineConfiguration,
+) -> SubscriptionInboundData | dict | None:
+
+    result = await process_host(download_data, format_variables, inbounds, proxies)
+
+    if not result:
+        return
+
+    download_copy, _ = result
+
+    if isinstance(download_copy.address, str):
+        download_copy.address = download_copy.address.format_map(format_variables)
+
+    if isinstance(conf, StandardLinks):
+        xc = XrayConfiguration()
+        return xc._download_config(download_copy, link_format=True)
+
+    return download_copy
+
+
 async def process_inbounds_and_tags(
     user: UsersResponseWithInbounds,
     format_variables: dict,
@@ -270,6 +300,16 @@ async def process_inbounds_and_tags(
         # Format remark and address with user variables
         remark = inbound_copy.remark.format_map(format_variables)
         formatted_address = inbound_copy.address.format_map(format_variables)
+
+        if inbound_copy.transport_config.download_settings:
+            download_settings = await _prepare_download_settings(
+                inbound_copy.transport_config.download_settings,
+                format_variables,
+                user.inbounds,
+                proxy_settings,
+                conf,
+            )
+            inbound_copy.transport_config.download_settings = download_settings
 
         conf.add(
             remark=remark,

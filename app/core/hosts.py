@@ -1,8 +1,8 @@
 from asyncio import Lock
 from copy import deepcopy
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from aiocache import cached
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import on_startup
 from app.core.manager import core_manager
@@ -11,18 +11,21 @@ from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
 from app.models.host import BaseHost
 from app.models.subscription import (
-    SubscriptionInboundData,
-    TLSConfig,
     GRPCTransportConfig,
-    WebSocketTransportConfig,
-    XHTTPTransportConfig,
     KCPTransportConfig,
     QUICTransportConfig,
+    SubscriptionInboundData,
     TCPTransportConfig,
+    TLSConfig,
+    WebSocketTransportConfig,
+    XHTTPTransportConfig,
 )
 
 
-async def _prepare_subscription_inbound_data(host: BaseHost, down_settings: dict | None) -> SubscriptionInboundData:
+async def _prepare_subscription_inbound_data(
+    host: BaseHost,
+    down_settings: SubscriptionInboundData | None = None,
+) -> SubscriptionInboundData:
     """
     Prepare host data - creates small config instances ONCE.
     Merges inbound config with host config.

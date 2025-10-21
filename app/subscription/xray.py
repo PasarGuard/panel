@@ -2,14 +2,14 @@ import json
 from random import choice
 
 from app.models.subscription import (
-    SubscriptionInboundData,
-    TLSConfig,
     GRPCTransportConfig,
-    WebSocketTransportConfig,
-    XHTTPTransportConfig,
     KCPTransportConfig,
     QUICTransportConfig,
+    SubscriptionInboundData,
     TCPTransportConfig,
+    TLSConfig,
+    WebSocketTransportConfig,
+    XHTTPTransportConfig,
 )
 from app.templates import render_template
 from app.utils.helpers import UUIDEncoder
@@ -59,8 +59,6 @@ class XrayConfiguration(BaseSubscription):
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         """Add outbound using registry pattern"""
-        remark = self._remark_validation(remark)
-        self.proxy_remarks.append(remark)
 
         # Get protocol handler from registry
         handler = self.protocol_handlers.get(inbound.protocol)
@@ -249,31 +247,27 @@ class XrayConfiguration(BaseSubscription):
         """Handle QUIC transport - only gets QUIC config"""
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
-        return self._normalize_and_remove_none_values(
-            {
-                "security": host,
-                "header": {"type": config.header_type},
-                "key": path,
-            }
-        )
+        return self._normalize_and_remove_none_values({
+            "security": host,
+            "header": {"type": config.header_type},
+            "key": path,
+        })
 
     def _transport_kcp(self, config: KCPTransportConfig, path: str) -> dict:
         """Handle KCP transport - only gets KCP config"""
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
-        return self._normalize_and_remove_none_values(
-            {
-                "header": {"type": config.header_type, "domain": host},
-                "mtu": config.mtu if config.mtu else 1350,
-                "tti": config.tti if config.tti else 50,
-                "uplinkCapacity": config.uplink_capacity if config.uplink_capacity else 12,
-                "downlinkCapacity": config.downlink_capacity if config.downlink_capacity else 100,
-                "congestion": config.congestion,
-                "readBufferSize": config.read_buffer_size if config.read_buffer_size else 2,
-                "writeBufferSize": config.write_buffer_size if config.write_buffer_size else 2,
-                "seed": path,
-            }
-        )
+        return self._normalize_and_remove_none_values({
+            "header": {"type": config.header_type, "domain": host},
+            "mtu": config.mtu if config.mtu else 1350,
+            "tti": config.tti if config.tti else 50,
+            "uplinkCapacity": config.uplink_capacity if config.uplink_capacity else 12,
+            "downlinkCapacity": config.downlink_capacity if config.downlink_capacity else 100,
+            "congestion": config.congestion,
+            "readBufferSize": config.read_buffer_size if config.read_buffer_size else 2,
+            "writeBufferSize": config.write_buffer_size if config.write_buffer_size else 2,
+            "seed": path,
+        })
 
     def _apply_transport(self, network: str, inbound: SubscriptionInboundData, path: str) -> dict | None:
         """Apply transport settings using registry pattern"""
@@ -289,17 +283,15 @@ class XrayConfiguration(BaseSubscription):
         sni = tls_config.sni if isinstance(tls_config.sni, str) else (tls_config.sni[0] if tls_config.sni else None)
 
         if security == "reality":
-            return self._normalize_and_remove_none_values(
-                {
-                    "serverName": sni,
-                    "fingerprint": tls_config.fingerprint,
-                    "show": False,
-                    "publicKey": tls_config.reality_public_key,
-                    "shortId": tls_config.reality_short_id,
-                    "spiderX": tls_config.reality_spx,
-                    "mldsa65Verify": tls_config.mldsa65_verify,
-                }
-            )
+            return self._normalize_and_remove_none_values({
+                "serverName": sni,
+                "fingerprint": tls_config.fingerprint,
+                "show": False,
+                "publicKey": tls_config.reality_public_key,
+                "shortId": tls_config.reality_short_id,
+                "spiderX": tls_config.reality_spx,
+                "mldsa65Verify": tls_config.mldsa65_verify,
+            })
         else:  # tls
             config = {
                 "serverName": sni,
@@ -329,13 +321,51 @@ class XrayConfiguration(BaseSubscription):
 
         if dialer_settings:
             return {"tag": dialer_tag, "protocol": "freedom", "settings": dialer_settings}
-        return None
 
-    def _download_config(self, download_settings: dict) -> dict:
-        """Process download settings for xHTTP"""
-        # This would need to be filled from actual download host data
-        # For now, just return the settings as-is
-        return download_settings
+    def _download_config(self, download_settings: SubscriptionInboundData, link_format: bool = False) -> dict:
+        """Build download settings block for xHTTP transports"""
+
+        network = download_settings.network
+        path = download_settings.transport_config.path
+        if network in ("grpc", "gun"):
+            if getattr(download_settings.transport_config, "multi_mode", False):
+                path = self.get_grpc_multi(path)
+            else:
+                path = self.get_grpc_gun(path)
+
+        network_setting = self._apply_transport(network, download_settings, path)
+
+        security = download_settings.tls_config.tls
+        security = security if security and security != "none" else None
+        tls_settings = self._apply_tls(download_settings.tls_config, security) if security else None
+
+        sockopt = None
+        if not link_format and (
+            download_settings.tls_config.fragment_settings or download_settings.tls_config.noise_settings
+        ):
+            sockopt = {}
+            if download_settings.tls_config.fragment_settings and (
+                xray_fragment := download_settings.tls_config.fragment_settings.get("xray")
+            ):
+                sockopt["fragmentSettings"] = xray_fragment
+            if download_settings.tls_config.noise_settings and (
+                xray_noise := download_settings.tls_config.noise_settings.get("xray")
+            ):
+                sockopt["noiseSettings"] = xray_noise
+
+        stream_settings = self._stream_setting_config(
+            network=network,
+            security=security,
+            network_setting=network_setting,
+            tls_settings=tls_settings,
+            sockopt=sockopt,
+        )
+
+        return self._normalize_and_remove_none_values({
+            "address": download_settings.address,
+            "port": self._select_port(download_settings.port),
+            **stream_settings,
+        })
 
     # ========== Protocol Builders (Registry Methods) ==========
 
@@ -373,7 +403,6 @@ class XrayConfiguration(BaseSubscription):
 
         return self._build_outbound(
             protocol_type="trojan",
-            remark=remark,
             address=address,
             inbound=inbound,
             user_settings=user_settings,
@@ -409,7 +438,6 @@ class XrayConfiguration(BaseSubscription):
     def _build_outbound(
         self,
         protocol_type: str,
-        remark: str,
         address: str,
         inbound: SubscriptionInboundData,
         user_settings: dict,
@@ -427,7 +455,7 @@ class XrayConfiguration(BaseSubscription):
 
         outbound = {
             "protocol": protocol_type,
-            "tag": remark,
+            "tag": "proxy",
             "settings": {
                 "vnext" if protocol_type in ("vmess", "vless") else "servers": [
                     {

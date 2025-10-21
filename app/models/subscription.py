@@ -108,7 +108,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
     sc_min_posts_interval_ms: int | None = Field(None, serialization_alias="scMinPostsIntervalMs")
     x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes")
     xmux: dict[str, Any] | None = None
-    download_settings: dict[str, Any] | None = Field(None, serialization_alias="downloadSettings")
+    download_settings: "SubscriptionInboundData" | dict | None = Field(None, serialization_alias="downloadSettings")
     http_headers: dict[str, str] | None = None
     random_user_agent: bool = False
 
