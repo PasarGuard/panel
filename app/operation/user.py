@@ -22,7 +22,7 @@ from app.db.crud.user import (
     get_all_users_usages,
     get_expired_users,
     get_user_sub_update_list,
-    get_user_subscription_agents,
+    get_user_subscription_agent_counts,
     get_user_usages,
     get_users,
     modify_user,
@@ -59,6 +59,9 @@ from app.utils.logger import get_logger
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
+
+_USER_AGENT_SPLIT_RE = re.compile(r"[;/\s\(\)]+")
+_VERSION_TOKEN_RE = re.compile(r"v?\d+(?:\.\d+)*", re.IGNORECASE)
 
 
 class UserOperation(BaseOperation):
@@ -513,34 +516,40 @@ class UserOperation(BaseOperation):
         return UserSubscriptionUpdateList(updates=user_sub_data, count=count)
 
     async def get_user_sub_update_chart(
-        self, db: AsyncSession, admin: AdminDetails, username: str | None = None, admin_username: str | None = None
+        self,
+        db: AsyncSession,
+        admin: AdminDetails,
+        username: str | None = None,
+        admin_username: str | None = None,
     ) -> UserSubscriptionUpdateChart:
-        user_id: int | None = None
-
-        if admin_username and admin.is_sudo:
-            await self.get_validated_admin(db, admin_username)
-        elif admin_username or (not admin_username and not admin.is_sudo):
-            admin_username = admin.username
-
         if username:
             db_user = await self.get_validated_user(db, username, admin)
-            user_id = db_user.id
+            agent_counts = await get_user_subscription_agent_counts(db, user_id=db_user.id)
+            return self._build_user_agent_chart(agent_counts)
 
-        user_agents = await get_user_subscription_agents(db, user_id=user_id, admin_username=admin_username)
-        return self._build_user_agent_chart(user_agents)
+        if admin_username:
+            if not admin.is_sudo and admin_username != admin.username:
+                await self.raise_error(message="You're not allowed", code=403)
+            if admin.is_sudo and admin_username != admin.username:
+                await self.get_validated_admin(db, admin_username)
+        else:
+            admin_username = None if admin.is_sudo else admin.username
+
+        agent_counts = await get_user_subscription_agent_counts(db, admin_username=admin_username)
+        return self._build_user_agent_chart(agent_counts)
 
     @classmethod
-    def _build_user_agent_chart(cls, user_agents: list[str]) -> UserSubscriptionUpdateChart:
-        if not user_agents:
+    def _build_user_agent_chart(cls, agent_counts: list[tuple[str, int]]) -> UserSubscriptionUpdateChart:
+        if not agent_counts:
             return UserSubscriptionUpdateChart(total=0, segments=[])
 
         counts = Counter()
         display_names: dict[str, str] = {}
 
-        for agent in user_agents:
+        for agent, count in agent_counts:
             normalized = cls._normalize_user_agent(agent)
             key = normalized.lower()
-            counts[key] += 1
+            counts[key] += count
             display_names.setdefault(key, normalized)
 
         total = sum(counts.values())
@@ -564,10 +573,10 @@ class UserOperation(BaseOperation):
         if not cleaned:
             return "Unknown"
 
-        tokens = [token for token in re.split(r"[;/\s\(\)]+", cleaned) if token]
+        tokens = [token for token in _USER_AGENT_SPLIT_RE.split(cleaned) if token]
 
         for token in tokens:
-            if re.fullmatch(r"v?\d+(\.\d+)*", token, flags=re.IGNORECASE):
+            if _VERSION_TOKEN_RE.fullmatch(token):
                 continue
 
             sanitized = token.strip("-_")

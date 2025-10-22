@@ -786,20 +786,22 @@ async def get_user_sub_update_list(
     return result, count
 
 
-async def get_user_subscription_agents(
+async def get_user_subscription_agent_counts(
     db: AsyncSession, user_id: int | None = None, admin_username: str | None = None
-) -> list[str]:
-    stmt = select(UserSubscriptionUpdate.user_agent)
+) -> list[tuple[str, int]]:
+    stmt = select(UserSubscriptionUpdate.user_agent, func.count().label("count"))
 
     if user_id is not None:
         stmt = stmt.where(UserSubscriptionUpdate.user_id == user_id)
     else:
         stmt = stmt.join(User, UserSubscriptionUpdate.user_id == User.id)
     if admin_username:
-        stmt = stmt.where(Admin.username == admin_username)
+        stmt = stmt.join(Admin, User.admin_id == Admin.id).where(Admin.username == admin_username)
+
+    stmt = stmt.group_by(UserSubscriptionUpdate.user_agent)
 
     result = await db.execute(stmt)
-    return result.scalars().all()
+    return [(agent, count) for agent, count in result.all()]
 
 
 async def autodelete_expired_users(
