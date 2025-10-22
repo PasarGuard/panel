@@ -2,10 +2,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { NodeRealtimeStats, SystemStats, useGetNodes, useRealtimeNodeStats } from '@/service/api'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { lazy, Suspense } from 'react'
 import { CostumeBarChart } from '../charts/CostumeBarChart'
 import { EmptyState } from '../charts/EmptyState'
+import { UserSubUpdatePieChart } from '../charts/UserSubUpdatePieChart'
 import SystemStatisticsSection from './SystemStatisticsSection'
-import { lazy, Suspense } from 'react'
 import { AllNodesStackedBarChart } from '../charts/AllNodesStackedBarChart'
 
 interface StatisticsProps {
@@ -82,14 +83,17 @@ export default function Statistics({ data, isLoading, error, selectedServer, is_
         </div>
       </div>
 
-      {/* Charts Section - only show for sudo admins */}
+      {/* Charts Section */}
       <div className="space-y-8">
+        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '200ms', animationFillMode: 'both' }}>
+          <UserSubUpdatePieChart />
+        </div>
         {is_sudo && (
-          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '200ms', animationFillMode: 'both' }}>
+          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '260ms', animationFillMode: 'both' }}>
             {actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}
           </div>
         )}
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '300ms', animationFillMode: 'both' }}>
+        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '320ms', animationFillMode: 'both' }}>
           <Suspense fallback={<div />}>
             <AreaCostumeChart nodeId={selectedNodeId} currentStats={currentStats} realtimeStats={actualSelectedServer === 'master' ? data : nodeStats || undefined} />
           </Suspense>

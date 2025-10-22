@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 1.0.1
+ * OpenAPI spec version: 1.1.0
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -81,6 +81,11 @@ export type GetUserSubUpdateListParams = {
 
 export type SetOwnerParams = {
   admin_username: string
+}
+
+export type GetUsersSubUpdateChartParams = {
+  username?: string | null
+  admin_id?: number | null
 }
 
 export type ClearUsageDataParams = {
@@ -271,6 +276,16 @@ export type XHttpSettingsOutputXPaddingBytes = string | null
 
 export type XHttpSettingsOutputNoGrpcHeader = boolean | null
 
+export interface XHttpSettingsOutput {
+  mode?: XHttpModes
+  no_grpc_header?: XHttpSettingsOutputNoGrpcHeader
+  x_padding_bytes?: XHttpSettingsOutputXPaddingBytes
+  sc_max_each_post_bytes?: XHttpSettingsOutputScMaxEachPostBytes
+  sc_min_posts_interval_ms?: XHttpSettingsOutputScMinPostsIntervalMs
+  xmux?: XHttpSettingsOutputXmux
+  download_settings?: XHttpSettingsOutputDownloadSettings
+}
+
 export type XHttpSettingsInputDownloadSettings = number | null
 
 export type XHttpSettingsInputXmux = XMuxSettingsInput | null
@@ -292,16 +307,6 @@ export const XHttpModes = {
   'stream-up': 'stream-up',
   'stream-one': 'stream-one',
 } as const
-
-export interface XHttpSettingsOutput {
-  mode?: XHttpModes
-  no_grpc_header?: XHttpSettingsOutputNoGrpcHeader
-  x_padding_bytes?: XHttpSettingsOutputXPaddingBytes
-  sc_max_each_post_bytes?: XHttpSettingsOutputScMaxEachPostBytes
-  sc_min_posts_interval_ms?: XHttpSettingsOutputScMinPostsIntervalMs
-  xmux?: XHttpSettingsOutputXmux
-  download_settings?: XHttpSettingsOutputDownloadSettings
-}
 
 export interface XHttpSettingsInput {
   mode?: XHttpModes
@@ -516,6 +521,17 @@ export interface UserSubscriptionUpdateSchema {
 export interface UserSubscriptionUpdateList {
   updates?: UserSubscriptionUpdateSchema[]
   count: number
+}
+
+export interface UserSubscriptionUpdateChartSegment {
+  name: string
+  count: number
+  percentage: number
+}
+
+export interface UserSubscriptionUpdateChart {
+  total: number
+  segments?: UserSubscriptionUpdateChartSegment[]
 }
 
 export type UserStatusModify = (typeof UserStatusModify)[keyof typeof UserStatusModify]
@@ -5003,6 +5019,69 @@ export const useResetUsersDataUsage = <TData = Awaited<ReturnType<typeof resetUs
   const mutationOptions = getResetUsersDataUsageMutationOptions(options)
 
   return useMutation(mutationOptions)
+}
+
+/**
+ * Get subscription agent distribution percentages (optionally filtered by username)
+ * @summary Get Users Sub Update Chart
+ */
+export const getUsersSubUpdateChart = (params?: GetUsersSubUpdateChartParams, signal?: AbortSignal) => {
+  return orvalFetcher<UserSubscriptionUpdateChart>({ url: `/api/users/sub_update/chart`, method: 'GET', params, signal })
+}
+
+export const getGetUsersSubUpdateChartQueryKey = (params?: GetUsersSubUpdateChartParams) => {
+  return [`/api/users/sub_update/chart`, ...(params ? [params] : [])] as const
+}
+
+export const getGetUsersSubUpdateChartQueryOptions = <TData = Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  params?: GetUsersSubUpdateChartParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetUsersSubUpdateChartQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsersSubUpdateChart>>> = ({ signal }) => getUsersSubUpdateChart(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUsersSubUpdateChartQueryResult = NonNullable<Awaited<ReturnType<typeof getUsersSubUpdateChart>>>
+export type GetUsersSubUpdateChartQueryError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+export function useGetUsersSubUpdateChart<TData = Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  params: undefined | GetUsersSubUpdateChartParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersSubUpdateChart<TData = Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  params?: GetUsersSubUpdateChartParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersSubUpdateChart<TData = Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  params?: GetUsersSubUpdateChartParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Users Sub Update Chart
+ */
+
+export function useGetUsersSubUpdateChart<TData = Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  params?: GetUsersSubUpdateChartParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSubUpdateChart>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUsersSubUpdateChartQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
 }
 
 /**
