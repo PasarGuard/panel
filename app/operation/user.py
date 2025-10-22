@@ -21,10 +21,10 @@ from app.db.crud.user import (
     create_user,
     get_all_users_usages,
     get_expired_users,
-    get_user_sub_update_list,
-    get_user_subscription_agent_counts,
     get_user_usages,
     get_users,
+    get_users_sub_update_list,
+    get_users_subscription_agent_counts,
     modify_user,
     remove_user,
     remove_users,
@@ -507,15 +507,15 @@ class UserOperation(BaseOperation):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
 
-    async def get_user_sub_update_list(
+    async def get_users_sub_update_list(
         self, db: AsyncSession, username: str, admin: AdminDetails, offset: int = 0, limit: int = 10
     ) -> UserSubscriptionUpdateList:
         db_user = await self.get_validated_user(db, username, admin)
-        user_sub_data, count = await get_user_sub_update_list(db, user_id=db_user.id, offset=offset, limit=limit)
+        user_sub_data, count = await get_users_sub_update_list(db, user_id=db_user.id, offset=offset, limit=limit)
 
         return UserSubscriptionUpdateList(updates=user_sub_data, count=count)
 
-    async def get_user_sub_update_chart(
+    async def get_users_sub_update_chart(
         self,
         db: AsyncSession,
         admin: AdminDetails,
@@ -524,7 +524,7 @@ class UserOperation(BaseOperation):
     ) -> UserSubscriptionUpdateChart:
         if username:
             db_user = await self.get_validated_user(db, username, admin)
-            agent_counts = await get_user_subscription_agent_counts(db, user_id=db_user.id)
+            agent_counts = await get_users_subscription_agent_counts(db, user_id=db_user.id)
             return self._build_user_agent_chart(agent_counts)
 
         if admin_id:
@@ -535,7 +535,7 @@ class UserOperation(BaseOperation):
         else:
             admin_id = None if admin.is_sudo else admin.id
 
-        agent_counts = await get_user_subscription_agent_counts(db, admin_id=admin_id)
+        agent_counts = await get_users_subscription_agent_counts(db, admin_id=admin_id)
         return self._build_user_agent_chart(agent_counts)
 
     @classmethod

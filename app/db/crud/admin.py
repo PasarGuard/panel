@@ -8,8 +8,11 @@ from app.models.admin import AdminCreate, AdminModify
 
 
 async def load_admin_attrs(admin: Admin):
-    await admin.awaitable_attrs.users
-    await admin.awaitable_attrs.usage_logs
+    try:
+        await admin.awaitable_attrs.users
+        await admin.awaitable_attrs.usage_logs
+    except AttributeError:
+        pass
 
 
 async def get_admin(db: AsyncSession, username: str) -> Admin:

@@ -764,7 +764,7 @@ async def user_sub_update(db: AsyncSession, user_id: User, user_agent: str) -> U
     await db.commit()
 
 
-async def get_user_sub_update_list(
+async def get_users_sub_update_list(
     db: AsyncSession, user_id: int, offset: int = 0, limit: int = 10
 ) -> tuple[Sequence[UserSubscriptionUpdate], int]:
     stmt = (
@@ -786,7 +786,7 @@ async def get_user_sub_update_list(
     return result, count
 
 
-async def get_user_subscription_agent_counts(
+async def get_users_subscription_agent_counts(
     db: AsyncSession, user_id: int | None = None, admin_id: int | None = None
 ) -> list[tuple[str, int]]:
     stmt = select(UserSubscriptionUpdate.user_agent, func.count().label("count"))
