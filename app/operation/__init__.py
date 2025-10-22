@@ -15,6 +15,7 @@ from app.db.crud import (
     get_user_template,
 )
 from app.db.crud.user import get_user_by_id
+from app.db.crud.admin import get_admin_by_id
 from app.db.models import Admin as DBAdmin, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
@@ -110,6 +111,12 @@ class BaseOperation:
 
     async def get_validated_admin(self, db: AsyncSession, username: str) -> DBAdmin:
         db_admin = await get_admin(db, username)
+        if not db_admin:
+            await self.raise_error(message="Admin not found", code=404)
+        return db_admin
+
+    async def get_validated_admin_by_id(self, db: AsyncSession, id: int) -> DBAdmin:
+        db_admin = await get_admin_by_id(db, id)
         if not db_admin:
             await self.raise_error(message="Admin not found", code=404)
         return db_admin

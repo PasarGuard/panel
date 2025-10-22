@@ -787,7 +787,7 @@ async def get_user_sub_update_list(
 
 
 async def get_user_subscription_agent_counts(
-    db: AsyncSession, user_id: int | None = None, admin_username: str | None = None
+    db: AsyncSession, user_id: int | None = None, admin_id: int | None = None
 ) -> list[tuple[str, int]]:
     stmt = select(UserSubscriptionUpdate.user_agent, func.count().label("count"))
 
@@ -795,8 +795,9 @@ async def get_user_subscription_agent_counts(
         stmt = stmt.where(UserSubscriptionUpdate.user_id == user_id)
     else:
         stmt = stmt.join(User, UserSubscriptionUpdate.user_id == User.id)
-        if admin_username:
-            stmt = stmt.join(Admin, User.admin_id == Admin.id).where(Admin.username == admin_username)
+
+        if admin_id:
+            stmt = stmt.where(User.admin_id == admin_id)
 
     stmt = stmt.group_by(UserSubscriptionUpdate.user_agent)
 

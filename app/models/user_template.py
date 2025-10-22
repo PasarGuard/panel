@@ -67,7 +67,7 @@ class UserTemplateModify(UserTemplateWithValidator):
     @classmethod
     def group_ids_validator(cls, v):
         return ListValidator.nullable_list(v, "group")
-    
+
     @field_validator("name", mode="after")
     @classmethod
     def name_validator(cls, v):

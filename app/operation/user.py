@@ -520,22 +520,22 @@ class UserOperation(BaseOperation):
         db: AsyncSession,
         admin: AdminDetails,
         username: str | None = None,
-        admin_username: str | None = None,
+        admin_id: int | None = None,
     ) -> UserSubscriptionUpdateChart:
         if username:
             db_user = await self.get_validated_user(db, username, admin)
             agent_counts = await get_user_subscription_agent_counts(db, user_id=db_user.id)
             return self._build_user_agent_chart(agent_counts)
 
-        if admin_username:
-            if not admin.is_sudo and admin_username != admin.username:
+        if admin_id:
+            if not admin.is_sudo and admin_id != admin.id:
                 await self.raise_error(message="You're not allowed", code=403)
-            if admin.is_sudo and admin_username != admin.username:
-                await self.get_validated_admin(db, admin_username)
+            elif admin.is_sudo and admin_id != admin.id:
+                await self.get_validated_admin_by_id(db, admin_id)
         else:
-            admin_username = None if admin.is_sudo else admin.username
+            admin_id = None if admin.is_sudo else admin.id
 
-        agent_counts = await get_user_subscription_agent_counts(db, admin_username=admin_username)
+        agent_counts = await get_user_subscription_agent_counts(db, admin_id=admin_id)
         return self._build_user_agent_chart(agent_counts)
 
     @classmethod

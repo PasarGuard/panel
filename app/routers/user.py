@@ -152,14 +152,12 @@ async def active_next_plan(
 )
 async def get_user_sub_update_chart(
     username: str | None = None,
-    admin_username: str | None = None,
+    admin_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
 ):
     """Get subscription agent distribution percentages (optionally filtered by username)"""
-    return await user_operator.get_user_sub_update_chart(
-        db, admin=admin, username=username, admin_username=admin_username
-    )
+    return await user_operator.get_user_sub_update_chart(db, admin=admin, username=username, admin_id=admin_id)
 
 
 @router.get("/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
