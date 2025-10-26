@@ -367,7 +367,6 @@ class XrayConfiguration(BaseSubscription):
         """Build VMess outbound - returns (main_outbound, extra_outbounds_list)"""
         return self._build_outbound(
             protocol_type="vmess",
-            remark=remark,
             address=address,
             inbound=inbound,
             user_settings={"id": str(settings["id"]), "alterId": 0, "security": "auto"},
@@ -382,7 +381,6 @@ class XrayConfiguration(BaseSubscription):
 
         return self._build_outbound(
             protocol_type="vless",
-            remark=remark,
             address=address,
             inbound=inbound,
             user_settings=user_settings,
@@ -402,7 +400,7 @@ class XrayConfiguration(BaseSubscription):
             user_settings=user_settings,
         )
 
-    def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+    def _build_shadowsocks(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build Shadowsocks outbound"""
         method, password = self.detect_shadowsocks_2022(
             inbound.is_2022,
@@ -414,7 +412,7 @@ class XrayConfiguration(BaseSubscription):
 
         outbound = {
             "protocol": "shadowsocks",
-            "tag": remark,
+            "tag": "proxy",
             "settings": {
                 "servers": [
                     {

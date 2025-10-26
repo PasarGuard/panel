@@ -3,6 +3,8 @@ Pydantic models for subscription data.
 Broken down into small, focused models - each transport/protocol gets only what it needs.
 """
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import Any
 
@@ -108,7 +110,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
     sc_min_posts_interval_ms: int | None = Field(None, serialization_alias="scMinPostsIntervalMs")
     x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes")
     xmux: dict[str, Any] | None = None
-    download_settings: "SubscriptionInboundData" | dict | None = Field(None, serialization_alias="downloadSettings")
+    download_settings: SubscriptionInboundData | dict | None = Field(None, serialization_alias="downloadSettings")
     http_headers: dict[str, str] | None = None
     random_user_agent: bool = False
 

@@ -301,15 +301,17 @@ async def process_inbounds_and_tags(
         remark = inbound_copy.remark.format_map(format_variables)
         formatted_address = inbound_copy.address.format_map(format_variables)
 
-        if inbound_copy.transport_config.download_settings:
-            download_settings = await _prepare_download_settings(
-                inbound_copy.transport_config.download_settings,
+        download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
+        if download_settings:
+            processed_download_settings = await _prepare_download_settings(
+                download_settings,
                 format_variables,
                 user.inbounds,
                 proxy_settings,
                 conf,
             )
-            inbound_copy.transport_config.download_settings = download_settings
+            if hasattr(inbound_copy.transport_config, "download_settings"):
+                inbound_copy.transport_config.download_settings = processed_download_settings
 
         conf.add(
             remark=remark,
