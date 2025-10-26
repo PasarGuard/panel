@@ -400,7 +400,7 @@ class XrayConfiguration(BaseSubscription):
             user_settings=user_settings,
         )
 
-    def _build_shadowsocks(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+    def _build_shadowsocks(self, address: str, remark: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build Shadowsocks outbound"""
         method, password = self.detect_shadowsocks_2022(
             inbound.is_2022,
