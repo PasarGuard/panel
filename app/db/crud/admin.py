@@ -3,18 +3,10 @@ from enum import Enum
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import Admin, AdminUsageLogs
 from app.models.admin import AdminCreate, AdminModify
-
-
-async def load_admin_attrs(admin: Admin):
-    try:
-        await admin.awaitable_attrs.users
-        await admin.awaitable_attrs.usage_logs
-    except AttributeError:
-        pass
-
 
 AdminsSortingOptions = Enum(
     "AdminsSortingOptions",
@@ -29,6 +21,10 @@ AdminsSortingOptions = Enum(
 )
 
 
+def get_admin_query():
+    return select(Admin).options(selectinload(Admin.users), selectinload(Admin.usage_logs))
+
+
 async def get_admin(db: AsyncSession, username: str) -> Admin:
     """
     Retrieves an admin by username.
@@ -40,9 +36,7 @@ async def get_admin(db: AsyncSession, username: str) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    admin = (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
-    if admin:
-        await load_admin_attrs(admin)
+    admin = (await db.execute(get_admin_query().where(Admin.username == username))).unique().scalar_one_or_none()
     return admin
 
 
@@ -60,9 +54,9 @@ async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
     db_admin = Admin(**admin.model_dump(exclude={"password"}), hashed_password=admin.hashed_password)
     db.add(db_admin)
     await db.commit()
-    await db.refresh(db_admin)
-    await load_admin_attrs(db_admin)
-    return db_admin
+
+    # Re-fetch the admin with relationships eagerly loaded to prevent lazy-loading in sync context
+    return await get_admin(db, admin.username)
 
 
 async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminModify) -> Admin:
@@ -99,9 +93,12 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
     if modified_admin.profile_title is not None:
         db_admin.profile_title = modified_admin.profile_title
 
+    username = db_admin.username
+
     await db.commit()
-    await load_admin_attrs(db_admin)
-    return db_admin
+
+    # Return a freshly loaded admin instance to avoid accessing expired attributes
+    return await get_admin(db, username)
 
 
 async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
@@ -127,9 +124,7 @@ async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    admin = (await db.execute(select(Admin).where(Admin.id == id))).first()
-    if admin:
-        await load_admin_attrs(admin)
+    admin = (await db.execute(get_admin_query().where(Admin.id == id))).first()
     return admin
 
 
@@ -144,9 +139,7 @@ async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    admin = (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id))).scalar_one_or_none()
-    if admin:
-        await load_admin_attrs(admin)
+    admin = (await db.execute(get_admin_query().where(Admin.telegram_id == telegram_id))).scalar_one_or_none()
     return admin
 
 
@@ -161,9 +154,7 @@ async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).first()
-    if admin:
-        await load_admin_attrs(admin)
+    admin = (await db.execute(get_admin_query().where(Admin.discord_id == discord_id))).first()
     return admin
 
 
@@ -187,7 +178,7 @@ async def get_admins(
     Returns:
         List[Admin]: A list of admin objects.
     """
-    query = select(Admin)
+    query = get_admin_query()
     if username:
         query = query.where(Admin.username.ilike(f"%{username}%"))
 
@@ -200,9 +191,6 @@ async def get_admins(
         query = query.limit(limit)
 
     admins = (await db.execute(query)).scalars().all()
-
-    for admin in admins:
-        await load_admin_attrs(admin)
 
     return admins
 
@@ -225,7 +213,6 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
 
     await db.commit()
     await db.refresh(db_admin)
-    await load_admin_attrs(db_admin)
     return db_admin
 
 
