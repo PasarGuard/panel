@@ -21,7 +21,6 @@ def get_group_query():
     return select(Group).options(
         selectinload(Group.users),
         selectinload(Group.inbounds),
-        selectinload(Group.templates),
     )
 
 
