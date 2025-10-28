@@ -1,7 +1,8 @@
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.db.models import ProxyInbound, Group
+from app.db.models import Group, ProxyInbound
 from app.models.group import GroupCreate, GroupModify
 
 from .host import upsert_inbounds
@@ -16,9 +17,12 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
     return [inbounds_map[tag] for tag in tags]
 
 
-async def load_group_attrs(group: Group):
-    await group.awaitable_attrs.users
-    await group.awaitable_attrs.inbounds
+def get_group_query():
+    return select(Group).options(
+        selectinload(Group.users),
+        selectinload(Group.inbounds),
+        selectinload(Group.templates),
+    )
 
 
 async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
@@ -32,10 +36,8 @@ async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
     Returns:
         Optional[Group]: The Group object if found, None otherwise.
     """
-    group = (await db.execute(select(Group).where(Group.id == group_id))).unique().scalar_one_or_none()
-    if group:
-        await load_group_attrs(group)
-    return group
+    stmt = get_group_query().where(Group.id == group_id)
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
@@ -55,10 +57,11 @@ async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
         is_disabled=group.is_disabled,
     )
     db.add(db_group)
+    await db.flush()
+    group_id = db_group.id
     await db.commit()
-    await db.refresh(db_group)
-    await load_group_attrs(db_group)
-    return db_group
+
+    return await get_group_by_id(db, group_id)
 
 
 async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> tuple[list[Group], int]:
@@ -75,21 +78,15 @@ async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> 
             - list[Group]: A list of Group objects
             - int: The total count of groups
     """
-    groups = select(Group)
-
-    count_query = select(func.count()).select_from(groups.subquery())
+    query = get_group_query()
 
     if offset:
-        groups = groups.offset(offset)
+        query = query.offset(offset)
     if limit:
-        groups = groups.limit(limit)
+        query = query.limit(limit)
 
-    count = (await db.execute(count_query)).scalar_one()
-
-    all_groups = (await db.execute(groups)).scalars().all()
-
-    for group in all_groups:
-        await load_group_attrs(group)
+    all_groups = (await db.execute(query)).unique().scalars().all()
+    count = (await db.execute(select(func.count(Group.id)))).scalar_one()
 
     return all_groups, count
 
@@ -105,12 +102,11 @@ async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Grou
     Returns:
         list[Group]: A list of Group objects.
     """
-    groups = (await db.execute(select(Group).where(Group.id.in_(group_ids)))).scalars().all()
+    if not group_ids:
+        return []
 
-    for group in groups:
-        await load_group_attrs(group)
-
-    return groups
+    stmt = get_group_query().where(Group.id.in_(group_ids))
+    return (await db.execute(stmt)).unique().scalars().all()
 
 
 async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupModify) -> Group:
@@ -134,10 +130,11 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
     if modified_group.is_disabled is not None:
         db_group.is_disabled = modified_group.is_disabled
 
+    group_id = db_group.id
+
     await db.commit()
-    await db.refresh(db_group)
-    await load_group_attrs(db_group)
-    return db_group
+
+    return await get_group_by_id(db, group_id)
 
 
 async def remove_group(db: AsyncSession, dbgroup: Group):

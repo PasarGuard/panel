@@ -19,7 +19,7 @@ from app.models.group import BulkGroup
 from app.models.user import BulkUser, BulkUsersProxy
 
 from .general import get_datetime_add_expression
-from .user import load_user_attrs
+from .user import get_user_query, get_users_by_ids
 
 
 async def reset_all_users_data_usage(db: AsyncSession, admin: Optional[Admin] = None):
@@ -176,10 +176,7 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
     await db.commit()
 
     # Return users that actually had groups added
-    result = await db.execute(select(User).where(User.id.in_({r["user_id"] for r in new_rows})))
-    users = result.scalars().all()
-    for user in users:
-        await load_user_attrs(user)
+    users = await get_users_by_ids(db, [row["user_id"] for row in new_rows])
     return users, count_effctive_users
 
 
@@ -211,22 +208,20 @@ async def remove_groups_from_users(
         )
         .distinct()
     )
-    result = await db.execute(select(User).where(User.id.in_(subquery)))
-    users = result.scalars().all()
+    result = await db.execute(select(User.id).where(User.id.in_(subquery)))
+    users_with_groups = [row[0] for row in result.all()]
 
-    if not users:
+    if not users_with_groups:
         return [], count_effctive_users
 
     await db.execute(
         delete(users_groups_association).where(
-            users_groups_association.c.user_id.in_([u.id for u in users]),
+            users_groups_association.c.user_id.in_(users_with_groups),
             users_groups_association.c.groups_id.in_(bulk_model.group_ids),
         )
     )
     await db.commit()
-    for user in users:
-        await load_user_attrs(user)
-    return users, count_effctive_users
+    return await get_users_by_ids(db, users_with_groups), count_effctive_users
 
 
 def _create_final_filter(bulk_model: BulkUser | BulkUsersProxy):
@@ -295,10 +290,7 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
 
     # Return the users whose status changed
     if status_changed_user_ids:
-        result = await db.execute(select(User).where(User.id.in_(status_changed_user_ids)))
-        users = result.scalars().all()
-        for user in users:
-            await load_user_attrs(user)
+        users = await get_users_by_ids(db, status_changed_user_ids)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -351,10 +343,7 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
 
     # Return the users whose status changed
     if status_changed_user_ids:
-        result = await db.execute(select(User).where(User.id.in_(status_changed_user_ids)))
-        users = result.scalars().all()
-        for user in users:
-            await load_user_attrs(user)
+        users = await get_users_by_ids(db, status_changed_user_ids)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -368,12 +357,12 @@ async def update_users_proxy_settings(
     final_filter = _create_final_filter(bulk_model)
 
     # First select the users that will be updated
-    select_stmt = select(User).where(final_filter)
-    result = await db.execute(select_stmt)
-    users_to_update = result.scalars().all()
+    result = await db.execute(get_user_query().where(final_filter))
+    users_to_update = result.unique().scalars().all()
     count_effctive_users = len(users_to_update)
+    user_ids = [user.id for user in users_to_update]
 
-    if not users_to_update:
+    if not user_ids:
         return [], count_effctive_users
 
     dialect = db.bind.dialect.name
@@ -409,9 +398,4 @@ async def update_users_proxy_settings(
     await db.execute(update_stmt)
     await db.commit()
 
-    # Refresh the user objects to get updated values
-    for user in users_to_update:
-        await db.refresh(user)
-        await load_user_attrs(user)
-
-    return users_to_update, count_effctive_users
+    return await get_users_by_ids(db, user_ids), count_effctive_users

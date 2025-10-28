@@ -1,7 +1,8 @@
-from typing import Union, List
+from typing import List, Union
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import UserTemplate
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
@@ -9,8 +10,8 @@ from app.models.user_template import UserTemplateCreate, UserTemplateModify
 from .group import get_groups_by_ids
 
 
-async def load_user_template_attrs(template: UserTemplate):
-    await template.awaitable_attrs.groups
+def get_user_template_query():
+    return select(UserTemplate).options(selectinload(UserTemplate.groups))
 
 
 async def create_user_template(db: AsyncSession, user_template: UserTemplateCreate) -> UserTemplate:
@@ -41,10 +42,11 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
     )
 
     db.add(db_user_template)
+    await db.flush()
+    template_id = db_user_template.id
     await db.commit()
-    await db.refresh(db_user_template)
-    await load_user_template_attrs(db_user_template)
-    return db_user_template
+
+    return await get_user_template(db, template_id)
 
 
 async def modify_user_template(
@@ -86,10 +88,11 @@ async def modify_user_template(
     if modified_user_template.data_limit_reset_strategy is not None:
         db_user_template.data_limit_reset_strategy = modified_user_template.data_limit_reset_strategy
 
+    template_id = db_user_template.id
+
     await db.commit()
-    await db.refresh(db_user_template)
-    await load_user_template_attrs(db_user_template)
-    return db_user_template
+
+    return await get_user_template(db, template_id)
 
 
 async def remove_user_template(db: AsyncSession, db_user_template: UserTemplate):
@@ -115,14 +118,8 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
     Returns:
         UserTemplate: The user template object.
     """
-    user_template = (
-        (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id)))
-        .unique()
-        .scalar_one_or_none()
-    )
-    if user_template:
-        await load_user_template_attrs(user_template)
-    return user_template
+    stmt = get_user_template_query().where(UserTemplate.id == user_template_id)
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def get_user_templates(
@@ -139,14 +136,10 @@ async def get_user_templates(
     Returns:
         List[UserTemplate]: A list of user template objects.
     """
-    query = select(UserTemplate)
+    query = get_user_template_query()
     if offset:
         query = query.offset(offset)
     if limit:
         query = query.limit(limit)
 
-    user_templates = (await db.execute(query)).scalars().all()
-    for template in user_templates:
-        await load_user_template_attrs(template)
-
-    return user_templates
+    return (await db.execute(query)).unique().scalars().all()

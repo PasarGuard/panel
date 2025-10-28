@@ -2,11 +2,11 @@ import asyncio
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
-from typing import List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence
 
 from sqlalchemy import and_, case, delete, desc, func, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
@@ -22,6 +22,7 @@ from app.db.models import (
     UserStatus,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
+    UserTemplate,
 )
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
@@ -31,12 +32,26 @@ from config import USERS_AUTODELETE_DAYS
 from .general import _build_trunc_expression, build_json_proxy_settings_search_condition
 from .group import get_groups_by_ids
 
+USER_RELATIONSHIP_OPTIONS = (
+    selectinload(User.admin),
+    selectinload(User.groups),
+    selectinload(User.next_plan)
+    .selectinload(NextPlan.user_template)
+    .selectinload(UserTemplate.groups),
+    selectinload(User.usage_logs),
+)
 
-async def load_user_attrs(user: User):
-    await user.awaitable_attrs.admin
-    await user.awaitable_attrs.next_plan
-    await user.awaitable_attrs.usage_logs
-    await user.awaitable_attrs.groups
+
+def get_user_query():
+    return select(User).options(*USER_RELATIONSHIP_OPTIONS)
+
+
+async def get_users_by_ids(db: AsyncSession, user_ids: Iterable[int]) -> list[User]:
+    ids = list({int(uid) for uid in user_ids if uid is not None})
+    if not ids:
+        return []
+    stmt = get_user_query().where(User.id.in_(ids))
+    return (await db.execute(stmt)).unique().scalars().all()
 
 
 async def get_user(db: AsyncSession, username: str) -> Optional[User]:
@@ -50,12 +65,8 @@ async def get_user(db: AsyncSession, username: str) -> Optional[User]:
     Returns:
         Optional[User]: The user object if found, else None.
     """
-    stmt = select(User).where(User.username == username)
-
-    user = (await db.execute(stmt)).unique().scalar_one_or_none()
-    if user:
-        await load_user_attrs(user)
-    return user
+    stmt = get_user_query().where(User.username == username)
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
@@ -69,12 +80,8 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     Returns:
         Optional[User]: The user object if found, else None.
     """
-    stmt = select(User).where(User.id == user_id)
-
-    user = (await db.execute(stmt)).unique().scalar_one_or_none()
-    if user:
-        await load_user_attrs(user)
-    return user
+    stmt = get_user_query().where(User.id == user_id)
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 UsersSortingOptions = Enum(
@@ -131,7 +138,7 @@ async def get_users(
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
     """
-    stmt = select(User)
+    stmt = get_user_query()
 
     filters = []
     if usernames:
@@ -178,10 +185,6 @@ async def get_users(
 
     result = await db.execute(stmt)
     users = list(result.unique().scalars().all())
-
-    for user in users:
-        await load_user_attrs(user)
-
     if return_with_count:
         return users, total
     return users
@@ -193,7 +196,7 @@ async def get_expired_users(
     expired_before: datetime | None = None,
     admin_id: int | None = None,
 ):
-    query = select(User).where(User.status.in_([UserStatus.limited, UserStatus.expired])).where(User.is_expired)
+    query = get_user_query().where(User.status.in_([UserStatus.limited, UserStatus.expired])).where(User.is_expired)
     if expired_after:
         query = query.where(User.expire >= expired_after)
     if expired_before:
@@ -205,19 +208,19 @@ async def get_expired_users(
 
 
 async def get_active_to_expire_users(db: AsyncSession) -> list[User]:
-    stmt = select(User).where(User.status == UserStatus.active).where(User.is_expired)
+    stmt = get_user_query().where(User.status == UserStatus.active).where(User.is_expired)
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_active_to_limited_users(db: AsyncSession) -> list[User]:
-    stmt = select(User).where(User.status == UserStatus.active).where(User.is_limited)
+    stmt = get_user_query().where(User.status == UserStatus.active).where(User.is_limited)
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_on_hold_to_active_users(db: AsyncSession) -> list[User]:
-    stmt = select(User).where(User.status == UserStatus.on_hold).where(User.become_online)
+    stmt = get_user_query().where(User.status == UserStatus.on_hold).where(User.become_online)
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
@@ -250,7 +253,7 @@ async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
     )
 
     stmt = (
-        select(User)
+        get_user_query()
         .outerjoin(last_reset_subq, User.id == last_reset_subq.c.user_id)
         .where(
             User.status.in_([UserStatus.active, UserStatus.limited]),
@@ -279,17 +282,14 @@ async def get_usage_percentage_reached_users(db: AsyncSession, percentage: int) 
     )
 
     stmt = (
-        select(User)
+        get_user_query()
         .options(joinedload(User.notification_reminders))
         .where(User.status == UserStatus.active)
         .where(User.usage_percentage >= percentage)
         .where(not_(existing_reminder_subq))  # Only users without existing reminders
     )
 
-    users = list((await db.execute(stmt)).unique().scalars().all())
-    for user in users:
-        await load_user_attrs(user)
-    return users
+    return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]:
@@ -309,7 +309,7 @@ async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]
     )
 
     stmt = (
-        select(User)
+        get_user_query()
         .options(joinedload(User.notification_reminders))
         .where(User.status == UserStatus.active)
         .where(User.expire.isnot(None))
@@ -317,10 +317,7 @@ async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]
         .where(not_(existing_reminder_subq))  # Only users without existing reminders
     )
 
-    users = list((await db.execute(stmt)).unique().scalars().all())
-    for user in users:
-        await load_user_attrs(user)
-    return users
+    return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_user_usages(
@@ -464,17 +461,16 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     db_user.proxy_settings = new_user.proxy_settings.dict()
 
     db.add(db_user)
+    await db.flush()
+    user_id = db_user.id
     await db.commit()
-    await db.refresh(db_user)
 
     if new_user.next_plan:
-        db_user.next_plan = NextPlan(user_id=db_user.id, **new_user.next_plan.model_dump())
-        db.add(db_user.next_plan)
+        next_plan = NextPlan(user_id=user_id, **new_user.next_plan.model_dump())
+        db.add(next_plan)
         await db.commit()
-        await db.refresh(db_user)
 
-    await load_user_attrs(db_user)
-    return db_user
+    return await get_user_by_id(db, user_id)
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
@@ -520,6 +516,7 @@ async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> Us
     """
     remove_usage_reminder = False
     remove_expiration_reminder = False
+    user_id = db_user.id
 
     if modify.proxy_settings is not None:
         db_user.proxy_settings = modify.proxy_settings.dict()
@@ -588,24 +585,20 @@ async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> Us
     db_user.edit_at = datetime.now(timezone.utc)
 
     if remove_usage_reminder or remove_expiration_reminder:
-        id = db_user.id
         usage_percentage = db_user.usage_percentage
         days_left = db_user.days_left
 
     if remove_usage_reminder:
-        await delete_user_passed_notification_reminders(db, id, ReminderType.data_usage, usage_percentage)
+        await delete_user_passed_notification_reminders(db, user_id, ReminderType.data_usage, usage_percentage)
     if remove_expiration_reminder:
-        await delete_user_passed_notification_reminders(db, id, ReminderType.expiration_date, days_left)
+        await delete_user_passed_notification_reminders(db, user_id, ReminderType.expiration_date, days_left)
 
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user)
-    return db_user
+    return await get_user_by_id(db, user_id)
 
 
 async def _reset_user_traffic_and_log(db: AsyncSession, db_user: User):
     """Helper to reset user traffic and log the action."""
-    await db_user.awaitable_attrs.next_plan
     usage_log = UserUsageResetLogs(
         user_id=db_user.id,
         used_traffic_at_reset=db_user.used_traffic,
@@ -636,10 +629,9 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
     if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
         db_user.status = UserStatus.active.value
 
+    user_id = db_user.id
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user)
-    return db_user
+    return await get_user_by_id(db, user_id)
 
 
 async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> list[User]:
@@ -657,11 +649,9 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
         await _reset_user_traffic_and_log(db, db_user)
         if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
             db_user.status = UserStatus.active.value
+    user_ids = [user.id for user in users]
     await db.commit()
-    for user in users:
-        await db.refresh(user)
-        await load_user_attrs(user)
-    return users
+    return await get_users_by_ids(db, user_ids)
 
 
 async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
@@ -675,6 +665,10 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     Returns:
         User: The updated user object.
     """
+    db_user = await get_user_by_id(db, db_user.id)
+    if not db_user or not db_user.next_plan:
+        return db_user
+
     remaining_traffic = (db_user.data_limit or 0) - db_user.used_traffic
     if db_user.next_plan.user_template_id is None:
         db_user.data_limit = db_user.next_plan.data_limit + (
@@ -684,8 +678,6 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
             timedelta(seconds=db_user.next_plan.expire) + datetime.now(UTC) if db_user.next_plan.expire else None
         )
     else:
-        await db_user.next_plan.awaitable_attrs.user_template
-        await db_user.next_plan.user_template.awaitable_attrs.groups
         db_user.groups = db_user.next_plan.user_template.groups
         db_user.data_limit = db_user.next_plan.user_template.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
@@ -720,10 +712,9 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     await _reset_user_traffic_and_log(db, db_user)
     db_user.status = UserStatus.active
 
+    user_id = db_user.id
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user)
-    return db_user
+    return await get_user_by_id(db, user_id)
 
 
 async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
@@ -743,10 +734,9 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
         .values(sub_revoked_at=datetime.now(timezone.utc), proxy_settings=ProxyTable().dict())
     )
     await db.execute(stmt)
+    user_id = db_user.id
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user)
-    return db_user
+    return await get_user_by_id(db, user_id)
 
 
 async def user_sub_update(db: AsyncSession, user_id: User, user_agent: str) -> User:
@@ -828,11 +818,11 @@ async def autodelete_expired_users(
             User,
             auto_delete,  # Use global auto-delete days as fallback
         )
+        .options(*USER_RELATIONSHIP_OPTIONS)
         .where(
             auto_delete >= 0,  # Negative values prevent auto-deletion
             User.status.in_(target_status),
         )
-        .options(joinedload(User.admin))
     )
 
     expired_users = [
@@ -845,7 +835,6 @@ async def autodelete_expired_users(
     result: list[UserNotificationResponse] = []
     if expired_users:
         for user in expired_users:
-            await load_user_attrs(user)
             result.append(UserNotificationResponse.model_validate(user))
 
         await remove_users(db, expired_users)
@@ -942,10 +931,7 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
     )
     await db.execute(stmt)
     await db.commit()
-    for user in users:
-        await db.refresh(user)
-        await load_user_attrs(user)
-    return users
+    return await get_users_by_ids(db, user_ids)
 
 
 async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
@@ -962,10 +948,9 @@ async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     """
     stmt = update(User).where(User.id == db_user.id).values(admin_id=admin.id)
     await db.execute(stmt)
+    user_id = db_user.id
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user)
-    return db_user
+    return await get_user_by_id(db, user_id)
 
 
 async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
@@ -989,11 +974,9 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
         )
         await db.execute(stmt)
 
+    user_ids = [user.id for user in users]
     await db.commit()
-    for user in users:
-        await db.refresh(user)
-        await load_user_attrs(user)
-    return users
+    return await get_users_by_ids(db, user_ids)
 
 
 async def create_notification_reminder(
