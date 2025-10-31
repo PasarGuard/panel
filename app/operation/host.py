@@ -7,6 +7,7 @@ from app.models.admin import AdminDetails
 from app.operation import BaseOperation
 from app.db.crud.host import create_host, get_host_by_id, remove_host, get_hosts, modify_host
 from app.core.hosts import host_manager
+from app.core.manager import core_manager
 from app.utils.logger import get_logger
 
 from app import notification
@@ -39,6 +40,8 @@ class HostOperation(BaseOperation):
 
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
         await self.validate_ds_host(db, new_host)
+        # Validate relay tags if provided
+        await self._validate_ss2022_relay_chain(new_host)
 
         await self.check_inbound_tags([new_host.inbound_tag])
 
@@ -57,6 +60,7 @@ class HostOperation(BaseOperation):
         self, db: AsyncSession, host_id: int, modified_host: CreateHost, admin: AdminDetails
     ) -> BaseHost:
         await self.validate_ds_host(db, modified_host, host_id)
+        await self._validate_ss2022_relay_chain(modified_host)
 
         if modified_host.inbound_tag:
             await self.check_inbound_tags([modified_host.inbound_tag])
@@ -90,6 +94,7 @@ class HostOperation(BaseOperation):
     ) -> list[BaseHost]:
         for host in modified_hosts:
             await self.validate_ds_host(db, host, host.id)
+            await self._validate_ss2022_relay_chain(host)
 
             old_host: ProxyHost | None = None
             if host.id is not None:
@@ -107,3 +112,20 @@ class HostOperation(BaseOperation):
         asyncio.create_task(notification.modify_hosts(admin.username))
 
         return await get_hosts(db=db)
+
+    async def _validate_ss2022_relay_chain(self, host: CreateHost) -> None:
+        tags = getattr(host, "ss2022_relay_inbound_tags", None)
+        if not tags:
+            return
+        # Ensure all tags exist
+        await self.check_inbound_tags(tags)
+        # Ensure no self-reference
+        if host.inbound_tag and host.inbound_tag in tags:
+            await self.raise_error("relay chain cannot include the host's own inbound_tag", 400)
+        # Validate each tag corresponds to a 2022 inbound with a password
+        for tag in tags:
+            cfg = await core_manager.get_inbound_by_tag(tag)
+            if not cfg or not cfg.get("is_2022"):
+                await self.raise_error(f"{tag} is not a Shadowsocks 2022 inbound", 400)
+            if not cfg.get("password"):
+                await self.raise_error(f"{tag} has no inbound password configured", 400)

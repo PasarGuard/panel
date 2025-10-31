@@ -1541,6 +1541,8 @@ export type CreateHostInboundTag = string | null
 
 export type CreateHostId = number | null
 
+export type CreateHostSs2022RelayInboundTags = string[] | null
+
 export interface CreateHost {
   id?: CreateHostId
   remark: string
@@ -1565,6 +1567,7 @@ export interface CreateHost {
   priority: number
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
+  ss2022_relay_inbound_tags?: CreateHostSs2022RelayInboundTags
 }
 
 export type CoreResponseConfig = { [key: string]: unknown }
@@ -1716,6 +1719,8 @@ export type BaseHostInboundTag = string | null
 
 export type BaseHostId = number | null
 
+export type BaseHostSs2022RelayInboundTags = string[] | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -1740,6 +1745,7 @@ export interface BaseHost {
   priority: number
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
+  ss2022_relay_inbound_tags?: BaseHostSs2022RelayInboundTags
 }
 
 export type ApplicationOutputDescription = { [key: string]: string }

@@ -219,6 +219,7 @@ const Dashboard = () => {
       use_sni_as_host: false,
       mux_settings: undefined,
       fragment_settings: undefined,
+      ss2022_relay_inbound_tags: [],
     },
   })
 
