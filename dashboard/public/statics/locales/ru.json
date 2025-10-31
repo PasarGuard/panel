@@ -972,6 +972,10 @@
     "editFailed": "Не удалось обновить хост «{{name}}»",
     "noStatus": "Статус не выбран",
     "clearAllStatuses": "Очистить все статусы",
+    "ss2022RelayInbounds": "Релейные входы (SS-2022)",
+    "relaySettings": "Настройки релей",
+    "selectRelayInbounds": "Выберите релей входы",
+    "clearAllRelayInbounds": "Очистить все релей входы",
     "transportSettingsAccordion": "Настройки транспорта",
     "xhttp": {
       "mode": "Режим",

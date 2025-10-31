@@ -656,6 +656,10 @@
     },
     "noStatus": "وضعیتی انتخاب نشده",
     "clearAllStatuses": "پاک کردن همه وضعیت‌ها",
+    "ss2022RelayInbounds": "ورودی‌های رله(SS-2022)",
+    "relaySettings": "تنظیمات رله",
+    "selectRelayInbounds": "انتخاب ورودی‌های رله",
+    "clearAllRelayInbounds": "پاک کردن همه ورودی‌های رله",
     "transportSettingsAccordion": "تنظیمات انتقال",
     "xhttp": {
       "mode": "حالت",

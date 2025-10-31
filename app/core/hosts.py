@@ -96,6 +96,16 @@ async def _prepare_subscription_inbound_data(
     is_2022 = inbound_config.get("is_2022", False)
     ss_method = inbound_config.get("method", "")
     ss_password = inbound_config.get("password", "")
+    # Resolve relay chain passwords (ordered) for SS-2022
+    relay_passwords: list[str] = []
+    if getattr(host, "ss2022_relay_inbound_tags", None):
+        for relay_tag in host.ss2022_relay_inbound_tags:
+            try:
+                relay_cfg = await core_manager.get_inbound_by_tag(relay_tag)
+            except Exception:
+                continue
+            if relay_cfg and relay_cfg.get("is_2022") and relay_cfg.get("password"):
+                relay_passwords.append(relay_cfg.get("password"))
 
     # Get VLESS encryption from inbound
     encryption = inbound_config.get("encryption", "none")
@@ -215,6 +225,7 @@ async def _prepare_subscription_inbound_data(
         is_2022=is_2022,
         method=ss_method,
         password=ss_password,
+        relay_passwords=relay_passwords,
         encryption=encryption,
         inbound_flow=inbound_flow,
         flow_enabled=flow_enabled,

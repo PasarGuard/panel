@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { getHosts, getInbounds, UserStatus } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Lock, Network, Plus, Trash2, X } from 'lucide-react'
+import { Cable, Check, ChevronsLeftRightEllipsis, CircleArrowRight, Copy, Edit, GlobeLock, Info, Lock, Network, Plus, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -2709,6 +2709,76 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         </TabsContent>
                       </Tabs>
                     </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="relay">
+                  <AccordionTrigger>
+                    <div className="flex items-center gap-2">
+                      <CircleArrowRight className="h-4 w-4" />
+                      <span>{t('hostsDialog.relaySettings')}</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-2">
+                    <FormField
+                    control={form.control}
+                    name="ss2022_relay_inbound_tags"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('hostsDialog.ss2022RelayInbounds')}</FormLabel>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-wrap gap-2">
+                            {Array.isArray(field.value) && field.value.length > 0 ? (
+                              field.value.map((tag: string, idx: number) => (
+                                <span key={`${tag}-${idx}`} className="flex items-center gap-2 rounded-md bg-muted/80 px-2 py-1 text-sm">
+                                  {tag}
+                                  <button
+                                    type="button"
+                                    className="hover:text-destructive"
+                                    onClick={() => {
+                                      const next = (field.value || []).filter((t: string, i: number) => !(t === tag && i === idx))
+                                      field.onChange(next)
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">{t('hostsDialog.selectRelayInbounds')}</span>
+                            )}
+                          </div>
+                          <Select
+                            value={''}
+                            onValueChange={(value: string) => {
+                              if (!value || value.trim() === '') return
+                              const current = Array.isArray(field.value) ? field.value : []
+                              field.onChange([...current, value])
+                            }}
+                          >
+                            <FormControl>
+                              <SelectTrigger dir={dir} className="w-full py-5">
+                                <SelectValue placeholder={t('hostsDialog.selectRelayInbounds')} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent dir={dir} className="bg-background">
+                              {inbounds.map(tag => (
+                                <SelectItem key={tag} value={tag} className="cursor-pointer">
+                                  {tag}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {Array.isArray(field.value) && field.value.length > 0 && (
+                            <Button type="button" variant="outline" size="sm" onClick={() => field.onChange([])} className="w-full">
+                              {t('hostsDialog.clearAllRelayInbounds')}
+                            </Button>
+                          )}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                      )}
+                    />
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>

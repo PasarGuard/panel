@@ -149,6 +149,10 @@ export default function HostsPage() {
               })),
             }
           : undefined,
+        ss2022_relay_inbound_tags:
+          formData.ss2022_relay_inbound_tags && formData.ss2022_relay_inbound_tags.length > 0
+            ? formData.ss2022_relay_inbound_tags
+            : undefined,
       }
 
       if (editingHost?.id) {

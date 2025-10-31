@@ -95,6 +95,7 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
         mux_settings: host.mux_settings,
         transport_settings: host.transport_settings as any, // Type cast needed due to Output/Input mismatch
         http_headers: host.http_headers || {},
+        ss2022_relay_inbound_tags: host.ss2022_relay_inbound_tags || [],
       })
 
       toast.success(

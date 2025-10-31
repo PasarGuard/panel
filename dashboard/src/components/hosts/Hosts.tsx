@@ -147,6 +147,7 @@ export interface HostFormValues {
       heartbeatPeriod?: number
     }
   }
+  ss2022_relay_inbound_tags?: string[]
 }
 
 // Update the transport settings schema
@@ -402,6 +403,7 @@ export const HostFormSchema = z.object({
     })
     .optional(),
   transport_settings: transportSettingsSchema,
+  ss2022_relay_inbound_tags: z.array(z.string()).optional(),
 })
 
 // Define initial default values separately
@@ -604,6 +606,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
               : undefined,
           }
         : undefined,
+      ss2022_relay_inbound_tags: host.ss2022_relay_inbound_tags ?? [],
     }
     form.reset(formData)
     setEditingHost(host)
@@ -639,6 +642,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
         mux_settings: host.mux_settings,
         transport_settings: host.transport_settings as any, // Type cast needed due to Output/Input mismatch
         http_headers: host.http_headers || {},
+        ss2022_relay_inbound_tags: host.ss2022_relay_inbound_tags || [],
       }
 
       await createHost(newHost)
@@ -745,6 +749,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit, editing
         mux_settings: host.mux_settings,
         transport_settings: host.transport_settings as any,
         http_headers: host.http_headers || {},
+        ss2022_relay_inbound_tags: host.ss2022_relay_inbound_tags || [],
       }))
 
       // Make the API call to update priorities

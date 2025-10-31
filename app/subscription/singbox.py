@@ -267,6 +267,7 @@ class SingBoxConfiguration(BaseSubscription):
             settings["method"],
             getattr(inbound, "password", None),
             settings["password"],
+            getattr(inbound, "relay_passwords", None),
         )
 
         config = {

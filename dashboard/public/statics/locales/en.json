@@ -776,6 +776,10 @@
     "editFailed": "Failed to modify host «{{name}}»",
     "noStatus": "No status selected",
     "clearAllStatuses": "Clear all statuses",
+    "ss2022RelayInbounds": "Relay Inbounds (SS-2022)",
+    "relaySettings": "Relay Settings",
+    "selectRelayInbounds": "Select relay inbounds",
+    "clearAllRelayInbounds": "Clear all relay inbounds",
     "transportSettingsAccordion": "Transport Settings",
     "xhttp": {
       "mode": "Mode",

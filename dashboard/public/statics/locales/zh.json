@@ -1015,6 +1015,10 @@
     "editFailed": "更新主机「{{name}}」失败",
     "noStatus": "未选择状态",
     "clearAllStatuses": "清除所有状态",
+    "ss2022RelayInbounds": "中继入站（SS-2022）",
+    "relaySettings": "中继设置",
+    "selectRelayInbounds": "选择中继入站",
+    "clearAllRelayInbounds": "清除所有中继入站",
     "transportSettingsAccordion": "传输设置",
     "xhttp": {
       "mode": "模式",
