@@ -195,7 +195,15 @@ class NodeOperation(BaseOperation):
 
     async def restart_all_node(self, db: AsyncSession, admin: AdminDetails, core_id: int | None = None) -> None:
         nodes: list[Node] = await self.get_db_nodes(db, core_id)
-        await asyncio.gather(*[NodeOperation.connect_node(node.id) for node in nodes])
+
+        # Semaphore to limit concurrent node restarts to 3 at a time
+        semaphore = asyncio.Semaphore(3)
+
+        async def restart_with_limit(node_id: int):
+            async with semaphore:
+                await NodeOperation.connect_node(node_id)
+
+        await asyncio.gather(*[restart_with_limit(node.id) for node in nodes])
 
         logger.info(f'All nodes restarted by admin "{admin.username}"')
 

@@ -126,6 +126,9 @@ async def initialize_nodes():
     async with GetDB() as db:
         db_nodes = await get_nodes(db=db, enabled=True)
 
+        # Semaphore to limit concurrent node startups to 3 at a time
+        semaphore = asyncio.Semaphore(3)
+
         async def start_node(node: Node):
             try:
                 await node_manager.update_node(node)
@@ -135,10 +138,14 @@ async def initialize_nodes():
 
             await node_operator.connect_node(node_id=node.id)
 
+        async def start_node_with_limit(node: Node):
+            async with semaphore:
+                await start_node(node)
+
         if not db_nodes:
             logger.warning("Attention: You have no node, you need to have at least one node")
         else:
-            start_tasks = [start_node(node=db_node) for db_node in db_nodes]
+            start_tasks = [start_node_with_limit(db_node) for db_node in db_nodes]
             await asyncio.gather(*start_tasks)
             logger.info("All nodes' cores have been started.")
 
