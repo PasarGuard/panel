@@ -1,5 +1,4 @@
 import ipaddress
-import logging
 import os
 import socket
 import ssl
@@ -14,6 +13,7 @@ from app import app, logger  # noqa
 from app.utils.logger import LOGGING_CONFIG
 from config import (
     DEBUG,
+    LOG_LEVEL,
     UVICORN_HOST,
     UVICORN_LOOP,
     UVICORN_PORT,
@@ -134,10 +134,9 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
         bind_args["uds"] = None
         bind_args["host"] = "0.0.0.0"
 
-    log_level = logging.DEBUG if DEBUG else logging.INFO
-    LOGGING_CONFIG["loggers"]["uvicorn"]["level"] = log_level
-    LOGGING_CONFIG["loggers"]["uvicorn.error"]["level"] = log_level
-    LOGGING_CONFIG["loggers"]["uvicorn.access"]["level"] = log_level
+    effective_log_level = LOG_LEVEL
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        LOGGING_CONFIG["loggers"][logger_name]["level"] = effective_log_level
 
     try:
         uvicorn.run(
@@ -146,6 +145,7 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
             workers=1,
             reload=DEBUG,
             log_config=LOGGING_CONFIG,
+            log_level=effective_log_level.lower(),
             loop=UVICORN_LOOP,
         )
     except FileNotFoundError:  # to prevent error on removing unix sock

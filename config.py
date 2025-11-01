@@ -28,6 +28,11 @@ DOCS = config("DOCS", default=False, cast=bool)
 
 ALLOWED_ORIGINS = config("ALLOWED_ORIGINS", default="*").split(",")
 
+VALID_LOG_LEVELS = ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG")
+LOG_LEVEL = config("LOG_LEVEL", default="INFO").upper()
+if LOG_LEVEL not in VALID_LOG_LEVELS:
+    LOG_LEVEL = "INFO"
+
 VITE_BASE_API = (
     f"{'https' if UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE else 'http'}://127.0.0.1:{UVICORN_PORT}/"
     if DEBUG and config("VITE_BASE_API", default="/") == "/"
