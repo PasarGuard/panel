@@ -109,6 +109,31 @@ class Webhook(BaseModel):
         return self
 
 
+class NotificationChannel(BaseModel):
+    """Channel configuration for sending notifications to a specific entity"""
+
+    telegram_chat_id: int | None = Field(default=None)
+    telegram_topic_id: int | None = Field(default=None)
+    discord_webhook_url: str | None = Field(default=None)
+
+    @field_validator("discord_webhook_url", mode="before")
+    @classmethod
+    def validate_discord_webhook(cls, value):
+        return DiscordValidator.validate_webhook(value)
+
+
+class NotificationChannels(BaseModel):
+    """Per-object notification channels"""
+
+    admin: NotificationChannel = Field(default_factory=NotificationChannel)
+    core: NotificationChannel = Field(default_factory=NotificationChannel)
+    group: NotificationChannel = Field(default_factory=NotificationChannel)
+    host: NotificationChannel = Field(default_factory=NotificationChannel)
+    node: NotificationChannel = Field(default_factory=NotificationChannel)
+    user: NotificationChannel = Field(default_factory=NotificationChannel)
+    user_template: NotificationChannel = Field(default_factory=NotificationChannel)
+
+
 class NotificationSettings(BaseModel):
     # Define Which Notfication System Work's
     notify_telegram: bool = Field(default=False)
@@ -116,12 +141,16 @@ class NotificationSettings(BaseModel):
 
     # Telegram Settings
     telegram_api_token: str | None = Field(default=None)
-    telegram_admin_id: int | None = Field(default=None)
-    telegram_channel_id: int | None = Field(default=None)
+
+    # Fallback Telegram Channel
+    telegram_chat_id: int | None = Field(default=None)
     telegram_topic_id: int | None = Field(default=None)
 
-    # Discord Settings
+    # Fallback Discord Settings
     discord_webhook_url: str | None = Field(default=None)
+
+    # Per-object notification channels
+    channels: NotificationChannels = Field(default_factory=NotificationChannels)
 
     # Proxy Settings
     proxy_url: str | None = Field(default=None)
@@ -146,10 +175,10 @@ class NotificationSettings(BaseModel):
 
     @model_validator(mode="after")
     def check_notify_telegram_requires_token_and_id(self):
-        if self.notify_telegram and (
-            not self.telegram_api_token or not (self.telegram_channel_id, self.telegram_admin_id)
-        ):
-            raise ValueError("Telegram notification cannot be enabled without token or admin/channel id.")
+        if self.notify_telegram and not self.telegram_api_token:
+            raise ValueError("Telegram notification cannot be enabled without token.")
+        if self.notify_telegram and not self.telegram_chat_id:
+            raise ValueError("Telegram notification cannot be enabled without chat id.")
         return self
 
 

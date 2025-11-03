@@ -73,15 +73,16 @@ async def _send_discord_webhook_direct(json_data, webhook, max_retries: int) -> 
     return False
 
 
-async def send_discord_webhook(json_data, webhook):
+async def send_discord_webhook(json_data, webhook: str | None):
     """Enqueue Discord notification for processing"""
+    if not webhook:
+        return
     await enqueue_discord(json_data, webhook)
 
 
 async def _send_telegram_message_direct(
     message: str,
     chat_id: int | None,
-    channel_id: int | None,
     topic_id: int | None,
     max_retries: int,
     telegram_api_token: str,
@@ -93,17 +94,15 @@ async def _send_telegram_message_direct(
     base_url = f"https://api.telegram.org/bot{telegram_api_token}/sendMessage"
     payload = {"parse_mode": "HTML", "text": message}
 
-    # Determine the target chat/channel/topic
-    if topic_id and channel_id:
-        payload["chat_id"] = channel_id
-        payload["message_thread_id"] = topic_id
-    elif channel_id:
-        payload["chat_id"] = channel_id
-    elif chat_id:
-        payload["chat_id"] = chat_id
-    else:
-        logger.error("At least one of chat_id, channel_id must be provided")
+    # Validate chat_id is provided
+    if not chat_id:
+        logger.error("chat_id is required")
         return False
+
+    # Set chat_id and optional topic_id
+    payload["chat_id"] = chat_id
+    if topic_id:
+        payload["message_thread_id"] = topic_id
 
     retries = 0
     while retries < max_retries:
@@ -135,18 +134,17 @@ async def _send_telegram_message_direct(
     return False
 
 
-async def send_telegram_message(
-    message, chat_id: int | None = None, channel_id: int | None = None, topic_id: int | None = None
-):
+async def send_telegram_message(message, chat_id: int | None = None, topic_id: int | None = None):
     """
     Enqueue a Telegram message for processing.
     Args:
         message (str): The message to send
-        chat_id (int, optional): The chat ID for direct messages
-        channel_id (int, optional): The channel ID for channel messages
-        topic_id (int, optional): The topic ID for forum topics in channels
+        chat_id (int, optional): The chat ID (can be user, group, or channel)
+        topic_id (int, optional): The topic ID for forum topics (only with chat_id)
     """
-    await enqueue_telegram(message, chat_id, channel_id, topic_id)
+    if not chat_id:
+        return
+    await enqueue_telegram(message, chat_id, topic_id)
 
 
 async def process_telegram_queue():
@@ -167,7 +165,6 @@ async def process_telegram_queue():
             success = await _send_telegram_message_direct(
                 message=notification.message,
                 chat_id=notification.chat_id,
-                channel_id=notification.channel_id,
                 topic_id=notification.topic_id,
                 max_retries=settings.max_retries,
                 telegram_api_token=settings.telegram_api_token,

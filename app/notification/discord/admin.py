@@ -1,12 +1,15 @@
 import copy
 
 from app.notification.client import send_discord_webhook
+from app.notification.helpers import get_discord_webhook
 from app.models.admin import AdminDetails
 from app.models.settings import NotificationSettings
 from app.settings import notification_settings
 from app.utils.helpers import escape_ds_markdown_list
 
 from . import colors, messages
+
+ENTITY = "admin"
 
 
 async def create_admin(admin: AdminDetails, by: str):
@@ -26,7 +29,8 @@ async def create_admin(admin: AdminDetails, by: str):
     data["embeds"][0]["color"] = colors.GREEN
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
-        await send_discord_webhook(data, settings.discord_webhook_url)
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)
 
 
 async def modify_admin(admin: AdminDetails, by: str):
@@ -46,7 +50,8 @@ async def modify_admin(admin: AdminDetails, by: str):
     data["embeds"][0]["color"] = colors.YELLOW
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
-        await send_discord_webhook(data, settings.discord_webhook_url)
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)
 
 
 async def remove_admin(username: str, by: str):
@@ -61,7 +66,8 @@ async def remove_admin(username: str, by: str):
     data["embeds"][0]["color"] = colors.RED
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
-        await send_discord_webhook(data, settings.discord_webhook_url)
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)
 
 
 async def admin_reset_usage(admin: AdminDetails, by: str):
@@ -76,7 +82,8 @@ async def admin_reset_usage(admin: AdminDetails, by: str):
     data["embeds"][0]["color"] = colors.CYAN
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
-        await send_discord_webhook(data, settings.discord_webhook_url)
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)
 
 
 async def admin_login(username: str, password: str, client_ip: str, success: bool):
@@ -94,4 +101,5 @@ async def admin_login(username: str, password: str, client_ip: str, success: boo
     data["embeds"][0]["color"] = colors.GREEN if success else colors.RED
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
-        await send_discord_webhook(data, settings.discord_webhook_url)
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)

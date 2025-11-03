@@ -8,7 +8,6 @@ class TelegramNotification(BaseModel):
 
     message: str
     chat_id: Optional[int] = Field(default=None)
-    channel_id: Optional[int] = Field(default=None)
     topic_id: Optional[int] = Field(default=None)
     tries: int = Field(default=0)
 
@@ -26,11 +25,9 @@ telegram_queue: asyncio.Queue[TelegramNotification] = asyncio.Queue()
 discord_queue: asyncio.Queue[DiscordNotification] = asyncio.Queue()
 
 
-async def enqueue_telegram(
-    message: str, chat_id: Optional[int] = None, channel_id: Optional[int] = None, topic_id: Optional[int] = None
-) -> None:
+async def enqueue_telegram(message: str, chat_id: Optional[int] = None, topic_id: Optional[int] = None) -> None:
     """Add a Telegram notification to the queue"""
-    notification = TelegramNotification(message=message, chat_id=chat_id, channel_id=channel_id, topic_id=topic_id)
+    notification = TelegramNotification(message=message, chat_id=chat_id, topic_id=topic_id)
     await telegram_queue.put(notification)
 
 

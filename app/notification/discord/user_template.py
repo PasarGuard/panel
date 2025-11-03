@@ -1,6 +1,7 @@
 import copy
 
 from app.notification.client import send_discord_webhook
+from app.notification.helpers import get_discord_webhook
 from app.models.user_template import UserTemplateResponse
 from app.models.settings import NotificationSettings
 from app.settings import notification_settings
@@ -8,6 +9,8 @@ from app.utils.helpers import escape_ds_markdown_list
 
 from . import colors, messages
 from .utils import escape_md_template
+
+ENTITY = "user_template"
 
 
 async def create_user_template(user_tempelate: UserTemplateResponse, by: str):
@@ -28,7 +31,8 @@ async def create_user_template(user_tempelate: UserTemplateResponse, by: str):
     data["embeds"][0]["color"] = colors.GREEN
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
-        await send_discord_webhook(data, settings.discord_webhook_url)
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)
 
 
 async def modify_user_template(user_template: UserTemplateResponse, by: str):
@@ -49,7 +53,8 @@ async def modify_user_template(user_template: UserTemplateResponse, by: str):
     data["embeds"][0]["color"] = colors.YELLOW
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
-        await send_discord_webhook(data, settings.discord_webhook_url)
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)
 
 
 async def remove_user_template(name: str, by: str):
@@ -64,4 +69,5 @@ async def remove_user_template(name: str, by: str):
     data["embeds"][0]["color"] = colors.RED
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
-        await send_discord_webhook(data, settings.discord_webhook_url)
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)

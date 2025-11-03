@@ -1,4 +1,5 @@
 from app.notification.client import send_telegram_message
+from app.notification.helpers import get_telegram_channel
 from app.models.user_template import UserTemplateResponse
 from app.models.settings import NotificationSettings
 from app.settings import notification_settings
@@ -6,6 +7,8 @@ from app.utils.helpers import escape_tg_html
 
 from .utils import escape_html_template
 from . import messages
+
+ENTITY = "user_template"
 
 
 async def create_user_template(user_template: UserTemplateResponse, by: str):
@@ -20,9 +23,8 @@ async def create_user_template(user_template: UserTemplateResponse, by: str):
     )
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
-        await send_telegram_message(
-            data, settings.telegram_admin_id, settings.telegram_channel_id, settings.telegram_topic_id
-        )
+        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
+        await send_telegram_message(data, chat_id, topic_id)
 
 
 async def modify_user_template(user_template: UserTemplateResponse, by: str):
@@ -37,9 +39,8 @@ async def modify_user_template(user_template: UserTemplateResponse, by: str):
     )
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
-        await send_telegram_message(
-            data, settings.telegram_admin_id, settings.telegram_channel_id, settings.telegram_topic_id
-        )
+        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
+        await send_telegram_message(data, chat_id, topic_id)
 
 
 async def remove_user_template(name: str, by: str):
@@ -47,6 +48,5 @@ async def remove_user_template(name: str, by: str):
     data = messages.REMOVE_USER_TEMPLATE.format(name=name, by=by)
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
-        await send_telegram_message(
-            data, settings.telegram_admin_id, settings.telegram_channel_id, settings.telegram_topic_id
-        )
+        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
+        await send_telegram_message(data, chat_id, topic_id)
