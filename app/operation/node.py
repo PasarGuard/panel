@@ -36,9 +36,14 @@ logger = get_logger("node-operation")
 
 class NodeOperation(BaseOperation):
     async def get_db_nodes(
-        self, db: AsyncSession, core_id: int | None = None, offset: int | None = None, limit: int | None = None
+        self,
+        db: AsyncSession,
+        core_id: int | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        enable: bool = False,
     ) -> list[Node]:
-        return await get_nodes(db=db, core_id=core_id, offset=offset, limit=limit)
+        return await get_nodes(db=db, core_id=core_id, offset=offset, limit=limit, enable=enable)
 
     @staticmethod
     async def _update_single_node_status(
@@ -312,7 +317,7 @@ class NodeOperation(BaseOperation):
         logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
 
     async def restart_all_node(self, db: AsyncSession, admin: AdminDetails, core_id: int | None = None) -> None:
-        nodes: list[Node] = await self.get_db_nodes(db, core_id)
+        nodes: list[Node] = await self.get_db_nodes(db, core_id, enable=True)
         await self.connect_nodes_bulk(db, nodes)
         logger.info(f'All nodes restarted by admin "{admin.username}"')
 
