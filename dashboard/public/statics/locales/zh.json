@@ -156,6 +156,11 @@
         "description": "配置高级通知行为，包括重试策略和代理设置",
         "maxRetries": "最大重试次数",
         "proxyUrl": "代理 URL"
+      },
+      "channels": {
+        "title": "频道覆盖",
+        "description": "覆盖特定通知事件的默认目标。留空以继承全局配置。",
+        "hint": "留空以恢复此事件的主要通知设置。"
       }
     },
     "subscriptions": {

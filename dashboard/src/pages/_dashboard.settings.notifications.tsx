@@ -16,7 +16,23 @@ import { MessageSquare, FileText, Bot, Webhook, ChevronDown, Settings, Users, Sh
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-import type { NotificationEnable } from '@/service/api'
+import type { NotificationEnable, NotificationChannels } from '@/service/api'
+import { Select, SelectItem, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select'
+const notificationChannelSchema = z.object({
+  telegram_chat_id: z.number().optional(),
+  telegram_topic_id: z.number().optional(),
+  discord_webhook_url: z.string().optional(),
+})
+
+const notificationChannelsSchema = z.object({
+  admin: notificationChannelSchema.optional(),
+  core: notificationChannelSchema.optional(),
+  group: notificationChannelSchema.optional(),
+  host: notificationChannelSchema.optional(),
+  node: notificationChannelSchema.optional(),
+  user: notificationChannelSchema.optional(),
+  user_template: notificationChannelSchema.optional(),
+})
 
 // Validation schema matching the new API structure
 const notificationSettingsSchema = z.object({
@@ -95,6 +111,7 @@ const notificationSettingsSchema = z.object({
       discord_webhook_url: z.string().optional(),
       proxy_url: z.string().optional(),
       max_retries: z.number().min(1).max(10),
+      channels: notificationChannelsSchema.optional(),
     })
     .optional(),
 })
@@ -204,11 +221,56 @@ const notificationConfigs: NotificationPermissionConfig[] = [
   },
 ]
 
+type ChannelTargetKey = keyof NotificationChannels
+
+type NotificationChannelFormState = {
+  telegram_chat_id?: number
+  telegram_topic_id?: number
+  discord_webhook_url?: string
+}
+
+const channelTargets: Array<{
+  key: ChannelTargetKey
+  translationKey: string
+  icon: React.ComponentType<{ className?: string }>
+}> = [
+    { key: 'admin', translationKey: 'admin', icon: UserCog },
+    { key: 'core', translationKey: 'core', icon: Settings },
+    { key: 'group', translationKey: 'group', icon: Users2 },
+    { key: 'host', translationKey: 'host', icon: ListTodo },
+    { key: 'node', translationKey: 'node', icon: Share2Icon },
+    { key: 'user', translationKey: 'user', icon: Users },
+    { key: 'user_template', translationKey: 'userTemplate', icon: LayoutTemplate },
+  ]
+
+const createDefaultChannelValues = (): Record<ChannelTargetKey, NotificationChannelFormState> =>
+  channelTargets.reduce((acc, target) => {
+    acc[target.key] = {
+      telegram_chat_id: undefined,
+      telegram_topic_id: undefined,
+      discord_webhook_url: '',
+    }
+    return acc
+  }, {} as Record<ChannelTargetKey, NotificationChannelFormState>)
+
+const populateChannelValues = (channels?: NotificationChannels | null): Record<ChannelTargetKey, NotificationChannelFormState> => {
+  const defaults = createDefaultChannelValues()
+  channelTargets.forEach(target => {
+    const channel = channels?.[target.key]
+    defaults[target.key] = {
+      telegram_chat_id: channel?.telegram_chat_id ?? undefined,
+      telegram_topic_id: channel?.telegram_topic_id ?? undefined,
+      discord_webhook_url: channel?.discord_webhook_url ?? '',
+    }
+  })
+  return defaults
+}
+
 export default function NotificationSettings() {
   const { t } = useTranslation()
 
   // Use settings context instead of direct API calls
-  const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
+  const { settings, error, updateSettings, isSaving } = useSettingsContext()
 
   const form = useForm<NotificationSettingsForm>({
     resolver: zodResolver(notificationSettingsSchema),
@@ -242,6 +304,7 @@ export default function NotificationSettings() {
         discord_webhook_url: '',
         proxy_url: '',
         max_retries: 3,
+        channels: createDefaultChannelValues(),
       },
     },
   })
@@ -252,6 +315,7 @@ export default function NotificationSettings() {
   // Watch the telegram and discord switches to conditionally show/hide sections
   const watchTelegramEnabled = form.watch('notification_settings.notify_telegram')
   const watchDiscordEnabled = form.watch('notification_settings.notify_discord')
+  const [activeChannelTab, setActiveChannelTab] = useState<ChannelTargetKey>(channelTargets[0].key)
 
   // Watch all notification enable fields to ensure switch/checkbox sync
   const watchedEnableFields = form.watch('notification_enable')
@@ -304,36 +368,67 @@ export default function NotificationSettings() {
           discord_webhook_url: settings.notification_settings?.discord_webhook_url || '',
           proxy_url: settings.notification_settings?.proxy_url || '',
           max_retries: settings.notification_settings?.max_retries || 3,
+          channels: populateChannelValues(settings.notification_settings?.channels),
         },
       })
     }
   }, [settings, form])
 
   const onSubmit = (data: NotificationSettingsForm) => {
+    const telegramEnabled = Boolean(data.notification_settings?.notify_telegram)
+    const discordEnabled = Boolean(data.notification_settings?.notify_discord)
+
+    const channelPayload: NotificationChannels = channelTargets.reduce((acc, target) => {
+      const channelData = data.notification_settings?.channels?.[target.key]
+      const telegramChatId = telegramEnabled ? channelData?.telegram_chat_id ?? null : null
+      const telegramTopicId = telegramEnabled ? channelData?.telegram_topic_id ?? null : null
+
+      const rawWebhook = channelData?.discord_webhook_url ?? ''
+      const trimmedWebhook = rawWebhook.trim()
+      const discordWebhook = discordEnabled && trimmedWebhook !== '' ? trimmedWebhook : null
+
+      acc[target.key] = {
+        telegram_chat_id: telegramChatId,
+        telegram_topic_id: telegramTopicId,
+        discord_webhook_url: discordWebhook,
+      }
+      return acc
+    }, {} as NotificationChannels)
+
     // Filter the payload based on enabled switches
     const filteredData = {
       notification_enable: data.notification_enable,
       notification_settings: {
-        notify_telegram: data.notification_settings?.notify_telegram || false,
-        notify_discord: data.notification_settings?.notify_discord || false,
+        notify_telegram: telegramEnabled,
+        notify_discord: discordEnabled,
         max_retries: data.notification_settings?.max_retries || 3,
         // Only include Telegram settings if Telegram is enabled
-        ...(data.notification_settings?.notify_telegram && {
-          telegram_api_token: data.notification_settings?.telegram_api_token || '',
-          telegram_admin_id: data.notification_settings?.telegram_admin_id,
-          telegram_channel_id: data.notification_settings?.telegram_channel_id,
-          telegram_topic_id: data.notification_settings?.telegram_topic_id,
-        }),
+        ...(telegramEnabled
+          ? {
+            telegram_api_token: data.notification_settings?.telegram_api_token || '',
+            telegram_admin_id: data.notification_settings?.telegram_admin_id ?? null,
+            telegram_channel_id: data.notification_settings?.telegram_channel_id ?? null,
+            telegram_topic_id: data.notification_settings?.telegram_topic_id ?? null,
+          }
+          : {
+            telegram_api_token: null,
+            telegram_admin_id: null,
+            telegram_channel_id: null,
+            telegram_topic_id: null,
+          }),
         // Only include Discord settings if Discord is enabled
-        ...(data.notification_settings?.notify_discord && {
-          discord_webhook_url: data.notification_settings?.discord_webhook_url || '',
-        }),
-        // Only include proxy if either Telegram or Discord is enabled AND proxy URL is not empty
-        ...((data.notification_settings?.notify_telegram || data.notification_settings?.notify_discord) &&
-          data.notification_settings?.proxy_url &&
-          data.notification_settings.proxy_url.trim() !== '' && {
-          proxy_url: data.notification_settings.proxy_url.trim(),
-        }),
+        ...(discordEnabled
+          ? {
+            discord_webhook_url: data.notification_settings?.discord_webhook_url?.trim() || null,
+          }
+          : { discord_webhook_url: null }),
+        // Only include proxy if either Telegram or Discord is enabled AND proxy URL is not empty. If both disabled, clear the proxy.
+        ...(telegramEnabled || discordEnabled
+          ? data.notification_settings?.proxy_url && data.notification_settings.proxy_url.trim() !== ''
+            ? { proxy_url: data.notification_settings.proxy_url.trim() }
+            : {}
+          : { proxy_url: null }),
+        channels: channelPayload,
       },
     }
 
@@ -373,21 +468,11 @@ export default function NotificationSettings() {
           discord_webhook_url: settings.notification_settings?.discord_webhook_url || '',
           proxy_url: settings.notification_settings?.proxy_url || '',
           max_retries: settings.notification_settings?.max_retries || 3,
+          channels: populateChannelValues(settings.notification_settings?.channels),
         },
       })
       toast.success(t('settings.notifications.cancelSuccess'))
     }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[600px] items-center justify-center p-4 sm:py-6 lg:py-8">
-        <div className="space-y-3 text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
-          <p className="text-sm text-muted-foreground">{t('loading')}.</p>
-        </div>
-      </div>
-    )
   }
 
   if (error) {
@@ -815,9 +900,9 @@ export default function NotificationSettings() {
             )}
           </div>
 
-          {/* Advanced Settings - Only show if either Telegram or Discord is enabled */}
+          {/* Advanced Settings & Channel Overrides - Only show if either Telegram or Discord is enabled */}
           {(watchTelegramEnabled || watchDiscordEnabled) && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <Separator className="my-3" />
               <div className="space-y-0.5">
                 <h3 className="text-base font-semibold sm:text-lg">{t('settings.notifications.advanced.title')}</h3>
@@ -874,6 +959,173 @@ export default function NotificationSettings() {
                     )}
                   />
                 </div>
+              </div>
+
+              <Separator className="my-3" />
+              <div className="space-y-0.5">
+                <h3 className="text-base font-semibold sm:text-lg">{t('settings.notifications.channels.title')}</h3>
+                <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.notifications.channels.description')}</p>
+              </div>
+
+
+              <div className="space-y-3">
+                <FormItem>
+                  <Select onValueChange={value => setActiveChannelTab(value as ChannelTargetKey)} value={activeChannelTab}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {channelTargets.map(target => (
+                        <SelectItem key={target.key} value={target.key}>
+                          <div className="flex items-center gap-1.5">
+                            <target.icon className="h-3.5 w-3.5" />
+                            {t(`settings.notifications.types.${target.translationKey}`)}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+
+                {(() => {
+                  const target = channelTargets.find(target => target.key === activeChannelTab)
+                  if (!target) return null
+                  
+                  return (
+                    <div key={activeChannelTab} className="space-y-3 rounded-md border bg-card p-3">
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                          <target.icon className="h-3.5 w-3.5" />
+                          {t(`settings.notifications.types.${target.translationKey}`)}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">{t('settings.notifications.channels.hint')}</p>
+                      </div>
+
+                      {watchTelegramEnabled && (
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              {t('settings.notifications.telegram.channelId')}
+                            </Label>
+                            <FormField
+                              key={`telegram_chat_id_${activeChannelTab}`}
+                              control={form.control}
+                              name={`notification_settings.channels.${activeChannelTab}.telegram_chat_id`}
+                              render={({ field }) => {
+                                const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
+
+                                useEffect(() => {
+                                  setInputValue(field.value?.toString() ?? '')
+                                }, [field.value, activeChannelTab])
+
+                                return (
+                                  <FormControl>
+                                    <Input
+                                      type="text"
+                                      name={field.name}
+                                      ref={field.ref}
+                                      value={inputValue}
+                                      onChange={e => {
+                                        const value = e.target.value
+                                        setInputValue(value)
+                                        if (value === '') {
+                                          field.onChange(undefined)
+                                        } else if (/^-?\d+$/.test(value)) {
+                                          field.onChange(parseInt(value))
+                                        }
+                                      }}
+                                      onBlur={() => {
+                                        if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
+                                          setInputValue(field.value?.toString() ?? '')
+                                        }
+                                        field.onBlur()
+                                      }}
+                                      className="h-9 text-xs sm:text-sm"
+                                      placeholder="-1001234567890"
+                                    />
+                                  </FormControl>
+                                )
+                              }}
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                              <FileText className="h-3.5 w-3.5" />
+                              {t('settings.notifications.telegram.topicId')}
+                            </Label>
+                            <FormField
+                              key={`telegram_topic_id_${activeChannelTab}`}
+                              control={form.control}
+                              name={`notification_settings.channels.${activeChannelTab}.telegram_topic_id`}
+                              render={({ field }) => {
+                                const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
+
+                                useEffect(() => {
+                                  setInputValue(field.value?.toString() ?? '')
+                                }, [field.value, activeChannelTab])
+
+                                return (
+                                  <FormControl>
+                                    <Input
+                                      type="text"
+                                      name={field.name}
+                                      ref={field.ref}
+                                      value={inputValue}
+                                      onChange={e => {
+                                        const value = e.target.value
+                                        setInputValue(value)
+                                        if (value === '') {
+                                          field.onChange(undefined)
+                                        } else if (/^-?\d+$/.test(value)) {
+                                          field.onChange(parseInt(value))
+                                        }
+                                      }}
+                                      onBlur={() => {
+                                        if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
+                                          setInputValue(field.value?.toString() ?? '')
+                                        }
+                                        field.onBlur()
+                                      }}
+                                      className="h-9 text-xs sm:text-sm"
+                                      placeholder="123"
+                                    />
+                                  </FormControl>
+                                )
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {watchDiscordEnabled && (
+                        <div className="space-y-1.5">
+                          <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                            <Webhook className="h-3.5 w-3.5" />
+                            {t('settings.notifications.discord.webhookUrl')}
+                          </Label>
+                          <FormField
+                            key={`discord_webhook_url_${activeChannelTab}`}
+                            control={form.control}
+                            name={`notification_settings.channels.${activeChannelTab}.discord_webhook_url`}
+                            render={({ field }) => (
+                              <FormControl>
+                                <PasswordInput {...field} className="h-9 text-xs font-mono sm:text-sm" placeholder="https://discord.com/api/webhooks/1234567890/ABC-DEF1234ghIkl-zyx57W2v1u123ew11" />
+                              </FormControl>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {!watchTelegramEnabled && !watchDiscordEnabled && (
+                        <p className="text-xs text-muted-foreground">
+                          {t('settings.notifications.channels.description')}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           )}

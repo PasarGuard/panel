@@ -177,6 +177,11 @@
         "description": "Configure advanced notification settings, including retry policies and proxy configurations",
         "maxRetries": "Max Retries",
         "proxyUrl": "Proxy URL"
+      },
+      "channels": {
+        "title": "Channel Overrides",
+        "description": "Override the default destinations for specific notification events. Leave fields empty to inherit the global configuration.",
+        "hint": "Leave these fields empty to fall back to the main notification settings for this event."
       }
     },
     "subscriptions": {

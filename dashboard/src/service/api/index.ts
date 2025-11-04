@@ -179,13 +179,6 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
@@ -214,6 +207,13 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
+
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -368,19 +368,19 @@ export interface UsersResponse {
 
 export type UserUsageStatsListPeriod = Period | null
 
-export interface UserUsageStatsList {
-  period?: UserUsageStatsListPeriod
-  start: string
-  end: string
-  stats: UserUsageStatsListStats
-}
-
 export interface UserUsageStat {
   total_traffic: number
   period_start: string
 }
 
 export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
+
+export interface UserUsageStatsList {
+  period?: UserUsageStatsListPeriod
+  start: string
+  end: string
+  stats: UserUsageStatsListStats
+}
 
 export type UserTemplateResponseIsDisabled = boolean | null
 
@@ -581,6 +581,8 @@ export type UserResponseOnHoldExpireDuration = number | null
 
 export type UserResponseNote = string | null
 
+export type UserResponseDataLimitResetStrategy = UserDataLimitResetStrategy | null
+
 /**
  * data_limit can be 0 or greater
  */
@@ -672,8 +674,6 @@ export const UserDataLimitResetStrategy = {
   month: 'month',
   year: 'year',
 } as const
-
-export type UserResponseDataLimitResetStrategy = UserDataLimitResetStrategy | null
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -960,7 +960,7 @@ export type SettingsSchemaOutputSubscription = SubscriptionOutput | null
 
 export type SettingsSchemaOutputNotificationEnable = NotificationEnable | null
 
-export type SettingsSchemaOutputNotificationSettings = NotificationSettings | null
+export type SettingsSchemaOutputNotificationSettings = NotificationSettingsOutput | null
 
 export type SettingsSchemaOutputWebhook = Webhook | null
 
@@ -984,7 +984,7 @@ export type SettingsSchemaInputSubscription = SubscriptionInput | null
 
 export type SettingsSchemaInputNotificationEnable = NotificationEnable | null
 
-export type SettingsSchemaInputNotificationSettings = NotificationSettings | null
+export type SettingsSchemaInputNotificationSettings = NotificationSettingsInput | null
 
 export type SettingsSchemaInputWebhook = Webhook | null
 
@@ -1089,27 +1089,48 @@ export const Period = {
   month: 'month',
 } as const
 
-export type NotificationSettingsProxyUrl = string | null
+export type NotificationSettingsOutputProxyUrl = string | null
 
-export type NotificationSettingsDiscordWebhookUrl = string | null
+export type NotificationSettingsOutputDiscordWebhookUrl = string | null
 
-export type NotificationSettingsTelegramTopicId = number | null
+export type NotificationSettingsOutputTelegramTopicId = number | null
 
-export type NotificationSettingsTelegramChannelId = number | null
+export type NotificationSettingsOutputTelegramChatId = number | null
 
-export type NotificationSettingsTelegramAdminId = number | null
+export type NotificationSettingsOutputTelegramApiToken = string | null
 
-export type NotificationSettingsTelegramApiToken = string | null
-
-export interface NotificationSettings {
+export interface NotificationSettingsOutput {
   notify_telegram?: boolean
   notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsTelegramApiToken
-  telegram_admin_id?: NotificationSettingsTelegramAdminId
-  telegram_channel_id?: NotificationSettingsTelegramChannelId
-  telegram_topic_id?: NotificationSettingsTelegramTopicId
-  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
-  proxy_url?: NotificationSettingsProxyUrl
+  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
+  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
+  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
+  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsOutputProxyUrl
+  /** */
+  max_retries: number
+}
+
+export type NotificationSettingsInputProxyUrl = string | null
+
+export type NotificationSettingsInputDiscordWebhookUrl = string | null
+
+export type NotificationSettingsInputTelegramTopicId = number | null
+
+export type NotificationSettingsInputTelegramChatId = number | null
+
+export type NotificationSettingsInputTelegramApiToken = string | null
+
+export interface NotificationSettingsInput {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsInputTelegramApiToken
+  telegram_chat_id?: NotificationSettingsInputTelegramChatId
+  telegram_topic_id?: NotificationSettingsInputTelegramTopicId
+  discord_webhook_url?: NotificationSettingsInputDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsInputProxyUrl
   /** */
   max_retries: number
 }
@@ -1126,6 +1147,34 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
+export type NotificationChannelDiscordWebhookUrl = string | null
+
+export type NotificationChannelTelegramTopicId = number | null
+
+export type NotificationChannelTelegramChatId = number | null
+
+/**
+ * Channel configuration for sending notifications to a specific entity
+ */
+export interface NotificationChannel {
+  telegram_chat_id?: NotificationChannelTelegramChatId
+  telegram_topic_id?: NotificationChannelTelegramTopicId
+  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
 export interface NotFound {
   detail?: string
 }
@@ -1138,13 +1187,6 @@ export interface NoiseSettings {
 
 export type NodeUsageStatsListPeriod = Period | null
 
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
-
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -1152,6 +1194,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1645,6 +1694,18 @@ export type ClashMuxSettingsMaxStreams = number | null
 
 export type ClashMuxSettingsMaxConnections = number | null
 
+export interface ClashMuxSettings {
+  enable?: boolean
+  protocol?: MultiplexProtocol
+  max_connections?: ClashMuxSettingsMaxConnections
+  max_streams?: ClashMuxSettingsMaxStreams
+  min_streams?: ClashMuxSettingsMinStreams
+  padding?: boolean
+  brutal?: ClashMuxSettingsBrutal
+  statistic?: boolean
+  only_tcp?: boolean
+}
+
 export type BulkUsersProxyMethod = ShadowsocksMethods | null
 
 export type BulkUsersProxyFlow = XTLSFlows | null
@@ -1680,18 +1741,6 @@ export interface Brutal {
 
 export type ClashMuxSettingsBrutal = Brutal | null
 
-export interface ClashMuxSettings {
-  enable?: boolean
-  protocol?: MultiplexProtocol
-  max_connections?: ClashMuxSettingsMaxConnections
-  max_streams?: ClashMuxSettingsMaxStreams
-  min_streams?: ClashMuxSettingsMinStreams
-  padding?: boolean
-  brutal?: ClashMuxSettingsBrutal
-  statistic?: boolean
-  only_tcp?: boolean
-}
-
 export type BodyAdminTokenApiAdminTokenPostClientSecret = string | null
 
 export type BodyAdminTokenApiAdminTokenPostClientId = string | null
@@ -1725,6 +1774,26 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -1750,26 +1819,6 @@ export interface BaseHost {
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
 }
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 
