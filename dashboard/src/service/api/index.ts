@@ -890,6 +890,9 @@ export interface SubscriptionOutput {
   update_interval?: number
   support_url?: string
   profile_title?: string
+  /** @maxLength 128 */
+  announce?: string
+  announce_url?: string
   host_status_filter: boolean
   rules: SubRule[]
   manual_sub_request?: SubFormatEnable
@@ -901,6 +904,9 @@ export interface SubscriptionInput {
   update_interval?: number
   support_url?: string
   profile_title?: string
+  /** @maxLength 128 */
+  announce?: string
+  announce_url?: string
   host_status_filter: boolean
   rules: SubRule[]
   manual_sub_request?: SubFormatEnable

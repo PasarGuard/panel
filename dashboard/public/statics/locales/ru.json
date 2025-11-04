@@ -213,6 +213,12 @@
         "profileTitle": "Название профиля",
         "profileTitlePlaceholder": "Мой VPN сервис",
         "profileTitleDescription": "Отображаемое имя для профиля подписки",
+        "announce": "Объявление",
+        "announcePlaceholder": "Технические работы начнутся в 02:00",
+        "announceDescription": "Короткое сообщение, показываемое пользователям в поддерживаемых клиентах подписки",
+        "announceUrl": "Ссылка на объявление",
+        "announceUrlPlaceholder": "https://status.example.com",
+        "announceUrlDescription": "Необязательная ссылка с дополнительной информацией об объявлении",
         "hostStatusFilter": "Фильтр статуса хоста",
         "hostStatusFilterDescription": "Фильтровать хосты на основе их статуса"
       },

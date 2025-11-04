@@ -107,6 +107,12 @@
         "profileTitle": "عنوان پروفایل",
         "profileTitlePlaceholder": "سرویس VPN من",
         "profileTitleDescription": "نام نمایشی برای پروفایل اشتراک",
+        "announce": "متن اطلاعیه",
+        "announcePlaceholder": "سرویس امشب ساعت ۰۲:۰۰ در دسترس نیست",
+        "announceDescription": "پیام کوتاهی که در کلاینت‌های سازگار نمایش داده می‌شود",
+        "announceUrl": "آدرس اطلاعیه",
+        "announceUrlPlaceholder": "https://status.example.com",
+        "announceUrlDescription": "لینک اختیاری برای جزئیات بیشتر اطلاعیه",
         "hostStatusFilter": "فیلتر وضعیت هاست",
         "hostStatusFilterDescription": "فیلتر کردن هاست‌ها بر اساس وضعیت آن‌ها"
       },

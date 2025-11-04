@@ -637,7 +637,7 @@ export function AllNodesStackedBarChart() {
               className="max-h-[400px] min-h-[200px]"
             />
           ) : (
-            <div className="mx-auto w-full max-w-7xl">
+            <div className="mx-auto w-full max-w-[70rem]">
               <ChartContainer
                 key={chartKey}
                 dir={'ltr'}
