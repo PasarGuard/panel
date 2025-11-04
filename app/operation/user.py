@@ -483,7 +483,6 @@ class UserOperation(BaseOperation):
 
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
         users, users_count = await update_users_expire(db, bulk_model)
-
         await node_manager.update_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
@@ -492,7 +491,6 @@ class UserOperation(BaseOperation):
 
     async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
         users, users_count = await update_users_datalimit(db, bulk_model)
-
         await node_manager.update_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
@@ -501,7 +499,6 @@ class UserOperation(BaseOperation):
 
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
         users, users_count = await update_users_proxy_settings(db, bulk_model)
-
         await node_manager.update_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):

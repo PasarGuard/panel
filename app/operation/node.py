@@ -317,7 +317,7 @@ class NodeOperation(BaseOperation):
         logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
 
     async def restart_all_node(self, db: AsyncSession, admin: AdminDetails, core_id: int | None = None) -> None:
-        nodes: list[Node] = await self.get_db_nodes(db, core_id, enable=True)
+        nodes: list[Node] = await self.get_db_nodes(db, core_id, enabled=True)
         await self.connect_nodes_bulk(db, nodes)
         logger.info(f'All nodes restarted by admin "{admin.username}"')
 

@@ -1,3 +1,5 @@
+import asyncio
+
 from aiorwlock import RWLock
 from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode, create_node
 
@@ -86,16 +88,18 @@ class NodeManager:
             ]
             return nodes
 
-    async def update_users(self, users: list[User]):
-        proto_users = await serialize_users_for_node(users)
+    async def _update_users(self, users: list):
         async with self._lock.reader_lock:
             for node in self._nodes.values():
-                await node.update_users(proto_users)
+                await node.update_users(users)
+
+    async def update_users(self, users: list[User]):
+        proto_users = await serialize_users_for_node(users)
+        asyncio.create_task(self._update_users(proto_users))
 
     async def _update_user(self, user):
         async with self._lock.reader_lock:
             for node in self._nodes.values():
-                self.logger.info(f"[{node.name}] sending update request")
                 await node.update_user(user)
 
     async def update_user(self, user: UserResponse, inbounds: list[str] = None):
