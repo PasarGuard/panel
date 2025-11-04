@@ -408,6 +408,18 @@ export default function SubscriptionSettings() {
   const [newDescLang, setNewDescLang] = useState<'fa' | 'en' | 'ru' | 'zh'>('en')
   const [newAppDescription, setNewAppDescription] = useState<Record<'fa' | 'en' | 'ru' | 'zh', string>>({} as any)
 
+  const isValidIconUrl = (url: string): boolean => {
+    if (!url || url.trim() === '') return false
+
+    try {
+      const urlObj = new URL(url)
+      // Only allow HTTP and HTTPS protocols
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
+    } catch {
+      return false
+    }
+  }
+
   useEffect(() => {
     // reset icon error state when URL changes
     setNewAppIconBroken(false)
@@ -1211,7 +1223,7 @@ export default function SubscriptionSettings() {
                   <div className="flex items-center gap-2">
                     <Input value={newAppIconUrl} onChange={e => setNewAppIconUrl(e.target.value)} placeholder={t('settings.subscriptions.applications.iconUrlPlaceholder', { defaultValue: 'https://...' })} className="h-8 text-xs font-mono" dir="ltr" />
                     {/* live preview */}
-                    {newAppIconUrl && !newAppIconBroken ? (
+                    {newAppIconUrl && !newAppIconBroken && isValidIconUrl(newAppIconUrl) ? (
                       <img src={newAppIconUrl} alt="icon" className="h-6 w-6 rounded-sm object-cover" onError={() => setNewAppIconBroken(true)} />
                     ) : (
                       <div className="h-6 w-6 rounded-sm bg-muted text-muted-foreground/80 inline-flex items-center justify-center">

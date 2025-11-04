@@ -401,8 +401,8 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
       node_id: selectedNodeId,
     }
 
-    // Add group_by_node when all nodes are selected (selectedNodeId is undefined)
-    if (selectedNodeId === undefined) {
+    // Add group_by_node when all nodes are selected for sudo admins (selectedNodeId is undefined)
+    if (selectedNodeId === undefined && is_sudo) {
       baseParams.group_by_node = true
     }
 
@@ -428,8 +428,8 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   const processedChartData = useMemo(() => {
     if (!data?.stats) return []
 
-    // If all nodes selected (selectedNodeId is undefined), handle like AllNodesStackedBarChart
-    if (selectedNodeId === undefined) {
+    // If all nodes selected for sudo admins (selectedNodeId is undefined and is_sudo), handle like AllNodesStackedBarChart
+    if (selectedNodeId === undefined && is_sudo) {
     let statsByNode: Record<string, any[]> = {}
     if (data.stats) {
       if (typeof data.stats === 'object' && !Array.isArray(data.stats)) {
@@ -756,8 +756,8 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                         tickMargin={2}
                       />
                       <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={currentPeriod} />} />
-                      {selectedNodeId === undefined ? (
-                        // All nodes selected - render stacked bars
+                      {selectedNodeId === undefined && is_sudo ? (
+                        // All nodes selected for sudo admins - render stacked bars
                         nodeList.map((node, idx) => (
                           <Bar
                             key={node.id}
@@ -769,7 +769,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                           />
                         ))
                       ) : (
-                        // Single node selected - render single bar
+                        // Single node selected OR non-sudo admin aggregated data - render single bar
                       <Bar dataKey="usage" radius={6} cursor="pointer">
                         {processedChartData.map((_: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={'hsl(var(--primary))'} />

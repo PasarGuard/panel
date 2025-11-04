@@ -90,6 +90,8 @@ class SubscriptionOperation(BaseOperation):
             "profile-title": encode_title(formatted_title),
             "profile-update-interval": str(sub_settings.update_interval),
             "subscription-userinfo": "; ".join(f"{key}={val}" for key, val in user_info.items()),
+            "announce": encode_title(sub_settings.announce),
+            "announce-url": sub_settings.announce_url,
         }
 
     async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str, str]:
