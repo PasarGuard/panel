@@ -1,13 +1,20 @@
 import PageHeader from '@/components/page-header'
-import { NavigationTabs, type Tab } from '@/components/navigation-tabs'
 import { useAdmin } from '@/hooks/use-admin'
+import { cn } from '@/lib/utils'
 import { useGetSettings, useModifySettings } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, Database, ListTodo, MessageCircle, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
+import { Bell, Database, ListTodo, LucideIcon, MessageCircle, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
 import { createContext, useContext } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Outlet, useLocation } from 'react-router'
+import { Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
+
+interface Tab {
+  id: string
+  label: string
+  icon: LucideIcon
+  url: string
+}
 
 // Create context for settings
 interface SettingsContextType {
@@ -46,6 +53,7 @@ const nonSudoTabs: Tab[] = [{ id: 'theme', label: 'theme.title', icon: Palette, 
 export default function Settings() {
   const { t } = useTranslation()
   const location = useLocation()
+  const navigate = useNavigate()
   const { admin } = useAdmin()
   const is_sudo = admin?.is_sudo || false
   const tabs = is_sudo ? sudoTabs : nonSudoTabs
@@ -199,9 +207,34 @@ export default function Settings() {
       <div className="flex w-full flex-col items-start gap-0">
         <PageHeader title={t(`settings.${activeTab}.title`)} description="manageSettings" />
 
-        <NavigationTabs tabs={tabs} defaultTab={is_sudo ? 'general' : 'theme'} scrollable />
-        <div>
-          <Outlet />
+        <div className="relative w-full">
+          <div className="flex border-b">
+            <div className="w-full">
+              <div className="scrollbar-hide flex overflow-x-auto border-b px-4 lg:flex-wrap">
+                {tabs.map(tab => {
+                  const isActive = activeTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => navigate(tab.url)}
+                      className={cn(
+                        'relative flex-shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium transition-colors',
+                        isActive ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <tab.icon className="h-4 w-4" />
+                        <span>{t(tab.label)}</span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              <div>
+                <Outlet />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </SettingsContext.Provider>
