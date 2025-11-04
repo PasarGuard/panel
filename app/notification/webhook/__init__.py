@@ -127,3 +127,9 @@ async def status_change(user: UserNotificationResponse):
 async def notify(message: Type[Notification]) -> None:
     if (await webhook_settings()).enable:
         await queue.put(message)
+
+
+async def bulk_notify(messages: list[Type[Notification]]) -> None:
+    if (await webhook_settings()).enable:
+        for message in messages:
+            await queue.put(message)

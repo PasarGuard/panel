@@ -84,7 +84,7 @@ async def usage_percent_notification_job():
             users = await get_usage_percentage_reached_users(db, percent)
 
             # Prepare webhook notifications first
-            webhook_tasks = []
+            webhook_data = []
             reminder_data = []
 
             for user in users:
@@ -92,11 +92,9 @@ async def usage_percent_notification_job():
                 user_model = UserNotificationResponse.model_validate(user)
 
                 # Queue webhook notification
-                webhook_tasks.append(
-                    notification.wh.notify(
-                        notification.wh.ReachedUsagePercent(
-                            username=user_model.username, user=user_model, used_percent=usage_percentage
-                        )
+                webhook_data.append(
+                    notification.wh.ReachedUsagePercent(
+                        username=user_model.username, user=user_model, used_percent=usage_percentage
                     )
                 )
 
@@ -110,13 +108,12 @@ async def usage_percent_notification_job():
                     }
                 )
 
-            # Send webhooks first
-            if webhook_tasks:
-                await asyncio.gather(*webhook_tasks, return_exceptions=True)
-
             # Bulk create notification reminders
             if reminder_data:
                 await bulk_create_notification_reminders(db, reminder_data)
+
+            if webhook_data:
+                await notification.wh.bulk_notify(webhook_data)
 
 
 async def days_left_notification_job():
@@ -128,7 +125,7 @@ async def days_left_notification_job():
             users = await get_days_left_reached_users(db, days)
 
             # Prepare webhook notifications first
-            webhook_tasks = []
+            webhook_data = []
             reminder_data = []
 
             for user in users:
@@ -136,12 +133,8 @@ async def days_left_notification_job():
                 user_model = UserNotificationResponse.model_validate(user)
 
                 # Queue webhook notification
-                webhook_tasks.append(
-                    notification.wh.notify(
-                        notification.wh.ReachedDaysLeft(
-                            username=user_model.username, user=user_model, days_left=days_left
-                        )
-                    )
+                webhook_data.append(
+                    notification.wh.ReachedDaysLeft(username=user_model.username, user=user_model, days_left=days_left)
                 )
 
                 # Prepare reminder data for bulk insert
@@ -157,9 +150,8 @@ async def days_left_notification_job():
             if reminder_data:
                 await bulk_create_notification_reminders(db, reminder_data)
 
-            # Send webhooks first
-            if webhook_tasks:
-                await asyncio.gather(*webhook_tasks, return_exceptions=True)
+            if webhook_data:
+                await notification.wh.bulk_notify(webhook_data)
 
 
 now = dt.now(tz.utc)
