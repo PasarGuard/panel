@@ -64,6 +64,7 @@ class Admin(Base):
     sub_domain: Mapped[Optional[str]] = mapped_column(String(256), default=None)
     profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     support_url: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
+    notification_enable: Mapped[Optional[Dict]] = mapped_column(JSON, default=None)
 
     @hybrid_property
     def reseted_usage(self) -> int:

@@ -98,6 +98,8 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.support_url = modified_admin.support_url
     if modified_admin.profile_title is not None:
         db_admin.profile_title = modified_admin.profile_title
+    if modified_admin.notification_enable is not None:
+        db_admin.notification_enable = modified_admin.notification_enable.model_dump()
 
     await db.commit()
     await load_admin_attrs(db_admin)

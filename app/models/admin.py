@@ -1,6 +1,7 @@
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from .notification_enable import UserNotificationEnable
 from .validators import DiscordValidator, NumericValidatorMixin, PasswordValidator
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -22,12 +23,12 @@ class AdminBase(BaseModel):
 class AdminContactInfo(AdminBase):
     """Base model containing the core admin identification fields."""
 
-    username: str
     telegram_id: int | None = None
     discord_webhook: str | None = None
     sub_domain: str | None = None
     profile_title: str | None = None
     support_url: str | None = None
+    notification_enable: UserNotificationEnable | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,6 +63,7 @@ class AdminModify(BaseModel):
     sub_domain: str | None = None
     profile_title: str | None = None
     support_url: str | None = None
+    notification_enable: UserNotificationEnable | None = None
 
     @property
     def hashed_password(self):

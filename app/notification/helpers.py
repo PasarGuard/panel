@@ -1,3 +1,4 @@
+from app.models.admin import AdminContactInfo
 from app.models.settings import NotificationSettings
 
 
@@ -60,3 +61,33 @@ def get_discord_webhook(settings: NotificationSettings, entity: str) -> str | No
         return entity_channel.discord_webhook_url
     else:
         return settings.discord_webhook_url
+
+
+def should_send_admin_notification(admin: AdminContactInfo, action: str) -> bool:
+    """
+    Check if admin wants to receive this user notification type.
+
+    Args:
+        admin: AdminContactInfo object containing notification preferences
+        action: Notification action type (create, modify, delete, status_change,
+                reset_data_usage, data_reset_by_next, subscription_revoked)
+
+    Returns:
+        bool: True if admin wants to receive this notification, False otherwise
+
+    Examples:
+        >>> # Admin has no preferences configured (None), receives all
+        >>> should_send_admin_notification(admin, "create")
+        True
+
+        >>> # Admin has preferences, only receives enabled types
+        >>> admin.notification_enable.create = False
+        >>> should_send_admin_notification(admin, "create")
+        False
+    """
+    if not admin.notification_enable:
+        # None means receive all notifications (backward compatible)
+        return True
+
+    # Check if the specific action is enabled in admin preferences
+    return getattr(admin.notification_enable, action, True)
