@@ -24,6 +24,15 @@ const initialDefaultValues: Partial<AdminFormValues> = {
   support_url: '',
   telegram_id: undefined,
   discord_id: undefined,
+  notification_enable: {
+    create: true,
+    modify: true,
+    delete: true,
+    status_change: true,
+    reset_data_usage: true,
+    data_reset_by_next: true,
+    subscription_revoked: true,
+  },
 }
 
 export default function AdminsPage() {
@@ -127,6 +136,15 @@ export default function AdminsPage() {
       sub_domain: admin.sub_domain || '',
       discord_id: admin.discord_id || undefined,
       password: undefined,
+      notification_enable: admin.notification_enable || {
+        create: false,
+        modify: false,
+        delete: false,
+        status_change: false,
+        reset_data_usage: false,
+        data_reset_by_next: false,
+        subscription_revoked: false,
+      },
     })
     setIsDialogOpen(true)
   }

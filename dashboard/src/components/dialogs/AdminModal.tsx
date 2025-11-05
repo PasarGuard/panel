@@ -14,6 +14,11 @@ import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { LoaderButton } from '@/components/ui/loader-button'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { VariablesPopover } from '@/components/ui/variables-popover'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
+import { useEffect, useState } from 'react'
+import { ChevronDown, UserCog } from 'lucide-react'
 
 interface AdminModalProps {
   isDialogOpen: boolean
@@ -80,6 +85,17 @@ export const adminFormSchema = z
     telegram_id: z.number().optional(),
     profile_title: z.string().optional(),
     discord_id: z.number().optional(),
+    notification_enable: z
+      .object({
+        create: z.boolean().optional(),
+        modify: z.boolean().optional(),
+        delete: z.boolean().optional(),
+        status_change: z.boolean().optional(),
+        reset_data_usage: z.boolean().optional(),
+        data_reset_by_next: z.boolean().optional(),
+        subscription_revoked: z.boolean().optional(),
+      })
+      .optional(),
   })
   .superRefine((data, ctx) => {
     // Only validate password if it's provided (for editing) or if it's a new admin
@@ -123,6 +139,17 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
   const addAdminMutation = useCreateAdmin()
   const modifyAdminMutation = useModifyAdmin()
 
+    useEffect(() => {
+        if(!isDialogOpen)
+            setNotificationExpanded(false)
+    }, [isDialogOpen]);
+
+  // State for collapsible notification section
+  const [notificationExpanded, setNotificationExpanded] = useState(false)
+
+  // Watch notification enable fields
+  const watchedNotificationEnable = form.watch('notification_enable')
+
   // Ensure form is cleared when modal is closed
   const handleClose = (open: boolean) => {
     if (!open) {
@@ -144,6 +171,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
         telegram_id: values.telegram_id,
         profile_title: values.profile_title,
         discord_id: values.discord_id,
+        notification_enable:values.notification_enable || null
       }
       if (editingAdmin && editingAdminUserName) {
         await modifyAdminMutation.mutateAsync({
@@ -353,6 +381,220 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                   )}
                 />
               </div>
+
+              <div className='flex flex-col gap-4'>
+              <Collapsible
+                open={notificationExpanded}
+                onOpenChange={setNotificationExpanded}
+              >
+                <div
+                  className={cn(
+                    'group rounded-md border transition-all duration-200 ease-in-out',
+                    notificationExpanded && 'border-primary/50 bg-accent/30',
+                    'hover:border-primary/30 hover:bg-accent/20'
+                  )}
+                >
+                  <div className="flex w-full items-center justify-between p-4 transition-colors">
+                    <CollapsibleTrigger asChild>
+                      <div
+                        className="flex flex-1 items-center gap-2 min-w-0 cursor-pointer"
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation()
+                        }}
+                      >
+                        <UserCog className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <button
+                          type="button"
+                          className={cn(
+                            'shrink-0 text-muted-foreground transition-all duration-200 hover:text-foreground rounded-sm p-1',
+                            notificationExpanded && 'rotate-180'
+                          )}
+                          onClick={e => {
+                            e.stopPropagation()
+                            setNotificationExpanded(!notificationExpanded)
+                          }}
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                        <FormLabel
+                          className="flex-1 truncate text-sm font-medium sm:text-base cursor-pointer"
+                          onClick={(e: React.MouseEvent) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setNotificationExpanded(!notificationExpanded)
+                          }}
+                        >
+                          {t('settings.notifications.filterTitle')}
+                          {(() => {
+                            const enabledCount = watchedNotificationEnable
+                              ? Object.values(watchedNotificationEnable).filter(Boolean).length
+                              : 0
+                            const totalCount = 7 
+                            return (
+                              <span className="mx-1.5 text-xs text-muted-foreground">
+                                {enabledCount}/{totalCount}
+                              </span>
+                            )
+                          })()}
+                        </FormLabel>
+                      </div>
+                    </CollapsibleTrigger>
+                    <FormControl>
+                      <Switch
+                        checked={watchedNotificationEnable ? Object.values(watchedNotificationEnable).some(Boolean) : false}
+                        onCheckedChange={checked => {
+                          // Toggle all notification permissions
+                          form.setValue('notification_enable', {
+                            create: checked,
+                            modify: checked,
+                            delete: checked,
+                            status_change: checked,
+                            reset_data_usage: checked,
+                            data_reset_by_next: checked,
+                            subscription_revoked: checked,
+                          })
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        className="shrink-0"
+                      />
+                    </FormControl>
+                  </div>
+
+                  <CollapsibleContent className="overflow-hidden transition-all duration-200 ease-in-out data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                    <div className="space-y-1 border-t bg-muted/30 px-3 py-2">
+                      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormField
+                          control={form.control}
+                          name="notification_enable.create"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-background/50">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  className="h-4 w-4"
+                                />
+                              </FormControl>
+                              <FormLabel className="cursor-pointer text-xs font-normal leading-none">
+                                {t('settings.notifications.subPermissions.create')}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="notification_enable.modify"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-background/50">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  className="h-4 w-4"
+                                />
+                              </FormControl>
+                              <FormLabel className="cursor-pointer text-xs font-normal leading-none">
+                                {t('settings.notifications.subPermissions.modify')}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="notification_enable.delete"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-background/50">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  className="h-4 w-4"
+                                />
+                              </FormControl>
+                              <FormLabel className="cursor-pointer text-xs font-normal leading-none">
+                                {t('settings.notifications.subPermissions.delete')}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="notification_enable.status_change"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-background/50">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  className="h-4 w-4"
+                                />
+                              </FormControl>
+                              <FormLabel className="cursor-pointer text-xs font-normal leading-none">
+                                {t('settings.notifications.subPermissions.statusChange')}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="notification_enable.reset_data_usage"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-background/50">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  className="h-4 w-4"
+                                />
+                              </FormControl>
+                              <FormLabel className="cursor-pointer text-xs font-normal leading-none">
+                                {t('settings.notifications.subPermissions.resetDataUsage')}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="notification_enable.data_reset_by_next"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-background/50">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  className="h-4 w-4"
+                                />
+                              </FormControl>
+                              <FormLabel className="cursor-pointer text-xs font-normal leading-none">
+                                {t('settings.notifications.subPermissions.dataResetByNext')}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="notification_enable.subscription_revoked"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-background/50">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  className="h-4 w-4"
+                                />
+                              </FormControl>
+                              <FormLabel className="cursor-pointer text-xs font-normal leading-none">
+                                {t('settings.notifications.subPermissions.subscriptionRevoked')}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+              
               <FormField
                 control={form.control}
                 name="is_sudo"
@@ -369,6 +611,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                   </FormItem>
                 )}
               />
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

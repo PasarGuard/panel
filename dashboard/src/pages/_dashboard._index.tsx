@@ -166,6 +166,15 @@ const Dashboard = () => {
       telegram_id: undefined,
       profile_title: '',
       discord_id: undefined,
+      notification_enable: {
+        create: true,
+        modify: true,
+        delete: true,
+        status_change: true,
+        reset_data_usage: true,
+        data_reset_by_next: true,
+        subscription_revoked: true,
+      },
     },
   })
 

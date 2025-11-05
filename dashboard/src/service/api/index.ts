@@ -179,6 +179,13 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
+
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
@@ -207,13 +214,6 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
-
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -1688,6 +1688,8 @@ export const ConfigFormat = {
   block: 'block',
 } as const
 
+export type ClashMuxSettingsBrutal = Brutal | null
+
 export type ClashMuxSettingsMinStreams = number | null
 
 export type ClashMuxSettingsMaxStreams = number | null
@@ -1739,8 +1741,6 @@ export interface Brutal {
   down_mbps: number
 }
 
-export type ClashMuxSettingsBrutal = Brutal | null
-
 export type BodyAdminTokenApiAdminTokenPostClientSecret = string | null
 
 export type BodyAdminTokenApiAdminTokenPostClientId = string | null
@@ -1774,26 +1774,6 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
-
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -1819,6 +1799,26 @@ export interface BaseHost {
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
 }
+
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 
@@ -1858,6 +1858,8 @@ export interface AdminNotificationEnable {
   login?: boolean
 }
 
+export type AdminModifyNotificationEnable = UserNotificationEnable | null
+
 export type AdminModifySupportUrl = string | null
 
 export type AdminModifyProfileTitle = string | null
@@ -1887,6 +1889,7 @@ export interface AdminModify {
   sub_domain?: AdminModifySubDomain
   profile_title?: AdminModifyProfileTitle
   support_url?: AdminModifySupportUrl
+  notification_enable?: AdminModifyNotificationEnable
 }
 
 export type AdminDetailsLifetimeUsedTraffic = number | null
@@ -1896,6 +1899,8 @@ export type AdminDetailsSubTemplate = string | null
 export type AdminDetailsDiscordId = number | null
 
 export type AdminDetailsId = number | null
+
+export type AdminDetailsNotificationEnable = UserNotificationEnable | null
 
 export type AdminDetailsSupportUrl = string | null
 
@@ -1917,6 +1922,7 @@ export interface AdminDetails {
   sub_domain?: AdminDetailsSubDomain
   profile_title?: AdminDetailsProfileTitle
   support_url?: AdminDetailsSupportUrl
+  notification_enable?: AdminDetailsNotificationEnable
   id?: AdminDetailsId
   is_sudo: boolean
   total_users?: number
@@ -1926,6 +1932,8 @@ export interface AdminDetails {
   sub_template?: AdminDetailsSubTemplate
   lifetime_used_traffic?: AdminDetailsLifetimeUsedTraffic
 }
+
+export type AdminCreateNotificationEnable = UserNotificationEnable | null
 
 export type AdminCreateSupportUrl = string | null
 
@@ -1957,8 +1965,11 @@ export interface AdminCreate {
   sub_domain?: AdminCreateSubDomain
   profile_title?: AdminCreateProfileTitle
   support_url?: AdminCreateSupportUrl
+  notification_enable?: AdminCreateNotificationEnable
   username: string
 }
+
+export type AdminContactInfoNotificationEnable = UserNotificationEnable | null
 
 export type AdminContactInfoSupportUrl = string | null
 
@@ -1980,6 +1991,7 @@ export interface AdminContactInfo {
   sub_domain?: AdminContactInfoSubDomain
   profile_title?: AdminContactInfoProfileTitle
   support_url?: AdminContactInfoSupportUrl
+  notification_enable?: AdminContactInfoNotificationEnable
 }
 
 /**
