@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/
 import { useSettingsContext } from './_dashboard.settings'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { MessageSquare, FileText, Bot, Webhook, ChevronDown, Settings, Users, Shield, Globe, RotateCcw, UserCog, Users2, ListTodo, Share2Icon, LayoutTemplate, Calendar, ArrowUpDown } from 'lucide-react'
+import { MessageSquare, FileText, Bot, Webhook, ChevronDown, Settings, Users, Shield, Globe, RotateCcw, UserCog, Users2, ListTodo, Share2Icon, LayoutTemplate, Calendar, ArrowUpDown, Megaphone } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
@@ -105,7 +105,7 @@ const notificationSettingsSchema = z.object({
       notify_telegram: z.boolean().optional(),
       notify_discord: z.boolean().optional(),
       telegram_api_token: z.string().optional(),
-      telegram_admin_id: z.number().optional(),
+      telegram_chat_id: z.number().optional(),
       telegram_channel_id: z.number().optional(),
       telegram_topic_id: z.number().optional(),
       discord_webhook_url: z.string().optional(),
@@ -298,7 +298,7 @@ export default function NotificationSettings() {
         notify_telegram: false,
         notify_discord: false,
         telegram_api_token: '',
-        telegram_admin_id: undefined,
+        telegram_chat_id: undefined,
         telegram_channel_id: undefined,
         telegram_topic_id: undefined,
         discord_webhook_url: '',
@@ -316,6 +316,7 @@ export default function NotificationSettings() {
   const watchTelegramEnabled = form.watch('notification_settings.notify_telegram')
   const watchDiscordEnabled = form.watch('notification_settings.notify_discord')
   const [activeChannelTab, setActiveChannelTab] = useState<ChannelTargetKey>(channelTargets[0].key)
+  const [channelOverridesOpen, setChannelOverridesOpen] = useState(false)
 
   // Watch all notification enable fields to ensure switch/checkbox sync
   const watchedEnableFields = form.watch('notification_enable')
@@ -362,7 +363,7 @@ export default function NotificationSettings() {
           notify_telegram: settings.notification_settings?.notify_telegram || false,
           notify_discord: settings.notification_settings?.notify_discord || false,
           telegram_api_token: settings.notification_settings?.telegram_api_token || '',
-          telegram_admin_id: settings.notification_settings?.telegram_admin_id || undefined,
+          telegram_chat_id: settings.notification_settings?.telegram_chat_id || undefined,
           telegram_channel_id: settings.notification_settings?.telegram_channel_id || undefined,
           telegram_topic_id: settings.notification_settings?.telegram_topic_id || undefined,
           discord_webhook_url: settings.notification_settings?.discord_webhook_url || '',
@@ -406,13 +407,13 @@ export default function NotificationSettings() {
         ...(telegramEnabled
           ? {
             telegram_api_token: data.notification_settings?.telegram_api_token || '',
-            telegram_admin_id: data.notification_settings?.telegram_admin_id ?? null,
+            telegram_chat_id: data.notification_settings?.telegram_chat_id ?? null,
             telegram_channel_id: data.notification_settings?.telegram_channel_id ?? null,
             telegram_topic_id: data.notification_settings?.telegram_topic_id ?? null,
           }
           : {
             telegram_api_token: null,
-            telegram_admin_id: null,
+            telegram_chat_id: null,
             telegram_channel_id: null,
             telegram_topic_id: null,
           }),
@@ -462,7 +463,7 @@ export default function NotificationSettings() {
           notify_telegram: settings.notification_settings?.notify_telegram || false,
           notify_discord: settings.notification_settings?.notify_discord || false,
           telegram_api_token: settings.notification_settings?.telegram_api_token || '',
-          telegram_admin_id: settings.notification_settings?.telegram_admin_id || undefined,
+          telegram_chat_id: settings.notification_settings?.telegram_chat_id || undefined,
           telegram_channel_id: settings.notification_settings?.telegram_channel_id || undefined,
           telegram_topic_id: settings.notification_settings?.telegram_topic_id || undefined,
           discord_webhook_url: settings.notification_settings?.discord_webhook_url || '',
@@ -722,7 +723,7 @@ export default function NotificationSettings() {
                     </Label>
                     <FormField
                       control={form.control}
-                      name="notification_settings.telegram_admin_id"
+                      name="notification_settings.telegram_chat_id"
                       render={({ field }) => {
                         const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
 
@@ -853,6 +854,166 @@ export default function NotificationSettings() {
                     />
                   </div>
                 </div>
+
+                {/* Channel Overrides Accordion */}
+                <Collapsible open={channelOverridesOpen} onOpenChange={setChannelOverridesOpen}>
+                  <div className="space-y-1.5">
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center justify-between rounded-md border bg-muted/50 p-2.5 transition-colors hover:bg-muted/70 cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <Megaphone className="h-4 w-4" />
+                          <Label className="text-xs font-medium sm:text-sm cursor-pointer text-foreground hover:text-foreground ">
+                            {t('settings.notifications.channels.title')}
+                          </Label>
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                            channelOverridesOpen && 'rotate-180'
+                          )}
+                        />
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="overflow-hidden transition-all duration-200 ease-in-out data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down px-1">
+                      <div className="space-y-3 pt-2">
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">{t('settings.notifications.channels.description')}</p>
+                        </div>
+
+                        <FormItem>
+                          <Select onValueChange={value => setActiveChannelTab(value as ChannelTargetKey)} value={activeChannelTab}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {channelTargets.map(target => (
+                                <SelectItem key={target.key} value={target.key}>
+                                  <div className="flex items-center gap-1.5">
+                                    <target.icon className="h-3.5 w-3.5" />
+                                    {t(`settings.notifications.types.${target.translationKey}`)}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+
+                        {(() => {
+                          const target = channelTargets.find(target => target.key === activeChannelTab)
+                          if (!target) return null
+
+                          return (
+                            <div key={activeChannelTab} className="space-y-3 rounded-md border bg-card p-3">
+                              <div className="space-y-1">
+                                <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                                  <target.icon className="h-3.5 w-3.5" />
+                                  {t(`settings.notifications.types.${target.translationKey}`)}
+                                </Label>
+                                <p className="text-xs text-muted-foreground">{t('settings.notifications.channels.hint')}</p>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                    {t('settings.notifications.telegram.channelId')}
+                                  </Label>
+                                  <FormField
+                                    key={`telegram_chat_id_${activeChannelTab}`}
+                                    control={form.control}
+                                    name={`notification_settings.channels.${activeChannelTab}.telegram_chat_id`}
+                                    render={({ field }) => {
+                                      const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
+
+                                      useEffect(() => {
+                                        setInputValue(field.value?.toString() ?? '')
+                                      }, [field.value, activeChannelTab])
+
+                                      return (
+                                        <FormControl>
+                                          <Input
+                                            type="text"
+                                            name={field.name}
+                                            ref={field.ref}
+                                            value={inputValue}
+                                            onChange={e => {
+                                              const value = e.target.value
+                                              setInputValue(value)
+                                              if (value === '') {
+                                                field.onChange(undefined)
+                                              } else if (/^-?\d+$/.test(value)) {
+                                                field.onChange(parseInt(value))
+                                              }
+                                            }}
+                                            onBlur={() => {
+                                              if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
+                                                setInputValue(field.value?.toString() ?? '')
+                                              }
+                                              field.onBlur()
+                                            }}
+                                            className="h-9 text-xs sm:text-sm"
+                                            placeholder="-1001234567890"
+                                          />
+                                        </FormControl>
+                                      )
+                                    }}
+                                  />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                                    <FileText className="h-3.5 w-3.5" />
+                                    {t('settings.notifications.telegram.topicId')}
+                                  </Label>
+                                  <FormField
+                                    key={`telegram_topic_id_${activeChannelTab}`}
+                                    control={form.control}
+                                    name={`notification_settings.channels.${activeChannelTab}.telegram_topic_id`}
+                                    render={({ field }) => {
+                                      const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
+
+                                      useEffect(() => {
+                                        setInputValue(field.value?.toString() ?? '')
+                                      }, [field.value, activeChannelTab])
+
+                                      return (
+                                        <FormControl>
+                                          <Input
+                                            type="text"
+                                            name={field.name}
+                                            ref={field.ref}
+                                            value={inputValue}
+                                            onChange={e => {
+                                              const value = e.target.value
+                                              setInputValue(value)
+                                              if (value === '') {
+                                                field.onChange(undefined)
+                                              } else if (/^-?\d+$/.test(value)) {
+                                                field.onChange(parseInt(value))
+                                              }
+                                            }}
+                                            onBlur={() => {
+                                              if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
+                                                setInputValue(field.value?.toString() ?? '')
+                                              }
+                                              field.onBlur()
+                                            }}
+                                            className="h-9 text-xs sm:text-sm"
+                                            placeholder="123"
+                                          />
+                                        </FormControl>
+                                      )
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
               </div>
             )}
           </div>
@@ -902,232 +1063,67 @@ export default function NotificationSettings() {
 
           {/* Advanced Settings & Channel Overrides - Only show if either Telegram or Discord is enabled */}
           {(watchTelegramEnabled || watchDiscordEnabled) && (
-            <div className="space-y-4">
+            <>
               <Separator className="my-3" />
-              <div className="space-y-0.5">
-                <h3 className="text-base font-semibold sm:text-lg">{t('settings.notifications.advanced.title')}</h3>
-                <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.notifications.advanced.description')}</p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5 rounded-md border bg-card p-3">
-                  <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
-                    <Globe className="h-3.5 w-3.5" />
-                    {t('settings.notifications.advanced.proxyUrl')}
-                  </Label>
-                  <FormField
-                    control={form.control}
-                    name="notification_settings.proxy_url"
-                    render={({ field }) => (
-                      <FormControl>
-                        <Input {...field} className="h-9 text-xs sm:text-sm" placeholder="https://proxy.example.com:8080" />
-                      </FormControl>
-                    )}
-                  />
+              <div className="space-y-4">
+                <div className="space-y-0.5">
+                  <h3 className="text-base font-semibold sm:text-lg">{t('settings.notifications.advanced.title')}</h3>
+                  <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.notifications.advanced.description')}</p>
                 </div>
 
-                <div className="space-y-1.5 rounded-md border bg-card p-3">
-                  <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    {t('settings.notifications.advanced.maxRetries')}
-                  </Label>
-                  <FormField
-                    control={form.control}
-                    name="notification_settings.max_retries"
-                    render={({ field }) => (
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="10"
-                          name={field.name}
-                          ref={field.ref}
-                          value={field.value ?? ''}
-                          onChange={e => {
-                            const value = e.target.value
-                            if (value === '') {
-                              field.onChange(3)
-                            } else if (/^\d+$/.test(value)) {
-                              field.onChange(parseInt(value))
-                            }
-                          }}
-                          onBlur={field.onBlur}
-                          className="h-9 text-xs sm:text-sm"
-                          placeholder="3"
-                        />
-                      </FormControl>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <Separator className="my-3" />
-              <div className="space-y-0.5">
-                <h3 className="text-base font-semibold sm:text-lg">{t('settings.notifications.channels.title')}</h3>
-                <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.notifications.channels.description')}</p>
-              </div>
-
-
-              <div className="space-y-3">
-                <FormItem>
-                  <Select onValueChange={value => setActiveChannelTab(value as ChannelTargetKey)} value={activeChannelTab}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {channelTargets.map(target => (
-                        <SelectItem key={target.key} value={target.key}>
-                          <div className="flex items-center gap-1.5">
-                            <target.icon className="h-3.5 w-3.5" />
-                            {t(`settings.notifications.types.${target.translationKey}`)}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-
-                {(() => {
-                  const target = channelTargets.find(target => target.key === activeChannelTab)
-                  if (!target) return null
-                  
-                  return (
-                    <div key={activeChannelTab} className="space-y-3 rounded-md border bg-card p-3">
-                      <div className="space-y-1">
-                        <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
-                          <target.icon className="h-3.5 w-3.5" />
-                          {t(`settings.notifications.types.${target.translationKey}`)}
-                        </Label>
-                        <p className="text-xs text-muted-foreground">{t('settings.notifications.channels.hint')}</p>
-                      </div>
-
-                      {watchTelegramEnabled && (
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
-                              <MessageSquare className="h-3.5 w-3.5" />
-                              {t('settings.notifications.telegram.channelId')}
-                            </Label>
-                            <FormField
-                              key={`telegram_chat_id_${activeChannelTab}`}
-                              control={form.control}
-                              name={`notification_settings.channels.${activeChannelTab}.telegram_chat_id`}
-                              render={({ field }) => {
-                                const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
-
-                                useEffect(() => {
-                                  setInputValue(field.value?.toString() ?? '')
-                                }, [field.value, activeChannelTab])
-
-                                return (
-                                  <FormControl>
-                                    <Input
-                                      type="text"
-                                      name={field.name}
-                                      ref={field.ref}
-                                      value={inputValue}
-                                      onChange={e => {
-                                        const value = e.target.value
-                                        setInputValue(value)
-                                        if (value === '') {
-                                          field.onChange(undefined)
-                                        } else if (/^-?\d+$/.test(value)) {
-                                          field.onChange(parseInt(value))
-                                        }
-                                      }}
-                                      onBlur={() => {
-                                        if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
-                                          setInputValue(field.value?.toString() ?? '')
-                                        }
-                                        field.onBlur()
-                                      }}
-                                      className="h-9 text-xs sm:text-sm"
-                                      placeholder="-1001234567890"
-                                    />
-                                  </FormControl>
-                                )
-                              }}
-                            />
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
-                              <FileText className="h-3.5 w-3.5" />
-                              {t('settings.notifications.telegram.topicId')}
-                            </Label>
-                            <FormField
-                              key={`telegram_topic_id_${activeChannelTab}`}
-                              control={form.control}
-                              name={`notification_settings.channels.${activeChannelTab}.telegram_topic_id`}
-                              render={({ field }) => {
-                                const [inputValue, setInputValue] = useState(field.value?.toString() ?? '')
-
-                                useEffect(() => {
-                                  setInputValue(field.value?.toString() ?? '')
-                                }, [field.value, activeChannelTab])
-
-                                return (
-                                  <FormControl>
-                                    <Input
-                                      type="text"
-                                      name={field.name}
-                                      ref={field.ref}
-                                      value={inputValue}
-                                      onChange={e => {
-                                        const value = e.target.value
-                                        setInputValue(value)
-                                        if (value === '') {
-                                          field.onChange(undefined)
-                                        } else if (/^-?\d+$/.test(value)) {
-                                          field.onChange(parseInt(value))
-                                        }
-                                      }}
-                                      onBlur={() => {
-                                        if (inputValue !== '' && !/^-?\d+$/.test(inputValue)) {
-                                          setInputValue(field.value?.toString() ?? '')
-                                        }
-                                        field.onBlur()
-                                      }}
-                                      className="h-9 text-xs sm:text-sm"
-                                      placeholder="123"
-                                    />
-                                  </FormControl>
-                                )
-                              }}
-                            />
-                          </div>
-                        </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5 rounded-md border bg-card p-3">
+                    <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                      <Globe className="h-3.5 w-3.5" />
+                      {t('settings.notifications.advanced.proxyUrl')}
+                    </Label>
+                    <FormField
+                      control={form.control}
+                      name="notification_settings.proxy_url"
+                      render={({ field }) => (
+                        <FormControl>
+                          <Input {...field} className="h-9 text-xs sm:text-sm" placeholder="https://proxy.example.com:8080" />
+                        </FormControl>
                       )}
+                    />
+                  </div>
 
-                      {watchDiscordEnabled && (
-                        <div className="space-y-1.5">
-                          <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
-                            <Webhook className="h-3.5 w-3.5" />
-                            {t('settings.notifications.discord.webhookUrl')}
-                          </Label>
-                          <FormField
-                            key={`discord_webhook_url_${activeChannelTab}`}
-                            control={form.control}
-                            name={`notification_settings.channels.${activeChannelTab}.discord_webhook_url`}
-                            render={({ field }) => (
-                              <FormControl>
-                                <PasswordInput {...field} className="h-9 text-xs font-mono sm:text-sm" placeholder="https://discord.com/api/webhooks/1234567890/ABC-DEF1234ghIkl-zyx57W2v1u123ew11" />
-                              </FormControl>
-                            )}
+                  <div className="space-y-1.5 rounded-md border bg-card p-3">
+                    <Label className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      {t('settings.notifications.advanced.maxRetries')}
+                    </Label>
+                    <FormField
+                      control={form.control}
+                      name="notification_settings.max_retries"
+                      render={({ field }) => (
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="10"
+                            name={field.name}
+                            ref={field.ref}
+                            value={field.value ?? ''}
+                            onChange={e => {
+                              const value = e.target.value
+                              if (value === '') {
+                                field.onChange(3)
+                              } else if (/^\d+$/.test(value)) {
+                                field.onChange(parseInt(value))
+                              }
+                            }}
+                            onBlur={field.onBlur}
+                            className="h-9 text-xs sm:text-sm"
+                            placeholder="3"
                           />
-                        </div>
+                        </FormControl>
                       )}
-
-                      {!watchTelegramEnabled && !watchDiscordEnabled && (
-                        <p className="text-xs text-muted-foreground">
-                          {t('settings.notifications.channels.description')}
-                        </p>
-                      )}
-                    </div>
-                  )
-                })()}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* Action Buttons */}
