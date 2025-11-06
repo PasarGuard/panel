@@ -396,25 +396,25 @@ class AdminModifyModale(BaseModal):
 
         # Handle notification_enable (comes as dict from SQLAlchemy, None = legacy admin)
         # Load existing notification preferences (notification_enable is a dict from SQLAlchemy)
-        notif = self.admin.notification_enable
+        notif = self.admin.notification_enable or {}
         master_on = any([
-            notif["create"],
-            notif["modify"],
-            notif["delete"],
-            notif["status_change"],
-            notif["reset_data_usage"],
-            notif["data_reset_by_next"],
-            notif["subscription_revoked"],
+            notif.get("create", False),
+            notif.get("modify", False),
+            notif.get("delete", False),
+            notif.get("status_change", False),
+            notif.get("reset_data_usage", False),
+            notif.get("data_reset_by_next", False),
+            notif.get("subscription_revoked", False),
         ])
 
         self.query_one("#notif_master").value = master_on
-        self.query_one("#notif_create").value = notif["create"]
-        self.query_one("#notif_modify").value = notif["modify"]
-        self.query_one("#notif_delete").value = notif["delete"]
-        self.query_one("#notif_status_change").value = notif["status_change"]
-        self.query_one("#notif_reset_data_usage").value = notif["reset_data_usage"]
-        self.query_one("#notif_data_reset_by_next").value = notif["data_reset_by_next"]
-        self.query_one("#notif_subscription_revoked").value = notif["subscription_revoked"]
+        self.query_one("#notif_create").value = notif.get("create", False)
+        self.query_one("#notif_modify").value = notif.get("modify", False)
+        self.query_one("#notif_delete").value = notif.get("delete", False)
+        self.query_one("#notif_status_change").value = notif.get("status_change", False)
+        self.query_one("#notif_reset_data_usage").value = notif.get("reset_data_usage", False)
+        self.query_one("#notif_data_reset_by_next").value = notif.get("data_reset_by_next", False)
+        self.query_one("#notif_subscription_revoked").value = notif.get("subscription_revoked", False)
 
         # Enable/disable individual switches based on master toggle
         for notif_id in [
