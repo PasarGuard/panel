@@ -17,7 +17,7 @@ from app.operation.system import SystemOperation
 console = Console()
 
 # system admin for CLI operations
-SYSTEM_ADMIN = AdminDetails(username="cli", is_sudo=True, telegram_id=None, discord_webhook=None)
+SYSTEM_ADMIN = AdminDetails(username="cli", is_sudo=True, telegram_id=None, discord_webhook=None, notification_enable=None)
 
 
 def get_admin_operation() -> AdminOperation:

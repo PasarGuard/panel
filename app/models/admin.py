@@ -32,6 +32,18 @@ class AdminContactInfo(AdminBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("notification_enable", mode="before")
+    @classmethod
+    def convert_notification_enable(cls, value):
+        """Convert dict to UserNotificationEnable object when loading from database."""
+        if value is None:
+            return None
+        if isinstance(value, UserNotificationEnable):
+            return value
+        if isinstance(value, dict):
+            return UserNotificationEnable(**value)
+        return value
+
 
 class AdminDetails(AdminContactInfo):
     """Complete admin model with all fields for database representation and API responses."""
