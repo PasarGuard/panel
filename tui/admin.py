@@ -120,6 +120,10 @@ class AdminCreateModale(BaseModal):
                 Input(placeholder="Telegram ID", id="telegram_id", type="integer"),
                 Input(placeholder="Discord ID", id="discord_id", type="integer"),
                 Input(placeholder="Discord Webhook", id="discord_webhook"),
+                Input(placeholder="Sub Template", id="sub_template"),
+                Input(placeholder="Sub Domain", id="sub_domain"),
+                Input(placeholder="Profile Title", id="profile_title"),
+                Input(placeholder="Support URL", id="support_url"),
                 Horizontal(
                     Static("Is sudo:     ", classes="label"),
                     Switch(animate=False, id="is_sudo"),
@@ -237,6 +241,10 @@ class AdminCreateModale(BaseModal):
             discord_webhook = self.query_one("#discord_webhook").value.strip() or None
             discord_id = self.query_one("#discord_id").value or None
             is_sudo = self.query_one("#is_sudo").value
+            sub_template = self.query_one("#sub_template").value.strip() or None
+            sub_domain = self.query_one("#sub_domain").value.strip() or None
+            profile_title = self.query_one("#profile_title").value.strip() or None
+            support_url = self.query_one("#support_url").value.strip() or None
 
             # Build notification_enable object (always create, never None for new admins)
             notification_enable = UserNotificationEnable(
@@ -262,6 +270,10 @@ class AdminCreateModale(BaseModal):
                         discord_webhook=discord_webhook,
                         discord_id=discord_id,
                         is_sudo=is_sudo,
+                        sub_template=sub_template,
+                        sub_domain=sub_domain,
+                        profile_title=profile_title,
+                        support_url=support_url,
                         notification_enable=notification_enable,
                     ),
                     SYSTEM_ADMIN,
@@ -305,6 +317,10 @@ class AdminModifyModale(BaseModal):
                 Input(placeholder="Telegram ID", id="telegram_id", type="integer"),
                 Input(placeholder="Discord ID", id="discord_id", type="integer"),
                 Input(placeholder="Discord Webhook", id="discord_webhook"),
+                Input(placeholder="Sub Template", id="sub_template"),
+                Input(placeholder="Sub Domain", id="sub_domain"),
+                Input(placeholder="Profile Title", id="profile_title"),
+                Input(placeholder="Support URL", id="support_url"),
                 Horizontal(
                     Static("Is sudo: ", classes="label"),
                     Switch(animate=False, id="is_sudo"),
@@ -367,6 +383,14 @@ class AdminModifyModale(BaseModal):
             self.query_one("#telegram_id").value = str(self.admin.telegram_id)
         if self.admin.discord_webhook:
             self.query_one("#discord_webhook").value = self.admin.discord_webhook
+        if self.admin.sub_template:
+            self.query_one("#sub_template").value = self.admin.sub_template
+        if self.admin.sub_domain:
+            self.query_one("#sub_domain").value = self.admin.sub_domain
+        if self.admin.profile_title:
+            self.query_one("#profile_title").value = self.admin.profile_title
+        if self.admin.support_url:
+            self.query_one("#support_url").value = self.admin.support_url
         self.query_one("#is_sudo").value = self.admin.is_sudo
         self.query_one("#is_disabled").value = self.admin.is_disabled
 
@@ -473,6 +497,10 @@ class AdminModifyModale(BaseModal):
             discord_id = self.query_one("#discord_id").value or None
             is_sudo = self.query_one("#is_sudo").value
             is_disabled = self.query_one("#is_disabled").value
+            sub_template = self.query_one("#sub_template").value.strip() or None
+            sub_domain = self.query_one("#sub_domain").value.strip() or None
+            profile_title = self.query_one("#profile_title").value.strip() or None
+            support_url = self.query_one("#support_url").value.strip() or None
 
             # Build notification_enable object (keep None for legacy admins, otherwise build)
             if self.admin.notification_enable is None:
@@ -502,6 +530,10 @@ class AdminModifyModale(BaseModal):
                         discord_id=discord_id,
                         is_sudo=is_sudo,
                         is_disabled=is_disabled,
+                        sub_template=sub_template,
+                        sub_domain=sub_domain,
+                        profile_title=profile_title,
+                        support_url=support_url,
                         notification_enable=notification_enable,
                     ),
                     SYSTEM_ADMIN,
