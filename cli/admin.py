@@ -98,8 +98,9 @@ class AdminCLI(BaseCLI):
                 )
 
                 # Create admin
-                new_admin = AdminCreate(username=username, password=password, is_sudo=is_sudo,
-                                       notification_enable=notification_enable)
+                new_admin = AdminCreate(
+                    username=username, password=password, is_sudo=is_sudo, notification_enable=notification_enable
+                )
                 await admin_op.create_admin(db, new_admin, SYSTEM_ADMIN)
                 self.console.print(f"[green]Admin '{username}' created successfully[/green]")
                 break
@@ -152,13 +153,13 @@ class AdminCLI(BaseCLI):
         else:
             notif = current_admin.notification_enable
             self.console.print("  Notifications:")
-            self.console.print(f"    User Create: {'✓' if notif.create else '✗'}")
-            self.console.print(f"    User Modify: {'✓' if notif.modify else '✗'}")
-            self.console.print(f"    User Delete: {'✓' if notif.delete else '✗'}")
-            self.console.print(f"    Status Change: {'✓' if notif.status_change else '✗'}")
-            self.console.print(f"    Reset Data Usage: {'✓' if notif.reset_data_usage else '✗'}")
-            self.console.print(f"    Data Reset By Next: {'✓' if notif.data_reset_by_next else '✗'}")
-            self.console.print(f"    Subscription Revoked: {'✓' if notif.subscription_revoked else '✗'}")
+            self.console.print(f"    User Create: {'✓' if notif['create'] else '✗'}")
+            self.console.print(f"    User Modify: {'✓' if notif['modify'] else '✗'}")
+            self.console.print(f"    User Delete: {'✓' if notif['delete'] else '✗'}")
+            self.console.print(f"    Status Change: {'✓' if notif['status_change'] else '✗'}")
+            self.console.print(f"    Reset Data Usage: {'✓' if notif['reset_data_usage'] else '✗'}")
+            self.console.print(f"    Data Reset By Next: {'✓' if notif['data_reset_by_next'] else '✗'}")
+            self.console.print(f"    Subscription Revoked: {'✓' if notif['subscription_revoked'] else '✗'}")
 
         new_password = None
         is_sudo = current_admin.is_sudo
@@ -186,26 +187,42 @@ class AdminCLI(BaseCLI):
             is_disabled = typer.confirm("Disable this admin account?")
 
         # Notification preferences modification (skip for legacy admins with None)
-        if current_admin.notification_enable is not None and typer.confirm("Do you want to modify notification preferences?"):
+        if current_admin.notification_enable is not None and typer.confirm(
+            "Do you want to modify notification preferences?"
+        ):
             self.console.print("\n[cyan]Notification Preferences:[/cyan]")
-            enable_notifications = typer.confirm("Enable user notifications for this admin?",
-                                                default=any([current_admin.notification_enable.create,
-                                                           current_admin.notification_enable.modify,
-                                                           current_admin.notification_enable.delete,
-                                                           current_admin.notification_enable.status_change,
-                                                           current_admin.notification_enable.reset_data_usage,
-                                                           current_admin.notification_enable.data_reset_by_next,
-                                                           current_admin.notification_enable.subscription_revoked]))
+            enable_notifications = typer.confirm(
+                "Enable user notifications for this admin?",
+                default=any(
+                    [
+                        current_admin.notification_enable["create"],
+                        current_admin.notification_enable["modify"],
+                        current_admin.notification_enable["delete"],
+                        current_admin.notification_enable["status_change"],
+                        current_admin.notification_enable["reset_data_usage"],
+                        current_admin.notification_enable["data_reset_by_next"],
+                        current_admin.notification_enable["subscription_revoked"],
+                    ]
+                ),
+            )
 
             if enable_notifications:
                 self.console.print("[yellow]Select which notification types to enable:[/yellow]")
-                notif_create = typer.confirm("  User Create?", default=current_admin.notification_enable.create)
-                notif_modify = typer.confirm("  User Modify?", default=current_admin.notification_enable.modify)
-                notif_delete = typer.confirm("  User Delete?", default=current_admin.notification_enable.delete)
-                notif_status_change = typer.confirm("  Status Change?", default=current_admin.notification_enable.status_change)
-                notif_reset_data = typer.confirm("  Reset Data Usage?", default=current_admin.notification_enable.reset_data_usage)
-                notif_data_reset_by_next = typer.confirm("  Data Reset By Next?", default=current_admin.notification_enable.data_reset_by_next)
-                notif_sub_revoked = typer.confirm("  Subscription Revoked?", default=current_admin.notification_enable.subscription_revoked)
+                notif_create = typer.confirm("  User Create?", default=current_admin.notification_enable["create"])
+                notif_modify = typer.confirm("  User Modify?", default=current_admin.notification_enable["modify"])
+                notif_delete = typer.confirm("  User Delete?", default=current_admin.notification_enable["delete"])
+                notif_status_change = typer.confirm(
+                    "  Status Change?", default=current_admin.notification_enable["status_change"]
+                )
+                notif_reset_data = typer.confirm(
+                    "  Reset Data Usage?", default=current_admin.notification_enable["reset_data_usage"]
+                )
+                notif_data_reset_by_next = typer.confirm(
+                    "  Data Reset By Next?", default=current_admin.notification_enable["data_reset_by_next"]
+                )
+                notif_sub_revoked = typer.confirm(
+                    "  Subscription Revoked?", default=current_admin.notification_enable["subscription_revoked"]
+                )
             else:
                 notif_create = notif_modify = notif_delete = notif_status_change = False
                 notif_reset_data = notif_data_reset_by_next = notif_sub_revoked = False
@@ -234,8 +251,12 @@ class AdminCLI(BaseCLI):
         if typer.confirm("Do you want to apply these changes?"):
             try:
                 # Interactive modification
-                modified_admin = AdminModify(is_sudo=is_sudo, password=new_password, is_disabled=is_disabled,
-                                            notification_enable=notification_enable)
+                modified_admin = AdminModify(
+                    is_sudo=is_sudo,
+                    password=new_password,
+                    is_disabled=is_disabled,
+                    notification_enable=notification_enable,
+                )
                 await admin_op.modify_admin(db, username, modified_admin, SYSTEM_ADMIN)
                 self.console.print(f"[green]Admin '{username}' modified successfully[/green]")
             except Exception as e:

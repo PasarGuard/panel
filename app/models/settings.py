@@ -255,7 +255,7 @@ class Subscription(BaseModel):
     update_interval: int = Field(default=12)
     support_url: str = Field(default="https://t.me/")
     profile_title: str = Field(default="Subscription")
-    # only supported by v2RayTun and Happ apps 
+    # only supported by v2RayTun and Happ apps
     announce: str = Field(default="", max_length=128)
     announce_url: str = Field(default="")
 

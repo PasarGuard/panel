@@ -20,7 +20,9 @@ from app.utils.helpers import readable_datetime
 from app.utils.system import readable_size
 from tui import BaseModal
 
-SYSTEM_ADMIN = AdminDetails(username="tui", is_sudo=True, telegram_id=None, discord_webhook=None, notification_enable=None)
+SYSTEM_ADMIN = AdminDetails(
+    username="tui", is_sudo=True, telegram_id=None, discord_webhook=None, notification_enable=None
+)
 
 
 class AdminDelete(BaseModal):
@@ -176,16 +178,28 @@ class AdminCreateModale(BaseModal):
         username_input = self.query_one("#username")
         self.set_focus(username_input)
         # Disable all notification switches by default (master is OFF)
-        for notif_id in ["notif_create", "notif_modify", "notif_delete", "notif_status_change",
-                         "notif_reset_data_usage", "notif_data_reset_by_next", "notif_subscription_revoked"]:
+        for notif_id in [
+            "notif_create",
+            "notif_modify",
+            "notif_delete",
+            "notif_status_change",
+            "notif_reset_data_usage",
+            "notif_data_reset_by_next",
+            "notif_subscription_revoked",
+        ]:
             self.query_one(f"#{notif_id}").disabled = True
 
     def on_switch_changed(self, event: Switch.Changed) -> None:
         """Handle master toggle changes to enable/disable individual notification switches."""
         if event.switch.id == "notif_master":
             notification_switches = [
-                "notif_create", "notif_modify", "notif_delete", "notif_status_change",
-                "notif_reset_data_usage", "notif_data_reset_by_next", "notif_subscription_revoked"
+                "notif_create",
+                "notif_modify",
+                "notif_delete",
+                "notif_status_change",
+                "notif_reset_data_usage",
+                "notif_data_reset_by_next",
+                "notif_subscription_revoked",
             ]
             for notif_id in notification_switches:
                 switch = self.query_one(f"#{notif_id}")
@@ -197,11 +211,21 @@ class AdminCreateModale(BaseModal):
     async def key_enter(self) -> None:
         """Create admin when Enter is pressed."""
         # Check if any switch has focus
-        switch_ids = ["is_sudo", "notif_master", "notif_create", "notif_modify", "notif_delete",
-                      "notif_status_change", "notif_reset_data_usage", "notif_data_reset_by_next",
-                      "notif_subscription_revoked"]
-        if not any(self.query_one(f"#{switch_id}").has_focus for switch_id in switch_ids) and \
-           not self.query_one("#cancel").has_focus:
+        switch_ids = [
+            "is_sudo",
+            "notif_master",
+            "notif_create",
+            "notif_modify",
+            "notif_delete",
+            "notif_status_change",
+            "notif_reset_data_usage",
+            "notif_data_reset_by_next",
+            "notif_subscription_revoked",
+        ]
+        if (
+            not any(self.query_one(f"#{switch_id}").has_focus for switch_id in switch_ids)
+            and not self.query_one("#cancel").has_focus
+        ):
             await self.on_button_pressed(Button.Pressed(self.query_one("#create")))
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -351,14 +375,30 @@ class AdminModifyModale(BaseModal):
             # Legacy admin - show warning and disable controls
             self.query_one("#legacy_notif_warning").update("(Legacy: Receiving ALL notifications)")
             self.query_one("#notif_master").disabled = True
-            for notif_id in ["notif_create", "notif_modify", "notif_delete", "notif_status_change",
-                             "notif_reset_data_usage", "notif_data_reset_by_next", "notif_subscription_revoked"]:
+            for notif_id in [
+                "notif_create",
+                "notif_modify",
+                "notif_delete",
+                "notif_status_change",
+                "notif_reset_data_usage",
+                "notif_data_reset_by_next",
+                "notif_subscription_revoked",
+            ]:
                 self.query_one(f"#{notif_id}").disabled = True
         else:
             # Load existing notification preferences (notification_enable is a dict from SQLAlchemy)
             notif = self.admin.notification_enable
-            master_on = any([notif["create"], notif["modify"], notif["delete"], notif["status_change"],
-                           notif["reset_data_usage"], notif["data_reset_by_next"], notif["subscription_revoked"]])
+            master_on = any(
+                [
+                    notif["create"],
+                    notif["modify"],
+                    notif["delete"],
+                    notif["status_change"],
+                    notif["reset_data_usage"],
+                    notif["data_reset_by_next"],
+                    notif["subscription_revoked"],
+                ]
+            )
 
             self.query_one("#notif_master").value = master_on
             self.query_one("#notif_create").value = notif["create"]
@@ -370,8 +410,15 @@ class AdminModifyModale(BaseModal):
             self.query_one("#notif_subscription_revoked").value = notif["subscription_revoked"]
 
             # Enable/disable individual switches based on master toggle
-            for notif_id in ["notif_create", "notif_modify", "notif_delete", "notif_status_change",
-                             "notif_reset_data_usage", "notif_data_reset_by_next", "notif_subscription_revoked"]:
+            for notif_id in [
+                "notif_create",
+                "notif_modify",
+                "notif_delete",
+                "notif_status_change",
+                "notif_reset_data_usage",
+                "notif_data_reset_by_next",
+                "notif_subscription_revoked",
+            ]:
                 self.query_one(f"#{notif_id}").disabled = not master_on
 
         password_input = self.query_one("#password")
@@ -381,8 +428,13 @@ class AdminModifyModale(BaseModal):
         """Handle master toggle changes to enable/disable individual notification switches."""
         if event.switch.id == "notif_master":
             notification_switches = [
-                "notif_create", "notif_modify", "notif_delete", "notif_status_change",
-                "notif_reset_data_usage", "notif_data_reset_by_next", "notif_subscription_revoked"
+                "notif_create",
+                "notif_modify",
+                "notif_delete",
+                "notif_status_change",
+                "notif_reset_data_usage",
+                "notif_data_reset_by_next",
+                "notif_subscription_revoked",
             ]
             for notif_id in notification_switches:
                 switch = self.query_one(f"#{notif_id}")
@@ -394,11 +446,22 @@ class AdminModifyModale(BaseModal):
     async def key_enter(self) -> None:
         """Save admin when Enter is pressed."""
         # Check if any switch has focus
-        switch_ids = ["is_sudo", "is_disabled", "notif_master", "notif_create", "notif_modify",
-                      "notif_delete", "notif_status_change", "notif_reset_data_usage",
-                      "notif_data_reset_by_next", "notif_subscription_revoked"]
-        if not any(self.query_one(f"#{switch_id}").has_focus for switch_id in switch_ids) and \
-           not self.query_one("#cancel").has_focus:
+        switch_ids = [
+            "is_sudo",
+            "is_disabled",
+            "notif_master",
+            "notif_create",
+            "notif_modify",
+            "notif_delete",
+            "notif_status_change",
+            "notif_reset_data_usage",
+            "notif_data_reset_by_next",
+            "notif_subscription_revoked",
+        ]
+        if (
+            not any(self.query_one(f"#{switch_id}").has_focus for switch_id in switch_ids)
+            and not self.query_one("#cancel").has_focus
+        ):
             await self.on_button_pressed(Button.Pressed(self.query_one("#save")))
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -620,7 +683,9 @@ class AdminContent(Static):
             )
             await self.admin_operator.create_admin(
                 self.db,
-                AdminCreate(username=username, password=password, is_sudo=True, notification_enable=notification_enable),
+                AdminCreate(
+                    username=username, password=password, is_sudo=True, notification_enable=notification_enable
+                ),
                 SYSTEM_ADMIN,
             )
             self.notify("Admin created successfully", severity="success", title="Success")
