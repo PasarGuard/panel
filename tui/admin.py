@@ -395,55 +395,38 @@ class AdminModifyModale(BaseModal):
         self.query_one("#is_disabled").value = self.admin.is_disabled
 
         # Handle notification_enable (comes as dict from SQLAlchemy, None = legacy admin)
-        if self.admin.notification_enable is None:
-            # Legacy admin - show warning and disable controls
-            self.query_one("#legacy_notif_warning").update("(Legacy: Receiving ALL notifications)")
-            self.query_one("#notif_master").disabled = True
-            for notif_id in [
-                "notif_create",
-                "notif_modify",
-                "notif_delete",
-                "notif_status_change",
-                "notif_reset_data_usage",
-                "notif_data_reset_by_next",
-                "notif_subscription_revoked",
-            ]:
-                self.query_one(f"#{notif_id}").disabled = True
-        else:
-            # Load existing notification preferences (notification_enable is a dict from SQLAlchemy)
-            notif = self.admin.notification_enable
-            master_on = any(
-                [
-                    notif["create"],
-                    notif["modify"],
-                    notif["delete"],
-                    notif["status_change"],
-                    notif["reset_data_usage"],
-                    notif["data_reset_by_next"],
-                    notif["subscription_revoked"],
-                ]
-            )
+        # Load existing notification preferences (notification_enable is a dict from SQLAlchemy)
+        notif = self.admin.notification_enable
+        master_on = any([
+            notif["create"],
+            notif["modify"],
+            notif["delete"],
+            notif["status_change"],
+            notif["reset_data_usage"],
+            notif["data_reset_by_next"],
+            notif["subscription_revoked"],
+        ])
 
-            self.query_one("#notif_master").value = master_on
-            self.query_one("#notif_create").value = notif["create"]
-            self.query_one("#notif_modify").value = notif["modify"]
-            self.query_one("#notif_delete").value = notif["delete"]
-            self.query_one("#notif_status_change").value = notif["status_change"]
-            self.query_one("#notif_reset_data_usage").value = notif["reset_data_usage"]
-            self.query_one("#notif_data_reset_by_next").value = notif["data_reset_by_next"]
-            self.query_one("#notif_subscription_revoked").value = notif["subscription_revoked"]
+        self.query_one("#notif_master").value = master_on
+        self.query_one("#notif_create").value = notif["create"]
+        self.query_one("#notif_modify").value = notif["modify"]
+        self.query_one("#notif_delete").value = notif["delete"]
+        self.query_one("#notif_status_change").value = notif["status_change"]
+        self.query_one("#notif_reset_data_usage").value = notif["reset_data_usage"]
+        self.query_one("#notif_data_reset_by_next").value = notif["data_reset_by_next"]
+        self.query_one("#notif_subscription_revoked").value = notif["subscription_revoked"]
 
-            # Enable/disable individual switches based on master toggle
-            for notif_id in [
-                "notif_create",
-                "notif_modify",
-                "notif_delete",
-                "notif_status_change",
-                "notif_reset_data_usage",
-                "notif_data_reset_by_next",
-                "notif_subscription_revoked",
-            ]:
-                self.query_one(f"#{notif_id}").disabled = not master_on
+        # Enable/disable individual switches based on master toggle
+        for notif_id in [
+            "notif_create",
+            "notif_modify",
+            "notif_delete",
+            "notif_status_change",
+            "notif_reset_data_usage",
+            "notif_data_reset_by_next",
+            "notif_subscription_revoked",
+        ]:
+            self.query_one(f"#{notif_id}").disabled = not master_on
 
         password_input = self.query_one("#password")
         self.set_focus(password_input)
