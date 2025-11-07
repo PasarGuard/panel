@@ -277,6 +277,7 @@ class StandardLinks(BaseSubscription):
             settings["method"],
             getattr(inbound, "password", None),
             settings["password"],
+            getattr(inbound, "relay_passwords", None),
         )
 
         encoded = base64.b64encode(f"{method}:{password}".encode()).decode()

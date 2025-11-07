@@ -349,6 +349,7 @@ class ClashMetaConfiguration(ClashConfiguration):
             settings["method"],
             inbound.password,
             settings["password"],
+            getattr(inbound, "relay_passwords", None),
         )
 
         return {

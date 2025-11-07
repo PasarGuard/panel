@@ -214,6 +214,8 @@ class SubscriptionInboundData(BaseModel):
     is_2022: bool = Field(False)
     method: str = Field("")
     password: str = Field("")
+    # Ordered relay passwords for Shadowsocks 2022 (prefix chain)
+    relay_passwords: list[str] = Field(default_factory=list)
 
     # VLESS specific
     encryption: str = Field("none")

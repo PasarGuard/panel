@@ -123,21 +123,38 @@ class BaseSubscription:
         return base64.b64encode(key_bytes).decode("ascii")
 
     @staticmethod
-    def password_to_2022(inbound_password: str, user_password: str, method: str) -> str:
+    def password_to_2022(
+        inbound_password: str,
+        user_password: str,
+        method: str,
+        relay_passwords: list[str] | None = None,
+    ) -> str:
         """
         Convert a password to the format required for 2022-blake3 methods,
         ensuring correct key length.
         """
         base64_string = BaseSubscription.ensure_base64_password(user_password, method)
-        return f"{inbound_password}:{base64_string}"
+        parts = []
+        if relay_passwords:
+            parts.extend(relay_passwords)
+        parts.append(inbound_password)
+        parts.append(base64_string)
+        return ":".join(parts)
 
     @staticmethod
     def detect_shadowsocks_2022(
-        is_2022: bool, inbound_method: str, user_method: str, inbound_password: str, user_password: str
+        is_2022: bool,
+        inbound_method: str,
+        user_method: str,
+        inbound_password: str,
+        user_password: str,
+        relay_passwords: list[str] | None = None,
     ) -> tuple[str, str]:
         """Detect and handle Shadowsocks 2022 password format"""
         if is_2022:
-            password = BaseSubscription.password_to_2022(inbound_password, user_password, inbound_method)
+            password = BaseSubscription.password_to_2022(
+                inbound_password, user_password, inbound_method, relay_passwords
+            )
             method = inbound_method
         else:
             password = user_password

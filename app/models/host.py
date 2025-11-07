@@ -170,7 +170,6 @@ class TransportSettings(BaseModel):
     tcp_settings: TcpSettings | None = Field(default=None)
     websocket_settings: WebSocketSettings | None = Field(default=None)
 
-
 class FormatVariables(dict):
     def __missing__(self, key):
         return key.join("{}")
@@ -200,6 +199,8 @@ class BaseHost(BaseModel):
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
     ech_config_list: str | None = Field(default=None)
+    # Ordered relay chain for Shadowsocks 2022: list of inbound tags to be used as relays
+    ss2022_relay_inbound_tags: list[str] | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 
