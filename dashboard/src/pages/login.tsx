@@ -22,6 +22,7 @@ import { z } from 'zod'
 const schema = z.object({
   username: z.string().min(1, 'login.fieldRequired'),
   password: z.string().min(1, 'login.fieldRequired'),
+  otp_code: z.string().optional(),
 })
 
 type LoginSchema = z.infer<typeof schema>
@@ -39,6 +40,7 @@ export const Login: FC = () => {
     defaultValues: {
       username: '',
       password: '',
+      otp_code: '',
     },
     resolver: zodResolver(schema),
   })
@@ -108,9 +110,12 @@ export const Login: FC = () => {
         alert(err.message || 'Telegram login failed')
       }
     } else {
+      const { otp_code, ...credentials } = values
+      const formattedOtp = otp_code?.trim()
       login({
         data: {
-          ...values,
+          ...credentials,
+          otp_code: formattedOtp ? formattedOtp : undefined,
           grant_type: 'password',
         },
       })
@@ -193,6 +198,7 @@ export const Login: FC = () => {
                 <div className="mt-4 flex flex-col gap-y-2">
                   <Input className="py-5" placeholder={t('username')} {...register('username')} error={t(errors?.username?.message as string)} />
                   <PasswordInput className="py-5" placeholder={t('password')} {...register('password')} error={t(errors?.password?.message as string)} />
+                  <Input className="py-5" placeholder={t('login.otpPlaceholder')} {...register('otp_code')} error={errors?.otp_code ? t(errors?.otp_code?.message as string) : undefined} />
                   {((error && error.data) || (miniAppError && miniAppError.data)) && (
                     <Alert className="mt-2" variant="destructive">
                       <CircleAlertIcon size="18px" />

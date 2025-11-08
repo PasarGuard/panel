@@ -100,6 +100,9 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.profile_title = modified_admin.profile_title
     if modified_admin.notification_enable is not None:
         db_admin.notification_enable = modified_admin.notification_enable.model_dump()
+    if modified_admin.otp_enabled is False and db_admin.otp_enabled:
+        db_admin.otp_enabled = False
+        db_admin.otp_secret = None
 
     await db.commit()
     await load_admin_attrs(db_admin)

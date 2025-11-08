@@ -264,6 +264,29 @@ class AdminCLI(BaseCLI):
         else:
             self.console.print("[yellow]Modification cancelled[/yellow]")
 
+    async def disable_admin_otp(self, db, username: str):
+        """Disable OTP for an admin account."""
+        admin_op = get_admin_operation()
+
+        try:
+            admin = await admin_op.get_validated_admin(db, username=username)
+        except ValueError:
+            self.console.print(f"[red]Admin '{username}' not found[/red]")
+            return
+
+        if not getattr(admin, "otp_enabled", False):
+            self.console.print(f"[yellow]Admin '{username}' does not have OTP enabled[/yellow]")
+            return
+
+        if typer.confirm(f"Disable OTP for admin '{username}'?", default=True):
+            try:
+                await admin_op.disable_admin_otp(db, username, SYSTEM_ADMIN)
+                self.console.print(f"[green]OTP disabled for admin '{username}'[/green]")
+            except Exception as e:
+                self.console.print(f"[red]Error disabling OTP: {e}[/red]")
+        else:
+            self.console.print("[yellow]OTP disable cancelled[/yellow]")
+
     async def reset_admin_usage(self, db, username: str):
         """Reset admin usage statistics."""
         admin_op = get_admin_operation()
@@ -337,5 +360,14 @@ async def reset_admin_usage(username: str):
     async with GetDB() as db:
         try:
             await admin_cli.reset_admin_usage(db, username)
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+
+
+async def disable_admin_otp(username: str):
+    """Disable OTP for an admin account."""
+    async with GetDB() as db:
+        try:
+            await admin_cli.disable_admin_otp(db, username)
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")

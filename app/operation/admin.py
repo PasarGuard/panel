@@ -20,6 +20,7 @@ from app.models.admin import AdminCreate, AdminDetails, AdminModify
 from app.node import node_manager
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
+from app.utils.otp import generate_otp_secret, verify_otp
 
 logger = get_logger("admin-operation")
 
@@ -47,6 +48,12 @@ class AdminOperation(BaseOperation):
         if self.operator_type != OperatorType.CLI and db_admin.is_sudo:
             await self.raise_error(
                 message="You're not allowed to modify another sudoer's account. Use pasarguard-cli instead.", code=403
+            )
+
+        if modified_admin.otp_enabled is True:
+            await self.raise_error(
+                message="Use the dedicated OTP enable endpoint to complete verification.",
+                code=400,
             )
 
         db_admin = await update_admin(db, db_admin, modified_admin)
@@ -137,3 +144,68 @@ class AdminOperation(BaseOperation):
         asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
 
         return reseted_admin
+
+    async def prepare_admin_otp(self, db: AsyncSession, username: str, requester: AdminDetails) -> AdminDetails:
+        """Generate (or return) an OTP secret for an admin without enabling it."""
+        db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_can_manage_otp(db_admin, requester)
+
+        if db_admin.otp_enabled:
+            await self.raise_error(message="Disable OTP before generating a new secret.", code=400)
+
+        if not db_admin.otp_secret:
+            db_admin.otp_secret = generate_otp_secret()
+            await db.commit()
+            await db.refresh(db_admin)
+
+        return AdminDetails.model_validate(db_admin)
+
+    async def enable_admin_otp(
+        self, db: AsyncSession, username: str, code: str, requester: AdminDetails
+    ) -> AdminDetails:
+        """Verify a code and enable OTP for the admin."""
+        db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_can_manage_otp(db_admin, requester)
+
+        if db_admin.otp_enabled:
+            await self.raise_error(message="OTP is already enabled.", code=400)
+
+        if not db_admin.otp_secret:
+            await self.raise_error(message="Generate an OTP secret first.", code=400)
+
+        if not verify_otp(db_admin.otp_secret, code):
+            await self.raise_error(message="Invalid OTP code.", code=400)
+
+        db_admin.otp_enabled = True
+        await db.commit()
+        await db.refresh(db_admin)
+        return AdminDetails.model_validate(db_admin)
+
+    async def disable_admin_otp(
+        self,
+        db: AsyncSession,
+        username: str,
+        requester: AdminDetails,
+        code: str | None = None,
+    ) -> AdminDetails:
+        """Disable OTP for an admin (optionally validating a code for self-service)."""
+        db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_can_manage_otp(db_admin, requester)
+
+        if not db_admin.otp_enabled:
+            return AdminDetails.model_validate(db_admin)
+
+        require_code = self.operator_type != OperatorType.CLI and requester.username == db_admin.username
+        if require_code:
+            if not code or not verify_otp(db_admin.otp_secret, code):
+                await self.raise_error(message="Invalid OTP code.", code=400)
+
+        db_admin.otp_enabled = False
+        db_admin.otp_secret = None
+        await db.commit()
+        await db.refresh(db_admin)
+        return AdminDetails.model_validate(db_admin)
+
+    async def _ensure_can_manage_otp(self, db_admin: DBAdmin, requester: AdminDetails):
+        if requester.username != db_admin.username and not requester.is_sudo:
+            await self.raise_error(message="You're not allowed to manage this admin's OTP settings.", code=403)

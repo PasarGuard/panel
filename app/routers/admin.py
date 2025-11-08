@@ -1,13 +1,17 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Header
+
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+
 from app import notification
 from app.db import AsyncSession, get_db
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token
+from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminOTPCode, AdminOTPSetup, Token
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
 from app.utils.jwt import create_admin_token
+from app.utils.otp import get_provisioning_uri
+
 from .authentication import check_sudo_admin, get_current, validate_admin, validate_mini_app_admin
 
 router = APIRouter(tags=["Admin"], prefix="/api/admin", responses={401: responses._401, 403: responses._403})
@@ -24,14 +28,31 @@ def get_client_ip(request: Request) -> str:
     return "Unknown"
 
 
+class OAuth2PasswordRequestFormWithOTP(OAuth2PasswordRequestForm):
+    """Extends FastAPI's OAuth form to capture OTP codes."""
+
+    def __init__(
+        self,
+        grant_type: str | None = Form(default=None, regex="password"),
+        username: str = Form(),
+        password: str = Form(),
+        scope: str = Form(default=""),
+        client_id: str | None = Form(default=None),
+        client_secret: str | None = Form(default=None),
+        otp_code: str | None = Form(default=None),
+    ):
+        super().__init__(grant_type, username, password, scope, client_id, client_secret)
+        self.otp_code = otp_code
+
+
 @router.post("/token", response_model=Token)
 async def admin_token(
-    request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
+    request: Request, form_data: OAuth2PasswordRequestFormWithOTP = Depends(), db: AsyncSession = Depends(get_db)
 ):
     """Authenticate an admin and issue a token."""
     client_ip = get_client_ip(request)
 
-    db_admin = await validate_admin(db, form_data.username, form_data.password)
+    db_admin = await validate_admin(db, form_data.username, form_data.password, form_data.otp_code)
     if not db_admin:
         asyncio.create_task(notification.admin_login(form_data.username, form_data.password, client_ip, False))
         raise HTTPException(
@@ -153,3 +174,37 @@ async def reset_admin_usage(
 ):
     """Resets usage of admin."""
     return await admin_operator.reset_admin_usage(db, username=username, admin=admin)
+
+
+@router.post("/otp/prepare", response_model=AdminOTPSetup)
+async def prepare_admin_otp(db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)):
+    """
+    Prepare a new OTP setup for the admin by generating and returning
+    a secret and otpauth URL for configuring their authenticator app.
+    """
+    updated = await admin_operator.prepare_admin_otp(db, admin.username, admin)
+    if not updated.otp_secret:
+        raise HTTPException(status_code=500, detail="Failed to generate OTP secret")
+    return AdminOTPSetup(
+        secret=updated.otp_secret, otpauth_url=get_provisioning_uri(updated.username, updated.otp_secret)
+    )
+
+
+@router.post("/otp/enable", response_model=AdminDetails)
+async def enable_admin_otp(
+    payload: AdminOTPCode, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+):
+    """
+    Enable OTP for the admin after verifying the provided OTP code.
+    """
+    return await admin_operator.enable_admin_otp(db, admin.username, payload.code, admin)
+
+
+@router.post("/otp/disable", response_model=AdminDetails)
+async def disable_admin_otp(
+    payload: AdminOTPCode, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+):
+    """
+    Disable OTP for the admin after validating the provided OTP code.
+    """
+    return await admin_operator.disable_admin_otp(db, admin.username, admin, payload.code)

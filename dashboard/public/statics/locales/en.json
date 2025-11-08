@@ -1037,6 +1037,7 @@
   "login.fieldRequired": "This field is required",
   "login.loginYourAccount": "Login to your account",
   "login.welcomeBack": "Welcome back, please enter your details",
+  "login.otpPlaceholder": "OTP code (if enabled)",
   "memoryUsage": "memory usage",
   "next": "Next",
   "monitorServers": "Monitor your servers and users",

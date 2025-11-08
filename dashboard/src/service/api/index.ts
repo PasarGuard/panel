@@ -1747,6 +1747,8 @@ export type BodyAdminTokenApiAdminTokenPostClientId = string | null
 
 export type BodyAdminTokenApiAdminTokenPostGrantType = string | null
 
+export type BodyAdminTokenApiAdminTokenPostOtpCode = string | null
+
 export interface BodyAdminTokenApiAdminTokenPost {
   grant_type?: BodyAdminTokenApiAdminTokenPostGrantType
   username: string
@@ -1754,6 +1756,7 @@ export interface BodyAdminTokenApiAdminTokenPost {
   scope?: string
   client_id?: BodyAdminTokenApiAdminTokenPostClientId
   client_secret?: BodyAdminTokenApiAdminTokenPostClientSecret
+  otp_code?: BodyAdminTokenApiAdminTokenPostOtpCode
 }
 
 export interface BaseNotificationEnable {
@@ -2107,6 +2110,9 @@ export const adminToken = (bodyAdminTokenApiAdminTokenPost: BodyType<BodyAdminTo
   }
   if (bodyAdminTokenApiAdminTokenPost.client_secret !== undefined && bodyAdminTokenApiAdminTokenPost.client_secret !== null) {
     formUrlEncoded.append('client_secret', bodyAdminTokenApiAdminTokenPost.client_secret)
+  }
+  if (bodyAdminTokenApiAdminTokenPost.otp_code !== undefined && bodyAdminTokenApiAdminTokenPost.otp_code !== null) {
+    formUrlEncoded.append('otp_code', bodyAdminTokenApiAdminTokenPost.otp_code)
   }
 
   return orvalFetcher<Token>({ url: `/api/admin/token`, method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: formUrlEncoded, signal })

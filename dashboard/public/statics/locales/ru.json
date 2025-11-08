@@ -780,6 +780,7 @@
   "login.fieldRequired": "Это поле обязательно для заполнения",
   "login.loginYourAccount": "Войдите в свой аккаунт",
   "login.welcomeBack": "Пожалуйста, введите свои данные",
+  "login.otpPlaceholder": "OTP-код (если включено)",
   "memoryUsage": "Память",
   "next": "Вперед",
   "monitorServers": "Следите за своими серверами и пользователями",

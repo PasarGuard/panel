@@ -50,6 +50,7 @@ class AdminDetails(AdminContactInfo):
 
     id: int | None = None
     is_sudo: bool
+    otp_enabled: bool = False
     total_users: int = 0
     used_traffic: int = 0
     is_disabled: bool = False
@@ -67,6 +68,7 @@ class AdminDetails(AdminContactInfo):
 class AdminModify(BaseModel):
     password: str | None = None
     is_sudo: bool
+    otp_enabled: bool | None = None
     telegram_id: int | None = None
     discord_webhook: str | None = None
     discord_id: int | None = None
@@ -111,3 +113,16 @@ class AdminValidationResult(BaseModel):
     username: str
     is_sudo: bool
     is_disabled: bool
+
+
+class AdminOTPSetup(BaseModel):
+    secret: str
+    otpauth_url: str
+
+
+class AdminOTPCode(BaseModel):
+    code: str
+
+
+class AdminOTPStatus(BaseModel):
+    otp_enabled: bool

@@ -11,7 +11,7 @@ from typing import Optional
 import typer
 
 from cli import console
-from cli.admin import create_admin, delete_admin, list_admins, modify_admin, reset_admin_usage
+from cli.admin import create_admin, delete_admin, list_admins, modify_admin, reset_admin_usage, disable_admin_otp
 from cli.system import show_status
 
 # Initialize Typer app
@@ -40,6 +40,7 @@ def admins(
     modify: Optional[str] = typer.Option(None, "--modify", "-m", help="Modify admin"),
     disable: Optional[bool] = typer.Option(None, "--disable", help="Disable or enable the admin account."),
     reset_usage: Optional[str] = typer.Option(None, "--reset-usage", "-r", help="Reset admin usage"),
+    disable_otp: Optional[str] = typer.Option(None, "--disable-otp", help="Disable OTP (2FA) for an admin"),
 ):
     """List & manage admin accounts."""
 
@@ -53,6 +54,8 @@ def admins(
         asyncio.run(modify_admin(modify, disable))
     elif reset_usage:
         asyncio.run(reset_admin_usage(reset_usage))
+    elif disable_otp:
+        asyncio.run(disable_admin_otp(disable_otp))
 
 
 @app.command()

@@ -17,6 +17,7 @@ from app.models.notification_enable import UserNotificationEnable
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils.helpers import readable_datetime
+from app.utils.otp import build_qr_ascii, get_provisioning_uri
 from app.utils.system import readable_size
 from tui import BaseModal
 
@@ -211,6 +212,24 @@ class AdminCreateModale(BaseModal):
                 # When disabling, also set value to False
                 if not event.value:
                     switch.value = False
+        elif event.switch.id == "otp_enabled":
+            if event.value:
+                self.notify(
+                    "Use 'Prepare Secret' to generate a QR code, then enter the OTP code before saving.",
+                    severity="information",
+                    title="OTP",
+                )
+            else:
+                self.query_one("#otp_code").value = ""
+        elif event.switch.id == "otp_enabled":
+            secret_input = self.query_one("#otp_secret")
+            uri_input = self.query_one("#otp_uri")
+            if not event.value:
+                secret_input.value = ""
+                uri_input.value = ""
+            else:
+                secret_input.value = "Will be generated after saving"
+                uri_input.value = ""
 
     async def key_enter(self) -> None:
         """Create admin when Enter is pressed."""
@@ -328,6 +347,16 @@ class AdminModifyModale(BaseModal):
                     Switch(animate=False, id="is_disabled"),
                     classes="switch-container",
                 ),
+                Horizontal(
+                    Static("OTP (2FA): ", classes="label"),
+                    Switch(animate=False, id="otp_enabled"),
+                    Button("Prepare Secret", id="otp_prepare", variant="primary"),
+                    classes="switch-container",
+                ),
+                Input(placeholder="Secret appears after preparing", id="otp_secret", disabled=True),
+                Input(placeholder="otpauth://...", id="otp_uri", disabled=True),
+                Input(placeholder="Enter OTP code to enable", id="otp_code"),
+                Static("", id="otp_qr", classes="otp-qr"),
                 Static("", id="legacy_notif_warning", classes="label"),
                 Horizontal(
                     Static("Enable Notifications: ", classes="label"),
@@ -393,18 +422,21 @@ class AdminModifyModale(BaseModal):
             self.query_one("#support_url").value = self.admin.support_url
         self.query_one("#is_sudo").value = self.admin.is_sudo
         self.query_one("#is_disabled").value = self.admin.is_disabled
+        self._update_otp_fields()
 
         # Load existing notification preferences (notification_enable is a dict from SQLAlchemy)
         notif = self.admin.notification_enable or {}
-        master_on = any([
-            notif.get("create", False),
-            notif.get("modify", False),
-            notif.get("delete", False),
-            notif.get("status_change", False),
-            notif.get("reset_data_usage", False),
-            notif.get("data_reset_by_next", False),
-            notif.get("subscription_revoked", False),
-        ])
+        master_on = any(
+            [
+                notif.get("create", False),
+                notif.get("modify", False),
+                notif.get("delete", False),
+                notif.get("status_change", False),
+                notif.get("reset_data_usage", False),
+                notif.get("data_reset_by_next", False),
+                notif.get("subscription_revoked", False),
+            ]
+        )
 
         self.query_one("#notif_master").value = master_on
         self.query_one("#notif_create").value = notif.get("create", False)
@@ -455,6 +487,7 @@ class AdminModifyModale(BaseModal):
         switch_ids = [
             "is_sudo",
             "is_disabled",
+            "otp_enabled",
             "notif_master",
             "notif_create",
             "notif_modify",
@@ -471,6 +504,9 @@ class AdminModifyModale(BaseModal):
             await self.on_button_pressed(Button.Pressed(self.query_one("#save")))
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "otp_prepare":
+            await self._prepare_otp_secret()
+            return
         if event.button.id == "save":
             password = self.query_one("#password").value.strip() or None
             confirm_password = self.query_one("#confirm_password").value.strip() or None
@@ -479,6 +515,9 @@ class AdminModifyModale(BaseModal):
             discord_id = self.query_one("#discord_id").value or 0
             is_sudo = self.query_one("#is_sudo").value
             is_disabled = self.query_one("#is_disabled").value
+            otp_enabled = self.query_one("#otp_enabled").value
+            prev_otp_enabled = getattr(self.admin, "otp_enabled", False)
+            otp_code = self.query_one("#otp_code").value.strip() or None
             sub_template = self.query_one("#sub_template").value.strip() or None
             sub_domain = self.query_one("#sub_domain").value.strip() or None
             profile_title = self.query_one("#profile_title").value.strip() or None
@@ -501,6 +540,29 @@ class AdminModifyModale(BaseModal):
             if password != confirm_password:
                 self.notify("Password and confirm password do not match", severity="error", title="Error")
                 return
+
+            if otp_enabled and not prev_otp_enabled:
+                if not getattr(self.admin, "otp_secret", None):
+                    self.notify("Generate an OTP secret first", severity="error", title="OTP")
+                    return
+                if not otp_code:
+                    self.notify("Enter the OTP code from your authenticator", severity="error", title="OTP")
+                    return
+                try:
+                    await self.operation.enable_admin_otp(self.db, self.admin.username, otp_code, SYSTEM_ADMIN)
+                    self.admin = await self.operation.get_validated_admin(self.db, username=self.admin.username)
+                    self._update_otp_fields()
+                except ValueError as e:
+                    self.notify(str(e), severity="error", title="OTP")
+                    return
+            elif not otp_enabled and prev_otp_enabled:
+                try:
+                    await self.operation.disable_admin_otp(self.db, self.admin.username, SYSTEM_ADMIN)
+                    self.admin = await self.operation.get_validated_admin(self.db, username=self.admin.username)
+                    self._update_otp_fields()
+                except ValueError as e:
+                    self.notify(str(e), severity="error", title="OTP")
+                    return
             try:
                 await self.operation.modify_admin(
                     self.db,
@@ -529,6 +591,49 @@ class AdminModifyModale(BaseModal):
                 self.notify(str(e), severity="error", title="Error")
         elif event.button.id == "cancel":
             await self.key_escape()
+
+    async def _prepare_otp_secret(self):
+        if getattr(self.admin, "otp_enabled", False):
+            self.notify("Disable OTP before generating a new secret.", severity="error", title="OTP")
+            return
+        try:
+            await self.operation.prepare_admin_otp(self.db, self.admin.username, SYSTEM_ADMIN)
+            self.admin = await self.operation.get_validated_admin(self.db, username=self.admin.username)
+            self._update_otp_fields()
+            self.notify(
+                "OTP secret generated. Scan the QR code and enter a code to enable.", severity="success", title="OTP"
+            )
+        except ValueError as e:
+            self.notify(str(e), severity="error", title="OTP")
+
+    def _update_otp_fields(self):
+        otp_switch = self.query_one("#otp_enabled")
+        secret_input = self.query_one("#otp_secret")
+        uri_input = self.query_one("#otp_uri")
+        qr_static = self.query_one("#otp_qr")
+        code_input = self.query_one("#otp_code")
+
+        otp_enabled = bool(getattr(self.admin, "otp_enabled", False))
+        otp_switch.value = otp_enabled
+
+        if otp_enabled:
+            secret_input.value = ""
+            uri_input.value = ""
+            qr_static.update("OTP is enabled. Disable it to generate a new secret.")
+            code_input.value = ""
+            return
+
+        secret = getattr(self.admin, "otp_secret", None)
+        if secret:
+            uri = get_provisioning_uri(self.admin.username, secret)
+            secret_input.value = secret
+            uri_input.value = uri
+            qr_static.update(build_qr_ascii(uri))
+        else:
+            secret_input.value = ""
+            uri_input.value = ""
+            qr_static.update("No secret prepared yet. Use 'Prepare Secret'.")
+        code_input.value = ""
 
 
 class AdminContent(Static):

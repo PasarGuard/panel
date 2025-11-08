@@ -46,6 +46,7 @@ dependencies = [
     "typer>=0.17.3",
     "pasarguard-node-bridge>=0.1.1",
     "pip-system-certs>=5.3",
+    "pyotp",
 ]
 
 [tool.ruff]

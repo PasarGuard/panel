@@ -792,6 +792,7 @@
   "login.fieldRequired": "此项必填",
   "login.loginYourAccount": "登录您的帐号",
   "login.welcomeBack": "欢迎回来，请输入您的详细信息",
+  "login.otpPlaceholder": "OTP 验证码（若已启用）",
   "memoryUsage": "内存状态",
   "next": "下一页",
   "monitorServers": "监控您的服务器和用户",

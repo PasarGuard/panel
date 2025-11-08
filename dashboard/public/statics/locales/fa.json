@@ -904,6 +904,7 @@
   "login.fieldRequired": "این فیلد باید پر شود!",
   "login.loginYourAccount": "وارد حساب خود شوید",
   "login.welcomeBack": "خوش آمدید, لطفا اطلاعات خود را وارد کنید",
+  "login.otpPlaceholder": "کد OTP (در صورت فعال بودن)",
   "memoryUsage": "مصرف حافظه",
   "next": "بعدی",
   "monitorServers": "نظارت بر سرورها و کاربران شما",

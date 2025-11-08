@@ -10,6 +10,7 @@ from app.models.admin import AdminDetails, AdminInDB, AdminValidationResult
 from app.models.settings import Telegram
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
+from app.utils.otp import verify_otp
 from config import DEBUG, SUDOERS
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
@@ -58,11 +59,26 @@ async def check_sudo_admin(admin: AdminDetails = Depends(get_current)):
     return admin
 
 
-async def validate_admin(db: AsyncSession, username: str, password: str) -> AdminValidationResult | None:
+async def validate_admin(
+    db: AsyncSession, username: str, password: str, otp_code: str | None = None
+) -> AdminValidationResult | None:
     """Validate admin credentials with environment variables or database."""
 
     db_admin = await get_admin_by_username(db, username)
     if db_admin and AdminInDB.model_validate(db_admin).verify_password(password):
+        if db_admin.otp_enabled:
+            if not otp_code:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="OTP code required",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            if not verify_otp(db_admin.otp_secret, otp_code):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid OTP code",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
         return AdminValidationResult(
             username=db_admin.username, is_sudo=db_admin.is_sudo, is_disabled=db_admin.is_disabled
         )
