@@ -25,7 +25,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
-from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, StringArray
+from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, StringArray, StringList
 
 inbounds_groups_association = Table(
     "inbounds_groups_association",
@@ -450,7 +450,7 @@ class ProxyHost(Base):
     ech_config_list: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     # Ordered relay inbound tags for Shadowsocks 2022
     ss2022_relay_inbound_tags: Mapped[Optional[list[str]]] = mapped_column(
-        StringArray(256), default=None, nullable=True
+        StringList(2048), default=None, nullable=True
     )
 
 
