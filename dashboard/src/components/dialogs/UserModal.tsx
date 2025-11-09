@@ -16,6 +16,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
 import { UseEditFormValues, UseFormValues, userCreateSchema, userEditSchema } from '@/pages/_dashboard.users'
+import dayjs from '@/lib/dayjs'
 import {
   getGeneralSettings,
   getGetGeneralSettingsQueryKey,
@@ -216,6 +217,20 @@ const ExpiryDateField = ({
   )
 
   const dir = useDirDetection()
+const applyQuickAdd = (kind: '1m' | '3m' | '1y' | '2099') => {
+  let d = dayjs(displayDate ?? new Date())
+  if (kind === '1m') d = d.add(1, 'month')
+  if (kind === '3m') d = d.add(3, 'month')
+  if (kind === '1y') d = d.add(1, 'year')
+  if (kind === '2099') d = d.year(2099).month(11).date(31).hour(23).minute(59).second(59)
+
+  const selected = d.toDate()
+  const value = useUtcTimestamp ? Math.floor(selected.getTime() / 1000) : getLocalISOTime(selected)
+  startTransition(() => {
+    field.onChange(value)
+    handleFieldChange(fieldName, value)
+  })
+}
 
   return (
     <FormItem className="flex flex-1 flex-col">
@@ -274,92 +289,168 @@ const ExpiryDateField = ({
               </div>
             </FormControl>
           </PopoverTrigger>
-          <PopoverContent
-            className="w-auto p-0"
-            align="start"
-            onInteractOutside={(e: Event) => {
-              e.preventDefault()
-              setCalendarOpen(false)
-            }}
-            onEscapeKeyDown={() => setCalendarOpen(false)}
-          >
-            {usePersianCalendar ? (
-              <PersianCalendar
-                mode="single"
-                selected={displayDate || undefined}
-                onSelect={handleDateSelect}
-                disabled={isDateDisabled}
-                captionLayout="dropdown"
-                defaultMonth={displayDate || now}
-                startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
-                endMonth={new Date(now.getFullYear() + 15, 11, 31)}
-                formatters={{
-                  formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
-                }}
-              />
-            ) : (
-              <Calendar
-                mode="single"
-                selected={displayDate || undefined}
-                onSelect={handleDateSelect}
-                disabled={isDateDisabled}
-                captionLayout="dropdown"
-                defaultMonth={displayDate || now}
-                startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
-                endMonth={new Date(now.getFullYear() + 15, 11, 31)}
-                formatters={{
-                  formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
-                }}
-              />
-            )}
-            <div className="flex items-center gap-4 border-t p-3">
-              <FormControl>
-                <Input
-                  type="time"
-                  value={
-                    displayDate
-                      ? displayDate.toLocaleTimeString('sv-SE', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        })
-                      : now.toLocaleTimeString('sv-SE', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        })
-                  }
-                  min={
-                    displayDate && displayDate.toDateString() === now.toDateString()
-                      ? now.toLocaleTimeString('sv-SE', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        })
-                      : undefined
-                  }
-                  onChange={handleTimeChange}
-                />
-              </FormControl>
-              {displayDate && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={e => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    field.onChange('')
-                    handleFieldChange(fieldName, undefined)
-                    setCalendarOpen(false)
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </PopoverContent>
+<PopoverContent
+  className="w-auto p-0"
+  align="start"
+  onInteractOutside={(e: Event) => {
+    e.preventDefault()
+    setCalendarOpen(false)
+  }}
+  onEscapeKeyDown={() => setCalendarOpen(false)}
+>
+  <div className="flex">
+    {/* ستون دکمه‌های سریع داخل باکس زیبا */}
+    <div className="flex min-w-32 flex-col gap-2 border-r bg-muted/40 p-3 rounded-l-lg shadow-inner">
+      <p className="text-xs text-muted-foreground mb-1 text-center font-medium">افزودن سریع</p>
+      <Button
+        variant="secondary"
+        className="justify-start h-8"
+        onClick={() => applyQuickAdd('1m')}
+      >
+        +1 ماه
+      </Button>
+      <Button
+        variant="secondary"
+        className="justify-start h-8"
+        onClick={() => applyQuickAdd('3m')}
+      >
+        +3 ماه
+      </Button>
+      <Button
+        variant="secondary"
+        className="justify-start h-8"
+        onClick={() => applyQuickAdd('6m')}
+      >
+        +6 ماه
+      </Button>
+      <Button
+        variant="secondary"
+        className="justify-start h-8"
+        onClick={() => applyQuickAdd('1y')}
+      >
+        +1 سال
+      </Button>
+    </div>
+
+    {/* ستون سمت راست - تقویم و ورودی زمان */}
+    <div>
+      {usePersianCalendar ? (
+        <PersianCalendar
+          mode="single"
+          selected={displayDate || undefined}
+          onSelect={handleDateSelect}
+          disabled={isDateDisabled}
+          captionLayout="dropdown"
+          defaultMonth={displayDate || now}
+          startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
+          endMonth={new Date(now.getFullYear() + 15, 11, 31)}
+          formatters={{
+            formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
+          }}
+        />
+      ) : (
+        <Calendar
+          mode="single"
+          selected={displayDate || undefined}
+          onSelect={handleDateSelect}
+          disabled={isDateDisabled}
+          captionLayout="dropdown"
+          defaultMonth={displayDate || now}
+          startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
+          endMonth={new Date(now.getFullYear() + 15, 11, 31)}
+          formatters={{
+            formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
+          }}
+        />
+      )}
+
+      {/* ورودی ساعت و دکمه حذف + دکمه‌های ساعت میان‌بُر */}
+      <div className="flex flex-col gap-2 border-t p-3 bg-background/60 rounded-br-lg">
+        <div className="flex items-center gap-4">
+          <FormControl>
+            <Input
+              type="time"
+              value={
+                displayDate
+                  ? displayDate.toLocaleTimeString('sv-SE', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                    })
+                  : now.toLocaleTimeString('sv-SE', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                    })
+              }
+              min={
+                displayDate && displayDate.toDateString() === now.toDateString()
+                  ? now.toLocaleTimeString('sv-SE', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                    })
+                  : undefined
+              }
+              onChange={handleTimeChange}
+            />
+          </FormControl>
+
+          {displayDate && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                field.onChange('')
+                handleFieldChange(fieldName, undefined)
+                setCalendarOpen(false)
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* دکمه‌های میانبر ساعت */}
+        <div className="flex justify-between gap-2 mt-1 bg-muted/30 rounded-md p-2 shadow-inner">
+          {[
+            { label: '06:00', h: 6 },
+            { label: '12:00', h: 12 },
+            { label: '18:00', h: 18 },
+            { label: '23:59', h: 23, m: 59 },
+          ].map((t, i) => (
+            <Button
+              key={i}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1 h-7 text-xs"
+              onClick={() => {
+                if (!displayDate) return
+                const newDate = new Date(displayDate)
+                newDate.setHours(t.h, t.m ?? 0)
+                const value = useUtcTimestamp
+                  ? Math.floor(newDate.getTime() / 1000)
+                  : getLocalISOTime(newDate)
+                startTransition(() => {
+                  field.onChange(value)
+                  handleFieldChange(fieldName, value)
+                })
+              }}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</PopoverContent>
+
         </Popover>
         {expireInfo && (
           <p className={cn('absolute top-full mt-1 whitespace-nowrap text-xs text-muted-foreground', !expireInfo.time && 'hidden', dir === 'rtl' ? 'right-0' : 'left-0')}>
