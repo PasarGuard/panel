@@ -203,11 +203,13 @@ pasarguard --help
 
 **📖 Official Documentation** - Complete guides available in:
 
-🇺🇸 **[English](https://PasarGuard.github.io/PasarGuard)**
+🇺🇸 **[English](https://docs.pasarguard.org/en/)**
 
-🇮🇷 **[فارسی](https://PasarGuard.github.io/PasarGuard)**
+🇮🇷 **[فارسی](https://docs.pasarguard.org/fa/)**
 
-🇷🇺 **[Русский](https://PasarGuard.github.io/PasarGuard)**
+🇷🇺 **[Русский](https://docs.pasarguard.org/ru/)**
+
+🇨🇳 **[Русский](https://docs.pasarguard.org/zh/)**
 
 </div>
 
