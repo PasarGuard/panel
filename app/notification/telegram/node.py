@@ -6,6 +6,7 @@ from app.models.node import NodeNotification, NodeResponse
 from app.models.settings import NotificationSettings
 from app.settings import notification_settings
 from app.utils.helpers import escape_tg_html
+from app.utils.system import readable_size
 from . import messages
 
 ENTITY = "node"
@@ -51,6 +52,35 @@ async def connect_node(node: NodeNotification):
 async def error_node(node: NodeNotification):
     name, message = escape_tg_html((node.name, node.message))
     data = messages.ERROR_NODE.format(name=name, error=message, id=node.id)
+    settings: NotificationSettings = await notification_settings()
+    if settings.notify_telegram:
+        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
+        await send_telegram_message(data, chat_id, topic_id)
+
+
+async def limited_node(node: NodeNotification, data_limit: int, used_traffic: int):
+    name = escape_tg_html(node.name)
+    data = messages.LIMITED_NODE.format(
+        name=name,
+        data_limit=readable_size(data_limit),
+        used_traffic=readable_size(used_traffic),
+        id=node.id,
+    )
+    settings: NotificationSettings = await notification_settings()
+    if settings.notify_telegram:
+        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
+        await send_telegram_message(data, chat_id, topic_id)
+
+
+async def reset_node_usage(node: NodeResponse, by: str, uplink: int, downlink: int):
+    name, by_escaped = escape_tg_html((node.name, by))
+    data = messages.RESET_NODE_USAGE.format(
+        name=name,
+        uplink=readable_size(uplink),
+        downlink=readable_size(downlink),
+        id=node.id,
+        by=by_escaped,
+    )
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)

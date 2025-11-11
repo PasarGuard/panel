@@ -14,7 +14,7 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from app import scheduler
 from app.db import GetDB
-from app.db.models import Admin, NodeUsage, NodeUserUsage, System, User
+from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
 from app.node import node_manager as node_manager
 from app.utils.logger import get_logger
 from config import (
@@ -447,12 +447,39 @@ async def record_node_usages():
 
     api_params = {node_id: task.result() for node_id, task in tasks.items()}
 
-    total_up = sum(sum(param["up"] for param in params) for params in api_params.values())
-    total_down = sum(sum(param["down"] for param in params) for params in api_params.values())
+    # Calculate per-node totals
+    node_totals = {
+        node_id: {
+            "up": sum(param["up"] for param in params),
+            "down": sum(param["down"] for param in params),
+        }
+        for node_id, params in api_params.items()
+    }
+
+    # Calculate system totals from node totals
+    total_up = sum(node_data["up"] for node_data in node_totals.values())
+    total_down = sum(node_data["down"] for node_data in node_totals.values())
 
     if not (total_up or total_down):
         return
 
+    # Update each node's uplink/downlink
+    node_update_params = [
+        {"node_id": node_id, "up": node_data["up"], "down": node_data["down"]}
+        for node_id, node_data in node_totals.items()
+        if node_data["up"] or node_data["down"]
+    ]
+
+    if node_update_params:
+        node_update_stmt = (
+            update(Node)
+            .where(Node.id == bindparam("node_id"))
+            .values(uplink=Node.uplink + bindparam("up"), downlink=Node.downlink + bindparam("down"))
+            .execution_options(synchronize_session=False)
+        )
+        await safe_execute(node_update_stmt, node_update_params)
+
+    # Update system totals
     system_update_stmt = update(System).values(uplink=System.uplink + total_up, downlink=System.downlink + total_down)
     await safe_execute(system_update_stmt)
 

@@ -187,6 +187,18 @@ ERROR_NODE = {
     "footer": {"text": "ID: {id}"},
 }
 
+LIMITED_NODE = {
+    "title": "⚠️ Limited Node",
+    "description": "**Name:** {name}\n**Data Limit:** {data_limit}\n**Used Traffic:** {used_traffic}",
+    "footer": {"text": "ID: {id}"},
+}
+
+RESET_NODE_USAGE = {
+    "title": "🔁 Reset Node Usage",
+    "description": "**Name:** {name}\n**Uplink at Reset:** {uplink}\n**Downlink at Reset:** {downlink}",
+    "footer": {"text": "ID: {id}\nBy: {by}"},
+}
+
 CREATE_USER_TEMPLATE = {
     "title": "Create User Template",
     "description": "**Name:** {name}\n"

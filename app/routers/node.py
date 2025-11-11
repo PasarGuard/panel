@@ -97,6 +97,18 @@ async def modify_node(
     return await node_operator.modify_node(db, node_id=node_id, modified_node=modified_node, admin=admin)
 
 
+@router.post("/{node_id}/reset", response_model=NodeResponse)
+async def reset_node_usage(
+    node_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+):
+    """
+    Reset node traffic usage (uplink and downlink).
+    Creates a log entry in node_usage_reset_logs table.
+    Only accessible to sudo admins.
+    """
+    return await node_operator.reset_node_usage(db, node_id=node_id, admin=admin)
+
+
 @router.post("/{node_id}/reconnect")
 async def reconnect_node(
     node_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)

@@ -18,6 +18,7 @@ from app.db.crud.node import (
     get_nodes_usage,
     modify_node,
     remove_node,
+    reset_node_usage,
     update_node_status,
 )
 from app.db.crud.user import get_user
@@ -232,6 +233,37 @@ class NodeOperation(BaseOperation):
         logger.info(f'Node "{db_node.name}" with id "{db_node.id}" deleted by admin "{admin.username}"')
 
         asyncio.create_task(notification.remove_node(db_node, admin.username))
+
+    async def reset_node_usage(self, db: AsyncSession, node_id: int, admin: AdminDetails) -> NodeResponse:
+        """
+        Reset a node's traffic usage (uplink and downlink to 0) and create a log entry.
+
+        Args:
+            db: Database session
+            node_id: ID of the node to reset
+            admin: Admin performing the action
+
+        Returns:
+            NodeResponse: Updated node object
+        """
+        db_node = await self.get_validated_node(db=db, node_id=node_id)
+
+        # Store old values for notification
+        old_uplink = db_node.uplink
+        old_downlink = db_node.downlink
+
+        # Reset usage (creates log entry and sets uplink/downlink to 0)
+        db_node = await reset_node_usage(db, db_node)
+
+        # Create response
+        node = NodeResponse.model_validate(db_node)
+
+        # Send notification
+        asyncio.create_task(notification.reset_node_usage(node, admin.username, old_uplink, old_downlink))
+
+        logger.info(f'Node "{db_node.name}" (ID: {db_node.id}) usage reset by admin "{admin.username}"')
+
+        return node
 
     async def connect_nodes_bulk(
         self,

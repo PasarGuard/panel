@@ -2,13 +2,15 @@ import asyncio
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode, Health
 
-from app import on_shutdown, on_startup, scheduler
+from app import on_shutdown, on_startup, scheduler, notification
 from app.db import GetDB
 from app.db.models import Node, NodeStatus
+from app.models.node import NodeNotification
 from app.node import node_manager
 from app.utils.logger import get_logger
 from app.operation.node import NodeOperation
 from app.operation import OperatorType
+from app.db.crud.node import get_limited_nodes
 
 from config import JOB_CORE_HEALTH_CHECK_INTERVAL
 
@@ -124,6 +126,29 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     await update_node_connection_status(db_node.id, node)
 
 
+async def check_node_limits():
+    """
+    Check nodes that have exceeded their data limit and update status to limited.
+    """
+
+    async with GetDB() as db:
+        limited_nodes = await get_limited_nodes(db)
+
+        for db_node in limited_nodes:
+            # Update status to limited
+            await NodeOperation._update_single_node_status(
+                db, db_node.id, NodeStatus.limited, message="Data limit exceeded", send_notification=False
+            )
+
+            # Send notification
+            node_notif = NodeNotification(
+                id=db_node.id, name=db_node.name, xray_version=db_node.xray_version, node_version=db_node.node_version
+            )
+            await notification.limited_node(node_notif, db_node.data_limit, db_node.used_traffic)
+
+            logger.info(f'Node "{db_node.name}" (ID: {db_node.id}) marked as limited due to data limit')
+
+
 async def node_health_check():
     """
     Cron job that checks health of all enabled nodes.
@@ -134,6 +159,9 @@ async def node_health_check():
 
         check_tasks = [process_node_health_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
         await asyncio.gather(*check_tasks, return_exceptions=True)
+
+    # Check for nodes that exceeded data limits
+    await check_node_limits()
 
 
 @on_startup

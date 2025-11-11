@@ -3,7 +3,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.db.models import UserDataLimitResetStrategy, UserStatus, UserStatusCreate
+from app.db.models import DataLimitResetStrategy, UserStatus, UserStatusCreate
 from app.models.admin import AdminBase, AdminContactInfo
 from app.models.proxy import ProxyTable, ShadowsocksMethods, XTLSFlows
 from app.utils.helpers import fix_datetime_timezone
@@ -29,7 +29,7 @@ class User(BaseModel):
     proxy_settings: ProxyTable = Field(default_factory=ProxyTable)
     expire: dt | int | None = Field(default=None)
     data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
-    data_limit_reset_strategy: UserDataLimitResetStrategy | None = Field(default=None)
+    data_limit_reset_strategy: DataLimitResetStrategy | None = Field(default=None)
     note: str | None = Field(max_length=500, default=None)
     on_hold_expire_duration: int | None = Field(default=None)
     on_hold_timeout: dt | int | None = Field(default=None)

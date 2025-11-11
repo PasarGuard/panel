@@ -211,6 +211,27 @@ ERROR_NODE = """
 <i>ID</i>: <code>{id}</code>
 """
 
+LIMITED_NODE = """
+⚠️ #Limited_Node
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Data Limit:</b> <code>{data_limit}</code>
+<b>Used Traffic:</b> <code>{used_traffic}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+"""
+
+RESET_NODE_USAGE = """
+🔁 #Reset_Node_Usage
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Uplink at Reset:</b> <code>{uplink}</code>
+<b>Downlink at Reset:</b> <code>{downlink}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>By: #{by}</i>
+"""
+
 CREATE_USER_TEMPLATE = """
 #Create_User_Template
 ➖➖➖➖➖➖➖➖➖

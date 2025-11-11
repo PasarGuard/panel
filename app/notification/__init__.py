@@ -73,6 +73,16 @@ async def error_node(node: NodeNotification):
         await asyncio.gather(ds.error_node(node), tg.error_node(node))
 
 
+async def limited_node(node: NodeNotification, data_limit: int, used_traffic: int):
+    if (await notification_enable()).node.limited:
+        await asyncio.gather(ds.limited_node(node, data_limit, used_traffic), tg.limited_node(node, data_limit, used_traffic))
+
+
+async def reset_node_usage(node: NodeResponse, by: str, uplink: int, downlink: int):
+    if (await notification_enable()).node.reset_usage:
+        await asyncio.gather(ds.reset_node_usage(node, by, uplink, downlink), tg.reset_node_usage(node, by, uplink, downlink))
+
+
 async def create_group(group: GroupResponse, by: str):
     if (await notification_enable()).group.create:
         await asyncio.gather(ds.create_group(group, by), tg.create_group(group, by))

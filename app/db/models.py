@@ -110,7 +110,7 @@ class UserStatus(str, Enum):
     on_hold = "on_hold"
 
 
-class UserDataLimitResetStrategy(str, Enum):
+class DataLimitResetStrategy(str, Enum):
     no_reset = "no_reset"
     day = "day"
     week = "week"
@@ -145,9 +145,9 @@ class User(Base):
     status: Mapped[UserStatus] = mapped_column(SQLEnum(UserStatus), default=UserStatus.active)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
     data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
-    data_limit_reset_strategy: Mapped[UserDataLimitResetStrategy] = mapped_column(
-        SQLEnum(UserDataLimitResetStrategy),
-        default=UserDataLimitResetStrategy.no_reset,
+    data_limit_reset_strategy: Mapped[DataLimitResetStrategy] = mapped_column(
+        SQLEnum(DataLimitResetStrategy),
+        default=DataLimitResetStrategy.no_reset,
     )
     _expire: Mapped[Optional[dt]] = mapped_column("expire", DateTime(timezone=True), default=None, init=False)
     admin_id: Mapped[Optional[int]] = mapped_column(ForeignKey("admins.id"), default=None)
@@ -335,9 +335,9 @@ class UserTemplate(Base):
     on_hold_timeout: Mapped[Optional[int]] = mapped_column(default=None)
     status: Mapped[UserStatusCreate] = mapped_column(SQLEnum(UserStatusCreate), default=UserStatusCreate.active)
     reset_usages: Mapped[bool] = mapped_column(default=False, server_default="0")
-    data_limit_reset_strategy: Mapped[UserDataLimitResetStrategy] = mapped_column(
-        SQLEnum(UserDataLimitResetStrategy),
-        default=UserDataLimitResetStrategy.no_reset,
+    data_limit_reset_strategy: Mapped[DataLimitResetStrategy] = mapped_column(
+        SQLEnum(DataLimitResetStrategy),
+        default=DataLimitResetStrategy.no_reset,
         server_default="no_reset",
     )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
@@ -476,6 +476,7 @@ class NodeStatus(str, Enum):
     connecting = "connecting"
     error = "error"
     disabled = "disabled"
+    limited = "limited"
 
 
 class Node(Base):
@@ -498,12 +499,21 @@ class Node(Base):
         back_populates="node", cascade="all, delete-orphan", init=False
     )
     usages: Mapped[List["NodeUsage"]] = relationship(back_populates="node", cascade="all, delete-orphan", init=False)
+    usage_logs: Mapped[List["NodeUsageResetLogs"]] = relationship(
+        back_populates="node", cascade="all, delete-orphan", init=False
+    )
     core_config: Mapped[Optional["CoreConfig"]] = relationship("CoreConfig", init=False)
     stats: Mapped[List["NodeStat"]] = relationship(back_populates="node", cascade="all, delete-orphan", init=False)
     status: Mapped[NodeStatus] = mapped_column(SQLEnum(NodeStatus), default=NodeStatus.connecting)
     last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
+    data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
+    data_limit_reset_strategy: Mapped[DataLimitResetStrategy] = mapped_column(
+        SQLEnum(DataLimitResetStrategy),
+        default=DataLimitResetStrategy.no_reset,
+    )
+    reset_time: Mapped[int] = mapped_column(default=-1, server_default=text("-1"))
     usage_coefficient: Mapped[float] = mapped_column(Float, server_default=text("1.0"), default=1)
     connection_type: Mapped[NodeConnectionType] = mapped_column(
         SQLEnum(NodeConnectionType),
@@ -514,6 +524,58 @@ class Node(Base):
     keep_alive: Mapped[int] = mapped_column(unique=False, default=0)
     max_logs: Mapped[int] = mapped_column(BigInteger, unique=False, default=1000, server_default=text("1000"))
     gather_logs: Mapped[bool] = mapped_column(default=True, server_default="1")
+
+    @hybrid_property
+    def reseted_uplink(self) -> int:
+        return int(sum([log.uplink for log in self.usage_logs]))
+
+    @reseted_uplink.expression
+    def reseted_uplink(cls):
+        return (
+            select(func.sum(NodeUsageResetLogs.uplink))
+            .where(NodeUsageResetLogs.node_id == cls.id)
+            .label("reseted_uplink")
+        )
+
+    @hybrid_property
+    def reseted_downlink(self) -> int:
+        return int(sum([log.downlink for log in self.usage_logs]))
+
+    @reseted_downlink.expression
+    def reseted_downlink(cls):
+        return (
+            select(func.sum(NodeUsageResetLogs.downlink))
+            .where(NodeUsageResetLogs.node_id == cls.id)
+            .label("reseted_downlink")
+        )
+
+    @property
+    def lifetime_uplink(self) -> int:
+        return self.reseted_uplink + self.uplink
+
+    @property
+    def lifetime_downlink(self) -> int:
+        return self.reseted_downlink + self.downlink
+
+    @property
+    def lifetime_used_traffic(self) -> int:
+        return self.lifetime_uplink + self.lifetime_downlink
+
+    @hybrid_property
+    def is_limited(self) -> bool:
+        return self.data_limit is not None and self.data_limit > 0 and self.data_limit <= self.used_traffic
+
+    @is_limited.expression
+    def is_limited(cls):
+        return and_(cls.data_limit.isnot(None), cls.data_limit > 0, cls.data_limit <= cls.used_traffic)
+
+    @hybrid_property
+    def used_traffic(self) -> int:
+        return self.downlink + self.uplink
+
+    @used_traffic.expression
+    def used_traffic(cls):
+        return cls.downlink + cls.uplink
 
 
 class NodeUserUsage(Base):
@@ -539,6 +601,17 @@ class NodeUsage(Base):
     node: Mapped["Node"] = relationship(back_populates="usages", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class NodeUsageResetLogs(Base):
+    __tablename__ = "node_usage_reset_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
+    node: Mapped["Node"] = relationship(back_populates="usage_logs", init=False)
+    uplink: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    downlink: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
 class NotificationReminder(Base):

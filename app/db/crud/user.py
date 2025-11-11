@@ -17,7 +17,7 @@ from app.db.models import (
     NotificationReminder,
     ReminderType,
     User,
-    UserDataLimitResetStrategy,
+    DataLimitResetStrategy,
     UserStatus,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
@@ -121,7 +121,7 @@ async def get_users(
     sort: list[UsersSortingOptions] | None = None,
     admin: Admin | None = None,
     admins: list[str] | None = None,
-    reset_strategy: UserDataLimitResetStrategy | list[UserDataLimitResetStrategy] | None = None,
+    reset_strategy: DataLimitResetStrategy | list[DataLimitResetStrategy] | None = None,
     return_with_count: bool = False,
     group_ids: list[int] | None = None,
 ) -> list[User] | tuple[list[User], int]:
@@ -252,10 +252,10 @@ async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
     last_reset_time = coalesce(last_reset_subq.c.last_reset_at, User.created_at)
 
     reset_strategy_to_days = {
-        UserDataLimitResetStrategy.day: 1,
-        UserDataLimitResetStrategy.week: 7,
-        UserDataLimitResetStrategy.month: 30,
-        UserDataLimitResetStrategy.year: 365,
+        DataLimitResetStrategy.day: 1,
+        DataLimitResetStrategy.week: 7,
+        DataLimitResetStrategy.month: 30,
+        DataLimitResetStrategy.year: 365,
     }
 
     num_days_to_reset_case = case(
@@ -268,7 +268,7 @@ async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
         .outerjoin(last_reset_subq, User.id == last_reset_subq.c.user_id)
         .where(
             User.status.in_([UserStatus.active, UserStatus.limited]),
-            User.data_limit_reset_strategy != UserDataLimitResetStrategy.no_reset,
+            User.data_limit_reset_strategy != DataLimitResetStrategy.no_reset,
             DateDiff(func.now(), last_reset_time) >= num_days_to_reset_case,
         )
     )
