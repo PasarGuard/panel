@@ -8,7 +8,6 @@ from app.models.admin import AdminDetails
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
     BulkUser,
-    BulkUsersCreate,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
@@ -60,27 +59,6 @@ async def create_user(
     """
 
     return await user_operator.create_user(db, new_user=new_user, admin=admin)
-
-
-@router.post(
-    "s/bulk",
-    response_model=BulkUsersCreateResponse,
-    responses={400: responses._400, 409: responses._409},
-    status_code=status.HTTP_201_CREATED,
-)
-async def bulk_create_users(
-    bulk_users: BulkUsersCreate, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
-):
-    """
-    Bulk create users with configurable username strategies.
-
-    - Includes the standard user creation fields plus `count` and `strategy`.
-    - **strategy**: Username generation strategy — `sequence` or `random`.
-
-    Returns subscription URLs for created users.
-    """
-
-    return await user_operator.bulk_create_users(db, bulk_users, admin)
 
 
 @router.put(

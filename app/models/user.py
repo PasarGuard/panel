@@ -202,18 +202,6 @@ class BulkCreationBase(BaseModel):
     strategy: UsernameGenerationStrategy = Field(default=UsernameGenerationStrategy.random)
 
 
-class BulkUsersCreate(BulkCreationBase, UserCreate):
-    username: str | None = Field(default=None)
-
-    @model_validator(mode="after")
-    def validate_username_strategy(self):
-        if self.strategy == UsernameGenerationStrategy.random and self.username not in (None, ""):
-            raise ValueError("username must be null when strategy is 'random'")
-        if self.strategy == UsernameGenerationStrategy.sequence and not self.username:
-            raise ValueError("username is required when strategy is 'sequence'")
-        return self
-
-
 class BulkUsersFromTemplate(BulkCreationBase, CreateUserFromTemplate):
     username: str | None = Field(default=None)
 

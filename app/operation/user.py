@@ -41,7 +41,6 @@ from app.models.admin import AdminDetails
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
     BulkUser,
-    BulkUsersCreate,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
@@ -260,46 +259,6 @@ class UserOperation(BaseOperation):
             logger.info(f'User "{db_user.username}" status changed from "{old_status.value}" to "{user.status.value}"')
 
         return user
-
-    async def bulk_create_users(
-        self, db: AsyncSession, bulk_users: BulkUsersCreate, admin: AdminDetails
-    ) -> BulkUsersCreateResponse:
-        if bulk_users.next_plan is not None and bulk_users.next_plan.user_template_id is not None:
-            await self.get_validated_user_template(db, bulk_users.next_plan.user_template_id)
-
-        if bulk_users.strategy == UsernameGenerationStrategy.random:
-            if bulk_users.username not in (None, ""):
-                await self.raise_error(message="username must be null when strategy is 'random'", code=400)
-            base_username = None
-        else:
-            if not bulk_users.username:
-                await self.raise_error(message="username is required for sequence strategy", code=400)
-            base_username = bulk_users.username
-
-        groups = await self.validate_all_groups(db, bulk_users)
-        db_admin = await get_admin(db, admin.username)
-
-        candidate_usernames = await self._generate_usernames(
-            base_username=base_username,
-            count=bulk_users.count,
-            strategy=bulk_users.strategy,
-        )
-
-        base_payload = bulk_users.model_dump(exclude={"count", "strategy"})
-        base_payload.pop("username", None)
-
-        def builder(username: str):
-            payload = dict(base_payload)
-            payload["username"] = username
-            return UserCreate(**payload)
-
-        users_to_create = self._build_bulk_user_models(candidate_usernames, builder)
-
-        users_to_create = await self._filter_existing_usernames(db, users_to_create)
-
-        subscription_urls = await self._persist_bulk_users(db, admin, db_admin, users_to_create, groups)
-
-        return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 
     async def modify_user(
         self, db: AsyncSession, username: str, modified_user: UserModify, admin: AdminDetails
