@@ -1301,6 +1301,8 @@
     "syncFailed": "节点同步失败",
     "resetUsage": "重置使用量",
     "resettingUsage": "正在重置使用量...",
+    "resetUsageTitle": "重置节点使用量",
+    "resetUsagePrompt": "你确定要重置节点 «{{name}}» 的使用量吗？",
     "resetUsageSuccess": "节点使用量重置成功",
     "resetUsageFailed": "重置节点使用量失败",
     "dataLimit": "数据限制",
