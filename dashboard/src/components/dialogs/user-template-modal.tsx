@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch.tsx'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils.ts'
-import { ShadowsocksMethods, useCreateUserTemplate, useModifyUserTemplate, UserDataLimitResetStrategy, UserStatusCreate, XTLSFlows } from '@/service/api'
+import { DataLimitResetStrategy, ShadowsocksMethods, useCreateUserTemplate, useModifyUserTemplate, UserStatusCreate, XTLSFlows } from '@/service/api'
 import { queryClient } from '@/utils/query-client.ts'
 import { useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -32,12 +32,12 @@ export const userTemplateFormSchema = z.object({
   groups: z.array(z.number()).min(1, 'Groups is required'),
   data_limit_reset_strategy: z
     .enum([
-      UserDataLimitResetStrategy['month'],
-      UserDataLimitResetStrategy['day'],
-      UserDataLimitResetStrategy['week'],
-      UserDataLimitResetStrategy['no_reset'],
-      UserDataLimitResetStrategy['week'],
-      UserDataLimitResetStrategy['year'],
+      DataLimitResetStrategy['month'],
+      DataLimitResetStrategy['day'],
+      DataLimitResetStrategy['week'],
+      DataLimitResetStrategy['no_reset'],
+      DataLimitResetStrategy['week'],
+      DataLimitResetStrategy['year'],
     ])
     .optional(),
   reset_usages: z.boolean().optional(),
@@ -259,11 +259,11 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value={UserDataLimitResetStrategy['no_reset']}>{t('userDialog.resetStrategyNo')}</SelectItem>
-                            <SelectItem value={UserDataLimitResetStrategy['day']}>{t('userDialog.resetStrategyDaily')}</SelectItem>
-                            <SelectItem value={UserDataLimitResetStrategy['week']}>{t('userDialog.resetStrategyWeekly')}</SelectItem>
-                            <SelectItem value={UserDataLimitResetStrategy['month']}>{t('userDialog.resetStrategyMonthly')}</SelectItem>
-                            <SelectItem value={UserDataLimitResetStrategy['year']}>{t('userDialog.resetStrategyAnnually')}</SelectItem>
+                            <SelectItem value={DataLimitResetStrategy['no_reset']}>{t('userDialog.resetStrategyNo')}</SelectItem>
+                            <SelectItem value={DataLimitResetStrategy['day']}>{t('userDialog.resetStrategyDaily')}</SelectItem>
+                            <SelectItem value={DataLimitResetStrategy['week']}>{t('userDialog.resetStrategyWeekly')}</SelectItem>
+                            <SelectItem value={DataLimitResetStrategy['month']}>{t('userDialog.resetStrategyMonthly')}</SelectItem>
+                            <SelectItem value={DataLimitResetStrategy['year']}>{t('userDialog.resetStrategyAnnually')}</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
