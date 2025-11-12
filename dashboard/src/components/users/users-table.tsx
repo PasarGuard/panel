@@ -7,7 +7,7 @@ import { useGetUsers, UserResponse, UserStatus } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
 import { getUsersPerPageLimitSize, setUsersPerPageLimitSize } from '@/utils/userPreferenceStorage'
 import { useQueryClient } from '@tanstack/react-query'
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import UserModal from '../dialogs/user-modal'
@@ -25,6 +25,7 @@ const UsersTable = memo(() => {
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [isSorting, setIsSorting] = useState(false)
+  const isFirstLoadRef = useRef(true)
   const { admin } = useAdmin()
   const isSudo = admin?.is_sudo || false
 
@@ -135,7 +136,6 @@ const UsersTable = memo(() => {
     data: usersData,
     refetch,
     isLoading,
-    isFetching,
   } = useGetUsers(filters, {
     query: {
       staleTime: 0,
@@ -143,6 +143,13 @@ const UsersTable = memo(() => {
       retry: 1,
     },
   })
+
+  // Track first load completion
+  useEffect(() => {
+    if (usersData && isFirstLoadRef.current) {
+      isFirstLoadRef.current = false
+    }
+  }, [usersData])
 
   // Remove automatic refetch on filter change to prevent lag
   // Filters will trigger new queries automatically
@@ -312,7 +319,9 @@ const UsersTable = memo(() => {
 
   const totalUsers = usersData?.total || 0
   const totalPages = Math.ceil(totalUsers / itemsPerPage)
-  const isPageLoading = isLoading || isFetching || isChangingPage
+  // Only show loading spinner on first load, not on refreshes
+  const showLoadingSpinner = isLoading && isFirstLoadRef.current
+  const isPageLoading = isChangingPage
 
   return (
     <div>
@@ -321,7 +330,6 @@ const UsersTable = memo(() => {
         onFilterChange={handleFilterChange}
         advanceSearchOnOpen={setIsAdvanceSearchOpen}
         refetch={handleManualRefresh}
-        advanceSearchForm={advanceSearchForm}
         handleSort={handleSort}
         onClearAdvanceSearch={() => {
           advanceSearchForm.reset({
@@ -341,7 +349,7 @@ const UsersTable = memo(() => {
           setCurrentPage(0)
         }}
       />
-      <DataTable columns={columns} data={usersData?.users || []} isLoading={isLoading} isFetching={isFetching} onEdit={handleEdit} />
+      <DataTable columns={columns} data={usersData?.users || []} isLoading={showLoadingSpinner} isFetching={false} onEdit={handleEdit} />
       <PaginationControls
         currentPage={currentPage}
         totalPages={totalPages}

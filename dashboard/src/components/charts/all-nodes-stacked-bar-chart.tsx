@@ -18,18 +18,7 @@ import { useTheme } from '@/components/common/theme-provider'
 import TimeSelector from './time-selector'
 import NodeStatsModal from '@/components/dialogs/node-stats-modal'
 
-// Helper function to determine period (copied from CostumeBarChart)
-const getPeriodFromDateRange = (range?: DateRange): Period => {
-  if (!range?.from || !range?.to) {
-    return Period.hour // Default to hour if no range
-  }
-  const diffTime = Math.abs(range.to.getTime() - range.from.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  if (diffDays <= 2) {
-    return Period.hour
-  }
-  return Period.day
-}
+import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
 
 function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<any, any> & { chartConfig?: ChartConfig; dir: string; period?: string }) {
   const { t, i18n } = useTranslation()

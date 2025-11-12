@@ -822,7 +822,7 @@
   "userDialog.onHoldExpireDuration": "Продолжительность срока действия",
   "userDialog.onHoldExpireDurationPlaceholder": "например, 7",
   "userDialog.optional": "необязательно",
-  "userDialog.periodicUsageReset": "Период сброса трафика",
+  "userDialog.periodicUsageReset": "Периодич. сброс",
   "userDialog.protocols": "Протоколы",
   "userDialog.relative": "Относительно",
   "userDialog.resetStrategyAnnually": "Ежегодно",

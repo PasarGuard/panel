@@ -14,6 +14,7 @@ import { TrendingUp, Upload, Download, Calendar } from 'lucide-react'
 import { dateUtils } from '@/utils/dateFormatter'
 import { TooltipProps } from 'recharts'
 import TimeSelector from './time-selector'
+import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
 
 type DataPoint = {
   time: string
@@ -30,21 +31,6 @@ const chartConfig = {
 // Define props interface
 interface CostumeBarChartProps {
   nodeId?: number
-}
-
-// Helper function to determine period (copied from AreaCostumeChart)
-const getPeriodFromDateRange = (range?: DateRange): Period => {
-  if (!range?.from || !range?.to) {
-    return Period.hour // Default to hour if no range
-  }
-  const diffTime = Math.abs(range.to.getTime() - range.from.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-  if (diffDays <= 2) {
-    // Up to 2 days, use hourly data
-    return Period.hour
-  }
-  return Period.day // More than 2 days, use daily data
 }
 
 function CustomBarTooltip({ active, payload, period }: TooltipProps<any, any> & { period?: string }) {
