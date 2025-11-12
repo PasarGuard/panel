@@ -6,7 +6,7 @@ from uuid import UUID
 from cryptography.x509 import load_pem_x509_certificate
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.db.models import NodeConnectionType, NodeStatus, UserDataLimitResetStrategy
+from app.db.models import NodeConnectionType, NodeStatus, DataLimitResetStrategy
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
@@ -162,7 +162,7 @@ class NodeResponse(Node):
     uplink: int = 0
     downlink: int = 0
     data_limit: int | None = None
-    data_limit_reset_strategy: UserDataLimitResetStrategy | None = None
+    data_limit_reset_strategy: DataLimitResetStrategy | None = None
     reset_time: int | None = None
     lifetime_uplink: int | None = None
     lifetime_downlink: int | None = None
