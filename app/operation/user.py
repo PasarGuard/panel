@@ -110,7 +110,7 @@ class UserOperation(BaseOperation):
                 attempts += 1
                 if attempts > max_attempts:
                     await self.raise_error(message="unable to generate unique usernames", code=500)
-                candidate = f"usr{secrets.token_hex(6)}"
+                candidate = {secrets.token_hex(6)}
                 if candidate in seen:
                     continue
                 seen.add(candidate)
@@ -127,6 +127,8 @@ class UserOperation(BaseOperation):
                 prefix = base_username[: -len(number_text)]
                 width = len(number_text)
                 base_number = int(number_text)
+                if base_number == 0:
+                    width = max(width + 1, 2)
                 start_number = base_number + 1 if base_number > 0 else 1
             else:
                 prefix = base_username
@@ -144,7 +146,6 @@ class UserOperation(BaseOperation):
             return generated
 
         await self.raise_error(message="unsupported username generation strategy", code=400)
-        return []
 
     def _build_bulk_user_models(self, candidate_usernames: list[str], builder):
         users: list[UserCreate] = []
