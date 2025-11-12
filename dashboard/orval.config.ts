@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { defineConfig } from 'orval'
 
 export default defineConfig({

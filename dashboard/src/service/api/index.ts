@@ -177,16 +177,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -206,11 +206,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsInput {
+export interface XrayMuxSettingsOutput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -275,16 +275,6 @@ export type XHttpSettingsOutputXPaddingBytes = string | null
 
 export type XHttpSettingsOutputNoGrpcHeader = boolean | null
 
-export interface XHttpSettingsOutput {
-  mode?: XHttpModes
-  no_grpc_header?: XHttpSettingsOutputNoGrpcHeader
-  x_padding_bytes?: XHttpSettingsOutputXPaddingBytes
-  sc_max_each_post_bytes?: XHttpSettingsOutputScMaxEachPostBytes
-  sc_min_posts_interval_ms?: XHttpSettingsOutputScMinPostsIntervalMs
-  xmux?: XHttpSettingsOutputXmux
-  download_settings?: XHttpSettingsOutputDownloadSettings
-}
-
 export type XHttpSettingsInputDownloadSettings = number | null
 
 export type XHttpSettingsInputXmux = XMuxSettingsInput | null
@@ -306,6 +296,16 @@ export const XHttpModes = {
   'stream-up': 'stream-up',
   'stream-one': 'stream-one',
 } as const
+
+export interface XHttpSettingsOutput {
+  mode?: XHttpModes
+  no_grpc_header?: XHttpSettingsOutputNoGrpcHeader
+  x_padding_bytes?: XHttpSettingsOutputXPaddingBytes
+  sc_max_each_post_bytes?: XHttpSettingsOutputScMaxEachPostBytes
+  sc_min_posts_interval_ms?: XHttpSettingsOutputScMinPostsIntervalMs
+  xmux?: XHttpSettingsOutputXmux
+  download_settings?: XHttpSettingsOutputDownloadSettings
+}
 
 export interface XHttpSettingsInput {
   mode?: XHttpModes
@@ -419,7 +419,7 @@ export interface UserTemplateResponse {
   status?: UserTemplateResponseStatus
   reset_usages?: UserTemplateResponseResetUsages
   on_hold_timeout?: UserTemplateResponseOnHoldTimeout
-  data_limit_reset_strategy?: UserDataLimitResetStrategy
+  data_limit_reset_strategy?: DataLimitResetStrategy
   is_disabled?: UserTemplateResponseIsDisabled
   id: number
 }
@@ -465,7 +465,7 @@ export interface UserTemplateModify {
   status?: UserTemplateModifyStatus
   reset_usages?: UserTemplateModifyResetUsages
   on_hold_timeout?: UserTemplateModifyOnHoldTimeout
-  data_limit_reset_strategy?: UserDataLimitResetStrategy
+  data_limit_reset_strategy?: DataLimitResetStrategy
   is_disabled?: UserTemplateModifyIsDisabled
 }
 
@@ -508,7 +508,7 @@ export interface UserTemplateCreate {
   status?: UserTemplateCreateStatus
   reset_usages?: UserTemplateCreateResetUsages
   on_hold_timeout?: UserTemplateCreateOnHoldTimeout
-  data_limit_reset_strategy?: UserDataLimitResetStrategy
+  data_limit_reset_strategy?: DataLimitResetStrategy
   is_disabled?: UserTemplateCreateIsDisabled
 }
 
@@ -579,7 +579,7 @@ export type UserResponseOnHoldExpireDuration = number | null
 
 export type UserResponseNote = string | null
 
-export type UserResponseDataLimitResetStrategy = UserDataLimitResetStrategy | null
+export type UserResponseDataLimitResetStrategy = DataLimitResetStrategy | null
 
 /**
  * data_limit can be 0 or greater
@@ -636,7 +636,7 @@ export type UserModifyOnHoldExpireDuration = number | null
 
 export type UserModifyNote = string | null
 
-export type UserModifyDataLimitResetStrategy = UserDataLimitResetStrategy | null
+export type UserModifyDataLimitResetStrategy = DataLimitResetStrategy | null
 
 /**
  * data_limit can be 0 or greater
@@ -680,17 +680,6 @@ export interface UserIPListAll {
   nodes: UserIPListAllNodes
 }
 
-export type UserDataLimitResetStrategy = (typeof UserDataLimitResetStrategy)[keyof typeof UserDataLimitResetStrategy]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const UserDataLimitResetStrategy = {
-  no_reset: 'no_reset',
-  day: 'day',
-  week: 'week',
-  month: 'month',
-  year: 'year',
-} as const
-
 export type UserCreateStatus = UserStatusCreate | null
 
 export type UserCreateNextPlan = NextPlanModel | null
@@ -705,7 +694,7 @@ export type UserCreateOnHoldExpireDuration = number | null
 
 export type UserCreateNote = string | null
 
-export type UserCreateDataLimitResetStrategy = UserDataLimitResetStrategy | null
+export type UserCreateDataLimitResetStrategy = DataLimitResetStrategy | null
 
 /**
  * data_limit can be 0 or greater
@@ -857,7 +846,7 @@ export type SubscriptionUserResponseOnHoldTimeout = string | number | null
 
 export type SubscriptionUserResponseOnHoldExpireDuration = number | null
 
-export type SubscriptionUserResponseDataLimitResetStrategy = UserDataLimitResetStrategy | null
+export type SubscriptionUserResponseDataLimitResetStrategy = DataLimitResetStrategy | null
 
 /**
  * data_limit can be 0 or greater
@@ -1226,6 +1215,7 @@ export const NodeStatus = {
   connecting: 'connecting',
   error: 'error',
   disabled: 'disabled',
+  limited: 'limited',
 } as const
 
 export type NodeStatsListPeriod = Period | null
@@ -1255,6 +1245,8 @@ export type NodeResponseNodeVersion = string | null
 
 export type NodeResponseXrayVersion = string | null
 
+export type NodeResponseDataLimit = number | null
+
 export type NodeResponseApiKey = string | null
 
 export type NodeResponseCoreConfigId = number | null
@@ -1273,11 +1265,18 @@ export interface NodeResponse {
   core_config_id: NodeResponseCoreConfigId
   api_key: NodeResponseApiKey
   gather_logs?: boolean
+  data_limit?: NodeResponseDataLimit
+  data_limit_reset_strategy?: DataLimitResetStrategy
+  reset_time?: number
   id: number
   xray_version: NodeResponseXrayVersion
   node_version: NodeResponseNodeVersion
   status: NodeStatus
   message: NodeResponseMessage
+  uplink?: number
+  downlink?: number
+  lifetime_uplink?: number
+  lifetime_downlink?: number
 }
 
 export interface NodeRealtimeStats {
@@ -1295,9 +1294,17 @@ export interface NodeNotificationEnable {
   delete?: boolean
   connect?: boolean
   error?: boolean
+  limited?: boolean
+  reset_usage?: boolean
 }
 
 export type NodeModifyStatus = NodeStatus | null
+
+export type NodeModifyResetTime = number | null
+
+export type NodeModifyDataLimitResetStrategy = DataLimitResetStrategy | null
+
+export type NodeModifyDataLimit = number | null
 
 export type NodeModifyGatherLogs = boolean | null
 
@@ -1333,8 +1340,13 @@ export interface NodeModify {
   core_config_id?: NodeModifyCoreConfigId
   api_key?: NodeModifyApiKey
   gather_logs?: NodeModifyGatherLogs
+  data_limit?: NodeModifyDataLimit
+  data_limit_reset_strategy?: NodeModifyDataLimitResetStrategy
+  reset_time?: NodeModifyResetTime
   status?: NodeModifyStatus
 }
+
+export type NodeCreateDataLimit = number | null
 
 export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
 
@@ -1358,6 +1370,9 @@ export interface NodeCreate {
   core_config_id: number
   api_key: string
   gather_logs?: boolean
+  data_limit?: NodeCreateDataLimit
+  data_limit_reset_strategy?: DataLimitResetStrategy
+  reset_time?: number
 }
 
 export type NextPlanModelExpire = number | null
@@ -1588,6 +1603,17 @@ export interface Discord {
   token?: DiscordToken
   proxy_url?: DiscordProxyUrl
 }
+
+export type DataLimitResetStrategy = (typeof DataLimitResetStrategy)[keyof typeof DataLimitResetStrategy]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const DataLimitResetStrategy = {
+  no_reset: 'no_reset',
+  day: 'day',
+  week: 'week',
+  month: 'month',
+  year: 'year',
+} as const
 
 export type CreateUserFromTemplateNote = string | null
 
@@ -4288,6 +4314,50 @@ export const useRemoveNode = <TData = Awaited<ReturnType<typeof removeNode>>, TE
   mutation?: UseMutationOptions<TData, TError, { nodeId: number }, TContext>
 }): UseMutationResult<TData, TError, { nodeId: number }, TContext> => {
   const mutationOptions = getRemoveNodeMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Reset node traffic usage (uplink and downlink).
+Creates a log entry in node_usage_reset_logs table.
+Only accessible to sudo admins.
+ * @summary Reset Node Usage
+ */
+export const resetNodeUsage = (nodeId: number, signal?: AbortSignal) => {
+  return orvalFetcher<NodeResponse>({ url: `/api/node/${nodeId}/reset`, method: 'POST', signal })
+}
+
+export const getResetNodeUsageMutationOptions = <TData = Awaited<ReturnType<typeof resetNodeUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { nodeId: number }, TContext>
+}) => {
+  const mutationKey = ['resetNodeUsage']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetNodeUsage>>, { nodeId: number }> = props => {
+    const { nodeId } = props ?? {}
+
+    return resetNodeUsage(nodeId)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { nodeId: number }, TContext>
+}
+
+export type ResetNodeUsageMutationResult = NonNullable<Awaited<ReturnType<typeof resetNodeUsage>>>
+
+export type ResetNodeUsageMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Reset Node Usage
+ */
+export const useResetNodeUsage = <TData = Awaited<ReturnType<typeof resetNodeUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { nodeId: number }, TContext>
+}): UseMutationResult<TData, TError, { nodeId: number }, TContext> => {
+  const mutationOptions = getResetNodeUsageMutationOptions(options)
 
   return useMutation(mutationOptions)
 }
