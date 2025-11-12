@@ -110,7 +110,7 @@ class UserOperation(BaseOperation):
                 attempts += 1
                 if attempts > max_attempts:
                     await self.raise_error(message="unable to generate unique usernames", code=500)
-                candidate = {secrets.token_hex(6)}
+                candidate = secrets.token_hex(6)
                 if candidate in seen:
                     continue
                 seen.add(candidate)
