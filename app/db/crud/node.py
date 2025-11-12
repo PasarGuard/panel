@@ -39,7 +39,10 @@ async def get_node(db: AsyncSession, name: str) -> Optional[Node]:
     Returns:
         Optional[Node]: The Node object if found, None otherwise.
     """
-    return (await db.execute(select(Node).where(Node.name == name))).unique().scalar_one_or_none()
+    node = (await db.execute(select(Node).where(Node.name == name))).unique().scalar_one_or_none()
+    if node:
+        await load_node_attrs(node)
+    return node
 
 
 async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
@@ -53,7 +56,10 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
     Returns:
         Optional[Node]: The Node object if found, None otherwise.
     """
-    return (await db.execute(select(Node).where(Node.id == node_id))).unique().scalar_one_or_none()
+    node = (await db.execute(select(Node).where(Node.id == node_id))).unique().scalar_one_or_none()
+    if node:
+        await load_node_attrs(node)
+    return node
 
 
 async def get_nodes(
@@ -118,7 +124,10 @@ async def get_limited_nodes(db: AsyncSession) -> list[Node]:
             Node.is_limited,
         )
     )
-    return (await db.execute(query)).scalars().all()
+    nodes = (await db.execute(query)).scalars().all()
+    for node in nodes:
+        await load_node_attrs(node)
+    return nodes
 
 
 async def get_nodes_usage(
@@ -225,6 +234,7 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     db.add(db_node)
     await db.commit()
     await db.refresh(db_node)
+    await load_node_attrs(db_node)
     return db_node
 
 
@@ -272,6 +282,7 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
 
     await db.commit()
     await db.refresh(db_node)
+    await load_node_attrs(db_node)
     return db_node
 
 
