@@ -306,6 +306,7 @@ async def update_node_status(
     await db.execute(stmt)
     await db.commit()
     await db.refresh(db_node)
+    await load_node_attrs(db_node)
     return db_node
 
 
