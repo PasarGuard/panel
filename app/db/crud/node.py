@@ -94,7 +94,11 @@ async def get_nodes(
     if limit:
         query = query.limit(limit)
 
-    return (await db.execute(query)).scalars().all()
+    db_nodes = await db.execute(query).scalars().all()
+    for node in db_nodes:
+        await load_node_attrs(node)
+
+    return db_nodes
 
 
 async def get_limited_nodes(db: AsyncSession) -> list[Node]:
