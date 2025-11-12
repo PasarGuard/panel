@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import { NodeResponse, useRemoveNode, useSyncNode, useReconnectNode, useResetNodeUsage } from '@/service/api'
 import UserOnlineStatsDialog from '../dialogs/user-online-stats-modal'
+import NodeUsageDisplay from './node-usage-display'
 
 interface NodeProps {
   node: NodeResponse
@@ -178,6 +179,7 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                 )}
               </div>
             )}
+            <NodeUsageDisplay node={node} />
           </div>
           <div onClick={e => e.stopPropagation()}>
             <DropdownMenu>

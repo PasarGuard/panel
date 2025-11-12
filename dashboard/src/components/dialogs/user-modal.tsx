@@ -28,7 +28,7 @@ import {
   type UsersResponse,
 } from '@/service/api'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
-import { formatBytes } from '@/utils/formatByte'
+import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Layers, ListStart, Lock, RefreshCcw, Users } from 'lucide-react'
 import React, { useEffect, useState, useTransition } from 'react'
@@ -593,12 +593,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       setNextPlanEnabled(true)
     }
   }, [form.watch('next_plan'), nextPlanEnabled])
-
-  // Helper to convert GB to bytes
-  function gbToBytes(gb: string | number | undefined): number | undefined {
-    if (gb === undefined || gb === null || gb === '') return undefined
-    return Math.round(Number(gb) * 1024 * 1024 * 1024)
-  }
 
   // Helper to convert expire field to needed schema using the same logic as other components
   function normalizeExpire(expire: Date | string | number | null | undefined, useUtcTimestamp: boolean = false): string | number | undefined {

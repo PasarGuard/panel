@@ -28,3 +28,13 @@ export const toPersianNumerals = (num: number | string): string => {
   const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹']
   return num.toString().replace(/\d/g, digit => persianDigits[parseInt(digit)])
 }
+
+/**
+ * Converts GB to bytes
+ * @param gb - The value in GB (can be string, number, null, or undefined)
+ * @returns The value in bytes as a number, or undefined if input is invalid
+ */
+export function gbToBytes(gb: string | number | null | undefined): number | undefined {
+  if (gb === undefined || gb === null || gb === '') return undefined
+  return Math.round(Number(gb) * 1024 * 1024 * 1024)
+}

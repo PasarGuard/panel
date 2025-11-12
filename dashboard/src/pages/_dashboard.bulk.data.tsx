@@ -12,12 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Users2, User, Shield, HardDrive, Plus, Minus } from 'lucide-react'
 import { SelectorPanel } from '@/components/bulk/selector-panel'
-import { formatBytes } from '@/utils/formatByte'
-
-// Helper function to convert GB to bytes
-const gbToBytes = (gb: number): number => {
-  return gb * 1024 * 1024 * 1024
-}
+import { formatBytes, gbToBytes } from '@/utils/formatByte'
 
 export default function BulkDataPage() {
   const { t } = useTranslation()
@@ -60,6 +55,7 @@ export default function BulkDataPage() {
 
     // Convert GB to bytes using the helper function
     let dataLimitBytes = gbToBytes(dataLimit)
+    if (dataLimitBytes === undefined) return
 
     // For subtract operation, make the amount negative
     if (operation === 'subtract') {
