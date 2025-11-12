@@ -365,7 +365,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
   }, [periodOption.hours, periodOption.months, periodOption.allTime, periodOption.days, chartData.length])
 
   return (
-    <Card className="flex h-full flex-col justify-between">
+    <Card className="flex h-full flex-col justify-between overflow-hidden">
       <CardHeader className="flex flex-row items-start justify-between gap-2">
         <div>
           <CardTitle>{t('admins.used.traffic', { defaultValue: 'Traffic Usage' })}</CardTitle>
@@ -390,7 +390,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
           </SelectContent>
         </Select>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col justify-center p-2 sm:p-6">
+      <CardContent className="flex flex-1 flex-col justify-center overflow-hidden p-2 sm:p-6">
         {isLoading ? (
           <div className="mx-auto w-full max-w-7xl">
             <div className="max-h-[320px] min-h-[200px] w-full">
@@ -419,10 +419,11 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
             {t('admins.monitor.no_traffic', { defaultValue: 'No traffic data available' })}
           </div>
         ) : (
-          <ChartContainer config={chartConfig} dir="ltr" className="h-[320px]">
+          <ChartContainer config={chartConfig} dir="ltr" className="h-[240px] w-full overflow-x-auto sm:h-[320px]">
             <BarChart
               data={chartData}
-              margin={{ top: 16, right: 8, left: 8, bottom: 8 }}
+              margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
+              barCategoryGap="10%"
               onMouseMove={state => {
                 if (state.activeTooltipIndex !== activeIndex) {
                   setActiveIndex(state.activeTooltipIndex !== undefined ? state.activeTooltipIndex : null)
@@ -442,6 +443,8 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                 textAnchor="middle"
                 height={30}
                 interval={xAxisInterval}
+                minTickGap={5}
+                tick={{ fontSize: 10 }}
                 tickFormatter={(value: string): string => {
                   // Use the value directly as it's already formatted in transformUsageData
                   // For the last data point when it's today, check if we need to show "Today"
@@ -464,7 +467,15 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                   return value || ''
                 }}
               />
-              <YAxis dataKey={'traffic'} tickLine={false} tickMargin={10} axisLine={false} tickFormatter={val => formatBytes(val, 0, true).toString()} />
+              <YAxis 
+                dataKey={'traffic'} 
+                tickLine={false} 
+                tickMargin={4} 
+                axisLine={false} 
+                width={40}
+                tickFormatter={val => formatBytes(val, 0, true).toString()} 
+                tick={{ fontSize: 10 }}
+              />
               <ChartTooltip cursor={false} content={<CustomBarTooltip period={periodOption.period} />} />
               <Bar dataKey="traffic" radius={6} maxBarSize={48}>
                 {chartData.map((_, index: number) => (

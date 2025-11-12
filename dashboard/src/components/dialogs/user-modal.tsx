@@ -2,12 +2,10 @@ import GroupsSelector from '@/components/common/groups-selector'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
-import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
@@ -15,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
+import { DatePicker } from '@/components/common/date-picker'
 import { UseEditFormValues, UseFormValues, userCreateSchema, userEditSchema } from '@/pages/_dashboard.users'
 import {
   getGeneralSettings,
@@ -31,7 +30,7 @@ import {
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatBytes } from '@/utils/formatByte'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarIcon, ChevronDown, Layers, ListStart, Lock, RefreshCcw, Users, X } from 'lucide-react'
+import { ChevronDown, Layers, ListStart, Lock, RefreshCcw, Users } from 'lucide-react'
 import React, { useEffect, useState, useTransition } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -66,7 +65,8 @@ const templateModifySchema = z.object({
 // Helper for UUID namespace (for v5)
 const UUID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
 
-// Add this helper function at the top level
+// Helper function to get local ISO time string with timezone offset
+// This is kept for backward compatibility with normalizeExpire function
 function getLocalISOTime(date: Date): string {
   // Create a properly formatted ISO string with timezone offset
   const tzOffset = -date.getTimezoneOffset()
@@ -91,7 +91,6 @@ function getLocalISOTime(date: Date): string {
 const ExpiryDateField = ({
   field,
   displayDate,
-  usePersianCalendar,
   calendarOpen,
   setCalendarOpen,
   handleFieldChange,
@@ -101,7 +100,6 @@ const ExpiryDateField = ({
 }: {
   field: any
   displayDate: Date | null
-  usePersianCalendar: boolean
   calendarOpen: boolean
   setCalendarOpen: (open: boolean) => void
   handleFieldChange: (field: string, value: any) => void
@@ -112,26 +110,12 @@ const ExpiryDateField = ({
   const { t } = useTranslation()
   const expireInfo = useRelativeExpiryDate(displayDate ? Math.floor(displayDate.getTime() / 1000) : null)
   const [, startTransition] = useTransition()
+  const dir = useDirDetection()
 
-  const handleDateSelect = React.useCallback(
+  const handleDateChange = React.useCallback(
     (date: Date | undefined) => {
       if (date) {
-        const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        const selectedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-
-        if (selectedDate < today) {
-          date = new Date(now)
-        }
-
-        if (selectedDate.getTime() === today.getTime()) {
-          // Set to end of day
-          date.setHours(23, 59, 59)
-        } else {
-          // Set current time
-          date.setHours(now.getHours(), now.getMinutes())
-        }
-
+        // Use the same logic as centralized DatePicker
         const value = useUtcTimestamp ? Math.floor(date.getTime() / 1000) : getLocalISOTime(date)
         startTransition(() => {
           field.onChange(value)
@@ -143,232 +127,78 @@ const ExpiryDateField = ({
           handleFieldChange(fieldName, undefined)
         })
       }
-      setCalendarOpen(false)
     },
-    [field, handleFieldChange, setCalendarOpen, startTransition, useUtcTimestamp, fieldName],
+    [field, handleFieldChange, startTransition, useUtcTimestamp, fieldName],
   )
 
-  // Update time input handling to work with local time
-  const handleTimeChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (displayDate && e.target.value) {
-        const [hours, minutes] = e.target.value.split(':')
-        const newDate = new Date(displayDate)
-        newDate.setHours(parseInt(hours), parseInt(minutes))
-
-        const now = new Date()
-        if (newDate.toDateString() === now.toDateString() && newDate < now) {
-          newDate.setTime(now.getTime())
-        }
-
-        const value = useUtcTimestamp ? Math.floor(newDate.getTime() / 1000) : getLocalISOTime(newDate)
-        startTransition(() => {
-          field.onChange(value)
-          handleFieldChange(fieldName, value)
-        })
-      }
+  const handleShortcut = React.useCallback(
+    (days: number) => {
+      const now = new Date()
+      const targetDate = new Date(now)
+      targetDate.setDate(now.getDate() + days)
+      // Use current time instead of end of day
+      handleDateChange(targetDate)
     },
-    [displayDate, field, handleFieldChange, startTransition, useUtcTimestamp, fieldName],
+    [handleDateChange],
   )
 
-  // Get current date for comparison
   const now = new Date()
+  const maxDate = new Date(now.getFullYear() + 15, 11, 31)
 
-  // Function to check if a date should be disabled
-  const isDateDisabled = React.useCallback(
-    (date: Date) => {
-      // Create a new date object for today at midnight for accurate comparison
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-
-      // Disable if the date is before today
-      if (compareDate < today) {
-        return true
-      }
-
-      // Disable if the year is before current year
-      if (date.getFullYear() < now.getFullYear()) {
-        return true
-      }
-
-      // Disable if the year is more than 15 years in the future
-      if (date.getFullYear() > now.getFullYear() + 15) {
-        return true
-      }
-
-      // For current year, disable past months
-      if (date.getFullYear() === now.getFullYear()) {
-        // If the month is before current month, disable it
-        if (date.getMonth() < now.getMonth()) {
-          return true
-        }
-        // If it's the current month, disable past days
-        if (date.getMonth() === now.getMonth() && compareDate < today) {
-          return true
-        }
-      }
-
-      // Allow all other dates
-      return false
-    },
-    [now],
-  )
-
-  const dir = useDirDetection()
+  const shortcuts = [
+    { label: '7d', days: 7 },
+    { label: '1m', days: 30 },
+    { label: '2m', days: 60 },
+    { label: '3m', days: 90 },
+    { label: '6m', days: 180 },
+    { label: '1y', days: 365 },
+  ]
 
   return (
     <FormItem className="flex flex-1 flex-col">
-      <FormLabel>{label}</FormLabel>
-      <div className="relative">
-        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-          <PopoverTrigger asChild>
-            <FormControl>
-              <div className="relative w-full">
-                <Button
-                  dir={'ltr'}
-                  variant={'outline'}
-                  className={cn('mt-1 h-fit w-full text-left font-normal', !field.value && 'text-muted-foreground')}
-                  type="button"
-                  onClick={e => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setCalendarOpen(true)
-                  }}
-                >
-                  {displayDate ? (
-                    usePersianCalendar ? (
-                      // Persian format - display in local time
-                      displayDate.toLocaleDateString('fa-IR', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                      }) +
-                      ' ' +
-                      displayDate.toLocaleTimeString('fa-IR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      })
-                    ) : (
-                      // Gregorian format - display in local time
-                      displayDate.toLocaleDateString('sv-SE', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                      }) +
-                      ' ' +
-                      displayDate.toLocaleTimeString('sv-SE', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      })
-                    )
-                  ) : field.value && !isNaN(Number(field.value)) ? (
-                    String(field.value)
-                  ) : (
-                    <span>{t('userDialog.expireDate', { defaultValue: 'Expire date' })}</span>
-                  )}
-                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                </Button>
-              </div>
-            </FormControl>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-auto p-0"
-            align="start"
-            onInteractOutside={(e: Event) => {
-              e.preventDefault()
-              setCalendarOpen(false)
-            }}
-            onEscapeKeyDown={() => setCalendarOpen(false)}
-          >
-            {usePersianCalendar ? (
-              <PersianCalendar
-                mode="single"
-                selected={displayDate || undefined}
-                onSelect={handleDateSelect}
-                disabled={isDateDisabled}
-                captionLayout="dropdown"
-                defaultMonth={displayDate || now}
-                startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
-                endMonth={new Date(now.getFullYear() + 15, 11, 31)}
-                formatters={{
-                  formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
-                }}
-              />
-            ) : (
-              <Calendar
-                mode="single"
-                selected={displayDate || undefined}
-                onSelect={handleDateSelect}
-                disabled={isDateDisabled}
-                captionLayout="dropdown"
-                defaultMonth={displayDate || now}
-                startMonth={new Date(now.getFullYear(), now.getMonth(), 1)}
-                endMonth={new Date(now.getFullYear() + 15, 11, 31)}
-                formatters={{
-                  formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
-                }}
-              />
-            )}
-            <div className="flex items-center gap-4 border-t p-3">
-              <FormControl>
-                <Input
-                  type="time"
-                  value={
-                    displayDate
-                      ? displayDate.toLocaleTimeString('sv-SE', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        })
-                      : now.toLocaleTimeString('sv-SE', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        })
-                  }
-                  min={
-                    displayDate && displayDate.toDateString() === now.toDateString()
-                      ? now.toLocaleTimeString('sv-SE', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        })
-                      : undefined
-                  }
-                  onChange={handleTimeChange}
-                />
-              </FormControl>
-              {displayDate && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={e => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    field.onChange('')
-                    handleFieldChange(fieldName, undefined)
-                    setCalendarOpen(false)
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
-        {expireInfo && (
-          <p className={cn('absolute top-full mt-1 whitespace-nowrap text-xs text-muted-foreground', !expireInfo.time && 'hidden', dir === 'rtl' ? 'right-0' : 'left-0')}>
-            {expireInfo.time !== '0' && expireInfo.time !== '0s'
-              ? t('expires', { time: expireInfo.time, defaultValue: 'Expires in {{time}}' })
-              : t('expired', { time: expireInfo.time, defaultValue: 'Expired in {{time}}' })}
-          </p>
-        )}
+      <FormLabel className='mb-0.5'>{label}</FormLabel>
+      <div className="space-y-2">
+        <div className="flex lg:hidden items-center gap-1.5 flex-wrap">
+          {shortcuts.map(({ label, days }) => (
+            <Button
+              key={label}
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleShortcut(days)
+              }}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+        <div className="relative">
+          <DatePicker
+            mode="single"
+            date={displayDate}
+            onDateChange={handleDateChange}
+            showTime={true}
+            useUtcTimestamp={useUtcTimestamp}
+            placeholder={t('userDialog.expireDate', { defaultValue: 'Expire date' })}
+            minDate={now}
+            maxDate={maxDate}
+            open={calendarOpen}
+            onOpenChange={setCalendarOpen}
+            fieldName={fieldName}
+            onFieldChange={handleFieldChange}
+          />
+          {expireInfo && (
+            <p className={cn('absolute top-full text-end right-0 mt-1 whitespace-nowrap text-xs text-muted-foreground', !expireInfo.time && 'hidden', dir === 'rtl' ? 'right-0' : 'left-0')}>
+              {expireInfo.time !== '0' && expireInfo.time !== '0s'
+                ? t('expires', { time: expireInfo.time, defaultValue: 'Expires in {{time}}' })
+                : t('expired', { time: expireInfo.time, defaultValue: 'Expired in {{time}}' })}
+            </p>
+          )}
+        </div>
       </div>
       <FormMessage />
     </FormItem>
@@ -481,9 +311,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
   const [expireCalendarOpen, setExpireCalendarOpen] = useState(false)
   const [onHoldCalendarOpen, setOnHoldCalendarOpen] = useState(false)
-  const { i18n } = useTranslation()
-  const isPersianLocale = i18n.language === 'fa'
-  const [usePersianCalendar, setUsePersianCalendar] = useState(isPersianLocale)
 
   // Reset calendar state when modal opens/closes
   useEffect(() => {
@@ -494,6 +321,8 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   }, [isDialogOpen])
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [isFormValid, setIsFormValid] = useState(false)
+  // Ref to store raw input value for data_limit to allow typing decimals
+  const dataLimitInputRef = React.useRef<string>('')
 
   const handleModalOpenChange = React.useCallback(
     (open: boolean) => {
@@ -503,6 +332,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         setIsFormValid(false)
         setActiveTab('groups')
         setSelectedTemplateId(null)
+        dataLimitInputRef.current = ''
       }
       onOpenChange(open)
     },
@@ -1324,10 +1154,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     // eslint-disable-next-line
   }, [isDialogOpen, editingUser, generalSettings])
 
-  // Add effect to handle locale changes
-  useEffect(() => {
-    setUsePersianCalendar(i18n.language === 'fa')
-  }, [i18n.language])
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
@@ -1483,35 +1309,84 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                           <FormField
                             control={form.control}
                             name="data_limit"
-                            render={({ field }) => (
-                              <FormItem className="h-full flex-1">
-                                <FormLabel>{t('userDialog.dataLimit', { defaultValue: 'Data Limit (GB)' })}</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    step="any"
-                                    min="0"
-                                    placeholder={t('userDialog.dataLimit', { defaultValue: 'e.g. 1' })}
-                                    {...field}
-                                    value={field.value ? field.value : ''}
-                                    onChange={e => {
-                                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value)
-                                      if (!isNaN(value) && value >= 0) {
-                                        field.onChange(value)
-                                        handleFieldChange('data_limit', value)
-                                      }
-                                    }}
-                                    onBlur={() => {
-                                      handleFieldChange('data_limit', field.value || 0)
-                                    }}
-                                  />
-                                </FormControl>
-                                {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                  <p className="mt-1 text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
-                                )}
-                                <FormMessage />
-                              </FormItem>
-                            )}
+                            render={({ field }) => {
+                              if (dataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
+                                dataLimitInputRef.current = String(field.value)
+                              } else if ((field.value === null || field.value === undefined) && dataLimitInputRef.current !== '') {
+                                dataLimitInputRef.current = ''
+                              }
+
+                              const displayValue = dataLimitInputRef.current !== '' 
+                                ? dataLimitInputRef.current 
+                                : (field.value !== null && field.value !== undefined && field.value > 0 ? String(field.value) : '')
+
+                              return (
+                                <FormItem className="h-full flex-1 relative">
+                                  <FormLabel>{t('userDialog.dataLimit', { defaultValue: 'Data Limit (GB)' })}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      placeholder={t('userDialog.dataLimit', { defaultValue: 'e.g. 1' })}
+                                      value={displayValue}
+                                      onChange={e => {
+                                        const rawValue = e.target.value.trim()
+                                        
+                                        dataLimitInputRef.current = rawValue
+                                        
+                                        if (rawValue === '') {
+                                          field.onChange(0)
+                                          handleFieldChange('data_limit', 0)
+                                          return
+                                        }
+
+                                        const validNumberPattern = /^-?\d*\.?\d*$/
+                                        if (validNumberPattern.test(rawValue)) {
+                                          if (rawValue.endsWith('.') && rawValue.length > 1) {
+                                            const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
+                                            field.onChange(prevValue)
+                                            handleFieldChange('data_limit', prevValue)
+                                          } else if (rawValue === '.') {
+                                            field.onChange(0)
+                                            handleFieldChange('data_limit', 0)
+                                          } else {
+                                            const numValue = parseFloat(rawValue)
+                                            if (!isNaN(numValue) && numValue >= 0) {
+                                              field.onChange(numValue)
+                                              handleFieldChange('data_limit', numValue)
+                                            }
+                                          }
+                                        }
+                                      }}
+                                      onBlur={() => {
+                                        const rawValue = dataLimitInputRef.current.trim()
+                                        if (rawValue === '' || rawValue === '.' || rawValue === '0') {
+                                          dataLimitInputRef.current = ''
+                                          field.onChange(0)
+                                          handleFieldChange('data_limit', 0)
+                                        } else {
+                                          const numValue = parseFloat(rawValue)
+                                          if (!isNaN(numValue) && numValue >= 0) {
+                                            const finalValue = numValue
+                                            dataLimitInputRef.current = finalValue > 0 ? String(finalValue) : ''
+                                            field.onChange(finalValue)
+                                            handleFieldChange('data_limit', finalValue)
+                                          } else {
+                                            dataLimitInputRef.current = ''
+                                            field.onChange(0)
+                                            handleFieldChange('data_limit', 0)
+                                          }
+                                        }
+                                      }}
+                                    />
+                                  </FormControl>
+                                  {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
+                                    <p className="mt-1 text-end right-0 absolute top-full text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
+                                  )}
+                                  <FormMessage />
+                                </FormItem>
+                              )
+                            }}
                           />
                           {form.watch('data_limit') !== undefined && form.watch('data_limit') !== null && Number(form.watch('data_limit')) > 0 && (
                             <FormField
@@ -1602,9 +1477,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                     />
                                   </FormControl>
                                   <FormMessage />
-                                  {isTouched && isZeroOrEmpty && !hasError && (
-                                    <p className="text-sm text-destructive">{t('validation.required', { field: t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }) })}</p>
-                                  )}
                                 </FormItem>
                               )
                             }}
@@ -1617,7 +1489,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                               <ExpiryDateField
                                 field={field}
                                 displayDate={displayDate}
-                                usePersianCalendar={usePersianCalendar}
                                 calendarOpen={expireCalendarOpen}
                                 setCalendarOpen={setExpireCalendarOpen}
                                 handleFieldChange={handleFieldChange}
@@ -1638,7 +1509,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                         <ExpiryDateField
                           field={field}
                           displayDate={onHoldDisplayDate}
-                          usePersianCalendar={usePersianCalendar}
                           calendarOpen={onHoldCalendarOpen}
                           setCalendarOpen={setOnHoldCalendarOpen}
                           handleFieldChange={handleFieldChange}

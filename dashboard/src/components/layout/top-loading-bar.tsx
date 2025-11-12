@@ -133,7 +133,17 @@ function TopLoadingBar({ height = 3, color, shadow = true, className = '' }: Top
 
     lastLocation = currentPath
 
-    if (!shouldIgnoreRoute(pathname) && ref.current) {
+    if (shouldIgnoreRoute(pathname)) {
+      // For ignored routes, ensure any existing loading bar is completed immediately
+      if (ref.current) {
+        ref.current.complete()
+      }
+      // Clear any pending timeout
+      if (maxTimeoutRef.current) {
+        clearTimeout(maxTimeoutRef.current)
+        maxTimeoutRef.current = undefined
+      }
+    } else if (ref.current) {
       // Start loading bar on route change with continuous animation
       ref.current.continuousStart()
 

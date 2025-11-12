@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Clock, History, Cpu, MemoryStick } from 'lucide-react'
 import { dateUtils } from '@/utils/dateFormatter'
 import { useTheme } from 'next-themes'
+import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
 
 type DataPoint = {
   time: string
@@ -183,18 +184,6 @@ interface AreaCostumeChartProps {
   realtimeStats?: SystemStats | NodeRealtimeStats
 }
 
-const getPeriodFromDateRange = (range?: DateRange): Period => {
-  if (!range?.from || !range?.to) {
-    return Period.hour
-  }
-  const diffTime = Math.abs(range.to.getTime() - range.from.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-  if (diffDays <= 2) {
-    return Period.hour
-  }
-  return Period.day
-}
 const isSystemStats = (stats: SystemStats | NodeRealtimeStats): stats is SystemStats => {
   return 'total_user' in stats
 }

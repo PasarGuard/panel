@@ -14,7 +14,6 @@ import { useTranslation } from 'react-i18next'
 import { useGetUsers, UserStatus } from '@/service/api'
 import { RefetchOptions } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
-import { UseFormReturn } from 'react-hook-form'
 import { getUsersAutoRefreshIntervalSeconds, setUsersAutoRefreshIntervalSeconds } from '@/utils/userPreferenceStorage'
 
 // Sort configuration to eliminate duplication
@@ -59,10 +58,10 @@ const sortSections = [
 
 const autoRefreshOptions = [
   { value: 0, labelKey: 'autoRefresh.off' },
+  { value: 5, labelKey: 'autoRefresh.5Seconds' },
   { value: 15, labelKey: 'autoRefresh.15Seconds' },
   { value: 30, labelKey: 'autoRefresh.30Seconds' },
   { value: 60, labelKey: 'autoRefresh.1Minute' },
-  { value: 300, labelKey: 'autoRefresh.5Minutes' },
 ] as const
 
 interface FiltersProps {
@@ -73,25 +72,35 @@ interface FiltersProps {
     sort: string
     status?: UserStatus | null
     load_sub: boolean
+    admin?: string[]
+    group?: number[]
   }
   onFilterChange: (filters: Partial<FiltersProps['filters']>) => void
   refetch?: (options?: RefetchOptions) => Promise<unknown>
   advanceSearchOnOpen: (status: boolean) => void
-  advanceSearchForm?: UseFormReturn<Record<string, unknown>>
   onClearAdvanceSearch?: () => void
   handleSort?: (column: string, fromDropdown?: boolean) => void
 }
 
-export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen, advanceSearchForm, onClearAdvanceSearch, handleSort }: FiltersProps) => {
+export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort }: FiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [search, setSearch] = useState(filters.search || '')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch } = useGetUsers(filters)
-  const refetchUsers = useCallback(() => {
-    const refetchFn = refetch ?? queryRefetch
-    return refetchFn()
+  const refetchUsers = useCallback(async (showLoading = false) => {
+    if (showLoading) {
+      setIsRefreshing(true)
+    }
+    try {
+      const refetchFn = refetch ?? queryRefetch
+      await refetchFn()
+    } finally {
+      if (showLoading) {
+        setIsRefreshing(false)
+      }
+    }
   }, [refetch, queryRefetch])
   useEffect(() => {
     const persistedValue = getUsersAutoRefreshIntervalSeconds()
@@ -100,7 +109,7 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
   useEffect(() => {
     if (!autoRefreshInterval) return
     const intervalId = setInterval(() => {
-      refetchUsers()
+      refetchUsers(true) // Show loading spinner on auto refresh
     }, autoRefreshInterval * 1000)
     return () => clearInterval(intervalId)
   }, [autoRefreshInterval, refetchUsers])
@@ -108,7 +117,7 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
     if (typeof document === 'undefined') return
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && autoRefreshInterval > 0) {
-        refetchUsers()
+        refetchUsers(true) // Show loading spinner on visibility change refresh
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -165,13 +174,7 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
 
   // Handle refresh with loading state
   const handleRefreshClick = async () => {
-    setIsRefreshing(true)
-    try {
-      await refetchUsers()
-    } finally {
-      // Instant response - no delay
-      setIsRefreshing(false)
-    }
+    await refetchUsers(true) // Show loading spinner on manual refresh
   }
 
   const handleAutoRefreshChange = (seconds: number) => {
@@ -184,26 +187,24 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
   }
 
   // Check if any advance search filters are active
+  // Check the actual filters prop instead of form values, as form gets reset when modal closes
   const hasActiveAdvanceFilters = () => {
-    if (!advanceSearchForm) return false
-    const values = advanceSearchForm.getValues() as Record<string, unknown>
-    const admin = values.admin as string[] | undefined
-    const group = values.group as string[] | undefined
-    const status = values.status as string | undefined
-    return (admin && admin.length > 0) || (group && group.length > 0) || status !== '0'
+    const admin = filters.admin
+    const group = filters.group
+    const status = filters.status
+    return (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null)
   }
 
   // Get the count of active advance filters
+  // Check the actual filters prop instead of form values, as form gets reset when modal closes
   const getActiveFiltersCount = () => {
-    if (!advanceSearchForm) return 0
-    const values = advanceSearchForm.getValues() as Record<string, unknown>
-    const admin = values.admin as string[] | undefined
-    const group = values.group as string[] | undefined
-    const status = values.status as string | undefined
+    const admin = filters.admin
+    const group = filters.group
+    const status = filters.status
     let count = 0
     if (admin && admin.length > 0) count++
     if (group && group.length > 0) count++
-    if (status !== '0') count++
+    if (status !== undefined && status !== null) count++
     return count
   }
 
@@ -223,7 +224,7 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
         <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10" onClick={handleOpenAdvanceSearch}>
           <Filter className="h-4 w-4" />
           {hasActiveAdvanceFilters() && (
-            <Badge variant="destructive" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-xs">
+            <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
               {getActiveFiltersCount()}
             </Badge>
           )}
@@ -291,13 +292,27 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
           size="icon-md"
           onClick={handleRefreshClick}
           variant="ghost"
-          className={cn('relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10', dir === 'rtl' ? 'rounded-l-none border-l-0' : 'rounded-r-none')}
+          className={cn(
+            'relative flex h-9 w-9 items-center justify-center border transition-all duration-200 md:h-10 md:w-10',
+            dir === 'rtl' ? 'rounded-l-none border-l-0' : 'rounded-r-none',
+            isRefreshing && 'opacity-70',
+          )}
           aria-label={t('autoRefresh.refreshNow')}
           title={t('autoRefresh.refreshNow')}
           disabled={isRefreshing}
         >
-          <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
-          {autoRefreshInterval > 0 && <div className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
+          <RefreshCw className={cn('h-4 w-4 transition-transform duration-200', isRefreshing && 'animate-spin')} />
+          <div className="absolute -right-1 -top-1 flex items-center justify-center">
+            {isRefreshing ? (
+              <div className="flex h-3 w-3 items-center justify-center rounded-full bg-primary transition-all duration-200 ease-in-out">
+                <LoaderCircle className="h-2 w-2 animate-spin text-primary-foreground" />
+              </div>
+            ) : (
+              autoRefreshInterval > 0 && (
+                <div className="h-2 w-2 rounded-full bg-primary transition-all duration-200 ease-in-out" />
+              )
+            )}
+          </div>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -317,10 +332,14 @@ export const Filters = ({ filters, onFilterChange, refetch, advanceSearchOnOpen,
               <span className="text-[9px]">{t('autoRefresh.currentSelection', { value: currentAutoRefreshDescription })}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => void handleRefreshClick()} disabled={isRefreshing} className="flex items-center gap-1.5 px-1.5 py-1 text-[11px]">
-              <RefreshCw className={cn('h-2.5 w-2.5 flex-shrink-0', isRefreshing && 'animate-spin')} />
+            <DropdownMenuItem
+              onSelect={() => void handleRefreshClick()}
+              disabled={isRefreshing}
+              className={cn('flex items-center gap-1.5 px-1.5 py-1 text-[11px] transition-opacity duration-200', isRefreshing && 'opacity-70')}
+            >
+              <RefreshCw className={cn('h-2.5 w-2.5 flex-shrink-0 transition-transform duration-200', isRefreshing && 'animate-spin')} />
               <span className="truncate">{t('autoRefresh.refreshNow')}</span>
-              {isRefreshing && <LoaderCircle className="ml-auto h-2.5 w-2.5 animate-spin" />}
+              {isRefreshing && <LoaderCircle className="ml-auto h-2.5 w-2.5 animate-spin text-primary" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {autoRefreshOptions.map(option => {

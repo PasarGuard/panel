@@ -18,18 +18,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useTheme } from '@/components/common/theme-provider'
 import NodeStatsModal from './node-stats-modal'
 
-// Helper function to determine period (copied from AllNodesStackedBarChart and CostumeBarChart)
-const getPeriodFromDateRange = (range?: DateRange): Period => {
-  if (!range?.from || !range?.to) {
-    return Period.hour // Default to hour if no range
-  }
-  const diffTime = Math.abs(range.to.getTime() - range.from.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  if (diffDays <= 2) {
-    return Period.hour
-  }
-  return Period.day
-}
+import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
 
 // Define allowed period keys
 const PERIOD_KEYS = ['1h', '12h', '24h', '3d', '1w'] as const

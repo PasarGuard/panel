@@ -12,18 +12,17 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DatePicker } from '@/components/common/date-picker'
+import { formatDateByLocale } from '@/utils/datePickerUtils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { useClearUsageData, useDeleteExpiredUsers, useGetAdmins, useGetCurrentAdmin, useResetUsersDataUsage, type AdminDetails, type UsageTable } from '@/service/api'
-import { format } from 'date-fns'
 import { debounce } from 'es-toolkit'
-import { AlertTriangle, CalendarIcon, Check, ChevronDown, Database, Loader2, RotateCcw, Server, Trash2, UserCog, UserRound } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Database, Loader2, RotateCcw, Server, Trash2, UserCog, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -166,14 +165,7 @@ export default function CleanupSettings() {
   }
 
   const formatDate = (date: Date) => {
-    if (isPersianLocale) {
-      return new Intl.DateTimeFormat('fa-IR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      }).format(date)
-    }
-    return format(date, 'PPP')
+    return formatDateByLocale(date, isPersianLocale, false)
   }
 
   const handleResetUsage = async () => {
@@ -354,77 +346,29 @@ export default function CleanupSettings() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('settings.cleanup.expiredUsers.expiredAfter')}</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !expiredAfter && 'text-muted-foreground')}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {expiredAfter ? formatDate(expiredAfter) : t('settings.cleanup.expiredUsers.expiredAfterPlaceholder')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  {isPersianLocale ? (
-                    <PersianCalendar
-                      mode="single"
-                      selected={expiredAfter}
-                      onSelect={setExpiredAfter}
-                      disabled={date => date > new Date() || date < new Date('1900-01-01')}
-                      captionLayout="dropdown"
-                      formatters={{
-                        formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
-                      }}
-                    />
-                  ) : (
-                    <Calendar
-                      mode="single"
-                      selected={expiredAfter}
-                      onSelect={setExpiredAfter}
-                      disabled={date => date > new Date() || date < new Date('1900-01-01')}
-                      captionLayout="dropdown"
-                      formatters={{
-                        formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
-                      }}
-                    />
-                  )}
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                mode="single"
+                date={expiredAfter}
+                onDateChange={setExpiredAfter}
+                label={t('settings.cleanup.expiredUsers.expiredAfter')}
+                placeholder={t('settings.cleanup.expiredUsers.expiredAfterPlaceholder')}
+                minDate={new Date('1900-01-01')}
+                maxDate={new Date()}
+                formatDate={formatDate}
+              />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('settings.cleanup.expiredUsers.expiredBefore')}</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !expiredBefore && 'text-muted-foreground')}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {expiredBefore ? formatDate(expiredBefore) : t('settings.cleanup.expiredUsers.expiredBeforePlaceholder')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  {isPersianLocale ? (
-                    <PersianCalendar
-                      mode="single"
-                      selected={expiredBefore}
-                      onSelect={setExpiredBefore}
-                      disabled={date => date > new Date() || date < new Date('1900-01-01')}
-                      captionLayout="dropdown"
-                      formatters={{
-                        formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
-                      }}
-                    />
-                  ) : (
-                    <Calendar
-                      mode="single"
-                      selected={expiredBefore}
-                      onSelect={setExpiredBefore}
-                      disabled={date => date > new Date() || date < new Date('1900-01-01')}
-                      captionLayout="dropdown"
-                      formatters={{
-                        formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
-                      }}
-                    />
-                  )}
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                mode="single"
+                date={expiredBefore}
+                onDateChange={setExpiredBefore}
+                label={t('settings.cleanup.expiredUsers.expiredBefore')}
+                placeholder={t('settings.cleanup.expiredUsers.expiredBeforePlaceholder')}
+                minDate={new Date('1900-01-01')}
+                maxDate={new Date()}
+                formatDate={formatDate}
+              />
             </div>
           </div>
 
@@ -525,77 +469,29 @@ export default function CleanupSettings() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('settings.cleanup.clearUsageData.dataAfter')}</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !clearDataAfter && 'text-muted-foreground')}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {clearDataAfter ? formatDate(clearDataAfter) : t('settings.cleanup.clearUsageData.dataAfterPlaceholder')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  {isPersianLocale ? (
-                    <PersianCalendar
-                      mode="single"
-                      selected={clearDataAfter}
-                      onSelect={setClearDataAfter}
-                      disabled={date => date > new Date() || date < new Date('1900-01-01')}
-                      captionLayout="dropdown"
-                      formatters={{
-                        formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
-                      }}
-                    />
-                  ) : (
-                    <Calendar
-                      mode="single"
-                      selected={clearDataAfter}
-                      onSelect={setClearDataAfter}
-                      disabled={date => date > new Date() || date < new Date('1900-01-01')}
-                      captionLayout="dropdown"
-                      formatters={{
-                        formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
-                      }}
-                    />
-                  )}
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                mode="single"
+                date={clearDataAfter}
+                onDateChange={setClearDataAfter}
+                label={t('settings.cleanup.clearUsageData.dataAfter')}
+                placeholder={t('settings.cleanup.clearUsageData.dataAfterPlaceholder')}
+                minDate={new Date('1900-01-01')}
+                maxDate={new Date()}
+                formatDate={formatDate}
+              />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('settings.cleanup.clearUsageData.dataBefore')}</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !clearDataBefore && 'text-muted-foreground')}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {clearDataBefore ? formatDate(clearDataBefore) : t('settings.cleanup.clearUsageData.dataBeforePlaceholder')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  {isPersianLocale ? (
-                    <PersianCalendar
-                      mode="single"
-                      selected={clearDataBefore}
-                      onSelect={setClearDataBefore}
-                      disabled={date => date > new Date() || date < new Date('1900-01-01')}
-                      captionLayout="dropdown"
-                      formatters={{
-                        formatMonthDropdown: date => date.toLocaleString('fa-IR', { month: 'short' }),
-                      }}
-                    />
-                  ) : (
-                    <Calendar
-                      mode="single"
-                      selected={clearDataBefore}
-                      onSelect={setClearDataBefore}
-                      disabled={date => date > new Date() || date < new Date('1900-01-01')}
-                      captionLayout="dropdown"
-                      formatters={{
-                        formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
-                      }}
-                    />
-                  )}
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                mode="single"
+                date={clearDataBefore}
+                onDateChange={setClearDataBefore}
+                label={t('settings.cleanup.clearUsageData.dataBefore')}
+                placeholder={t('settings.cleanup.clearUsageData.dataBeforePlaceholder')}
+                minDate={new Date('1900-01-01')}
+                maxDate={new Date()}
+                formatDate={formatDate}
+              />
             </div>
           </div>
 
