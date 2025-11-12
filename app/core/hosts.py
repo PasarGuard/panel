@@ -38,7 +38,7 @@ async def _prepare_subscription_inbound_data(
     ts = host.transport_settings
     if isinstance(ts, dict):
         ts = TransportSettings.model_validate(ts) if ts else None
-    
+
     network = inbound_config.get("network", "tcp")
     path = host.path or inbound_config.get("path", "")
 

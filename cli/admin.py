@@ -234,15 +234,17 @@ class AdminCLI(BaseCLI):
             self.console.print("\n[cyan]Notification Preferences:[/cyan]")
             enable_notifications = typer.confirm(
                 "Enable user notifications for this admin?",
-                default=any([
-                    current_admin.notification_enable["create"],
-                    current_admin.notification_enable["modify"],
-                    current_admin.notification_enable["delete"],
-                    current_admin.notification_enable["status_change"],
-                    current_admin.notification_enable["reset_data_usage"],
-                    current_admin.notification_enable["data_reset_by_next"],
-                    current_admin.notification_enable["subscription_revoked"],
-                ]),
+                default=any(
+                    [
+                        current_admin.notification_enable["create"],
+                        current_admin.notification_enable["modify"],
+                        current_admin.notification_enable["delete"],
+                        current_admin.notification_enable["status_change"],
+                        current_admin.notification_enable["reset_data_usage"],
+                        current_admin.notification_enable["data_reset_by_next"],
+                        current_admin.notification_enable["subscription_revoked"],
+                    ]
+                ),
             )
 
             if enable_notifications:

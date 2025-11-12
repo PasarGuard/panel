@@ -4,13 +4,18 @@ from ipaddress import ip_address
 from uuid import UUID
 
 from cryptography.x509 import load_pem_x509_certificate
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.db.models import NodeConnectionType, NodeStatus, DataLimitResetStrategy
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
 KEY_PATTERN = r"-----BEGIN (?:RSA )?PRIVATE KEY-----"
+
+SECONDS_IN_DAY = 86400
+SECONDS_IN_WEEK = 604800
+SECONDS_IN_MONTH = 2678400  # 31 days
+SECONDS_IN_YEAR = 31536000  # 365 days
 
 
 class UsageTable(str, Enum):
@@ -34,6 +39,9 @@ class Node(BaseModel):
     core_config_id: int
     api_key: str
     gather_logs: bool = Field(default=True)
+    data_limit: int = Field(default=0)
+    data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
+    reset_time: int = Field(default=-1)
 
 
 class NodeCreate(Node):
@@ -116,6 +124,32 @@ class NodeCreate(Node):
             raise ValueError("Invalid UUID format for api_key")
         return v
 
+    @model_validator(mode="after")
+    def validate_reset_time_for_strategy(self):
+        if self.data_limit_reset_strategy is None:
+            return self
+
+        # Skip validation for no_reset strategy or -1 (interval-based)
+        if self.data_limit_reset_strategy == DataLimitResetStrategy.no_reset or self.reset_time == -1:
+            return self
+
+        # Define max values for each strategy
+        max_values = {
+            DataLimitResetStrategy.day: SECONDS_IN_DAY,
+            DataLimitResetStrategy.week: SECONDS_IN_WEEK,
+            DataLimitResetStrategy.month: SECONDS_IN_MONTH,
+            DataLimitResetStrategy.year: SECONDS_IN_YEAR,
+        }
+
+        max_value = max_values.get(self.data_limit_reset_strategy)
+        if max_value and self.reset_time >= max_value:
+            raise ValueError(
+                f"reset_time must be less than {max_value} for {self.data_limit_reset_strategy.value} strategy, "
+                f"got {self.reset_time}"
+            )
+
+        return self
+
 
 class NodeModify(NodeCreate):
     name: str | None = Field(default=None)
@@ -130,6 +164,9 @@ class NodeModify(NodeCreate):
     core_config_id: int | None = Field(default=None)
     api_key: str | None = Field(default=None)
     gather_logs: bool | None = Field(default=None)
+    data_limit: int | None = None
+    data_limit_reset_strategy: DataLimitResetStrategy | None = None
+    reset_time: int | None = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -161,9 +198,6 @@ class NodeResponse(Node):
     message: str | None
     uplink: int = 0
     downlink: int = 0
-    data_limit: int | None = None
-    data_limit_reset_strategy: DataLimitResetStrategy | None = None
-    reset_time: int | None = None
     lifetime_uplink: int | None = None
     lifetime_downlink: int | None = None
 

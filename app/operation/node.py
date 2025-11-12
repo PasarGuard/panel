@@ -320,11 +320,13 @@ class NodeOperation(BaseOperation):
                 message=result.get("message"),
             )
 
-            notifications_to_send.append({
-                "node": node_notif,
-                "status": result["status"],
-                "old_status": result["old_status"],
-            })
+            notifications_to_send.append(
+                {
+                    "node": node_notif,
+                    "status": result["status"],
+                    "old_status": result["old_status"],
+                }
+            )
 
         # Bulk update all statuses in ONE query
         await bulk_update_node_status(db, valid_results)
@@ -440,7 +442,7 @@ class NodeOperation(BaseOperation):
     async def get_node_stats_periodic(
         self, db: AsyncSession, node_id: id, start: dt = None, end: dt = None, period: Period = Period.hour
     ) -> NodeStatsList:
-        start, end = await self.validate_dates(start, end,True)
+        start, end = await self.validate_dates(start, end, True)
 
         return await get_node_stats(db, node_id, start, end, period=period)
 

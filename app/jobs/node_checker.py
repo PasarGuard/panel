@@ -101,9 +101,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
         return
     except NodeAPIError as e:
         async with GetDB() as db:
-            await NodeOperation._update_single_node_status(
-                db, db_node.id, NodeStatus.error, message=e.detail
-            )
+            await NodeOperation._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
         return
 
     # Skip nodes that are already healthy and connected

@@ -470,15 +470,17 @@ class AdminModifyModale(BaseModal):
 
         # Load existing notification preferences (notification_enable is a dict from SQLAlchemy)
         notif = self.admin.notification_enable or {}
-        master_on = any([
-            notif.get("create", False),
-            notif.get("modify", False),
-            notif.get("delete", False),
-            notif.get("status_change", False),
-            notif.get("reset_data_usage", False),
-            notif.get("data_reset_by_next", False),
-            notif.get("subscription_revoked", False),
-        ])
+        master_on = any(
+            [
+                notif.get("create", False),
+                notif.get("modify", False),
+                notif.get("delete", False),
+                notif.get("status_change", False),
+                notif.get("reset_data_usage", False),
+                notif.get("data_reset_by_next", False),
+                notif.get("subscription_revoked", False),
+            ]
+        )
 
         self.query_one("#notif_master").value = master_on
         self.query_one("#notif_create").value = notif.get("create", False)

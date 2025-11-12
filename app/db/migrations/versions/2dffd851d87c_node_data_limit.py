@@ -14,12 +14,29 @@ down_revision = '797420faec8d'
 branch_labels = None
 depends_on = None
 
-# Enum configuration
+# DataLimitResetStrategy enum configuration
 old_enum_name = "userdatalimitresetstrategy"
 new_enum_name = "datalimitresetstrategy"
 enum_values = ('no_reset', 'day', 'week', 'month', 'year')
 
 new_type = sa.Enum(*enum_values, name=new_enum_name)
+
+# NodeStatus enum configuration
+node_status_enum_name = "nodestatus"
+node_status_temp_enum_name = "temp_nodestatus"
+old_node_status_values = ('connected', 'connecting', 'error', 'disabled')
+new_node_status_values = ('connected', 'connecting', 'error', 'disabled', 'limited')
+downgrade_node_status = ("limited", "disabled")  # Convert limited -> disabled on downgrade
+
+old_node_status_type = sa.Enum(*old_node_status_values, name=node_status_enum_name)
+new_node_status_type = sa.Enum(*new_node_status_values, name=node_status_enum_name)
+temp_node_status_type = sa.Enum(*new_node_status_values, name=node_status_temp_enum_name)
+
+# Table definition for status updates
+nodes_table = sa.sql.table(
+    'nodes',
+    sa.Column('status', new_node_status_type, nullable=False)
+)
 
 
 def upgrade() -> None:
@@ -35,6 +52,32 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['node_id'], ['nodes.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
+
+    # Update NodeStatus enum to add 'limited' value
+    temp_node_status_type.create(op.get_bind(), checkfirst=False)
+
+    with op.batch_alter_table('nodes') as batch_op:
+        batch_op.alter_column(
+            'status',
+            existing_type=old_node_status_type,
+            type_=temp_node_status_type,
+            existing_nullable=False,
+            postgresql_using="status::text::temp_nodestatus"
+        )
+
+    old_node_status_type.drop(op.get_bind(), checkfirst=False)
+    new_node_status_type.create(op.get_bind(), checkfirst=False)
+
+    with op.batch_alter_table('nodes') as batch_op:
+        batch_op.alter_column(
+            'status',
+            existing_type=temp_node_status_type,
+            type_=new_node_status_type,
+            existing_nullable=False,
+            postgresql_using="status::text::nodestatus"
+        )
+
+    temp_node_status_type.drop(op.get_bind(), checkfirst=False)
 
     # Add columns to nodes table
     op.add_column('nodes', sa.Column('data_limit', sa.BigInteger(), nullable=True))
@@ -60,6 +103,40 @@ def downgrade() -> None:
     if bind.dialect.name == "postgresql":
         op.execute(f"ALTER TYPE {new_enum_name} RENAME TO {old_enum_name};")
     # For MySQL/SQLite: No-op
+
+    # Convert any 'limited' status to 'disabled' before downgrading enum
+    op.execute(
+        nodes_table
+        .update()
+        .where(nodes_table.c.status == downgrade_node_status[0])
+        .values(status=downgrade_node_status[1])
+    )
+
+    # Reverse NodeStatus enum changes
+    temp_node_status_type.create(op.get_bind(), checkfirst=False)
+
+    with op.batch_alter_table('nodes') as batch_op:
+        batch_op.alter_column(
+            'status',
+            existing_type=new_node_status_type,
+            type_=temp_node_status_type,
+            existing_nullable=False,
+            postgresql_using="status::text::temp_nodestatus"
+        )
+
+    new_node_status_type.drop(op.get_bind(), checkfirst=False)
+    old_node_status_type.create(op.get_bind(), checkfirst=False)
+
+    with op.batch_alter_table('nodes') as batch_op:
+        batch_op.alter_column(
+            'status',
+            existing_type=temp_node_status_type,
+            type_=old_node_status_type,
+            existing_nullable=False,
+            postgresql_using="status::text::nodestatus"
+        )
+
+    temp_node_status_type.drop(op.get_bind(), checkfirst=False)
 
     # Drop node_usage_reset_logs table
     op.drop_table('node_usage_reset_logs')

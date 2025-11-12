@@ -27,6 +27,7 @@ async def load_node_attrs(node: Node):
     except AttributeError:
         pass
 
+
 async def get_node(db: AsyncSession, name: str) -> Optional[Node]:
     """
     Retrieves a node by its name.
