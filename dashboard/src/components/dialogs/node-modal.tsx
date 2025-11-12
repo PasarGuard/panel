@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useTranslation } from 'react-i18next'
 import { UseFormReturn } from 'react-hook-form'
-import { useCreateNode, useModifyNode, NodeConnectionType, useGetAllCores, CoreResponse, getNode } from '@/service/api'
+import { useCreateNode, useModifyNode, NodeConnectionType, useGetAllCores, CoreResponse, getNode, DataLimitResetStrategy } from '@/service/api'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { cn } from '@/lib/utils'
@@ -19,6 +19,7 @@ import { v4 as uuidv4, v5 as uuidv5, v6 as uuidv6, v7 as uuidv7 } from 'uuid'
 import { LoaderButton } from '../ui/loader-button'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { DatePicker } from '@/components/common/date-picker'
 
 export const nodeFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -33,6 +34,9 @@ export const nodeFormSchema = z.object({
   api_key: z.string().min(1, 'API key is required'),
   core_config_id: z.number().min(1, 'Core configuration is required'),
   gather_logs: z.boolean().default(true),
+  data_limit: z.number().min(0).optional().nullable(),
+  data_limit_reset_strategy: z.nativeEnum(DataLimitResetStrategy).optional().nullable(),
+  reset_time: z.number().min(0).optional().nullable(),
 })
 
 export type NodeFormValues = z.infer<typeof nodeFormSchema>
@@ -118,6 +122,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
             api_key: (nodeData.api_key as string) || '',
             core_config_id: nodeData.core_config_id || cores?.cores?.[0]?.id,
             gather_logs: nodeData.gather_logs ?? true,
+            data_limit: nodeData.data_limit ?? null,
+            data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? null,
+            reset_time: nodeData.reset_time ?? null,
           })
         } catch (error) {
           console.error('Error fetching node data:', error)
@@ -141,6 +148,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         api_key: '',
         core_config_id: cores?.cores?.[0]?.id,
         gather_logs: true,
+        data_limit: null,
+        data_limit_reset_strategy: null,
+        reset_time: null,
       })
     }
   }, [editingNode, editingNodeId, isDialogOpen])
@@ -199,6 +209,10 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         keep_alive: keepAliveInSeconds,
         // Remove the unit since backend doesn't need it
         keep_alive_unit: undefined,
+        // Convert null to undefined for optional fields
+        data_limit: values.data_limit ?? undefined,
+        data_limit_reset_strategy: values.data_limit_reset_strategy ?? undefined,
+        reset_time: values.reset_time ?? undefined,
       }
 
       let nodeId: number | undefined
@@ -628,6 +642,101 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                               </FormItem>
                             )}
                           />
+
+                          <div className="flex flex-col gap-4">
+                            <FormField
+                              control={form.control}
+                              name="data_limit"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('nodeModal.dataLimit')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      isError={!!form.formState.errors.data_limit}
+                                      type="number"
+                                      step="0.01"
+                                      placeholder={t('nodeModal.dataLimitPlaceholder')}
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      onChange={e => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name="data_limit_reset_strategy"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('nodeModal.dataLimitResetStrategy')}</FormLabel>
+                                  <Select
+                                    onValueChange={value => field.onChange(value === 'none' ? null : value)}
+                                    value={field.value ?? 'none'}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={t('nodeModal.selectDataLimitResetStrategy')} />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="none">{t('nodeModal.noReset')}</SelectItem>
+                                      <SelectItem value={DataLimitResetStrategy.day}>{t('nodeModal.day')}</SelectItem>
+                                      <SelectItem value={DataLimitResetStrategy.week}>{t('nodeModal.week')}</SelectItem>
+                                      <SelectItem value={DataLimitResetStrategy.month}>{t('nodeModal.month')}</SelectItem>
+                                      <SelectItem value={DataLimitResetStrategy.year}>{t('nodeModal.year')}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name="reset_time"
+                              render={({ field }) => {
+                                // Convert seconds since midnight to a Date object (using today's date)
+                                const secondsToDate = (seconds: number | null | undefined): Date | undefined => {
+                                  if (seconds === null || seconds === undefined) return undefined
+                                  const hours = Math.floor(seconds / 3600)
+                                  const minutes = Math.floor((seconds % 3600) / 60)
+                                  const date = new Date()
+                                  date.setHours(hours, minutes, 0, 0)
+                                  return date
+                                }
+
+                                // Convert Date object to seconds since midnight
+                                const dateToSeconds = (date: Date | undefined): number | null => {
+                                  if (!date) return null
+                                  return date.getHours() * 3600 + date.getMinutes() * 60
+                                }
+
+                                const dateValue = secondsToDate(field.value)
+
+                                return (
+                                  <FormItem>
+                                    <FormLabel>{t('nodeModal.resetTime')}</FormLabel>
+                                    <FormControl>
+                                      <DatePicker
+                                        mode="single"
+                                        showTime={true}
+                                        date={dateValue}
+                                        onDateChange={(date) => {
+                                          const seconds = dateToSeconds(date)
+                                          field.onChange(seconds)
+                                        }}
+                                        placeholder={t('nodeModal.resetTimePlaceholder')}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )
+                              }}
+                            />
+                          </div>
                         </div>
                       </AccordionContent>
                     </AccordionItem>
