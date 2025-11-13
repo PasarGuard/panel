@@ -147,6 +147,24 @@ class NodeOperation(BaseOperation):
                 exclude_inbounds=core.exclude_inbound_tags,
                 timeout=10,
             )
+            
+            if not info.core_version or not info.node_version:
+                missing_versions = []
+                if not info.core_version:
+                    missing_versions.append("core_version")
+                if not info.node_version:
+                    missing_versions.append("node_version")
+                error_msg = f"Node connection succeeded but versions are missing: {', '.join(missing_versions)}"
+                logger.error(f'Failed to connect node {db_node.name} with id {db_node.id}, Error: {error_msg}')
+                return {
+                    "node_id": db_node.id,
+                    "status": NodeStatus.error,
+                    "message": error_msg,
+                    "xray_version": "",
+                    "node_version": "",
+                    "old_status": old_status,
+                }
+            
             logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, xray run on v{info.core_version}')
 
             return {

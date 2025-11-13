@@ -50,29 +50,92 @@ async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> He
             return current_health
 
 
+async def _fetch_node_versions(node: PasarGuardNode, timeout: int = 10, max_retries: int = 2) -> tuple[str, str] | None:
+    """Fetch node versions with timeout and retry logic. Returns (xray_version, node_version) or None on failure."""
+    for attempt in range(max_retries):
+        try:
+            xray_version = await asyncio.wait_for(node.core_version(), timeout=timeout)
+            node_version = await asyncio.wait_for(node.node_version(), timeout=timeout)
+            if xray_version and node_version:
+                return xray_version, node_version
+        except asyncio.TimeoutError:
+            if attempt < max_retries - 1:
+                logger.debug(f"Version fetch timeout, retry {attempt + 1}/{max_retries}")
+                await asyncio.sleep(1)  # Brief delay before retry
+                continue
+            logger.debug("Version fetch timeout after all retries")
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.debug(f"Version fetch failed: {type(e).__name__} - {str(e)}, retry {attempt + 1}/{max_retries}")
+                await asyncio.sleep(1)
+                continue
+            logger.debug(f"Version fetch failed: {type(e).__name__} - {str(e)}")
+    return None
+
+
 async def update_node_connection_status(node_id: int, node: PasarGuardNode):
     """
     Update node connection status by getting backend stats and version info.
+    Only marks node as connected if both versions are successfully retrieved and non-empty.
+    Automatically retries on timeout.
     """
-    try:
-        await node.get_backend_stats(timeout=8)
-        xray_version = await node.core_version()
-        node_version = await node.node_version()
-        async with GetDB() as db:
-            await NodeOperation._update_single_node_status(
-                db,
-                node_id,
-                NodeStatus.connected,
-                xray_version=xray_version,
-                node_version=node_version,
-            )
-    except NodeAPIError as e:
-        if e.code > -3:
-            async with GetDB() as db:
-                await NodeOperation._update_single_node_status(db, node_id, NodeStatus.error, message=e.detail)
-        if e.code > 0:
-            async with GetDB() as db:
+    async with GetDB() as db:
+        try:
+            # Add timeout handling for backend stats
+            try:
+                await asyncio.wait_for(node.get_backend_stats(timeout=8), timeout=10)
+            except asyncio.TimeoutError:
+                logger.warning(f"Node {node_id} backend stats timeout, attempting restart...")
+                await NodeOperation._update_single_node_status(
+                    db, node_id, NodeStatus.error, message="Backend stats timeout, restarting..."
+                )
                 await node_operator.connect_single_node(db, node_id)
+                return
+            
+            # Fetch versions with retry on timeout
+            versions = await _fetch_node_versions(node)
+            if not versions:
+                logger.warning(f"Node {node_id} version fetch failed, attempting restart...")
+                await NodeOperation._update_single_node_status(
+                    db, node_id, NodeStatus.error, message="Failed to fetch versions, restarting..."
+                )
+                await node_operator.connect_single_node(db, node_id)
+                return
+
+            xray_version, node_version = versions
+            
+            # Validate versions are non-empty before marking as connected
+            if not xray_version or not xray_version.strip() or not node_version or not node_version.strip():
+                logger.warning(f"Node {node_id} has invalid versions, attempting restart...")
+                await NodeOperation._update_single_node_status(
+                    db, node_id, NodeStatus.error, message="Versions are empty or invalid, restarting..."
+                )
+                await node_operator.connect_single_node(db, node_id)
+                return
+            
+            await NodeOperation._update_single_node_status(
+                db, node_id, NodeStatus.connected, xray_version=xray_version, node_version=node_version
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Node {node_id} connection status update timeout, attempting restart...")
+            await NodeOperation._update_single_node_status(
+                db, node_id, NodeStatus.error, message="Connection status update timeout, restarting..."
+            )
+            await node_operator.connect_single_node(db, node_id)
+        except NodeAPIError as e:
+            if e.code > -3:
+                await NodeOperation._update_single_node_status(db, node_id, NodeStatus.error, message=e.detail)
+            if e.code > 0 or e.code == -1 or e.code == -3:
+                logger.info(f"Node {node_id} API error (code {e.code}), attempting restart...")
+                await node_operator.connect_single_node(db, node_id)
+        except Exception as e:
+            error_type = type(e).__name__
+            logger.error(f"Failed to update node {node_id} connection status | Error: {error_type} - {str(e)}")
+            await NodeOperation._update_single_node_status(
+                db, node_id, NodeStatus.error, message=f"{error_type}: {str(e)}"
+            )
+            # Automatically restart on any exception
+            await node_operator.connect_single_node(db, node_id)
 
 
 async def process_node_health_check(db_node: Node, node: PasarGuardNode):
@@ -94,31 +157,58 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     try:
         health = await asyncio.wait_for(verify_node_backend_health(node, db_node.name), timeout=15)
     except asyncio.TimeoutError:
+        logger.warning(f"[{db_node.name}] Health check timeout, attempting automatic restart...")
         async with GetDB() as db:
             await NodeOperation._update_single_node_status(
-                db, db_node.id, NodeStatus.error, message="Health check timeout"
+                db, db_node.id, NodeStatus.error, message="Health check timeout, restarting..."
             )
+            # Automatically restart the node on timeout
+            await node_operator.connect_single_node(db, db_node.id)
         return
     except NodeAPIError as e:
         async with GetDB() as db:
             await NodeOperation._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
+            if e.code == -1 or e.code == -3 or e.code > 0:
+                logger.info(f"[{db_node.name}] Node API error (code {e.code}), attempting automatic restart...")
+                await node_operator.connect_single_node(db, db_node.id)
         return
 
-    # Skip nodes that are already healthy and connected
-    if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
-        return
+    # Check if node is marked as connected but has empty versions (invalid state)
+    if db_node.status == NodeStatus.connected:
+        if not db_node.xray_version or not db_node.node_version:
+            logger.warning(f"[{db_node.name}] Node marked as connected but has empty versions, reconnecting...")
+            async with GetDB() as db:
+                await NodeOperation._update_single_node_status(
+                    db, db_node.id, NodeStatus.error, message="Versions missing, reconnecting"
+                )
+                await node_operator.connect_single_node(db, db_node.id)
+            return
 
-    # Update status for recovering nodes
-    if db_node.status in (NodeStatus.connecting, NodeStatus.error) and health == Health.HEALTHY:
-        async with GetDB() as db:
-            await NodeOperation._update_single_node_status(
-                db,
-                db_node.id,
-                NodeStatus.connected,
-                xray_version=await node.core_version(),
-                node_version=await node.node_version(),
-            )
-        return
+        # Skip nodes that are already healthy and connected with valid versions
+        if health == Health.HEALTHY:
+            return
+
+        # Update status for recovering nodes
+        if db_node.status in (NodeStatus.connecting, NodeStatus.error) and health == Health.HEALTHY:
+            versions = await _fetch_node_versions(node)
+            async with GetDB() as db:
+                if versions:
+                    xray_version, node_version = versions
+                    # Validate versions are non-empty before marking as connected
+                    if not xray_version or not xray_version.strip() or not node_version or not node_version.strip():
+                        await NodeOperation._update_single_node_status(
+                            db, db_node.id, NodeStatus.error, message="Versions are empty or invalid during recovery"
+                        )
+                        await node_operator.connect_single_node(db, db_node.id)
+                    else:
+                        await NodeOperation._update_single_node_status(
+                            db, db_node.id, NodeStatus.connected, xray_version=xray_version, node_version=node_version
+                        )
+                else:
+                    await NodeOperation._update_single_node_status(
+                        db, db_node.id, NodeStatus.error, message="Failed to fetch versions during recovery"
+                    )
+            return
 
     # For all other cases, update connection status
     await update_node_connection_status(db_node.id, node)
