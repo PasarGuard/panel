@@ -51,25 +51,44 @@ async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> He
 
 
 async def _fetch_node_versions(node: PasarGuardNode, timeout: int = 10, max_retries: int = 2) -> tuple[str, str] | None:
-    """Fetch node versions with timeout and retry logic. Returns (xray_version, node_version) or None on failure."""
+    """Fetch node versions with timeout and retry logic. Returns (xray_version, node_version) or None on failure.
+    
+    Uses node.info() to fetch fresh versions from the backend instead of relying on cached in-memory versions.
+    """
     for attempt in range(max_retries):
         try:
-            xray_version = await asyncio.wait_for(node.core_version(), timeout=timeout)
-            node_version = await asyncio.wait_for(node.node_version(), timeout=timeout)
-            if xray_version and node_version:
-                return xray_version, node_version
+            info = await asyncio.wait_for(node.info(), timeout=timeout)
+            if info and info.core_version and info.node_version:
+                # Validate versions are non-empty
+                xray_version = info.core_version 
+                node_version = info.node_version
+                
+                # Final validation: both versions must be non-empty
+                if xray_version and node_version:
+                    return xray_version, node_version
+            
+            # Versions were empty or missing - log and retry if attempts remain
+            logger.debug(f"Version fetch returned empty versions, retry {attempt + 1}/{max_retries}")
+            
         except asyncio.TimeoutError:
+            # Network timeout - node may be slow or unresponsive
             if attempt < max_retries - 1:
                 logger.debug(f"Version fetch timeout, retry {attempt + 1}/{max_retries}")
-                await asyncio.sleep(1)  # Brief delay before retry
+                await asyncio.sleep(1)  # Brief delay before retry to avoid hammering the node
                 continue
+            # All retries exhausted
             logger.debug("Version fetch timeout after all retries")
+            
         except Exception as e:
+            # Other errors (connection errors, API errors, etc.)
             if attempt < max_retries - 1:
                 logger.debug(f"Version fetch failed: {type(e).__name__} - {str(e)}, retry {attempt + 1}/{max_retries}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(1)  # Brief delay before retry
                 continue
+            # All retries exhausted
             logger.debug(f"Version fetch failed: {type(e).__name__} - {str(e)}")
+    
+    # All attempts failed - return None to indicate failure
     return None
 
 
