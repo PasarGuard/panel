@@ -36,12 +36,14 @@ from app.db.crud.user import (
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.stats import Period, UserUsageStatsList
+from app.exception import UserNotFoundException
 from app.models.user import (
     BulkUser,
     BulkUsersProxy,
     CreateUserFromTemplate,
     ModifyUserByTemplate,
     RemoveUsersResponse,
+    StaticToken,
     UserCreate,
     UserModify,
     UserNotificationResponse,
@@ -54,6 +56,7 @@ from app.models.user import (
 from app.node import node_manager
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
+import secrets
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
 from config import SUBSCRIPTION_PATH
@@ -586,3 +589,22 @@ class UserOperation(BaseOperation):
                 return sanitized
 
         return "Unknown"
+
+    async def manage_static_token(
+        self,
+        db: AsyncSession,
+        username: str,
+        in_data: StaticToken,
+        admin: AdminDetails,
+    ) -> UserResponse:
+        db_user = await self.get_validated_user(db, username, admin)
+        if not db_user:
+            raise UserNotFoundException()
+
+        if in_data.regenerate or (in_data.use_static_token and not db_user.static_token):
+            db_user.static_token = secrets.token_hex(8)
+
+        db_user.use_static_token = in_data.use_static_token
+        await db.commit()
+        await db.refresh(db_user)
+        return await self.validate_user(db_user)

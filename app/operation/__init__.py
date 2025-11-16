@@ -15,7 +15,7 @@ from app.db.crud import (
     get_user_template,
 )
 from app.db.crud.admin import get_admin_by_id
-from app.db.crud.user import get_user_by_id
+from app.db.crud.user import get_user_by_id, get_user_by_static_token
 from app.db.models import Admin as DBAdmin, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
@@ -81,6 +81,10 @@ class BaseOperation:
         return db_host
 
     async def get_validated_sub(self, db: AsyncSession, token: str) -> User:
+        db_user = await get_user_by_static_token(db, token)
+        if db_user and db_user.use_static_token:
+            return db_user
+
         sub = await get_subscription_payload(token)
         if not sub:
             await self.raise_error(message="Not Found", code=404)

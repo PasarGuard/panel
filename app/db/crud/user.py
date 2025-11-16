@@ -58,6 +58,25 @@ async def get_user(db: AsyncSession, username: str) -> Optional[User]:
     return user
 
 
+async def get_user_by_static_token(db: AsyncSession, static_token: str) -> User | None:
+    """
+    Retrieves a user by static token.
+
+    Args:
+        db (AsyncSession): Database session.
+        static_token (str): The static token of the user.
+
+    Returns:
+        Optional[User]: The user object if found, else None.
+    """
+    stmt = select(User).where(User.static_token == static_token)
+
+    user = (await db.execute(stmt)).unique().scalar_one_or_none()
+    if user:
+        await load_user_attrs(user)
+    return user
+
+
 async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     """
     Retrieves a user by user ID.

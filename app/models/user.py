@@ -113,6 +113,8 @@ class UserNotificationResponse(User):
 class UserResponse(UserNotificationResponse):
     admin: AdminBase | None = Field(default=None)
     group_names: list[str] | None = Field(default=None, exclude=True)
+    static_token: str | None = Field(default=None)
+    use_static_token: bool = Field(default=False)
 
 
 class SubscriptionUserResponse(UserResponse):
@@ -181,7 +183,11 @@ class BulkUser(BaseModel):
     group_ids: set[int] = Field(default_factory=set)
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
-    status: set[UserStatus] = Field(default_factory=set)
+
+
+class StaticToken(BaseModel):
+    use_static_token: bool
+    regenerate: bool = False
 
 
 class BulkUsersProxy(BaseModel):

@@ -24,13 +24,14 @@ import {
   useGetUserTemplates,
   useModifyUser,
   useModifyUserWithTemplate,
+  useManageStaticToken,
   type UserResponse,
   type UsersResponse,
 } from '@/service/api'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Layers, ListStart, Lock, RefreshCcw, Users } from 'lucide-react'
+import { ChevronDown, Layers, ListStart, Lock, KeyRound, RefreshCcw, Users } from 'lucide-react'
 import React, { useEffect, useState, useTransition } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -311,6 +312,18 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
   const [expireCalendarOpen, setExpireCalendarOpen] = useState(false)
   const [onHoldCalendarOpen, setOnHoldCalendarOpen] = useState(false)
+
+  const manageStaticTokenMutation = useManageStaticToken({
+    mutation: {
+      onSuccess: data => {
+        refreshUserData(data, true)
+        toast.success(t('userDialog.staticTokenUpdated'))
+      },
+      onError: error => {
+        handleError({ error, contextKey: 'users' })
+      },
+    },
+  })
 
   // Reset calendar state when modal opens/closes
   useEffect(() => {
@@ -1805,6 +1818,77 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                               </FormItem>
                             )}
                           />
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
+                  {/* Static Token Accordion */}
+                  {editingUser && (
+                    <Accordion type="single" collapsible className="my-4 w-full">
+                      <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="staticToken">
+                        <AccordionTrigger>
+                          <div className="flex items-center gap-2">
+                            <KeyRound className="h-4 w-4" />
+                            <span>{t('userDialog.staticTokenAccordion')}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-2">
+                          <div className="space-y-4">
+                            <FormField
+                              control={form.control}
+                              name="use_static_token"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                  <div className="space-y-0.5">
+                                    <FormLabel>{t('userDialog.useStaticToken')}</FormLabel>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      onCheckedChange={value => {
+                                        field.onChange(value)
+                                        manageStaticTokenMutation.mutateAsync({
+                                          username: form.getValues('username'),
+                                          data: { use_static_token: value },
+                                        })
+                                      }}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            {form.watch('use_static_token') && (
+                              <FormField
+                                control={form.control}
+                                name="static_token"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('userDialog.staticToken')}</FormLabel>
+                                    <FormControl>
+                                      <div className="flex items-center gap-2">
+                                        <Input {...field} readOnly />
+                                        <Button
+                                          size="icon"
+                                          type="button"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            manageStaticTokenMutation.mutateAsync({
+                                              username: form.getValues('username'),
+                                              data: { use_static_token: true, regenerate: true },
+                                            })
+                                          }}
+                                          title="Generate new token"
+                                        >
+                                          <RefreshCcw className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                          </div>
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>

@@ -614,6 +614,8 @@ export interface UserResponse {
   online_at?: UserResponseOnlineAt
   subscription_url?: string
   admin?: UserResponseAdmin
+  use_static_token?: boolean
+  static_token?: string | null
 }
 
 export interface UserNotificationEnable {
@@ -2176,6 +2178,55 @@ export const useAdminToken = <TData = Awaited<ReturnType<typeof adminToken>>, TE
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext> => {
   const mutationOptions = getAdminTokenMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+export interface StaticToken {
+  use_static_token: boolean
+  static_token?: string | null
+}
+
+export const manageStaticToken = (username: string, staticToken: BodyType<StaticToken>) => {
+  return orvalFetcher<UserResponse>({
+    url: `/api/user/${username}/static_token`,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    data: staticToken,
+  })
+}
+
+export const getManageStaticTokenMutationOptions = <
+  TData = Awaited<ReturnType<typeof manageStaticToken>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<StaticToken> }, TContext>
+}) => {
+  const mutationKey = ['manageStaticToken']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof manageStaticToken>>, { username: string; data: BodyType<StaticToken> }> = props => {
+    const { username, data } = props ?? {}
+
+    return manageStaticToken(username, data)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export const useManageStaticToken = <
+  TData = Awaited<ReturnType<typeof manageStaticToken>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<StaticToken> }, TContext>
+}): UseMutationResult<TData, TError, { username: string; data: BodyType<StaticToken> }, TContext> => {
+  const mutationOptions = getManageStaticTokenMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

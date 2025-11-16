@@ -159,6 +159,8 @@ class User(Base):
     auto_delete_in_days: Mapped[Optional[int]] = mapped_column(default=None)
     edit_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    static_token: Mapped[Optional[str]] = mapped_column(String(128), unique=True, default=None)
+    use_static_token: Mapped[bool] = mapped_column(server_default=text("0"), default=False)
 
     @hybrid_property
     def expire(self) -> Optional[dt]:

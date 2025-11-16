@@ -75,6 +75,8 @@ export const userCreateSchema = z.object({
   auto_delete_in_days: z.number().optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
+  static_token: z.string().optional(),
+  use_static_token: z.boolean().optional(),
 })
 
 export const userEditSchema = z.object({
@@ -103,6 +105,8 @@ export const userEditSchema = z.object({
   auto_delete_in_days: z.number().optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
+  static_token: z.string().optional(),
+  use_static_token: z.boolean().optional(),
 })
 
 export type UseEditFormValues = z.infer<typeof userEditSchema>

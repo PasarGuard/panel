@@ -18,6 +18,7 @@ from app.models.user import (
     UsersResponse,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateList,
+    StaticToken,
 )
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -372,3 +373,23 @@ async def bulk_modify_users_proxy_settings(
     _: AdminDetails = Depends(check_sudo_admin),
 ):
     return await user_operator.bulk_modify_proxy_settings(db, bulk_model)
+
+
+@router.put(
+    "/{username}/static_token",
+    response_model=UserResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def manage_static_token(
+    username: str,
+    in_data: StaticToken,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Manage user static token"""
+    return await user_operator.manage_static_token(
+        db,
+        username=username,
+        in_data=in_data,
+        admin=admin,
+    )
