@@ -1,9 +1,9 @@
-from sqlalchemy.orm import load_only, selectinload
+from PasarGuardNodeBridge import create_proxy, create_user
 from sqlalchemy import select
-from PasarGuardNodeBridge import create_user, create_proxy
+from sqlalchemy.orm import load_only, selectinload
 
 from app.db import AsyncSession
-from app.db.models import ProxyInbound, Group, User, UserStatus
+from app.db.models import Group, ProxyInbound, User, UserStatus
 
 
 def serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None):
@@ -34,7 +34,7 @@ async def core_users(db: AsyncSession):
             selectinload(User.groups),
             selectinload(User.groups).selectinload(Group.inbounds).load_only(ProxyInbound.tag),
         )
-        .filter(User.status.in_([UserStatus.active, UserStatus.on_hold]))
+        .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
     )
     users = (await db.execute(stmt)).unique().scalars().all()
     bridge_users: list = []
