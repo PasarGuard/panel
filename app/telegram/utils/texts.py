@@ -31,6 +31,7 @@ class Button:
     modify_expiry = "📅 Modify Expiry"
     delete_expired = "⌛ Delete Expired"
     bulk_actions = "🔧 Bulk Actions"
+    bulk_create_from_template = "👥 Bulk From Template"
     open_panel = "🎛 Open Panel"
     done = "✅ Done"
     search = "🔎 Search"
@@ -44,6 +45,8 @@ class Button:
     cancel = "❌ Cancel"
     create_user = "👤 Create User"
     create_user_from_template = "👤 Create User From Template"
+    random_strategy = "🎲 Random"
+    sequence_strategy = "🔢 Sequence"
     modify_with_template = "📦 Modify with Template"
     sync_users = "🔄 Sync Users"
     refresh_data = "♻ Refresh"
@@ -58,7 +61,10 @@ class Message:
     enter_modify_expiry = "📅 Enter new Expiry (days):\nSend 0 for unlimited."
     enter_bulk_data_limit = "📶 Enter data limit change (GB):\nPositive and Negative values are allowed."
     enter_bulk_expiry = "📅 Enter Expiry change (days):\nPositive and Negative values are allowed."
+    enter_bulk_count = "👥 Enter how many users to create (1-500):"
+    enter_bulk_sequence_username = "🗣 Enter base username for sequence strategy (e.g. user1):"
     enter_expire_before = "📅 Delete Users expired before (days):\nSend 0 for all."
+    choose_username_strategy = "🎯 Choose username generation strategy:"
     choose_action = "🔧 Choose an Action:"
     there_is_no_template = "❌ There is no Template!"
     user_not_found = "❌ User not found!"
@@ -69,6 +75,7 @@ class Message:
     data_limit_not_valid = "❌ Data limit is not valid."
     enter_duration = "📅 Enter duration (days):\nSend 0 for unlimited."
     duration_not_valid = "❌ Duration is not valid."
+    bulk_count_not_valid = "❌ Count must be between 1 and 500."
     choose_status = "Do you want to enable it or keep it on-hold?"
     enter_on_hold_timeout = "🔌 Enter On-Hold timeout duration (days):\nSend 0 for Never."
     select_groups = "👥 Select Groups:"
@@ -257,6 +264,14 @@ class Message:
             return f"✅ {result} users successfully increased by {amount} GB."
         else:
             return f"✅ {result} users successfully decreased by {abs(amount)} GB."
+
+    @staticmethod
+    def bulk_users_created(created: int):
+        return f"✅ {created} users created from template."
+
+    @staticmethod
+    def bulk_users_not_created():
+        return "❌ No users were created. Please review the template or usernames."
 
 
 __all__ = ["Button", "Message"]

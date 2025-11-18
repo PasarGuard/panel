@@ -23,6 +23,12 @@ class BulkModify(StatesGroup):
     data_limit = State()
 
 
+class BulkCreateFromTemplate(StatesGroup):
+    count = State()
+    strategy = State()
+    username = State()
+
+
 class ModifyUser(StatesGroup):
     new_data_limit = State()
     new_expiry = State()
