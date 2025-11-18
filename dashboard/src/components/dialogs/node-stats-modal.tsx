@@ -3,7 +3,7 @@ import { Card, CardContent } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { useTranslation } from 'react-i18next'
-import { formatBytes } from '@/utils/formatByte'
+import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { Upload, Download, Calendar, Activity, ChevronLeft, ChevronRight } from 'lucide-react'
 import { dateUtils } from '@/utils/dateFormatter'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -143,15 +143,6 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
   const canGoLeft = isRTL ? canGoNext : canGoPrevious
   const canGoRight = isRTL ? canGoPrevious : canGoNext
 
-  // Calculate total uplink and downlink
-  const totalUplink = Object.keys(data)
-    .filter(key => key.startsWith('_uplink_'))
-    .reduce((sum, key) => sum + (data[key] || 0), 0)
-
-  const totalDownlink = Object.keys(data)
-    .filter(key => key.startsWith('_downlink_'))
-    .reduce((sum, key) => sum + (data[key] || 0), 0)
-
   // Get nodes with usage > 0
   const activeNodes = Object.keys(data)
     .filter(key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && (data[key] || 0) > 0)
@@ -163,6 +154,14 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
       color: chartConfig?.[nodeName]?.color || 'hsl(var(--chart-1))',
     }))
     .sort((a, b) => b.usage - a.usage) // Sort by usage descending
+
+  // Calculate total uplink and downlink from activeNodes
+  const totalUplink = activeNodes.reduce((sum, node) => sum + (node.uplink || 0), 0)
+  const totalDownlink = activeNodes.reduce((sum, node) => sum + (node.downlink || 0), 0)
+  // Calculate total usage - if uplink/downlink are available use them, otherwise convert usage from GB to bytes
+  const totalUsage = totalUplink + totalDownlink > 0 
+    ? totalUplink + totalDownlink 
+    : activeNodes.reduce((sum, node) => sum + (gbToBytes(node.usage) || 0), 0)
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -200,7 +199,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
                 </span>
               </div>
               <Badge dir="ltr" variant="secondary" className="px-2 py-1 font-mono text-xs sm:text-sm">
-                {formatBytes(totalUplink + totalDownlink)}
+                {formatBytes(totalUsage)}
               </Badge>
             </div>
 
