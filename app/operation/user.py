@@ -336,7 +336,7 @@ class UserOperation(BaseOperation):
             end=end,
             period=period,
             node_id=node_id,
-            admin=owner if admin.is_sudo else [admin.username],
+            admins=owner if admin.is_sudo else [admin.username],
             group_by_node=group_by_node,
         )
 

@@ -888,7 +888,7 @@ async def autodelete_expired_users(
 
 async def get_all_users_usages(
     db: AsyncSession,
-    admin: str,
+    admins: Sequence[str] | None,
     start: datetime,
     end: datetime,
     period: Period = Period.hour,
@@ -901,7 +901,7 @@ async def get_all_users_usages(
 
     Args:
         db (AsyncSession): Database session for querying.
-        admin (Admin): The admin user for which to retrieve user usage data.
+        admins (Sequence[str] | None): Admin usernames to filter users by. If None/empty, include all admins.
         start (datetime): Start of the period.
         end (datetime): End of the period.
         period (Period): Time period to group by ('minute', 'hour', 'day', 'month').
@@ -910,7 +910,12 @@ async def get_all_users_usages(
     Returns:
         UserUsageStatsList: Aggregated usage data for each period.
     """
-    admin_users = {user.id for user in await get_users(db=db, admins=admin)}
+    admins_filter = admins or None
+
+    users_subquery = select(User.id)
+    if admins_filter:
+        users_subquery = users_subquery.join(Admin).where(Admin.username.in_(admins_filter))
+    users_subquery = users_subquery.subquery()
 
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at)
@@ -918,7 +923,7 @@ async def get_all_users_usages(
     conditions = [
         NodeUserUsage.created_at >= start,
         NodeUserUsage.created_at <= end,
-        NodeUserUsage.user_id.in_(admin_users),
+        NodeUserUsage.user_id.in_(select(users_subquery.c.id)),
     ]
 
     if node_id is not None:
