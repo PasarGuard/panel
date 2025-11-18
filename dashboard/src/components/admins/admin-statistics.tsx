@@ -3,7 +3,6 @@ import { cn } from '@/lib/utils.ts'
 import { useTranslation } from 'react-i18next'
 import { Card, CardTitle } from '@/components/ui/card'
 import { CountUp } from '@/components/ui/count-up'
-import { type AdminDetails } from '@/service/api'
 import { User, UserCheck, UserX } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 
