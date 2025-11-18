@@ -59,12 +59,21 @@ export function parseLogs(logString: string): LogLine[] {
 
       let parsedTimestamp: Date | null = null
       if (timestamp) {
-        // Handle Xray format: 2025/09/27 13:26:58.279079 (assume UTC)
-        if (timestamp.includes('/')) {
-          parsedTimestamp = new Date(timestamp + 'Z') // Treat as UTC
-        } else {
-          // Handle other formats
-          parsedTimestamp = new Date(timestamp.replace(' UTC', 'Z'))
+        try {
+          // Handle Xray format: 2025/09/27 13:26:58.279079 (assume UTC)
+          if (timestamp.includes('/')) {
+            parsedTimestamp = new Date(timestamp + 'Z') // Treat as UTC
+          } else {
+            // Handle other formats
+            parsedTimestamp = new Date(timestamp.replace(' UTC', 'Z'))
+          }
+          // Validate the parsed date is valid
+          if (isNaN(parsedTimestamp.getTime())) {
+            parsedTimestamp = null
+          }
+        } catch {
+          // If date parsing fails, set to null
+          parsedTimestamp = null
         }
       }
 

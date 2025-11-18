@@ -20,8 +20,8 @@ export function TerminalLine({ log, noTimestamp, searchTerm }: LogLineProps) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
 
-  const formattedTime = timestamp
-    ? timestamp.toLocaleTimeString([], {
+  const formattedTime = timestamp && !isNaN(timestamp.getTime())
+    ? timestamp.toLocaleTimeString(locale || undefined, {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
