@@ -198,7 +198,7 @@ async def get_admins(
     total = None
     active = None
     disabled = None
-    
+
     if return_with_count:
         # Get total count
         count_stmt = select(func.count(Admin.id))
@@ -206,7 +206,7 @@ async def get_admins(
             count_stmt = count_stmt.where(Admin.username.ilike(f"%{username}%"))
         result = await db.execute(count_stmt)
         total = result.scalar()
-        
+
         # Get active count (not disabled)
         active_stmt = select(func.count(Admin.id))
         if username:
@@ -214,7 +214,7 @@ async def get_admins(
         active_stmt = active_stmt.where(Admin.is_disabled.is_(False))
         result = await db.execute(active_stmt)
         active = result.scalar()
-        
+
         # Get disabled count
         disabled_stmt = select(func.count(Admin.id))
         if username:

@@ -92,7 +92,9 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
         health = await asyncio.wait_for(verify_node_backend_health(node, db_node.name), timeout=20)
     except asyncio.TimeoutError:
         if db_node.status == NodeStatus.connected:
-            logger.warning(f"Node {db_node.id} ({db_node.name}) health check timed out but was previously connected, will retry")
+            logger.warning(
+                f"Node {db_node.id} ({db_node.name}) health check timed out but was previously connected, will retry"
+            )
             return
         async with GetDB() as db:
             await NodeOperation._update_single_node_status(

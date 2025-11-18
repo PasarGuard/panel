@@ -17,6 +17,8 @@ from app.db.crud.user import (
     update_users_status,
     bulk_create_notification_reminders,
 )
+from app.operation import OperatorType
+from app.operation.user import UserOperation
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import Webhook
 from app.models.user import UserNotificationResponse
@@ -26,28 +28,25 @@ from app.utils.logger import get_logger
 from config import JOB_REVIEW_USERS_INTERVAL
 
 logger = get_logger("review-users")
+user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
 
 
 async def reset_user_by_next_report(db: AsyncSession, db_user: User):
     db_user = await reset_user_by_next(db, db_user)
-    inbounds = await db_user.inbounds()
-    user = UserNotificationResponse.model_validate(db_user)
+    user = await user_operator.update_user(db_user)
 
-    await node_manager.update_user(user, inbounds)
     asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
 
     logger.info(f'User "{db_user.username}" next plan activated')
 
 
 async def change_status(db: AsyncSession, db_user: User, status: UserStatus):
-    user = UserNotificationResponse.model_validate(db_user)
-    if user.status is not UserStatus.active:
-        await node_manager.remove_user(user)
+    user = await user_operator.update_user(db_user)
     asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
 
-    logger.info(f'User "{db_user.username}" status changed to {status.value}')
+    logger.info(f'User "{user.username}" status changed to {status.value}')
 
-    if db_user.next_plan and db_user.status is not UserStatus.active:
+    if db_user.next_plan and db_user.status != UserStatus.active:
         await reset_user_by_next_report(db, db_user)
 
 

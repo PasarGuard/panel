@@ -115,6 +115,7 @@ class AdminValidationResult(BaseModel):
 
 class AdminsResponse(BaseModel):
     """Response model for admins list with pagination and statistics."""
+
     admins: list[AdminDetails]
     total: int
     active: int
