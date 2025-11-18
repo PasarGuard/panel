@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '../ui/select'
 import UsageSliderCompact from './usage-slider-compact'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { dateUtils } from '@/utils/dateFormatter'
+import dayjs from '@/lib/dayjs'
 
 export const setupColumns = ({
   t,
@@ -36,14 +38,53 @@ export const setupColumns = ({
       </button>
     ),
     cell: ({ row }) => {
+      const onlineAt = row.original.online_at
+      
+      const getOnlineTimeText = () => {
+        if (!onlineAt) {
+          return null
+        }
+
+        const currentTime = dayjs()
+        const lastOnlineTime = dateUtils.toDayjs(onlineAt)
+        const diffInSeconds = currentTime.diff(lastOnlineTime, 'seconds')
+
+        const isOnline = diffInSeconds <= 60
+
+        if (isOnline) {
+          return null
+        } else {
+          const duration = dayjs.duration(diffInSeconds, 'seconds')
+          
+          if (duration.days() > 0) {
+            return `${duration.days()}d`
+          } else if (duration.hours() > 0) {
+            return `${duration.hours()}h`
+          } else if (duration.minutes() > 0) {
+            return `${duration.minutes()}m`
+          } else {
+            return `${duration.seconds()}s`
+          }
+        }
+      }
+
+      const onlineTimeText = getOnlineTimeText()
+
       return (
         <div className="overflow-hidden text-ellipsis whitespace-nowrap pl-1 font-medium md:pl-2">
           <div className="flex items-start gap-x-3 px-1 py-1">
             <div className="pt-1">
-              <OnlineBadge lastOnline={row.original.online_at} />
+              <OnlineBadge lastOnline={onlineAt} />
             </div>
-            <div className="flex flex-col gap-y-0.5 overflow-hidden text-ellipsis whitespace-nowrap">
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
+            <div className="flex flex-col gap-y-0.5 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 flex-1">
+              <div className="flex items-center gap-x-1.5 overflow-hidden">
+                <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
+                {onlineTimeText && (
+                  <span className="hidden shrink-0 text-[10px] font-normal text-muted-foreground md:inline">
+                    {onlineTimeText}
+                  </span>
+                )}
+              </div>
               {row.original.admin?.username && (
                 <span className="flex items-center gap-x-0.5 overflow-hidden text-xs font-normal text-muted-foreground">
                   <span className="hidden sm:block">{t('created')}</span>
