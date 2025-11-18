@@ -84,7 +84,12 @@ def test_get_admins(access_token):
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
-    assert admin["username"] in [record["username"] for record in response.json()]
+    response_data = response.json()
+    assert "admins" in response_data
+    assert "total" in response_data
+    assert "active" in response_data
+    assert "disabled" in response_data
+    assert admin["username"] in [record["username"] for record in response_data["admins"]]
     delete_admin(access_token, admin["username"])
 
 
