@@ -98,8 +98,8 @@ interface PaginationControlsProps {
   itemsPerPage: number
   totalItems: number
   isLoading: boolean
-  onPageChange: (page: number) => Promise<void>
-  onItemsPerPageChange: (value: number) => Promise<void>
+  onPageChange: (page: number) => void
+  onItemsPerPageChange: (value: number) => void
 }
 
 // Update PaginationControls to use props

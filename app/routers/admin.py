@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app import notification
 from app.db import AsyncSession, get_db
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token
+from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token, AdminsResponse
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
@@ -119,7 +119,7 @@ def get_current_admin(admin: AdminDetails = Depends(get_current)):
     return admin
 
 
-@router.get("s", response_model=list[AdminDetails])
+@router.get("s", response_model=AdminsResponse)
 async def get_admins(
     username: str | None = None,
     offset: int | None = None,

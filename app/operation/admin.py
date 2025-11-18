@@ -16,7 +16,7 @@ from app.db.crud.admin import (
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
 from app.db.models import Admin as DBAdmin
-from app.models.admin import AdminCreate, AdminDetails, AdminModify
+from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminsResponse
 from app.node import node_manager
 from app.operation import BaseOperation, OperatorType
 from app.operation.user import UserOperation
@@ -83,7 +83,7 @@ class AdminOperation(BaseOperation):
         offset: int | None = None,
         limit: int | None = None,
         sort: str | None = None,
-    ) -> list[DBAdmin]:
+    ) -> AdminsResponse:
         sort_list = []
         if sort is not None:
             opts = sort.strip(",").split(",")
@@ -94,7 +94,16 @@ class AdminOperation(BaseOperation):
                 except KeyError:
                     await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
 
-        return await get_admins(db, offset, limit, username, sort_list if sort_list else None)
+        admins, total, active, disabled = await get_admins(
+            db, offset, limit, username, sort_list if sort_list else None, return_with_count=True
+        )
+        
+        return AdminsResponse(
+            admins=[AdminDetails.model_validate(admin) for admin in admins],
+            total=total,
+            active=active,
+            disabled=disabled,
+        )
 
     async def get_admins_count(self, db: AsyncSession) -> int:
         return await get_admins_count(db)

@@ -8,18 +8,18 @@ import { User, UserCheck, UserX } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 
 interface AdminsStatisticsProps {
-  data: AdminDetails[]
+  counts: { total: number; active: number; disabled: number } | null
 }
 
-export default function AdminStatisticsSection({ data }: AdminsStatisticsProps) {
+export default function AdminStatisticsSection({ counts }: AdminsStatisticsProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [prevStats, setPrevStats] = useState<{ total: number; active: number; disabled: number } | null>(null)
   const [isIncreased, setIsIncreased] = useState<Record<string, boolean>>({})
 
-  const total = data.length
-  const disabled = data.filter(a => a.is_disabled).length
-  const active = total - disabled
+  const total = counts?.total || 0
+  const active = counts?.active || 0
+  const disabled = counts?.disabled || 0
 
   const currentStats = { total, active, disabled }
 
@@ -33,7 +33,7 @@ export default function AdminStatisticsSection({ data }: AdminsStatisticsProps) 
     }
     setPrevStats(currentStats)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data])
+  }, [counts])
 
   const stats = [
     {

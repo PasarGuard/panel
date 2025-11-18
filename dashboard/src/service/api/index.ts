@@ -1949,6 +1949,13 @@ export type AdminDetailsTelegramId = number | null
 /**
  * Complete admin model with all fields for database representation and API responses.
  */
+export interface AdminsResponse {
+  admins: AdminDetails[]
+  total: number
+  active: number
+  disabled: number
+}
+
 export interface AdminDetails {
   username: string
   telegram_id?: AdminDetailsTelegramId
@@ -2417,7 +2424,7 @@ export const useRemoveAdmin = <TData = Awaited<ReturnType<typeof removeAdmin>>, 
  * @summary Get Admins
  */
 export const getAdmins = (params?: GetAdminsParams, signal?: AbortSignal) => {
-  return orvalFetcher<AdminDetails[]>({ url: `/api/admins`, method: 'GET', params, signal })
+  return orvalFetcher<AdminsResponse>({ url: `/api/admins`, method: 'GET', params, signal })
 }
 
 export const getGetAdminsQueryKey = (params?: GetAdminsParams) => {

@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import AdminsTable from '@/components/admins/admins-table'
 import AdminModal, { adminFormSchema, AdminFormValues } from '@/components/dialogs/admin-modal'
-import { useActivateAllDisabledUsers, useDisableAllActiveUsers, useGetAdmins, useModifyAdmin, useRemoveAdmin, useResetAdminUsage } from '@/service/api'
+import { useActivateAllDisabledUsers, useDisableAllActiveUsers, useModifyAdmin, useRemoveAdmin, useResetAdminUsage } from '@/service/api'
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/components/admins/admin-statistics'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -40,12 +40,12 @@ export default function AdminsPage() {
   const { t } = useTranslation()
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminDetails> | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number } | null>(null)
   const form = useForm<AdminFormValues>({
     resolver: zodResolver(adminFormSchema),
     defaultValues: initialDefaultValues,
   })
 
-  const { data: admins = [] } = useGetAdmins({})
   const removeAdminMutation = useRemoveAdmin()
   const modifyAdminMutation = useModifyAdmin()
   const modifyDisableAllAdminUsers = useDisableAllActiveUsers()
@@ -197,11 +197,11 @@ export default function AdminsPage() {
 
       <div className="w-full px-4 pt-2">
         <div className="mb-6 transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
-          <AdminsStatistics data={admins} />
+          <AdminsStatistics counts={adminCounts} />
         </div>
 
         <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
-          <AdminsTable data={admins} onEdit={handleEdit} onDelete={handleDelete} onToggleStatus={handleToggleStatus} onResetUsage={resetUsage} />
+          <AdminsTable onEdit={handleEdit} onDelete={handleDelete} onToggleStatus={handleToggleStatus} onResetUsage={resetUsage} onTotalAdminsChange={setAdminCounts} />
         </div>
 
         <AdminModal

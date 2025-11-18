@@ -4,7 +4,7 @@ import { useGetAdmins, useRemoveAllUsers } from '@/service/api'
 import { DataTable } from './data-table'
 import { setupColumns } from './columns'
 import { Filters } from './filters'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { PaginationControls } from './filters.tsx'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
@@ -22,11 +22,11 @@ interface AdminFilters {
 }
 
 interface AdminsTableProps {
-  data: AdminDetails[]
   onEdit: (admin: AdminDetails) => void
   onDelete: (admin: AdminDetails) => void
   onToggleStatus: (admin: AdminDetails, checked: boolean) => void
   onResetUsage: (adminUsername: string) => void
+  onTotalAdminsChange?: (counts: { total: number; active: number; disabled: number } | null) => void
 }
 
 const DeleteAlertDialog = ({ admin, isOpen, onClose, onConfirm }: { admin: AdminDetails; isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
@@ -127,11 +127,13 @@ const RemoveAllUsersConfirmationDialog = ({ adminUsername, isOpen, onClose, onCo
   )
 }
 
-export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetUsage }: AdminsTableProps) {
+export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetUsage, onTotalAdminsChange }: AdminsTableProps) {
   const { t } = useTranslation()
   const [currentPage, setCurrentPage] = useState(0)
   const [itemsPerPage, setItemsPerPage] = useState(getAdminsPerPageLimitSize())
   const [isChangingPage, setIsChangingPage] = useState(false)
+  const isFirstLoadRef = useRef(true)
+  const isAutoRefreshingRef = useRef(false)
   const [filters, setFilters] = useState<AdminFilters>({
     limit: itemsPerPage,
     offset: 0,
@@ -145,8 +147,30 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const [adminToReset, setAdminToReset] = useState<string | null>(null)
   const [adminToRemoveAllUsers, setAdminToRemoveAllUsers] = useState<string | null>(null)
 
-  const { data: totalAdmins } = useGetAdmins()
-  const { data: adminsData, refetch, isLoading, isFetching } = useGetAdmins(filters)
+  const { data: adminsResponse, isLoading, isFetching } = useGetAdmins(filters, {
+    query: {
+      staleTime: 0,
+      gcTime: 0,
+      retry: 1,
+    },
+  })
+
+  const adminsData = adminsResponse?.admins || []
+
+  // Expose counts to parent component for statistics
+  useEffect(() => {
+    if (onTotalAdminsChange) {
+      if (adminsResponse) {
+        onTotalAdminsChange({
+          total: adminsResponse.total,
+          active: adminsResponse.active,
+          disabled: adminsResponse.disabled,
+        })
+      } else {
+        onTotalAdminsChange(null)
+      }
+    }
+  }, [adminsResponse, onTotalAdminsChange])
   const removeAllUsersMutation = useRemoveAllUsers()
 
   // Update filters when pagination changes
@@ -157,6 +181,18 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       offset: currentPage * itemsPerPage,
     }))
   }, [currentPage, itemsPerPage])
+
+  useEffect(() => {
+    if (adminsData && isFirstLoadRef.current) {
+      isFirstLoadRef.current = false
+    }
+  }, [adminsData])
+
+  useEffect(() => {
+    if (!isFetching && isAutoRefreshingRef.current) {
+      isAutoRefreshingRef.current = false
+    }
+  }, [isFetching])
 
   // When filters change (e.g., search), reset page if needed
   const handleFilterChange = (newFilters: Partial<AdminFilters>) => {
@@ -247,40 +283,20 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     }
   }
 
-  const handlePageChange = async (newPage: number) => {
+  const handlePageChange = (newPage: number) => {
     if (newPage === currentPage || isChangingPage) return
 
     setIsChangingPage(true)
     setCurrentPage(newPage)
-
-    try {
-      // Immediate refetch without delay
-      await refetch()
-    } finally {
-      // Minimal delay for instant response
-      setTimeout(() => {
-        setIsChangingPage(false)
-      }, 50)
-    }
+    setIsChangingPage(false)
   }
 
-  const handleItemsPerPageChange = async (value: number) => {
+  const handleItemsPerPageChange = (value: number) => {
     setIsChangingPage(true)
     setItemsPerPage(value)
     setCurrentPage(0) // Reset to first page when items per page changes
-
-    // Save to localStorage
     setAdminsPerPageLimitSize(value.toString())
-
-    try {
-      // Immediate refetch without delay
-      await refetch()
-    } finally {
-      // Minimal delay for instant response
-      setTimeout(() => {
-        setIsChangingPage(false)
-      }, 50)
-    }
+    setIsChangingPage(false)
   }
 
   const handleSort = (column: string) => {
@@ -312,6 +328,9 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     onRemoveAllUsers: handleRemoveAllUsersClick,
   })
 
+  const showLoadingSpinner = isLoading && isFirstLoadRef.current
+  const isPageLoading = isChangingPage
+
   return (
     <div>
       <Filters filters={filters} onFilterChange={handleFilterChange} />
@@ -324,15 +343,15 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         onResetUsage={handleResetUsersUsageClick}
         onRemoveAllUsers={handleRemoveAllUsersClick}
         setStatusToggleDialogOpen={setStatusToggleDialogOpen}
-        isLoading={isLoading}
-        isFetching={isFetching}
+        isLoading={showLoadingSpinner}
+        isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}
       />
       <PaginationControls
         currentPage={currentPage}
-        totalPages={Math.ceil((totalAdmins?.length || 0) / itemsPerPage)}
+        totalPages={Math.ceil((adminsResponse?.total || 0) / itemsPerPage)}
         itemsPerPage={itemsPerPage}
-        totalItems={adminsData?.length || 0}
-        isLoading={isLoading || isFetching}
+        totalItems={adminsResponse?.total || 0}
+        isLoading={isPageLoading}
         onPageChange={handlePageChange}
         onItemsPerPageChange={handleItemsPerPageChange}
       />

@@ -175,7 +175,8 @@ async def get_admins(
     limit: int | None = None,
     username: str | None = None,
     sort: list[AdminsSortingOptions] | None = None,
-) -> list[Admin]:
+    return_with_count: bool = False,
+) -> list[Admin] | tuple[list[Admin], int, int, int]:
     """
     Retrieves a list of admins with optional filters and pagination.
 
@@ -185,14 +186,44 @@ async def get_admins(
         limit (Optional[int]): The maximum number of records to return.
         username (Optional[str]): The username to filter by.
         sort (Optional[list[AdminsSortingOptions]]): Sort options for ordering results.
+        return_with_count (bool): If True, returns tuple with (admins, total, active, disabled).
 
     Returns:
-        List[Admin]: A list of admin objects.
+        List[Admin] | tuple[list[Admin], int, int, int]: A list of admin objects or tuple with counts.
     """
-    query = select(Admin)
+    base_query = select(Admin)
     if username:
-        query = query.where(Admin.username.ilike(f"%{username}%"))
+        base_query = base_query.where(Admin.username.ilike(f"%{username}%"))
 
+    total = None
+    active = None
+    disabled = None
+    
+    if return_with_count:
+        # Get total count
+        count_stmt = select(func.count(Admin.id))
+        if username:
+            count_stmt = count_stmt.where(Admin.username.ilike(f"%{username}%"))
+        result = await db.execute(count_stmt)
+        total = result.scalar()
+        
+        # Get active count (not disabled)
+        active_stmt = select(func.count(Admin.id))
+        if username:
+            active_stmt = active_stmt.where(Admin.username.ilike(f"%{username}%"))
+        active_stmt = active_stmt.where(Admin.is_disabled == False)
+        result = await db.execute(active_stmt)
+        active = result.scalar()
+        
+        # Get disabled count
+        disabled_stmt = select(func.count(Admin.id))
+        if username:
+            disabled_stmt = disabled_stmt.where(Admin.username.ilike(f"%{username}%"))
+        disabled_stmt = disabled_stmt.where(Admin.is_disabled == True)
+        result = await db.execute(disabled_stmt)
+        disabled = result.scalar()
+
+    query = base_query
     if sort:
         query = query.order_by(*sort)
 
@@ -206,6 +237,8 @@ async def get_admins(
     for admin in admins:
         await load_admin_attrs(admin)
 
+    if return_with_count:
+        return admins, total, active, disabled
     return admins
 
 

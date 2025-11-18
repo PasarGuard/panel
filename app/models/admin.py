@@ -111,3 +111,11 @@ class AdminValidationResult(BaseModel):
     username: str
     is_sudo: bool
     is_disabled: bool
+
+
+class AdminsResponse(BaseModel):
+    """Response model for admins list with pagination and statistics."""
+    admins: list[AdminDetails]
+    total: int
+    active: int
+    disabled: int
