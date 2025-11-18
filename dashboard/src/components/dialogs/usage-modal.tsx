@@ -690,8 +690,39 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
           <CardContent dir="ltr" className="mb-0 p-0">
             <div className="w-full">
               {isLoading ? (
-                <div className="flex h-60 w-full items-center justify-center">
-                  <div className="h-40 w-full animate-pulse rounded-lg" />
+                <div className="mx-auto w-full">
+                  <div className={`w-full px-4 py-2 ${width < 500 ? 'h-[200px]' : 'h-[320px]'}`}>
+                    <div className="flex h-full flex-col">
+                      <div className="flex-1">
+                        <div className="flex h-full items-end justify-center">
+                          <div className={`flex items-end gap-2 ${width < 500 ? 'h-40' : 'h-48'}`}>
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => {
+                              const isMobile = width < 500
+                              let heightClass = ''
+                              if (i === 4 || i === 5) {
+                                heightClass = isMobile ? 'h-28' : 'h-32'
+                              } else if (i === 3 || i === 6) {
+                                heightClass = isMobile ? 'h-20' : 'h-24'
+                              } else if (i === 2 || i === 7) {
+                                heightClass = isMobile ? 'h-12' : 'h-16'
+                              } else {
+                                heightClass = isMobile ? 'h-16' : 'h-20'
+                              }
+                              return (
+                                <div key={i} className="animate-pulse">
+                                  <div className={`w-6 rounded-t-lg bg-muted sm:w-8 ${heightClass}`} />
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex justify-between px-2">
+                        <div className="h-3 w-12 animate-pulse rounded bg-muted sm:h-4 sm:w-16" />
+                        <div className="h-3 w-12 animate-pulse rounded bg-muted sm:h-4 sm:w-16" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : processedChartData.length === 0 ? (
                 <div className="flex h-60 flex-col items-center justify-center gap-2 text-muted-foreground">
