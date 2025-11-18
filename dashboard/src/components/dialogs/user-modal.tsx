@@ -402,6 +402,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   // Get the expire value from the form
   const expireValue = form.watch('expire')
   const onHoldValue = form.watch('on_hold_timeout')
+  const dataLimitValue = form.watch('data_limit')
 
   let displayDate: Date | null = null
   let onHoldDisplayDate: Date | null = null
@@ -1175,18 +1176,36 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     }
   }
 
-  // On first load (create user), auto-generate UUIDs for all fields
   useEffect(() => {
-    if (isDialogOpen && !editingUser) {
-      // Remove auto-fill of proxy settings
-      form.setValue('proxy_settings', undefined)
-      // Set default flow and method from generalSettings if available
-      if (generalSettings) {
-        form.setValue('proxy_settings.vless.flow', generalSettings.default_flow || '')
-        const validMethods = ['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305', 'xchacha20-poly1305'] as const
-        const method = validMethods.find(m => m === generalSettings.default_method)
-        if (method) {
-          form.setValue('proxy_settings.shadowsocks.method', method)
+    if (isDialogOpen && editingUser && dataLimitValue !== null && dataLimitValue !== undefined) {
+      if (dataLimitValue > 0) {
+        dataLimitInputRef.current = String(dataLimitValue)
+      } else {
+        dataLimitInputRef.current = ''
+      }
+    }
+  }, [isDialogOpen, editingUser, dataLimitValue])
+
+  useEffect(() => {
+    if (isDialogOpen) {
+      if (!editingUser) {
+        form.setValue('proxy_settings', undefined)
+        dataLimitInputRef.current = ''
+        form.setValue('data_limit', 0)
+        if (generalSettings) {
+          form.setValue('proxy_settings.vless.flow', generalSettings.default_flow || '')
+          const validMethods = ['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305', 'xchacha20-poly1305'] as const
+          const method = validMethods.find(m => m === generalSettings.default_method)
+          if (method) {
+            form.setValue('proxy_settings.shadowsocks.method', method)
+          }
+        }
+      } else {
+        const currentDataLimit = form.getValues('data_limit')
+        if (currentDataLimit !== null && currentDataLimit !== undefined && currentDataLimit > 0) {
+          dataLimitInputRef.current = String(currentDataLimit)
+        } else {
+          dataLimitInputRef.current = ''
         }
       }
     }
