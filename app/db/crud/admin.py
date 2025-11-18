@@ -211,7 +211,7 @@ async def get_admins(
         active_stmt = select(func.count(Admin.id))
         if username:
             active_stmt = active_stmt.where(Admin.username.ilike(f"%{username}%"))
-        active_stmt = active_stmt.where(Admin.is_disabled == False)
+        active_stmt = active_stmt.where(Admin.is_disabled.is_(False))
         result = await db.execute(active_stmt)
         active = result.scalar()
         
@@ -219,7 +219,7 @@ async def get_admins(
         disabled_stmt = select(func.count(Admin.id))
         if username:
             disabled_stmt = disabled_stmt.where(Admin.username.ilike(f"%{username}%"))
-        disabled_stmt = disabled_stmt.where(Admin.is_disabled == True)
+        disabled_stmt = disabled_stmt.where(Admin.is_disabled.is_(True))
         result = await db.execute(disabled_stmt)
         disabled = result.scalar()
 
