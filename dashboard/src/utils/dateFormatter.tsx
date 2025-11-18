@@ -48,7 +48,11 @@ export const useRelativeExpiryDate = (expiryDate: string | number | null | undef
     }
   }
 
-  dateInfo.time = durationSlots.join(', ') + (isAfter ? '' : ` ${t('time.ago')}`)
+  if (!isAfter && durationSlots.length === 0 && Math.abs(duration.asMinutes()) < 1) {
+    dateInfo.time = t('time.justNow')
+  } else {
+    dateInfo.time = durationSlots.join(', ') + (isAfter ? '' : ` ${t('time.ago')}`)
+  }
   return dateInfo
 }
 

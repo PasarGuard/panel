@@ -1649,7 +1649,8 @@
     "mins": "mins",
     "second": "second",
     "seconds": "seconds",
-    "ago": "ago"
+    "ago": "ago",
+    "justNow": "just now"
   },
   "notConnectedYet": "Not connected yet",
   "node.xrayVersion": "Core Version",

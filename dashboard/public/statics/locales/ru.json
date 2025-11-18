@@ -1552,7 +1552,8 @@
     "mins": "мин",
     "second": "секунда",
     "seconds": "секунды",
-    "ago": "назад"
+    "ago": "назад",
+    "justNow": "только что"
   },
   "notConnectedYet": "Еще не подключен",
   "node.xrayVersion": "Версия ядра",

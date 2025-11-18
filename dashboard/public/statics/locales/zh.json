@@ -1602,8 +1602,9 @@
     "second": "秒",
     "seconds": "秒",
     "ago": "前",
-    "notConnectedYet": "尚未连接"
+    "justNow": "刚刚"
   },
+  "notConnectedYet": "尚未连接",
   "node.xrayVersion": "核心版本",
   "node.coreVersion": "节点版本",
   "calendar": {
