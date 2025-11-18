@@ -80,7 +80,7 @@ const Dashboard = () => {
   }
 
   // Only fetch admins for sudo admins
-  const { data: fetchedAdmins = [] } = useGetAdmins(
+  const { data: fetchedAdminsResponse } = useGetAdmins(
     {
       limit: PAGE_SIZE,
       offset,
@@ -96,12 +96,13 @@ const Dashboard = () => {
   // When fetchedAdmins changes, update admins and hasMore - only for sudo admins
   useEffect(() => {
     if (!is_sudo) return // Don't run for non-sudo admins
-    if (fetchedAdmins) {
+    if (fetchedAdminsResponse) {
+      const fetchedAdmins = fetchedAdminsResponse.admins || []
       setAdmins(prev => (offset === 0 ? fetchedAdmins : [...prev, ...fetchedAdmins]))
       setHasMore(fetchedAdmins.length === PAGE_SIZE)
       setIsLoading(false)
     }
-  }, [fetchedAdmins, offset, is_sudo])
+  }, [fetchedAdminsResponse, offset, is_sudo])
 
   // Infinite scroll - only for sudo admins
   const handleScroll = useCallback(() => {
