@@ -5,7 +5,7 @@ from app.db import AsyncSession
 from app.db.crud.bulk import add_groups_to_users, remove_groups_from_users
 from app.db.crud.group import create_group, get_group, modify_group, remove_group
 from app.db.crud.user import get_users
-from app.db.models import Admin
+from app.db.models import Admin, UserStatus
 from app.models.group import BulkGroup, Group, GroupCreate, GroupModify, GroupResponse, GroupsResponse
 from app.node import node_manager
 from app.operation import BaseOperation, OperatorType
@@ -39,7 +39,7 @@ class GroupOperation(BaseOperation):
             await self.check_inbound_tags(modified_group.inbound_tags)
         db_group = await modify_group(db, db_group, modified_group)
 
-        users = await get_users(db, group_ids=[db_group.id])
+        users = await get_users(db, group_ids=[db_group.id], status=[UserStatus.active, UserStatus.on_hold])
         await node_manager.update_users(users)
 
         group = GroupResponse.model_validate(db_group)
