@@ -21,7 +21,8 @@ def create_admin(
     access_token: str, *, username: str | None = None, password: str | None = None, is_sudo: bool = False
 ) -> dict:
     username = username or unique_name("admin")
-    password = password or f"TestAdmin#{uuid4().hex[:8]}"
+    # Ensure password always meets complexity rules (>=2 digits, 2 uppercase, 2 lowercase, special char)
+    password = password or f"TestAdmin#12{uuid4().hex[:6]}"
     response = client.post(
         "/api/admin",
         headers=auth_headers(access_token),
