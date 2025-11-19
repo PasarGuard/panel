@@ -9,10 +9,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { VariablesPopover, VariablesList } from '@/components/ui/variables-popover'
+import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { getHosts, getInbounds, UserStatus } from '@/service/api'
+import { UserStatus, getHosts, getInbounds } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Lock, Network, Plus, Trash2, X } from 'lucide-react'
@@ -59,7 +59,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
   }, [index, onDuplicate])
 
   return (
-    <div className="grid grid-cols-[minmax(100px,120px),1fr,1fr,1fr,auto] gap-2">
+    <div className="grid grid-cols-2 gap-2 rounded-md border p-2 md:grid-cols-[minmax(100px,120px),1fr,1fr,1fr,auto] md:border-none md:p-0">
       <FormField
         control={form.control}
         name={`noise_settings.xray.${index}.type`}
@@ -86,7 +86,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
         control={form.control}
         name={`noise_settings.xray.${index}.packet`}
         render={({ field }) => (
-          <FormItem>
+          <FormItem className="order-3 md:order-none">
             <FormControl>
               <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
             </FormControl>
@@ -98,7 +98,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
         control={form.control}
         name={`noise_settings.xray.${index}.delay`}
         render={({ field }) => (
-          <FormItem>
+          <FormItem className="order-4 md:order-none">
             <FormControl>
               <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
             </FormControl>
@@ -110,7 +110,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
         control={form.control}
         name={`noise_settings.xray.${index}.apply_to`}
         render={({ field }) => (
-          <FormItem>
+          <FormItem className="order-2 md:order-none">
             <Select onValueChange={field.onChange} value={field.value}>
               <FormControl>
                 <SelectTrigger className="h-8">
@@ -127,7 +127,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           </FormItem>
         )}
       />
-      <div className="flex items-center gap-1">
+      <div className="order-5 col-span-2 flex items-center justify-end gap-1 md:order-none md:col-auto md:justify-start">
         <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 transition-colors hover:bg-muted/70" onClick={handleDuplicate} title={t('hostsDialog.noise.duplicateNoise')}>
           <Copy className="h-4 w-4" />
         </Button>
@@ -727,7 +727,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 )}
               />
 
-              <div className="flex justify-between gap-4 !mb-4">
+              <div className="!mb-4 flex justify-between gap-4">
                 <div className="flex-[2]">
                   <FormField
                     control={form.control}
