@@ -237,13 +237,14 @@ class NodeOperation(BaseOperation):
 
     async def remove_node(self, db: AsyncSession, node_id: Node, admin: AdminDetails) -> None:
         db_node: Node = await self.get_validated_node(db=db, node_id=node_id)
+        node_response = NodeResponse.model_validate(db_node)
 
         await node_manager.remove_node(db_node.id)
         await remove_node(db=db, db_node=db_node)
 
-        logger.info(f'Node "{db_node.name}" with id "{db_node.id}" deleted by admin "{admin.username}"')
+        logger.info(f'Node "{node_response.name}" with id "{node_response.id}" deleted by admin "{admin.username}"')
 
-        asyncio.create_task(notification.remove_node(db_node, admin.username))
+        asyncio.create_task(notification.remove_node(node_response, admin.username))
 
     async def reset_node_usage(self, db: AsyncSession, node_id: int, admin: AdminDetails) -> NodeResponse:
         """

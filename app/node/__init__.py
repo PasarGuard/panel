@@ -20,17 +20,19 @@ class NodeManager:
         self._lock = RWLock(fast=True)
         self.logger = get_logger("node-manager")
 
+    async def _shutdown_node(self, node: PasarGuardNode | None):
+        if node is None:
+            return
+
+        try:
+            await node.set_health(Health.INVALID)
+            await node.stop()
+        except Exception:
+            pass
+
     async def update_node(self, node: Node) -> PasarGuardNode:
         async with self._lock.writer_lock:
-            old_node: PasarGuardNode | None = self._nodes.get(node.id, None)
-            if old_node is not None:
-                try:
-                    await old_node.set_health(Health.INVALID)
-                    await old_node.stop()
-                except Exception:
-                    pass
-                finally:
-                    self._nodes.pop(node.id, None)
+            old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
 
             new_node = create_node(
                 connection=type_map[node.connection_type],
@@ -45,19 +47,17 @@ class NodeManager:
 
             self._nodes[node.id] = new_node
 
-            return new_node
+        # Stop the old node in the background so we don't block callers.
+        asyncio.create_task(self._shutdown_node(old_node))
+
+        return new_node
 
     async def remove_node(self, id: int) -> None:
         async with self._lock.writer_lock:
-            old_node: PasarGuardNode | None = self._nodes.get(id, None)
-            if old_node is not None:
-                try:
-                    await old_node.set_health(Health.INVALID)
-                    await old_node.stop()
-                except Exception:
-                    pass
-                finally:
-                    self._nodes.pop(id, None)
+            old_node: PasarGuardNode | None = self._nodes.pop(id, None)
+
+        # Do cleanup without holding the lock to avoid slow delete operations.
+        asyncio.create_task(self._shutdown_node(old_node))
 
     async def get_node(self, id: int) -> PasarGuardNode | None:
         async with self._lock.reader_lock:
