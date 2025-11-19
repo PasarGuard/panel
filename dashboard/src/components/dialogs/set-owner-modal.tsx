@@ -46,8 +46,8 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
       import('@/service/api').then(api => {
         api
           .getAdmins()
-          .then(admins => {
-            setAdmins(admins)
+          .then(adminsResponse => {
+            setAdmins(adminsResponse?.admins || [])
             setIsLoading(false)
           })
           .catch(() => {

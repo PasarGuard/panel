@@ -245,8 +245,8 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('statistics.adminFilterAll')}</SelectItem>
-              {admins
-                ?.filter(admin => admin.id != null)
+              {(admins?.admins || [])
+                .filter(admin => admin.id != null)
                 .map(admin => (
                   <SelectItem key={admin.id} value={String(admin.id)}>
                     {admin.username}
