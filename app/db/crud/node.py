@@ -254,18 +254,23 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     return db_node
 
 
-async def remove_node(db: AsyncSession, db_node: Node) -> Node:
+async def remove_node(db: AsyncSession, db_node: Node) -> None:
     """
-    Removes a node from the database.
+    Removes a node and all related records quickly using bulk deletes.
 
     Args:
         db (AsyncSession): The database session.
-        dbnode (Node): The Node object to be removed.
-
-    Returns:
-        Node: The removed Node object.
+        db_node (Node): The Node object to be removed.
     """
-    await db.delete(db_node)
+    node_id = db_node.id
+
+    # Remove dependent rows explicitly to avoid ORM cascading overhead on large tables.
+    await db.execute(delete(NodeUserUsage).where(NodeUserUsage.node_id == node_id))
+    await db.execute(delete(NodeUsage).where(NodeUsage.node_id == node_id))
+    await db.execute(delete(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id == node_id))
+    await db.execute(delete(NodeStat).where(NodeStat.node_id == node_id))
+    await db.execute(delete(Node).where(Node.id == node_id))
+
     await db.commit()
 
 
