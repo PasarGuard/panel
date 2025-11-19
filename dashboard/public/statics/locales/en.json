@@ -60,6 +60,7 @@
     "noNodes": "No nodes configured",
     "noNodesDescription": "Master Panel doesn't have any cores configured. You need to add and configure a node from",
     "noNodesDescription2": "connect and configure it to the panel.",
+    "noSearchResults": "No nodes match your search criteria. Try adjusting your search terms.",
     "logs": {
       "title": "Logs",
       "description": "View and monitor node logs",

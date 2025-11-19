@@ -1,7 +1,7 @@
 import { useGetAllGroups, useModifyGroup } from '@/service/api'
 import { GroupResponse } from '@/service/api'
 import Group from './group'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import GroupModal, { groupFormSchema, GroupFormValues } from '@/components/dialogs/group-modal'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,6 +12,9 @@ import { queryClient } from '@/utils/query-client'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Search, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 const initialDefaultValues: Partial<GroupFormValues> = {
   name: '',
@@ -26,6 +29,7 @@ interface GroupsListProps {
 
 export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListProps) {
   const [editingGroup, setEditingGroup] = useState<GroupResponse | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const { t } = useTranslation()
   const modifyGroupMutation = useModifyGroup()
   const dir = useDirDetection()
@@ -78,8 +82,32 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     }
   }
 
+  const filteredGroups = useMemo(() => {
+    if (!groupsData?.groups || !searchQuery.trim()) return groupsData?.groups
+    const query = searchQuery.toLowerCase().trim()
+    return groupsData.groups.filter((group: GroupResponse) => group.name?.toLowerCase().includes(query))
+  }, [groupsData?.groups, searchQuery])
+
   return (
     <div className="w-full flex-1 space-y-4 pt-4">
+      {/* Search Input */}
+      <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
+        <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
+        <Input
+          placeholder={t('search')}
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className={cn('pl-8 pr-10', dir === 'rtl' && 'pr-8 pl-10')}
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
       <ScrollArea className="h-[calc(100vh-8rem)]">
         <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {isLoading
@@ -95,7 +123,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
                   </div>
                 </Card>
               ))
-            : groupsData?.groups.map(group => <Group key={group.id} group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
+            : filteredGroups?.map(group => <Group key={group.id} group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
         </div>
       </ScrollArea>
 

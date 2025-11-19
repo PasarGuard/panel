@@ -1,7 +1,7 @@
 import { useGetAllCores, useModifyCoreConfig } from '@/service/api'
 import { CoreResponse } from '@/service/api'
 import Core from './core'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import CoreConfigModal, { coreConfigFormSchema, CoreConfigFormValues } from '@/components/dialogs/core-config-modal'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,6 +12,9 @@ import { queryClient } from '@/utils/query-client'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Search, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 const initialDefaultValues: Partial<CoreConfigFormValues> = {
   name: '',
@@ -30,6 +33,7 @@ interface CoresProps {
 
 export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, onDuplicateCore, onDeleteCore }: CoresProps) {
   const [editingCore, setEditingCore] = useState<CoreResponse | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const { t } = useTranslation()
   const modifyCoreMutation = useModifyCoreConfig()
   const dir = useDirDetection()
@@ -105,10 +109,38 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     onOpenChange?.(open)
   }
 
+  const coresList = cores || coresData?.cores || []
+
+  const filteredCores = useMemo(() => {
+    if (!searchQuery.trim()) return coresList
+    const query = searchQuery.toLowerCase().trim()
+    return coresList.filter((core: CoreResponse) => core.name?.toLowerCase().includes(query))
+  }, [coresList, searchQuery])
+
   return (
-    <div className="w-full flex-1">
+    <div className={cn('flex w-full flex-col gap-4 py-4', dir === 'rtl' && 'rtl')}>
+      <div className='mt-2'>
+        {/* Search Input */}
+        <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
+          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
+          <Input
+            placeholder={t('search')}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className={cn('pl-8 pr-10', dir === 'rtl' && 'pr-8 pl-10')}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
       <ScrollArea dir={dir} className="h-[calc(100vh-8rem)]">
-        <div className="grid w-full grid-cols-1 gap-4 pt-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {isLoading
             ? [...Array(6)].map((_, i) => (
                 <Card key={i} className="px-4 py-5">
@@ -121,7 +153,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
                   </div>
                 </Card>
               ))
-            : (cores || coresData?.cores)?.map((core: CoreResponse) => (
+            : filteredCores.map((core: CoreResponse) => (
                 <Core
                   key={core.id}
                   core={core}

@@ -7,12 +7,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
 
 import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValue } from '@/components/dialogs/user-template-modal.tsx'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { queryClient } from '@/utils/query-client.ts'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { Input } from '@/components/ui/input'
+import { Search, X } from 'lucide-react'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
 
 const initialDefaultValues: Partial<UserTemplatesFromValue> = {
   name: '',
@@ -31,12 +35,14 @@ const initialDefaultValues: Partial<UserTemplatesFromValue> = {
 export default function UserTemplates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUserTemplate, setEditingUserTemplate] = useState<UserTemplateResponse | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const { data: userTemplates, isLoading } = useGetUserTemplates()
   const form = useForm<UserTemplatesFromValue>({
     resolver: zodResolver(userTemplateFormSchema),
   })
   const { t } = useTranslation()
   const modifyUserTemplateMutation = useModifyUserTemplate()
+  const dir = useDirDetection()
   const handleEdit = (userTemplate: UserTemplateResponse) => {
     setEditingUserTemplate(userTemplate)
     form.reset({
@@ -98,6 +104,17 @@ export default function UserTemplates() {
     }
   }
 
+  const filteredTemplates = useMemo(() => {
+    if (!userTemplates || !searchQuery.trim()) return userTemplates
+    const query = searchQuery.toLowerCase().trim()
+    return userTemplates.filter(
+      (template: UserTemplateResponse) =>
+        template.name?.toLowerCase().includes(query) ||
+        template.username_prefix?.toLowerCase().includes(query) ||
+        template.username_suffix?.toLowerCase().includes(query),
+    )
+  }, [userTemplates, searchQuery])
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
@@ -114,6 +131,25 @@ export default function UserTemplates() {
       </div>
 
       <div className="w-full flex-1 space-y-4 p-4 pt-6">
+        {/* Search Input */}
+        <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
+          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
+          <Input
+            placeholder={t('search')}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className={cn('pl-8 pr-10', dir === 'rtl' && 'pr-8 pl-10')}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         <div
           className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
           style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
@@ -136,7 +172,7 @@ export default function UserTemplates() {
                   </div>
                 </Card>
               ))
-            : userTemplates?.map((template: UserTemplateResponse) => <UserTemplate onEdit={handleEdit} template={template} key={template.id} onToggleStatus={handleToggleStatus} />)}
+            : filteredTemplates?.map((template: UserTemplateResponse) => <UserTemplate onEdit={handleEdit} template={template} key={template.id} onToggleStatus={handleToggleStatus} />)}
         </div>
       </div>
 

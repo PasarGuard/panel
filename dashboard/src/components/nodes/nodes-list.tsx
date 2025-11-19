@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
 import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType } from '@/service/api'
@@ -10,6 +10,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { nodeFormSchema, NodeFormValues } from '@/components/dialogs/node-modal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
+import { Search, X } from 'lucide-react'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
 
 const initialDefaultValues: Partial<NodeFormValues> = {
   name: '',
@@ -25,7 +29,9 @@ export default function NodesList() {
   const { t } = useTranslation()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingNode, setEditingNode] = useState<NodeResponse | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const modifyNodeMutation = useModifyNode()
+  const dir = useDirDetection()
 
   const { data: nodesData, isLoading } = useGetNodes(undefined, {
     query: {
@@ -99,9 +105,39 @@ export default function NodesList() {
     }
   }
 
+  const filteredNodes = useMemo(() => {
+    if (!nodesData || !searchQuery.trim()) return nodesData
+    const query = searchQuery.toLowerCase().trim()
+    return nodesData.filter(
+      node =>
+        node.name?.toLowerCase().includes(query) ||
+        node.address?.toLowerCase().includes(query) ||
+        node.connection_type?.toLowerCase().includes(query),
+    )
+  }, [nodesData, searchQuery])
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full flex-1 space-y-4 pt-6">
+        {/* Search Input */}
+        <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
+          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
+          <Input
+            placeholder={t('search')}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className={cn('pl-8 pr-10', dir === 'rtl' && 'pr-8 pl-10')}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         <div
           className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
           style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
@@ -122,7 +158,7 @@ export default function NodesList() {
                   </div>
                 </Card>
               ))
-            : nodesData?.map(node => <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
+            : filteredNodes?.map(node => <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
         </div>
 
         {!isLoading && (!nodesData || nodesData.length === 0) && (
@@ -136,6 +172,19 @@ export default function NodesList() {
                     PasarGuard/node
                   </a>{' '}
                   {t('nodes.noNodesDescription2', { defaultValue: 'and connect it to the panel.' })}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && nodesData && nodesData.length > 0 && (!filteredNodes || filteredNodes.length === 0) && (
+          <Card className="mb-12">
+            <CardContent className="p-8 text-center">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">{t('noResults')}</h3>
+                <p className="mx-auto max-w-2xl text-muted-foreground">
+                  {t('nodes.noSearchResults', { defaultValue: 'No nodes match your search criteria. Try adjusting your search terms.' })}
                 </p>
               </div>
             </CardContent>

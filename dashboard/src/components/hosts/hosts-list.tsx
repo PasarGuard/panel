@@ -3,13 +3,17 @@ import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
+import { Input } from '@/components/ui/input'
+import { Search, X } from 'lucide-react'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
 
 interface Brutal {
   enable?: boolean
@@ -440,7 +444,9 @@ export interface HostsListProps {
 export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost }: HostsListProps) {
   const [hosts, setHosts] = useState<BaseHost[] | undefined>()
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const { t } = useTranslation()
+  const dir = useDirDetection()
 
   // Set up hosts data from props
   useEffect(() => {
@@ -792,14 +798,47 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     return idA - idB
   })
 
+  // Filter hosts by search query
+  const filteredHosts = useMemo(() => {
+    if (!searchQuery.trim()) return sortedHosts
+    const query = searchQuery.toLowerCase().trim()
+    return sortedHosts.filter(host => {
+      const remarkMatch = host.remark?.toLowerCase().includes(query)
+      const addressMatch = Array.isArray(host.address) ? host.address.some(addr => addr.toLowerCase().includes(query)) : false
+      const inboundTagMatch = host.inbound_tag?.toLowerCase().includes(query)
+      const hostMatch = Array.isArray(host.host) ? host.host.some(h => h.toLowerCase().includes(query)) : false
+      return remarkMatch || addressMatch || inboundTagMatch || hostMatch
+    })
+  }, [sortedHosts, searchQuery])
+
   return (
     <div>
+      {/* Search Input */}
+      <div className="mb-4">
+        <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
+          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
+          <Input
+            placeholder={t('search')}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className={cn('pl-8 pr-10', dir === 'rtl' && 'pr-8 pl-10')}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
       <div>
         <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
             <div className="max-w-screen-[2000px] min-h-screen overflow-hidden">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {sortedHosts.map(host => (
+                {filteredHosts.map(host => (
                   <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
                 ))}
               </div>

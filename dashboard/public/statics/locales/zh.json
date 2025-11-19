@@ -56,6 +56,7 @@
     "noNodes": "未配置节点",
     "noNodesDescription": "主面板没有配置任何核心。您需要从",
     "noNodesDescription2": "连接和配置节点，并将其连接到面板。",
+    "noSearchResults": "没有节点匹配您的搜索条件。请尝试调整搜索词。",
     "logs": {
       "title": "日志",
       "description": "查看和监控节点日志",
