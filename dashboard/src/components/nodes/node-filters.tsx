@@ -110,7 +110,6 @@ interface NodePaginationControlsProps {
 }
 
 export const NodePaginationControls = ({ currentPage, totalPages, totalNodes, isLoading, onPageChange }: NodePaginationControlsProps) => {
-    const { t } = useTranslation()
     const dir = useDirDetection()
 
     const getPaginationRange = (currentPage: number, totalPages: number) => {
@@ -156,14 +155,9 @@ export const NodePaginationControls = ({ currentPage, totalPages, totalNodes, is
     }
 
     const paginationRange = getPaginationRange(currentPage, totalPages)
-    const startItem = totalNodes === 0 ? 0 : currentPage * 15 + 1
-    const endItem = Math.min((currentPage + 1) * 15, totalNodes)
 
     return (
         <div className="mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
-            <div className="text-sm text-muted-foreground">
-                {t('showing')} {startItem}-{endItem} {t('of')} {totalNodes}
-            </div>
 
             <Pagination dir="ltr" className={`${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
                 <PaginationContent className={cn('w-full justify-center overflow-x-auto', dir === 'rtl' ? 'md:justify-start' : 'md:justify-end')}>
