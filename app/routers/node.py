@@ -9,7 +9,7 @@ from PasarGuardNodeBridge import NodeAPIError
 from app.db import AsyncSession, get_db
 from app.db.models import NodeStatus
 from app.models.admin import AdminDetails
-from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, UsageTable, UserIPList, UserIPListAll
+from app.models.node import NodeCreate, NodeModify, NodeResponse, NodesResponse, NodeSettings, UsageTable, UserIPList, UserIPListAll
 from app.models.stats import NodeRealtimeStats, NodeStatsList, NodeUsageStatsList, Period
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -43,7 +43,7 @@ async def get_usage(
     )
 
 
-@router.get("s", response_model=list[NodeResponse])
+@router.get("s", response_model=NodesResponse)
 async def get_nodes(
     core_id: int | None = None,
     offset: int | None = None,

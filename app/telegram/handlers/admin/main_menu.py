@@ -39,7 +39,8 @@ async def reload_data(event: CallbackQuery, db: AsyncSession, admin: AdminDetail
 @router.callback_query(IsAdminSUDO(), AdminPanel.Callback.filter(AdminPanelAction.sync_users == F.action))
 async def sync_users(event: CallbackQuery, db: AsyncSession, admin: AdminDetails):
     await event.answer(Texts.syncing)
-    for node in await node_operator.get_db_nodes(db):
+    nodes_response = await node_operator.get_db_nodes(db)
+    for node in nodes_response.nodes:
         await node_operator.sync_node_users(db, node.id, flush_users=True)
     try:
         stats = await system_operator.get_system_stats(db, admin)

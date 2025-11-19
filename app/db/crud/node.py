@@ -71,7 +71,7 @@ async def get_nodes(
     limit: int | None = None,
     ids: list[int] | None = None,
     search: str | None = None,
-) -> list[Node]:
+) -> tuple[list[Node], int]:
     """
     Retrieves nodes based on optional status, enabled, id, and search filters.
 
@@ -86,7 +86,9 @@ async def get_nodes(
         search (str | None): Optional search term to match node names.
 
     Returns:
-        List[Node]: A list of Node objects matching the criteria.
+        tuple: A tuple containing:
+            - list[Node]: A list of Node objects matching the criteria.
+            - int: The total count of nodes matching the filters (before offset/limit).
     """
     query = select(Node)
 
@@ -111,6 +113,11 @@ async def get_nodes(
             like_expression = f"%{search_value}%"
             query = query.where(or_(Node.name.ilike(like_expression), Node.api_key.ilike(like_expression)))
 
+    # Get count before applying offset/limit
+    count_query = select(func.count()).select_from(query.subquery())
+    count = (await db.execute(count_query)).scalar_one()
+
+    # Apply pagination
     if offset:
         query = query.offset(offset)
     if limit:
@@ -120,7 +127,7 @@ async def get_nodes(
     for node in db_nodes:
         await load_node_attrs(node)
 
-    return db_nodes
+    return db_nodes, count
 
 
 async def get_limited_nodes(db: AsyncSession) -> list[Node]:

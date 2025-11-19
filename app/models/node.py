@@ -200,6 +200,11 @@ class NodeResponse(Node):
     model_config = ConfigDict(from_attributes=True)
 
 
+class NodesResponse(BaseModel):
+    nodes: list[NodeResponse]
+    total: int
+
+
 class NodeNotification(BaseModel):
     """Lightweight node model for sending notifications without database fetch."""
 

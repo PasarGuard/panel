@@ -10,7 +10,7 @@ from app.node import node_manager
 from app.utils.logger import get_logger
 from app.operation.node import NodeOperation
 from app.operation import OperatorType
-from app.db.crud.node import get_limited_nodes
+from app.db.crud.node import get_limited_nodes, get_nodes
 
 from config import JOB_CORE_HEALTH_CHECK_INTERVAL, JOB_CHECK_NODE_LIMITS_INTERVAL
 
@@ -161,7 +161,7 @@ async def node_health_check():
     Cron job that checks health of all enabled nodes.
     """
     async with GetDB() as db:
-        db_nodes = await node_operator.get_db_nodes(db=db, enabled=True)
+        db_nodes, _ = await get_nodes(db=db, enabled=True)
         dict_nodes = await node_manager.get_nodes()
 
         check_tasks = [process_node_health_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
@@ -173,7 +173,7 @@ async def initialize_nodes():
     logger.info("Starting nodes' cores...")
 
     async with GetDB() as db:
-        db_nodes = await node_operator.get_db_nodes(db=db, enabled=True)
+        db_nodes, _ = await get_nodes(db=db, enabled=True)
 
         if not db_nodes:
             logger.warning("Attention: You have no node, you need to have at least one node")
