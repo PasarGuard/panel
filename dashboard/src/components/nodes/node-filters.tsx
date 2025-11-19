@@ -66,9 +66,10 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching }: No
     }
 
     return (
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
-                <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
+        <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
+            <div className="relative w-full md:w-[calc(100%/3-10px)] flex" dir={dir}>
+                <SearchIcon
+                    className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')}/>
                 <Input
                     placeholder={t('search')}
                     value={search}
@@ -80,16 +81,22 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching }: No
                         onClick={clearSearch}
                         className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}
                     >
-                        <X className="h-4 w-4" />
+                        <X className="h-4 w-4"/>
                     </button>
                 )}
             </div>
-
-            <div className="flex gap-2">
-                <Button variant="outline" size="icon" onClick={handleManualRefresh} disabled={isFetching}>
-                    <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-                </Button>
-            </div>
+            <Button size="icon-md"
+                    onClick={handleManualRefresh}
+                    variant="ghost"
+                    className={cn(
+                        'relative flex h-9 w-9 items-center justify-center border transition-all duration-200 md:h-10 md:w-10',
+                        isFetching && 'opacity-70',
+                    )}
+                    aria-label={t('autoRefresh.refreshNow')}
+                    title={t('autoRefresh.refreshNow')}
+            >
+                <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')}/>
+            </Button>
         </div>
     )
 }

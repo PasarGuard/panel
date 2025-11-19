@@ -154,7 +154,7 @@ export default function NodesList() {
   const nodesData = nodesResponse?.nodes || []
   const totalNodes = nodesResponse?.total || 0
   const totalPages = Math.ceil(totalNodes / NODES_PER_PAGE)
-  const showLoadingSpinner = isLoading && isFirstLoadRef.current
+  const showLoadingSpinner = isLoading && isFirstLoadRef.current || isFetching
   const isPageLoading = isChangingPage
 
   return (
