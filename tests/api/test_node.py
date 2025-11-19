@@ -20,7 +20,7 @@ from app.db.models import (
     NodeUserUsage,
     User,
 )
-from app.models.node import NodeCreate, NodeResponse, NodeSettings
+from app.models.node import NodeCreate, NodeResponse, NodesResponse, NodeSettings
 from app.models.stats import (
     NodeRealtimeStats,
     NodeStats,
@@ -210,7 +210,8 @@ def test_get_usage_passes_filters(access_token, node_operator_mock):
 
 def test_get_nodes_forwards_query_params(access_token, node_operator_mock):
     node_response = sample_node_response()
-    node_operator_mock.get_db_nodes.return_value = [node_response]
+    nodes_response = NodesResponse(nodes=[node_response], total=1)
+    node_operator_mock.get_db_nodes.return_value = nodes_response
     params = [
         ("core_id", "2"),
         ("offset", "5"),
@@ -224,7 +225,7 @@ def test_get_nodes_forwards_query_params(access_token, node_operator_mock):
     ]
     response = client.get("/api/nodes", headers=auth_headers(access_token), params=params)
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == [node_response.model_dump()]
+    assert response.json() == nodes_response.model_dump(mode="json")
 
     awaited_kwargs = node_operator_mock.get_db_nodes.await_args.kwargs
     assert awaited_kwargs["core_id"] == 2
