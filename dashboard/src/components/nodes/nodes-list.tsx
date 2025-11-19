@@ -161,9 +161,9 @@ export default function NodesList() {
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full flex-1 space-y-4 pt-6">
         <NodeFilters filters={filters} onFilterChange={handleFilterChange} refetch={refetch} isFetching={isFetching} />
-
+        <div className="min-h-[55dvh]">
         <div
-          className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+          className=" grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
           style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
         >
           {showLoadingSpinner
@@ -214,8 +214,8 @@ export default function NodesList() {
             </CardContent>
           </Card>
         )}
-
-        {totalNodes > NODES_PER_PAGE && (
+        </div>
+        {!showLoadingSpinner && nodesData.length > 0 && totalNodes > NODES_PER_PAGE && (
           <NodePaginationControls
             currentPage={currentPage}
             totalPages={totalPages}
