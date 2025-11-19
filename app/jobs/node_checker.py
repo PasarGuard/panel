@@ -24,7 +24,7 @@ async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> He
     Verify node health by checking backend stats.
     Returns updated health status.
     """
-    current_health = await node.get_health()
+    current_health = await asyncio.wait_for(node.get_health(), timeout=10)
 
     # Skip nodes that are not connected or invalid
     if current_health in (Health.NOT_CONNECTED, Health.INVALID):
@@ -55,8 +55,8 @@ async def update_node_connection_status(node_id: int, node: PasarGuardNode):
     Update node connection status by getting backend stats and version info.
     """
     try:
-        await asyncio.wait_for(node.get_backend_stats(), timeout=20)
-        node_version, core_version = await asyncio.wait_for(node.get_versions(), timeout=20)
+        await node.get_backend_stats()
+        node_version, core_version = await asyncio.wait_for(node.get_versions(), timeout=10)
         async with GetDB() as db:
             await NodeOperation._update_single_node_status(
                 db,
@@ -66,7 +66,7 @@ async def update_node_connection_status(node_id: int, node: PasarGuardNode):
                 node_version=node_version,
             )
     except asyncio.TimeoutError:
-        logger.warning(f"Node {node_id} connection status check timed out, will retry on next check")
+        logger.warning(f"Node {node_id} get versions timed out, will retry on next check")
         return
     except NodeAPIError as e:
         if e.code > -3:
@@ -89,7 +89,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
         return
 
     try:
-        health = await asyncio.wait_for(verify_node_backend_health(node, db_node.name), timeout=20)
+        health = await verify_node_backend_health(node, db_node.name)
     except asyncio.TimeoutError:
         if db_node.status == NodeStatus.connected:
             logger.warning(

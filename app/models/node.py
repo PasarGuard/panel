@@ -40,6 +40,8 @@ class Node(BaseModel):
     data_limit: int = Field(default=0)
     data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
     reset_time: int = Field(default=-1)
+    default_timeout: int = Field(default=10)
+    internal_timeout: int = Field(default=15)
 
 
 class NodeCreate(Node):
@@ -161,6 +163,8 @@ class NodeModify(NodeCreate):
     data_limit: int | None = None
     data_limit_reset_strategy: DataLimitResetStrategy | None = None
     reset_time: int | None = None
+    default_timeout: int | None = None
+    internal_timeout: int | None = None
 
     model_config = ConfigDict(
         json_schema_extra={

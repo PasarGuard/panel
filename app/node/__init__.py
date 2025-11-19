@@ -42,6 +42,8 @@ class NodeManager:
                 api_key=node.api_key,
                 name=node.name,
                 logger=self.logger,
+                default_timeout=node.default_timeout,
+                internal_timeout=node.internal_timeout,
                 extra={"id": node.id, "usage_coefficient": node.usage_coefficient},
             )
 

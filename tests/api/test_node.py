@@ -63,6 +63,8 @@ def sample_node_response(**overrides) -> NodeResponse:
         "data_limit": 0,
         "data_limit_reset_strategy": DataLimitResetStrategy.no_reset,
         "reset_time": -1,
+        "default_timeout": 10,
+        "internal_timeout": 15,
         "xray_version": "1.7.5",
         "node_version": "1.7.5",
         "status": NodeStatus.connected,
@@ -90,6 +92,8 @@ def node_create_payload(**overrides) -> dict:
         "data_limit": 0,
         "data_limit_reset_strategy": DataLimitResetStrategy.no_reset.value,
         "reset_time": -1,
+        "default_timeout": 10,
+        "internal_timeout": 15,
     }
     payload.update(overrides)
     return payload
