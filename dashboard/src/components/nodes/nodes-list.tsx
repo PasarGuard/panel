@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
-import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType } from '@/service/api'
+import {useGetNodes, useModifyNode, NodeResponse, NodeConnectionType} from '@/service/api'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
@@ -10,10 +10,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { nodeFormSchema, NodeFormValues } from '@/components/dialogs/node-modal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Input } from '@/components/ui/input'
-import { Search, X } from 'lucide-react'
-import useDirDetection from '@/hooks/use-dir-detection'
-import { cn } from '@/lib/utils'
+import { NodeFilters, NodePaginationControls } from '@/components/nodes/node-filters'
+
+const NODES_PER_PAGE = 15
 
 const initialDefaultValues: Partial<NodeFormValues> = {
   name: '',
@@ -29,16 +28,19 @@ export default function NodesList() {
   const { t } = useTranslation()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingNode, setEditingNode] = useState<NodeResponse | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(0)
+  const [isChangingPage, setIsChangingPage] = useState(false)
+  const isFirstLoadRef = useRef(true)
   const modifyNodeMutation = useModifyNode()
-  const dir = useDirDetection()
 
-  const { data: nodesData, isLoading } = useGetNodes(undefined, {
-    query: {
-      refetchInterval: isDialogOpen && editingNode ? false : 5000,
-      staleTime: 0,
-      gcTime: 0,
-    },
+  const [filters, setFilters] = useState<{
+    limit: number
+    offset: number
+    search?: string
+  }>({
+    limit: NODES_PER_PAGE,
+    offset: 0,
+    search: undefined,
   })
 
   const form = useForm<NodeFormValues>({
@@ -46,11 +48,55 @@ export default function NodesList() {
     defaultValues: initialDefaultValues,
   })
 
+  const {
+    data: nodesResponse,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useGetNodes(filters, {
+    query: {
+      refetchInterval: false,
+      staleTime: 0,
+      gcTime: 0,
+      retry: 1,
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
+    },
+  })
+
+  useEffect(() => {
+    if (nodesResponse && isFirstLoadRef.current) {
+      isFirstLoadRef.current = false
+    }
+  }, [nodesResponse])
+
   useEffect(() => {
     const handleOpenDialog = () => setIsDialogOpen(true)
     window.addEventListener('openNodeDialog', handleOpenDialog)
     return () => window.removeEventListener('openNodeDialog', handleOpenDialog)
   }, [])
+
+  const handleFilterChange = useCallback((newFilters: Partial<typeof filters>) => {
+    setFilters(prev => ({
+      ...prev,
+      ...newFilters,
+    }))
+    if (newFilters.offset === 0) {
+      setCurrentPage(0)
+    }
+  }, [])
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage === currentPage || isChangingPage) return
+
+    setIsChangingPage(true)
+    setCurrentPage(newPage)
+    setFilters(prev => ({
+      ...prev,
+      offset: newPage * NODES_PER_PAGE,
+    }))
+    setIsChangingPage(false)
+  }
 
   const handleEdit = (node: NodeResponse) => {
     setEditingNode(node)
@@ -105,44 +151,22 @@ export default function NodesList() {
     }
   }
 
-  const filteredNodes = useMemo(() => {
-    if (!nodesData || !searchQuery.trim()) return nodesData
-    const query = searchQuery.toLowerCase().trim()
-    return nodesData.filter(
-      node =>
-        node.name?.toLowerCase().includes(query) ||
-        node.address?.toLowerCase().includes(query) ||
-        node.connection_type?.toLowerCase().includes(query),
-    )
-  }, [nodesData, searchQuery])
+  const nodesData = nodesResponse?.nodes || []
+  const totalNodes = nodesResponse?.total || 0
+  const totalPages = Math.ceil(totalNodes / NODES_PER_PAGE)
+  const showLoadingSpinner = isLoading && isFirstLoadRef.current
+  const isPageLoading = isChangingPage
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full flex-1 space-y-4 pt-6">
-        {/* Search Input */}
-        <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
-          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
-          <Input
-            placeholder={t('search')}
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className={cn('pl-8 pr-10', dir === 'rtl' && 'pr-8 pl-10')}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+        <NodeFilters filters={filters} onFilterChange={handleFilterChange} refetch={refetch} isFetching={isFetching} />
 
         <div
           className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
           style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
         >
-          {isLoading
+          {showLoadingSpinner
             ? [...Array(6)].map((_, i) => (
                 <Card key={i} className="p-4">
                   <div className="space-y-3">
@@ -158,10 +182,10 @@ export default function NodesList() {
                   </div>
                 </Card>
               ))
-            : filteredNodes?.map(node => <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
+            : nodesData.map(node => <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
         </div>
 
-        {!isLoading && (!nodesData || nodesData.length === 0) && (
+        {!showLoadingSpinner && nodesData.length === 0 && !filters.search && (
           <Card className="mb-12">
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
@@ -178,7 +202,7 @@ export default function NodesList() {
           </Card>
         )}
 
-        {!isLoading && nodesData && nodesData.length > 0 && (!filteredNodes || filteredNodes.length === 0) && (
+        {!showLoadingSpinner && nodesData.length === 0 && (filters.search) && (
           <Card className="mb-12">
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
@@ -189,6 +213,16 @@ export default function NodesList() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {totalNodes > NODES_PER_PAGE && (
+          <NodePaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalNodes={totalNodes}
+            isLoading={isPageLoading}
+            onPageChange={handlePageChange}
+          />
         )}
 
         <NodeModal
