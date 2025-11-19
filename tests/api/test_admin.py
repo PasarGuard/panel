@@ -1,7 +1,8 @@
 from fastapi import status
 
 from tests.api import client
-from tests.api.helpers import create_admin, delete_admin, unique_name
+from tests.api.helpers import create_admin, delete_admin, unique_name,strong_password
+
 
 
 def test_admin_login():
@@ -33,7 +34,7 @@ def test_admin_create(access_token):
     """Test that the admin create route is accessible."""
 
     username = unique_name("testadmincreate")
-    password = f"TestAdmincreate#{unique_name('pwd').split('_')[-1]}"
+    password = strong_password("TestAdmincreate")
     admin = create_admin(access_token, username=username, password=password)
     assert admin["username"] == username
     assert admin["is_sudo"] is False
@@ -57,7 +58,7 @@ def test_update_admin(access_token):
     """Test that the admin update route is accessible."""
 
     admin = create_admin(access_token)
-    password = f"TestAdminupdate#{unique_name('pwd').split('_')[-1]}"
+    password = strong_password("TestAdminupdate")
     response = client.put(
         url=f"/api/admin/{admin['username']}",
         json={
