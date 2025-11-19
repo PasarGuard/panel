@@ -68,7 +68,7 @@ export default function CleanupSettings() {
     usernameParam = adminSearch
   }
 
-  const { data: fetchedAdmins = [] } = useGetAdmins(
+  const { data: fetchedAdminsResponse } = useGetAdmins(
     {
       limit: PAGE_SIZE,
       offset,
@@ -82,12 +82,13 @@ export default function CleanupSettings() {
   )
 
   useEffect(() => {
-    if (fetchedAdmins) {
+    if (fetchedAdminsResponse) {
+      const fetchedAdmins = fetchedAdminsResponse.admins || []
       setAdmins(prev => (offset === 0 ? fetchedAdmins : [...prev, ...fetchedAdmins]))
       setHasMore(fetchedAdmins.length === PAGE_SIZE)
       setIsLoading(false)
     }
-  }, [fetchedAdmins, offset])
+  }, [fetchedAdminsResponse, offset])
 
   const handleScroll = useCallback(() => {
     if (!listRef.current || isLoading || !hasMore) return

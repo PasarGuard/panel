@@ -206,7 +206,7 @@ export default function BulkGroupsPage() {
             <SelectorPanel
               icon={Shield}
               title={t('bulk.selectAdmins', { defaultValue: 'Select Admins' })}
-              items={(adminsData || []).filter(a => typeof a.id === 'number' && typeof a.username === 'string').map(a => ({ id: a.id as number, username: a.username as string }))}
+              items={(adminsData?.admins || []).filter(a => typeof a.id === 'number' && typeof a.username === 'string').map(a => ({ id: a.id as number, username: a.username as string }))}
               selected={selectedAdmins}
               setSelected={setSelectedAdmins}
               search={adminSearch}

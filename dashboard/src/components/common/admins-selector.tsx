@@ -37,7 +37,7 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
   })
 
   const selectedAdmins = (field.value as string[]) || []
-  const filteredAdmins = (adminsData || []).filter((admin: any) => admin.username.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredAdmins = (adminsData?.admins || []).filter((admin: any) => admin.username.toLowerCase().includes(searchQuery.toLowerCase()))
 
   const handleSelectAll = (checked: boolean) => {
     const newAdmins = checked ? filteredAdmins.map((admin: any) => admin.username) : []
