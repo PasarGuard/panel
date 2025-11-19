@@ -35,6 +35,8 @@ export const nodeFormSchema = z.object({
   data_limit: z.number().min(0).optional().nullable(),
   data_limit_reset_strategy: z.nativeEnum(DataLimitResetStrategy).optional().nullable(),
   reset_time: z.union([z.null(), z.undefined(), z.number().min(-1)]),
+  default_timeout:z.number().min(3 , 'Default timeout must be 3 or greater').max(60, 'Default timeout must be 60 or lower').optional(),
+  internal_timeout:z.number().min(3 , 'Internal timeout must be 3 or greater').max(60, 'Internal timeout must be 60 or lower').optional()
 })
 
 export type NodeFormValues = z.infer<typeof nodeFormSchema>
@@ -142,6 +144,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           data_limit: dataLimitGB,
           data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
           reset_time: nodeData.reset_time ?? null,
+          default_timeout: nodeData.default_timeout ?? 10,
+          internal_timeout: nodeData.internal_timeout ?? 15,
         })
         setIsFetchingNodeData(false)
       } else {
@@ -175,6 +179,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               data_limit: dataLimitGB,
               data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
               reset_time: nodeData.reset_time ?? null,
+              default_timeout: nodeData.default_timeout ?? 10,
+              internal_timeout: nodeData.internal_timeout ?? 15,
             })
           } catch (error) {
             console.error('Error fetching node data:', error)
@@ -201,6 +207,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         data_limit: 0,
         data_limit_reset_strategy: DataLimitResetStrategy.no_reset,
         reset_time: -1,
+        default_timeout: 10,
+        internal_timeout: 15,
       })
     }
   }, [editingNode, editingNodeId, isDialogOpen, cores, initialNodeData, form])
@@ -1042,6 +1050,48 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                 )
                               }}
                             />
+                            <div className="flex flex-col sm:flex-row gap-2">
+                            <FormField
+                                control={form.control}
+                                name="default_timeout"
+                                render={({ field }) => (
+                                    <FormItem className="flex-1">
+                                      <FormLabel>{t('nodeModal.defaultTimeout')}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                            isError={!!form.formState.errors.default_timeout}
+                                            type="number"
+                                            step="1"
+                                            placeholder={t('nodeModal.defaultTimeoutPlaceholder')}
+                                            {...field}
+                                            onChange={e => field.onChange(parseInt(e.target.value))}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="internal_timeout"
+                                render={({ field }) => (
+                                    <FormItem className="flex-1">
+                                      <FormLabel>{t('nodeModal.internalTimeout')}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                            isError={!!form.formState.errors.internal_timeout}
+                                            type="number"
+                                            step="1"
+                                              placeholder={t('nodeModal.internalTimeoutPlaceholder')}
+                                            {...field}
+                                            onChange={e => field.onChange(parseInt(e.target.value))}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            </div>
                           </div>
                         </div>
                       </AccordionContent>

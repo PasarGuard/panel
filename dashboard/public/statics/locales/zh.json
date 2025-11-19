@@ -1364,7 +1364,11 @@
     "coreConfig": "核心配置",
     "hours": "小时",
     "selectCoreConfig": "选择核心配置",
-    "noCoreConfig": "无核心配置"
+    "noCoreConfig": "无核心配置",
+    "defaultTimeout": "默认超时",
+    "internalTimeout": "内部超时",
+    "defaultTimeoutPlaceholder": "请输入默认超时（秒）",
+    "internalTimeoutPlaceholder": "请输入内部超时（秒）"
   },
   "theme": {
     "title": "主题",

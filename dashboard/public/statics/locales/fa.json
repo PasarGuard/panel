@@ -1244,7 +1244,11 @@
       "viewIPs": "مشاهده IP ‌ها",
       "userNotFound": "کاربر '{{username}}' یافت نشد یا آنلاین نیست",
       "errorLoadingIPs": "خطا در بارگذاری آدرس‌های IP کاربر"
-    }
+    },
+    "defaultTimeout": "مهلت پیش‌فرض",
+    "internalTimeout": "مهلت اینترنال",
+    "defaultTimeoutPlaceholder": "مهلت پیش‌فرض را وارد کنید (ثانیه)",
+    "internalTimeoutPlaceholder": "مهلت اینترنال را وارد کنید (ثانیه)"
   },
   "nodes": {
     "title": "گره‌ها",

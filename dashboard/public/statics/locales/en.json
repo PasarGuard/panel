@@ -1403,7 +1403,11 @@
       "viewIPs": "View IPs",
       "userNotFound": "User '{{username}}' not found or not online",
       "errorLoadingIPs": "Error loading user IP addresses"
-    }
+    },
+    "defaultTimeout": "Default Timeout",
+    "internalTimeout": "Internal Timeout",
+    "defaultTimeoutPlaceholder": "Enter default timeout (seconds)",
+    "internalTimeoutPlaceholder": "Enter internal timeout (seconds)"
   },
   "theme": {
     "title": "Theme",

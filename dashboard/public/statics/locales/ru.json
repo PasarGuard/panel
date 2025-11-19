@@ -1302,7 +1302,11 @@
       "viewIPs": "Просмотр IP",
       "userNotFound": "Пользователь '{{username}}' не найден или не в сети",
       "errorLoadingIPs": "Ошибка загрузки IP адресов пользователя"
-    }
+    },
+    "defaultTimeout": "Тайм-аут по умолчанию",
+    "internalTimeout": "Внутренний тайм-аут",
+    "defaultTimeoutPlaceholder": "Введите тайм-аут по умолчанию (в секундах)",
+    "internalTimeoutPlaceholder": "Введите внутренний тайм-аут (в секундах)"
   },
   "theme": {
     "title": "Тема",
