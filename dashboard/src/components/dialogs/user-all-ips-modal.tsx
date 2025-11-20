@@ -168,7 +168,7 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username }: User
     }
   }, [isOpen])
 
-  const { data: nodesData } = useGetNodes(undefined, {
+  const { data: nodesResponse } = useGetNodes(undefined, {
     query: {
       enabled: isOpen,
       staleTime: 5 * 60 * 1000,
@@ -176,13 +176,14 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username }: User
   })
   const nodeNameMap = useMemo(() => {
     const map: { [nodeId: string]: string } = {}
+    const nodesData = nodesResponse?.nodes || []
     if (nodesData && Array.isArray(nodesData)) {
       nodesData.forEach(node => {
         map[String(node.id)] = node.name
       })
     }
     return map
-  }, [nodesData])
+  }, [nodesResponse])
 
   const userIPsQueryOptions = useMemo(
     () => ({

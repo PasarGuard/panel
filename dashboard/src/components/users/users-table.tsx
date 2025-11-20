@@ -324,7 +324,7 @@ const UsersTable = memo(() => {
   const totalUsers = usersData?.total || 0
   const totalPages = Math.ceil(totalUsers / itemsPerPage)
   const showLoadingSpinner = isLoading && isFirstLoadRef.current
-  const isPageLoading = isChangingPage
+  const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current)
 
   return (
     <div>

@@ -272,7 +272,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }, [is_sudo])
 
   // Fetch nodes list - only for sudo admins
-  const { data: nodes, isLoading: isLoadingNodes } = useGetNodes(undefined, {
+  const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodes(undefined, {
     query: {
       enabled: open && is_sudo, // Only fetch nodes for sudo admins when modal is open
     },
@@ -287,7 +287,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }
 
   // Build color palette for nodes
-  const nodeList: NodeResponse[] = useMemo(() => (Array.isArray(nodes) ? nodes : []), [nodes])
+  const nodeList: NodeResponse[] = useMemo(() => (nodesResponse?.nodes || []), [nodesResponse])
 
   // Function to generate distinct colors based on theme
   const generateDistinctColor = useCallback((index: number, _totalNodes: number, isDark: boolean): string => {
@@ -671,7 +671,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t('userDialog.allNodes', { defaultValue: 'All Nodes' })}</SelectItem>
-                      {nodes?.map(node => (
+                      {nodeList.map(node => (
                         <SelectItem key={node.id} value={node.id.toString()}>
                           {node.name}
                         </SelectItem>

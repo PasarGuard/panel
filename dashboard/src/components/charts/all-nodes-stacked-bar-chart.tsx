@@ -218,7 +218,7 @@ export function AllNodesStackedBarChart() {
 
   const { t } = useTranslation()
   const dir = useDirDetection()
-  const { data: nodesData } = useGetNodes(undefined, { query: { enabled: true } })
+  const { data: nodesResponse } = useGetNodes(undefined, { query: { enabled: true } })
   const { resolvedTheme } = useTheme()
 
   // Navigation handler for modal
@@ -230,7 +230,7 @@ export function AllNodesStackedBarChart() {
   }
 
   // Build color palette for nodes
-  const nodeList: NodeResponse[] = useMemo(() => (Array.isArray(nodesData) ? nodesData : []), [nodesData])
+  const nodeList: NodeResponse[] = useMemo(() => (nodesResponse?.nodes || []), [nodesResponse])
 
   // Function to generate distinct colors based on theme
   const generateDistinctColor = useCallback((index: number, _totalNodes: number, isDark: boolean): string => {

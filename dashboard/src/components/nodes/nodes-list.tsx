@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
 import {useGetNodes, useModifyNode, NodeResponse, NodeConnectionType} from '@/service/api'
@@ -30,8 +30,12 @@ export default function NodesList() {
   const [editingNode, setEditingNode] = useState<NodeResponse | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [isChangingPage, setIsChangingPage] = useState(false)
+  const wasFetchingRef = useRef(false)
   const isFirstLoadRef = useRef(true)
+  const previousTotalPagesRef = useRef(0)
   const modifyNodeMutation = useModifyNode()
+  const [allNodes, setAllNodes] = useState<NodeResponse[]>([])
+  const [localSearchTerm, setLocalSearchTerm] = useState<string>('')
 
   const [filters, setFilters] = useState<{
     limit: number
@@ -55,20 +59,40 @@ export default function NodesList() {
     refetch,
   } = useGetNodes(filters, {
     query: {
-      refetchInterval: false,
+      refetchInterval: 10000,
       staleTime: 0,
       gcTime: 0,
       retry: 1,
       refetchOnMount: true,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
     },
   })
+
+  // Check if we should use local search (only one page of nodes)
+  const totalNodesFromResponse = nodesResponse?.total || 0
+  const shouldUseLocalSearch = totalNodesFromResponse > 0 && totalNodesFromResponse <= NODES_PER_PAGE && !filters.search
 
   useEffect(() => {
     if (nodesResponse && isFirstLoadRef.current) {
       isFirstLoadRef.current = false
     }
-  }, [nodesResponse])
+    // Store all nodes when fetched without search/pagination and there's only one page
+    if (nodesResponse && shouldUseLocalSearch && !filters.search && filters.offset === 0) {
+      setAllNodes(nodesResponse.nodes || [])
+    }
+  }, [nodesResponse, shouldUseLocalSearch, filters.search, filters.offset])
+
+  useEffect(() => {
+    // Track when fetching starts
+    if (isFetching) {
+      wasFetchingRef.current = true
+    }
+    // Only reset isChangingPage when fetching completes (was fetching, now not fetching)
+    if (!isFetching && wasFetchingRef.current && isChangingPage) {
+      setIsChangingPage(false)
+      wasFetchingRef.current = false
+    }
+  }, [isFetching, isChangingPage])
 
   useEffect(() => {
     const handleOpenDialog = () => setIsDialogOpen(true)
@@ -77,6 +101,15 @@ export default function NodesList() {
   }, [])
 
   const handleFilterChange = useCallback((newFilters: Partial<typeof filters>) => {
+    const searchValue = newFilters.search !== undefined ? newFilters.search : filters.search
+    setLocalSearchTerm(searchValue || '')
+    
+    // If using local search, don't update API filters
+    if (shouldUseLocalSearch && searchValue) {
+      setCurrentPage(0) // Reset to first page when searching locally
+      return
+    }
+    
     setFilters(prev => ({
       ...prev,
       ...newFilters,
@@ -84,10 +117,16 @@ export default function NodesList() {
     if (newFilters.offset === 0) {
       setCurrentPage(0)
     }
-  }, [])
+  }, [filters.search, shouldUseLocalSearch])
 
   const handlePageChange = (newPage: number) => {
     if (newPage === currentPage || isChangingPage) return
+
+    // If using local search, just update page without API call
+    if (shouldUseLocalSearch && localSearchTerm) {
+      setCurrentPage(newPage)
+      return
+    }
 
     setIsChangingPage(true)
     setCurrentPage(newPage)
@@ -95,7 +134,6 @@ export default function NodesList() {
       ...prev,
       offset: newPage * NODES_PER_PAGE,
     }))
-    setIsChangingPage(false)
   }
 
   const handleEdit = (node: NodeResponse) => {
@@ -151,11 +189,60 @@ export default function NodesList() {
     }
   }
 
-  const nodesData = nodesResponse?.nodes || []
-  const totalNodes = nodesResponse?.total || 0
-  const totalPages = Math.ceil(totalNodes / NODES_PER_PAGE)
-  const showLoadingSpinner = isLoading && isFirstLoadRef.current || isFetching
-  const isPageLoading = isChangingPage
+  // Filter nodes locally when using local search
+  const filteredNodes = useMemo(() => {
+    if (shouldUseLocalSearch && localSearchTerm && allNodes.length > 0) {
+      const searchLower = localSearchTerm.toLowerCase()
+      return allNodes.filter((node: NodeResponse) => 
+        node.name.toLowerCase().includes(searchLower) ||
+        node.address.toLowerCase().includes(searchLower) ||
+        node.port?.toString().includes(searchLower)
+      )
+    }
+    return nodesResponse?.nodes || []
+  }, [shouldUseLocalSearch, localSearchTerm, allNodes, nodesResponse?.nodes])
+
+  // Calculate pagination for local search
+  const paginatedNodes = useMemo(() => {
+    if (shouldUseLocalSearch && localSearchTerm) {
+      const start = currentPage * NODES_PER_PAGE
+      const end = start + NODES_PER_PAGE
+      return filteredNodes.slice(start, end)
+    }
+    return filteredNodes
+  }, [shouldUseLocalSearch, localSearchTerm, filteredNodes, currentPage])
+
+  const nodesData = paginatedNodes
+  // Calculate total nodes - use filtered count for local search, otherwise use API response
+  const totalNodes = shouldUseLocalSearch && localSearchTerm
+    ? filteredNodes.length 
+    : (nodesResponse?.total || 0)
+  const showLoadingSpinner = isLoading && isFirstLoadRef.current
+  const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !shouldUseLocalSearch)
+  const showPageLoadingSkeletons = isPageLoading && !showLoadingSpinner
+  
+  const calculatedTotalPages = Math.ceil(totalNodes / NODES_PER_PAGE)
+  // Preserve totalPages during loading to prevent pagination from disappearing
+  const totalPages = calculatedTotalPages > 0 ? calculatedTotalPages : (isPageLoading ? previousTotalPagesRef.current : 0)
+  
+  // Update previous total pages when we have valid data
+  useEffect(() => {
+    if (calculatedTotalPages > 0) {
+      previousTotalPagesRef.current = calculatedTotalPages
+    }
+  }, [calculatedTotalPages])
+
+  // Navigate to last available page if current page becomes invalid (e.g., after deleting all nodes on current page)
+  useEffect(() => {
+    if (calculatedTotalPages > 0 && currentPage >= calculatedTotalPages) {
+      const lastPage = calculatedTotalPages - 1
+      setCurrentPage(lastPage)
+      setFilters(prev => ({
+        ...prev,
+        offset: lastPage * NODES_PER_PAGE,
+      }))
+    }
+  }, [calculatedTotalPages, currentPage])
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
@@ -166,18 +253,39 @@ export default function NodesList() {
           className=" grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
           style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
         >
-          {showLoadingSpinner
+          {showLoadingSpinner || showPageLoadingSkeletons
             ? [...Array(6)].map((_, i) => (
-                <Card key={i} className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Skeleton className="h-5 w-24 sm:w-32" />
-                      <Skeleton className="h-6 w-6 shrink-0 rounded-full" />
+                <Card key={i} className="group relative h-full p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      {/* Status dot + Node name */}
+                      <div className="flex items-center gap-2 mb-1">
+                        <Skeleton className="h-2 w-2 rounded-full shrink-0" />
+                        <Skeleton className="h-5 w-32 sm:w-40" />
+                      </div>
+                      {/* Address:port */}
+                      <Skeleton className="h-4 w-28 sm:w-36 mb-1" />
+                      {/* Version info (optional, sometimes shown) */}
+                      {i % 3 === 0 && <Skeleton className="h-3 w-40 sm:w-48 mt-1 mb-2" />}
+                      {/* Usage display section */}
+                      <div className="mt-2 space-y-1.5">
+                        {/* Progress bar */}
+                        <Skeleton className="h-1.5 w-full rounded-full" />
+                        {/* Usage stats */}
+                        <div className="flex items-center justify-between gap-2">
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-3 w-16" />
+                        </div>
+                        {/* Uplink/Downlink */}
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-2.5 w-16" />
+                          <Skeleton className="h-2.5 w-16" />
+                        </div>
+                      </div>
                     </div>
-                    <Skeleton className="h-4 w-20 sm:w-24" />
-                    <div className="flex gap-2">
-                      <Skeleton className="h-8 flex-1" />
-                      <Skeleton className="h-8 w-8 shrink-0" />
+                    {/* Dropdown menu button */}
+                    <div>
+                      <Skeleton className="h-9 w-9 rounded-md shrink-0" />
                     </div>
                   </div>
                 </Card>
@@ -185,7 +293,7 @@ export default function NodesList() {
             : nodesData.map(node => <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
         </div>
 
-        {!showLoadingSpinner && nodesData.length === 0 && !filters.search && (
+        {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !filters.search && totalNodes === 0 && (
           <Card className="mb-12">
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
@@ -202,7 +310,7 @@ export default function NodesList() {
           </Card>
         )}
 
-        {!showLoadingSpinner && nodesData.length === 0 && (filters.search) && (
+        {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && (filters.search || localSearchTerm) && (
           <Card className="mb-12">
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
@@ -215,7 +323,7 @@ export default function NodesList() {
           </Card>
         )}
         </div>
-        {!showLoadingSpinner && nodesData.length > 0 && totalNodes > NODES_PER_PAGE && (
+        {totalPages > 1 && (
           <NodePaginationControls
             currentPage={currentPage}
             totalPages={totalPages}

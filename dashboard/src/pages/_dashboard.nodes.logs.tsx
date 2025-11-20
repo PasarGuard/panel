@@ -57,7 +57,8 @@ export default function NodeLogs() {
 
   const eventSourceRef = useRef<EventSource | null>(null)
 
-  const { data: nodes = [] } = useGetNodes({})
+  const { data: nodesResponse } = useGetNodes({})
+  const nodes = nodesResponse?.nodes || []
 
   // Filter to only show connected nodes
   const connectedNodes = useMemo(() => nodes.filter(node => node.status === 'connected'), [nodes])

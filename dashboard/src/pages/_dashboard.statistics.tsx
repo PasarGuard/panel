@@ -14,11 +14,14 @@ const Statistics = () => {
   const [selectedServer, setSelectedServer] = useState<string>('master')
 
   // Fetch nodes for the selector
-  const { data: nodesData, isLoading: isLoadingNodes } = useGetNodes(undefined, {
+  const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodes(undefined, {
     query: {
       enabled: true,
     },
   })
+
+  // Extract nodes array from response
+  const nodesData = nodesResponse?.nodes || []
 
   // Use the getSystemStats API with proper query key and refetch interval
   const { data, error, isLoading } = useQuery({
@@ -60,7 +63,7 @@ const Statistics = () => {
                           {t('master')}
                         </SelectItem>
                         {nodesData
-                          ?.filter((node: NodeResponse) => node.status === 'connected')
+                          .filter((node: NodeResponse) => node.status === 'connected')
                           .map((node: NodeResponse) => (
                             <SelectItem key={node.id} value={String(node.id)} className="text-xs sm:text-sm">
                               {node.name}
