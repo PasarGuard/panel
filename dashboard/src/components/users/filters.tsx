@@ -89,7 +89,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const [search, setSearch] = useState(filters.search || '')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
-  const { refetch: queryRefetch } = useGetUsers(filters)
+  const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
   const refetchUsers = useCallback(async (showLoading = false, isAutoRefresh = false) => {
     if (showLoading) {
       setIsRefreshing(true)
@@ -297,15 +297,15 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
           className={cn(
             'relative flex h-9 w-9 items-center justify-center border transition-all duration-200 md:h-10 md:w-10',
             dir === 'rtl' ? 'rounded-l-none border-l-0' : 'rounded-r-none',
-            isRefreshing && 'opacity-70',
+            (isRefreshing || isFetching) && 'opacity-70',
           )}
           aria-label={t('autoRefresh.refreshNow')}
           title={t('autoRefresh.refreshNow')}
-          disabled={isRefreshing}
+          disabled={isRefreshing || isFetching}
         >
-          <RefreshCw className={cn('h-4 w-4 transition-transform duration-200', isRefreshing && 'animate-spin')} />
+          <RefreshCw className="h-4 w-4" />
           <div className="absolute -right-1 -top-1 flex items-center justify-center">
-            {isRefreshing ? (
+            {isRefreshing || isFetching ? (
               <div className="flex h-3 w-3 items-center justify-center rounded-full bg-primary transition-all duration-200 ease-in-out">
                 <LoaderCircle className="h-2 w-2 animate-spin text-primary-foreground" />
               </div>
@@ -336,12 +336,12 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => void handleRefreshClick()}
-              disabled={isRefreshing}
-              className={cn('flex items-center gap-1.5 px-1.5 py-1 text-[11px] transition-opacity duration-200', isRefreshing && 'opacity-70')}
+              disabled={isRefreshing || isFetching}
+              className={cn('flex items-center gap-1.5 px-1.5 py-1 text-[11px] transition-opacity duration-200', (isRefreshing || isFetching) && 'opacity-70')}
             >
-              <RefreshCw className={cn('h-2.5 w-2.5 flex-shrink-0 transition-transform duration-200', isRefreshing && 'animate-spin')} />
+              <RefreshCw className="h-2.5 w-2.5 flex-shrink-0" />
               <span className="truncate">{t('autoRefresh.refreshNow')}</span>
-              {isRefreshing && <LoaderCircle className="ml-auto h-2.5 w-2.5 animate-spin text-primary" />}
+              {(isRefreshing || isFetching) && <LoaderCircle className="ml-auto h-2.5 w-2.5 animate-spin text-primary" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {autoRefreshOptions.map(option => {
