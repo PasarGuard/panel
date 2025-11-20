@@ -424,9 +424,7 @@ async def test_remove_node_deletes_associated_usage_tables():
         await session.commit()
 
         async def count_rows(model):
-            return await session.scalar(
-                select(func.count()).select_from(model).where(model.node_id == node_id)
-            )
+            return await session.scalar(select(func.count()).select_from(model).where(model.node_id == node_id))
 
         assert await count_rows(NodeUserUsage) == len(user_usages)
         assert await count_rows(NodeUsage) == len(node_usages)
@@ -440,7 +438,5 @@ async def test_remove_node_deletes_associated_usage_tables():
         assert await count_rows(NodeUsage) == 0
         assert await count_rows(NodeUsageResetLogs) == 0
         assert await count_rows(NodeStat) == 0
-        remaining_nodes = await session.scalar(
-            select(func.count()).select_from(Node).where(Node.id == node_id)
-        )
+        remaining_nodes = await session.scalar(select(func.count()).select_from(Node).where(Node.id == node_id))
         assert remaining_nodes == 0

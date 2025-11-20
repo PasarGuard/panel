@@ -42,7 +42,6 @@ const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] 
     const d = dateUtils.toDayjs(stat.period_start)
     const isToday = d.isSame(today, 'day')
 
-
     let displayLabel = ''
     if (periodOption.hours) {
       // For hour periods, use period_start with format date function
@@ -52,62 +51,52 @@ const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] 
       if (locale === 'fa') {
         if (isToday) {
           // For today, show current time
-          displayLabel = new Date()
-            .toLocaleString('fa-IR', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false,
-            })
+          displayLabel = new Date().toLocaleString('fa-IR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
         } else {
           // For other days, show date
           const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-          displayLabel = localDate
-            .toLocaleString('fa-IR', {
-              month: '2-digit',
-              day: '2-digit',
-            })
+          displayLabel = localDate.toLocaleString('fa-IR', {
+            month: '2-digit',
+            day: '2-digit',
+          })
         }
       } else {
         if (isToday) {
           // For today, show current time
-          displayLabel = new Date()
-            .toLocaleString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false,
-            })
+          displayLabel = new Date().toLocaleString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
         } else {
           // For other days, show date
           const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-          displayLabel = localDate
-            .toLocaleString('en-US', {
-              month: '2-digit',
-              day: '2-digit',
-            })
+          displayLabel = localDate.toLocaleString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+          })
         }
       }
     } else {
       // For other periods (month, etc.), show date format
       if (locale === 'fa') {
-        displayLabel = d
-          .toDate()
-          .toLocaleString('fa-IR', {
-            month: '2-digit',
-            day: '2-digit',
-          })
+        displayLabel = d.toDate().toLocaleString('fa-IR', {
+          month: '2-digit',
+          day: '2-digit',
+        })
       } else {
-        displayLabel = d
-          .toDate()
-          .toLocaleString('en-US', {
-            month: '2-digit',
-            day: '2-digit',
-          })
+        displayLabel = d.toDate().toLocaleString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+        })
       }
     }
 
-    const traffic = isNodeUsage
-      ? ((stat as NodeUsageStat).uplink || 0) + ((stat as NodeUsageStat).downlink || 0)
-      : ((stat as UserUsageStat).total_traffic || 0)
+    const traffic = isNodeUsage ? ((stat as NodeUsageStat).uplink || 0) + ((stat as NodeUsageStat).downlink || 0) : (stat as UserUsageStat).total_traffic || 0
 
     return {
       date: displayLabel,
@@ -228,7 +217,9 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
       <div className="flex flex-col gap-0.5 text-xs">
         <div>
           <span className="font-medium text-foreground">{t('statistics.totalUsage', { defaultValue: 'Total Usage' })}:</span>
-          <span dir="ltr" className={isRTL ? 'mr-1' : 'ml-1'}>{formatBytes(data.traffic)}</span>
+          <span dir="ltr" className={isRTL ? 'mr-1' : 'ml-1'}>
+            {formatBytes(data.traffic)}
+          </span>
         </div>
       </div>
     </div>
@@ -256,7 +247,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     [t],
   )
   const [periodOption, setPeriodOption] = useState<PeriodOption>(() => PERIOD_OPTIONS[3])
-  
+
   // Update periodOption when PERIOD_OPTIONS changes (e.g., language change)
   useEffect(() => {
     setPeriodOption(prev => {
@@ -264,7 +255,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
       return currentOption || prev
     })
   }, [PERIOD_OPTIONS])
-  
+
   const { startDate, endDate } = useMemo(() => {
     const now = dayjs()
     let start: dayjs.Dayjs
@@ -350,7 +341,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     }
 
     if (periodOption.months || periodOption.allTime) {
-      const targetLabels = 5;
+      const targetLabels = 5
       return Math.max(1, Math.floor(chartData.length / targetLabels))
     }
 
@@ -367,7 +358,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
       <CardHeader className="flex flex-row items-start justify-between gap-2">
         <div>
           <CardTitle>{t('admins.used.traffic', { defaultValue: 'Traffic Usage' })}</CardTitle>
-          <CardDescription className='mt-1.5'>{t('admins.monitor.traffic', { defaultValue: 'Monitor admin traffic usage over time' })}</CardDescription>
+          <CardDescription className="mt-1.5">{t('admins.monitor.traffic', { defaultValue: 'Monitor admin traffic usage over time' })}</CardDescription>
         </div>
         <Select
           value={periodOption.value}
@@ -452,7 +443,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                     if (lastDataPoint && value === lastDataPoint.date) {
                       const today = dateUtils.toDayjs(new Date())
                       // Try to get period_start from the data point
-                      const dataPoint = chartData.find((d) => typeof d === 'object' && d !== null && 'date' in d && (d as { date: string }).date === value) as { period_start?: string } | undefined
+                      const dataPoint = chartData.find(d => typeof d === 'object' && d !== null && 'date' in d && (d as { date: string }).date === value) as { period_start?: string } | undefined
                       if (dataPoint?.period_start) {
                         const pointDate = dateUtils.toDayjs(dataPoint.period_start)
                         if (pointDate.isSame(today, 'day')) {
@@ -465,15 +456,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                   return value || ''
                 }}
               />
-              <YAxis 
-                dataKey={'traffic'} 
-                tickLine={false} 
-                tickMargin={4} 
-                axisLine={false} 
-                width={40}
-                tickFormatter={val => formatBytes(val, 0, true).toString()} 
-                tick={{ fontSize: 10 }}
-              />
+              <YAxis dataKey={'traffic'} tickLine={false} tickMargin={4} axisLine={false} width={40} tickFormatter={val => formatBytes(val, 0, true).toString()} tick={{ fontSize: 10 }} />
               <ChartTooltip cursor={false} content={<CustomBarTooltip period={periodOption.period} />} />
               <Bar dataKey="traffic" radius={6} maxBarSize={48}>
                 {chartData.map((_, index: number) => (

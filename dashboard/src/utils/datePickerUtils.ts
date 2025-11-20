@@ -26,11 +26,7 @@ export const getPeriodFromDateRange = (range?: DateRange): Period => {
  * @param includeTime - Whether to include time in the format
  * @returns Formatted date string
  */
-export const formatDateByLocale = (
-  date: Date,
-  isPersianLocale: boolean,
-  includeTime: boolean = false,
-): string => {
+export const formatDateByLocale = (date: Date, isPersianLocale: boolean, includeTime: boolean = false): string => {
   if (isPersianLocale) {
     if (includeTime) {
       return (
@@ -98,12 +94,7 @@ export const formatDateShort = (date: Date, isPersianLocale: boolean): string =>
  * @param isToday - Whether the date is today
  * @returns Formatted date string for tooltip
  */
-export const formatDateForTooltip = (
-  date: Date,
-  period: 'hour' | 'day',
-  isPersianLocale: boolean,
-  isToday: boolean = false,
-): string => {
+export const formatDateForTooltip = (date: Date, period: 'hour' | 'day', isPersianLocale: boolean, isToday: boolean = false): string => {
   const locale = isPersianLocale ? 'fa-IR' : 'en-US'
   const options: Intl.DateTimeFormatOptions = {
     year: 'numeric',
@@ -132,11 +123,7 @@ export const formatDateForTooltip = (
  * @param maxDate - Optional maximum date (defaults to 15 years from now)
  * @returns true if the date should be disabled
  */
-export const isDateDisabled = (
-  date: Date,
-  minDate?: Date,
-  maxDate?: Date,
-): boolean => {
+export const isDateDisabled = (date: Date, minDate?: Date, maxDate?: Date): boolean => {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -177,4 +164,3 @@ export const isDateDisabled = (
 
   return false
 }
-

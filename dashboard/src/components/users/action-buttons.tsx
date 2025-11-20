@@ -529,9 +529,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={user.username} />
 
       {/* UserAllIPsModal: only for sudo admins */}
-      {currentAdmin?.is_sudo && (
-        <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />
-      )}
+      {currentAdmin?.is_sudo && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
     </div>
   )
 }

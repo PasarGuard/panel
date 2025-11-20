@@ -318,10 +318,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                 })}
               </span>
             </div>
-            <div 
-              className="ml-auto h-2.5 w-2.5 rounded-full border-2 border-primary/30 shadow-sm" 
-              style={{ backgroundColor: leadingSegment.color }} 
-            />
+            <div className="ml-auto h-2.5 w-2.5 rounded-full border-2 border-primary/30 shadow-sm" style={{ backgroundColor: leadingSegment.color }} />
           </div>
         </CardFooter>
       )}

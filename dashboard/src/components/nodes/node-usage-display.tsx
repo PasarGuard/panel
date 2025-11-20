@@ -23,7 +23,7 @@ export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
   const dataLimit = node.data_limit
   const isUnlimited = dataLimit === null || dataLimit === undefined || dataLimit === 0
   const progressValue = isUnlimited || !dataLimit ? 0 : Math.min((totalUsed / dataLimit) * 100, 100)
-  
+
   // Determine progress color based on usage (using same colors as active users)
   const getProgressColor = () => {
     if (isUnlimited) return ''
@@ -37,16 +37,10 @@ export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
   }
 
   return (
-    <div className={cn("mt-2 space-y-1.5", isRTL ? "text-right" : "text-left")}>
-      {!isUnlimited && dataLimit && (
-        <Progress 
-          value={progressValue} 
-          className="h-1.5" 
-          indicatorClassName={getProgressColor()}
-        />
-      )}
+    <div className={cn('mt-2 space-y-1.5', isRTL ? 'text-right' : 'text-left')}>
+      {!isUnlimited && dataLimit && <Progress value={progressValue} className="h-1.5" indicatorClassName={getProgressColor()} />}
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
+        <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
           <span dir="ltr" className="font-medium">
             {formatBytes(totalUsed)}
           </span>
@@ -57,24 +51,30 @@ export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
           )}
         </div>
         {totalLifetime > 0 && (
-          <div className={cn("flex items-center gap-1")}>
+          <div className={cn('flex items-center gap-1')}>
             <span className="text-[10px]">{t('usersTable.total', { defaultValue: 'Total' })}:</span>
-            <span dir="ltr" className="text-[10px]">{formatBytes(totalLifetime)}</span>
+            <span dir="ltr" className="text-[10px]">
+              {formatBytes(totalLifetime)}
+            </span>
           </div>
         )}
       </div>
       {(uplink > 0 || downlink > 0) && (
-        <div className={cn("flex items-center gap-3 text-[10px]", isRTL ? "justify-end" : "justify-start")}>
+        <div className={cn('flex items-center gap-3 text-[10px]', isRTL ? 'justify-end' : 'justify-start')}>
           {uplink > 0 && (
-            <div className={cn("flex items-center gap-1", isRTL && "flex-row-reverse")}>
-              <Upload className="h-3 w-3 text-blue-500 flex-shrink-0" />
-              <span dir="ltr" className="text-blue-500">{formatBytes(uplink)}</span>
+            <div className={cn('flex items-center gap-1', isRTL && 'flex-row-reverse')}>
+              <Upload className="h-3 w-3 flex-shrink-0 text-blue-500" />
+              <span dir="ltr" className="text-blue-500">
+                {formatBytes(uplink)}
+              </span>
             </div>
           )}
           {downlink > 0 && (
-            <div className={cn("flex items-center gap-1", isRTL && "flex-row-reverse")}>
-              <Download className="h-3 w-3 text-green-500 flex-shrink-0" />
-              <span dir="ltr" className="text-green-500">{formatBytes(downlink)}</span>
+            <div className={cn('flex items-center gap-1', isRTL && 'flex-row-reverse')}>
+              <Download className="h-3 w-3 flex-shrink-0 text-green-500" />
+              <span dir="ltr" className="text-green-500">
+                {formatBytes(downlink)}
+              </span>
             </div>
           )}
         </div>
@@ -82,4 +82,3 @@ export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
     </div>
   )
 }
-

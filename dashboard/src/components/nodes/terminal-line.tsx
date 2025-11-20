@@ -20,14 +20,15 @@ export function TerminalLine({ log, noTimestamp, searchTerm }: LogLineProps) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
 
-  const formattedTime = timestamp && !isNaN(timestamp.getTime())
-    ? timestamp.toLocaleTimeString(locale || undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      })
-    : ''
+  const formattedTime =
+    timestamp && !isNaN(timestamp.getTime())
+      ? timestamp.toLocaleTimeString(locale || undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+      : ''
 
   const highlightMessage = (text: string, term: string) => {
     if (!term) {
@@ -82,7 +83,7 @@ export function TerminalLine({ log, noTimestamp, searchTerm }: LogLineProps) {
               : 'hover:bg-gray-200/50 dark:hover:bg-gray-800/50',
       )}
     >
-      <div className="flex items-start gap-2 flex-shrink-0">
+      <div className="flex flex-shrink-0 items-start gap-2">
         {/* Icon to expand the log item maybe implement a colapsible later */}
         {/* <Square className="size-4 text-muted-foreground opacity-0 group-hover/logitem:opacity-100 transition-opacity" /> */}
         {tooltip(color, rawTimestamp)}

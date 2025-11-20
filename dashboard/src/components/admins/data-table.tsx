@@ -88,7 +88,17 @@ const ExpandedRowContent = memo(
   },
 )
 
-export function DataTable<TData extends AdminDetails>({ columns, data, onEdit, onDelete, onToggleStatus, onResetUsage, onRemoveAllUsers, isLoading = false, isFetching = false }: DataTableProps<TData>) {
+export function DataTable<TData extends AdminDetails>({
+  columns,
+  data,
+  onEdit,
+  onDelete,
+  onToggleStatus,
+  onResetUsage,
+  onRemoveAllUsers,
+  isLoading = false,
+  isFetching = false,
+}: DataTableProps<TData>) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const { t } = useTranslation()
   const table = useReactTable({

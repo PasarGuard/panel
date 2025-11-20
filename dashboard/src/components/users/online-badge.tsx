@@ -78,4 +78,3 @@ export const OnlineBadge: FC<UserStatusProps> = ({ lastOnline }) => {
     </TooltipProvider>
   )
 }
-

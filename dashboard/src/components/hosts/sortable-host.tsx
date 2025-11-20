@@ -72,7 +72,7 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
 
     try {
       const { id, ...hostData } = host
-      
+
       let transformedMuxSettings = hostData.mux_settings
       if (hostData.mux_settings?.xray) {
         transformedMuxSettings = {
@@ -103,7 +103,7 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
           },
         }
       }
-      
+
       await modifyHost(host.id, {
         ...hostData,
         mux_settings: transformedMuxSettings as any,

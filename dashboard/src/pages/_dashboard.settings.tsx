@@ -200,7 +200,7 @@ export default function Settings() {
   // Memoize context value to ensure stability during HMR
   const settingsContextValue: SettingsContextType = useMemo(
     () => ({
-      settings: is_sudo ? (settings || {}) : {}, // Non-sudo admins don't need settings data
+      settings: is_sudo ? settings || {} : {}, // Non-sudo admins don't need settings data
       isLoading: is_sudo ? isLoading : false,
       error: is_sudo ? error : null,
       updateSettings: is_sudo ? handleUpdateSettings : () => {}, // No-op for non-sudo admins

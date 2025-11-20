@@ -58,7 +58,9 @@ const ResetUsageAlertDialog = ({ node, isOpen, onClose, onConfirm, isLoading }: 
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose} disabled={isLoading}>{t('cancel')}</AlertDialogCancel>
+          <AlertDialogCancel onClick={onClose} disabled={isLoading}>
+            {t('cancel')}
+          </AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={isLoading}>
             {t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' })}
           </AlertDialogAction>
@@ -179,49 +181,35 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
       <Card className="group relative h-full cursor-pointer p-4 transition-colors hover:bg-accent" onClick={() => onEdit(node)}>
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <div dir='ltr' className="flex items-center gap-2">
+            <div dir="ltr" className="flex items-center gap-2">
               {node.status === 'error' ? (
                 node.message ? (
                   <HoverCard openDelay={200} closeDelay={100}>
                     <HoverCardTrigger asChild>
-                      <div
-                        className={cn(
-                          'min-h-2 min-w-2 rounded-full cursor-help',
-                          'bg-red-500',
-                        )}
-                      />
+                      <div className={cn('min-h-2 min-w-2 cursor-help rounded-full', 'bg-red-500')} />
                     </HoverCardTrigger>
                     <HoverCardContent className="w-64 p-2" side="top" align="start" sideOffset={5}>
-                      <p dir={dir} className="text-xs font-medium text-destructive mb-1">{t('error', { defaultValue: 'Error' })}</p>
-                      <p className="text-xs text-muted-foreground break-words">{node.message}</p>
+                      <p dir={dir} className="mb-1 text-xs font-medium text-destructive">
+                        {t('error', { defaultValue: 'Error' })}
+                      </p>
+                      <p className="break-words text-xs text-muted-foreground">{node.message}</p>
                     </HoverCardContent>
                   </HoverCard>
                 ) : (
-                  <div
-                    className={cn(
-                      'min-h-2 min-w-2 rounded-full',
-                      'bg-red-500',
-                    )}
-                  />
+                  <div className={cn('min-h-2 min-w-2 rounded-full', 'bg-red-500')} />
                 )
               ) : (
                 <div
                   className={cn(
                     'min-h-2 min-w-2 rounded-full',
-                    node.status === 'connected' 
-                      ? 'bg-green-500' 
-                      : node.status === 'connecting' 
-                        ? 'bg-yellow-500' 
-                        : node.status === 'limited'
-                          ? 'bg-orange-500'
-                          : 'bg-gray-500',
+                    node.status === 'connected' ? 'bg-green-500' : node.status === 'connecting' ? 'bg-yellow-500' : node.status === 'limited' ? 'bg-orange-500' : 'bg-gray-500',
                   )}
                 />
               )}
               <div className="truncate font-medium">{node.name}</div>
             </div>
             <CardTitle className="flex items-center gap-1 truncate text-sm text-muted-foreground">
-              <span className='text-left w-full'>
+              <span className="w-full text-left">
                 {node.address}:{node.port}
               </span>
             </CardTitle>
@@ -321,13 +309,7 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
 
       <DeleteAlertDialog node={node} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />
 
-      <ResetUsageAlertDialog
-        node={node}
-        isOpen={isResetUsageDialogOpen}
-        onClose={() => setResetUsageDialogOpen(false)}
-        onConfirm={confirmResetUsage}
-        isLoading={resettingUsage}
-      />
+      <ResetUsageAlertDialog node={node} isOpen={isResetUsageDialogOpen} onClose={() => setResetUsageDialogOpen(false)} onConfirm={confirmResetUsage} isLoading={resettingUsage} />
 
       <UserOnlineStatsDialog isOpen={showOnlineStats} onOpenChange={setShowOnlineStats} nodeId={node.id} nodeName={node.name} />
     </>

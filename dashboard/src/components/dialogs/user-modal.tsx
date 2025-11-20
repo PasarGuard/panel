@@ -115,11 +115,11 @@ const ExpiryDateField = ({
       if (date) {
         // Use the same logic as centralized DatePicker
         const value = useUtcTimestamp ? Math.floor(date.getTime() / 1000) : getLocalISOTime(date)
-          field.onChange(value)
-          handleFieldChange(fieldName, value)
+        field.onChange(value)
+        handleFieldChange(fieldName, value)
       } else {
-          field.onChange('')
-          handleFieldChange(fieldName, undefined)
+        field.onChange('')
+        handleFieldChange(fieldName, undefined)
       }
     },
     [field, handleFieldChange, useUtcTimestamp, fieldName],
@@ -142,7 +142,7 @@ const ExpiryDateField = ({
     const today = new Date()
     return new Date(today.getFullYear(), today.getMonth(), today.getDate())
   }, [])
-  
+
   const maxDate = React.useMemo(() => {
     return new Date(now.getFullYear() + 15, 11, 31)
   }, [now])
@@ -158,9 +158,9 @@ const ExpiryDateField = ({
 
   return (
     <FormItem className="flex flex-1 flex-col">
-      <FormLabel className='mb-0.5'>{label}</FormLabel>
+      <FormLabel className="mb-0.5">{label}</FormLabel>
       <div className="space-y-2 lg:!mt-0">
-        <div dir="ltr" className="flex lg:hidden items-center gap-1 flex-wrap">
+        <div dir="ltr" className="flex flex-wrap items-center gap-1 lg:hidden">
           {shortcuts.map(({ label, days }) => (
             <Button
               key={label}
@@ -168,7 +168,7 @@ const ExpiryDateField = ({
               variant="ghost"
               size="sm"
               className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault()
                 e.stopPropagation()
                 handleShortcut(days)
@@ -194,7 +194,13 @@ const ExpiryDateField = ({
             onFieldChange={handleFieldChange}
           />
           {displayDate && expireInfo?.time && (
-            <p className={cn(fieldName !== 'on_hold_timeout' && 'lg:w-48', 'absolute top-full lg:text-ellipsis lg:overflow-hidden text-end right-0 mt-1 whitespace-nowrap text-xs text-muted-foreground', dir === 'rtl' ? 'right-0' : 'left-0')}>
+            <p
+              className={cn(
+                fieldName !== 'on_hold_timeout' && 'lg:w-48',
+                'absolute right-0 top-full mt-1 whitespace-nowrap text-end text-xs text-muted-foreground lg:overflow-hidden lg:text-ellipsis',
+                dir === 'rtl' ? 'right-0' : 'left-0',
+              )}
+            >
               {(() => {
                 const now = new Date()
                 const isExpired = displayDate < now
@@ -328,17 +334,15 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     return hasAnyValue
   }, [])
 
-  const nextPlanValue = React.useMemo(() => ({
-    user_template_id: form.watch('next_plan.user_template_id'),
-    expire: form.watch('next_plan.expire'),
-    data_limit: form.watch('next_plan.data_limit'),
-    add_remaining_traffic: form.watch('next_plan.add_remaining_traffic'),
-  }), [
-    form.watch('next_plan.user_template_id'),
-    form.watch('next_plan.expire'),
-    form.watch('next_plan.data_limit'),
-    form.watch('next_plan.add_remaining_traffic'),
-  ])
+  const nextPlanValue = React.useMemo(
+    () => ({
+      user_template_id: form.watch('next_plan.user_template_id'),
+      expire: form.watch('next_plan.expire'),
+      data_limit: form.watch('next_plan.data_limit'),
+      add_remaining_traffic: form.watch('next_plan.add_remaining_traffic'),
+    }),
+    [form.watch('next_plan.user_template_id'), form.watch('next_plan.expire'), form.watch('next_plan.data_limit'), form.watch('next_plan.add_remaining_traffic')],
+  )
 
   useEffect(() => {
     if (!isDialogOpen) {
@@ -480,11 +484,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           queryKey: ['/api/users'],
           exact: false,
         },
-        (oldData) => {
+        oldData => {
           if (!oldData) return oldData
 
           // Find and update the user in the users array
-          const updatedUsers = oldData.users.map((u) => (u.username === user.username ? user : u))
+          const updatedUsers = oldData.users.map(u => (u.username === user.username ? user : u))
 
           return {
             ...oldData,
@@ -618,7 +622,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
   useEffect(() => {
     if (!isDialogOpen || !editingUser || nextPlanManuallyDisabled) return
-    
+
     const shouldBeEnabled = hasNextPlanValues(nextPlanValue)
 
     if (shouldBeEnabled && !nextPlanEnabled) {
@@ -977,10 +981,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         if (nextPlanEnabled) {
           const nextPlanFromValues = values.next_plan
           const hasValues = nextPlanFromValues && hasNextPlanValues(nextPlanFromValues)
-          
+
           if (hasValues) {
             nextPlanData = { ...nextPlanFromValues }
-            
+
             if (nextPlanData.user_template_id) {
               delete nextPlanData.data_limit
               delete nextPlanData.expire
@@ -1211,7 +1215,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     }
   }, [isDialogOpen, editingUser, generalSettings, form])
 
-
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
       <DialogContent className={`lg:min-w-[900px] ${editingUser ? 'h-full sm:h-auto' : 'h-auto'}`}>
@@ -1373,12 +1376,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                 dataLimitInputRef.current = ''
                               }
 
-                              const displayValue = dataLimitInputRef.current !== '' 
-                                ? dataLimitInputRef.current 
-                                : (field.value !== null && field.value !== undefined && field.value > 0 ? String(field.value) : '')
+                              const displayValue =
+                                dataLimitInputRef.current !== '' ? dataLimitInputRef.current : field.value !== null && field.value !== undefined && field.value > 0 ? String(field.value) : ''
 
                               return (
-                                <FormItem className="h-full flex-1 relative">
+                                <FormItem className="relative h-full flex-1">
                                   <FormLabel>{t('userDialog.dataLimit', { defaultValue: 'Data Limit (GB)' })}</FormLabel>
                                   <FormControl>
                                     <Input
@@ -1388,9 +1390,9 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                       value={displayValue}
                                       onChange={e => {
                                         const rawValue = e.target.value.trim()
-                                        
+
                                         dataLimitInputRef.current = rawValue
-                                        
+
                                         if (rawValue === '') {
                                           field.onChange(0)
                                           handleFieldChange('data_limit', 0)
@@ -1438,7 +1440,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                     />
                                   </FormControl>
                                   {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                    <p className="mt-1 text-end right-0 absolute top-full text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
+                                    <p className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
                                   )}
                                   <FormMessage />
                                 </FormItem>
@@ -1876,15 +1878,18 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                   {activeTab === 'groups' && editingUser && (
                     <div className="rounded-[--radius] border border-border p-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
-                          const newValue = !nextPlanEnabled
-                          setNextPlanEnabled(newValue)
-                          if (!newValue) {
-                            setNextPlanManuallyDisabled(true)
-                          } else {
-                            setNextPlanManuallyDisabled(false)
-                          }
-                        }}>
+                        <div
+                          className="flex cursor-pointer items-center gap-2"
+                          onClick={() => {
+                            const newValue = !nextPlanEnabled
+                            setNextPlanEnabled(newValue)
+                            if (!newValue) {
+                              setNextPlanManuallyDisabled(true)
+                            } else {
+                              setNextPlanManuallyDisabled(false)
+                            }
+                          }}
+                        >
                           <ListStart className="h-4 w-4" />
                           <div>{t('userDialog.nextPlanTitle', { defaultValue: 'Next Plan' })}</div>
                         </div>

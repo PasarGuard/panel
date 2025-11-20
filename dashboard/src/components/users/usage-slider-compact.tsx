@@ -20,9 +20,9 @@ const UsageSliderCompact: React.FC<UsageSliderProps> = ({ used, total = 0, statu
   const { t } = useTranslation()
   const isRTL = useDirDetection() === 'rtl'
   return (
-    <div className={cn("flex w-full flex-col justify-between gap-y-1 text-xs font-medium text-muted-foreground text-left", isRTL ? "md:text-end" : "md:text-start")}>
+    <div className={cn('flex w-full flex-col justify-between gap-y-1 text-left text-xs font-medium text-muted-foreground', isRTL ? 'md:text-end' : 'md:text-start')}>
       <Progress indicatorClassName={color} value={progressValue} className={cn(isMobile ? 'block' : 'hidden md:block')} />
-      <div className="flex items-center justify-between w-full">
+      <div className="flex w-full items-center justify-between">
         <span className={isMobile ? 'hidden' : 'w-full'} dir="ltr">
           {formatBytes(used)} / {isUnlimited ? <span className="font-system-ui">∞</span> : formatBytes(total)}
         </span>

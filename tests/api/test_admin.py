@@ -1,8 +1,7 @@
 from fastapi import status
 
 from tests.api import client
-from tests.api.helpers import create_admin, delete_admin, unique_name,strong_password
-
+from tests.api.helpers import create_admin, delete_admin, unique_name, strong_password
 
 
 def test_admin_login():

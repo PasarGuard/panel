@@ -35,8 +35,8 @@ export const nodeFormSchema = z.object({
   data_limit: z.number().min(0).optional().nullable(),
   data_limit_reset_strategy: z.nativeEnum(DataLimitResetStrategy).optional().nullable(),
   reset_time: z.union([z.null(), z.undefined(), z.number().min(-1)]),
-  default_timeout:z.number().min(3 , 'Default timeout must be 3 or greater').max(60, 'Default timeout must be 60 or lower').optional(),
-  internal_timeout:z.number().min(3 , 'Internal timeout must be 3 or greater').max(60, 'Internal timeout must be 60 or lower').optional()
+  default_timeout: z.number().min(3, 'Default timeout must be 3 or greater').max(60, 'Default timeout must be 60 or lower').optional(),
+  internal_timeout: z.number().min(3, 'Internal timeout must be 3 or greater').max(60, 'Internal timeout must be 60 or lower').optional(),
 })
 
 export type NodeFormValues = z.infer<typeof nodeFormSchema>
@@ -69,15 +69,15 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
     editingNodeId || 0,
     editingNode && editingNodeId
       ? {
-        query: {
-          enabled: editingNode && !!editingNodeId && isDialogOpen,
-          initialData: initialNodeData,
-          refetchInterval: 5000,
-          refetchOnMount: false,
-          staleTime: 0,
-          gcTime: 0,
-        },
-      }
+          query: {
+            enabled: editingNode && !!editingNodeId && isDialogOpen,
+            initialData: initialNodeData,
+            refetchInterval: 5000,
+            refetchOnMount: false,
+            staleTime: 0,
+            gcTime: 0,
+          },
+        }
       : { query: { enabled: false } },
   )
 
@@ -120,9 +120,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         const nodeData = initialNodeData
 
         const dataLimitBytes = nodeData.data_limit ?? null
-        const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0
-          ? dataLimitBytes / (1024 * 1024 * 1024)
-          : 0
+        const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0 ? dataLimitBytes / (1024 * 1024 * 1024) : 0
 
         if (dataLimitGB > 0) {
           const formatted = parseFloat(dataLimitGB.toFixed(9))
@@ -155,9 +153,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
             const nodeData = await getNode(editingNodeId)
 
             const dataLimitBytes = nodeData.data_limit ?? null
-            const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0
-              ? dataLimitBytes / (1024 * 1024 * 1024)
-              : 0
+            const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0 ? dataLimitBytes / (1024 * 1024 * 1024) : 0
 
             if (dataLimitGB > 0) {
               const formatted = parseFloat(dataLimitGB.toFixed(9))
@@ -279,9 +275,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       if (editingNode && editingNodeId) {
         const modifyData: typeof baseData & { data_limit_reset_strategy?: DataLimitResetStrategy | null } = {
           ...baseData,
-          data_limit_reset_strategy: values.data_limit_reset_strategy !== undefined
-            ? (values.data_limit_reset_strategy === null ? DataLimitResetStrategy.no_reset : values.data_limit_reset_strategy)
-            : undefined,
+          data_limit_reset_strategy:
+            values.data_limit_reset_strategy !== undefined ? (values.data_limit_reset_strategy === null ? DataLimitResetStrategy.no_reset : values.data_limit_reset_strategy) : undefined,
         }
         await modifyNodeMutation.mutateAsync({
           nodeId: editingNodeId,
@@ -325,7 +320,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="h-full max-w-full sm:max-w-[90vw] lg:h-auto lg:max-w-[1000px] focus:outline-none" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="h-full max-w-full focus:outline-none sm:max-w-[90vw] lg:h-auto lg:max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader className="pb-2">
           <DialogTitle className={cn('text-start text-base font-semibold sm:text-lg', dir === 'rtl' && 'sm:text-right')}>{editingNode ? t('editNode.title') : t('nodeModal.title')}</DialogTitle>
           <p className={cn('text-start text-xs text-muted-foreground', dir === 'rtl' && 'sm:text-right')}>{editingNode ? t('nodes.prompt') : t('nodeModal.description')}</p>
@@ -336,14 +331,15 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div
-                className={`h-2 w-2 rounded-full ${statusChecking || currentNode?.status === 'connecting'
+                className={`h-2 w-2 rounded-full ${
+                  statusChecking || currentNode?.status === 'connecting'
                     ? 'bg-yellow-500 dark:bg-yellow-400'
                     : currentNode?.status === 'connected'
                       ? 'bg-green-500 dark:bg-green-400'
                       : currentNode?.status === 'error'
                         ? 'bg-red-500 dark:bg-red-400'
                         : 'bg-gray-500 dark:bg-gray-400'
-                  }`}
+                }`}
               />
               <span className="text-sm font-medium text-foreground">
                 {statusChecking || currentNode?.status === 'connecting'
@@ -376,7 +372,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           </div>
           {showErrorDetails && currentNode?.status === 'error' && (
             <div
-              dir='ltr'
+              dir="ltr"
               className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded bg-red-50 p-3 text-xs text-red-500 dark:bg-red-900/20 dark:text-red-400"
               style={{ whiteSpace: 'pre-line' }}
             >
@@ -387,13 +383,13 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
-            <div className={cn(
-              "-mr-2 overflow-y-auto px-1 pr-2 sm:-mr-4 sm:px-2 sm:pr-4",
-              showErrorDetails && currentNode?.status === 'error'
-                ? "max-h-[55dvh] sm:max-h-[55dvh]"
-                : "max-h-[65dvh] sm:max-h-[65dvh]",
-              isFetchingNodeData && "pointer-events-none blur-sm"
-            )}>
+            <div
+              className={cn(
+                '-mr-2 overflow-y-auto px-1 pr-2 sm:-mr-4 sm:px-2 sm:pr-4',
+                showErrorDetails && currentNode?.status === 'error' ? 'max-h-[55dvh] sm:max-h-[55dvh]' : 'max-h-[65dvh] sm:max-h-[65dvh]',
+                isFetchingNodeData && 'pointer-events-none blur-sm',
+              )}
+            >
               <div className="flex h-full flex-col items-start gap-4 lg:flex-row">
                 <div className="w-full flex-1 space-y-4">
                   <FormField
@@ -452,10 +448,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t('nodeModal.coreConfig')}</FormLabel>
-                        <Select
-                          onValueChange={value => field.onChange(parseInt(value))}
-                          value={field.value ? field.value.toString() : t('nodeModal.selectCoreConfig')}
-                        >
+                        <Select onValueChange={value => field.onChange(parseInt(value))} value={field.value ? field.value.toString() : t('nodeModal.selectCoreConfig')}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder={t('nodeModal.selectCoreConfig')} />
@@ -566,7 +559,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                 </FormItem>
                               )}
                             />
-
                           </div>
 
                           <FormField
@@ -677,15 +669,18 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                   dataLimitInputRef.current = ''
                                 }
 
-                                const displayValue = dataLimitInputRef.current !== ''
-                                  ? dataLimitInputRef.current
-                                  : (field.value !== null && field.value !== undefined && field.value > 0 ? (() => {
-                                    const formatted = parseFloat(field.value.toFixed(9))
-                                    return String(formatted)
-                                  })() : '')
+                                const displayValue =
+                                  dataLimitInputRef.current !== ''
+                                    ? dataLimitInputRef.current
+                                    : field.value !== null && field.value !== undefined && field.value > 0
+                                      ? (() => {
+                                          const formatted = parseFloat(field.value.toFixed(9))
+                                          return String(formatted)
+                                        })()
+                                      : ''
 
                                 return (
-                                  <FormItem className="h-full flex-1 relative">
+                                  <FormItem className="relative h-full flex-1">
                                     <FormLabel>{t('nodeModal.dataLimit')}</FormLabel>
                                     <FormControl>
                                       <Input
@@ -740,7 +735,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                       />
                                     </FormControl>
                                     {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                      <p className="mt-1 text-end right-0 absolute top-full text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
+                                      <p className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
                                     )}
                                     <FormMessage />
                                   </FormItem>
@@ -859,7 +854,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                   useIntervalBased,
                                   selectedDay,
                                   selectedTime: selectedTime?.getTime(),
-                                  resetStrategy: resetStrategy ?? undefined
+                                  resetStrategy: resetStrategy ?? undefined,
                                 })
 
                                 useEffect(() => {
@@ -884,7 +879,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                     useIntervalBased: newUseIntervalBased,
                                     selectedDay: newDecoded.day,
                                     selectedTime: newDecoded.time?.getTime(),
-                                    resetStrategy: resetStrategy ?? undefined
+                                    resetStrategy: resetStrategy ?? undefined,
                                   }
                                 }, [field.value, resetStrategy])
 
@@ -960,13 +955,11 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                         <FormLabel>{t('nodeModal.resetTime')}</FormLabel>
                                         <div className="flex items-center gap-2">
                                           <span className="text-xs text-muted-foreground">
-                                            {useIntervalBased
-                                              ? t('nodeModal.intervalBased', { defaultValue: 'Interval-based' })
-                                              : t('nodeModal.absoluteTime', { defaultValue: 'Absolute time' })}
+                                            {useIntervalBased ? t('nodeModal.intervalBased', { defaultValue: 'Interval-based' }) : t('nodeModal.absoluteTime', { defaultValue: 'Absolute time' })}
                                           </span>
                                           <Switch
                                             checked={!useIntervalBased}
-                                            onCheckedChange={(checked) => {
+                                            onCheckedChange={checked => {
                                               const newUseIntervalBased = !checked
                                               setUseIntervalBased(newUseIntervalBased)
 
@@ -974,10 +967,14 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                                 isUpdatingFromFieldRef.current = true
                                                 field.onChange(-1)
                                               } else {
-                                                const defaultDay = resetStrategy === DataLimitResetStrategy.week ? 0
-                                                  : resetStrategy === DataLimitResetStrategy.month ? 1
-                                                    : resetStrategy === DataLimitResetStrategy.year ? 1
-                                                      : undefined
+                                                const defaultDay =
+                                                  resetStrategy === DataLimitResetStrategy.week
+                                                    ? 0
+                                                    : resetStrategy === DataLimitResetStrategy.month
+                                                      ? 1
+                                                      : resetStrategy === DataLimitResetStrategy.year
+                                                        ? 1
+                                                        : undefined
                                                 const defaultTime = new Date()
                                                 defaultTime.setHours(0, 0, 0, 0)
                                                 setSelectedDay(defaultDay)
@@ -993,21 +990,23 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                           {dayOptions.length > 0 && (
                                             <Select
                                               value={selectedDay?.toString() || ''}
-                                              onValueChange={(value) => {
+                                              onValueChange={value => {
                                                 setSelectedDay(parseInt(value))
                                               }}
                                             >
                                               <SelectTrigger>
-                                                <SelectValue placeholder={
-                                                  resetStrategy === DataLimitResetStrategy.week
-                                                    ? t('nodeModal.selectDayOfWeek', { defaultValue: 'Select day of week' })
-                                                    : resetStrategy === DataLimitResetStrategy.month
-                                                      ? t('nodeModal.selectDayOfMonth', { defaultValue: 'Select day of month' })
-                                                      : t('nodeModal.selectDayOfYear', { defaultValue: 'Select day of year' })
-                                                } />
+                                                <SelectValue
+                                                  placeholder={
+                                                    resetStrategy === DataLimitResetStrategy.week
+                                                      ? t('nodeModal.selectDayOfWeek', { defaultValue: 'Select day of week' })
+                                                      : resetStrategy === DataLimitResetStrategy.month
+                                                        ? t('nodeModal.selectDayOfMonth', { defaultValue: 'Select day of month' })
+                                                        : t('nodeModal.selectDayOfYear', { defaultValue: 'Select day of year' })
+                                                  }
+                                                />
                                               </SelectTrigger>
                                               <SelectContent>
-                                                {dayOptions.map((option) => (
+                                                {dayOptions.map(option => (
                                                   <SelectItem key={option.value} value={option.value.toString()}>
                                                     {option.label}
                                                   </SelectItem>
@@ -1018,10 +1017,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
                                           <Input
                                             type="time"
-                                            value={selectedTime
-                                              ? `${String(selectedTime.getHours()).padStart(2, '0')}:${String(selectedTime.getMinutes()).padStart(2, '0')}`
-                                              : ''}
-                                            onChange={(e) => {
+                                            value={selectedTime ? `${String(selectedTime.getHours()).padStart(2, '0')}:${String(selectedTime.getMinutes()).padStart(2, '0')}` : ''}
+                                            onChange={e => {
                                               const [hours, minutes] = e.target.value.split(':')
                                               if (hours && minutes) {
                                                 const newTime = new Date()
@@ -1040,7 +1037,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                       {useIntervalBased && (
                                         <p className="text-xs text-muted-foreground">
                                           {t('nodeModal.intervalBasedDescription', {
-                                            defaultValue: 'Reset will occur every period from the last reset time'
+                                            defaultValue: 'Reset will occur every period from the last reset time',
                                           })}
                                         </p>
                                       )}
@@ -1050,47 +1047,47 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                 )
                               }}
                             />
-                            <div className="flex flex-col sm:flex-row gap-2">
-                            <FormField
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <FormField
                                 control={form.control}
                                 name="default_timeout"
                                 render={({ field }) => (
-                                    <FormItem className="flex-1">
-                                      <FormLabel>{t('nodeModal.defaultTimeout')}</FormLabel>
-                                      <FormControl>
-                                        <Input
-                                            isError={!!form.formState.errors.default_timeout}
-                                            type="number"
-                                            step="1"
-                                            placeholder={t('nodeModal.defaultTimeoutPlaceholder')}
-                                            {...field}
-                                            onChange={e => field.onChange(parseInt(e.target.value))}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
+                                  <FormItem className="flex-1">
+                                    <FormLabel>{t('nodeModal.defaultTimeout')}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        isError={!!form.formState.errors.default_timeout}
+                                        type="number"
+                                        step="1"
+                                        placeholder={t('nodeModal.defaultTimeoutPlaceholder')}
+                                        {...field}
+                                        onChange={e => field.onChange(parseInt(e.target.value))}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
                                 )}
-                            />
-                            <FormField
+                              />
+                              <FormField
                                 control={form.control}
                                 name="internal_timeout"
                                 render={({ field }) => (
-                                    <FormItem className="flex-1">
-                                      <FormLabel>{t('nodeModal.internalTimeout')}</FormLabel>
-                                      <FormControl>
-                                        <Input
-                                            isError={!!form.formState.errors.internal_timeout}
-                                            type="number"
-                                            step="1"
-                                              placeholder={t('nodeModal.internalTimeoutPlaceholder')}
-                                            {...field}
-                                            onChange={e => field.onChange(parseInt(e.target.value))}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
+                                  <FormItem className="flex-1">
+                                    <FormLabel>{t('nodeModal.internalTimeout')}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        isError={!!form.formState.errors.internal_timeout}
+                                        type="number"
+                                        step="1"
+                                        placeholder={t('nodeModal.internalTimeoutPlaceholder')}
+                                        {...field}
+                                        onChange={e => field.onChange(parseInt(e.target.value))}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
                                 )}
-                            />
+                              />
                             </div>
                           </div>
                         </div>

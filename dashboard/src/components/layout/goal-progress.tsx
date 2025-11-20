@@ -289,4 +289,3 @@ export function GoalProgress() {
     </Card>
   )
 }
-

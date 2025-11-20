@@ -120,7 +120,9 @@ const RemoveAllUsersConfirmationDialog = ({ adminUsername, isOpen, onClose, onCo
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>{t('cancel')}</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={onConfirm}>{t('confirm')}</AlertDialogAction>
+          <AlertDialogAction variant="destructive" onClick={onConfirm}>
+            {t('confirm')}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -147,7 +149,11 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const [adminToReset, setAdminToReset] = useState<string | null>(null)
   const [adminToRemoveAllUsers, setAdminToRemoveAllUsers] = useState<string | null>(null)
 
-  const { data: adminsResponse, isLoading, isFetching } = useGetAdmins(filters, {
+  const {
+    data: adminsResponse,
+    isLoading,
+    isFetching,
+  } = useGetAdmins(filters, {
     query: {
       staleTime: 0,
       gcTime: 0,

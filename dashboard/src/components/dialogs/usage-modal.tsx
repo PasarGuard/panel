@@ -211,7 +211,7 @@ function CustomBarTooltip({ active, payload, chartConfig, dir, period }: Tooltip
         </span>
       </div>
 
-      {!isUserUsageData &&(
+      {!isUserUsageData && (
         // Node breakdown data
         <div className={`grid gap-1 sm:gap-1.5 ${nodesToShow.length > (isMobile ? 2 : 3) ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {nodesToShow.map(node => (
@@ -223,7 +223,9 @@ function CustomBarTooltip({ active, payload, chartConfig, dir, period }: Tooltip
                 </span>
               </span>
               <span className={`flex items-center gap-0.5 text-[9px] text-muted-foreground sm:text-[10px] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
-                <span dir="ltr" className="font-mono">{node.usage.toFixed(2)} GB</span>
+                <span dir="ltr" className="font-mono">
+                  {node.usage.toFixed(2)} GB
+                </span>
               </span>
             </div>
           ))}
@@ -287,7 +289,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }
 
   // Build color palette for nodes
-  const nodeList: NodeResponse[] = useMemo(() => (nodesResponse?.nodes || []), [nodesResponse])
+  const nodeList: NodeResponse[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
 
   // Function to generate distinct colors based on theme
   const generateDistinctColor = useCallback((index: number, _totalNodes: number, isDark: boolean): string => {
@@ -638,9 +640,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl p-0.5">
         <DialogTitle className="sr-only">{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</DialogTitle>
-        <DialogDescription className="sr-only">
-          Showing total usage for the selected period
-        </DialogDescription>
+        <DialogDescription className="sr-only">Showing total usage for the selected period</DialogDescription>
         <Card className="w-full border-none shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-center text-lg sm:text-xl">{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</CardTitle>

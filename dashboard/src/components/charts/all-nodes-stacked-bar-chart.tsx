@@ -230,7 +230,7 @@ export function AllNodesStackedBarChart() {
   }
 
   // Build color palette for nodes
-  const nodeList: NodeResponse[] = useMemo(() => (nodesResponse?.nodes || []), [nodesResponse])
+  const nodeList: NodeResponse[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
 
   // Function to generate distinct colors based on theme
   const generateDistinctColor = useCallback((index: number, _totalNodes: number, isDark: boolean): string => {

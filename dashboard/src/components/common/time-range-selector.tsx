@@ -36,14 +36,7 @@ export function TimeRangeSelector({ className, onRangeChange, initialRange }: Ti
 
   return (
     <div className={cn(className)}>
-      <DatePicker
-        mode="range"
-        range={range}
-        onRangeChange={handleRangeChange}
-        defaultRange={range}
-        disableAfter={new Date()}
-        numberOfMonths={2}
-      />
+      <DatePicker mode="range" range={range} onRangeChange={handleRangeChange} defaultRange={range} disableAfter={new Date()} numberOfMonths={2} />
     </div>
   )
 }

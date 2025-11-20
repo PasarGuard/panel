@@ -5,9 +5,12 @@ export function registerSW() {
     navigator.serviceWorker
       .register(`${baseUrl}sw.js`)
       .then(registration => {
-        setInterval(() => {
-          registration.update()
-        }, 60 * 60 * 1000)
+        setInterval(
+          () => {
+            registration.update()
+          },
+          60 * 60 * 1000,
+        )
 
         let refreshing = false
         navigator.serviceWorker.addEventListener('controllerchange', () => {

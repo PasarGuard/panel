@@ -47,4 +47,3 @@ export const OnlineStatus: FC<UserStatusProps> = ({ lastOnline }) => {
     return <span className={cn('inline-block text-xs font-medium', dir === 'rtl' ? 'mr-0.5 md:mr-2' : 'ml-0.5 md:ml-2', 'text-gray-600 dark:text-gray-400')}>{timeText}</span>
   }
 }
-

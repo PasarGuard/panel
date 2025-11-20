@@ -1165,7 +1165,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
             <DialogTitle className={cn('text-start text-xl font-semibold', dir === 'rtl' && 'sm:text-right')}>
               {editingCore ? t('coreConfigModal.editCore') : t('coreConfigModal.addConfig')}
             </DialogTitle>
-            <DialogDescription className="sr-only">{editingCore ? t('coreConfigModal.editConfig', { defaultValue: 'Edit the core configuration' }) : t('coreConfigModal.createNewConfig')}</DialogDescription>
+            <DialogDescription className="sr-only">
+              {editingCore ? t('coreConfigModal.editConfig', { defaultValue: 'Edit the core configuration' }) : t('coreConfigModal.createNewConfig')}
+            </DialogDescription>
           </DialogHeader>
 
           <Form {...form}>

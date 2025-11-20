@@ -159,9 +159,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
   const totalUplink = activeNodes.reduce((sum, node) => sum + (node.uplink || 0), 0)
   const totalDownlink = activeNodes.reduce((sum, node) => sum + (node.downlink || 0), 0)
   // Calculate total usage - if uplink/downlink are available use them, otherwise convert usage from GB to bytes
-  const totalUsage = totalUplink + totalDownlink > 0 
-    ? totalUplink + totalDownlink 
-    : activeNodes.reduce((sum, node) => sum + (gbToBytes(node.usage) || 0), 0)
+  const totalUsage = totalUplink + totalDownlink > 0 ? totalUplink + totalDownlink : activeNodes.reduce((sum, node) => sum + (gbToBytes(node.usage) || 0), 0)
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

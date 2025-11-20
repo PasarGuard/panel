@@ -20,4 +20,3 @@ export const Footer: FC = ({ ...props }) => {
     </div>
   )
 }
-

@@ -272,7 +272,7 @@ const UsersTable = memo(() => {
       queryKey: ['/api/users'],
       exact: false,
     })
-    
+
     let latestUser = user
     for (const [, data] of cachedData) {
       if (data?.users) {
@@ -283,7 +283,7 @@ const UsersTable = memo(() => {
         }
       }
     }
-    
+
     setSelectedUser(latestUser)
     setEditModalOpen(true)
   }
@@ -353,7 +353,13 @@ const UsersTable = memo(() => {
           setCurrentPage(0)
         }}
       />
-      <DataTable columns={columns} data={usersData?.users || []} isLoading={showLoadingSpinner} isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current} onEdit={handleEdit} />
+      <DataTable
+        columns={columns}
+        data={usersData?.users || []}
+        isLoading={showLoadingSpinner}
+        isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}
+        onEdit={handleEdit}
+      />
       <PaginationControls
         currentPage={currentPage}
         totalPages={totalPages}

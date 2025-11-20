@@ -151,7 +151,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
                             index <= 1 && 'max-w-[calc(100vw-50px-32px-100px-60px)] md:py-2',
                             index === 2 && 'min-w-[100px] max-w-full md:w-[450px]',
                             index === 3 && 'w-8',
-                            index === 3 && "!p-0",
+                            index === 3 && '!p-0',
                             index >= 4 && 'hidden !p-0 md:table-cell',
                             cell.column.id === 'chevron' && 'table-cell md:hidden',
                             index !== 2 && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),

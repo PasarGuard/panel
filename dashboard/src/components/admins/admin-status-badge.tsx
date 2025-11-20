@@ -49,4 +49,3 @@ export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo, isDisabled }) =
     </Badge>
   )
 }
-

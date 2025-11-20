@@ -90,20 +90,23 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
-  const refetchUsers = useCallback(async (showLoading = false, isAutoRefresh = false) => {
-    if (showLoading) {
-      setIsRefreshing(true)
-    }
-    try {
-      // Use autoRefetch for auto refresh, otherwise use manual refetch
-      const refetchFn = isAutoRefresh ? (autoRefetch ?? queryRefetch) : (refetch ?? queryRefetch)
-      await refetchFn()
-    } finally {
+  const refetchUsers = useCallback(
+    async (showLoading = false, isAutoRefresh = false) => {
       if (showLoading) {
-        setIsRefreshing(false)
+        setIsRefreshing(true)
       }
-    }
-  }, [refetch, autoRefetch, queryRefetch])
+      try {
+        // Use autoRefetch for auto refresh, otherwise use manual refetch
+        const refetchFn = isAutoRefresh ? (autoRefetch ?? queryRefetch) : (refetch ?? queryRefetch)
+        await refetchFn()
+      } finally {
+        if (showLoading) {
+          setIsRefreshing(false)
+        }
+      }
+    },
+    [refetch, autoRefetch, queryRefetch],
+  )
   useEffect(() => {
     const persistedValue = getUsersAutoRefreshIntervalSeconds()
     setAutoRefreshInterval(prev => (prev === persistedValue ? prev : persistedValue))
@@ -310,9 +313,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
                 <LoaderCircle className="h-2 w-2 animate-spin text-primary-foreground" />
               </div>
             ) : (
-              autoRefreshInterval > 0 && (
-                <div className="h-2 w-2 rounded-full bg-primary transition-all duration-200 ease-in-out" />
-              )
+              autoRefreshInterval > 0 && <div className="h-2 w-2 rounded-full bg-primary transition-all duration-200 ease-in-out" />
             )}
           </div>
         </Button>

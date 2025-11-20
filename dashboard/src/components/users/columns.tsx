@@ -39,7 +39,7 @@ export const setupColumns = ({
     ),
     cell: ({ row }) => {
       const onlineAt = row.original.online_at
-      
+
       const getOnlineTimeText = () => {
         if (!onlineAt) {
           return null
@@ -55,7 +55,7 @@ export const setupColumns = ({
           return null
         } else {
           const duration = dayjs.duration(diffInSeconds, 'seconds')
-          
+
           if (duration.days() > 0) {
             return `${duration.days()}d`
           } else if (duration.hours() > 0) {
@@ -76,14 +76,10 @@ export const setupColumns = ({
             <div className="pt-1">
               <OnlineBadge lastOnline={onlineAt} />
             </div>
-            <div className="flex flex-col gap-y-0.5 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 flex-col gap-y-0.5 overflow-hidden text-ellipsis whitespace-nowrap">
               <div className="flex items-center gap-x-1.5 overflow-hidden">
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
-                {onlineTimeText && (
-                  <span className="hidden shrink-0 text-[10px] font-normal text-muted-foreground md:inline">
-                    {onlineTimeText}
-                  </span>
-                )}
+                {onlineTimeText && <span className="hidden shrink-0 text-[10px] font-normal text-muted-foreground md:inline">{onlineTimeText}</span>}
               </div>
               {row.original.admin?.username && (
                 <span className="flex items-center gap-x-0.5 overflow-hidden text-xs font-normal text-muted-foreground">
@@ -160,16 +156,17 @@ export const setupColumns = ({
     header: () => {
       const isRTL = useDirDetection() === 'rtl'
       return (
-      <button className="flex w-full items-center gap-1 px-0 py-3" onClick={() => handleSort('used_traffic')}>
-        <div className={cn("text-xs capitalize", isRTL && "w-full md:w-auto")}>
-          <span className={cn("md:hidden w-full inline-block", isRTL && "text-end")}>{t('dataUsage')}</span>
-          <span className="hidden md:block">{t('dataUsage')}</span>
-        </div>
-        {filters.sort && (filters.sort === 'used_traffic' || filters.sort === '-used_traffic') && (
-          <ChevronDown size={16} className={`transition-transform duration-300 ${filters.sort === 'used_traffic' ? 'rotate-180' : ''} ${filters.sort === '-used_traffic' ? 'rotate-0' : ''} `} />
-        )}
-      </button>
-    )},
+        <button className="flex w-full items-center gap-1 px-0 py-3" onClick={() => handleSort('used_traffic')}>
+          <div className={cn('text-xs capitalize', isRTL && 'w-full md:w-auto')}>
+            <span className={cn('inline-block w-full md:hidden', isRTL && 'text-end')}>{t('dataUsage')}</span>
+            <span className="hidden md:block">{t('dataUsage')}</span>
+          </div>
+          {filters.sort && (filters.sort === 'used_traffic' || filters.sort === '-used_traffic') && (
+            <ChevronDown size={16} className={`transition-transform duration-300 ${filters.sort === 'used_traffic' ? 'rotate-180' : ''} ${filters.sort === '-used_traffic' ? 'rotate-0' : ''} `} />
+          )}
+        </button>
+      )
+    },
     cell: ({ row }) => (
       <div className="flex items-center justify-between gap-2">
         <UsageSliderCompact total={row.original.data_limit} used={row.original.used_traffic} totalUsedTraffic={row.original.lifetime_used_traffic} status={row.original.status} />
