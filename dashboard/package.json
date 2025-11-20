@@ -1,7 +1,7 @@
 {
   "name": "pasarguard-dashboard",
   "private": true,
-  "version": "1.7.2",
+  "version": "1.8.0",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",

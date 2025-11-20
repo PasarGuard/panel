@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 
 [[package]]
@@ -904,7 +904,7 @@ wheels = [
 
 [[package]]
 name = "pasarguard"
-version = "1.7.2"
+version = "1.8.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiocache" },
@@ -1026,9 +1026,9 @@ dependencies = [
     { name = "httpx" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6b/80/f81ded10b2b0a77438b22be5d8c4bba8c198f807f32609b8f989c91129fb/pasarguard_node_bridge-0.2.6.tar.gz", hash = "sha256:5c50f5758b76e3b8ca502ad2d3a2c122498865ae9995a34ad037a669ea4907b4", size = 50612 }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/80/f81ded10b2b0a77438b22be5d8c4bba8c198f807f32609b8f989c91129fb/pasarguard_node_bridge-0.2.6.tar.gz", hash = "sha256:5c50f5758b76e3b8ca502ad2d3a2c122498865ae9995a34ad037a669ea4907b4", size = 50612, upload-time = "2025-11-18T12:38:15.132Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/15/c4/eae980c0c55e449fe4326d27ffdc1f71b521d24bedda80206f5c93d9f23b/pasarguard_node_bridge-0.2.6-py3-none-any.whl", hash = "sha256:457c36f157158861c07da5d67c68caac745789134ede1e524f618533fbc57027", size = 40508 },
+    { url = "https://files.pythonhosted.org/packages/15/c4/eae980c0c55e449fe4326d27ffdc1f71b521d24bedda80206f5c93d9f23b/pasarguard_node_bridge-0.2.6-py3-none-any.whl", hash = "sha256:457c36f157158861c07da5d67c68caac745789134ede1e524f618533fbc57027", size = 40508, upload-time = "2025-11-18T12:38:14.036Z" },
 ]
 
 [[package]]
