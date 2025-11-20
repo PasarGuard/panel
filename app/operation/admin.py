@@ -97,12 +97,14 @@ class AdminOperation(BaseOperation):
             db, offset, limit, username, sort_list if sort_list else None, return_with_count=True
         )
 
-        return AdminsResponse(
-            admins=[AdminDetails.model_validate(admin) for admin in admins],
-            total=total,
-            active=active,
-            disabled=disabled,
-        )
+        if self.operator_type in (OperatorType.API, OperatorType.WEB):
+            return AdminsResponse(
+                admins=admins,
+                total=total,
+                active=active,
+                disabled=disabled,
+            )
+        return admins  # type: ignore[return-value]
 
     async def get_admins_count(self, db: AsyncSession) -> int:
         return await get_admins_count(db)
