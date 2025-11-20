@@ -104,12 +104,11 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching }: No
 interface NodePaginationControlsProps {
     currentPage: number
     totalPages: number
-    totalNodes: number
     isLoading: boolean
     onPageChange: (page: number) => void
 }
 
-export const NodePaginationControls = ({ currentPage, totalPages, totalNodes, isLoading, onPageChange }: NodePaginationControlsProps) => {
+export const NodePaginationControls = ({ currentPage, totalPages, isLoading, onPageChange }: NodePaginationControlsProps) => {
     const dir = useDirDetection()
 
     const getPaginationRange = (currentPage: number, totalPages: number) => {

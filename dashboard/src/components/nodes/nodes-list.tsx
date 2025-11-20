@@ -33,6 +33,7 @@ export default function NodesList() {
   const wasFetchingRef = useRef(false)
   const isFirstLoadRef = useRef(true)
   const previousTotalPagesRef = useRef(0)
+  const isAutoRefreshingRef = useRef(false)
   const modifyNodeMutation = useModifyNode()
   const [allNodes, setAllNodes] = useState<NodeResponse[]>([])
   const [localSearchTerm, setLocalSearchTerm] = useState<string>('')
@@ -68,7 +69,6 @@ export default function NodesList() {
     },
   })
 
-  // Check if we should use local search (only one page of nodes)
   const totalNodesFromResponse = nodesResponse?.total || 0
   const shouldUseLocalSearch = totalNodesFromResponse > 0 && totalNodesFromResponse <= NODES_PER_PAGE && !filters.search
 
@@ -76,23 +76,26 @@ export default function NodesList() {
     if (nodesResponse && isFirstLoadRef.current) {
       isFirstLoadRef.current = false
     }
-    // Store all nodes when fetched without search/pagination and there's only one page
     if (nodesResponse && shouldUseLocalSearch && !filters.search && filters.offset === 0) {
       setAllNodes(nodesResponse.nodes || [])
     }
   }, [nodesResponse, shouldUseLocalSearch, filters.search, filters.offset])
 
   useEffect(() => {
-    // Track when fetching starts
-    if (isFetching) {
-      wasFetchingRef.current = true
+    if (isFetching && !isChangingPage && !isFirstLoadRef.current && nodesResponse) {
+      isAutoRefreshingRef.current = true
     }
-    // Only reset isChangingPage when fetching completes (was fetching, now not fetching)
     if (!isFetching && wasFetchingRef.current && isChangingPage) {
       setIsChangingPage(false)
       wasFetchingRef.current = false
     }
-  }, [isFetching, isChangingPage])
+    if (isFetching) {
+      wasFetchingRef.current = true
+    }
+    if (!isFetching && isAutoRefreshingRef.current) {
+      isAutoRefreshingRef.current = false
+    }
+  }, [isFetching, isChangingPage, nodesResponse])
 
   useEffect(() => {
     const handleOpenDialog = () => setIsDialogOpen(true)
@@ -104,9 +107,8 @@ export default function NodesList() {
     const searchValue = newFilters.search !== undefined ? newFilters.search : filters.search
     setLocalSearchTerm(searchValue || '')
     
-    // If using local search, don't update API filters
     if (shouldUseLocalSearch && searchValue) {
-      setCurrentPage(0) // Reset to first page when searching locally
+      setCurrentPage(0)
       return
     }
     
@@ -189,7 +191,6 @@ export default function NodesList() {
     }
   }
 
-  // Filter nodes locally when using local search
   const filteredNodes = useMemo(() => {
     if (shouldUseLocalSearch && localSearchTerm && allNodes.length > 0) {
       const searchLower = localSearchTerm.toLowerCase()
@@ -202,7 +203,6 @@ export default function NodesList() {
     return nodesResponse?.nodes || []
   }, [shouldUseLocalSearch, localSearchTerm, allNodes, nodesResponse?.nodes])
 
-  // Calculate pagination for local search
   const paginatedNodes = useMemo(() => {
     if (shouldUseLocalSearch && localSearchTerm) {
       const start = currentPage * NODES_PER_PAGE
@@ -213,26 +213,23 @@ export default function NodesList() {
   }, [shouldUseLocalSearch, localSearchTerm, filteredNodes, currentPage])
 
   const nodesData = paginatedNodes
-  // Calculate total nodes - use filtered count for local search, otherwise use API response
   const totalNodes = shouldUseLocalSearch && localSearchTerm
     ? filteredNodes.length 
     : (nodesResponse?.total || 0)
   const showLoadingSpinner = isLoading && isFirstLoadRef.current
-  const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !shouldUseLocalSearch)
+  const isBackgroundRefetch = isFetching && !isChangingPage && !isFirstLoadRef.current && !!nodesResponse
+  const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !shouldUseLocalSearch && !isBackgroundRefetch)
   const showPageLoadingSkeletons = isPageLoading && !showLoadingSpinner
   
   const calculatedTotalPages = Math.ceil(totalNodes / NODES_PER_PAGE)
-  // Preserve totalPages during loading to prevent pagination from disappearing
   const totalPages = calculatedTotalPages > 0 ? calculatedTotalPages : (isPageLoading ? previousTotalPagesRef.current : 0)
   
-  // Update previous total pages when we have valid data
   useEffect(() => {
     if (calculatedTotalPages > 0) {
       previousTotalPagesRef.current = calculatedTotalPages
     }
   }, [calculatedTotalPages])
 
-  // Navigate to last available page if current page becomes invalid (e.g., after deleting all nodes on current page)
   useEffect(() => {
     if (calculatedTotalPages > 0 && currentPage >= calculatedTotalPages) {
       const lastPage = calculatedTotalPages - 1
@@ -327,7 +324,6 @@ export default function NodesList() {
           <NodePaginationControls
             currentPage={currentPage}
             totalPages={totalPages}
-            totalNodes={totalNodes}
             isLoading={isPageLoading}
             onPageChange={handlePageChange}
           />
