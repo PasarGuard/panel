@@ -41,7 +41,6 @@ const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] 
   return apiData.stats.map((stat: UserUsageStat | NodeUsageStat) => {
     const d = dateUtils.toDayjs(stat.period_start)
     const isToday = d.isSame(today, 'day')
-    console.log(d.format('HH:mm'), stat.period_start);
 
 
     let displayLabel = ''
@@ -109,7 +108,6 @@ const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] 
     const traffic = isNodeUsage
       ? ((stat as NodeUsageStat).uplink || 0) + ((stat as NodeUsageStat).downlink || 0)
       : ((stat as UserUsageStat).total_traffic || 0)
-    console.log(displayLabel, d);
 
     return {
       date: displayLabel,

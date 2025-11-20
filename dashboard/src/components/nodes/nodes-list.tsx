@@ -290,7 +290,7 @@ export default function NodesList() {
             : nodesData.map(node => <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
         </div>
 
-        {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !filters.search && totalNodes === 0 && (
+        {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !filters.search && !localSearchTerm && totalNodes === 0 && (
           <Card className="mb-12">
             <CardContent className="p-8 text-center">
               <div className="space-y-4">

@@ -29,7 +29,6 @@ const createSortButton = (
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('Sorting by column:', column)
     handleSort(column)
   }
 
