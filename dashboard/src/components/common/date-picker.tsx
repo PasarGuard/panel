@@ -16,6 +16,10 @@ import { useIsMobile } from '@/hooks/use-mobile'
 
 export type DatePickerMode = 'single' | 'range'
 
+export type DatePickerAlign = 'start' | 'center' | 'end'
+
+export type DatePickerSide = 'top' | 'right' | 'bottom' | 'left'
+
 export interface DatePickerProps {
   /**
    * Mode of the date picker: 'single' for single date selection, 'range' for date range selection
@@ -94,6 +98,14 @@ export interface DatePickerProps {
    * Callback for field change (for form integration)
    */
   onFieldChange?: (fieldName: string, value: any) => void
+  /**
+   * Alignment of the popover
+   */
+  align?: DatePickerAlign
+  /**
+   * Side of the popover
+   */
+  side?: DatePickerSide
 }
 
 /**
@@ -145,6 +157,8 @@ export function DatePicker({
   formatDate: customFormatDate,
   fieldName = 'date',
   onFieldChange,
+  align,
+  side,
 }: DatePickerProps) {
   const { t, i18n } = useTranslation()
   const isPersianLocale = i18n.language === 'fa'
@@ -332,8 +346,8 @@ export function DatePicker({
           </PopoverTrigger>
           <PopoverContent
             className="w-auto p-0"
-            align="end"
-            side={isMobile ? 'bottom' : 'left'}
+            align={align ? align : "end"}
+            side={side ? side : isMobile ? 'bottom' : 'left'}
             onInteractOutside={() => {
               setIsOpen(false)
             }}
@@ -453,7 +467,7 @@ export function DatePicker({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4} collisionPadding={8}>
+        <PopoverContent className="w-auto p-0" align={align ? align : "start"} side={side ? side : "bottom"} sideOffset={4} collisionPadding={8}>
           {isPersianLocale ? (
             <PersianCalendar
               mode="range"

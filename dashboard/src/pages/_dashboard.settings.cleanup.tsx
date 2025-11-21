@@ -356,6 +356,8 @@ export default function CleanupSettings() {
                 minDate={new Date('1900-01-01')}
                 maxDate={new Date()}
                 formatDate={formatDate}
+                side={"bottom"}
+                align={"center"}
               />
             </div>
 
@@ -369,6 +371,8 @@ export default function CleanupSettings() {
                 minDate={new Date('1900-01-01')}
                 maxDate={new Date()}
                 formatDate={formatDate}
+                side={"bottom"}
+                align={"center"}
               />
             </div>
           </div>
