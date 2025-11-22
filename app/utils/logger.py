@@ -4,7 +4,7 @@ from urllib.parse import unquote
 
 import click
 from uvicorn.config import LOGGING_CONFIG
-from uvicorn.logging import DefaultFormatter
+from uvicorn.logging import AccessFormatter, ColourizedFormatter, DefaultFormatter
 
 from config import (
     ECHO_SQL_QUERIES,
@@ -26,6 +26,37 @@ class CustomLoggingFormatter(DefaultFormatter):
         return super().formatMessage(recordcopy)
 
 
+class CustomAccessFormatter(AccessFormatter):
+    def formatMessage(self, record: logging.LogRecord) -> str:
+        recordcopy = copy(record)
+
+        try:
+            client_addr, method, full_path, http_version, status_code = recordcopy.args  # type: ignore[misc]
+        except Exception:
+            return super().formatMessage(record)
+
+        status_code = self.get_status_code(int(status_code))  # type: ignore[arg-type]
+        request_line = f"{method} {full_path} HTTP/{http_version}"
+        if self.use_colors:
+            request_line = click.style(request_line, bold=True)
+
+        recordcopy.__dict__.update(
+            {
+                "client_addr": client_addr,
+                "request_line": request_line,
+                "status_code": status_code,
+                "process_time": getattr(recordcopy, "process_time", "-"),
+            }
+        )
+
+        return ColourizedFormatter.formatMessage(self, recordcopy)
+
+
+class RequireProcessTimeFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return getattr(record, "process_time", None) is not None
+
+
 LOGGING_CONFIG["formatters"]["custom"] = {
     "()": CustomLoggingFormatter,
     "fmt": "%(levelprefix)s %(asctime)s - %(nameprefix)s - %(message)s",
@@ -39,8 +70,14 @@ LOGGING_CONFIG["handlers"]["custom"] = {
 
 LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(levelprefix)s %(asctime)s - %(message)s"
 LOGGING_CONFIG["formatters"]["access"]["fmt"] = (
-    '%(levelprefix)s %(asctime)s - %(client_addr)s - "%(request_line)s" %(status_code)s'
+    '%(levelprefix)s %(asctime)s - %(client_addr)s - "%(request_line)s" %(status_code)s - %(process_time)s'
 )
+LOGGING_CONFIG["formatters"]["access"]["()"] = CustomAccessFormatter
+
+LOGGING_CONFIG.setdefault("filters", {})
+LOGGING_CONFIG["filters"]["require_process_time"] = {"()": RequireProcessTimeFilter}
+LOGGING_CONFIG["loggers"]["uvicorn.access"].setdefault("filters", [])
+LOGGING_CONFIG["loggers"]["uvicorn.access"]["filters"].append("require_process_time")
 
 LOGGING_CONFIG["loggers"]["uvicorn"]["level"] = LOG_LEVEL
 LOGGING_CONFIG["loggers"]["uvicorn.error"]["level"] = LOG_LEVEL
