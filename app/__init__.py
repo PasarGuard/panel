@@ -5,13 +5,12 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+from app.middlewares import setup_middleware
 from app.utils.logger import get_logger
-from config import ALLOWED_ORIGINS, DOCS, SUBSCRIPTION_PATH
+from config import DOCS, SUBSCRIPTION_PATH
 
 __version__ = "1.8.1"
 
@@ -70,16 +69,7 @@ app = FastAPI(
 scheduler = AsyncIOScheduler(job_defaults={"max_instances": 30}, timezone="UTC")
 logger = get_logger()
 
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+setup_middleware(app)
 
 from app import routers, telegram, jobs  # noqa
 from app.routers import api_router  # noqa
