@@ -94,6 +94,21 @@ class SubscriptionOperation(BaseOperation):
             "announce-url": sub_settings.announce_url,
         }
 
+    @staticmethod
+    def create_info_response_headers(user: UsersResponseWithInbounds, sub_settings: SubSettings) -> dict:
+        """Create response headers for /info endpoint with only support-url, announce, and announce-url."""
+        # Prefer admin's support_url over subscription settings
+        support_url = (getattr(user.admin, "support_url", None) if user.admin else None) or sub_settings.support_url
+
+        headers = {
+            "support-url": support_url,
+            "announce": encode_title(sub_settings.announce),
+            "announce-url": sub_settings.announce_url,
+        }
+        
+        # Only include headers that have values
+        return {k: v for k, v in headers.items() if v}
+
     async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str, str]:
         # Get client configuration
         config = client_config.get(client_type)
@@ -171,15 +186,24 @@ class SubscriptionOperation(BaseOperation):
         # Create response headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
-    async def user_subscription_info(self, db: AsyncSession, token: str) -> SubscriptionUserResponse:
+    async def user_subscription_info(
+        self, db: AsyncSession, token: str, request_url: str = ""
+    ) -> tuple[SubscriptionUserResponse, dict]:
         """Retrieves detailed information about the user's subscription."""
-        return await self.get_validated_sub(db, token=token)
+        sub_settings: SubSettings = await subscription_settings()
+        db_user = await self.get_validated_sub(db, token=token)
+        user = await self.validated_user(db_user)
+        
+        response_headers = self.create_info_response_headers(user, sub_settings)
+        user_response = SubscriptionUserResponse.model_validate(db_user.__dict__)
+        
+        return user_response, response_headers
 
     async def user_subscription_apps(self, db: AsyncSession, token: str, request_url: str) -> list[Application]:
         """
         Get available applications for user's subscription.
         """
-        await self.user_subscription_info(db, token)
+        _, _ = await self.user_subscription_info(db, token, request_url)
         sub_settings: SubSettings = await subscription_settings()
         return self._make_apps_import_urls(request_url, sub_settings.applications)
 
