@@ -599,8 +599,8 @@
   },
   "resetUsersUsage.prompt": "Are you sure you want to reset the <b>{{name}}</b> admin users usage?",
   "removeAllUsers.prompt": "Are you sure you want to remove all users under admin <b>{{name}}</b>? This action cannot be undone.",
-  "admin.disable": "Disabled Admin",
-  "admin.enable": "Enabled Admin",
+  "admin.disable": "Disable Admin",
+  "admin.enable": "Enable Admin",
   "deleteAdmin.prompt": "Are you sure you want to remove the <b>{{name}}</b> admin?",
   "activeUsers.prompt": "Do you want to activate all users under {{name}}?",
   "disableUsers.prompt": "Do you want to disable all users under {{name}}?",
@@ -720,6 +720,7 @@
   "header.nodesUsage": "Nodes Usage",
   "loading": "Loading...",
   "noResults": "No results found",
+  "noAdminsFound": "No admins found",
   "emptyState": {
     "noUsers": {
       "title": "No users yet",

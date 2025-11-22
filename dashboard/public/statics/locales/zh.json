@@ -598,8 +598,8 @@
   },
   "resetUsersUsage.prompt": "你确定要重置管理员用户<b>{{name}}</b>的使用情况吗？",
   "removeAllUsers.prompt": "你确定要删除管理员<b>{{name}}</b>下的所有用户吗？此操作无法撤销。",
-  "admin.disable": "管理员已禁用",
-  "admin.enable": "管理员已启用",
+  "admin.disable": "禁用管理员",
+  "admin.enable": "启用管理员",
   "deleteAdmin.prompt": "您确定要删除管理员<b>{{name}}</b>吗？",
   "activeUsers.prompt": "您是否要激活此 {{name}} 下的所有用户？",
   "disableUsers.prompt": "您是否要禁用此 {{name}} 下的所有用户？",
@@ -1639,6 +1639,7 @@
   "online": "在线",
   "loading": "加载中...",
   "noResults": "未找到结果",
+  "noAdminsFound": "未找到管理员",
   "emptyState": {
     "noUsers": {
       "title": "暂无用户",
