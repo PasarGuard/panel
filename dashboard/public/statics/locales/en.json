@@ -210,9 +210,7 @@
         "announceDescription": "Short message shown to users in supported subscription clients",
         "announceUrl": "Announcement URL",
         "announceUrlPlaceholder": "https://status.example.com",
-        "announceUrlDescription": "Optional link with more information about the announcement",
-        "hostStatusFilter": "Host Status Filter",
-        "hostStatusFilterDescription": "Filter hosts based on their status"
+        "announceUrlDescription": "Optional link with more information about the announcement"
       },
       "rules": {
         "title": "Subscription Rules",
