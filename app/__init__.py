@@ -115,6 +115,6 @@ def validation_exception_handler(request: Request, exc: RequestValidationError):
     for error in exc.errors():
         details[error["loc"][-1]] = error.get("msg")
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content=jsonable_encoder({"detail": details}),
     )
