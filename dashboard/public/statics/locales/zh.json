@@ -190,9 +190,7 @@
         "announceDescription": "在支持的订阅客户端中展示给用户的简短消息",
         "announceUrl": "公告链接",
         "announceUrlPlaceholder": "https://status.example.com",
-        "announceUrlDescription": "可选的链接，用于提供更多公告细节",
-        "hostStatusFilter": "主机状态过滤",
-        "hostStatusFilterDescription": "仅包含活跃主机在订阅中"
+        "announceUrlDescription": "可选的链接，用于提供更多公告细节"
       },
       "rules": {
         "title": "订阅规则",

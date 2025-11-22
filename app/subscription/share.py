@@ -11,7 +11,6 @@ from app.core.hosts import host_manager
 from app.db.models import UserStatus
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
-from app.settings import subscription_settings
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
 from . import (
@@ -163,9 +162,6 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
 
 
 async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list[SubscriptionInboundData]:
-    if not (await subscription_settings()).host_status_filter:
-        return hosts
-
     return [host for host in hosts if not host.status or user_status in host.status]
 
 

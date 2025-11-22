@@ -224,9 +224,7 @@
         "announceDescription": "Короткое сообщение, показываемое пользователям в поддерживаемых клиентах подписки",
         "announceUrl": "Ссылка на объявление",
         "announceUrlPlaceholder": "https://status.example.com",
-        "announceUrlDescription": "Необязательная ссылка с дополнительной информацией об объявлении",
-        "hostStatusFilter": "Фильтр статуса хоста",
-        "hostStatusFilterDescription": "Фильтровать хосты на основе их статуса"
+        "announceUrlDescription": "Необязательная ссылка с дополнительной информацией об объявлении"
       },
       "rules": {
         "title": "Правила подписки",
