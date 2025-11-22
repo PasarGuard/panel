@@ -54,16 +54,26 @@ export const setupColumns = ({
         if (isOnline) {
           return null
         } else {
-          const duration = dayjs.duration(diffInSeconds, 'seconds')
+          // Use calendar-aware diff methods for accurate calculations
+          const years = Math.abs(currentTime.diff(lastOnlineTime, 'year'))
+          const months = Math.abs(currentTime.diff(lastOnlineTime.add(years, 'year'), 'month'))
+          const days = Math.abs(currentTime.diff(lastOnlineTime.add(years, 'year').add(months, 'month'), 'day'))
+          const hours = Math.abs(currentTime.diff(lastOnlineTime.add(years, 'year').add(months, 'month').add(days, 'day'), 'hour'))
+          const minutes = Math.abs(currentTime.diff(lastOnlineTime.add(years, 'year').add(months, 'month').add(days, 'day').add(hours, 'hour'), 'minute'))
+          const seconds = Math.abs(currentTime.diff(lastOnlineTime.add(years, 'year').add(months, 'month').add(days, 'day').add(hours, 'hour').add(minutes, 'minute'), 'second'))
 
-          if (duration.days() > 0) {
-            return `${duration.days()}d`
-          } else if (duration.hours() > 0) {
-            return `${duration.hours()}h`
-          } else if (duration.minutes() > 0) {
-            return `${duration.minutes()}m`
+          if (years > 0) {
+            return `${years}y`
+          } else if (months > 0) {
+            return `${months}mo`
+          } else if (days > 0) {
+            return `${days}d`
+          } else if (hours > 0) {
+            return `${hours}h`
+          } else if (minutes > 0) {
+            return `${minutes}m`
           } else {
-            return `${duration.seconds()}s`
+            return `${seconds}s`
           }
         }
       }

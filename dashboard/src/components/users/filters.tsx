@@ -9,7 +9,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { RefreshCw, SearchIcon, Filter, X, ArrowUpDown, User, Calendar, ChartPie, ChevronDown, Check, Clock } from 'lucide-react'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGetUsers, UserStatus } from '@/service/api'
 import { RefetchOptions } from '@tanstack/react-query'
@@ -90,6 +90,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
   const { search, debouncedSearch, setSearch } = useDebouncedSearch(filters.search || '', 300)
+  const prevDebouncedSearchRef = useRef<string | undefined>(filters.search || undefined)
   
   const refetchUsers = useCallback(
     async (showLoading = false, isAutoRefresh = false) => {
@@ -142,10 +143,14 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
 
   // Update filters when debounced search changes
   useEffect(() => {
-    onFilterChange({
-      search: debouncedSearch || '',
-      offset: 0,
-    })
+    // Only update if search actually changed to avoid resetting page on initial load
+    if (debouncedSearch !== prevDebouncedSearchRef.current) {
+      prevDebouncedSearchRef.current = debouncedSearch
+      onFilterChange({
+        search: debouncedSearch || '',
+        offset: 0,
+      })
+    }
   }, [debouncedSearch, onFilterChange])
 
   // Handle input change

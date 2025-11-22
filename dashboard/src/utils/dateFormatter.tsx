@@ -23,32 +23,42 @@ export const useRelativeExpiryDate = (expiryDate: string | number | null | undef
   const isAfter = target.isAfter(now) // This is now a dayjs object
   dateInfo.status = isAfter ? t('expires') : t('expired')
 
-  const duration = dayjs.duration(target.diff(now))
+  // Use calendar-aware diff methods for accurate month and day calculations
+  // Calculate from the earlier date to the later date
+  const earlier = target.isBefore(now) ? target : now
+  const later = target.isAfter(now) ? target : now
+  
+  const years = Math.abs(later.diff(earlier, 'year'))
+  const months = Math.abs(later.diff(earlier.add(years, 'year'), 'month'))
+  const days = Math.abs(later.diff(earlier.add(years, 'year').add(months, 'month'), 'day'))
+  const hours = Math.abs(later.diff(earlier.add(years, 'year').add(months, 'month').add(days, 'day'), 'hour'))
+  const minutes = Math.abs(later.diff(earlier.add(years, 'year').add(months, 'month').add(days, 'day').add(hours, 'hour'), 'minute'))
+
   const durationSlots: string[] = []
 
-  if (duration.years()) {
-    durationSlots.push(`${Math.abs(duration.years())} ${t(`time.${Math.abs(duration.years()) !== 1 ? 'years' : 'year'}`)}`)
+  if (years > 0) {
+    durationSlots.push(`${years} ${t(`time.${years !== 1 ? 'years' : 'year'}`)}`)
   }
 
-  if (duration.months()) {
-    durationSlots.push(`${Math.abs(duration.months())} ${t(`time.${Math.abs(duration.months()) !== 1 ? 'months' : 'month'}`)}`)
+  if (months > 0) {
+    durationSlots.push(`${months} ${t(`time.${months !== 1 ? 'months' : 'month'}`)}`)
   }
 
-  if (duration.days()) {
-    durationSlots.push(`${Math.abs(duration.days())} ${t(`time.${Math.abs(duration.days()) !== 1 ? 'days' : 'day'}`)}`)
+  if (days > 0) {
+    durationSlots.push(`${days} ${t(`time.${days !== 1 ? 'days' : 'day'}`)}`)
   }
 
   if (durationSlots.length === 0) {
-    if (duration.hours()) {
-      durationSlots.push(`${Math.abs(duration.hours())} ${t(`time.${Math.abs(duration.hours()) !== 1 ? 'hours' : 'hour'}`)}`)
+    if (hours > 0) {
+      durationSlots.push(`${hours} ${t(`time.${hours !== 1 ? 'hours' : 'hour'}`)}`)
     }
 
-    if (duration.minutes()) {
-      durationSlots.push(`${Math.abs(duration.minutes())} ${t(`time.${Math.abs(duration.minutes()) !== 1 ? 'mins' : 'min'}`)}`)
+    if (minutes > 0) {
+      durationSlots.push(`${minutes} ${t(`time.${minutes !== 1 ? 'mins' : 'min'}`)}`)
     }
   }
 
-  if (!isAfter && durationSlots.length === 0 && Math.abs(duration.asMinutes()) < 1) {
+  if (!isAfter && durationSlots.length === 0 && minutes < 1) {
     dateInfo.time = t('time.justNow')
   } else {
     dateInfo.time = durationSlots.join(', ') + (isAfter ? '' : ` ${t('time.ago')}`)

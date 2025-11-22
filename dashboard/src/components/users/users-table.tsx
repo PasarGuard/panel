@@ -14,22 +14,94 @@ import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal, { AdvanceSearchFormValue } from '@/components/dialogs/advance-search-modal.tsx'
 
+// Helper function to get URL search params from hash
+const getSearchParams = (): URLSearchParams => {
+  const hash = window.location.hash
+  const queryIndex = hash.indexOf('?')
+  if (queryIndex === -1) return new URLSearchParams()
+  return new URLSearchParams(hash.substring(queryIndex + 1))
+}
+
+// Helper function to update URL with search params
+const updateURLParams = (params: URLSearchParams) => {
+  const hash = window.location.hash
+  const hashPath = hash.split('?')[0]
+  const newHash = params.toString() ? `${hashPath}?${params.toString()}` : hashPath
+  window.history.replaceState(null, '', newHash)
+}
+
+// Helper function to parse URL params into filters
+const parseURLParams = (searchParams: URLSearchParams, defaultItemsPerPage: number) => {
+  const pageParam = searchParams.get('page')
+  // URL stores page as 1-indexed (what user sees), convert to 0-indexed for internal use
+  const page = pageParam ? Math.max(0, parseInt(pageParam, 10) - 1) : 0
+  const limit = parseInt(searchParams.get('limit') || defaultItemsPerPage.toString(), 10)
+  const sort = searchParams.get('sort') || '-created_at'
+  const search = searchParams.get('search') || undefined
+  const statusParam = searchParams.get('status')
+  const validStatuses: UserStatus[] = ['active', 'disabled', 'limited', 'expired', 'on_hold']
+  const status = statusParam && validStatuses.includes(statusParam as UserStatus) ? (statusParam as UserStatus) : undefined
+  const admin = searchParams.getAll('admin').filter(Boolean)
+  const group = searchParams
+    .getAll('group')
+    .map(g => parseInt(g, 10))
+    .filter(g => !isNaN(g))
+  const isProtocol = searchParams.get('is_protocol') === 'true'
+
+  return {
+    page: Math.max(0, page),
+    limit: limit > 0 ? limit : defaultItemsPerPage,
+    sort,
+    search,
+    status,
+    admin: admin.length > 0 ? admin : undefined,
+    group: group.length > 0 ? group : undefined,
+    isProtocol,
+  }
+}
+
 const UsersTable = memo(() => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const queryClient = useQueryClient()
-  const [currentPage, setCurrentPage] = useState(0)
-  const [itemsPerPage, setItemsPerPage] = useState(getUsersPerPageLimitSize())
+  const isFirstLoadRef = useRef(true)
+  const isAutoRefreshingRef = useRef(false)
+  const isInitializingFromURLRef = useRef(false)
+  const { admin } = useAdmin()
+  const isSudo = admin?.is_sudo || false
+
+  // Initialize from URL params on mount
+  const getInitialStateFromURL = () => {
+    const searchParams = getSearchParams()
+    const urlParams = parseURLParams(searchParams, getUsersPerPageLimitSize())
+    
+    return {
+      page: urlParams.page,
+      limit: urlParams.limit,
+      filters: {
+        limit: urlParams.limit,
+        sort: urlParams.sort,
+        load_sub: true,
+        offset: urlParams.page * urlParams.limit,
+        search: urlParams.search,
+        proxy_id: urlParams.isProtocol && urlParams.search ? urlParams.search : undefined,
+        is_protocol: urlParams.isProtocol,
+        status: urlParams.status || undefined,
+        admin: urlParams.admin,
+        group: urlParams.group,
+      },
+    }
+  }
+
+  const initialState = getInitialStateFromURL()
+  const [currentPage, setCurrentPage] = useState(initialState.page)
+  const [itemsPerPage, setItemsPerPage] = useState(initialState.limit)
   const [isChangingPage, setIsChangingPage] = useState(false)
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [isSorting, setIsSorting] = useState(false)
-  const isFirstLoadRef = useRef(true)
-  const isAutoRefreshingRef = useRef(false)
-  const { admin } = useAdmin()
-  const isSudo = admin?.is_sudo || false
-
+  
   const [filters, setFilters] = useState<{
     limit: number
     sort: string
@@ -41,27 +113,69 @@ const UsersTable = memo(() => {
     status?: UserStatus | null
     admin?: string[]
     group?: number[]
-  }>({
-    limit: itemsPerPage,
-    sort: '-created_at',
-    load_sub: true,
-    offset: 0,
-    search: undefined,
-    proxy_id: undefined,
-    is_protocol: false,
-    status: undefined,
-    admin: undefined,
-    group: undefined,
-  })
+  }>(initialState.filters)
+
+  // Mark that we're initializing from URL to prevent URL updates during initialization
+  useEffect(() => {
+    isInitializingFromURLRef.current = true
+    const timer = setTimeout(() => {
+      isInitializingFromURLRef.current = false
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // After initialization, ensure URL params are written back to preserve them on refresh
+  useEffect(() => {
+    if (isInitializingFromURLRef.current) return
+    
+    const searchParams = new URLSearchParams()
+    if (currentPage > 0) {
+      // Store page as 1-indexed in URL (what user sees), convert from 0-indexed internal value
+      searchParams.set('page', (currentPage + 1).toString())
+    }
+    if (itemsPerPage !== getUsersPerPageLimitSize()) {
+      searchParams.set('limit', itemsPerPage.toString())
+    }
+    if (filters.sort && filters.sort !== '-created_at') {
+      searchParams.set('sort', filters.sort)
+    }
+    if (filters.search) {
+      searchParams.set('search', filters.search)
+    }
+    if (filters.proxy_id) {
+      searchParams.set('search', filters.proxy_id)
+      searchParams.set('is_protocol', 'true')
+    } else if (filters.is_protocol) {
+      searchParams.set('is_protocol', 'true')
+    }
+    if (filters.status) {
+      searchParams.set('status', filters.status)
+    }
+    if (filters.admin && filters.admin.length > 0) {
+      filters.admin.forEach(admin => searchParams.append('admin', admin))
+    }
+    if (filters.group && filters.group.length > 0) {
+      filters.group.forEach(group => searchParams.append('group', group.toString()))
+    }
+    updateURLParams(searchParams)
+  }, [currentPage, itemsPerPage, filters.sort, filters.search, filters.proxy_id, filters.is_protocol, filters.status, filters.admin, filters.group])
+
+  // Initialize advance search form from URL params
+  const getInitialAdvanceSearchValues = (): AdvanceSearchFormValue => {
+    const searchParams = getSearchParams()
+    const urlParams = parseURLParams(searchParams, getUsersPerPageLimitSize())
+    
+    return {
+      is_username: !urlParams.isProtocol,
+      is_protocol: urlParams.isProtocol,
+      admin: urlParams.admin || [],
+      group: urlParams.group || [],
+      status: urlParams.status || '0',
+    }
+  }
 
   const advanceSearchForm = useForm<AdvanceSearchFormValue>({
-    defaultValues: {
-      is_username: true,
-      is_protocol: false,
-      admin: [],
-      group: [],
-      status: '0',
-    },
+    defaultValues: getInitialAdvanceSearchValues(),
   }) as any
 
   const userForm = useForm<UseEditFormValues>({
@@ -113,6 +227,7 @@ const UsersTable = memo(() => {
     }
   }, [selectedUser, userForm])
 
+
   useEffect(() => {
     setFilters(prev => ({
       ...prev,
@@ -141,6 +256,46 @@ const UsersTable = memo(() => {
       retry: 1,
     },
   })
+
+  // Listen for hash changes (e.g., browser back/forward or manual URL changes)
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (isInitializingFromURLRef.current) return
+      
+      const searchParams = getSearchParams()
+      const urlParams = parseURLParams(searchParams, itemsPerPage)
+      
+      // Only update if values actually changed to avoid infinite loops
+      if (urlParams.page !== currentPage) {
+        setCurrentPage(urlParams.page)
+      }
+      if (urlParams.limit !== itemsPerPage) {
+        setItemsPerPage(urlParams.limit)
+      }
+      if (urlParams.sort !== filters.sort) {
+        setFilters(prev => ({ ...prev, sort: urlParams.sort }))
+      }
+      if (urlParams.search !== filters.search && urlParams.search !== filters.proxy_id) {
+        if (urlParams.isProtocol) {
+          setFilters(prev => ({ ...prev, proxy_id: urlParams.search, search: undefined, is_protocol: true }))
+        } else {
+          setFilters(prev => ({ ...prev, search: urlParams.search, proxy_id: undefined, is_protocol: false }))
+        }
+      }
+      if (urlParams.status !== filters.status) {
+        setFilters(prev => ({ ...prev, status: urlParams.status }))
+      }
+      if (JSON.stringify(urlParams.admin) !== JSON.stringify(filters.admin)) {
+        setFilters(prev => ({ ...prev, admin: urlParams.admin }))
+      }
+      if (JSON.stringify(urlParams.group) !== JSON.stringify(filters.group)) {
+        setFilters(prev => ({ ...prev, group: urlParams.group }))
+      }
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [currentPage, itemsPerPage, filters.sort, filters.search, filters.proxy_id, filters.status, filters.admin, filters.group])
 
   useEffect(() => {
     if (usersData && isFirstLoadRef.current) {
@@ -222,22 +377,30 @@ const UsersTable = memo(() => {
     setFilters(prev => {
       let updated = { ...prev, ...newFilters }
       if ('search' in newFilters) {
-        if (prev.is_protocol) {
-          updated.proxy_id = newFilters.search
-          updated.search = undefined
+        // Only reset offset and page if search actually changed
+        const searchChanged = newFilters.search !== prev.search && newFilters.search !== prev.proxy_id
+        if (searchChanged) {
+          if (prev.is_protocol) {
+            updated.proxy_id = newFilters.search
+            updated.search = undefined
+          } else {
+            updated.search = newFilters.search
+            updated.proxy_id = undefined
+          }
+          updated.offset = 0
         } else {
-          updated.search = newFilters.search
-          updated.proxy_id = undefined
+          // Preserve current offset if search didn't change
+          updated.offset = prev.offset
         }
-        updated.offset = 0
       }
       return updated
     })
 
-    if (newFilters.search !== undefined) {
+    // Only reset page if search actually changed
+    if (newFilters.search !== undefined && newFilters.search !== filters.search && newFilters.search !== filters.proxy_id) {
       setCurrentPage(0)
     }
-  }, [])
+  }, [filters.search, filters.proxy_id])
 
   const handleManualRefresh = async () => {
     isAutoRefreshingRef.current = false

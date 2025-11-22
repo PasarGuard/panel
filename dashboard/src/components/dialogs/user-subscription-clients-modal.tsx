@@ -27,21 +27,29 @@ const formatTimeAgo = (timestamp: number, t: (key: string, options?: Record<stri
     return t('justNow', { defaultValue: 'Just now' })
   }
 
-  const duration = dayjs.duration(diffInSeconds, 'seconds')
+  // Use calendar-aware diff methods for accurate calculations
+  // pastTime is always earlier than currentTime
+  const years = Math.abs(currentTime.diff(pastTime, 'year'))
+  const months = Math.abs(currentTime.diff(pastTime.add(years, 'year'), 'month'))
+  const days = Math.abs(currentTime.diff(pastTime.add(years, 'year').add(months, 'month'), 'day'))
+  const hours = Math.abs(currentTime.diff(pastTime.add(years, 'year').add(months, 'month').add(days, 'day'), 'hour'))
+  const minutes = Math.abs(currentTime.diff(pastTime.add(years, 'year').add(months, 'month').add(days, 'day').add(hours, 'hour'), 'minute'))
+  const seconds = Math.abs(currentTime.diff(pastTime.add(years, 'year').add(months, 'month').add(days, 'day').add(hours, 'hour').add(minutes, 'minute'), 'second'))
+
   let timeText = ''
 
-  if (duration.years() > 0) {
-    timeText = `${duration.years()} ${t(`time.${duration.years() !== 1 ? 'years' : 'year'}`)} ${t('time.ago')}`
-  } else if (duration.months() > 0) {
-    timeText = `${duration.months()} ${t(`time.${duration.months() !== 1 ? 'months' : 'month'}`)} ${t('time.ago')}`
-  } else if (duration.days() > 0) {
-    timeText = `${duration.days()} ${t(`time.${duration.days() !== 1 ? 'days' : 'day'}`)} ${t('time.ago')}`
-  } else if (duration.hours() > 0) {
-    timeText = `${duration.hours()} ${t(`time.${duration.hours() !== 1 ? 'hours' : 'hour'}`)} ${t('time.ago')}`
-  } else if (duration.minutes() > 0) {
-    timeText = `${duration.minutes()} ${t(`time.${duration.minutes() !== 1 ? 'mins' : 'min'}`)} ${t('time.ago')}`
+  if (years > 0) {
+    timeText = `${years} ${t(`time.${years !== 1 ? 'years' : 'year'}`)} ${t('time.ago')}`
+  } else if (months > 0) {
+    timeText = `${months} ${t(`time.${months !== 1 ? 'months' : 'month'}`)} ${t('time.ago')}`
+  } else if (days > 0) {
+    timeText = `${days} ${t(`time.${days !== 1 ? 'days' : 'day'}`)} ${t('time.ago')}`
+  } else if (hours > 0) {
+    timeText = `${hours} ${t(`time.${hours !== 1 ? 'hours' : 'hour'}`)} ${t('time.ago')}`
+  } else if (minutes > 0) {
+    timeText = `${minutes} ${t(`time.${minutes !== 1 ? 'mins' : 'min'}`)} ${t('time.ago')}`
   } else {
-    timeText = `${duration.seconds()} ${t(`time.${duration.seconds() !== 1 ? 'seconds' : 'second'}`)} ${t('time.ago')}`
+    timeText = `${seconds} ${t(`time.${seconds !== 1 ? 'seconds' : 'second'}`)} ${t('time.ago')}`
   }
 
   return timeText
