@@ -4,9 +4,9 @@ import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, Pagi
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { debounce } from 'es-toolkit'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { RefreshCw, SearchIcon, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGetAdmins } from '@/service/api'
 import { LoaderCircle } from 'lucide-react'
@@ -29,41 +29,25 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange }: Filt
   const { t } = useTranslation()
   const dir = useDirDetection()
   const { refetch } = useGetAdmins(filters)
-  const [search, setSearch] = useState(filters.username || '')
-  const onFilterChangeRef = useRef(onFilterChange)
+  const { search, debouncedSearch, setSearch } = useDebouncedSearch(filters.username || '', 300)
 
-  // Keep the ref in sync with the prop
-  onFilterChangeRef.current = onFilterChange
-
-  // Debounced search function
-  const setSearchField = useCallback(
-    debounce((value: string) => {
-      onFilterChangeRef.current({
-        username: value || undefined,
-        offset: 0, // Reset to first page when search is updated
-      } as Partial<T>)
-    }, 300),
-    [],
-  )
-
-  // Cleanup on unmount
+  // Update filters when debounced search changes
   useEffect(() => {
-    return () => {
-      setSearchField.cancel()
-    }
-  }, [setSearchField])
+    onFilterChange({
+      username: debouncedSearch || undefined,
+      offset: 0,
+    } as Partial<T>)
+  }, [debouncedSearch, onFilterChange])
 
   // Handle input change
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
-    setSearchField(e.target.value)
   }
 
   // Clear search field
   const clearSearch = () => {
     setSearch('')
-    setSearchField.cancel()
-    onFilterChangeRef.current({
+    onFilterChange({
       username: undefined,
       offset: 0,
     } as Partial<T>)

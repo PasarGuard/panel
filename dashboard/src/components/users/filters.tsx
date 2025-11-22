@@ -7,9 +7,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { debounce } from 'es-toolkit'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { RefreshCw, SearchIcon, Filter, X, ArrowUpDown, User, Calendar, ChartPie, ChevronDown, Check, Clock } from 'lucide-react'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGetUsers, UserStatus } from '@/service/api'
 import { RefetchOptions } from '@tanstack/react-query'
@@ -86,10 +86,11 @@ interface FiltersProps {
 export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort }: FiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
-  const [search, setSearch] = useState(filters.search || '')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
+  const { search, debouncedSearch, setSearch } = useDebouncedSearch(filters.search || '', 300)
+  
   const refetchUsers = useCallback(
     async (showLoading = false, isAutoRefresh = false) => {
       if (showLoading) {
@@ -138,39 +139,23 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
         ? t('autoRefresh.shortSeconds', { count: autoRefreshInterval })
         : t('autoRefresh.shortMinutes', { count: Math.round(autoRefreshInterval / 60) })
   const currentAutoRefreshDescription = t(currentAutoRefreshOption.labelKey)
-  const onFilterChangeRef = useRef(onFilterChange)
 
-  // Keep the ref in sync with the prop
-  onFilterChangeRef.current = onFilterChange
-
-  // Create debounced function using es-toolkit, stored in ref to avoid recreation
-  const debouncedFilterChangeRef = useRef(
-    debounce((value: string) => {
-      onFilterChangeRef.current({
-        search: value,
-        offset: 0,
-      })
-    }, 300),
-  )
-
-  // Cleanup on unmount
+  // Update filters when debounced search changes
   useEffect(() => {
-    return () => {
-      debouncedFilterChangeRef.current.cancel()
-    }
-  }, [])
+    onFilterChange({
+      search: debouncedSearch || '',
+      offset: 0,
+    })
+  }, [debouncedSearch, onFilterChange])
 
   // Handle input change
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearch(value)
-    debouncedFilterChangeRef.current(value)
+    setSearch(e.target.value)
   }
 
   // Clear search field
   const clearSearch = () => {
     setSearch('')
-    debouncedFilterChangeRef.current.cancel()
     onFilterChange({
       search: '',
       offset: 0,

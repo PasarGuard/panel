@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -150,11 +151,17 @@ EmptyState.displayName = 'EmptyState'
 export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nodeName }: UserOnlineStatsDialogProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
-  const [searchTerm, setSearchTerm] = useState('')
   const [specificUsername, setSpecificUsername] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [viewingIPs, setViewingIPs] = useState<string | null>(null)
-  const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const { search: searchTerm, debouncedSearch: debouncedSearchTerm, setSearch: setSearchTerm } = useDebouncedSearch('', 500)
+
+  // Update specificUsername when debounced search changes
+  useEffect(() => {
+    if (debouncedSearchTerm?.trim()) {
+      setSpecificUsername(debouncedSearchTerm.trim())
+    }
+  }, [debouncedSearchTerm])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -163,22 +170,8 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
       setSpecificUsername('')
       setViewingIPs(null)
       setRefreshing(false)
-
-      // Clear any pending search timeout
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
     }
-  }, [isOpen])
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [])
+  }, [isOpen, setSearchTerm])
 
   // Memoize query options to prevent unnecessary re-renders
   const userStatsQueryOptions = useMemo(
@@ -285,22 +278,10 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
     setSpecificUsername(searchTerm.trim())
   }, [searchTerm, t])
 
-  // Debounced search to reduce API calls
+  // Handle search input (debounced automatically by hook)
   const handleSearchInput = useCallback((value: string) => {
     setSearchTerm(value)
-
-    // Clear existing timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-
-    // Set new timeout for debounced search
-    searchTimeoutRef.current = setTimeout(() => {
-      if (value.trim()) {
-        setSpecificUsername(value.trim())
-      }
-    }, 500) // 500ms delay
-  }, [])
+  }, [setSearchTerm])
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)

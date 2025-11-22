@@ -2,9 +2,9 @@ import { Input } from '@/components/ui/input'
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { debounce } from 'es-toolkit'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { SearchIcon, X, RefreshCw } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefetchOptions } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
@@ -24,35 +24,22 @@ interface NodeFiltersProps {
 export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching }: NodeFiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
-  const [search, setSearch] = useState(filters.search || '')
+  const { search, debouncedSearch, setSearch } = useDebouncedSearch(filters.search || '', 300)
 
-  const onFilterChangeRef = useRef(onFilterChange)
-  onFilterChangeRef.current = onFilterChange
-
-  const debouncedFilterChangeRef = useRef(
-    debounce((value: string) => {
-      onFilterChangeRef.current({
-        search: value || undefined,
-        offset: 0,
-      })
-    }, 300),
-  )
-
+  // Update filters when debounced search changes
   useEffect(() => {
-    return () => {
-      debouncedFilterChangeRef.current.cancel()
-    }
-  }, [])
+    onFilterChange({
+      search: debouncedSearch || undefined,
+      offset: 0,
+    })
+  }, [debouncedSearch, onFilterChange])
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearch(value)
-    debouncedFilterChangeRef.current(value)
+    setSearch(e.target.value)
   }
 
   const clearSearch = () => {
     setSearch('')
-    debouncedFilterChangeRef.current.cancel()
     onFilterChange({
       search: undefined,
       offset: 0,

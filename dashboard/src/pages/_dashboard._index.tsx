@@ -21,7 +21,7 @@ import type { AdminDetails, UserResponse } from '@/service/api'
 import { useGetAdmins, useGetCurrentAdmin, useGetSystemStats } from '@/service/api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
-import { debounce } from 'es-toolkit'
+import { useDebouncedSearch } from '@/utils/use-debounced-search'
 import { Bookmark, Check, ChevronDown, Loader2, Sigma, UserCog, UserRound } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -53,25 +53,21 @@ const Dashboard = () => {
 
   // Admin search state - only for sudo admins
   const [selectedAdmin, setSelectedAdmin] = useState<AdminDetails | undefined>(totalAdmin)
-  const [adminSearch, setAdminSearch] = useState('')
   const [offset, setOffset] = useState(0)
   const [admins, setAdmins] = useState<AdminDetails[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
+  const { debouncedSearch: adminSearch, setSearch: setAdminSearchInput } = useDebouncedSearch('', 300)
 
-  // Debounced search - only for sudo admins
-  const debouncedSearch = useCallback(
-    debounce((value: string) => {
-      if (!is_sudo) return // Don't run for non-sudo admins
-      setOffset(0)
-      setAdmins([])
-      setHasMore(true)
-      setAdminSearch(value)
-    }, 300),
-    [is_sudo],
-  )
+  // Handle debounced search side effects - only for sudo admins
+  useEffect(() => {
+    if (!is_sudo) return // Don't run for non-sudo admins
+    setOffset(0)
+    setAdmins([])
+    setHasMore(true)
+  }, [adminSearch, is_sudo])
 
   // In the useGetAdmins call, only set username if searching and not current admin or 'system'
   let usernameParam: string | undefined = undefined
@@ -382,7 +378,7 @@ const Dashboard = () => {
                     </PopoverTrigger>
                     <PopoverContent className="w-64 p-1 sm:w-72 lg:w-80" sideOffset={4} align={dir === 'rtl' ? 'end' : 'start'}>
                       <Command>
-                        <CommandInput placeholder={t('search')} onValueChange={debouncedSearch} className="mb-1 h-7 text-xs sm:h-8 sm:text-sm" />
+                        <CommandInput placeholder={t('search')} onValueChange={setAdminSearchInput} className="mb-1 h-7 text-xs sm:h-8 sm:text-sm" />
                         <CommandList ref={listRef}>
                           <CommandEmpty>
                             <div className="py-3 text-center text-xs text-muted-foreground sm:py-4 sm:text-sm">{t('noAdminsFound') || 'No admins found'}</div>
