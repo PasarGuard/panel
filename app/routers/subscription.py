@@ -41,7 +41,7 @@ async def user_subscription_info(
     user_data, response_headers = await subscription_operator.user_subscription_info(
         db, token=token, request_url=str(request.url)
     )
-    return JSONResponse(content=user_data.model_dump(), headers=response_headers)
+    return JSONResponse(content=user_data.model_dump(mode='json'), headers=response_headers)
 
 
 @router.get("/{token}/apps", response_model=list[Application])
