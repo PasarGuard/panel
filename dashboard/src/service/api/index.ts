@@ -902,7 +902,6 @@ export interface SubscriptionOutput {
   /** @maxLength 128 */
   announce?: string
   announce_url?: string
-  host_status_filter: boolean
   rules: SubRule[]
   manual_sub_request?: SubFormatEnable
   applications?: ApplicationOutput[]
@@ -916,7 +915,6 @@ export interface SubscriptionInput {
   /** @maxLength 128 */
   announce?: string
   announce_url?: string
-  host_status_filter: boolean
   rules: SubRule[]
   manual_sub_request?: SubFormatEnable
   applications?: ApplicationInput[]
