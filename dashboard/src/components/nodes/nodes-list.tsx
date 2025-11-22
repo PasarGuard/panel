@@ -240,7 +240,7 @@ export default function NodesList() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full flex-1 space-y-4 pt-6">
+      <div className="w-full flex-1 space-y-4 py-4">
         <NodeFilters filters={filters} onFilterChange={handleFilterChange} refetch={refetch} isFetching={isFetching} />
         <div className="min-h-[55dvh]">
           <div

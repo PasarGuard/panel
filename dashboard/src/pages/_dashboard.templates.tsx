@@ -128,7 +128,7 @@ export default function UserTemplates() {
         <Separator />
       </div>
 
-      <div className="w-full flex-1 space-y-4 p-4 pt-6">
+      <div className="w-full flex-1 space-y-4 px-4 py-4">
         {/* Search Input */}
         <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
           <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />

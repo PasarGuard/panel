@@ -53,7 +53,7 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching }: No
   }
 
   return (
-    <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
+    <div dir={dir} className="flex items-center gap-2 md:gap-4">
       <div className="relative flex w-full md:w-[calc(100%/3-10px)]" dir={dir}>
         <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
         <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
