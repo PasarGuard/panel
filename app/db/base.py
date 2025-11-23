@@ -45,10 +45,7 @@ class GetDB:  # Context Manager
                 # Rollback on any exception
                 await self.db.rollback()
         except Exception:
-            try:
-                await self.db.rollback()
-            except Exception:
-                pass
+            pass
         finally:
             # Always close the session to return connection to pool
             try:
