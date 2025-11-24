@@ -1,19 +1,19 @@
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
 import { ShadowsocksMethods, XTLSFlows, useReconnectAllNode } from '@/service/api'
+import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { XIcon, Loader2, RefreshCcw } from 'lucide-react'
+import { Loader2, RefreshCcw, XIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { useSettingsContext } from './_dashboard.settings'
-import { queryClient } from '@/utils/query-client'
 
 // general settings validation schema
 const generalSettingsSchema = z.object({
@@ -233,7 +233,7 @@ export default function General() {
           <Separator className="my-4" />
 
           {/* Reconnect All Nodes Section */}
-          <div className="flex items-start justify-between gap-4 py-3">
+          <div className="flex flex-col md:flex-row gap-4 py-3 md:items-start md:justify-between">
             <div className="space-y-1">
               <h3 className="text-sm font-medium">{t('nodes.title', { defaultValue: 'Reconnect All Nodes' })}</h3>
               <p className="text-xs text-muted-foreground">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
