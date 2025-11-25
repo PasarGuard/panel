@@ -14,8 +14,7 @@
         "tag": "dns-local",
         "type": "local"
       }      
-    ],
-    "final": "dns-remote"
+    ]
   },
   "inbounds": [
     {
@@ -41,13 +40,14 @@
     {
       "tag": "proxy",
       "type": "selector",
-      "outbounds": null,
+      "outbounds": [],
       "interrupt_exist_connections": true
     },
     {
       "tag": "Best Latency 🔥",
       "type": "urltest",
-      "outbounds": null
+      "outbounds": [],
+      "url": "https://www.gstatic.com/generate_204"
     },
     {
       "tag": "direct",
@@ -67,8 +67,7 @@
     ],
     "final": "proxy",    
     "default_domain_resolver": "dns-remote",
-    "auto_detect_interface": true,    
-    "override_android_vpn": true   
+    "auto_detect_interface": true
   },
   "experimental": {
     "cache_file": {
