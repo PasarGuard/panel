@@ -1792,7 +1792,13 @@
     "byGroup": "Group",
     "selectGroup": "Select Group ... ",
     "selectAdmin": "Select Admin ... ",
-    "selectStatus": "Select Status ... "
+    "selectStatus": "Select Status ... ",
+    "byCore": "Core Configuration",
+    "selectCore": "Select Core Configuration ... ",
+    "searchCore" : "Search Core Configurations...",
+    "selectedCore" : "Selected: {{name}}",
+    "noCoresFound": "No core configurations found",
+    "noCoresAvailable": "No core configurations available"
   },
   "clearAllFilters": "Clear All Filters",
   "activeFilters": "active",

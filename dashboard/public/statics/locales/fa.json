@@ -1764,7 +1764,13 @@
     "byGroup": "گروه",
     "selectGroup": "انتخاب گروه ...",
     "selectAdmin": "انتخاب مدیر ...",
-    "selectStatus": "انتخاب وضعیت ..."
+    "selectStatus": "انتخاب وضعیت ...",
+    "byCore": "هسته",
+    "selectCore": "انتخاب هسته ...",
+    "searchCore" : "جستجوی هسته ...",
+    "selectedCore" : "{{name}} :هسته انتخاب شده",
+    "noCoresFound": "هیچ هسته‌ای یافت نشد",
+    "noCoresAvailable": "هیچ هسته‌ای در دسترس نیست"
   },
   "clearAllFilters": "پاک کردن همه فیلترها",
   "activeFilters": "فعال",

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
-import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType } from '@/service/api'
+import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType, NodeStatus } from '@/service/api'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
@@ -11,6 +11,7 @@ import { nodeFormSchema, NodeFormValues } from '@/components/dialogs/node-modal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NodeFilters, NodePaginationControls } from '@/components/nodes/node-filters'
+import NodeAdvanceSearchModal, { NodeAdvanceSearchFormValue, nodeAdvanceSearchFormSchema } from '@/components/dialogs/node-advance-search-modal'
 
 const NODES_PER_PAGE = 15
 
@@ -37,20 +38,33 @@ export default function NodesList() {
   const modifyNodeMutation = useModifyNode()
   const [allNodes, setAllNodes] = useState<NodeResponse[]>([])
   const [localSearchTerm, setLocalSearchTerm] = useState<string>('')
+  const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
 
   const [filters, setFilters] = useState<{
     limit: number
     offset: number
     search?: string
+    status?: NodeStatus[]
+    core_id?: number
   }>({
     limit: NODES_PER_PAGE,
     offset: 0,
     search: undefined,
+    status: undefined,
+    core_id: undefined
   })
 
   const form = useForm<NodeFormValues>({
     resolver: zodResolver(nodeFormSchema),
     defaultValues: initialDefaultValues,
+  })
+
+  const advanceSearchForm = useForm<NodeAdvanceSearchFormValue>({
+    resolver: zodResolver(nodeAdvanceSearchFormSchema),
+    defaultValues: {
+      status: filters.status || [],
+      core_id: filters.core_id || undefined
+    },
   })
 
   const {
@@ -238,10 +252,53 @@ export default function NodesList() {
     }
   }, [calculatedTotalPages, currentPage])
 
+  const handleAdvanceSearchSubmit = (values: NodeAdvanceSearchFormValue) => {
+    setFilters(prev => ({
+      ...prev,
+      status: values.status && values.status.length > 0 ? values.status : undefined,
+      core_id: values.core_id || undefined,
+      offset: 0,
+    }))
+    setCurrentPage(0)
+    setIsAdvanceSearchOpen(false)
+  }
+
+  const handleClearAdvanceSearch = () => {
+    advanceSearchForm.reset({
+      status: [],
+      core_id: undefined,
+    })
+    setFilters(prev => ({
+      ...prev,
+      status: undefined,
+      core_id: undefined,
+      offset: 0,
+    }))
+    setCurrentPage(0)
+  }
+
+  const handleAdvanceSearchOpen = (open: boolean) => {
+    if (open) {
+      // Sync form with current filters when opening
+      advanceSearchForm.reset({
+        status: filters.status || [],
+        core_id: filters.core_id || undefined,
+      })
+    }
+    setIsAdvanceSearchOpen(open)
+  }
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full flex-1 space-y-4 py-4">
-        <NodeFilters filters={filters} onFilterChange={handleFilterChange} refetch={refetch} isFetching={isFetching} />
+        <NodeFilters
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          refetch={refetch}
+          isFetching={isFetching}
+          advanceSearchOnOpen={handleAdvanceSearchOpen}
+          onClearAdvanceSearch={handleClearAdvanceSearch}
+        />
         <div className="min-h-[55dvh]">
           <div
             className="grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
@@ -330,6 +387,13 @@ export default function NodesList() {
           editingNode={!!editingNode}
           editingNodeId={editingNode?.id}
           initialNodeData={editingNode || undefined}
+        />
+
+        <NodeAdvanceSearchModal
+          isDialogOpen={isAdvanceSearchOpen}
+          onOpenChange={setIsAdvanceSearchOpen}
+          form={advanceSearchForm}
+          onSubmit={handleAdvanceSearchSubmit}
         />
       </div>
     </div>
