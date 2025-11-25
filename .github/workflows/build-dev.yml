@@ -7,8 +7,7 @@ on:
       - "next"
 
 env:
-  IMAGE: pasarguard/${{ github.event.repository.name }}:${{ github.ref_name }}
-  GHCR_IMAGE: ghcr.io/pasarguard/${{ github.event.repository.name }}:${{ github.ref_name }}
+  IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
 
 jobs:
   build-dashboard:
@@ -83,8 +82,8 @@ jobs:
           push: true
           file: ./Dockerfile
           tags: |
-            ${{ env.IMAGE }}-${{ matrix.arch }}
-            ${{ env.GHCR_IMAGE }}-${{ matrix.arch }}
+            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.arch }}
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.arch }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -108,15 +107,15 @@ jobs:
       - name: Create tagged manifest
         uses: int128/docker-manifest-create-action@v2
         with:
-          tags: ${{ env.IMAGE }}
+          tags: ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
           sources: |
-            ${{ env.IMAGE }}-amd64
-            ${{ env.IMAGE }}-arm64
+            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64
+            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64
 
       - name: Create tagged manifest for GitHub
         uses: int128/docker-manifest-create-action@v2
         with:
-          tags: ${{ env.GHCR_IMAGE }}
+          tags: ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
           sources: |
-            ${{ env.GHCR_IMAGE }}-amd64
-            ${{ env.GHCR_IMAGE }}-arm64
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64
