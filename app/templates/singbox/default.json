@@ -7,20 +7,13 @@
     "servers": [
       {
         "tag": "dns-remote",
-        "address": "1.1.1.2",
-        "detour": "proxy"
+        "type": "udp",
+        "server": "8.8.8.8"
       },
       {
         "tag": "dns-local",
-        "address": "local",
-        "detour": "direct"
-      }
-    ],
-    "rules": [
-      {
-        "outbound": "any",
-        "server": "dns-local"
-      }
+        "type": "local"
+      }      
     ],
     "final": "dns-remote"
   },
@@ -46,20 +39,20 @@
   ],
   "outbounds": [
     {
-      "type": "selector",
       "tag": "proxy",
+      "type": "selector",
       "outbounds": null,
       "interrupt_exist_connections": true
     },
     {
+      "tag": "Best Latency 🔥",
       "type": "urltest",
-      "tag": "Best Latency",
       "outbounds": null
     },
     {
-      "type": "direct",
-      "tag": "direct"
-    }
+      "tag": "direct",
+      "type": "direct"
+    }    
   ],
   "route": {
     "rules": [
@@ -72,9 +65,10 @@
         "action": "hijack-dns"
       }
     ],
-    "final": "proxy",
-    "auto_detect_interface": true,
-    "override_android_vpn": true
+    "final": "proxy",    
+    "default_domain_resolver": "dns-remote",
+    "auto_detect_interface": true,    
+    "override_android_vpn": true   
   },
   "experimental": {
     "cache_file": {
