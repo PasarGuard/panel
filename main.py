@@ -17,6 +17,7 @@ from config import (
     UVICORN_HOST,
     UVICORN_LOOP,
     UVICORN_PORT,
+    UVICORN_SSL_CA_TYPE,
     UVICORN_SSL_CERTFILE,
     UVICORN_SSL_KEYFILE,
     UVICORN_UDS,
@@ -63,7 +64,7 @@ def check_and_modify_ip(ip_address: str) -> str:
         return "localhost"
 
 
-def validate_cert_and_key(cert_file_path, key_file_path):
+def validate_cert_and_key(cert_file_path, key_file_path, ca_type: str = "public"):
     if not os.path.isfile(cert_file_path):
         raise ValueError(f"SSL certificate file '{cert_file_path}' does not exist.")
     if not os.path.isfile(key_file_path):
@@ -80,21 +81,35 @@ def validate_cert_and_key(cert_file_path, key_file_path):
             cert_data = cert_file.read()
             cert = x509.load_pem_x509_certificate(cert_data, default_backend())
 
-        if cert.issuer == cert.subject:
+        # Only check for self-signed certificates if ca_type is "public"
+        if ca_type == "public" and cert.issuer == cert.subject:
             raise ValueError("The certificate is self-signed and not issued by a trusted CA.")
 
+    except ValueError:
+        # Re-raise ValueError exceptions (including our self-signed check)
+        raise
     except Exception as e:
         raise ValueError(f"Certificate verification failed: {e}")
 
 
 if __name__ == "__main__":
     # Do NOT change workers count for now
-    # multi-workers support isn't implemented yet for APScheduler and XRay module
+    # multi-workers support isn't implemented yet for APScheduler
+
+    # Validate UVICORN_SSL_CA_TYPE value
+    valid_ca_types = ("public", "private")
+    ca_type = UVICORN_SSL_CA_TYPE
+    if ca_type not in valid_ca_types:
+        logger.warning(
+            f"Invalid UVICORN_SSL_CA_TYPE value '{UVICORN_SSL_CA_TYPE}'. "
+            f"Expected one of {valid_ca_types}. Defaulting to 'public'."
+        )
+        ca_type = "public"
 
     bind_args = {}
 
     if UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE:
-        validate_cert_and_key(UVICORN_SSL_CERTFILE, UVICORN_SSL_KEYFILE)
+        validate_cert_and_key(UVICORN_SSL_CERTFILE, UVICORN_SSL_KEYFILE, ca_type=ca_type)
 
         bind_args["ssl_certfile"] = UVICORN_SSL_CERTFILE
         bind_args["ssl_keyfile"] = UVICORN_SSL_KEYFILE
