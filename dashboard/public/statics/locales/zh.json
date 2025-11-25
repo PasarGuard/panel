@@ -1786,7 +1786,13 @@
     "byGroup": "分组",
     "selectGroup": "选择分组 ...",
     "selectAdmin": "选择管理员 ...",
-    "selectStatus": "选择状态 ..."
+    "selectStatus": "选择状态 ...",
+    "byCore": "按核心配置",
+    "selectCore": "选择核心配置 ...",
+    "searchCore" : "搜索核心配置...",
+    "selectedCore" : "已选择 {{name}} 个核心配置",
+    "noCoresFound": "未找到核心配置",
+    "noCoresAvailable": "无可用核心配置"
   },
   "clearAllFilters": "清除所有筛选器",
   "activeFilters": "活跃",

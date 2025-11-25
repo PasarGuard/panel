@@ -1727,7 +1727,13 @@
     "byGroup": "Группа",
     "selectGroup": "Выберите группу ...",
     "selectAdmin": "Выберите администратора ...",
-    "selectStatus": "Выберите статус ..."
+    "selectStatus": "Выберите статус ...",
+    "byCore": "Ядро",
+    "selectCore": "Выберите ядро ...",
+    "searchCore" : "Поиск ядер...",
+    "selectedCore" : "Выбрано ядер: {{name}}",
+    "noCoresFound": "Ядра не найдены",
+    "noCoresAvailable": "Нет доступных ядер"
   },
   "clearAllFilters": "Очистить все фильтры",
   "activeFilters": "активных",

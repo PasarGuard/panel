@@ -1,27 +1,34 @@
 import { Input } from '@/components/ui/input'
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
+import { Badge } from '@/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
-import { SearchIcon, X, RefreshCw } from 'lucide-react'
-import { useEffect } from 'react'
+import { SearchIcon, X, RefreshCw, Filter } from 'lucide-react'
+import {useEffect} from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefetchOptions } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {NodeStatus} from "@/service/api";
 
 interface NodeFiltersProps {
   filters: {
     search?: string
     limit: number
     offset: number
+    status?: NodeStatus[]
+    core_id?: number
   }
   onFilterChange: (filters: Partial<NodeFiltersProps['filters']>) => void
   refetch?: (options?: RefetchOptions) => Promise<unknown>
   isFetching?: boolean
+  advanceSearchOnOpen: (status: boolean) => void
+  onClearAdvanceSearch?: () => void
 }
 
-export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching }: NodeFiltersProps) => {
+export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, advanceSearchOnOpen, onClearAdvanceSearch }: NodeFiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const { search, debouncedSearch, setSearch } = useDebouncedSearch(filters.search || '', 300)
@@ -52,17 +59,65 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching }: No
     }
   }
 
+  const handleOpenAdvanceSearch = () => {
+    advanceSearchOnOpen(true)
+  }
+
+  // Check if any advance search filters are active
+  const hasActiveAdvanceFilters = () => {
+    const status = filters.status
+    const core_id = filters.core_id
+    return (status && status.length > 0) || core_id !== undefined
+  }
+
+  // Get the count of active advance filters
+  const getActiveFiltersCount = () => {
+    const status = filters.status
+    const core_id = filters.core_id
+    let count = 0
+    if (status && status.length > 0) count++
+    if (core_id !== undefined) count++
+    return count
+  }
+
   return (
-    <div dir={dir} className="flex items-center gap-2 md:gap-4">
-      <div className="relative flex w-full md:w-[calc(100%/3-10px)]" dir={dir}>
-        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
-        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
+    <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
+      {/* Search Input */}
+      <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
+        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10" />
         {search && (
-          <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+          <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
             <X className="h-4 w-4" />
           </button>
         )}
       </div>
+
+      {/* Advanced Filter Button */}
+      <div className="flex h-full flex-shrink-0 items-center gap-1">
+        <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10" onClick={handleOpenAdvanceSearch}>
+          <Filter className="h-4 w-4" />
+          {hasActiveAdvanceFilters() && (
+            <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
+              {getActiveFiltersCount()}
+            </Badge>
+          )}
+        </Button>
+        {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" className={cn('h-9 w-9 p-0 md:h-8 md:w-8', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
+                <X className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" side={dir === 'rtl' ? 'left' : 'right'} align="center">
+              <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+
+      {/* Refresh Button */}
       <Button
         size="icon-md"
         onClick={handleManualRefresh}
@@ -84,7 +139,12 @@ interface NodePaginationControlsProps {
   onPageChange: (page: number) => void
 }
 
-export const NodePaginationControls = ({ currentPage, totalPages, isLoading, onPageChange }: NodePaginationControlsProps) => {
+export const NodePaginationControls = ({
+                                         currentPage,
+                                         totalPages,
+                                         isLoading,
+                                         onPageChange
+                                       }: NodePaginationControlsProps) => {
   const dir = useDirDetection()
 
   const getPaginationRange = (currentPage: number, totalPages: number) => {
@@ -132,42 +192,45 @@ export const NodePaginationControls = ({ currentPage, totalPages, isLoading, onP
   const paginationRange = getPaginationRange(currentPage, totalPages)
 
   return (
-    <div className="mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
-      <Pagination dir="ltr" className={`${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
-        <PaginationContent className={cn('w-full justify-center overflow-x-auto', dir === 'rtl' ? 'md:justify-start' : 'md:justify-end')}>
-          <PaginationItem>
-            <PaginationPrevious onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 0 || isLoading} />
-          </PaginationItem>
-          {paginationRange.map((pageNumber, i) =>
-            pageNumber === -1 ? (
-              <PaginationItem key={`ellipsis-${i}`}>
-                <PaginationEllipsis />
-              </PaginationItem>
-            ) : (
-              <PaginationItem key={pageNumber}>
-                <PaginationLink
-                  isActive={currentPage === pageNumber}
-                  onClick={() => onPageChange(pageNumber as number)}
-                  disabled={isLoading}
-                  className={isLoading && currentPage === pageNumber ? 'opacity-70' : ''}
-                >
-                  {isLoading && currentPage === pageNumber ? (
-                    <div className="flex items-center">
-                      <LoaderCircle className="mr-1 h-3 w-3 animate-spin" />
-                      {(pageNumber as number) + 1}
-                    </div>
-                  ) : (
-                    (pageNumber as number) + 1
-                  )}
-                </PaginationLink>
-              </PaginationItem>
-            ),
-          )}
-          <PaginationItem>
-            <PaginationNext onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages - 1 || totalPages === 0 || isLoading} />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
-    </div>
+      <div className="mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
+        <Pagination dir="ltr" className={`${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
+          <PaginationContent
+              className={cn('w-full justify-center overflow-x-auto', dir === 'rtl' ? 'md:justify-start' : 'md:justify-end')}>
+            <PaginationItem>
+              <PaginationPrevious onClick={() => onPageChange(currentPage - 1)}
+                                  disabled={currentPage === 0 || isLoading}/>
+            </PaginationItem>
+            {paginationRange.map((pageNumber, i) =>
+                pageNumber === -1 ? (
+                    <PaginationItem key={`ellipsis-${i}`}>
+                      <PaginationEllipsis/>
+                    </PaginationItem>
+                ) : (
+                    <PaginationItem key={pageNumber}>
+                      <PaginationLink
+                          isActive={currentPage === pageNumber}
+                          onClick={() => onPageChange(pageNumber as number)}
+                          disabled={isLoading}
+                          className={isLoading && currentPage === pageNumber ? 'opacity-70' : ''}
+                      >
+                        {isLoading && currentPage === pageNumber ? (
+                            <div className="flex items-center">
+                              <LoaderCircle className="mr-1 h-3 w-3 animate-spin"/>
+                              {(pageNumber as number) + 1}
+                            </div>
+                        ) : (
+                            (pageNumber as number) + 1
+                        )}
+                      </PaginationLink>
+                    </PaginationItem>
+                ),
+            )}
+            <PaginationItem>
+              <PaginationNext onClick={() => onPageChange(currentPage + 1)}
+                              disabled={currentPage === totalPages - 1 || totalPages === 0 || isLoading}/>
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
   )
 }
