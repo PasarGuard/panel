@@ -37,7 +37,9 @@ async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tu
             logger.debug(f"[{node_name}] Node health is HEALTHY")
         return Health.HEALTHY, None, None
     except NodeAPIError as e:
-        logger.error(f"[{node_name}] Health check failed, setting health to BROKEN | Error: NodeAPIError(code={e.code}) - {e.detail}")
+        logger.error(
+            f"[{node_name}] Health check failed, setting health to BROKEN | Error: NodeAPIError(code={e.code}) - {e.detail}"
+        )
         try:
             await node.set_health(Health.BROKEN)
             return Health.BROKEN, e.code, e.detail
@@ -104,13 +106,13 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     # Skip nodes that are already healthy and connected
     if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
         return
-    
+
     # Handle hard reset requirement
     if node.requires_hard_reset():
         async with GetDB() as db:
             await node_operator.connect_single_node(db, db_node.id)
         return
-    
+
     if health is Health.INVALID:
         logger.warning(f"[{db_node.name}] Node health is INVALID, ignoring...")
         return
@@ -125,9 +127,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     if health == Health.BROKEN:
         # Record actual error in database
         async with GetDB() as db:
-            await NodeOperation._update_single_node_status(
-                db, db_node.id, NodeStatus.error, message=error_message
-            )
+            await NodeOperation._update_single_node_status(db, db_node.id, NodeStatus.error, message=error_message)
         # Only reconnect for non-timeout errors (code > -1)
         if error_code is not None and error_code > -1:
             async with GetDB() as db:
