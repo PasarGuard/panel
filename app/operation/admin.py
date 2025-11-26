@@ -174,3 +174,8 @@ class AdminOperation(BaseOperation):
         asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
 
         return reseted_admin
+
+    async def get_admin(self, db: AsyncSession, username: str) -> AdminDetails:
+        """Get a specific admin by username."""
+        db_admin = await self.get_validated_admin(db, username=username)
+        return AdminDetails.model_validate(db_admin)

@@ -119,6 +119,16 @@ def get_current_admin(admin: AdminDetails = Depends(get_current)):
     return admin
 
 
+@router.get("/{username}", response_model=AdminDetails, responses={404: responses._404})
+async def get_admin(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(check_sudo_admin),
+):
+    """Retrieve a specific admin by username."""
+    return await admin_operator.get_admin(db, username=username)
+
+
 @router.get("s", response_model=AdminsResponse)
 async def get_admins(
     username: str | None = None,
