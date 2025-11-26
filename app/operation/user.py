@@ -18,9 +18,9 @@ from app.db.crud.bulk import (
 )
 from app.db.crud.user import (
     UsersSortingOptions,
-    activate_user,
+    activate_user as crud_activate_user,
     create_user,
-    disable_user,
+    disable_user as crud_disable_user,
     get_all_users_usages,
     get_expired_users,
     get_user_usages,
@@ -203,7 +203,7 @@ class UserOperation(BaseOperation):
         if db_user.status != UserStatus.disabled:
             await self.raise_error(message="Only disabled users can be activated", code=400)
 
-        db_user = await activate_user(db, db_user)
+        db_user = await crud_activate_user(db, db_user)
         user = await self.update_user(db_user)
 
         asyncio.create_task(notification.user_status_change(user, admin))
@@ -217,7 +217,7 @@ class UserOperation(BaseOperation):
         db_user = await self.get_validated_user(db, username, admin)
 
         old_status = db_user.status
-        db_user = await disable_user(db, db_user)
+        db_user = await crud_disable_user(db, db_user)
         user = await self.update_user(db_user)
 
         if user.status != old_status:

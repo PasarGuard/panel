@@ -982,41 +982,15 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
 
 
 async def activate_user(db: AsyncSession, db_user: User) -> User:
-    """
-    Activates a user by setting status to active.
-
-    Args:
-        db (AsyncSession): Database session.
-        db_user (User): The user object to activate.
-
-    Returns:
-        User: The updated user object.
-    """
-    db_user.status = UserStatus.active
-    db_user.last_status_change = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user)
-    return db_user
+    """Activates a user by setting status to active."""
+    users = await update_users_status(db, [db_user], UserStatus.active)
+    return users[0]
 
 
 async def disable_user(db: AsyncSession, db_user: User) -> User:
-    """
-    Disables a user by setting status to disabled.
-
-    Args:
-        db (AsyncSession): Database session.
-        db_user (User): The user object to disable.
-
-    Returns:
-        User: The updated user object.
-    """
-    db_user.status = UserStatus.disabled
-    db_user.last_status_change = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user)
-    return db_user
+    """Disables a user by setting status to disabled."""
+    users = await update_users_status(db, [db_user], UserStatus.disabled)
+    return users[0]
 
 
 async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
