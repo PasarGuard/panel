@@ -105,7 +105,7 @@ class SubscriptionOperation(BaseOperation):
             "announce": encode_title(sub_settings.announce),
             "announce-url": sub_settings.announce_url,
         }
-        
+
         # Only include headers that have values
         return {k: v for k, v in headers.items() if v}
 
@@ -193,10 +193,10 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token=token)
         user = await self.validated_user(db_user)
-        
+
         response_headers = self.create_info_response_headers(user, sub_settings)
         user_response = SubscriptionUserResponse.model_validate(db_user.__dict__)
-        
+
         return user_response, response_headers
 
     async def user_subscription_apps(self, db: AsyncSession, token: str, request_url: str) -> list[Application]:
