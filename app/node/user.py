@@ -26,12 +26,21 @@ def serialize_user_for_node(id: int, username: str, user_settings: dict, inbound
 
 
 async def core_users(db: AsyncSession):
+    dialect = db.bind.dialect.name
+
+    # Use dialect-specific aggregation function
+    if dialect == "postgresql":
+        inbound_agg = func.string_agg(ProxyInbound.tag.distinct(), ",").label("inbound_tags")
+    else:
+        # MySQL and SQLite use group_concat
+        inbound_agg = func.group_concat(ProxyInbound.tag.distinct()).label("inbound_tags")
+
     stmt = (
         select(
             User.id,
             User.username,
             User.proxy_settings,
-            func.group_concat(ProxyInbound.tag.distinct()).label("inbound_tags"),
+            inbound_agg,
         )
         .outerjoin(users_groups_association, User.id == users_groups_association.c.user_id)
         .outerjoin(
