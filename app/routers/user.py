@@ -151,6 +151,22 @@ async def set_owner(
 
 
 @router.post(
+    "/{username}/activate",
+    response_model=UserResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def activate_user(username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)):
+    """Activate a user (set status to active). Only disabled users can be activated."""
+    return await user_operator.activate_user(db, username=username, admin=admin)
+
+
+@router.post("/{username}/disable", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
+async def disable_user(username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)):
+    """Disable a user (set status to disabled)"""
+    return await user_operator.disable_user(db, username=username, admin=admin)
+
+
+@router.post(
     "/{username}/active_next", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
 )
 async def active_next_plan(
