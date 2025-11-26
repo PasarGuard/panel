@@ -19,62 +19,47 @@ node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 logger = get_logger("node-checker")
 
 
-async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> Health:
+async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tuple[Health, int | None, str | None]:
     """
     Verify node health by checking backend stats.
-    Returns updated health status.
+    Returns (health, error_code, error_message) - error_code and error_message are None if no error occurred.
     """
     current_health = await asyncio.wait_for(node.get_health(), timeout=10)
 
     # Skip nodes that are not connected or invalid
     if current_health in (Health.NOT_CONNECTED, Health.INVALID):
-        return current_health
+        return current_health, None, None
 
     try:
         await node.get_backend_stats()
         if current_health != Health.HEALTHY:
             await node.set_health(Health.HEALTHY)
             logger.debug(f"[{node_name}] Node health is HEALTHY")
-        return Health.HEALTHY
-    except Exception as e:
-        error_type = type(e).__name__
-        logger.error(f"[{node_name}] Health check failed, setting health to BROKEN | Error: {error_type} - {str(e)}")
+        return Health.HEALTHY, None, None
+    except NodeAPIError as e:
+        logger.error(f"[{node_name}] Health check failed, setting health to BROKEN | Error: NodeAPIError(code={e.code}) - {e.detail}")
         try:
             await node.set_health(Health.BROKEN)
-            return Health.BROKEN
+            return Health.BROKEN, e.code, e.detail
         except Exception as e_set_health:
             error_type_set = type(e_set_health).__name__
             logger.error(
                 f"[{node_name}] Failed to set health to BROKEN | Error: {error_type_set} - {str(e_set_health)}"
             )
-            return current_health
-
-
-async def update_node_connection_status(node_id: int, node: PasarGuardNode):
-    """
-    Update node connection status by getting backend stats and version info.
-    """
-    try:
-        await node.get_backend_stats()
-        node_version, core_version = await asyncio.wait_for(node.get_versions(), timeout=10)
-        async with GetDB() as db:
-            await NodeOperation._update_single_node_status(
-                db,
-                node_id,
-                NodeStatus.connected,
-                xray_version=core_version,
-                node_version=node_version,
+            return current_health, e.code, e.detail
+    except Exception as e:
+        error_type = type(e).__name__
+        error_message = f"{error_type}: {str(e)}"
+        logger.error(f"[{node_name}] Health check failed, setting health to BROKEN | Error: {error_message}")
+        try:
+            await node.set_health(Health.BROKEN)
+            return Health.BROKEN, None, error_message
+        except Exception as e_set_health:
+            error_type_set = type(e_set_health).__name__
+            logger.error(
+                f"[{node_name}] Failed to set health to BROKEN | Error: {error_type_set} - {str(e_set_health)}"
             )
-    except asyncio.TimeoutError:
-        logger.warning(f"Node {node_id} get versions timed out, will retry on next check")
-        return
-    except NodeAPIError as e:
-        if e.code > -3:
-            async with GetDB() as db:
-                await NodeOperation._update_single_node_status(db, node_id, NodeStatus.error, message=e.detail)
-        if e.code > 0:
-            async with GetDB() as db:
-                await node_operator.connect_single_node(db, node_id)
+            return current_health, None, error_message
 
 
 async def process_node_health_check(db_node: Node, node: PasarGuardNode):
@@ -84,33 +69,70 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     2. Verify backend health
     3. Compare with database status
     4. Update status if needed
+
+    Timeout handling:
+    - For timeout errors (code=-1): Don't reconnect, just wait for recovery
+    - For other errors (code > -1): Reconnect (connection works but has another issue)
+    - For NOT_CONNECTED/INVALID: Reconnect immediately
     """
     if node is None:
         return
 
     try:
-        health = await verify_node_backend_health(node, db_node.name)
+        health, error_code, error_message = await verify_node_backend_health(node, db_node.name)
     except asyncio.TimeoutError:
-        if db_node.status == NodeStatus.connected:
-            logger.warning(
-                f"Node {db_node.id} ({db_node.name}) health check timed out but was previously connected, will retry"
-            )
-            return
+        # Record timeout error in database but don't reconnect
+        logger.warning(f"[{db_node.name}] Health check timed out")
         async with GetDB() as db:
             await NodeOperation._update_single_node_status(
                 db, db_node.id, NodeStatus.error, message="Health check timeout"
             )
+        return
     except NodeAPIError as e:
+        # Record error in database
         async with GetDB() as db:
             await NodeOperation._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
-
-    if node.requires_hard_reset() or health is None or health in (Health.NOT_CONNECTED, Health.INVALID):
+        # For timeout errors (code=-1), don't reconnect - just wait for recovery
+        if e.code == -1:
+            logger.warning(f"[{db_node.name}] Health check timed out (NodeAPIError), waiting for recovery")
+            return
+        # For other errors, reconnect
         async with GetDB() as db:
             await node_operator.connect_single_node(db, db_node.id)
         return
 
     # Skip nodes that are already healthy and connected
     if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
+        return
+    
+    # Handle hard reset requirement
+    if node.requires_hard_reset():
+        async with GetDB() as db:
+            await node_operator.connect_single_node(db, db_node.id)
+        return
+    
+    if health is Health.INVALID:
+        logger.warning(f"[{db_node.name}] Node health is INVALID, ignoring...")
+        return
+
+    # Handle NOT_CONNECTED - reconnect immediately
+    if health is Health.NOT_CONNECTED:
+        async with GetDB() as db:
+            await node_operator.connect_single_node(db, db_node.id)
+        return
+
+    # Handle BROKEN health
+    if health == Health.BROKEN:
+        # Record actual error in database
+        async with GetDB() as db:
+            await NodeOperation._update_single_node_status(
+                db, db_node.id, NodeStatus.error, message=error_message
+            )
+        # Only reconnect for non-timeout errors (code > -1)
+        if error_code is not None and error_code > -1:
+            async with GetDB() as db:
+                await node_operator.connect_single_node(db, db_node.id)
+        # For timeout (code=-1 or None), just wait - don't reconnect
         return
 
     # Update status for recovering nodes
@@ -125,9 +147,6 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                 node_version=node_version,
             )
         return
-
-    # For all other cases, update connection status
-    await update_node_connection_status(db_node.id, node)
 
 
 async def check_node_limits():
