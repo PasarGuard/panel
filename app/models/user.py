@@ -1,7 +1,7 @@
 from datetime import datetime as dt
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.db.models import DataLimitResetStrategy, UserStatus, UserStatusCreate
 from app.models.admin import AdminBase, AdminContactInfo
@@ -190,3 +190,38 @@ class BulkUsersProxy(BaseModel):
     group_ids: set[int] = Field(default_factory=set)
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
+
+
+class UsernameGenerationStrategy(str, Enum):
+    random = "random"
+    sequence = "sequence"
+
+
+class BulkCreationBase(BaseModel):
+    count: int = Field(gt=0, le=500)
+    strategy: UsernameGenerationStrategy = Field(default=UsernameGenerationStrategy.random)
+
+
+class BulkUsersFromTemplate(BulkCreationBase, CreateUserFromTemplate):
+    username: str | None = Field(default=None)
+    start_number: int | None = Field(
+        default=None,
+        ge=0,
+        description="Starting suffix for sequence strategy (defaults to 1; base username digits are ignored)",
+    )
+
+    @model_validator(mode="after")
+    def validate_username_strategy(self):
+        if self.strategy == UsernameGenerationStrategy.random:
+            if self.username not in (None, ""):
+                raise ValueError("username must be null when strategy is 'random'")
+            if self.start_number is not None:
+                raise ValueError("start_number is only valid when strategy is 'sequence'")
+        if self.strategy == UsernameGenerationStrategy.sequence and not self.username:
+            raise ValueError("username is required when strategy is 'sequence'")
+        return self
+
+
+class BulkUsersCreateResponse(BaseModel):
+    subscription_urls: list[str] = Field(default_factory=list)
+    created: int = Field(default=0)

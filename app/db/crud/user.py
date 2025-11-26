@@ -11,13 +11,13 @@ from sqlalchemy.sql.functions import coalesce
 from app.db.compiles_types import DateDiff
 from app.db.models import (
     Admin,
+    DataLimitResetStrategy,
     Group,
     NextPlan,
     NodeUserUsage,
     NotificationReminder,
     ReminderType,
     User,
-    DataLimitResetStrategy,
     UserStatus,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
@@ -75,6 +75,18 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     if user:
         await load_user_attrs(user)
     return user
+
+
+async def get_existing_usernames(db: AsyncSession, usernames: Sequence[str]) -> set[str]:
+    """
+    Returns the set of usernames that already exist in the database.
+    """
+    if not usernames:
+        return set()
+
+    stmt = select(User.username).where(User.username.in_(usernames))
+    result = await db.execute(stmt)
+    return set(result.scalars().all())
 
 
 UsersSortingOptions = Enum(
@@ -489,6 +501,47 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
 
     await load_user_attrs(db_user)
     return db_user
+
+
+async def create_users_bulk(
+    db: AsyncSession, new_users: list[UserCreate], groups: list[Group], admin: Admin
+) -> list[User]:
+    """
+    Creates multiple users in a single commit for better performance.
+    """
+    if not new_users:
+        return []
+
+    db_users: list[User] = []
+    for new_user in new_users:
+        db_user = User(
+            **new_user.model_dump(exclude={"group_ids", "expire", "proxy_settings", "next_plan", "on_hold_timeout"})
+        )
+        db_user.admin = admin
+        db_user.groups = list(groups)
+        db_user.expire = new_user.expire or None
+        db_user.on_hold_timeout = new_user.on_hold_timeout or None
+        db_user.proxy_settings = new_user.proxy_settings.dict()
+        db_users.append(db_user)
+
+    db.add_all(db_users)
+    await db.flush()
+
+    next_plans: list[NextPlan] = []
+    for db_user, new_user in zip(db_users, new_users):
+        if new_user.next_plan:
+            next_plans.append(NextPlan(user_id=db_user.id, **new_user.next_plan.model_dump()))
+
+    if next_plans:
+        db.add_all(next_plans)
+        await db.flush()
+
+    await db.commit()
+
+    for user in db_users:
+        await load_user_attrs(user)
+
+    return db_users
 
 
 async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
