@@ -91,6 +91,16 @@ async def create_admin(
     return await admin_operator.create_admin(db, new_admin=new_admin, admin=admin)
 
 
+@router.put("/current", response_model=AdminDetails)
+async def modify_current_admin(
+    modified_admin: AdminCurrentModify,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminDetails = Depends(get_current),
+):
+    """Modify current admin's data."""
+    return await admin_operator.modify_current_admin(db, modified_admin=modified_admin, current_admin=current_admin)
+
+
 @router.put("/{username}", response_model=AdminDetails, responses={403: responses._403, 404: responses._404})
 async def modify_admin(
     username: str,
@@ -117,16 +127,6 @@ async def remove_admin(
 def get_current_admin(admin: AdminDetails = Depends(get_current)):
     """Retrieve the current authenticated admin."""
     return admin
-
-
-@router.put("/current", response_model=AdminDetails)
-async def modify_current_admin(
-    modified_admin: AdminCurrentModify,
-    db: AsyncSession = Depends(get_db),
-    current_admin: AdminDetails = Depends(get_current),
-):
-    """Modify current admin's data."""
-    return await admin_operator.modify_current_admin(db, modified_admin=modified_admin, current_admin=current_admin)
 
 
 @router.get("s", response_model=AdminsResponse)
