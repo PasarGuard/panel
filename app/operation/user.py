@@ -18,7 +18,9 @@ from app.db.crud.bulk import (
 )
 from app.db.crud.user import (
     UsersSortingOptions,
+    activate_user,
     create_user,
+    disable_user,
     get_all_users_usages,
     get_expired_users,
     get_user_usages,
@@ -193,6 +195,37 @@ class UserOperation(BaseOperation):
         """Reset all users data usage"""
         db_admin = await self.get_validated_admin(db, admin.username)
         await reset_all_users_data_usage(db=db, admin=db_admin)
+
+    async def activate_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
+        """Activate a user (set status to active). Only disabled users can be activated."""
+        db_user = await self.get_validated_user(db, username, admin)
+
+        if db_user.status != UserStatus.disabled:
+            await self.raise_error(message="Only disabled users can be activated", code=400)
+
+        db_user = await activate_user(db, db_user)
+        user = await self.update_user(db_user)
+
+        asyncio.create_task(notification.user_status_change(user, admin))
+
+        logger.info(f'User "{db_user.username}" was activated by admin "{admin.username}"')
+
+        return user
+
+    async def disable_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
+        """Disable a user (set status to disabled)"""
+        db_user = await self.get_validated_user(db, username, admin)
+
+        old_status = db_user.status
+        db_user = await disable_user(db, db_user)
+        user = await self.update_user(db_user)
+
+        if user.status != old_status:
+            asyncio.create_task(notification.user_status_change(user, admin))
+
+        logger.info(f'User "{db_user.username}" was disabled by admin "{admin.username}"')
+
+        return user
 
     async def active_next_plan(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
         """Reset user by next plan"""

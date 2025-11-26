@@ -981,6 +981,44 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
     return users
 
 
+async def activate_user(db: AsyncSession, db_user: User) -> User:
+    """
+    Activates a user by setting status to active.
+
+    Args:
+        db (AsyncSession): Database session.
+        db_user (User): The user object to activate.
+
+    Returns:
+        User: The updated user object.
+    """
+    db_user.status = UserStatus.active
+    db_user.last_status_change = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(db_user)
+    await load_user_attrs(db_user)
+    return db_user
+
+
+async def disable_user(db: AsyncSession, db_user: User) -> User:
+    """
+    Disables a user by setting status to disabled.
+
+    Args:
+        db (AsyncSession): Database session.
+        db_user (User): The user object to disable.
+
+    Returns:
+        User: The updated user object.
+    """
+    db_user.status = UserStatus.disabled
+    db_user.last_status_change = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(db_user)
+    await load_user_attrs(db_user)
+    return db_user
+
+
 async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     """
     Sets the owner (admin) of a user.
