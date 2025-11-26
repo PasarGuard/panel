@@ -1,5 +1,5 @@
 from PasarGuardNodeBridge import create_proxy, create_user
-from sqlalchemy import and_, func, select
+from sqlalchemy import Text, and_, cast, func, select
 
 from app.db import AsyncSession
 from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
@@ -28,12 +28,15 @@ def serialize_user_for_node(id: int, username: str, user_settings: dict, inbound
 async def core_users(db: AsyncSession):
     dialect = db.bind.dialect.name
 
-    # Use dialect-specific aggregation function
+    # Use dialect-specific aggregation and grouping
     if dialect == "postgresql":
         inbound_agg = func.string_agg(ProxyInbound.tag.distinct(), ",").label("inbound_tags")
+        # PostgreSQL can't GROUP BY JSON directly, cast to text
+        proxy_settings_group = cast(User.proxy_settings, Text)
     else:
         # MySQL and SQLite use group_concat
         inbound_agg = func.group_concat(ProxyInbound.tag.distinct()).label("inbound_tags")
+        proxy_settings_group = User.proxy_settings
 
     stmt = (
         select(
@@ -53,7 +56,7 @@ async def core_users(db: AsyncSession):
         .outerjoin(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
         .outerjoin(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
-        .group_by(User.id, User.username, User.proxy_settings)
+        .group_by(User.id, User.username, proxy_settings_group)
     )
 
     results = (await db.execute(stmt)).all()
