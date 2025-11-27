@@ -66,7 +66,7 @@ class AdminDetails(AdminContactInfo):
 
 class AdminModify(BaseModel):
     password: str | None = None
-    is_sudo: bool
+    is_sudo: bool | None = None
     telegram_id: int | None = None
     discord_webhook: str | None = None
     discord_id: int | None = None
