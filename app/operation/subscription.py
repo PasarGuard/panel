@@ -195,7 +195,7 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
 
         response_headers = self.create_info_response_headers(user, sub_settings)
-        user_response = SubscriptionUserResponse.model_validate(db_user.__dict__)
+        user_response = SubscriptionUserResponse.model_validate(db_user)
 
         return user_response, response_headers
 
