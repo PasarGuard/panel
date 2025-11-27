@@ -354,9 +354,9 @@ async def get_outbounds_stats(node: PasarGuardNode):
         return []
 
 
-async def calculate_admin_usage(users_usage: list) -> dict:
+async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
     if not users_usage:
-        return {}
+        return {}, set()
 
     # Get unique user IDs from users_usage
     uids = {int(user_usage["uid"]) for user_usage in users_usage}
@@ -375,7 +375,7 @@ async def calculate_admin_usage(users_usage: list) -> dict:
         if admin_id:
             admin_usage[admin_id] += user_usage["value"]
 
-    return admin_usage
+    return admin_usage, set(user_admin_map.keys())
 
 
 async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
@@ -408,15 +408,21 @@ async def record_user_usages():
     if not users_usage:
         return
 
-    user_stmt = (
-        update(User)
-        .where(User.id == bindparam("uid"))
-        .values(used_traffic=User.used_traffic + bindparam("value"), online_at=dt.now(tz.utc))
-        .execution_options(synchronize_session=False)
-    )
-    await safe_execute(user_stmt, users_usage)
+    admin_usage, valid_user_ids = await calculate_admin_usage(users_usage)
+    if not valid_user_ids:
+        logger.warning("Skipping user usage recording; no matching users found for received stats")
+        return
 
-    admin_usage = await calculate_admin_usage(users_usage)
+    valid_users_usage = [usage for usage in users_usage if int(usage["uid"]) in valid_user_ids]
+    if valid_users_usage:
+        user_stmt = (
+            update(User)
+            .where(User.id == bindparam("uid"))
+            .values(used_traffic=User.used_traffic + bindparam("value"), online_at=dt.now(tz.utc))
+            .execution_options(synchronize_session=False)
+        )
+        await safe_execute(user_stmt, valid_users_usage)
+
     if admin_usage:
         admin_data = [{"admin_id": aid, "value": val} for aid, val in admin_usage.items()]
         admin_stmt = (
@@ -430,13 +436,23 @@ async def record_user_usages():
     if DISABLE_RECORDING_NODE_USAGE:
         return
 
-    record_tasks = [
-        asyncio.create_task(
-            record_user_stats(params=api_params[node_id], node_id=node_id, usage_coefficient=usage_coefficient[node_id])
+    record_tasks = []
+    for node_id, params in api_params.items():
+        filtered_params = [param for param in params if int(param["uid"]) in valid_user_ids]
+        if not filtered_params:
+            continue
+        record_tasks.append(
+            asyncio.create_task(
+                record_user_stats(
+                    params=filtered_params,
+                    node_id=node_id,
+                    usage_coefficient=usage_coefficient[node_id],
+                )
+            )
         )
-        for node_id in api_params
-    ]
-    await asyncio.gather(*record_tasks)
+
+    if record_tasks:
+        await asyncio.gather(*record_tasks)
 
 
 async def record_node_usages():
