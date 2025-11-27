@@ -6,7 +6,7 @@ from uuid import UUID
 from cryptography.x509 import load_pem_x509_certificate
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.db.models import NodeConnectionType, NodeStatus, DataLimitResetStrategy
+from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
@@ -31,6 +31,7 @@ class Node(BaseModel):
     name: str
     address: str
     port: int = 62050
+    api_port: int = 62051
     usage_coefficient: float = Field(gt=0, default=1.0)
     connection_type: NodeConnectionType
     server_ca: str
