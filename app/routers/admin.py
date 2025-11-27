@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app import notification
 from app.db import AsyncSession, get_db
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token, AdminsResponse
+from app.models.admin import AdminCreate, AdminCurrentModify, AdminDetails, AdminModify, Token, AdminsResponse
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
@@ -89,6 +89,16 @@ async def create_admin(
 ):
     """Create a new admin if the current admin has sudo privileges."""
     return await admin_operator.create_admin(db, new_admin=new_admin, admin=admin)
+
+
+@router.put("/current", response_model=AdminDetails)
+async def modify_current_admin(
+    modified_admin: AdminCurrentModify,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminDetails = Depends(get_current),
+):
+    """Modify current admin's data."""
+    return await admin_operator.modify_current_admin(db, modified_admin=modified_admin, current_admin=current_admin)
 
 
 @router.put("/{username}", response_model=AdminDetails, responses={403: responses._403, 404: responses._404})

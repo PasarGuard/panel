@@ -118,6 +118,26 @@ async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
     await db.commit()
 
 
+async def update_admin_password(db: AsyncSession, db_admin: Admin, hashed_password: str) -> Admin:
+    """
+    Updates an admin's password.
+
+    Args:
+        db (AsyncSession): Database session.
+        db_admin (Admin): The admin object to be updated.
+        hashed_password (str): The new hashed password.
+
+    Returns:
+        Admin: The updated admin object.
+    """
+    db_admin.hashed_password = hashed_password
+    db_admin.password_reset_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(db_admin)
+    await load_admin_attrs(db_admin)
+    return db_admin
+
+
 async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
     """
     Retrieves an admin by their ID.

@@ -100,6 +100,23 @@ class AdminCreate(AdminModify):
     password: str
 
 
+class AdminCurrentModify(BaseModel):
+    """Model for modifying current admin's data."""
+
+    password: str | None = None
+
+    @property
+    def hashed_password(self):
+        if self.password:
+            return pwd_context.hash(self.password)
+        return None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str | None):
+        return PasswordValidator.validate_password(value)
+
+
 class AdminInDB(AdminDetails):
     hashed_password: str
 

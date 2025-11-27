@@ -12,10 +12,11 @@ from app.db.crud.admin import (
     remove_admin,
     reset_admin_usage,
     update_admin,
+    update_admin_password,
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminsResponse
+from app.models.admin import AdminCreate, AdminCurrentModify, AdminDetails, AdminModify, AdminsResponse
 from app.node import node_manager
 from app.operation import BaseOperation, OperatorType
 from app.operation.user import UserOperation
@@ -174,3 +175,16 @@ class AdminOperation(BaseOperation):
         asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
 
         return reseted_admin
+
+    async def modify_current_admin(
+        self, db: AsyncSession, modified_admin: AdminCurrentModify, current_admin: AdminDetails
+    ) -> AdminDetails:
+        """Modify current admin's data."""
+        db_admin = await self.get_validated_admin(db, username=current_admin.username)
+
+        if modified_admin.hashed_password:
+            db_admin = await update_admin_password(db, db_admin, modified_admin.hashed_password)
+
+        logger.info(f'Admin "{current_admin.username}" modified their account')
+
+        return AdminDetails.model_validate(db_admin)
