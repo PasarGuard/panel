@@ -134,7 +134,7 @@ async def update_geofiles(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(check_sudo_admin),
 ):
-    return await node_operator.update_core(db=db, node_id=node_id, node_geofiles_update=node_geofiles_update)
+    return await node_operator.update_geofiles(db=db, node_id=node_id, node_geofiles_update=node_geofiles_update)
 
 
 @router.put("/{node_id}", response_model=NodeResponse)
