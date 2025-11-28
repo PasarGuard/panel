@@ -217,7 +217,8 @@ export function DatePicker({
 
       if (isToday) {
         selectedDate.setHours(23, 59, 59, 999)
-      } else if (internalDate && !showTime) {
+      } else if (internalDate) {
+        // Preserve time from existing date (works for both showTime and !showTime)
         selectedDate.setHours(internalDate.getHours(), internalDate.getMinutes(), internalDate.getSeconds(), internalDate.getMilliseconds())
       } else {
         selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds())
