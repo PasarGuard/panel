@@ -212,18 +212,22 @@ async def _perform_bulk_creation(
     start_number: int | None = None,
 ):
     await delete_messages(event, state)
+    target = _message_target(event)
 
-    payload = BulkUsersFromTemplate(
+    try:
+        payload = BulkUsersFromTemplate(
         count=count,
         strategy=strategy,
         username=base_username,
         user_template_id=template_id,
         start_number=start_number,
     )
-    result = await user_operations.bulk_create_users_from_template(db, payload, admin)
+        result = await user_operations.bulk_create_users_from_template(db, payload, admin)
+    except Exception as e:
+        await state.clear()
+        return await target.answer(f"❌ {e}")
     await state.clear()
 
-    target = _message_target(event)
     if result.created == 0:
         return await target.answer(Texts.bulk_users_not_created())
 
