@@ -23,6 +23,12 @@ class UsageTable(str, Enum):
     node_usages = "node_usages"
 
 
+class GeoFilseRegion(str, Enum):
+    iran = "iran"
+    china = "china"
+    russia = "russia"
+
+
 class NodeSettings(BaseModel):
     min_node_version: str = "v1.0.0"
 
@@ -228,3 +234,11 @@ class UserIPListAll(BaseModel):
     """User IP lists for all nodes"""
 
     nodes: dict[int, UserIPList | None]  # {node_id: UserIPList | None}
+
+
+class NodeCoreUpdate(BaseModel):
+    core_version: str = Field(default="latest", pattern=r"^(latest|v?\d+\.\d+\.\d+)$", example="v25.8.31")
+
+
+class NodeGeoFilesUpdate(BaseModel):
+    region: GeoFilseRegion = Field(default=GeoFilseRegion.iran, example="iran")
