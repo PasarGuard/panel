@@ -28,6 +28,14 @@ def serialize_user_for_node(id: int, username: str, user_settings: dict, inbound
 
 
 async def core_users(db: AsyncSession):
+    """
+    Collects inbound tags for active and on-hold users and returns serialized bridge user payloads for node consumption.
+    
+    Aggregates each user's associated inbound tags and produces a serialized payload (via serialize_user_for_node) for every user that has at least one inbound tag.
+    
+    Returns:
+        list: A list of bridge user payloads produced by serialize_user_for_node.
+    """
     stmt = (
         select(
             User.id,
