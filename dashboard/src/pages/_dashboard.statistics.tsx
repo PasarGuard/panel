@@ -41,7 +41,7 @@ const Statistics = () => {
       </div>
 
       {/* Node Selector at the top */}
-      <div className="w-full px-3 pt-3 sm:px-4 sm:pt-4">
+      <div className="w-full px-4 pt-2 sm:px-4 sm:pt-4">
         <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '50ms', animationFillMode: 'both' }}>
           <Card>
             <CardContent className="p-4 sm:p-6">

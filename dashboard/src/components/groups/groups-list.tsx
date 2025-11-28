@@ -89,16 +89,18 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   }, [groupsData?.groups, searchQuery])
 
   return (
-    <div className="w-full flex-1 space-y-4 pt-4">
+    <div className="w-full flex-1 space-y-4">
       {/* Search Input */}
-      <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
-        <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
-        <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
-        {searchQuery && (
-          <button onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
-            <X className="h-4 w-4" />
-          </button>
-        )}
+      <div dir={dir} className="flex items-center gap-2 md:gap-4">
+        <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
+          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
+          <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
       <ScrollArea className="h-[calc(100vh-8rem)]">
         <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

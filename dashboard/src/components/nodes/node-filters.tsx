@@ -81,7 +81,7 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, adva
   }
 
   return (
-    <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
+    <div dir={dir} className="flex items-center gap-2 md:gap-4">
       {/* Search Input */}
       <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
         <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />

@@ -14,7 +14,7 @@ export default function GroupsPage() {
         <Separator />
       </div>
 
-      <div className="w-full px-4 pt-2">
+      <div className="w-full p-4">
         <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
           <Groups isDialogOpen={isDialogOpen} onOpenChange={setIsDialogOpen} />
         </div>

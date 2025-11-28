@@ -219,7 +219,7 @@ export default function HostsPage() {
         <Separator />
       </div>
 
-      <div className="w-full px-4 pt-6">
+      <div className="w-full p-4">
         {isLoading ? (
           <div className="grid w-full grid-cols-1 gap-4 py-6 md:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (

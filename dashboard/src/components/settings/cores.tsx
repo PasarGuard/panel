@@ -118,8 +118,8 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
   }, [coresList, searchQuery])
 
   return (
-    <div className={cn('flex w-full flex-col gap-4 py-4', dir === 'rtl' && 'rtl')}>
-      <div className="mt-2">
+    <div className={cn('flex w-full flex-col gap-4 pt-4', dir === 'rtl' && 'rtl')}>
+      <div>
         {/* Search Input */}
         <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
           <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
