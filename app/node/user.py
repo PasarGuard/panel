@@ -1,5 +1,7 @@
 from PasarGuardNodeBridge import create_proxy, create_user
-from sqlalchemy import and_, func, select
+from typing import Any
+
+from sqlalchemy import and_, select
 
 from app.db import AsyncSession
 from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
@@ -26,21 +28,12 @@ def serialize_user_for_node(id: int, username: str, user_settings: dict, inbound
 
 
 async def core_users(db: AsyncSession):
-    dialect = db.bind.dialect.name
-
-    # Use dialect-specific aggregation and grouping
-    if dialect == "postgresql":
-        inbound_agg = func.string_agg(ProxyInbound.tag.distinct(), ",").label("inbound_tags")
-    else:
-        # MySQL and SQLite use group_concat
-        inbound_agg = func.group_concat(ProxyInbound.tag.distinct()).label("inbound_tags")
-
     stmt = (
         select(
             User.id,
             User.username,
             User.proxy_settings,
-            inbound_agg,
+            ProxyInbound.tag,
         )
         .outerjoin(users_groups_association, User.id == users_groups_association.c.user_id)
         .outerjoin(
@@ -53,16 +46,36 @@ async def core_users(db: AsyncSession):
         .outerjoin(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
         .outerjoin(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
-        .group_by(User.id)
     )
 
     results = (await db.execute(stmt)).all()
+    user_data: dict[int, dict[str, Any]] = {}
     bridge_users: list = []
 
     for row in results:
-        inbound_tags = row.inbound_tags.split(",") if row.inbound_tags else []
+        user_entry = user_data.setdefault(
+            row.id,
+            {
+                "username": row.username,
+                "proxy_settings": row.proxy_settings,
+                "inbounds": set(),
+            },
+        )
+
+        if row.tag:
+            user_entry["inbounds"].add(row.tag)
+
+    for user_id, data in user_data.items():
+        inbound_tags = list(data["inbounds"])
         if inbound_tags:
-            bridge_users.append(serialize_user_for_node(row.id, row.username, row.proxy_settings, inbound_tags))
+            bridge_users.append(
+                serialize_user_for_node(
+                    user_id,
+                    data["username"],
+                    data["proxy_settings"],
+                    inbound_tags,
+                )
+            )
     return bridge_users
 
 
