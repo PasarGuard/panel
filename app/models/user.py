@@ -210,6 +210,14 @@ class BulkUsersFromTemplate(BulkCreationBase, CreateUserFromTemplate):
         description="Starting suffix for sequence strategy (defaults to 1; base username digits are ignored)",
     )
 
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v):
+        # Skip validation if username is None (for random strategy)
+        if v is None:
+            return v
+        return UserValidator.validate_username(v)
+
     @model_validator(mode="after")
     def validate_username_strategy(self):
         if self.strategy == UsernameGenerationStrategy.random:
