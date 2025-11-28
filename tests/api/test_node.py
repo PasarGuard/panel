@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from uuid import UUID, uuid4
 from unittest.mock import AsyncMock, MagicMock
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
@@ -20,7 +20,7 @@ from app.db.models import (
     NodeUserUsage,
     User,
 )
-from app.models.node import NodeCreate, NodeResponse, NodesResponse, NodeSettings
+from app.models.node import NodeCreate, NodeResponse, NodeSettings, NodesResponse
 from app.models.stats import (
     NodeRealtimeStats,
     NodeStats,
@@ -31,7 +31,6 @@ from app.models.stats import (
 )
 from tests.api import TestSession, client
 from tests.api.helpers import auth_headers, unique_name
-
 
 VALID_CERTIFICATE = """-----BEGIN CERTIFICATE-----
 MIIBvTCCAWOgAwIBAgIRAIY9Lzn0T3VFedUnT9idYkEwCgYIKoZIzj0EAwIwJjER
@@ -54,6 +53,7 @@ def sample_node_response(**overrides) -> NodeResponse:
         "name": "test-node",
         "address": "node.example.com",
         "port": 62050,
+        "api_port": 62051,
         "usage_coefficient": 1.0,
         "connection_type": NodeConnectionType.grpc,
         "server_ca": VALID_CERTIFICATE,
@@ -83,6 +83,7 @@ def node_create_payload(**overrides) -> dict:
         "name": "new-node",
         "address": "node.example.com",
         "port": 62050,
+        "api_port": 62051,
         "usage_coefficient": 1.0,
         "server_ca": VALID_CERTIFICATE,
         "connection_type": "grpc",
@@ -287,6 +288,7 @@ def test_modify_node_updates_fields(access_token, node_operator_mock):
         "status": "disabled",
         "address": "new.example.com",
         "port": 43000,
+        "api_port": 44000,
         "usage_coefficient": 0.8,
         "keep_alive": 30,
     }
