@@ -20,7 +20,7 @@ const QRCodeModal: FC<QRCodeModalProps> = memo(({ subscribeUrl, onCloseModal }) 
 
   return (
     <Dialog open={isOpen} onOpenChange={onCloseModal}>
-      <DialogContent className="max-h-[100dvh] max-w-[425px] overflow-y-auto">
+      <DialogContent className="max-h-[100dvh] max-w-[425px] overflow-y-auto overflow-x-hidden">
         <DialogHeader dir={dir}>
           <DialogTitle>
             <div className="px-2">
@@ -28,12 +28,18 @@ const QRCodeModal: FC<QRCodeModalProps> = memo(({ subscribeUrl, onCloseModal }) 
             </div>
           </DialogTitle>
         </DialogHeader>
-        <div dir="ltr" className="flex justify-center">
-          <div className="flex justify-center py-4">
-            <div className="m-2 flex flex-col items-center justify-center gap-y-4 py-4">
-              <QRCodeCanvas value={subscribeQrLink} size={300} className="rounded-md bg-white p-2" />
-              <span>{t('qrcodeDialog.sublink')}</span>
+        <div dir="ltr" className="flex w-full justify-center overflow-x-hidden">
+          <div className="flex w-full flex-col items-center justify-center gap-y-4 py-4 px-2">
+            <div className="flex w-full items-center justify-center">
+              <div className="flex items-center justify-center overflow-hidden max-w-[calc(100vw-80px)] sm:max-w-[300px]">
+                <QRCodeCanvas 
+                  value={subscribeQrLink} 
+                  size={300}
+                  className="rounded-md bg-white p-2 w-full max-w-full h-auto" 
+                />
+              </div>
             </div>
+            <span className="text-center">{t('qrcodeDialog.sublink')}</span>
           </div>
         </div>
       </DialogContent>
