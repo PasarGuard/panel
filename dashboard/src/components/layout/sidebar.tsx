@@ -37,6 +37,7 @@ import {
   Settings2,
   Share2Icon,
   UserCog,
+  UserPlus,
   Users2,
   UsersIcon,
   Webhook,
@@ -186,8 +187,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               icon: Layers,
               items: [
                 {
-                  title: 'bulk.groups',
+                  title: 'bulk.createUsers',
                   url: '/bulk',
+                  icon: UserPlus,
+                },
+                {
+                  title: 'bulk.groups',
+                  url: '/bulk/groups',
                   icon: Users2,
                 },
                 {

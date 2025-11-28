@@ -181,16 +181,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -210,11 +210,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsInput {
+export interface XrayMuxSettingsOutput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -367,6 +367,14 @@ export interface UsersResponse {
   users: UserResponse[]
   total: number
 }
+
+export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UsernameGenerationStrategy = {
+  random: 'random',
+  sequence: 'sequence',
+} as const
 
 export type UserUsageStatsListPeriod = Period | null
 
@@ -1154,6 +1162,19 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1167,19 +1188,6 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
-}
-
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1199,6 +1207,13 @@ export interface NodesResponse {
 
 export type NodeUsageStatsListPeriod = Period | null
 
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
+
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -1206,13 +1221,6 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1781,6 +1789,33 @@ export interface BulkUsersProxy {
   group_ids?: number[]
   admins?: number[]
   users?: number[]
+}
+
+/**
+ * Starting suffix for sequence strategy (defaults to 1; base username digits are ignored)
+ */
+export type BulkUsersFromTemplateStartNumber = number | null
+
+export type BulkUsersFromTemplateUsername = string | null
+
+export type BulkUsersFromTemplateNote = string | null
+
+export interface BulkUsersFromTemplate {
+  user_template_id: number
+  note?: BulkUsersFromTemplateNote
+  username?: BulkUsersFromTemplateUsername
+  /**
+   * @maximum 500
+   */
+  count: number
+  strategy?: UsernameGenerationStrategy
+  /** Starting suffix for sequence strategy (defaults to 1; base username digits are ignored) */
+  start_number?: BulkUsersFromTemplateStartNumber
+}
+
+export interface BulkUsersCreateResponse {
+  subscription_urls?: string[]
+  created?: number
 }
 
 export interface BulkUser {
@@ -5911,6 +5946,62 @@ export const useCreateUserFromTemplate = <TData = Awaited<ReturnType<typeof crea
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<CreateUserFromTemplate> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<CreateUserFromTemplate> }, TContext> => {
   const mutationOptions = getCreateUserFromTemplateMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Bulk create users from a template using configurable username strategies.
+
+- Includes the template creation fields plus `count`, `strategy`, and `start_number` (for sequences).
+- **strategy**: Username generation strategy — `sequence` or `random`.
+- **start_number**: Optional starting suffix for `sequence` strategy. Defaults to `1` and does not parse numbers from the base username.
+
+Returns subscription URLs for created users.
+ * @summary Bulk Create Users From Template
+ */
+export const bulkCreateUsersFromTemplate = (bulkUsersFromTemplate: BodyType<BulkUsersFromTemplate>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUsersCreateResponse>({ url: `/api/users/bulk/from_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersFromTemplate, signal })
+}
+
+export const getBulkCreateUsersFromTemplateMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkCreateUsersFromTemplate>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersFromTemplate> }, TContext>
+}) => {
+  const mutationKey = ['bulkCreateUsersFromTemplate']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkCreateUsersFromTemplate>>, { data: BodyType<BulkUsersFromTemplate> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkCreateUsersFromTemplate(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersFromTemplate> }, TContext>
+}
+
+export type BulkCreateUsersFromTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof bulkCreateUsersFromTemplate>>>
+export type BulkCreateUsersFromTemplateMutationBody = BodyType<BulkUsersFromTemplate>
+export type BulkCreateUsersFromTemplateMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
+
+/**
+ * @summary Bulk Create Users From Template
+ */
+export const useBulkCreateUsersFromTemplate = <
+  TData = Awaited<ReturnType<typeof bulkCreateUsersFromTemplate>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersFromTemplate> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersFromTemplate> }, TContext> => {
+  const mutationOptions = getBulkCreateUsersFromTemplateMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

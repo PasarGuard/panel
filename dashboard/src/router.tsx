@@ -10,6 +10,7 @@ const DashboardLayout = lazy(() => import('./pages/_dashboard'))
 const Dashboard = lazy(() => import('./pages/_dashboard._index'))
 const AdminsPage = lazy(() => import('./pages/_dashboard.admins'))
 const BulkPage = lazy(() => import('./pages/_dashboard.bulk'))
+const BulkCreatePage = lazy(() => import('./pages/_dashboard.bulk.create'))
 const BulkDataPage = lazy(() => import('./pages/_dashboard.bulk.data'))
 const BulkExpirePage = lazy(() => import('./pages/_dashboard.bulk.expire'))
 const BulkGroupsPage = lazy(() => import('./pages/_dashboard.bulk.groups'))
@@ -251,9 +252,26 @@ export const router = createHashRouter([
         children: [
           {
             path: '/bulk',
+            index: true,
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <BulkCreatePage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/bulk/groups',
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <BulkGroupsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/bulk/create',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <BulkCreatePage />
               </Suspense>
             ),
           },

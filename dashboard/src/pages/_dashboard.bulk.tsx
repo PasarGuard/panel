@@ -1,13 +1,14 @@
 import PageHeader from '@/components/layout/page-header'
 import PageTransition from '@/components/layout/page-transition'
 import { getDocsUrl } from '@/utils/docs-url'
-import { ArrowUpDown, Calendar, Lock, Users2 } from 'lucide-react'
+import { ArrowUpDown, Calendar, Lock, Users2, UserPlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
 const tabs = [
-  { id: 'groups', label: 'bulk.groups', icon: Users2, url: '/bulk' },
+  { id: 'create', label: 'bulk.createUsers', icon: UserPlus, url: '/bulk' },
+  { id: 'groups', label: 'bulk.groups', icon: Users2, url: '/bulk/groups' },
   { id: 'expire', label: 'bulk.expireDate', icon: Calendar, url: '/bulk/expire' },
   { id: 'data', label: 'bulk.dataLimit', icon: ArrowUpDown, url: '/bulk/data' },
   { id: 'proxy', label: 'bulk.proxySettings', icon: Lock, url: '/bulk/proxy' },
@@ -27,39 +28,19 @@ const BulkPage = () => {
   }, [location.pathname])
 
   const getPageHeaderProps = () => {
-    if (location.pathname === '/bulk/proxy') {
-      return {
-        title: 'bulk.proxySettings',
-        description: 'bulk.proxySettingsDesc',
-        buttonIcon: undefined,
-        buttonText: undefined,
-        onButtonClick: undefined,
-      }
+    const pathToHeader: Record<string, { title: string; description: string }> = {
+      '/bulk': { title: 'bulk.createUsers', description: 'bulk.createUsersDesc' },
+      '/bulk/create': { title: 'bulk.createUsers', description: 'bulk.createUsersDesc' },
+      '/bulk/groups': { title: 'bulk.groups', description: 'bulk.groupsDesc' },
+      '/bulk/expire': { title: 'bulk.expireDate', description: 'bulk.expireDateDesc' },
+      '/bulk/data': { title: 'bulk.dataLimit', description: 'bulk.dataLimitDesc' },
+      '/bulk/proxy': { title: 'bulk.proxySettings', description: 'bulk.proxySettingsDesc' },
     }
-    if (location.pathname === '/bulk/expire') {
-      return {
-        title: 'bulk.expireDate',
-        description: 'bulk.expireDateDesc',
-        buttonIcon: undefined,
-        buttonText: undefined,
-        onButtonClick: undefined,
-      }
-    }
-    if (location.pathname === '/bulk/data') {
-      return {
-        title: 'bulk.dataLimit',
-        description: 'bulk.dataLimitDesc',
-        buttonIcon: undefined,
-        buttonText: undefined,
-        onButtonClick: undefined,
-      }
-    }
+
+    const header = pathToHeader[location.pathname] || pathToHeader['/bulk']
     return {
-      title: 'bulk.groups',
-      description: 'bulk.groupsDesc',
-      buttonIcon: undefined,
-      buttonText: undefined,
-      onButtonClick: undefined,
+      title: header.title,
+      description: header.description,
     }
   }
 
