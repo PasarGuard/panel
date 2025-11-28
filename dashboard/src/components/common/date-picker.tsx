@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
 import { formatDateByLocale, formatDateShort, isDateDisabled } from '@/utils/datePickerUtils'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useTheme } from '@/components/common/theme-provider'
 
 export type DatePickerMode = 'single' | 'range'
 
@@ -163,6 +164,7 @@ export function DatePicker({
   const { t, i18n } = useTranslation()
   const isPersianLocale = i18n.language === 'fa'
   const isMobile = useIsMobile()
+  const { resolvedTheme } = useTheme()
   const [internalOpen, setInternalOpen] = useState(false)
   const [internalDate, setInternalDate] = useState<Date | undefined>(date || undefined)
   const [internalRange, setInternalRange] = useState<DateRange | undefined>(range || defaultRange || (mode === 'range' ? { from: addDays(new Date(), -7), to: new Date() } : undefined))
@@ -423,9 +425,12 @@ export function DatePicker({
                     type="time"
                     value={timeValue}
                     onChange={handleTimeChange}
-                    className="w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:hue-rotate-0 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:saturate-100"
+                    className={cn(
+                      'w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:hue-rotate-0 [&::-webkit-calendar-picker-indicator]:saturate-100',
+                      resolvedTheme === 'dark' && '[&::-webkit-calendar-picker-indicator]:invert',
+                    )}
                     style={{
-                      colorScheme: 'dark',
+                      colorScheme: resolvedTheme,
                     }}
                     dir="ltr"
                   />
