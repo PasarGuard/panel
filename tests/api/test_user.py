@@ -351,3 +351,107 @@ def test_modify_user_with_template(access_token):
         delete_user(access_token, username)
         delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
+
+
+def test_bulk_create_users_from_template_sequence(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]])
+    base_username = unique_name("bulk_template_seq")
+    count = 2
+    start_number = 3
+    expected_usernames: list[str] = []
+
+    try:
+        response = client.post(
+            "/api/users/bulk/from_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "user_template_id": template["id"],
+                "strategy": "sequence",
+                "username": base_username,
+                "count": count,
+                "start_number": start_number,
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["created"] == count
+        assert len(response.json()["subscription_urls"]) == count
+
+        expected_usernames = [f"{base_username}{start_number + idx}" for idx in range(count)]
+
+        for username in expected_usernames:
+            user_response = client.get(
+                f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"}
+            )
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["data_limit"] == template["data_limit"]
+            assert user_response.json()["status"] == template["status"]
+    finally:
+        for username in expected_usernames:
+            delete_user(access_token, username)
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_bulk_create_users_from_template_random(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]])
+    count = 2
+    created_usernames: list[str] = []
+
+    try:
+        response = client.post(
+            "/api/users/bulk/from_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "user_template_id": template["id"],
+                "count": count,
+                "strategy": "random",
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["created"] == count
+        assert len(response.json()["subscription_urls"]) == count
+
+        users_response = client.get(
+            "/api/users",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"group": groups[0]["id"]},
+        )
+        assert users_response.status_code == status.HTTP_200_OK
+        users = users_response.json()["users"]
+        created_usernames = [user["username"] for user in users]
+        assert len(created_usernames) == count
+        for user in users:
+            assert user["data_limit"] == template["data_limit"]
+            assert user["status"] == template["status"]
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_bulk_create_users_from_template_random_with_username_rejected(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]])
+
+    try:
+        response = client.post(
+            "/api/users/bulk/from_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "user_template_id": template["id"],
+                "count": 1,
+                "strategy": "random",
+                "username": "should_fail",
+            },
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert "username must be null when strategy is 'random'" in response.text
+    finally:
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
