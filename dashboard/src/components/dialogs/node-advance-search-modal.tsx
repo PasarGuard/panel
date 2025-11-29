@@ -41,7 +41,7 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-full max-w-[650px] flex-col justify-start sm:h-auto" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="flex h-auto max-w-[650px] flex-col justify-start " onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className={`${dir === 'rtl' ? 'text-right' : 'text-left'}`} dir={dir}>
             {t('advanceSearch.title')}
