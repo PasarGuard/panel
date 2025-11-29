@@ -59,7 +59,7 @@ async def _prepare_subscription_inbound_data(
         tls_value = inbound_config.get("tls", "none")
 
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
-    fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp", "")
+    fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp", "chrome")
     ais = host.allowinsecure if host.allowinsecure is not None else inbound_config.get("allowinsecure", False)
 
     # Create TLS config once with merged data
