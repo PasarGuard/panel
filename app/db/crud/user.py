@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
 from typing import List, Optional, Sequence
 
-from sqlalchemy import and_, case, delete, desc, func, not_, or_, select, update
+from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.functions import coalesce
@@ -854,7 +854,7 @@ async def autodelete_expired_users(
     """
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
-    auto_delete = coalesce(User.auto_delete_in_days, USERS_AUTODELETE_DAYS)
+    auto_delete = func.coalesce(User.auto_delete_in_days, literal(USERS_AUTODELETE_DAYS))
 
     query = (
         select(
