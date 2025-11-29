@@ -25,7 +25,9 @@ from app.db.crud.user import get_user
 from app.db.models import Node, NodeStatus
 from app.models.admin import AdminDetails
 from app.models.node import (
+    NodeCoreUpdate,
     NodeCreate,
+    NodeGeoFilesUpdate,
     NodeModify,
     NodeNotification,
     NodeResponse,
@@ -622,3 +624,36 @@ class NodeOperation(BaseOperation):
             return {"detail": f"All data from '{table}' has been deleted successfully."}
         except Exception as e:
             await self.raise_error(code=400, message=f"Deletion failed due to server error: {str(e)}")
+
+    async def update_node(self, db: AsyncSession, node_id: int) -> dict:
+        await self.get_validated_node(db, node_id)
+        node = await node_manager.get_node(node_id)
+        if node is None:
+            await self.raise_error(message="Node not found", code=404)
+        try:
+            response = await node.update_node()
+        except NodeAPIError as e:
+            await self.raise_error(message=e.detail, code=e.code)
+        return response.json()
+
+    async def update_core(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+        await self.get_validated_node(db, node_id)
+        node = await node_manager.get_node(node_id)
+        if node is None:
+            await self.raise_error(message="Node not found", code=404)
+        try:
+            response = await node.update_core(node_core_update.model_dump(mode="json"))
+        except NodeAPIError as e:
+            await self.raise_error(message=e.detail, code=e.code)
+        return response.json()
+
+    async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+        await self.get_validated_node(db, node_id)
+        node = await node_manager.get_node(node_id)
+        if node is None:
+            await self.raise_error(message="Node not found", code=404)
+        try:
+            response = await node.update_geofiles(node_geofiles_update.model_dump(mode="json"))
+        except NodeAPIError as e:
+            await self.raise_error(message=e.detail, code=e.code)
+        return response.json()

@@ -6,7 +6,7 @@ from uuid import UUID
 from cryptography.x509 import load_pem_x509_certificate
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.db.models import NodeConnectionType, NodeStatus, DataLimitResetStrategy
+from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
@@ -23,6 +23,12 @@ class UsageTable(str, Enum):
     node_usages = "node_usages"
 
 
+class GeoFilseRegion(str, Enum):
+    iran = "iran"
+    china = "china"
+    russia = "russia"
+
+
 class NodeSettings(BaseModel):
     min_node_version: str = "v1.0.0"
 
@@ -31,6 +37,7 @@ class Node(BaseModel):
     name: str
     address: str
     port: int = 62050
+    api_port: int = 62051
     usage_coefficient: float = Field(gt=0, default=1.0)
     connection_type: NodeConnectionType
     server_ca: str
@@ -227,3 +234,11 @@ class UserIPListAll(BaseModel):
     """User IP lists for all nodes"""
 
     nodes: dict[int, UserIPList | None]  # {node_id: UserIPList | None}
+
+
+class NodeCoreUpdate(BaseModel):
+    core_version: str = Field(default="latest", pattern=r"^(latest|v?\d+\.\d+\.\d+)$", example="v25.8.31")
+
+
+class NodeGeoFilesUpdate(BaseModel):
+    region: GeoFilseRegion = Field(default=GeoFilseRegion.iran, example="iran")

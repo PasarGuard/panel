@@ -3,18 +3,20 @@ from datetime import datetime as dt
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sse_starlette.sse import EventSourceResponse
 from PasarGuardNodeBridge import NodeAPIError
+from sse_starlette.sse import EventSourceResponse
 
 from app.db import AsyncSession, get_db
 from app.db.models import NodeStatus
 from app.models.admin import AdminDetails
 from app.models.node import (
+    NodeCoreUpdate,
     NodeCreate,
+    NodeGeoFilesUpdate,
     NodeModify,
     NodeResponse,
-    NodesResponse,
     NodeSettings,
+    NodesResponse,
     UsageTable,
     UserIPList,
     UserIPListAll,
@@ -108,6 +110,31 @@ async def create_node(
 async def get_node(node_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)):
     """Retrieve details of a specific node by its ID."""
     return await node_operator.get_validated_node(db=db, node_id=node_id)
+
+
+@router.post("/{node_id}/update")
+async def update_node(node_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)):
+    return await node_operator.update_node(db=db, node_id=node_id)
+
+
+@router.post("/{node_id}/core_update")
+async def update_core(
+    node_id: int,
+    node_core_update: NodeCoreUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(check_sudo_admin),
+):
+    return await node_operator.update_core(db=db, node_id=node_id, node_core_update=node_core_update)
+
+
+@router.post("/{node_id}/geofiles")
+async def update_geofiles(
+    node_id: int,
+    node_geofiles_update: NodeGeoFilesUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(check_sudo_admin),
+):
+    return await node_operator.update_geofiles(db=db, node_id=node_id, node_geofiles_update=node_geofiles_update)
 
 
 @router.put("/{node_id}", response_model=NodeResponse)

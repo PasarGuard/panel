@@ -38,6 +38,7 @@ class NodeManager:
                 connection=type_map[node.connection_type],
                 address=node.address,
                 port=node.port,
+                api_port=node.api_port,
                 server_ca=node.server_ca,
                 api_key=node.api_key,
                 name=node.name,

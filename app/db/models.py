@@ -487,6 +487,7 @@ class Node(Base):
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(unique=False, nullable=False)
+    api_port: Mapped[int] = mapped_column(unique=False, nullable=False, server_default="62051")
     xray_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, init=False)
     message: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True, init=False)
     server_ca: Mapped[str] = mapped_column(String(2048), nullable=False)
