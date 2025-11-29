@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { queryClient } from '@/utils/query-client'
 import useDirDetection from '@/hooks/use-dir-detection'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Loader2, Settings, RefreshCw } from 'lucide-react'
 import { v4 as uuidv4, v5 as uuidv5, v6 as uuidv6, v7 as uuidv7 } from 'uuid'
 import { LoaderButton } from '../ui/loader-button'
@@ -82,14 +82,74 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   )
 
   const currentNode = node || initialNodeData
+  const lastSyncedNodeRef = useRef<NodeResponse | null>(null)
+  
   useEffect(() => {
     if (isDialogOpen) {
       setErrorDetails(null)
       setAutoCheck(true)
       dataLimitInputRef.current = ''
       setIsFetchingNodeData(false)
+      lastSyncedNodeRef.current = null
     }
   }, [isDialogOpen])
+
+  // Update form when node data changes (from auto-refresh or external updates)
+  useEffect(() => {
+    if (!isDialogOpen || !editingNode || !editingNodeId || !node) return
+    
+    // Skip if form is dirty (user has made changes)
+    if (form.formState.isDirty) return
+    
+    // Skip if this is the same node data we already synced
+    // Compare key fields that change externally (status, message, versions, usage)
+    const lastSynced = lastSyncedNodeRef.current
+    if (lastSynced && 
+        lastSynced.id === node.id &&
+        lastSynced.status === node.status &&
+        lastSynced.message === node.message &&
+        lastSynced.xray_version === node.xray_version &&
+        lastSynced.node_version === node.node_version &&
+        lastSynced.uplink === node.uplink &&
+        lastSynced.downlink === node.downlink &&
+        lastSynced.name === node.name &&
+        lastSynced.address === node.address &&
+        lastSynced.port === node.port) {
+      return
+    }
+
+    // Update form with new node data
+    const dataLimitBytes = node.data_limit ?? null
+    const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0 
+      ? dataLimitBytes / (1024 * 1024 * 1024) 
+      : 0
+
+    if (dataLimitGB > 0) {
+      const formatted = parseFloat(dataLimitGB.toFixed(9))
+      dataLimitInputRef.current = String(formatted)
+    } else {
+      dataLimitInputRef.current = ''
+    }
+
+    form.reset({
+      name: node.name,
+      address: node.address,
+      port: node.port,
+      usage_coefficient: node.usage_coefficient,
+      connection_type: node.connection_type,
+      server_ca: node.server_ca,
+      keep_alive: node.keep_alive,
+      api_key: (node.api_key as string) || '',
+      core_config_id: node.core_config_id ?? cores?.cores?.[0]?.id,
+      data_limit: dataLimitGB,
+      data_limit_reset_strategy: node.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
+      reset_time: node.reset_time ?? null,
+      default_timeout: node.default_timeout ?? 10,
+      internal_timeout: node.internal_timeout ?? 15,
+    }, { keepDirty: false, keepValues: false })
+
+    lastSyncedNodeRef.current = node
+  }, [node, isDialogOpen, editingNode, editingNodeId, form, cores])
 
   useEffect(() => {
     const values = form.getValues()
@@ -145,6 +205,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           default_timeout: nodeData.default_timeout ?? 10,
           internal_timeout: nodeData.internal_timeout ?? 15,
         })
+        lastSyncedNodeRef.current = nodeData
         setIsFetchingNodeData(false)
       } else {
         const fetchNodeData = async () => {
@@ -178,6 +239,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               default_timeout: nodeData.default_timeout ?? 10,
               internal_timeout: nodeData.internal_timeout ?? 15,
             })
+            lastSyncedNodeRef.current = nodeData
           } catch (error) {
             console.error('Error fetching node data:', error)
             toast.error(t('nodes.fetchFailed'))
@@ -308,6 +370,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
       if (nodeId && editingNode) {
         queryClient.invalidateQueries({ queryKey: [`/api/node/${nodeId}`] })
+        lastSyncedNodeRef.current = null
       }
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
       onOpenChange(false)
@@ -528,7 +591,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     }}
                   />
 
-                  <Accordion type="single" collapsible className="mb-4 mt-0 w-full pb-4">
+                  <Accordion type="single" collapsible className="mb-4 !mt-0 w-full pb-4">
                     <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="advanced-settings">
                       <AccordionTrigger>
                         <div className="flex items-center gap-2">
