@@ -1815,5 +1815,18 @@
     "formHasErrors": "Пожалуйста, исправьте ошибки формы перед отправкой",
     "formInvalid": "Форма недействительна. Пожалуйста, проверьте все обязательные поля.",
     "missingFields": "Пожалуйста, заполните обязательные поля: {{fields}}"
+  },
+  "version": {
+    "newVersionAvailable": "Доступна новая версия!",
+    "currentVersion": "Текущая",
+    "latestVersion": "Последняя",
+    "clickToUpdate": "Доступна новая версия для загрузки",
+    "upToDate": "Актуально",
+    "runningLatest": "Версия {{version}}",
+    "updateBanner": "Доступно обновление: {{current}} → {{latest}}",
+    "updateBannerMobile": "Обновление: {{latest}}",
+    "updateCommandLabel": "Подключитесь по SSH и выполните:",
+    "closeBanner": "Закрыть уведомление об обновлении",
+    "needsUpdate": "Требуется обновление"
   }
 }

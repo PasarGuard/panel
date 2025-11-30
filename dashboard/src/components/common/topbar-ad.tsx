@@ -3,11 +3,14 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { useTheme, type ColorTheme } from '@/components/common/theme-provider'
+import { useTheme } from '@/components/common/theme-provider'
+import { getGradientByColorTheme } from '@/constants/ThemeGradients'
 import useDirDetection from '@/hooks/use-dir-detection'
 
 const TOPBAR_AD_STORAGE_KEY = 'topbar_ad_closed'
 const HOURS_TO_HIDE = 24
+const TOPBAR_AD_CACHE_KEY = 'topbar_ad_cache'
+const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
 
 interface TopbarAdConfig {
   enabled: boolean
@@ -24,44 +27,12 @@ interface TopbarAdConfig {
   }
 }
 
-const getGradientByColorTheme = (colorTheme: ColorTheme, isDark: boolean): string => {
-  const gradients: Record<ColorTheme, { light: string; dark: string }> = {
-    default: {
-      light: 'bg-gradient-to-r from-blue-100/90 via-indigo-100/90 to-blue-100/90',
-      dark: 'bg-gradient-to-r from-blue-950/50 via-indigo-950/50 to-blue-950/50',
-    },
-    red: {
-      light: 'bg-gradient-to-r from-red-100/90 via-rose-100/90 to-red-100/90',
-      dark: 'bg-gradient-to-r from-red-950/50 via-rose-950/50 to-red-950/50',
-    },
-    rose: {
-      light: 'bg-gradient-to-r from-rose-100/90 via-pink-100/90 to-rose-100/90',
-      dark: 'bg-gradient-to-r from-rose-950/50 via-pink-950/50 to-rose-950/50',
-    },
-    orange: {
-      light: 'bg-gradient-to-r from-orange-100/90 via-amber-100/90 to-orange-100/90',
-      dark: 'bg-gradient-to-r from-orange-950/50 via-amber-950/50 to-orange-950/50',
-    },
-    green: {
-      light: 'bg-gradient-to-r from-green-100/90 via-emerald-100/90 to-green-100/90',
-      dark: 'bg-gradient-to-r from-green-950/50 via-emerald-950/50 to-green-950/50',
-    },
-    blue: {
-      light: 'bg-gradient-to-r from-blue-100/90 via-cyan-100/90 to-blue-100/90',
-      dark: 'bg-gradient-to-r from-blue-950/50 via-cyan-950/50 to-blue-950/50',
-    },
-    yellow: {
-      light: 'bg-gradient-to-r from-yellow-100/90 via-amber-100/90 to-yellow-100/90',
-      dark: 'bg-gradient-to-r from-yellow-950/50 via-amber-950/50 to-yellow-950/50',
-    },
-    violet: {
-      light: 'bg-gradient-to-r from-violet-100/90 via-purple-100/90 to-violet-100/90',
-      dark: 'bg-gradient-to-r from-violet-950/50 via-purple-950/50 to-violet-950/50',
-    },
-  }
-
-  return isDark ? gradients[colorTheme].dark : gradients[colorTheme].light
+interface CachedAdData {
+  config: TopbarAdConfig | null
+  timestamp: number
+  is404: boolean
 }
+
 
 export default function TopbarAd() {
   const { i18n } = useTranslation()
@@ -77,6 +48,25 @@ export default function TopbarAd() {
   const [iconError, setIconError] = useState(false)
 
   useEffect(() => {
+    const getCached = (): CachedAdData | null => {
+      try {
+        const cached = localStorage.getItem(TOPBAR_AD_CACHE_KEY)
+        if (!cached) return null
+        return JSON.parse(cached)
+      } catch {
+        return null
+      }
+    }
+
+    const setCache = (config: TopbarAdConfig | null, is404: boolean): void => {
+      try {
+        const data: CachedAdData = { config, timestamp: Date.now(), is404 }
+        localStorage.setItem(TOPBAR_AD_CACHE_KEY, JSON.stringify(data))
+      } catch {
+        // Silently fail
+      }
+    }
+
     const checkShouldFetch = () => {
       const closedTimestamp = localStorage.getItem(TOPBAR_AD_STORAGE_KEY)
       
@@ -96,6 +86,23 @@ export default function TopbarAd() {
       return
     }
 
+    // Check cache first
+    const cached = getCached()
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      // Use cached data if still valid
+      if (cached.is404) {
+        // If it's a 404 cache, don't fetch and set config to null
+        setConfig(null)
+        setIsLoading(false)
+        return
+      } else {
+        // Use cached successful response
+        setConfig(cached.config)
+        setIsLoading(false)
+        return
+      }
+    }
+
     const loadConfig = async () => {
       try {
         const githubApiUrl = 'https://api.github.com/repos/pasarguard/ads/contents/config'
@@ -111,15 +118,28 @@ export default function TopbarAd() {
               Array.from(binaryString, (char) => '%' + ('00' + char.charCodeAt(0).toString(16)).slice(-2)).join('')
             )
             const data = JSON.parse(utf8String)
+            setCache(data, false)
             setConfig(data)
           } else {
+            setCache(null, false)
             setConfig(null)
           }
         } else {
+          // Cache 404 errors
+          if (response.status === 404) {
+            setCache(null, true)
+          } else {
+            setCache(null, false)
+          }
           setConfig(null)
         }
       } catch (error) {
-        setConfig(null)
+        // On error, use cached data if available, otherwise set to null
+        if (cached && !cached.is404) {
+          setConfig(cached.config)
+        } else {
+          setConfig(null)
+        }
       } finally {
         setIsLoading(false)
       }
@@ -206,7 +226,7 @@ export default function TopbarAd() {
   }
 
   const isDark = resolvedTheme === 'dark'
-  const gradientBg = getGradientByColorTheme(colorTheme, isDark)
+  const gradientBg = getGradientByColorTheme(colorTheme, isDark, 'ad')
 
   return (
     <div

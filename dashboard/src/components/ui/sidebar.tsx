@@ -280,6 +280,9 @@ SidebarTrigger.displayName = 'SidebarTrigger'
 const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentProps<'button'>>(({ className, ...props }, ref) => {
   const { toggleSidebar, state } = useSidebar()
   const { t } = useTranslation()
+  const dir = useDirDetection()
+  const isRTL = dir === 'rtl'
+  
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -289,15 +292,26 @@ const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentProps<'bu
           tabIndex={0}
           onClick={toggleSidebar}
           className={cn(
-            'absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex',
-            '[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize',
-            '[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize',
-            'group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full group-data-[collapsible=offcanvas]:hover:bg-sidebar',
-            '[[data-side=left][data-collapsible=offcanvas]_&]:-right-2',
-            '[[data-side=right][data-collapsible=offcanvas]_&]:-left-2',
-            'group-data-[collapsible=icon]:translate-x-0 group-data-[collapsible=icon]:after:left-full group-data-[collapsible=icon]:after:w-[1px]',
-            '[[data-side=left][data-collapsible=icon]_&]:right-0 [[data-side=left][data-collapsible=icon]_&]:translate-x-0',
-            '[[data-side=right][data-collapsible=icon]_&]:left-0 [[data-side=right][data-collapsible=icon]_&]:translate-x-0',
+            'absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear after:absolute after:inset-y-0 after:w-[2px] hover:after:bg-sidebar-border sm:flex',
+            // Positioning for left side (LTR) or right side (RTL)
+            isRTL
+              ? 'group-data-[side=right]:-left-4 group-data-[side=left]:right-0 translate-x-1/2 after:right-1/2'
+              : 'group-data-[side=left]:-right-4 group-data-[side=right]:left-0 -translate-x-1/2 after:left-1/2',
+            // Cursor styles - RTL-aware
+            isRTL
+              ? '[[data-side=right]_&]:cursor-w-resize [[data-side=left]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-e-resize [[data-side=left][data-state=collapsed]_&]:cursor-w-resize'
+              : '[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize [[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize',
+            // Offcanvas mode
+            'group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:hover:bg-sidebar',
+            isRTL
+              ? 'group-data-[collapsible=offcanvas]:after:right-full [[data-side=right][data-collapsible=offcanvas]_&]:-left-2 [[data-side=left][data-collapsible=offcanvas]_&]:-right-2'
+              : 'group-data-[collapsible=offcanvas]:after:left-full [[data-side=left][data-collapsible=offcanvas]_&]:-right-2 [[data-side=right][data-collapsible=offcanvas]_&]:-left-2',
+            // Icon mode
+            'group-data-[collapsible=icon]:translate-x-0 group-data-[collapsible=icon]:after:w-[1px]',
+            isRTL
+              ? 'group-data-[collapsible=icon]:after:right-full [[data-side=right][data-collapsible=icon]_&]:left-0 [[data-side=left][data-collapsible=icon]_&]:right-0'
+              : 'group-data-[collapsible=icon]:after:left-full [[data-side=left][data-collapsible=icon]_&]:right-0 [[data-side=right][data-collapsible=icon]_&]:left-0',
+            // Hover effects
             'hover:after:w-[4px] hover:after:bg-sidebar-accent',
             'group-data-[collapsible=icon]:hover:after:w-[2px]',
             'after:transition-all after:duration-200',
@@ -309,7 +323,14 @@ const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentProps<'bu
           {...props}
         />
       </TooltipTrigger>
-      <TooltipContent className="font-semibold" side={state === 'collapsed' ? 'right' : 'left'} align="center">
+      <TooltipContent 
+        className="font-semibold" 
+        side={isRTL 
+          ? (state === 'collapsed' ? 'left' : 'right')
+          : (state === 'collapsed' ? 'right' : 'left')
+        } 
+        align="center"
+      >
         {state === 'collapsed' ? t('sidebar.expand') : t('sidebar.collapse')}
       </TooltipContent>
     </Tooltip>

@@ -374,6 +374,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             copiedMessage="usersTable.copied"
             defaultMessage="usersTable.copyLink"
             icon="link"
+            showToast={true}
+            toastSuccessMessage="usersTable.copied"
+            toastErrorMessage="copyFailed"
           />
           <Tooltip open={copied ? true : undefined}>
             <DropdownMenu>

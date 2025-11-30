@@ -1865,5 +1865,18 @@
     "pending": "In Progress",
     "githubStarsUnit": "stars",
     "githubProgress": "Star progress"
+  },
+  "version": {
+    "newVersionAvailable": "New version available!",
+    "currentVersion": "Current",
+    "latestVersion": "Latest",
+    "clickToUpdate": "A new version is available for download",
+    "upToDate": "Up to date",
+    "runningLatest": "Running {{version}}",
+    "updateBanner": "Update available: {{current}} → {{latest}}",
+    "updateBannerMobile": "Update: {{latest}}",
+    "updateCommandLabel": "Connect via SSH and run:",
+    "closeBanner": "Close update notification",
+    "needsUpdate": "Needs update"
   }
 }

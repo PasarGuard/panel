@@ -1837,5 +1837,18 @@
     "pending": "در حال انجام",
     "githubStarsUnit": "ستاره",
     "githubProgress": "پیشرفت ستاره‌ها"
+  },
+  "version": {
+    "newVersionAvailable": "نسخه جدید موجود است!",
+    "currentVersion": "نسخه فعلی",
+    "latestVersion": "آخرین نسخه",
+    "clickToUpdate": "نسخه جدید برای دانلود موجود است",
+    "upToDate": "به‌روز است",
+    "runningLatest": "نسخه {{version}} در حال اجرا",
+    "updateBanner": "به‌روزرسانی موجود: {{current}} → {{latest}}",
+    "updateBannerMobile": "به‌روزرسانی: {{latest}}",
+    "updateCommandLabel": "از طریق SSH متصل شوید و اجرا کنید:",
+    "closeBanner": "بستن اعلان به‌روزرسانی",
+    "needsUpdate": "نیاز به به‌روزرسانی"
   }
 }

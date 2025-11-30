@@ -1,16 +1,21 @@
 import { GithubStar } from '@/components/layout/github-star'
 import { GoalProgress } from '@/components/layout/goal-progress'
+import { VersionBadge } from '@/components/layout/version-badge'
+import { SidebarTriggerWithBadge } from '@/components/layout/sidebar-trigger-with-badge'
 import { Language } from '@/components/common/language'
 import { NavMain } from '@/components/layout/nav-main'
 import { NavSecondary } from '@/components/layout/nav-secondary'
 import { NavUser } from '@/components/layout/nav-user'
 import { useTheme } from '@/components/common/theme-provider'
 import { ThemeToggle } from '@/components/common/theme-toggle'
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar } from '@/components/ui/sidebar'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@/components/ui/button'
 import { Link } from 'react-router'
 import { DISCUSSION_GROUP, DOCUMENTATION, DONATION_URL, REPO_URL } from '@/constants/Project'
 import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useVersionCheck } from '@/hooks/use-version-check'
 import { cn } from '@/lib/utils'
 import { getSystemStats } from '@/service/api'
 import {
@@ -30,6 +35,8 @@ import {
   Lock,
   MessageCircle,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   PieChart,
   RssIcon,
   Send,
@@ -51,8 +58,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const [version, setVersion] = useState<string>('')
   const { admin } = useAdmin()
-  const { setOpenMobile, openMobile, state, isMobile } = useSidebar()
+  const { setOpenMobile, openMobile, state, isMobile, toggleSidebar } = useSidebar()
   const { resolvedTheme } = useTheme()
+  const [showCollapseButton, setShowCollapseButton] = useState(false)
+  const currentVersion = version.replace(/[^0-9.]/g, '') || null
+  const { hasUpdate } = useVersionCheck(currentVersion)
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
   const minSwipeDistance = 50
@@ -320,7 +330,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {t('pasarguard')}
           </span>
         </Link>
-        <SidebarTrigger />
+        <SidebarTriggerWithBadge />
       </div>
       <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
         <SidebarRail />
@@ -328,26 +338,121 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             <SidebarMenuItem>
               {state === 'collapsed' && !isMobile ? (
-                <SidebarMenuButton size="lg" asChild>
-                  <a href={REPO_URL} target="_blank" className="justify-center !gap-0">
-                    <img
-                      src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
-                      alt="PasarGuard Logo"
-                      className="h-6 w-6 flex-shrink-0 object-contain"
-                    />
-                  </a>
-                </SidebarMenuButton>
-              ) : (
-                <SidebarMenuButton size="lg" asChild>
-                  <a href={REPO_URL} target="_blank" className="!gap-2">
+                <div
+                  className="relative group"
+                  onMouseEnter={() => setShowCollapseButton(true)}
+                  onMouseLeave={() => setShowCollapseButton(false)}
+                >
+                  {/* Badge - always visible, positioned on top layer */}
+                  <div className="absolute inset-0 pointer-events-none z-30">
+                    <div className="relative w-full h-full">
+                      <VersionBadge currentVersion={currentVersion} />
+                    </div>
+                  </div>
+                  {/* Logo - fades out on hover */}
+                  <SidebarMenuButton 
+                    size="lg" 
+                    asChild 
+                    className={cn(
+                      "relative justify-center !gap-0 w-full transition-opacity duration-200 ease-in-out",
+                      showCollapseButton ? "opacity-0 pointer-events-none" : "opacity-100"
+                    )}
+                  >
+                    <a href={REPO_URL} target="_blank">
+                      <img
+                        src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
+                        alt="PasarGuard Logo"
+                        className="h-6 w-6 flex-shrink-0 object-contain"
+                      />
+                      {hasUpdate && (
+                        <TooltipProvider>
+                          <VersionBadge currentVersion={currentVersion} />
+                        </TooltipProvider>
+                      )}
+                    </a>
+                  </SidebarMenuButton>
+                  {/* Expand button - fades in on hover */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <SidebarMenuButton
+                          size="lg"
+                          className={cn(
+                            "absolute inset-0 justify-center !gap-0 w-full transition-opacity duration-200 ease-in-out",
+                            showCollapseButton ? "opacity-100" : "opacity-0 pointer-events-none"
+                          )}
+                          onClick={toggleSidebar}
+                        >
+                          <PanelLeftOpen className={cn("h-6 w-6 flex-shrink-0", isRTL && "scale-x-[-1]")} />
+                          <span className="sr-only">Expand Sidebar</span>
+                          {hasUpdate && <VersionBadge currentVersion={currentVersion} />}
+                        </SidebarMenuButton>
+                      </TooltipTrigger>
+                      <TooltipContent side={isRTL ? 'left' : 'right'}>
+                        <p>{t('sidebar.expand')}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              ) : state !== 'collapsed' && !isMobile ? (
+                <SidebarMenuButton size="lg" className={cn('relative !gap-2', isRTL ? 'pl-10' : 'pr-10')}>
+                  <a href={REPO_URL} target="_blank" className="flex items-center gap-2 flex-1 min-w-0">
                     <img
                       src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
                       alt="PasarGuard Logo"
                       className="h-8 w-8 flex-shrink-0 object-contain"
                     />
-                    <div className="flex flex-col">
+                    <div className="flex flex-col overflow-hidden min-w-0 flex-1 items-start">
                       <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
-                      <span className="text-xs opacity-45">{version}</span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs opacity-45 shrink-0">{version}</span>
+                        <div className="min-w-0 flex-1">
+                          <TooltipProvider>
+                            <VersionBadge currentVersion={currentVersion} />
+                          </TooltipProvider>
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn('absolute h-8 w-8 shrink-0 z-10', isRTL ? 'left-2' : 'right-2')}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            toggleSidebar()
+                          }}
+                        >
+                          <PanelLeftClose className={cn("h-4 w-4", isRTL && "scale-x-[-1]")} />
+                          <span className="sr-only">Collapse Sidebar</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side={isRTL ? 'left' : 'right'}>
+                        <p>{t('sidebar.collapse')}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </SidebarMenuButton>
+              ) : (
+                <SidebarMenuButton size="lg" asChild className="!gap-2">
+                  <a href={REPO_URL} target="_blank">
+                    <img
+                      src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
+                      alt="PasarGuard Logo"
+                      className="h-8 w-8 flex-shrink-0 object-contain"
+                    />
+                    <div className="flex flex-col overflow-hidden">
+                      <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs opacity-45">{version}</span>
+                        <TooltipProvider>
+                          <VersionBadge currentVersion={version.replace(/[^0-9.]/g, '')} />
+                        </TooltipProvider>
+                      </div>
                     </div>
                   </a>
                 </SidebarMenuButton>

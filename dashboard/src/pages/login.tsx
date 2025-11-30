@@ -189,10 +189,10 @@ export const Login: FC = () => {
               <span className="text-gray-600 dark:text-gray-400">{t('login.welcomeBack')}</span>
             </div>
             <div className="mx-auto w-full max-w-[300px] pt-4">
-              <form onSubmit={handleSubmit(handleLogin)} autoComplete="off">
+              <form onSubmit={handleSubmit(handleLogin)} autoComplete="on">
                 <div className="mt-4 flex flex-col gap-y-2">
                   <Input className="py-5" placeholder={t('username')} autoComplete="username" {...register('username')} error={t(errors?.username?.message as string)} />
-                  <PasswordInput className="py-5" placeholder={t('password')} autoComplete="new-password" {...register('password')} error={t(errors?.password?.message as string)} />
+                  <PasswordInput className="py-5" placeholder={t('password')} autoComplete="current-password" {...register('password')} error={t(errors?.password?.message as string)} />
                   {((error && error.data) || (miniAppError && miniAppError.data)) && (
                     <Alert className="mt-2" variant="destructive">
                       <CircleAlertIcon size="18px" />
