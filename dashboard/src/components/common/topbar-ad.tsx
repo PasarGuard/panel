@@ -9,6 +9,8 @@ import useDirDetection from '@/hooks/use-dir-detection'
 
 const TOPBAR_AD_STORAGE_KEY = 'topbar_ad_closed'
 const HOURS_TO_HIDE = 24
+const TOPBAR_AD_CACHE_KEY = 'topbar_ad_cache'
+const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
 
 interface TopbarAdConfig {
   enabled: boolean
@@ -23,6 +25,12 @@ interface TopbarAdConfig {
       icon?: string
     }
   }
+}
+
+interface CachedAdData {
+  config: TopbarAdConfig | null
+  timestamp: number
+  is404: boolean
 }
 
 
@@ -40,6 +48,25 @@ export default function TopbarAd() {
   const [iconError, setIconError] = useState(false)
 
   useEffect(() => {
+    const getCached = (): CachedAdData | null => {
+      try {
+        const cached = localStorage.getItem(TOPBAR_AD_CACHE_KEY)
+        if (!cached) return null
+        return JSON.parse(cached)
+      } catch {
+        return null
+      }
+    }
+
+    const setCache = (config: TopbarAdConfig | null, is404: boolean): void => {
+      try {
+        const data: CachedAdData = { config, timestamp: Date.now(), is404 }
+        localStorage.setItem(TOPBAR_AD_CACHE_KEY, JSON.stringify(data))
+      } catch {
+        // Silently fail
+      }
+    }
+
     const checkShouldFetch = () => {
       const closedTimestamp = localStorage.getItem(TOPBAR_AD_STORAGE_KEY)
       
@@ -59,6 +86,23 @@ export default function TopbarAd() {
       return
     }
 
+    // Check cache first
+    const cached = getCached()
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      // Use cached data if still valid
+      if (cached.is404) {
+        // If it's a 404 cache, don't fetch and set config to null
+        setConfig(null)
+        setIsLoading(false)
+        return
+      } else {
+        // Use cached successful response
+        setConfig(cached.config)
+        setIsLoading(false)
+        return
+      }
+    }
+
     const loadConfig = async () => {
       try {
         const githubApiUrl = 'https://api.github.com/repos/pasarguard/ads/contents/config'
@@ -74,15 +118,28 @@ export default function TopbarAd() {
               Array.from(binaryString, (char) => '%' + ('00' + char.charCodeAt(0).toString(16)).slice(-2)).join('')
             )
             const data = JSON.parse(utf8String)
+            setCache(data, false)
             setConfig(data)
           } else {
+            setCache(null, false)
             setConfig(null)
           }
         } else {
+          // Cache 404 errors
+          if (response.status === 404) {
+            setCache(null, true)
+          } else {
+            setCache(null, false)
+          }
           setConfig(null)
         }
       } catch (error) {
-        setConfig(null)
+        // On error, use cached data if available, otherwise set to null
+        if (cached && !cached.is404) {
+          setConfig(cached.config)
+        } else {
+          setConfig(null)
+        }
       } finally {
         setIsLoading(false)
       }

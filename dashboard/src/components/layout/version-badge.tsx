@@ -48,10 +48,10 @@ export function VersionBadge({ currentVersion, className }: VersionBadgeProps) {
             href={releaseLink}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn('inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline min-w-0 max-w-full', className)}
+            className={cn('inline-flex items-center gap-0.5 text-[10px] opacity-70 text-amber-600 dark:text-amber-400 hover:opacity-100 hover:underline min-w-0 max-w-full transition-opacity', className)}
             onClick={(e) => e.stopPropagation()}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
+            <span className="h-1 w-1 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
             <span className="truncate min-w-0">{t('version.needsUpdate')}</span>
           </a>
         </TooltipTrigger>
@@ -68,10 +68,40 @@ export function VersionBadge({ currentVersion, className }: VersionBadgeProps) {
     )
   }
 
-  // Default: show dot with tooltip (for non-mobile, non-expanded states)
+  // Show "Up to date" text when expanded on desktop or mobile and there's no update
+  if (showText && !hasUpdate) {
+    return (
+      <Tooltip delayDuration={100}>
+        <TooltipTrigger asChild>
+          <span className={cn('inline-flex items-center gap-0.5 text-[10px] opacity-70 text-emerald-600 dark:text-emerald-400 min-w-0 max-w-full', className)}>
+            <span className="h-1 w-1 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
+            <span className="truncate min-w-0">{t('version.upToDate')}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="p-1.5">
+          <div className="space-y-0.5 text-[10px]">
+            <p className="font-medium">{t('version.runningLatest', { version: `v${currentVersion}` })}</p>
+            <p className="text-[9px]">{t('version.upToDate')}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  // Default: show dot with tooltip (for collapsed desktop state when no update)
   if (!hasUpdate) {
     return (
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/50 dark:bg-emerald-400/50" />
+      <Tooltip delayDuration={100}>
+        <TooltipTrigger asChild>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/50 dark:bg-emerald-400/50" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="p-1.5">
+          <div className="space-y-0.5 text-[10px]">
+            <p className="font-medium">{t('version.runningLatest', { version: `v${currentVersion}` })}</p>
+            <p className="text-[9px]">{t('version.upToDate')}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
     )
   }
 

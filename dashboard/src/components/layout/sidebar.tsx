@@ -402,7 +402,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       alt="PasarGuard Logo"
                       className="h-8 w-8 flex-shrink-0 object-contain"
                     />
-                    <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                    <div className="flex flex-col overflow-hidden min-w-0 flex-1 items-start">
                       <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-xs opacity-45 shrink-0">{version}</span>
