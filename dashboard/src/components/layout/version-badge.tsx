@@ -29,9 +29,10 @@ export function VersionBadge({ currentVersion, className }: VersionBadgeProps) {
         className={cn(
           'absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full',
           'bg-amber-500 dark:bg-amber-400',
-          'border border-background',
+          'border-2 border-background',
           'translate-x-1/2 translate-y-1/2',
-          'z-10'
+          'z-20',
+          'shadow-sm'
         )}
         aria-label="Update available"
       />
@@ -47,11 +48,11 @@ export function VersionBadge({ currentVersion, className }: VersionBadgeProps) {
             href={releaseLink}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn('inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline truncate max-w-full', className)}
+            className={cn('inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline min-w-0 max-w-full', className)}
             onClick={(e) => e.stopPropagation()}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
-            <span className="truncate">{t('version.needsUpdate')}</span>
+            <span className="truncate min-w-0">{t('version.needsUpdate')}</span>
           </a>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="p-1.5">
