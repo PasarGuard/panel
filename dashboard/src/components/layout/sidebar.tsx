@@ -1,12 +1,15 @@
 import { GithubStar } from '@/components/layout/github-star'
 import { GoalProgress } from '@/components/layout/goal-progress'
+import { VersionBadge } from '@/components/layout/version-badge'
+import { SidebarTriggerWithBadge } from '@/components/layout/sidebar-trigger-with-badge'
 import { Language } from '@/components/common/language'
 import { NavMain } from '@/components/layout/nav-main'
 import { NavSecondary } from '@/components/layout/nav-secondary'
 import { NavUser } from '@/components/layout/nav-user'
 import { useTheme } from '@/components/common/theme-provider'
 import { ThemeToggle } from '@/components/common/theme-toggle'
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar } from '@/components/ui/sidebar'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { Link } from 'react-router'
 import { DISCUSSION_GROUP, DOCUMENTATION, DONATION_URL, REPO_URL } from '@/constants/Project'
 import { useAdmin } from '@/hooks/use-admin'
@@ -320,7 +323,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {t('pasarguard')}
           </span>
         </Link>
-        <SidebarTrigger />
+        <SidebarTriggerWithBadge />
       </div>
       <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
         <SidebarRail />
@@ -328,13 +331,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             <SidebarMenuItem>
               {state === 'collapsed' && !isMobile ? (
-                <SidebarMenuButton size="lg" asChild>
+                <SidebarMenuButton size="lg" asChild className="relative">
                   <a href={REPO_URL} target="_blank" className="justify-center !gap-0">
                     <img
                       src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
                       alt="PasarGuard Logo"
                       className="h-6 w-6 flex-shrink-0 object-contain"
                     />
+                    <TooltipProvider>
+                      <VersionBadge currentVersion={version.replace(/[^0-9.]/g, '')} />
+                    </TooltipProvider>
                   </a>
                 </SidebarMenuButton>
               ) : (
@@ -345,9 +351,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       alt="PasarGuard Logo"
                       className="h-8 w-8 flex-shrink-0 object-contain"
                     />
-                    <div className="flex flex-col">
+                    <div className="flex flex-col overflow-hidden">
                       <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
-                      <span className="text-xs opacity-45">{version}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs opacity-45">{version}</span>
+                        <TooltipProvider>
+                          <VersionBadge currentVersion={version.replace(/[^0-9.]/g, '')} />
+                        </TooltipProvider>
+                      </div>
                     </div>
                   </a>
                 </SidebarMenuButton>

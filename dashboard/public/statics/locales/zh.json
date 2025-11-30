@@ -1874,5 +1874,18 @@
     "formHasErrors": "请在提交前修复表单错误",
     "formInvalid": "表单无效。请检查所有必填字段。",
     "missingFields": "请填写必填字段：{{fields}}"
+  },
+  "version": {
+    "newVersionAvailable": "有新版本可用！",
+    "currentVersion": "当前版本",
+    "latestVersion": "最新版本",
+    "clickToUpdate": "有新版本可供下载",
+    "upToDate": "已是最新",
+    "runningLatest": "正在运行 {{version}}",
+    "updateBanner": "可用更新: {{current}} → {{latest}}",
+    "updateBannerMobile": "更新: {{latest}}",
+    "updateCommandLabel": "通过 SSH 连接并运行:",
+    "closeBanner": "关闭更新通知",
+    "needsUpdate": "需要更新"
   }
 }

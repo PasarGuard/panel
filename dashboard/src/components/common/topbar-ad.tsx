@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { useTheme, type ColorTheme } from '@/components/common/theme-provider'
+import { useTheme } from '@/components/common/theme-provider'
+import { getGradientByColorTheme } from '@/constants/ThemeGradients'
 import useDirDetection from '@/hooks/use-dir-detection'
 
 const TOPBAR_AD_STORAGE_KEY = 'topbar_ad_closed'
@@ -24,44 +25,6 @@ interface TopbarAdConfig {
   }
 }
 
-const getGradientByColorTheme = (colorTheme: ColorTheme, isDark: boolean): string => {
-  const gradients: Record<ColorTheme, { light: string; dark: string }> = {
-    default: {
-      light: 'bg-gradient-to-r from-blue-100/90 via-indigo-100/90 to-blue-100/90',
-      dark: 'bg-gradient-to-r from-blue-950/50 via-indigo-950/50 to-blue-950/50',
-    },
-    red: {
-      light: 'bg-gradient-to-r from-red-100/90 via-rose-100/90 to-red-100/90',
-      dark: 'bg-gradient-to-r from-red-950/50 via-rose-950/50 to-red-950/50',
-    },
-    rose: {
-      light: 'bg-gradient-to-r from-rose-100/90 via-pink-100/90 to-rose-100/90',
-      dark: 'bg-gradient-to-r from-rose-950/50 via-pink-950/50 to-rose-950/50',
-    },
-    orange: {
-      light: 'bg-gradient-to-r from-orange-100/90 via-amber-100/90 to-orange-100/90',
-      dark: 'bg-gradient-to-r from-orange-950/50 via-amber-950/50 to-orange-950/50',
-    },
-    green: {
-      light: 'bg-gradient-to-r from-green-100/90 via-emerald-100/90 to-green-100/90',
-      dark: 'bg-gradient-to-r from-green-950/50 via-emerald-950/50 to-green-950/50',
-    },
-    blue: {
-      light: 'bg-gradient-to-r from-blue-100/90 via-cyan-100/90 to-blue-100/90',
-      dark: 'bg-gradient-to-r from-blue-950/50 via-cyan-950/50 to-blue-950/50',
-    },
-    yellow: {
-      light: 'bg-gradient-to-r from-yellow-100/90 via-amber-100/90 to-yellow-100/90',
-      dark: 'bg-gradient-to-r from-yellow-950/50 via-amber-950/50 to-yellow-950/50',
-    },
-    violet: {
-      light: 'bg-gradient-to-r from-violet-100/90 via-purple-100/90 to-violet-100/90',
-      dark: 'bg-gradient-to-r from-violet-950/50 via-purple-950/50 to-violet-950/50',
-    },
-  }
-
-  return isDark ? gradients[colorTheme].dark : gradients[colorTheme].light
-}
 
 export default function TopbarAd() {
   const { i18n } = useTranslation()
@@ -206,7 +169,7 @@ export default function TopbarAd() {
   }
 
   const isDark = resolvedTheme === 'dark'
-  const gradientBg = getGradientByColorTheme(colorTheme, isDark)
+  const gradientBg = getGradientByColorTheme(colorTheme, isDark, 'ad')
 
   return (
     <div
