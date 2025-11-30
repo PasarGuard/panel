@@ -21,7 +21,7 @@ If you are using Docker, make sure Docker has access to this folder.\
 Then, we need to make a directory for our Sing-box template.
 
 ```shell
-mkdir /var/lib/pasarguard/templates/sing-box
+mkdir -p /var/lib/pasarguard/templates/singbox
 ```
 
 After that, put your templates (config and settings) in the directory.\

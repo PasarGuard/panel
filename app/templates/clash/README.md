@@ -21,14 +21,14 @@ If you are using Docker, make sure Docker has access to this folder.\
 Then, we need to make a directory for our Clash template.
 
 ```shell
-mkdir /var/lib/pasarguard/templates/v2ray
+mkdir -p /var/lib/pasarguard/templates/clash
 ```
 
 After that, put your templates (config and settings) in the directory.\
 Now, change these variables with your files' names.
 
 ```shell
-CLASH_SUBSCRIPTION_TEMPLATE = "clash/default.yml")
+CLASH_SUBSCRIPTION_TEMPLATE = "clash/default.yml"
 ```
 
 Now, restart your PasarGuard and enjoy.

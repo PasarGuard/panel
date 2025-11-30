@@ -1,13 +1,50 @@
-mode: Global
-port: 7890
+mode: Rule
+mixed-port: 7890
+ipv6: true
 
-{{ conf | except("proxy-groups", "port", "mode") | yaml }}
+tun:
+  enable: true
+  stack: mixed
+  dns-hijack:
+    - "any:53"
+  auto-route: true
+  auto-detect-interface: true
+  strict-route: true
+
+dns:
+  enable: true
+  listen: :1053
+  ipv6: true
+  nameserver:
+    - 'https://1.1.1.1/dns-query#PROXY'
+  proxy-server-nameserver:
+    - '178.22.122.100'
+    - '78.157.42.100'
+
+sniffer:
+  enable: true
+  override-destination: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+
+{{ conf | except("proxy-groups", "port", "mode", "rules") | yaml }}
 
 proxy-groups:
-- name: '♻️ Automatic'
+- name: 'PROXY'
+  type: 'select'
+  proxies:
+  - '⚡️ Fastest'
+  {{ proxy_remarks | yaml | indent(2) }}
+
+- name: '⚡️ Fastest'
   type: 'url-test'
-  url: 'http://www.gstatic.com/generate_204'
-  interval: 300
   proxies:
   {{ proxy_remarks | yaml | indent(2) }}
-{{ conf.get("proxy-groups", []) | yaml }}
+
+rules:
+  - MATCH,PROXY
