@@ -80,6 +80,12 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     if node is None:
         return
 
+    # Handle hard reset requirement
+    if node.requires_hard_reset():
+        async with GetDB() as db:
+            await node_operator.connect_single_node(db, db_node.id)
+        return
+
     try:
         health, error_code, error_message = await verify_node_backend_health(node, db_node.name)
     except asyncio.TimeoutError:
@@ -107,12 +113,6 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
         return
 
-    # Handle hard reset requirement
-    if node.requires_hard_reset():
-        async with GetDB() as db:
-            await node_operator.connect_single_node(db, db_node.id)
-        return
-
     if health is Health.INVALID:
         logger.warning(f"[{db_node.name}] Node health is INVALID, ignoring...")
         return
@@ -138,6 +138,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     # Update status for recovering nodes
     if db_node.status in (NodeStatus.connecting, NodeStatus.error) and health == Health.HEALTHY:
         async with GetDB() as db:
+            logger.info(f"Node '{db_node.name}' have been recovered")
             node_version, core_version = await node.get_versions()
             await NodeOperation._update_single_node_status(
                 db,
