@@ -15,21 +15,24 @@ export function getDocsUrl(pagePath: string): string {
   const normalizedLocale = locale.split('-')[0]
 
   // Special case: node documentation uses /node/ instead of /panel/nodes
-  if (pagePath.startsWith('/nodes')) {
+  if (pagePath === '/nodes') {
     return `${DOCUMENTATION}/${normalizedLocale}/node/`
   }
-
+  if (pagePath.startsWith('/settings')) {
+    console.log(normalizedLocale)
+    return `${DOCUMENTATION}/${normalizedLocale}/panel/settings`
+  }
   // Map route paths to documentation paths
   const pathMap: Record<string, string> = {
     '/': 'dashboard',
     '/users': 'users',
     '/statistics': 'statistics',
-    '/hosts': 'hosts',
+    '/hosts': 'host',
     '/groups': 'groups',
-    '/templates': 'templates',
+    '/templates': 'user_template',
     '/admins': 'admins',
-    '/settings': 'settings',
     '/bulk': 'bulk',
+    '/nodes/cores': 'core',
   }
 
   // Handle nested routes - find the longest matching route

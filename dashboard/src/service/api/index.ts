@@ -181,16 +181,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
+
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -210,11 +210,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsOutput {
+export interface XrayMuxSettingsInput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -674,6 +674,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -684,13 +691,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -1114,19 +1114,6 @@ export type NotificationSettingsOutputTelegramChatId = number | null
 
 export type NotificationSettingsOutputTelegramApiToken = string | null
 
-export interface NotificationSettingsOutput {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
-  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
-  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
-  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsOutputProxyUrl
-  /** */
-  max_retries: number
-}
-
 export type NotificationSettingsInputProxyUrl = string | null
 
 export type NotificationSettingsInputDiscordWebhookUrl = string | null
@@ -1173,6 +1160,19 @@ export interface NotificationChannels {
   node?: NotificationChannel
   user?: NotificationChannel
   user_template?: NotificationChannel
+}
+
+export interface NotificationSettingsOutput {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
+  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
+  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
+  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsOutputProxyUrl
+  /** */
+  max_retries: number
 }
 
 export type NotificationChannelDiscordWebhookUrl = string | null
@@ -1272,6 +1272,7 @@ export interface NodeResponse {
   name: string
   address: string
   port?: number
+  api_port?: number
   /** */
   usage_coefficient?: number
   connection_type: NodeConnectionType
@@ -1342,8 +1343,6 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
-export type NodeModifyConnectionType = NodeConnectionType | null
-
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1356,6 +1355,7 @@ export interface NodeModify {
   name?: NodeModifyName
   address?: NodeModifyAddress
   port?: NodeModifyPort
+  api_port?: number
   usage_coefficient?: NodeModifyUsageCoefficient
   connection_type?: NodeModifyConnectionType
   server_ca?: NodeModifyServerCa
@@ -1370,6 +1370,15 @@ export interface NodeModify {
   status?: NodeModifyStatus
 }
 
+export interface NodeGeoFilesUpdate {
+  region?: GeoFilseRegion
+}
+
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
 export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -1378,10 +1387,13 @@ export const NodeConnectionType = {
   rest: 'rest',
 } as const
 
+export type NodeModifyConnectionType = NodeConnectionType | null
+
 export interface NodeCreate {
   name: string
   address: string
   port?: number
+  api_port?: number
   /** */
   usage_coefficient?: number
   connection_type: NodeConnectionType
@@ -1574,6 +1586,15 @@ export interface GroupCreate {
   inbound_tags: string[]
   is_disabled?: boolean
 }
+
+export type GeoFilseRegion = (typeof GeoFilseRegion)[keyof typeof GeoFilseRegion]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const GeoFilseRegion = {
+  iran: 'iran',
+  china: 'china',
+  russia: 'russia',
+} as const
 
 export interface General {
   default_flow?: XTLSFlows
@@ -4380,6 +4401,129 @@ export const useRemoveNode = <TData = Awaited<ReturnType<typeof removeNode>>, TE
   mutation?: UseMutationOptions<TData, TError, { nodeId: number }, TContext>
 }): UseMutationResult<TData, TError, { nodeId: number }, TContext> => {
   const mutationOptions = getRemoveNodeMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Update Node
+ */
+export const updateNode = (nodeId: number, signal?: AbortSignal) => {
+  return orvalFetcher<unknown>({ url: `/api/node/${nodeId}/update`, method: 'POST', signal })
+}
+
+export const getUpdateNodeMutationOptions = <TData = Awaited<ReturnType<typeof updateNode>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { nodeId: number }, TContext>
+}) => {
+  const mutationKey = ['updateNode']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNode>>, { nodeId: number }> = props => {
+    const { nodeId } = props ?? {}
+
+    return updateNode(nodeId)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { nodeId: number }, TContext>
+}
+
+export type UpdateNodeMutationResult = NonNullable<Awaited<ReturnType<typeof updateNode>>>
+
+export type UpdateNodeMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Update Node
+ */
+export const useUpdateNode = <TData = Awaited<ReturnType<typeof updateNode>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { nodeId: number }, TContext>
+}): UseMutationResult<TData, TError, { nodeId: number }, TContext> => {
+  const mutationOptions = getUpdateNodeMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Update Core
+ */
+export const updateCore = (nodeId: number, nodeCoreUpdate: BodyType<NodeCoreUpdate>, signal?: AbortSignal) => {
+  return orvalFetcher<unknown>({ url: `/api/node/${nodeId}/core_update`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: nodeCoreUpdate, signal })
+}
+
+export const getUpdateCoreMutationOptions = <TData = Awaited<ReturnType<typeof updateCore>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { nodeId: number; data: BodyType<NodeCoreUpdate> }, TContext>
+}) => {
+  const mutationKey = ['updateCore']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCore>>, { nodeId: number; data: BodyType<NodeCoreUpdate> }> = props => {
+    const { nodeId, data } = props ?? {}
+
+    return updateCore(nodeId, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { nodeId: number; data: BodyType<NodeCoreUpdate> }, TContext>
+}
+
+export type UpdateCoreMutationResult = NonNullable<Awaited<ReturnType<typeof updateCore>>>
+export type UpdateCoreMutationBody = BodyType<NodeCoreUpdate>
+export type UpdateCoreMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Update Core
+ */
+export const useUpdateCore = <TData = Awaited<ReturnType<typeof updateCore>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { nodeId: number; data: BodyType<NodeCoreUpdate> }, TContext>
+}): UseMutationResult<TData, TError, { nodeId: number; data: BodyType<NodeCoreUpdate> }, TContext> => {
+  const mutationOptions = getUpdateCoreMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Update Geofiles
+ */
+export const updateGeofiles = (nodeId: number, nodeGeoFilesUpdate: BodyType<NodeGeoFilesUpdate>, signal?: AbortSignal) => {
+  return orvalFetcher<unknown>({ url: `/api/node/${nodeId}/geofiles`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: nodeGeoFilesUpdate, signal })
+}
+
+export const getUpdateGeofilesMutationOptions = <TData = Awaited<ReturnType<typeof updateGeofiles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { nodeId: number; data: BodyType<NodeGeoFilesUpdate> }, TContext>
+}) => {
+  const mutationKey = ['updateGeofiles']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGeofiles>>, { nodeId: number; data: BodyType<NodeGeoFilesUpdate> }> = props => {
+    const { nodeId, data } = props ?? {}
+
+    return updateGeofiles(nodeId, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { nodeId: number; data: BodyType<NodeGeoFilesUpdate> }, TContext>
+}
+
+export type UpdateGeofilesMutationResult = NonNullable<Awaited<ReturnType<typeof updateGeofiles>>>
+export type UpdateGeofilesMutationBody = BodyType<NodeGeoFilesUpdate>
+export type UpdateGeofilesMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Update Geofiles
+ */
+export const useUpdateGeofiles = <TData = Awaited<ReturnType<typeof updateGeofiles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { nodeId: number; data: BodyType<NodeGeoFilesUpdate> }, TContext>
+}): UseMutationResult<TData, TError, { nodeId: number; data: BodyType<NodeGeoFilesUpdate> }, TContext> => {
+  const mutationOptions = getUpdateGeofilesMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

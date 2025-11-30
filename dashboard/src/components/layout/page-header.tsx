@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { getDocsUrl } from '@/utils/docs-url'
-import { LucideIcon, Plus, HelpCircle } from 'lucide-react'
+import { HelpCircle, LucideIcon, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 

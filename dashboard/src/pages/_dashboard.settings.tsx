@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { useGetSettings, useModifySettings } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bell, Database, ListTodo, LucideIcon, MessageCircle, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
-import { createContext, useContext, useMemo, useCallback } from 'react'
+import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
@@ -209,18 +209,12 @@ export default function Settings() {
     [is_sudo, settings, isLoading, error, isSaving, handleUpdateSettings],
   )
 
-  // Generate tutorial URL for the current settings tab
-  const getTutorialUrl = () => {
-    const locale = i18n.language || 'en'
-    return `https://docs.pasarguard.org/${locale}/panel/settings`
-  }
-
   // Always render the provider to ensure context is available for child routes
   // This prevents issues during HMR when components might render before parent is ready
   return (
     <SettingsContext.Provider value={settingsContextValue}>
       <div className="flex w-full flex-col items-start gap-0">
-        <PageHeader title={t(`settings.${activeTab}.title`)} description="manageSettings" tutorialUrl={getTutorialUrl()} />
+        <PageHeader title={t(`settings.${activeTab}.title`)} description="manageSettings" />
 
         <div className="relative w-full">
           <div className="flex border-b">
