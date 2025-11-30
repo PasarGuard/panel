@@ -1521,7 +1521,7 @@
   "userDialog": {
     "deleteSuccess": "کاربر «{{name}}» با موفقیت حذف شد.",
     "resetUsageSuccess": "مصرف کاربر «{{name}}» بازنشانی شد.",
-    "revokeSubSuccess": "اشتراک کاربر «{{name}}» لغو شد.",
+    "revokeSubSuccess": "اشتراک کاربر «{{name}}» بازنشانی شد.",
     "activeNextPlanSuccess": "پلن بعدی برای کاربر «{{name}}» فعال شد.",
     "activeNextPlanError": "فعال‌سازی پلن بعدی برای کاربر «{{name}}» با شکست مواجه شد.",
     "deleteConfirmTitle": "حذف کاربر",

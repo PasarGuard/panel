@@ -126,6 +126,7 @@
   body {
     @apply bg-background font-body text-foreground;
     overflow-x: hidden; /* Prevent horizontal scroll from drag-and-drop elements */
+    scroll-behavior: smooth; /* Smooth scrolling for better UX */
   }
 
   /* Enhanced shadcn-style scrollbar */

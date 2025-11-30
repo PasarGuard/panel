@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSetOwner } from '@/service/api'
+import { useSetOwner, UserResponse } from '@/service/api'
 import { toast } from 'sonner'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
 
@@ -13,7 +13,7 @@ interface SetOwnerModalProps {
   onClose: () => void
   username: string
   currentOwner?: string | null
-  onSuccess?: () => void
+  onSuccess?: (user?: UserResponse) => void
 }
 
 export default function SetOwnerModal({ open, onClose, username, currentOwner, onSuccess }: SetOwnerModalProps) {
@@ -24,7 +24,15 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
   const [admins, setAdmins] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isError, setIsError] = useState(false)
-  const setOwnerMutation = useSetOwner({})
+  const setOwnerMutation = useSetOwner({
+    mutation: {
+      onSuccess: (updatedUser) => {
+        if (onSuccess && updatedUser) {
+          onSuccess(updatedUser)
+        }
+      },
+    },
+  })
   const handleDynamicError = useDynamicErrorHandler()
 
   useEffect(() => {
@@ -65,7 +73,6 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
       await setOwnerMutation.mutateAsync({ username, params: { admin_username: selectedAdmin } })
       toast.success(t('setOwnerModal.success', { username, admin: selectedAdmin }))
       onClose()
-      if (onSuccess) onSuccess()
     } catch (error: any) {
       handleDynamicError({
         error,

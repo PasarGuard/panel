@@ -4,7 +4,7 @@ import { useClipboard } from '@/hooks/use-clipboard'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UseEditFormValues, UseFormValues } from '@/pages/_dashboard.users'
-import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse } from '@/service/api'
+import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Cpu, EllipsisVertical, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -47,10 +47,61 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const dir = useDirDetection()
+
+  const updateUserInCache = (updatedUser: UserResponse) => {
+    queryClient.setQueriesData<UsersResponse>(
+      {
+        queryKey: ['/api/users'],
+        exact: false,
+      },
+      oldData => {
+        if (!oldData) return oldData
+
+        // Find and update the user in the users array
+        const updatedUsers = oldData.users.map(u => (u.username === updatedUser.username ? updatedUser : u))
+
+        return {
+          ...oldData,
+          users: updatedUsers,
+        }
+      },
+    )
+
+    // Still invalidate usage/stats queries as they may have changed
+    queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
+    queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
+    queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
+    queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
+  }
+
   const removeUserMutation = useRemoveUser()
-  const resetUserDataUsageMutation = useResetUserDataUsage()
-  const revokeUserSubscriptionMutation = useRevokeUserSubscription()
-  const activeNextMutation = useActiveNextPlan()
+  const resetUserDataUsageMutation = useResetUserDataUsage({
+    mutation: {
+      onSuccess: (updatedUser) => {
+        if (updatedUser) {
+          updateUserInCache(updatedUser)
+        }
+      },
+    },
+  })
+  const revokeUserSubscriptionMutation = useRevokeUserSubscription({
+    mutation: {
+      onSuccess: (updatedUser) => {
+        if (updatedUser) {
+          updateUserInCache(updatedUser)
+        }
+      },
+    },
+  })
+  const activeNextMutation = useActiveNextPlan({
+    mutation: {
+      onSuccess: (updatedUser) => {
+        if (updatedUser) {
+          updateUserInCache(updatedUser)
+        }
+      },
+    },
+  })
   const { data: currentAdmin } = useGetCurrentAdmin({
     query: {
       staleTime: 5 * 60 * 1000,
@@ -136,7 +187,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const { copy, copied } = useClipboard({ timeout: 1500 })
 
-  // Refresh user data function
+  // Refresh user data function (only for delete operations)
   const refreshUserData = () => {
     queryClient.invalidateQueries({ queryKey: ['/api/users'] })
   }
@@ -160,7 +211,6 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       await revokeUserSubscriptionMutation.mutateAsync({ username: user.username })
       toast.success(t('userDialog.revokeSubSuccess', { name: user.username }))
       setRevokeSubDialogOpen(false)
-      refreshUserData()
     } catch (error: any) {
       toast.error(t('revokeUserSub.error', { name: user.username, error: error?.message || '' }))
     }
@@ -174,7 +224,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     try {
       await activeNextMutation.mutateAsync({ username: user.username })
       toast.success(t('userDialog.activeNextPlanSuccess', { name: user.username }))
-      refreshUserData()
+      setIsActiveNextPlanModalOpen(false)
     } catch (error: any) {
       toast.error(t('userDialog.activeNextPlanError', { name: user.username, error: error?.message || '' }))
     }
@@ -189,7 +239,6 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       await resetUserDataUsageMutation.mutateAsync({ username: user.username })
       toast.success(t('usersTable.resetUsageSuccess', { name: user.username }))
       setResetUsageDialogOpen(false)
-      refreshUserData()
     } catch (error: any) {
       toast.error(t('usersTable.resetUsageFailed', { name: user.username, error: error?.message || '' }))
     }
@@ -522,7 +571,17 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
       {/* SetOwnerModal: only for sudo admins */}
       {currentAdmin?.is_sudo && (
-        <SetOwnerModal open={isSetOwnerModalOpen} onClose={() => setSetOwnerModalOpen(false)} username={user.username} currentOwner={user.admin?.username} onSuccess={refreshUserData} />
+        <SetOwnerModal
+          open={isSetOwnerModalOpen}
+          onClose={() => setSetOwnerModalOpen(false)}
+          username={user.username}
+          currentOwner={user.admin?.username}
+          onSuccess={(updatedUser?: UserResponse) => {
+            if (updatedUser) {
+              updateUserInCache(updatedUser)
+            }
+          }}
+        />
       )}
 
       {/* UserSubscriptionClientsModal */}

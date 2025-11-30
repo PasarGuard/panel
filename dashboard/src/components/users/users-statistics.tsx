@@ -45,7 +45,7 @@ const UsersStatistics = () => {
             />
             <CardTitle className="relative z-10 flex items-center justify-between gap-x-4">
               <div className="flex items-center gap-x-4">
-                <div className="min-h-[10px] min-w-[10px] animate-pulse rounded-full bg-green-300 shadow-sm dark:bg-green-500" style={{ animationDuration: '3s' }} />
+                <div className="min-h-[10px] min-w-[10px] rounded-full bg-green-500 shadow-sm" />
                 <span className="">{t('statistics.onlineUsers')}</span>
               </div>
               <span className={cn('mx-2 text-3xl transition-all duration-500', isIncreased.online_users ? 'animate-zoom-out' : '')} style={{ animationDuration: '400ms' }}>

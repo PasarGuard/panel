@@ -6,6 +6,7 @@ import { TopLoadingBar } from '@/components/layout/top-loading-bar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { getCurrentAdmin } from '@/service/api'
 import { Outlet } from 'react-router'
+import TopbarAd from '@/components/common/topbar-ad'
 
 export const clientLoader = async (): Promise<any> => {
   try {
@@ -23,7 +24,8 @@ export default function DashboardLayout() {
         <TopLoadingBar />
         <div className="flex w-full flex-col lg:flex-row">
           <AppSidebar />
-          <SidebarInset>
+          <SidebarInset className="scroll-smooth">
+            <TopbarAd />
             <div className="flex min-h-screen w-full flex-col justify-between gap-y-4">
               <PageTransition duration={250}>
                 <Outlet />
