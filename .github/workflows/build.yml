@@ -8,7 +8,44 @@ env:
   IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
 
 jobs:
+  generate-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version range
+        id: tags
+        run: |
+          current_tag="${GITHUB_REF_NAME}"
+          prev_tag="$(git describe --tags --abbrev=0 "${current_tag}^" 2>/dev/null || true)"
+          if [ -z "$prev_tag" ]; then
+            prev_tag="$(git rev-list --max-parents=0 HEAD)"
+          fi
+          echo "previous=$prev_tag" >> "$GITHUB_OUTPUT"
+          echo "current=$current_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Generate changelog
+        run: |
+          bunx changelogen@latest --from "${{ steps.tags.outputs.previous }}" --to "${{ steps.tags.outputs.current }}" \
+            | grep -v "Generating changelog for " > CHANGELOG.md
+
+      - name: Upload changelog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: CHANGELOG.md
+          retention-days: 7
+
   build-dashboard:
+    needs: generate-changelog
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
