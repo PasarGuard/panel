@@ -606,7 +606,7 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="Node is not connected", code=409)
 
         try:
-            await pg_node.sync_users(await core_users(db=db), flush_queue=flush_users)
+            await pg_node.sync_users(await core_users(db=db), flush_pending=flush_users)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
