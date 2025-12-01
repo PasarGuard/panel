@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
+from app.core.permissions import PermissionManager
 from app.db import AsyncSession
 from app.db.crud.admin import get_admin
 from app.db.crud.bulk import (
@@ -71,6 +72,10 @@ _VERSION_TOKEN_RE = re.compile(r"v?\d+(?:\.\d+)*", re.IGNORECASE)
 
 
 class UserOperation(BaseOperation):
+    def __init__(self, operator_type: OperatorType):
+        super().__init__(operator_type)
+        self.permission_manager = PermissionManager(operator_type)
+
     @staticmethod
     def _format_validation_errors(error: ValidationError) -> str:
         return "; ".join([
@@ -212,6 +217,10 @@ class UserOperation(BaseOperation):
         return user
 
     async def create_user(self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails) -> UserResponse:
+        permission_check = await self.permission_manager.check(
+            "user.create", admin=admin, context={"username": new_user.username}
+        )
+        await self.ensure_allowed(permission_check)
         if new_user.next_plan is not None and new_user.next_plan.user_template_id is not None:
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
 
@@ -259,11 +268,19 @@ class UserOperation(BaseOperation):
     async def modify_user(
         self, db: AsyncSession, username: str, modified_user: UserModify, admin: AdminDetails
     ) -> UserResponse:
+        permission_check = await self.permission_manager.check(
+            "user.modify", admin=admin, context={"username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_user = await self.get_validated_user(db, username, admin)
 
         return await self._modify_user(db, db_user, modified_user, admin)
 
     async def remove_user(self, db: AsyncSession, username: str, admin: AdminDetails):
+        permission_check = await self.permission_manager.check(
+            "user.remove", admin=admin, context={"username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_user = await self.get_validated_user(db, username, admin)
 
         user = await self.validate_user(db_user)
@@ -291,11 +308,19 @@ class UserOperation(BaseOperation):
         return user
 
     async def reset_user_data_usage(self, db: AsyncSession, username: str, admin: AdminDetails):
+        permission_check = await self.permission_manager.check(
+            "user.reset_usage", admin=admin, context={"username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_user = await self.get_validated_user(db, username, admin)
 
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def revoke_user_sub(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
+        permission_check = await self.permission_manager.check(
+            "user.revoke_subscription", admin=admin, context={"username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_user = await self.get_validated_user(db, username, admin)
 
         db_user = await revoke_user_sub(db=db, db_user=db_user)
@@ -309,11 +334,19 @@ class UserOperation(BaseOperation):
 
     async def reset_users_data_usage(self, db: AsyncSession, admin: AdminDetails):
         """Reset all users data usage"""
+        permission_check = await self.permission_manager.check(
+            "user.reset_all_usage", admin=admin, context={"owner": admin.username}
+        )
+        await self.ensure_allowed(permission_check)
         db_admin = await self.get_validated_admin(db, admin.username)
         await reset_all_users_data_usage(db=db, admin=db_admin)
 
     async def active_next_plan(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
         """Reset user by next plan"""
+        permission_check = await self.permission_manager.check(
+            "user.activate_next_plan", admin=admin, context={"username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_user = await self.get_validated_user(db, username, admin)
 
         if db_user is None or db_user.next_plan is None:
@@ -338,6 +371,10 @@ class UserOperation(BaseOperation):
         self, db: AsyncSession, username: str, admin_username: str, admin: AdminDetails
     ) -> UserResponse:
         """Set a new owner (admin) for a user."""
+        permission_check = await self.permission_manager.check(
+            "user.set_owner", admin=admin, context={"username": username, "target_owner": admin_username}
+        )
+        await self.ensure_allowed(permission_check)
         new_admin = await self.get_validated_admin(db, username=admin_username)
         db_user = await self.get_validated_user(db, username, admin)
 
@@ -503,6 +540,12 @@ class UserOperation(BaseOperation):
         - At least one of expired_after or expired_before must be provided
         """
 
+        permission_check = await self.permission_manager.check(
+            "user.delete_expired",
+            admin=admin,
+            context={"expired_after": expired_after, "expired_before": expired_before, "admin_username": admin_username},
+        )
+        await self.ensure_allowed(permission_check)
         expired_after, expired_before = await self.validate_dates(expired_after, expired_before, False)
 
         if admin_username:
@@ -592,6 +635,12 @@ class UserOperation(BaseOperation):
     async def modify_user_with_template(
         self, db: AsyncSession, username: str, modified_template: ModifyUserByTemplate, admin: AdminDetails
     ) -> UserResponse:
+        permission_check = await self.permission_manager.check(
+            "user.modify_with_template",
+            admin=admin,
+            context={"username": username, "template_id": modified_template.user_template_id},
+        )
+        await self.ensure_allowed(permission_check)
         db_user = await self.get_validated_user(db, username, admin)
         user_template = await self.get_validated_user_template(db, modified_template.user_template_id)
 
@@ -617,6 +666,10 @@ class UserOperation(BaseOperation):
     async def bulk_create_users_from_template(
         self, db: AsyncSession, bulk_users: BulkUsersFromTemplate, admin: AdminDetails
     ) -> BulkUsersCreateResponse:
+        permission_check = await self.permission_manager.check(
+            "user.bulk_create", admin=admin, context={"template_id": bulk_users.user_template_id}
+        )
+        await self.ensure_allowed(permission_check)
         template_payload = bulk_users
         user_template = await self.get_validated_user_template(db, template_payload.user_template_id)
 
@@ -661,6 +714,10 @@ class UserOperation(BaseOperation):
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
+        permission_check = await self.permission_manager.check(
+            "user.bulk_modify_expire", admin=None, context={"amount": bulk_model.amount}
+        )
+        await self.ensure_allowed(permission_check)
         users, users_count = await update_users_expire(db, bulk_model)
         await node_manager.update_users(users)
 
@@ -669,6 +726,10 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
+        permission_check = await self.permission_manager.check(
+            "user.bulk_modify_datalimit", admin=None, context={"amount": bulk_model.amount}
+        )
+        await self.ensure_allowed(permission_check)
         users, users_count = await update_users_datalimit(db, bulk_model)
         await node_manager.update_users(users)
 
@@ -677,6 +738,10 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
+        permission_check = await self.permission_manager.check(
+            "user.bulk_modify_proxy", admin=None, context={"admins": list(bulk_model.admins)}
+        )
+        await self.ensure_allowed(permission_check)
         users, users_count = await update_users_proxy_settings(db, bulk_model)
         await node_manager.update_users(users)
 
