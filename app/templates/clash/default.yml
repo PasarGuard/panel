@@ -1,4 +1,4 @@
-mode: Rule
+mode: rule
 mixed-port: 7890
 ipv6: true
 
