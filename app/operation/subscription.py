@@ -145,14 +145,18 @@ class SubscriptionOperation(BaseOperation):
                 if db_user.admin and db_user.admin.sub_template
                 else SUBSCRIPTION_PAGE_TEMPLATE
             )
-            conf, media_type = await self.fetch_config(user, ConfigFormat.links)
+            
+            links = []
+            if sub_settings.allow_browser_config:
+                conf, media_type = await self.fetch_config(user, ConfigFormat.links)
+                links = conf.split("\n")
 
             return HTMLResponse(
                 render_template(
                     template,
                     {
                         "user": user,
-                        "links": conf.split("\n"),
+                        "links": links,
                         "apps": self._make_apps_import_urls(request_url, sub_settings.applications),
                     },
                 )
