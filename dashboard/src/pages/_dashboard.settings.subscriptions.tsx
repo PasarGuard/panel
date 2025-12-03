@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { ConfigFormat } from '@/service/api'
@@ -938,7 +939,13 @@ export default function SubscriptionSettings() {
                       {t('settings.subscriptions.general.announce')}
                     </FormLabel>
                     <FormControl>
-                      <Input maxLength={128} placeholder={t('settings.subscriptions.general.announcePlaceholder')} {...field} />
+                      <Textarea
+                        maxLength={128}
+                        placeholder={t('settings.subscriptions.general.announcePlaceholder')}
+                        rows={3}
+                        className="resize-none"
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.announceDescription')}</FormDescription>
                     <FormMessage />
