@@ -1,3 +1,4 @@
+import { DatePicker } from '@/components/common/date-picker'
 import GroupsSelector from '@/components/common/groups-selector'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
@@ -5,14 +6,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { DatePicker } from '@/components/common/date-picker'
 import { UseEditFormValues, UseFormValues, userCreateSchema, userEditSchema } from '@/pages/_dashboard.users'
 import {
   getGeneralSettings,
@@ -34,7 +34,7 @@ import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { v4 as uuidv4, v5 as uuidv5, v7 as uuidv7 } from 'uuid'
+import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 
 interface UserModalProps {
@@ -1158,28 +1158,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     }
   }, [isDialogOpen, form, editingUser, status])
 
-  // State for UUID version per field
-  const [uuidVersions, setUuidVersions] = useState({
-    vmess: 'v4',
-    vless: 'v4',
-    trojan: 'v4',
-    shadowsocks: 'v4',
-  })
-
-  // Helper to generate UUID by version
-  function generateUUID(version: string, value: string = ''): string {
-    switch (version) {
-      case 'v4':
-        return uuidv4()
-      case 'v5':
-        return uuidv5(value || 'default', UUID_NAMESPACE)
-      case 'v7':
-        return uuidv7()
-      default:
-        return uuidv4()
-    }
-  }
-
   useEffect(() => {
     if (isDialogOpen && editingUser && dataLimitValue !== null && dataLimitValue !== undefined) {
       if (dataLimitValue > 0) {
@@ -1217,7 +1195,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
-      <DialogContent className={`lg:min-w-[900px] h-auto`}>
+      <DialogContent className={`h-auto lg:min-w-[900px]`}>
         <DialogHeader>
           <DialogTitle className={`${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
             {editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}
@@ -1636,16 +1614,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                           handleFieldChange('proxy_settings.vmess.id', e.target.value)
                                         }}
                                       />
-                                      <Select value={uuidVersions.vmess} onValueChange={val => setUuidVersions(v => ({ ...v, vmess: val }))}>
-                                        <SelectTrigger className="w-[60px]">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="v4">v4</SelectItem>
-                                          <SelectItem value="v5">v5</SelectItem>
-                                          <SelectItem value="v7">v7</SelectItem>
-                                        </SelectContent>
-                                      </Select>
                                       <Button
                                         size="icon"
                                         type="button"
@@ -1653,7 +1621,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                         onClick={e => {
                                           e.preventDefault()
                                           e.stopPropagation()
-                                          const newVal = generateUUID(uuidVersions.vmess, field.value)
+                                          const newVal = uuidv4()
                                           field.onChange(newVal)
                                           form.trigger('proxy_settings.vmess.id')
                                           handleFieldChange('proxy_settings.vmess.id', newVal)
@@ -1691,16 +1659,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                           handleFieldChange('proxy_settings.vless.id', e.target.value)
                                         }}
                                       />
-                                      <Select value={uuidVersions.vless} onValueChange={val => setUuidVersions(v => ({ ...v, vless: val }))}>
-                                        <SelectTrigger className="w-[60px]">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="v4">v4</SelectItem>
-                                          <SelectItem value="v5">v5</SelectItem>
-                                          <SelectItem value="v7">v7</SelectItem>
-                                        </SelectContent>
-                                      </Select>
                                       <Button
                                         size="icon"
                                         type="button"
@@ -1708,7 +1666,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                         onClick={e => {
                                           e.preventDefault()
                                           e.stopPropagation()
-                                          const newVal = generateUUID(uuidVersions.vless, field.value)
+                                          const newVal = uuidv4()
                                           field.onChange(newVal)
                                           form.trigger('proxy_settings.vless.id')
                                           handleFieldChange('proxy_settings.vless.id', newVal)

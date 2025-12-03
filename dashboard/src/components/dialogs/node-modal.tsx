@@ -1,25 +1,25 @@
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { useTranslation } from 'react-i18next'
-import { UseFormReturn } from 'react-hook-form'
-import { useCreateNode, useModifyNode, NodeConnectionType, useGetAllCores, CoreResponse, getNode, DataLimitResetStrategy, useGetNode, NodeResponse } from '@/service/api'
-import { toast } from 'sonner'
-import { z } from 'zod'
-import { cn } from '@/lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { queryClient } from '@/utils/query-client'
 import useDirDetection from '@/hooks/use-dir-detection'
-import React, { useState, useEffect, useRef } from 'react'
-import { Loader2, Settings, RefreshCw } from 'lucide-react'
-import { v4 as uuidv4, v5 as uuidv5, v6 as uuidv6, v7 as uuidv7 } from 'uuid'
-import { LoaderButton } from '../ui/loader-button'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { cn } from '@/lib/utils'
+import { CoreResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetAllCores, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
+import { queryClient } from '@/utils/query-client'
+import { Loader2, RefreshCw, Settings } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
+import { LoaderButton } from '../ui/loader-button'
 
 export const nodeFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -83,7 +83,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
   const currentNode = node || initialNodeData
   const lastSyncedNodeRef = useRef<NodeResponse | null>(null)
-  
+
   useEffect(() => {
     if (isDialogOpen) {
       setErrorDetails(null)
@@ -97,32 +97,32 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   // Update form when node data changes (from auto-refresh or external updates)
   useEffect(() => {
     if (!isDialogOpen || !editingNode || !editingNodeId || !node) return
-    
+
     // Skip if form is dirty (user has made changes)
     if (form.formState.isDirty) return
-    
+
     // Skip if this is the same node data we already synced
     // Compare key fields that change externally (status, message, versions, usage)
     const lastSynced = lastSyncedNodeRef.current
-    if (lastSynced && 
-        lastSynced.id === node.id &&
-        lastSynced.status === node.status &&
-        lastSynced.message === node.message &&
-        lastSynced.xray_version === node.xray_version &&
-        lastSynced.node_version === node.node_version &&
-        lastSynced.uplink === node.uplink &&
-        lastSynced.downlink === node.downlink &&
-        lastSynced.name === node.name &&
-        lastSynced.address === node.address &&
-        lastSynced.port === node.port) {
+    if (
+      lastSynced &&
+      lastSynced.id === node.id &&
+      lastSynced.status === node.status &&
+      lastSynced.message === node.message &&
+      lastSynced.xray_version === node.xray_version &&
+      lastSynced.node_version === node.node_version &&
+      lastSynced.uplink === node.uplink &&
+      lastSynced.downlink === node.downlink &&
+      lastSynced.name === node.name &&
+      lastSynced.address === node.address &&
+      lastSynced.port === node.port
+    ) {
       return
     }
 
     // Update form with new node data
     const dataLimitBytes = node.data_limit ?? null
-    const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0 
-      ? dataLimitBytes / (1024 * 1024 * 1024) 
-      : 0
+    const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0 ? dataLimitBytes / (1024 * 1024 * 1024) : 0
 
     if (dataLimitGB > 0) {
       const formatted = parseFloat(dataLimitGB.toFixed(9))
@@ -131,22 +131,25 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       dataLimitInputRef.current = ''
     }
 
-    form.reset({
-      name: node.name,
-      address: node.address,
-      port: node.port,
-      usage_coefficient: node.usage_coefficient,
-      connection_type: node.connection_type,
-      server_ca: node.server_ca,
-      keep_alive: node.keep_alive,
-      api_key: (node.api_key as string) || '',
-      core_config_id: node.core_config_id ?? cores?.cores?.[0]?.id,
-      data_limit: dataLimitGB,
-      data_limit_reset_strategy: node.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
-      reset_time: node.reset_time ?? null,
-      default_timeout: node.default_timeout ?? 10,
-      internal_timeout: node.internal_timeout ?? 15,
-    }, { keepDirty: false, keepValues: false })
+    form.reset(
+      {
+        name: node.name,
+        address: node.address,
+        port: node.port,
+        usage_coefficient: node.usage_coefficient,
+        connection_type: node.connection_type,
+        server_ca: node.server_ca,
+        keep_alive: node.keep_alive,
+        api_key: (node.api_key as string) || '',
+        core_config_id: node.core_config_id ?? cores?.cores?.[0]?.id,
+        data_limit: dataLimitGB,
+        data_limit_reset_strategy: node.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
+        reset_time: node.reset_time ?? null,
+        default_timeout: node.default_timeout ?? 10,
+        internal_timeout: node.internal_timeout ?? 15,
+      },
+      { keepDirty: false, keepValues: false },
+    )
 
     lastSyncedNodeRef.current = node
   }, [node, isDialogOpen, editingNode, editingNodeId, form, cores])
@@ -534,26 +537,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     control={form.control}
                     name="api_key"
                     render={({ field }) => {
-                      const [uuidVersion, setUuidVersion] = useState<'v4' | 'v5' | 'v6' | 'v7'>('v4')
-
                       const generateUUID = () => {
-                        switch (uuidVersion) {
-                          case 'v4':
-                            field.onChange(uuidv4())
-                            break
-                          case 'v5':
-                            const namespace = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
-                            field.onChange(uuidv5(field.value || 'default', namespace))
-                            break
-                          case 'v6':
-                            field.onChange(uuidv6())
-                            break
-                          case 'v7':
-                            field.onChange(uuidv7())
-                            break
-                        }
+                        field.onChange(uuidv4())
                       }
-
                       return (
                         <FormItem className={'min-h-[100px]'}>
                           <FormLabel>{t('nodeModal.apiKey')}</FormLabel>
@@ -568,17 +554,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                 onChange={e => field.onChange(e.target.value)}
                               />
                               <div className={cn('flex items-center gap-0', dir === 'rtl' && 'flex-row-reverse')}>
-                                <Select value={uuidVersion} onValueChange={(value: 'v4' | 'v5' | 'v6' | 'v7') => setUuidVersion(value)}>
-                                  <SelectTrigger className="h-10 w-[60px] rounded-r-none border-r-0">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="v4">v4</SelectItem>
-                                    <SelectItem value="v5">v5</SelectItem>
-                                    <SelectItem value="v6">v6</SelectItem>
-                                    <SelectItem value="v7">v7</SelectItem>
-                                  </SelectContent>
-                                </Select>
                                 <Button type="button" variant="outline" onClick={generateUUID} className="h-10 rounded-l-none px-3">
                                   <RefreshCw className="h-3 w-3" />
                                 </Button>
@@ -590,8 +565,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                       )
                     }}
                   />
-
-                  <Accordion type="single" collapsible className="mb-4 !mt-0 w-full pb-4">
+                  <Accordion type="single" collapsible className="!mt-0 mb-4 w-full pb-4">
                     <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="advanced-settings">
                       <AccordionTrigger>
                         <div className="flex items-center gap-2">
