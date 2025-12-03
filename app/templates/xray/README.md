@@ -1,4 +1,4 @@
-# V2ray Template
+# Xray Template
 
 ## Usage
 
@@ -18,17 +18,17 @@ CUSTOM_TEMPLATES_DIRECTORY="/var/lib/pasarguard/templates/"
 
 Make sure you put all of your templates in this folder.\
 If you are using Docker, make sure Docker has access to this folder.\
-Then, we need to make a directory for our V2ray template.
+Then, we need to make a directory for our Xray template.
 
 ```shell
-mkdir /var/lib/pasarguard/templates/v2ray
+mkdir -p /var/lib/pasarguard/templates/xray
 ```
 
 After that, put your templates (config and settings) in the directory.\
 Now, change these variables with your files' names.
 
 ```shell
-V2RAY_SUBSCRIPTION_TEMPLATE="v2ray/default.json"
+XRAY_SUBSCRIPTION_TEMPLATE="xray/default.json"
 ```
 
 Now, restart your PasarGuard and enjoy.
