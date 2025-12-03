@@ -224,7 +224,9 @@
         "announceDescription": "Короткое сообщение, показываемое пользователям в поддерживаемых клиентах подписки",
         "announceUrl": "Ссылка на объявление",
         "announceUrlPlaceholder": "https://status.example.com",
-        "announceUrlDescription": "Необязательная ссылка с дополнительной информацией об объявлении"
+        "announceUrlDescription": "Необязательная ссылка с дополнительной информацией об объявлении",
+        "allowBrowserConfig": "Показывать ссылки на странице подписки",
+        "allowBrowserConfigDescription": "Отображать ссылки подписки в шаблоне страницы подписки при доступе через браузер"
       },
       "rules": {
         "title": "Правила подписки",

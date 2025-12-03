@@ -117,7 +117,9 @@
         "announceDescription": "پیام کوتاهی که در کلاینت‌های سازگار نمایش داده می‌شود",
         "announceUrl": "آدرس اطلاعیه",
         "announceUrlPlaceholder": "https://status.example.com",
-        "announceUrlDescription": "لینک اختیاری برای جزئیات بیشتر اطلاعیه"
+        "announceUrlDescription": "لینک اختیاری برای جزئیات بیشتر اطلاعیه",
+        "allowBrowserConfig": "نمایش لینک‌ها در صفحه اشتراک",
+        "allowBrowserConfigDescription": "نمایش لینک‌های اشتراک در قالب صفحه اشتراک هنگام دسترسی از طریق مرورگر"
       },
       "rules": {
         "title": "قوانین اشتراک",

@@ -210,7 +210,9 @@
         "announceDescription": "Short message shown to users in supported subscription clients",
         "announceUrl": "Announcement URL",
         "announceUrlPlaceholder": "https://status.example.com",
-        "announceUrlDescription": "Optional link with more information about the announcement"
+        "announceUrlDescription": "Optional link with more information about the announcement",
+        "allowBrowserConfig": "Show Links in Subscription Page",
+        "allowBrowserConfigDescription": "Display subscription links on the subscription page template when accessed via browser"
       },
       "rules": {
         "title": "Subscription Rules",
