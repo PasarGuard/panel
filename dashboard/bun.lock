@@ -47,7 +47,7 @@
         "dayjs": "^1.11.19",
         "embla-carousel-react": "^8.6.0",
         "es-toolkit": "^1.41.0",
-        "eventsource": "^3.0.7",
+        "eventsource": "^4.1.0",
         "fancy-ansi": "^0.1.3",
         "i18next": "^24.2.3",
         "i18next-browser-languagedetector": "^8.2.0",
@@ -1161,7 +1161,7 @@
 
     "eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
 
-    "eventsource": ["eventsource@3.0.7", "", { "dependencies": { "eventsource-parser": "^3.0.1" } }, "sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA=="],
+    "eventsource": ["eventsource@4.1.0", "", { "dependencies": { "eventsource-parser": "^3.0.1" } }, "sha512-2GuF51iuHX6A9xdTccMTsNb7VO0lHZihApxhvQzJB5A03DvHDd2FQepodbMaztPBmBcE/ox7o2gqaxGhYB9LhQ=="],
 
     "eventsource-parser": ["eventsource-parser@3.0.3", "", {}, "sha512-nVpZkTMM9rF6AQ9gPJpFsNAMt48wIzB5TQgiTLdHiuO8XEDhUgZEhqKlZWXbIzo9VmJ/HvysHqEaVeD5v9TPvA=="],
 
