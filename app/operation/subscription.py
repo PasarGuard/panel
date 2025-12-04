@@ -16,6 +16,7 @@ from app.templates import render_template
 from config import SUBSCRIPTION_PAGE_TEMPLATE
 
 from . import BaseOperation
+from .user import UserOperation
 
 client_config = {
     ConfigFormat.clash_meta: {"config_format": "clash_meta", "media_type": "text/yaml", "as_base64": False},
@@ -145,11 +146,13 @@ class SubscriptionOperation(BaseOperation):
                 if db_user.admin and db_user.admin.sub_template
                 else SUBSCRIPTION_PAGE_TEMPLATE
             )
-            
+
             links = []
             if sub_settings.allow_browser_config:
                 conf, media_type = await self.fetch_config(user, ConfigFormat.links)
-                links = conf.split("\n")
+                links = conf.splitlines()
+
+            sub_url = await UserOperation.generate_subscription_url(db_user)
 
             return HTMLResponse(
                 render_template(
@@ -157,7 +160,7 @@ class SubscriptionOperation(BaseOperation):
                     {
                         "user": user,
                         "links": links,
-                        "apps": self._make_apps_import_urls(request_url, sub_settings.applications),
+                        "apps": self._make_apps_import_urls(sub_url, sub_settings.applications),
                     },
                 )
             )
@@ -211,11 +214,11 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         return self._make_apps_import_urls(request_url, sub_settings.applications)
 
-    def _make_apps_import_urls(self, request_url: str, applications: list[Application]):
+    def _make_apps_import_urls(self, sub_url: str, applications: list[Application]):
         apps_with_updated_urls = []
         for app in applications:
             updated_app = app.model_copy()
-            updated_app.import_url = app.import_url.format(url=request_url)
+            updated_app.import_url = app.import_url.format(url=sub_url)
             apps_with_updated_urls.append(updated_app)
 
         return apps_with_updated_urls
