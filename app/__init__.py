@@ -12,7 +12,7 @@ from app.middlewares import setup_middleware
 from app.utils.logger import get_logger
 from config import DOCS, SUBSCRIPTION_PATH
 
-__version__ = "1.9.0"
+__version__ = "1.9.1"
 
 startup_functions = []
 shutdown_functions = []
