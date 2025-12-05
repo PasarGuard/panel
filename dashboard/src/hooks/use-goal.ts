@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { $fetch as publicFetch } from 'ofetch'
 
 type GoalType = 'donation' | 'github_stars' | (string & {})
 
@@ -26,32 +25,25 @@ interface GoalsResponse {
   cancelled_count: number
 }
 
-export function useCurrentGoal() {
-  return useQuery({
-    queryKey: ['current-goal'],
-    queryFn: async () => {
-      const response = await publicFetch<Goal>('https://donate.pasarguard.org/api/v1/goal/current', {
-        method: 'GET',
-        referrerPolicy: 'no-referrer',
-        credentials: 'omit',
-      })
-      return response
-    },
-    refetchInterval: 60000, // Refetch every minute
-    retry: 2,
-  })
-}
-
 export function useAllGoals() {
   return useQuery({
     queryKey: ['all-goals'],
     queryFn: async () => {
-      const response = await publicFetch<GoalsResponse>('https://donate.pasarguard.org/api/v1/goal/list', {
+      const response = await fetch('https://api.github.com/repos/pasarguard/ads/contents/goal.json', {
         method: 'GET',
         referrerPolicy: 'no-referrer',
         credentials: 'omit',
       })
-      return response
+      if (response.ok) {
+        const apiData = await response.json()
+        if (apiData.content && apiData.encoding === 'base64') {
+          const base64Content = apiData.content.replace(/\n/g, '')
+          const binaryString = atob(base64Content)
+          const utf8String = decodeURIComponent(Array.from(binaryString, char => '%' + ('00' + char.charCodeAt(0).toString(16)).slice(-2)).join(''))
+          const data: GoalsResponse = JSON.parse(utf8String)
+          return data
+        }
+      }
     },
     refetchInterval: 300000, // Refetch every 5 minutes
     retry: 2,
