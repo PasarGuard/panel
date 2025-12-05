@@ -6,6 +6,10 @@ on:
       - "dev"
       - "next"
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
 

@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 env:
   IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
