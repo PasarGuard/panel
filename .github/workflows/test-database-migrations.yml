@@ -7,6 +7,8 @@ on:
     pull_request:
         paths:
             - "**.py"
+            - "uv.lock"
+            - "pyproject.toml"
 
 jobs:
     test-databases:
