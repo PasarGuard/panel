@@ -1,11 +1,11 @@
+import { useTheme } from '@/components/common/theme-provider'
+import { Button } from '@/components/ui/button'
+import { getGradientByColorTheme } from '@/constants/ThemeGradients'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-import { useTheme } from '@/components/common/theme-provider'
-import { getGradientByColorTheme } from '@/constants/ThemeGradients'
-import useDirDetection from '@/hooks/use-dir-detection'
 
 const TOPBAR_AD_STORAGE_KEY = 'topbar_ad_closed'
 const HOURS_TO_HIDE = 24
@@ -32,7 +32,6 @@ interface CachedAdData {
   timestamp: number
   is404: boolean
 }
-
 
 export default function TopbarAd() {
   const { i18n } = useTranslation()
@@ -69,7 +68,7 @@ export default function TopbarAd() {
 
     const checkShouldFetch = () => {
       const closedTimestamp = localStorage.getItem(TOPBAR_AD_STORAGE_KEY)
-      
+
       if (!closedTimestamp) {
         return true
       }
@@ -108,15 +107,15 @@ export default function TopbarAd() {
         const githubApiUrl = 'https://api.github.com/repos/pasarguard/ads/contents/config'
         const response = await fetch(githubApiUrl, {
           cache: 'no-cache',
+          referrerPolicy: 'no-referrer',
+          credentials: 'omit',
         })
         if (response.ok) {
           const apiData = await response.json()
           if (apiData.content && apiData.encoding === 'base64') {
             const base64Content = apiData.content.replace(/\n/g, '')
             const binaryString = atob(base64Content)
-            const utf8String = decodeURIComponent(
-              Array.from(binaryString, (char) => '%' + ('00' + char.charCodeAt(0).toString(16)).slice(-2)).join('')
-            )
+            const utf8String = decodeURIComponent(Array.from(binaryString, char => '%' + ('00' + char.charCodeAt(0).toString(16)).slice(-2)).join(''))
             const data = JSON.parse(utf8String)
             setCache(data, false)
             setConfig(data)
@@ -146,10 +145,13 @@ export default function TopbarAd() {
     }
 
     if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => {
-        setIsLoading(true)
-        loadConfig()
-      }, { timeout: 2000 })
+      requestIdleCallback(
+        () => {
+          setIsLoading(true)
+          loadConfig()
+        },
+        { timeout: 2000 },
+      )
     } else {
       setTimeout(() => {
         setIsLoading(true)
@@ -231,12 +233,10 @@ export default function TopbarAd() {
   return (
     <div
       className={cn(
-        'relative z-[25] lg:z-30 w-full border-b border-border/40 backdrop-blur-sm',
+        'relative z-[25] w-full border-b border-border/40 backdrop-blur-sm lg:z-30',
         gradientBg,
         'overflow-hidden',
-        isClosing
-          ? 'max-h-0 opacity-0 -translate-y-2 border-0 py-0'
-          : 'max-h-32 sm:max-h-36'
+        isClosing ? 'max-h-0 -translate-y-2 border-0 py-0 opacity-0' : 'max-h-32 sm:max-h-36',
       )}
       style={{
         transition: isClosing
@@ -251,54 +251,46 @@ export default function TopbarAd() {
         onClick={handleTopbarClick}
         target="_blank"
         rel="noopener noreferrer"
-        className={cn(
-          'block w-full cursor-pointer transition-all duration-200 ease-in-out hover:opacity-95 hover:brightness-[1.02]',
-          isRTL ? 'pl-10 sm:pl-12' : 'pr-10 sm:pr-12'
-        )}
+        className={cn('block w-full cursor-pointer transition-all duration-200 ease-in-out hover:opacity-95 hover:brightness-[1.02]', isRTL ? 'pl-10 sm:pl-12' : 'pr-10 sm:pr-12')}
       >
-        <div className={cn(
-          'mx-auto flex max-w-[1920px] items-center gap-2.5 px-3 py-2.5 sm:px-4',
-          isRTL ? 'justify-between' : 'justify-center'
-        )}>
-          <div className={cn(
-            'flex flex-1 items-center gap-2 sm:gap-3 text-xs sm:text-sm min-w-0',
-            isRTL ? 'justify-start' : 'justify-center'
-          )}>
+        <div className={cn('mx-auto flex max-w-[1920px] items-center gap-2.5 px-3 py-2.5 sm:px-4', isRTL ? 'justify-between' : 'justify-center')}>
+          <div className={cn('flex min-w-0 flex-1 items-center gap-2 text-xs sm:gap-3 sm:text-sm', isRTL ? 'justify-start' : 'justify-center')}>
             {iconUrl && !iconError && (
               <img
                 src={iconUrl}
                 alt=""
-                className="h-5 w-5 shrink-0 object-contain rounded text-foreground/75"
+                className="h-5 w-5 shrink-0 rounded object-contain text-foreground/75"
                 onLoad={() => setIconLoaded(true)}
                 onError={() => setIconError(true)}
                 style={{ display: iconLoaded ? 'block' : 'none' }}
               />
             )}
-            <span className={cn(
-              'text-foreground/75 line-clamp-2 flex-1',
-              isRTL ? 'text-center sm:text-right' : 'text-center sm:text-left'
-            )}>
+            <span className={cn('line-clamp-2 flex-1 text-foreground/75', isRTL ? 'text-center sm:text-right' : 'text-center sm:text-left')}>
               <span className="hidden sm:inline">{translations.text}</span>
               <span className="sm:hidden">{translations.textMobile}</span>
             </span>
           </div>
-          <div className="flex items-center shrink-0">
-            <span className={cn(
-              'shrink-0 hidden sm:inline whitespace-nowrap',
-              'px-2.5 py-1 rounded-md text-xs font-medium',
-              'bg-primary text-primary-foreground hover:bg-primary/90',
-              'transition-colors duration-200 ease-in-out',
-              'shadow-sm hover:shadow'
-            )}>
+          <div className="flex shrink-0 items-center">
+            <span
+              className={cn(
+                'hidden shrink-0 whitespace-nowrap sm:inline',
+                'rounded-md px-2.5 py-1 text-xs font-medium',
+                'bg-primary text-primary-foreground hover:bg-primary/90',
+                'transition-colors duration-200 ease-in-out',
+                'shadow-sm hover:shadow',
+              )}
+            >
               {translations.linkText}
             </span>
-            <span className={cn(
-              'shrink-0 sm:hidden whitespace-nowrap',
-              'px-2 py-0.5 rounded-md text-xs font-medium',
-              'bg-primary text-primary-foreground hover:bg-primary/90',
-              'transition-colors duration-200 ease-in-out',
-              'shadow-sm hover:shadow'
-            )}>
+            <span
+              className={cn(
+                'shrink-0 whitespace-nowrap sm:hidden',
+                'rounded-md px-2 py-0.5 text-xs font-medium',
+                'bg-primary text-primary-foreground hover:bg-primary/90',
+                'transition-colors duration-200 ease-in-out',
+                'shadow-sm hover:shadow',
+              )}
+            >
               {translations.linkTextMobile}
             </span>
           </div>
@@ -312,9 +304,9 @@ export default function TopbarAd() {
         className={cn(
           'absolute top-1/2 -translate-y-1/2',
           isRTL ? 'left-3 sm:left-4' : 'right-3 sm:right-4',
-          'h-7 w-7 shrink-0 rounded hover:bg-muted/40 transition-all z-10',
+          'z-10 h-7 w-7 shrink-0 rounded transition-all hover:bg-muted/40',
           'text-muted-foreground/70 hover:text-foreground',
-          'touch-manipulation'
+          'touch-manipulation',
         )}
         aria-label="Close ad"
       >
@@ -323,4 +315,3 @@ export default function TopbarAd() {
     </div>
   )
 }
-

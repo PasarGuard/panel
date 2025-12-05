@@ -59,6 +59,8 @@ async function fetchLatestRelease(): Promise<{ version: string; url: string } | 
 
   try {
     const response = await fetch(GITHUB_API_URL, {
+      referrerPolicy: 'no-referrer',
+      credentials: 'omit',
       headers: { Accept: 'application/vnd.github.v3+json' },
     })
 
@@ -69,7 +71,7 @@ async function fetchLatestRelease(): Promise<{ version: string; url: string } | 
     const data = await response.json()
     const version = data.tag_name?.replace(/^v/, '') || ''
     const url = data.html_url || ''
-    
+
     if (version) setCache(version, url)
     return { version, url }
   } catch {
@@ -92,11 +94,7 @@ export function useVersionCheck(currentVersion: string | null): VersionCheckResu
   const latestVersion = data?.version || null
   const cleanCurrentVersion = currentVersion?.replace(/^v/, '') || null
 
-  const hasUpdate = !!(
-    cleanCurrentVersion &&
-    latestVersion &&
-    compareVersions(cleanCurrentVersion, latestVersion) < 0
-  )
+  const hasUpdate = !!(cleanCurrentVersion && latestVersion && compareVersions(cleanCurrentVersion, latestVersion) < 0)
 
   return {
     hasUpdate,
@@ -106,4 +104,3 @@ export function useVersionCheck(currentVersion: string | null): VersionCheckResu
     isLoading,
   }
 }
-
