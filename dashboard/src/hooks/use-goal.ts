@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { $fetch } from '@/service/http'
+import { $fetch as publicFetch } from 'ofetch'
 
 type GoalType = 'donation' | 'github_stars' | (string & {})
 
@@ -30,8 +30,10 @@ export function useCurrentGoal() {
   return useQuery({
     queryKey: ['current-goal'],
     queryFn: async () => {
-      const response = await $fetch<Goal>('https://donate.pasarguard.org/api/v1/goal/current', {
+      const response = await publicFetch<Goal>('https://donate.pasarguard.org/api/v1/goal/current', {
         method: 'GET',
+        referrerPolicy: 'no-referrer',
+        credentials: 'omit',
       })
       return response
     },
@@ -44,8 +46,10 @@ export function useAllGoals() {
   return useQuery({
     queryKey: ['all-goals'],
     queryFn: async () => {
-      const response = await $fetch<GoalsResponse>('https://donate.pasarguard.org/api/v1/goal/list', {
+      const response = await publicFetch<GoalsResponse>('https://donate.pasarguard.org/api/v1/goal/list', {
         method: 'GET',
+        referrerPolicy: 'no-referrer',
+        credentials: 'omit',
       })
       return response
     },
