@@ -91,7 +91,7 @@
     "@react-router/fs-routes": "^7.9.5",
     "@svgr/webpack": "^8.1.0",
     "@types/lodash.debounce": "^4.0.9",
-    "@types/node": "^20.19.24",
+    "@types/node": "^24.10.1",
     "@types/react": "^18.3.26",
     "@types/react-dom": "^18.3.7",
     "ajv": "^8.17.1",
