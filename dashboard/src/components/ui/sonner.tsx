@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme, radius } = useTheme()
   const dir = useDirDetection()
 
   return (
@@ -15,6 +15,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       dir={dir}
       position={dir === 'rtl' ? 'top-left' : 'top-right'}
       toastOptions={{
+        style: { borderRadius: radius },
         classNames: {
           toast: 'group font-body toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
           description: 'group-[.toast]:text-muted-foreground',
