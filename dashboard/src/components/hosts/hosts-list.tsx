@@ -4,7 +4,7 @@ import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor,
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState, useMemo } from 'react'
-import { useForm } from 'react-hook-form'
+import { Resolver, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -454,7 +454,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }, [data])
 
   const form = useForm<HostFormValues>({
-    resolver: zodResolver(HostFormSchema),
+    resolver: zodResolver(HostFormSchema) as Resolver<HostFormValues>,
     defaultValues: initialDefaultValues,
   })
 
