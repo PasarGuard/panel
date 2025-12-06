@@ -3,6 +3,8 @@ import { escapeRegExp } from 'lodash'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import dayjs from '@/lib/dayjs'
+import type { Dayjs } from 'dayjs'
 import { getLogType, type LogLine } from '@/utils/logsUtils'
 import { useTranslation } from 'react-i18next'
 
@@ -20,15 +22,28 @@ export function TerminalLine({ log, noTimestamp, searchTerm }: LogLineProps) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
 
-  const formattedTime =
-    timestamp && !isNaN(timestamp.getTime())
-      ? timestamp.toLocaleTimeString(locale || undefined, {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        })
-      : ''
+  const parseLogDayjs = (value: Date | string | null): Dayjs | null => {
+    if (!value) return null
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : dayjs(value)
+    }
+
+    const cleaned = value.includes(' UTC') ? value.replace(' UTC', 'Z') : value
+    const formats = ['YYYY/MM/DD HH:mm:ss.SSSSSS', 'YYYY/MM/DD HH:mm:ss.SSS', 'YYYY/MM/DD HH:mm:ss', 'YYYY-MM-DD HH:mm:ss.SSS', 'YYYY-MM-DD HH:mm:ss']
+
+    for (const format of formats) {
+      const parsed = dayjs.utc(cleaned, format, true)
+      if (parsed.isValid()) return parsed.local()
+    }
+
+    const fallback = dayjs.utc(cleaned)
+    return fallback.isValid() ? fallback.local() : null
+  }
+
+  const parsedDate = parseLogDayjs(timestamp) ?? parseLogDayjs(rawTimestamp)
+
+  const displayTime = parsedDate ? parsedDate.format('HH:mm:ss') : rawTimestamp || ''
+  const tooltipTimestamp = parsedDate ? parsedDate.format('YYYY-MM-DD HH:mm:ss') : rawTimestamp || ''
 
   const highlightMessage = (text: string, term: string) => {
     if (!term) {
@@ -83,11 +98,13 @@ export function TerminalLine({ log, noTimestamp, searchTerm }: LogLineProps) {
               : 'hover:bg-gray-200/50 dark:hover:bg-gray-800/50',
       )}
     >
-      <div className="flex flex-shrink-0 items-start gap-2">
+      <div className={cn('flex flex-shrink-0 items-start gap-2', noTimestamp && 'gap-1')}>
         {/* Icon to expand the log item maybe implement a colapsible later */}
         {/* <Square className="size-4 text-muted-foreground opacity-0 group-hover/logitem:opacity-100 transition-opacity" /> */}
-        {tooltip(color, rawTimestamp)}
-        {!noTimestamp && <span className="w-14 flex-shrink-0 select-none text-[11px] text-muted-foreground sm:w-20 sm:text-xs">{formattedTime}</span>}
+        {tooltip(color, tooltipTimestamp || null)}
+        {!noTimestamp && (
+          <span className="w-20 flex-shrink-0 select-text text-[11px] text-muted-foreground sm:w-24 sm:text-xs">{displayTime}</span>
+        )}
 
         <Badge variant={variant} className={cn('w-12 flex-shrink-0 justify-center px-1 py-0 text-[11px] sm:w-14 sm:text-[10px]', locale === 'fa' && 'font-body')}>
           {t(`nodes.logs.${type}`)}
