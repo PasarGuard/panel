@@ -1416,7 +1416,15 @@
     "radiusNone": "无",
     "radiusSmall": "小",
     "radiusMedium": "中",
-    "radiusLarge": "大"
+    "radiusLarge": "大",
+    "datePicker": "日期选择器",
+    "datePickerDescription": "选择使用公历、波斯历或跟随语言。",
+    "datePickerFollowLocale": "跟随应用语言",
+    "datePickerManualHint": "关闭开关以手动选择日历。",
+    "datePickerPreferenceSaved": "日期选择器偏好已保存",
+    "datePickerModeLocale": "语言默认",
+    "datePickerModeGregorian": "公历",
+    "datePickerModePersian": "贾拉里历"
   },
   "coreConfigModal": {
     "addConfig": "添加核心配置",

@@ -1375,7 +1375,15 @@
     "radiusNone": "هیچ",
     "radiusSmall": "کوچک",
     "radiusMedium": "متوسط",
-    "radiusLarge": "بزرگ"
+    "radiusLarge": "بزرگ",
+    "datePicker": "انتخابگر تاریخ",
+    "datePickerDescription": "تقویم انتخابگر تاریخ را بین میلادی، شمسی یا بر اساس زبان انتخاب کنید.",
+    "datePickerFollowLocale": "هماهنگ با زبان برنامه",
+    "datePickerManualHint": "برای انتخاب دستی تقویم، سوییچ را خاموش کنید.",
+    "datePickerPreferenceSaved": "ترجیحات تقویم ذخیره شد",
+    "datePickerModeLocale": "پیش‌فرض بر اساس زبان",
+    "datePickerModeGregorian": "میلادی",
+    "datePickerModePersian": "جلالی"
   },
   "coreConfigModal": {
     "addConfig": "افزودن پیکربندی هسته",

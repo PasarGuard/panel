@@ -1354,7 +1354,15 @@
     "radiusNone": "Без",
     "radiusSmall": "Малый",
     "radiusMedium": "Средний",
-    "radiusLarge": "Большой"
+    "radiusLarge": "Большой",
+    "datePicker": "Дата-пикер",
+    "datePickerDescription": "Выберите календарь: григорианский, персидский или по языку.",
+    "datePickerFollowLocale": "Следовать языку приложения",
+    "datePickerManualHint": "Отключите, чтобы выбрать календарь вручную.",
+    "datePickerPreferenceSaved": "Предпочтение календаря сохранено",
+    "datePickerModeLocale": "По языку",
+    "datePickerModeGregorian": "Григорианский",
+    "datePickerModePersian": "Джалали"
   },
   "coreConfigModal": {
     "addConfig": "Добавить конфигурацию ядра",

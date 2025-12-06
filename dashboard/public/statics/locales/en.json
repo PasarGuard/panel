@@ -1456,7 +1456,15 @@
     "radiusNone": "None",
     "radiusSmall": "Small",
     "radiusMedium": "Medium",
-    "radiusLarge": "Large"
+    "radiusLarge": "Large",
+    "datePicker": "Date picker",
+    "datePickerDescription": "Choose whether date pickers use Gregorian, Persian, or follow your language.",
+    "datePickerFollowLocale": "Follow app language",
+    "datePickerManualHint": "Turn off to choose a calendar manually.",
+    "datePickerPreferenceSaved": "Date picker preference saved",
+    "datePickerModeLocale": "Locale default",
+    "datePickerModeGregorian": "Gregorian",
+    "datePickerModePersian": "Jalali"
   },
   "coreConfigModal": {
     "addConfig": "Create Core Configuration",

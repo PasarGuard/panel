@@ -14,6 +14,7 @@ import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
 import { formatDateByLocale, formatDateShort, isDateDisabled } from '@/utils/datePickerUtils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useTheme } from '@/components/common/theme-provider'
+import { DATE_PICKER_PREFERENCE_KEY, getDatePickerPreference, type DatePickerPreference } from '@/utils/userPreferenceStorage'
 
 export type DatePickerMode = 'single' | 'range'
 
@@ -162,7 +163,8 @@ export function DatePicker({
   side,
 }: DatePickerProps) {
   const { t, i18n } = useTranslation()
-  const isPersianLocale = i18n.language === 'fa'
+  const [datePreference, setDatePreference] = useState<DatePickerPreference>('locale')
+  const isPersianCalendar = datePreference === 'persian' || (datePreference === 'locale' && i18n.language === 'fa')
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
   const [internalOpen, setInternalOpen] = useState(false)
@@ -195,6 +197,20 @@ export function DatePicker({
     if (mode === 'range' && internalRange && onRangeChange) {
       onRangeChange(internalRange)
     }
+  }, [])
+
+  useEffect(() => {
+    const storedPreference = getDatePickerPreference()
+    setDatePreference(storedPreference)
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === DATE_PICKER_PREFERENCE_KEY) {
+        setDatePreference(getDatePickerPreference())
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   const handleDateSelect = useCallback(
@@ -285,9 +301,9 @@ export function DatePicker({
       if (customFormatDate) {
         return customFormatDate(date)
       }
-      return formatDateByLocale(date, isPersianLocale, showTime)
+      return formatDateByLocale(date, isPersianCalendar, showTime)
     },
-    [customFormatDate, isPersianLocale, showTime],
+    [customFormatDate, isPersianCalendar, showTime],
   )
 
   const dateDisabled = useCallback(
@@ -356,7 +372,7 @@ export function DatePicker({
             }}
             onEscapeKeyDown={() => setIsOpen(false)}
           >
-            {isPersianLocale ? (
+            {isPersianCalendar ? (
               <PersianCalendar
                 mode="single"
                 selected={displayDate}
@@ -459,13 +475,13 @@ export function DatePicker({
                     {formatDate(displayRange.from)} - {formatDate(displayRange.to)}
                   </span>
                   <span className="sm:hidden">
-                    {formatDateShort(displayRange.from, isPersianLocale)} - {formatDateShort(displayRange.to, isPersianLocale)}
+                    {formatDateShort(displayRange.from, isPersianCalendar)} - {formatDateShort(displayRange.to, isPersianCalendar)}
                   </span>
                 </span>
               ) : (
                 <span className="truncate">
                   <span className="hidden sm:inline">{formatDate(displayRange.from)}</span>
-                  <span className="sm:hidden">{formatDateShort(displayRange.from, isPersianLocale)}</span>
+                  <span className="sm:hidden">{formatDateShort(displayRange.from, isPersianCalendar)}</span>
                 </span>
               )
             ) : (
@@ -474,7 +490,7 @@ export function DatePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align={align ? align : "start"} side={side ? side : "bottom"} sideOffset={4} collisionPadding={8}>
-          {isPersianLocale ? (
+          {isPersianCalendar ? (
             <PersianCalendar
               mode="range"
               defaultMonth={displayRange?.from}

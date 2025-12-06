@@ -5,6 +5,10 @@ const NUM_ITEMS_PER_PAGE_DEFAULT = 10
 const USERS_AUTO_REFRESH_INTERVAL_KEY = 'pasarguard-users-auto-refresh-interval'
 const DEFAULT_USERS_AUTO_REFRESH_INTERVAL_SECONDS = 0
 
+export const DATE_PICKER_PREFERENCE_KEY = 'pasarguard-date-picker-preference'
+export type DatePickerPreference = 'locale' | 'gregorian' | 'persian'
+const DEFAULT_DATE_PICKER_PREFERENCE: DatePickerPreference = 'locale'
+
 // Generic function for any table type
 export const getItemsPerPageLimitSize = (tableType: 'users' | 'admins' = 'users') => {
   const storageKey = tableType === 'users' ? NUM_USERS_PER_PAGE_LOCAL_STORAGE_KEY : NUM_ADMINS_PER_PAGE_LOCAL_STORAGE_KEY
@@ -33,4 +37,18 @@ export const getUsersAutoRefreshIntervalSeconds = () => {
 export const setUsersAutoRefreshIntervalSeconds = (seconds: number) => {
   if (typeof localStorage === 'undefined') return
   localStorage.setItem(USERS_AUTO_REFRESH_INTERVAL_KEY, seconds.toString())
+}
+
+export const getDatePickerPreference = (): DatePickerPreference => {
+  if (typeof localStorage === 'undefined') return DEFAULT_DATE_PICKER_PREFERENCE
+  const storedValue = localStorage.getItem(DATE_PICKER_PREFERENCE_KEY)
+  if (storedValue === 'locale' || storedValue === 'gregorian' || storedValue === 'persian') {
+    return storedValue
+  }
+  return DEFAULT_DATE_PICKER_PREFERENCE
+}
+
+export const setDatePickerPreference = (preference: DatePickerPreference) => {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(DATE_PICKER_PREFERENCE_KEY, preference)
 }
