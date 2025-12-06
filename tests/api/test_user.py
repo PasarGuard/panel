@@ -381,9 +381,7 @@ def test_bulk_create_users_from_template_sequence(access_token):
         expected_usernames = [f"{base_username}{start_number + idx}" for idx in range(count)]
 
         for username in expected_usernames:
-            user_response = client.get(
-                f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"}
-            )
+            user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})
             assert user_response.status_code == status.HTTP_200_OK
             assert user_response.json()["data_limit"] == template["data_limit"]
             assert user_response.json()["status"] == template["status"]

@@ -83,6 +83,9 @@ class PasswordValidator:
             return value  # Allow None for optional passwords
 
         errors = []
+        encoded_len = len(value.encode("utf-8"))
+        if encoded_len > 72:
+            errors.append("Password too long: maximum 72 bytes when UTF-8 encoded")
         # Length check
         if len(value) < 12:
             errors.append("Password must be at least 12 characters long")
