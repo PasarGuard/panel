@@ -1018,7 +1018,6 @@ dependencies = [
     { name = "jinja2" },
     { name = "packaging" },
     { name = "pasarguard-node-bridge" },
-    { name = "passlib" },
     { name = "pip-system-certs" },
     { name = "psutil" },
     { name = "pydantic" },
@@ -1072,7 +1071,6 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "packaging", specifier = ">=24.2" },
     { name = "pasarguard-node-bridge", specifier = ">=0.3.6" },
-    { name = "passlib", specifier = "==1.7.4" },
     { name = "pip-system-certs", specifier = ">=5.3" },
     { name = "psutil", specifier = "==5.9.4" },
     { name = "pydantic", specifier = ">=2.11.3" },
@@ -1115,15 +1113,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/70/b8/fbd0d53db753b4217967611c51a590eb16e5effc4d7afb72c6d385adb5b8/pasarguard_node_bridge-0.3.6.tar.gz", hash = "sha256:3846e6be047c4c1df4290d5771d12563d72f56924ee8ce6c1e384234a0f3a0a7", size = 49693, upload-time = "2025-12-01T13:02:04.402Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/97/edbf176e75acc78aad7f50f7f619f54612484c1c9975a4585fb1ec68d85b/pasarguard_node_bridge-0.3.6-py3-none-any.whl", hash = "sha256:5bfce43d59ef816ab0fde229e8eecfff42726b4a8dd4e05936d0d1e1e4fd2833", size = 38488, upload-time = "2025-12-01T13:02:03.601Z" },
-]
-
-[[package]]
-name = "passlib"
-version = "1.7.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b6/06/9da9ee59a67fae7761aab3ccc84fa4f3f33f125b370f1ccdb915bf967c11/passlib-1.7.4.tar.gz", hash = "sha256:defd50f72b65c5402ab2c573830a6978e5f202ad0d984793c8dde2c4152ebe04", size = 689844, upload-time = "2020-10-08T19:00:52.121Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/a4/ab6b7589382ca3df236e03faa71deac88cae040af60c071a78d254a62172/passlib-1.7.4-py2.py3-none-any.whl", hash = "sha256:aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1", size = 525554, upload-time = "2020-10-08T19:00:49.856Z" },
 ]
 
 [[package]]

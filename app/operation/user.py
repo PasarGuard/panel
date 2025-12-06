@@ -73,9 +73,9 @@ _VERSION_TOKEN_RE = re.compile(r"v?\d+(?:\.\d+)*", re.IGNORECASE)
 class UserOperation(BaseOperation):
     @staticmethod
     def _format_validation_errors(error: ValidationError) -> str:
-        return "; ".join([
-            f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()
-        ])
+        return "; ".join(
+            [f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()]
+        )
 
     @staticmethod
     async def generate_subscription_url(user: UserNotificationResponse):

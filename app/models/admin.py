@@ -1,10 +1,22 @@
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from .notification_enable import UserNotificationEnable
 from .validators import DiscordValidator, NumericValidatorMixin, PasswordValidator
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+BCRYPT_ROUNDS = 12
+
+
+def _hash_password(raw: str) -> str:
+    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
+    return bcrypt.hashpw(raw.encode("utf-8"), salt).decode("utf-8")
+
+
+def _verify_password(raw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(raw.encode("utf-8"), hashed.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 class Token(BaseModel):
@@ -80,7 +92,7 @@ class AdminModify(BaseModel):
     @property
     def hashed_password(self):
         if self.password:
-            return pwd_context.hash(self.password)
+            return _hash_password(self.password)
 
     @field_validator("discord_webhook")
     @classmethod
@@ -104,7 +116,7 @@ class AdminInDB(AdminDetails):
     hashed_password: str
 
     def verify_password(self, plain_password):
-        return pwd_context.verify(plain_password, self.hashed_password)
+        return _verify_password(plain_password, self.hashed_password)
 
 
 class AdminValidationResult(BaseModel):

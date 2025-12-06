@@ -18,7 +18,6 @@ dependencies = [
     "cryptography==46.0.3",
     "fastapi>=0.115.12",
     "jdatetime>=5.2.0",
-    "passlib==1.7.4",
     "psutil==5.9.4",
     "pydantic>=2.11.3",
     "python-dateutil>=2.8.2",

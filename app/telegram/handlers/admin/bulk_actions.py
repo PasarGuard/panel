@@ -107,7 +107,11 @@ async def bulk_template_count(event: Message, state: FSMContext):
 
 @router.callback_query(UsernameStrategySelector.Callback.filter())
 async def bulk_template_strategy(
-    event: CallbackQuery, db: AsyncSession, state: FSMContext, admin: AdminDetails, callback_data: UsernameStrategySelector.Callback
+    event: CallbackQuery,
+    db: AsyncSession,
+    state: FSMContext,
+    admin: AdminDetails,
+    callback_data: UsernameStrategySelector.Callback,
 ):
     await delete_messages(event, state, message_ids=[event.message.message_id])
     data = await state.get_data()
@@ -216,12 +220,12 @@ async def _perform_bulk_creation(
 
     try:
         payload = BulkUsersFromTemplate(
-        count=count,
-        strategy=strategy,
-        username=base_username,
-        user_template_id=template_id,
-        start_number=start_number,
-    )
+            count=count,
+            strategy=strategy,
+            username=base_username,
+            user_template_id=template_id,
+            start_number=start_number,
+        )
         result = await user_operations.bulk_create_users_from_template(db, payload, admin)
     except Exception as e:
         await state.clear()
