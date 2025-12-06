@@ -1,5 +1,5 @@
 import { AdminDetails, SystemStats, useGetSystemStats } from '@/service/api'
-import { UserCircleIcon } from 'lucide-react'
+import { UserCog, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import UserStatisticsCard from './users-statistics-card'
 import DataUsageChart from './data-usage-chart'
@@ -35,11 +35,17 @@ const AdminStatisticsCard = ({
 
   if (showAdminInfo)
     return (
-      <div className="flex flex-col gap-6 rounded-lg border px-2.5 py-4 shadow-lg md:px-4">
+      <div className="flex flex-col gap-6 rounded-lg py-4">
         <div className="flex flex-row items-center justify-between">
-          <div className="flex flex-row items-center gap-2">
-            <UserCircleIcon className="size-7 text-muted-foreground" />
-            <span className="text-xl font-bold">{admin.username === 'Total' ? t('admins.total') : admin.username}</span>
+          <div className="flex min-w-0 flex-row items-center gap-2">
+            {admin.username === 'Total' ? (
+              <Users className="size-6 text-muted-foreground md:size-7" />
+            ) : (
+              <UserCog className="size-6 text-muted-foreground md:size-7" />
+            )}
+            <span className="truncate text-lg font-bold md:text-xl">
+              {admin.username === 'Total' ? t('admins.total') : admin.username}
+            </span>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
