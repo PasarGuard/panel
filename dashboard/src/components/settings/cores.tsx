@@ -13,7 +13,8 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Search, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initialDefaultValues: Partial<CoreConfigFormValues> = {
@@ -38,7 +39,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
   const modifyCoreMutation = useModifyCoreConfig()
   const dir = useDirDetection()
 
-  const { data: coresData, isLoading, refetch } = useGetAllCores({})
+  const { data: coresData, isLoading, isFetching, refetch } = useGetAllCores({})
 
   useEffect(() => {
     const handleOpenDialog = () => onOpenChange?.(true)
@@ -117,9 +118,13 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     return coresList.filter((core: CoreResponse) => core.name?.toLowerCase().includes(query))
   }, [coresList, searchQuery])
 
+  const handleRefreshClick = async () => {
+    await refetch()
+  }
+
   return (
     <div className={cn('flex w-full flex-col gap-4 pt-4', dir === 'rtl' && 'rtl')}>
-      <div>
+      <div className="flex items-center gap-2 md:gap-3">
         {/* Search Input */}
         <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
           <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
@@ -130,6 +135,16 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
             </button>
           )}
         </div>
+        <Button
+          size="icon-md"
+          variant="ghost"
+          onClick={handleRefreshClick}
+          className={cn('border', isFetching && 'opacity-70')}
+          aria-label={t('autoRefresh.refreshNow')}
+          title={t('autoRefresh.refreshNow')}
+        >
+          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+        </Button>
       </div>
       <ScrollArea dir={dir} className="h-[calc(100vh-8rem)]">
         <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

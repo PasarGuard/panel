@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 export default function HostsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<BaseHost | null>(null)
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['getGetHostsQueryKey'],
     queryFn: () => getHosts(),
   })
@@ -247,6 +247,8 @@ export default function HostsPage() {
             onSubmit={handleSubmit}
             editingHost={editingHost}
             setEditingHost={setEditingHost}
+            onRefresh={refetch}
+            isRefreshing={isFetching}
           />
         )}
       </div>

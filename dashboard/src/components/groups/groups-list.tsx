@@ -13,7 +13,8 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Search, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initialDefaultValues: Partial<GroupFormValues> = {
@@ -33,7 +34,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   const { t } = useTranslation()
   const modifyGroupMutation = useModifyGroup()
   const dir = useDirDetection()
-  const { data: groupsData, isLoading } = useGetAllGroups({})
+  const { data: groupsData, isLoading, isFetching, refetch } = useGetAllGroups({})
 
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
@@ -88,6 +89,10 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     return groupsData.groups.filter((group: GroupResponse) => group.name?.toLowerCase().includes(query))
   }, [groupsData?.groups, searchQuery])
 
+  const handleRefresh = async () => {
+    await refetch()
+  }
+
   return (
     <div className="w-full flex-1 space-y-4">
       {/* Search Input */}
@@ -101,6 +106,16 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
             </button>
           )}
         </div>
+        <Button
+          size="icon-md"
+          variant="ghost"
+          onClick={handleRefresh}
+          className={cn('border', isFetching && 'opacity-70')}
+          aria-label={t('autoRefresh.refreshNow')}
+          title={t('autoRefresh.refreshNow')}
+        >
+          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+        </Button>
       </div>
       <ScrollArea className="h-[calc(100vh-8rem)]">
         <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

@@ -11,7 +11,8 @@ import * as z from 'zod'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
 import { Input } from '@/components/ui/input'
-import { Search, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { RefreshCw, Search, X } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 
@@ -439,12 +440,15 @@ export interface HostsListProps {
   onSubmit: (data: HostFormValues) => Promise<{ status: number }>
   editingHost: BaseHost | null
   setEditingHost: (host: BaseHost | null) => void
+  onRefresh?: () => Promise<unknown>
+  isRefreshing?: boolean
 }
 
-export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost }: HostsListProps) {
+export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost, onRefresh, isRefreshing: isRefreshingProp }: HostsListProps) {
   const [hosts, setHosts] = useState<BaseHost[] | undefined>()
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const { t } = useTranslation()
   const dir = useDirDetection()
 
@@ -460,12 +464,27 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
 
   const refreshHostsData = () => {
     // Just invalidate the main query key used in the dashboard
-    queryClient.invalidateQueries({
+    return queryClient.invalidateQueries({
       queryKey: ['getGetHostsQueryKey'],
       exact: true, // Only invalidate this exact query
       refetchType: 'active', // Only refetch if the query is currently being rendered
     })
   }
+
+  const handleRefreshClick = async () => {
+    if (onRefresh) {
+      await onRefresh()
+      return
+    }
+    setIsManualRefreshing(true)
+    try {
+      await refreshHostsData()
+    } finally {
+      setIsManualRefreshing(false)
+    }
+  }
+
+  const isRefreshing = isRefreshingProp ?? isManualRefreshing
 
   const handleEdit = (host: BaseHost) => {
     const formData: HostFormValues = {
@@ -814,7 +833,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   return (
     <div>
       {/* Search Input */}
-      <div className="mb-4">
+      <div className="mb-4 flex items-center gap-2 md:gap-3">
         <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
           <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
           <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
@@ -824,6 +843,16 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
             </button>
           )}
         </div>
+        <Button
+          size="icon-md"
+          variant="ghost"
+          onClick={handleRefreshClick}
+          className={cn('border', isRefreshing && 'opacity-70')}
+          aria-label={t('autoRefresh.refreshNow')}
+          title={t('autoRefresh.refreshNow')}
+        >
+          <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
+        </Button>
       </div>
       <div>
         <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

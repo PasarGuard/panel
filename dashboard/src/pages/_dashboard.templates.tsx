@@ -1,7 +1,7 @@
 import UserTemplate from '../components/templates/user-template'
 import { useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse, ShadowsocksMethods, XTLSFlows } from '@/service/api'
 import PageHeader from '@/components/layout/page-header'
-import { Plus } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { Separator } from '@/components/ui/separator.tsx'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
@@ -14,6 +14,7 @@ import { queryClient } from '@/utils/query-client.ts'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Search, X } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
@@ -36,7 +37,7 @@ export default function UserTemplates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUserTemplate, setEditingUserTemplate] = useState<UserTemplateResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const { data: userTemplates, isLoading } = useGetUserTemplates()
+  const { data: userTemplates, isLoading, isFetching, refetch } = useGetUserTemplates()
   const form = useForm<UserTemplatesFromValue>({
     resolver: zodResolver(userTemplateFormSchema),
   })
@@ -113,6 +114,10 @@ export default function UserTemplates() {
     )
   }, [userTemplates, searchQuery])
 
+  const handleRefreshClick = async () => {
+    await refetch()
+  }
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
@@ -140,6 +145,16 @@ export default function UserTemplates() {
               </button>
             )}
           </div>
+          <Button
+            size="icon-md"
+            variant="ghost"
+            onClick={handleRefreshClick}
+            className={cn('border', isFetching && 'opacity-70')}
+            aria-label={t('autoRefresh.refreshNow')}
+            title={t('autoRefresh.refreshNow')}
+          >
+            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+          </Button>
         </div>
 
         <div
