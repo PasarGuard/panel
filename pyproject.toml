@@ -5,14 +5,14 @@ description = "Unified GUI Censorship Resistant Solution"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "APScheduler>=3.11.0",
+    "APScheduler>=3.11.1",
     "Deprecated==1.2.13",
     "Jinja2>=3.1.6",
     "PyJWT>=2.10.1",
     "PyYAML>=6.0.2",
     "alembic>=1.15.2",
     "bcrypt==5.0.0",
-    "click>=8.1.8",
+    "click>=8.3.1",
     "commentjson==0.9.0",
     "cryptography==46.0.3",
     "fastapi>=0.124.0",
@@ -24,12 +24,12 @@ dependencies = [
     "python-dotenv>=0.21.1",
     "python-multipart>=0.0.7",
     "qrcode>=8.1",
-    "rich>=13.7.1",
+    "rich>=14.2.0",
     "uvicorn==0.38.0",
-    "sse-starlette>=2.1.3",
+    "sse-starlette>=3.0.3",
     "httpx>=0.28.1",
     "packaging>=24.2",
-    "sqlalchemy[asyncio]>=2.0.40",
+    "sqlalchemy[asyncio]>=2.0.44",
     "aiosqlite>=0.21.0",
     "asyncpg>=0.30.0",
     "asyncmy>=0.2.10; sys_platform != 'win32'",
@@ -39,7 +39,7 @@ dependencies = [
     "aiohttp-socks>=0.10.1",
     "uvloop>=0.21.0; sys_platform != 'win32'",
     "aiorwlock>=1.5.0",
-    "typer>=0.17.3",
+    "typer>=0.20.0",
     "pasarguard-node-bridge>=0.3.6",
     "pip-system-certs>=5.3",
 ]
@@ -65,11 +65,11 @@ docstring-code-line-length = "dynamic"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3.5",
+    "pytest>=9.0.2",
     "pytest-asyncio>=0.26.0",
     "pytest-watch>=4.2.0",
     "ruff>=0.11.6",
     "sqlalchemy-utils>=0.41.2",
-    "textual-dev>=1.7.0",
+    "textual-dev>=1.8.0",
     "watchfiles>=1.0.4",
 ]
