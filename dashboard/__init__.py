@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
 from app import app, on_startup
-from config import DASHBOARD_PATH, DEBUG, UVICORN_PORT, VITE_BASE_API
+from config import DASHBOARD_PATH, DEBUG, RUN_SCHEDULER, UVICORN_PORT, VITE_BASE_API
 
 base_dir = Path(__file__).parent
 build_dir = base_dir / "build"
@@ -56,6 +56,9 @@ def run_build():
 
 @on_startup
 def run_dashboard():
+    if RUN_SCHEDULER:
+        return
+
     if DEBUG:
         run_dev()
     else:

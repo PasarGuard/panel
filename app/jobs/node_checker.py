@@ -12,7 +12,7 @@ from app.operation.node import NodeOperation
 from app.operation import OperatorType
 from app.db.crud.node import get_limited_nodes, get_nodes
 
-from config import JOB_CORE_HEALTH_CHECK_INTERVAL, JOB_CHECK_NODE_LIMITS_INTERVAL
+from config import JOB_CORE_HEALTH_CHECK_INTERVAL, JOB_CHECK_NODE_LIMITS_INTERVAL, RUN_SCHEDULER
 
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -190,6 +190,9 @@ async def node_health_check():
 
 @on_startup
 async def initialize_nodes():
+    if not RUN_SCHEDULER:
+        return
+
     logger.info("Starting nodes' cores...")
 
     async with GetDB() as db:
@@ -203,17 +206,32 @@ async def initialize_nodes():
 
     # Schedule node health check job (runs frequently)
     scheduler.add_job(
-        node_health_check, "interval", seconds=JOB_CORE_HEALTH_CHECK_INTERVAL, coalesce=True, max_instances=1
+        node_health_check,
+        "interval",
+        seconds=JOB_CORE_HEALTH_CHECK_INTERVAL,
+        coalesce=True,
+        max_instances=1,
+        id="node_health_check",
+        replace_existing=True,
     )
 
     # Schedule node limits check job (runs less frequently)
     scheduler.add_job(
-        check_node_limits, "interval", seconds=JOB_CHECK_NODE_LIMITS_INTERVAL, coalesce=True, max_instances=1
+        check_node_limits,
+        "interval",
+        seconds=JOB_CHECK_NODE_LIMITS_INTERVAL,
+        coalesce=True,
+        max_instances=1,
+        id="check_node_limits",
+        replace_existing=True,
     )
 
 
 @on_shutdown
 async def shutdown_nodes():
+    if not RUN_SCHEDULER:
+        return
+
     logger.info("Stopping nodes' cores...")
 
     nodes: dict[int, PasarGuardNode] = await node_manager.get_nodes()

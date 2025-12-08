@@ -22,5 +22,11 @@ async def remove_old_inbounds():
 
 
 scheduler.add_job(
-    remove_old_inbounds, "interval", seconds=JOB_REMOVE_OLD_INBOUNDS_INTERVAL, coalesce=True, max_instances=1
+    remove_old_inbounds,
+    "interval",
+    seconds=JOB_REMOVE_OLD_INBOUNDS_INTERVAL,
+    coalesce=True,
+    max_instances=1,
+    id="remove_old_inbounds",
+    replace_existing=True,
 )

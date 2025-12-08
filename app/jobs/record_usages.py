@@ -516,6 +516,8 @@ scheduler.add_job(
     coalesce=True,
     start_date=dt.now(tz.utc) + td(seconds=30),
     max_instances=1,
+    id="record_user_usages",
+    replace_existing=True,
 )
 
 scheduler.add_job(
@@ -525,4 +527,6 @@ scheduler.add_job(
     coalesce=True,
     start_date=dt.now(tz.utc) + td(seconds=15),
     max_instances=1,
+    id="record_node_usages",
+    replace_existing=True,
 )

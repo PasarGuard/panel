@@ -79,4 +79,6 @@ if USER_SUBSCRIPTION_CLIENTS_LIMIT and USER_SUBSCRIPTION_CLIENTS_LIMIT >= 0:
         "interval",
         seconds=JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL,
         max_instances=1,
+        id="cleanup_user_subscription_updates",
+        replace_existing=True,
     )

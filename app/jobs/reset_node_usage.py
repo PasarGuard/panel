@@ -48,4 +48,6 @@ scheduler.add_job(
     coalesce=True,
     start_date=dt.now(tz.utc) + td(minutes=1),
     max_instances=1,
+    id="reset_node_usage",
+    replace_existing=True,
 )

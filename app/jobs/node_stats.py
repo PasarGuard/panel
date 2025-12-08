@@ -48,5 +48,11 @@ async def gather_nodes_stats():
 
 if ENABLE_RECORDING_NODES_STATS:
     scheduler.add_job(
-        gather_nodes_stats, "interval", seconds=JOB_GATHER_NODES_STATS_INTERVAL, coalesce=True, max_instances=1
+        gather_nodes_stats,
+        "interval",
+        seconds=JOB_GATHER_NODES_STATS_INTERVAL,
+        coalesce=True,
+        max_instances=1,
+        id="gather_nodes_stats",
+        replace_existing=True,
     )

@@ -1,13 +1,11 @@
-import os
-
 from decouple import config
 from dotenv import load_dotenv
 
-TESTING = os.getenv("TESTING", False)
-
+TESTING = config("TESTING", default=False, cast=bool)
 if not TESTING:
     load_dotenv()
-
+    # Reload TESTING in case it is defined in .env
+    TESTING = config("TESTING", default=TESTING, cast=bool)
 
 SQLALCHEMY_DATABASE_URL = config("SQLALCHEMY_DATABASE_URL", default="sqlite+aiosqlite:///db.sqlite3")
 SQLALCHEMY_POOL_SIZE = config("SQLALCHEMY_POOL_SIZE", cast=int, default=25)
@@ -20,8 +18,15 @@ UVICORN_UDS = config("UVICORN_UDS", default=None)
 UVICORN_SSL_CERTFILE = config("UVICORN_SSL_CERTFILE", default=None)
 UVICORN_SSL_KEYFILE = config("UVICORN_SSL_KEYFILE", default=None)
 UVICORN_SSL_CA_TYPE = config("UVICORN_SSL_CA_TYPE", default="public").lower()
+UVICORN_WORKERS = config("UVICORN_WORKERS", default=1, cast=int)
 DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
 UVICORN_LOOP = config("UVICORN_LOOP", default="auto", cast=str)
+RUN_SCHEDULER = config("RUN_SCHEDULER", default=False, cast=bool)
+
+REDIS_ENABLED = config("REDIS_ENABLED", default=False, cast=bool)
+REDIS_HOST = config("REDIS_HOST", default="localhost")
+REDIS_PORT = config("REDIS_PORT", cast=int, default=6379)
+REDIS_DB = config("REDIS_DB", cast=int, default=0)
 
 DEBUG = config("DEBUG", default=False, cast=bool)
 DOCS = config("DOCS", default=False, cast=bool)
@@ -59,7 +64,9 @@ GRPC_USER_AGENT_TEMPLATE = config("GRPC_USER_AGENT_TEMPLATE", default="user_agen
 EXTERNAL_CONFIG = config("EXTERNAL_CONFIG", default="", cast=str)
 
 USERS_AUTODELETE_DAYS = config("USERS_AUTODELETE_DAYS", default=-1, cast=int)
-USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS = config("USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS", default=False, cast=bool)
+USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS = config(
+    "USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS", default=False, cast=bool
+)
 
 DO_NOT_LOG_TELEGRAM_BOT = config("DO_NOT_LOG_TELEGRAM_BOT", default=True, cast=bool)
 

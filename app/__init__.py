@@ -1,21 +1,56 @@
 import asyncio
 from contextlib import asynccontextmanager
 
+from aiocache import caches
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from sqlalchemy.engine import make_url
 
+from app.core.redis_config import get_redis_config, is_redis_enabled
 from app.middlewares import setup_middleware
 from app.utils.logger import get_logger
-from config import DOCS, SUBSCRIPTION_PATH
+from config import DOCS, RUN_SCHEDULER, SQLALCHEMY_DATABASE_URL, SUBSCRIPTION_PATH
 
 __version__ = "1.9.2"
 
 startup_functions = []
 shutdown_functions = []
+
+
+if is_redis_enabled():
+    cfg = get_redis_config()
+    caches.set_config(
+        {
+            "default": {
+                "cache": "aiocache.RedisCache",
+                "endpoint": cfg["endpoint"],
+                "port": cfg["port"],
+                "db": cfg["db"],
+                "serializer": {"class": "aiocache.serializers.PickleSerializer"},
+            }
+        }
+    )
+
+logger = get_logger()
+
+
+def _resolve_jobstore_url() -> str:
+    url = make_url(SQLALCHEMY_DATABASE_URL)
+    driver_map = {
+        "sqlite+aiosqlite": "sqlite",
+        "postgresql+asyncpg": "postgresql+psycopg",
+        "mysql+asyncmy": "mysql+pymysql",
+    }
+
+    if url.drivername in driver_map:
+        url = url.set(drivername=driver_map[url.drivername])
+
+    return str(url)
 
 
 def on_startup(func):
@@ -66,13 +101,24 @@ app = FastAPI(
     openapi_url="/openapi.json" if DOCS else None,
 )
 
-scheduler = AsyncIOScheduler(job_defaults={"max_instances": 30}, timezone="UTC")
-logger = get_logger()
+try:
+    jobstores = {"default": SQLAlchemyJobStore(url=_resolve_jobstore_url())}
+except ModuleNotFoundError as exc:
+    missing_driver = getattr(exc, "name", "unknown driver")
+    raise RuntimeError(
+        f"Missing database driver ({missing_driver}) for APScheduler job store. "
+        "Install a synchronous driver compatible with your configured SQLALCHEMY_DATABASE_URL."
+    ) from exc
+
+scheduler = AsyncIOScheduler(jobstores=jobstores, job_defaults={"max_instances": 30}, timezone="UTC")
 
 setup_middleware(app)
 
-from app import routers, telegram, jobs  # noqa
+from app import routers, telegram  # noqa
 from app.routers import api_router  # noqa
+
+if RUN_SCHEDULER:
+    from app import jobs  # noqa
 
 app.include_router(api_router)
 
@@ -94,8 +140,13 @@ def validate_paths():
         raise ValueError(f"you can't use /{SUBSCRIPTION_PATH}/ as subscription path it reserved for {app.title}")
 
 
-on_startup(scheduler.start)
-on_shutdown(scheduler.shutdown)
+if RUN_SCHEDULER:
+    from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
+
+    on_startup(scheduler.start)
+    on_shutdown(scheduler.shutdown)
+    on_startup(start_notification_dispatcher)
+    on_shutdown(stop_notification_dispatcher)
 on_startup(lambda: logger.info(f"PasarGuard v{__version__}"))
 
 

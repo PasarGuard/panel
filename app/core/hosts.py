@@ -303,7 +303,7 @@ class HostManager:
         async with self._lock:
             return deepcopy(self._hosts.get(id))
 
-    @cached()
+    @cached(ttl=10)
     async def get_hosts(self) -> dict[int, dict]:
         async with self._lock:
             # Return hosts sorted by priority (accessing from subscription_data)

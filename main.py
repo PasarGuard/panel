@@ -10,6 +10,7 @@ from cryptography.hazmat.backends import default_backend
 
 import dashboard  # noqa
 from app import app, logger  # noqa
+from app.core.redis_config import require_redis_if_multiworker
 from app.utils.logger import LOGGING_CONFIG
 from config import (
     DEBUG,
@@ -21,7 +22,14 @@ from config import (
     UVICORN_SSL_CERTFILE,
     UVICORN_SSL_KEYFILE,
     UVICORN_UDS,
+    UVICORN_WORKERS,
 )
+
+workers = UVICORN_WORKERS or 1
+if workers < 1:
+    logger.warning(f"Invalid UVICORN_WORKERS value '{UVICORN_WORKERS}', defaulting to 1.")
+    workers = 1
+require_redis_if_multiworker(workers)
 
 
 def check_and_modify_ip(ip_address: str) -> str:
@@ -93,9 +101,6 @@ def validate_cert_and_key(cert_file_path, key_file_path, ca_type: str = "public"
 
 
 if __name__ == "__main__":
-    # Do NOT change workers count for now
-    # multi-workers support isn't implemented yet for APScheduler
-
     # Validate UVICORN_SSL_CA_TYPE value
     valid_ca_types = ("public", "private")
     ca_type = UVICORN_SSL_CA_TYPE
@@ -157,7 +162,7 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
         uvicorn.run(
             "main:app",
             **bind_args,
-            workers=1,
+            workers=workers,
             reload=DEBUG,
             log_config=LOGGING_CONFIG,
             log_level=effective_log_level.lower(),

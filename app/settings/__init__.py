@@ -5,7 +5,10 @@ from app.db.crud.settings import get_settings
 from app.models import settings
 
 
-@cached()
+CACHE_OPTS = {"ttl": 30}
+
+
+@cached(**CACHE_OPTS)
 async def telegram_settings() -> settings.Telegram:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -14,7 +17,7 @@ async def telegram_settings() -> settings.Telegram:
     return validated_settings
 
 
-@cached()
+@cached(**CACHE_OPTS)
 async def discord_settings() -> settings.Discord:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -23,7 +26,7 @@ async def discord_settings() -> settings.Discord:
     return validated_settings
 
 
-@cached()
+@cached(**CACHE_OPTS)
 async def webhook_settings() -> settings.Webhook:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -32,7 +35,7 @@ async def webhook_settings() -> settings.Webhook:
     return validated_settings
 
 
-@cached()
+@cached(**CACHE_OPTS)
 async def notification_settings() -> settings.NotificationSettings:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -41,7 +44,7 @@ async def notification_settings() -> settings.NotificationSettings:
     return validated_settings
 
 
-@cached()
+@cached(**CACHE_OPTS)
 async def notification_enable() -> settings.NotificationEnable:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -50,7 +53,7 @@ async def notification_enable() -> settings.NotificationEnable:
     return validated_settings
 
 
-@cached()
+@cached(**CACHE_OPTS)
 async def subscription_settings() -> settings.Subscription:
     async with GetDB() as db:
         db_settings = await get_settings(db)

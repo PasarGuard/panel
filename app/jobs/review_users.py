@@ -158,7 +158,14 @@ interval = int(JOB_REVIEW_USERS_INTERVAL / 5)
 
 # Register each job separately
 scheduler.add_job(
-    expire_users_job, "interval", seconds=JOB_REVIEW_USERS_INTERVAL, coalesce=True, max_instances=1, start_date=now
+    expire_users_job,
+    "interval",
+    seconds=JOB_REVIEW_USERS_INTERVAL,
+    coalesce=True,
+    max_instances=1,
+    start_date=now,
+    id="expire_users",
+    replace_existing=True,
 )
 scheduler.add_job(
     limit_users_job,
@@ -167,6 +174,8 @@ scheduler.add_job(
     coalesce=True,
     max_instances=1,
     start_date=now + td(seconds=interval),
+    id="limit_users",
+    replace_existing=True,
 )
 scheduler.add_job(
     on_hold_to_active_users_job,
@@ -175,6 +184,8 @@ scheduler.add_job(
     coalesce=True,
     max_instances=1,
     start_date=now + td(seconds=interval * 2),
+    id="on_hold_to_active_users",
+    replace_existing=True,
 )
 scheduler.add_job(
     usage_percent_notification_job,
@@ -183,6 +194,8 @@ scheduler.add_job(
     coalesce=True,
     max_instances=1,
     start_date=now + td(seconds=interval * 3),
+    id="usage_percent_notification",
+    replace_existing=True,
 )
 scheduler.add_job(
     days_left_notification_job,
@@ -191,4 +204,6 @@ scheduler.add_job(
     coalesce=True,
     max_instances=1,
     start_date=now + td(seconds=interval * 4),
+    id="days_left_notification",
+    replace_existing=True,
 )

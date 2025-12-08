@@ -22,5 +22,11 @@ async def remove_expired_users():
 
 
 scheduler.add_job(
-    remove_expired_users, "interval", coalesce=True, seconds=JOB_REMOVE_EXPIRED_USERS_INTERVAL, max_instances=1
+    remove_expired_users,
+    "interval",
+    coalesce=True,
+    seconds=JOB_REMOVE_EXPIRED_USERS_INTERVAL,
+    max_instances=1,
+    id="remove_expired_users",
+    replace_existing=True,
 )
