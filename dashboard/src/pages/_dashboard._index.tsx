@@ -240,7 +240,8 @@ const Dashboard = () => {
 
   const handleCreateUserSuccess = async (user: UserResponse) => {
     if (user.subscription_url) {
-      await copy(user.subscription_url)
+      const subURL = user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url
+      await copy(subURL)
       toast.success(t('userSettings.subscriptionUrlCopied'))
     }
     refreshAllUserData()
