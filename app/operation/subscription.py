@@ -132,7 +132,9 @@ class SubscriptionOperation(BaseOperation):
         user_agent: str = "",
         request_url: str = "",
     ):
-        """Provides a subscription link based on the user agent (Clash, V2Ray, etc.)."""
+        """
+        Provides a subscription link based on the user agent (Clash, V2Ray, etc.).
+        """
         # Handle HTML request (subscription page)
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token)
@@ -146,13 +148,12 @@ class SubscriptionOperation(BaseOperation):
                 if db_user.admin and db_user.admin.sub_template
                 else SUBSCRIPTION_PAGE_TEMPLATE
             )
-
             links = []
             if sub_settings.allow_browser_config:
                 conf, media_type = await self.fetch_config(user, ConfigFormat.links)
                 links = conf.splitlines()
 
-            sub_url = await UserOperation.generate_subscription_url(db_user)
+            format_variables = await self.get_format_variables(user)
 
             return HTMLResponse(
                 render_template(
@@ -160,7 +161,7 @@ class SubscriptionOperation(BaseOperation):
                     {
                         "user": user,
                         "links": links,
-                        "apps": self._make_apps_import_urls(sub_url, sub_settings.applications),
+                        "apps": self._make_apps_import_urls(sub_settings.applications, format_variables),
                     },
                 )
             )
@@ -175,6 +176,16 @@ class SubscriptionOperation(BaseOperation):
 
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
+
+    async def get_format_variables(self, user: UsersResponseWithInbounds) -> dict:
+        """Get format variables for URL formatting."""
+        sub_settings: SubSettings = await subscription_settings()
+        format_variables = setup_format_variables(user)
+        sub_url = await UserOperation.generate_subscription_url(user)
+
+        format_variables.update({"PROFILE_TITLE": sub_settings.profile_title})
+        format_variables.update({"url": sub_url})
+        return format_variables
 
     async def user_subscription_with_client_type(
         self, db: AsyncSession, token: str, client_type: ConfigFormat, request_url: str = ""
@@ -193,9 +204,7 @@ class SubscriptionOperation(BaseOperation):
         # Create response headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
-    async def user_subscription_info(
-        self, db: AsyncSession, token: str, request_url: str = ""
-    ) -> tuple[SubscriptionUserResponse, dict]:
+    async def user_subscription_info(self, db: AsyncSession, token: str) -> tuple[SubscriptionUserResponse, dict]:
         """Retrieves detailed information about the user's subscription."""
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token=token)
@@ -206,19 +215,21 @@ class SubscriptionOperation(BaseOperation):
 
         return user_response, response_headers
 
-    async def user_subscription_apps(self, db: AsyncSession, token: str, request_url: str) -> list[Application]:
+    async def user_subscription_apps(self, db: AsyncSession, token: str) -> list[Application]:
         """
         Get available applications for user's subscription.
         """
-        _, _ = await self.user_subscription_info(db, token, request_url)
+        user, _ = await self.user_subscription_info(db, token)
         sub_settings: SubSettings = await subscription_settings()
-        return self._make_apps_import_urls(request_url, sub_settings.applications)
+        format_variables = await self.get_format_variables(user)
+        return self._make_apps_import_urls(sub_settings.applications, format_variables)
 
-    def _make_apps_import_urls(self, sub_url: str, applications: list[Application]):
+    def _make_apps_import_urls(self, applications: list[Application], format_variables: dict) -> list[Application]:
         apps_with_updated_urls = []
         for app in applications:
             updated_app = app.model_copy()
-            updated_app.import_url = app.import_url.format(url=sub_url)
+            import_url = app.import_url.format_map(format_variables)
+            updated_app.import_url = import_url
             apps_with_updated_urls.append(updated_app)
 
         return apps_with_updated_urls

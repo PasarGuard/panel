@@ -36,18 +36,16 @@ async def user_subscription(
 @router.get("/{token}/info", response_model=SubscriptionUserResponse)
 async def user_subscription_info(request: Request, token: str, db: AsyncSession = Depends(get_db)):
     """Retrieves detailed information about the user's subscription."""
-    user_data, response_headers = await subscription_operator.user_subscription_info(
-        db, token=token, request_url=str(request.url)
-    )
+    user_data, response_headers = await subscription_operator.user_subscription_info(db, token=token)
     return JSONResponse(content=user_data.model_dump(mode="json"), headers=response_headers)
 
 
 @router.get("/{token}/apps", response_model=list[Application])
-async def user_subscription_apps(token: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def user_subscription_apps(token: str, db: AsyncSession = Depends(get_db)):
     """
     Get applications available for user's subscription.
     """
-    return await subscription_operator.user_subscription_apps(db, token, str(request.url))
+    return await subscription_operator.user_subscription_apps(db, token)
 
 
 @router.get("/{token}/usage", response_model=UserUsageStatsList)
