@@ -13,8 +13,8 @@ def get_redis_config():
     }
 
 
-def require_redis_if_multiworker(workers: int):
-    if workers > 1 and not is_redis_enabled():
+def require_redis_if_multiworker(multi_worker: bool):
+    if multi_worker and not is_redis_enabled():
         raise RuntimeError(
             "Redis is required when running more than 1 worker. "
             "Set REDIS_ENABLED=1 and provide proper Redis configuration."

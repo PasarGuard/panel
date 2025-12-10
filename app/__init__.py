@@ -11,15 +11,17 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from sqlalchemy.engine import make_url
 
-from app.core.redis_config import get_redis_config, is_redis_enabled
+from app.core.redis_config import get_redis_config, is_redis_enabled, require_redis_if_multiworker
 from app.middlewares import setup_middleware
 from app.utils.logger import get_logger
-from config import DOCS, RUN_SCHEDULER, SQLALCHEMY_DATABASE_URL, SUBSCRIPTION_PATH
+from config import DOCS, MULTI_WORKER, RUN_SCHEDULER, SQLALCHEMY_DATABASE_URL, SUBSCRIPTION_PATH
 
 __version__ = "1.9.2"
 
 startup_functions = []
 shutdown_functions = []
+
+require_redis_if_multiworker(MULTI_WORKER)
 
 
 if is_redis_enabled():

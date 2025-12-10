@@ -23,10 +23,17 @@ DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
 UVICORN_LOOP = config("UVICORN_LOOP", default="auto", cast=str)
 RUN_SCHEDULER = config("RUN_SCHEDULER", default=False, cast=bool)
 
+_RAW_MULTI_WORKER = config("MULTI_WORKER", default=None)
+if _RAW_MULTI_WORKER is None:
+    MULTI_WORKER = UVICORN_WORKERS > 1
+else:
+    MULTI_WORKER = str(_RAW_MULTI_WORKER).lower() in ("1", "true", "yes", "y", "on")
+
 REDIS_ENABLED = config("REDIS_ENABLED", default=False, cast=bool)
 REDIS_HOST = config("REDIS_HOST", default="localhost")
 REDIS_PORT = config("REDIS_PORT", cast=int, default=6379)
 REDIS_DB = config("REDIS_DB", cast=int, default=0)
+CORE_PUBSUB_CHANNEL = config("CORE_PUBSUB_CHANNEL", default="core_hosts_updates")
 
 DEBUG = config("DEBUG", default=False, cast=bool)
 DOCS = config("DOCS", default=False, cast=bool)
