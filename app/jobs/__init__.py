@@ -1,5 +1,5 @@
 import glob
-import importlib.util
+from importlib import import_module
 from os.path import basename, dirname, join
 
 modules = glob.glob(join(dirname(__file__), "*.py"))
@@ -9,5 +9,4 @@ for file in modules:
     if name.startswith("_"):
         continue
 
-    spec = importlib.util.spec_from_file_location(name, file)
-    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+    import_module(f"{__name__}.{name}")
