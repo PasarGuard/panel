@@ -1,14 +1,21 @@
+import asyncio
+import json
+import uuid
 from asyncio import Lock
 from copy import deepcopy
 
-from aiocache import cached
+import redis.asyncio as redis
+from aiocache import cached, caches
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import on_startup
+from app import on_shutdown, on_startup
 from app.core.manager import core_manager
+from app.core.redis_config import get_redis_config, is_redis_enabled
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
+from app.utils.logger import get_logger
+from config import HOST_PUBSUB_CHANNEL, MULTI_WORKER
 from app.models.host import BaseHost, TransportSettings
 from app.models.subscription import (
     GRPCTransportConfig,
@@ -231,13 +238,129 @@ async def _prepare_subscription_inbound_data(
 
 
 class HostManager:
+    STATE_CACHE_KEY = "host_manager:state"
+
     def __init__(self):
         self._hosts = {}
         self._lock = Lock()
+        self._redis_enabled = is_redis_enabled()
+        self._multi_worker = MULTI_WORKER
+        self._cache = caches.get("default") if self._redis_enabled else None
+        self._redis: redis.Redis | None = None
+        self._listener_task: asyncio.Task | None = None
+        self._logger = get_logger("host-manager")
+        self._worker_id = uuid.uuid4().hex
+        self._add_hosts_impl = (
+            self._add_hosts_redis if (self._redis_enabled and self._multi_worker) else self._add_hosts_local
+        )
+        self._remove_host_impl = (
+            self._remove_host_redis if (self._redis_enabled and self._multi_worker) else self._remove_host_local
+        )
+
+    def _get_redis_client(self) -> redis.Redis | None:
+        if not self._redis_enabled:
+            return None
+        if not self._redis:
+            cfg = get_redis_config()
+            self._redis = redis.Redis(host=cfg["endpoint"], port=cfg["port"], db=cfg["db"])
+        return self._redis
+
+    async def _snapshot_state(self) -> dict[int, dict]:
+        async with self._lock:
+            return deepcopy(self._hosts)
+
+    async def _persist_state(self):
+        if not self._redis_enabled:
+            return
+        await self._cache.set(self.STATE_CACHE_KEY, await self._snapshot_state())
+
+    async def _load_state_from_cache(self) -> bool:
+        if not self._redis_enabled:
+            return False
+        cached_state = await self._cache.get(self.STATE_CACHE_KEY)
+        if cached_state is None:
+            return False
+        async with self._lock:
+            self._hosts = cached_state
+        await self._reset_cache()
+        return True
+
+    async def _reload_from_cache(self):
+        loaded = await self._load_state_from_cache()
+        if loaded:
+            self._logger.debug("HostManager state reloaded from Redis cache")
+
+    async def _publish(self, message: dict):
+        if not (self._redis_enabled and self._multi_worker):
+            return
+        client = self._get_redis_client()
+        if not client:
+            return
+        try:
+            msg = {**message, "sender_id": self._worker_id}
+            await client.publish(HOST_PUBSUB_CHANNEL, json.dumps(msg))
+        except Exception as exc:  # pragma: no cover
+            self._logger.warning(f"Failed to publish host update: {exc}")
+
+    async def _listen_for_updates(self):
+        client = self._get_redis_client()
+        if not client:
+            return
+
+        pubsub = client.pubsub()
+        await pubsub.subscribe(HOST_PUBSUB_CHANNEL)
+
+        try:
+            async for message in pubsub.listen():
+                if message.get("type") != "message":
+                    continue
+                data = message.get("data")
+                if isinstance(data, bytes):
+                    data = data.decode()
+                try:
+                    payload = json.loads(data)
+                except Exception:
+                    await self._reload_from_cache()
+                    continue
+
+                if payload.get("sender_id") == self._worker_id:
+                    continue
+
+                action = payload.get("action")
+                if action == "remove":
+                    host_id = payload.get("host_id")
+                    if host_id:
+                        await self._remove_host_local(host_id)
+                    else:
+                        await self._reload_from_cache()
+                elif action == "add":
+                    host_entry = payload.get("host")
+                    if host_entry:
+                        await self._add_prepared_hosts_local([host_entry])
+                    else:
+                        await self._reload_from_cache()
+                else:
+                    await self._reload_from_cache()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover
+            self._logger.error(f"HostManager pubsub listener stopped: {exc}")
+
+    async def _ensure_listener(self):
+        if not (self._redis_enabled and self._multi_worker):
+            return
+        if self._listener_task and not self._listener_task.done():
+            return
+        self._listener_task = asyncio.create_task(self._listen_for_updates())
 
     async def setup(self, db: AsyncSession):
+        if await self._load_state_from_cache():
+            await self._ensure_listener()
+            return
+
         db_hosts = await get_hosts(db)
         await self.add_hosts(db, db_hosts)
+        await self._ensure_listener()
 
     async def _reset_cache(self):
         await self.get_hosts.cache.clear()
@@ -269,6 +392,16 @@ class HostManager:
         await self.add_hosts(db, [host])
 
     async def add_hosts(self, db: AsyncSession, hosts: list[BaseHost]):
+        await self._add_hosts_impl(db, hosts)
+
+    async def _add_prepared_hosts_local(self, prepared_hosts: list[tuple[int, dict]]):
+        async with self._lock:
+            for host_id, host_data in prepared_hosts:
+                self._hosts.pop(host_id, None)
+                self._hosts[host_id] = host_data
+            await self._reset_cache()
+
+    async def _add_hosts_local(self, db: AsyncSession, hosts: list[BaseHost]):
         serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
         inbounds_list = await core_manager.get_inbounds()
         await upsert_inbounds(db, inbounds_list)
@@ -283,21 +416,54 @@ class HostManager:
             else:
                 hosts_to_remove.append(host.id)
 
-        # Acquire lock only for updating the dict and cache
-        async with self._lock:
-            for host_id, host_data in prepared_hosts:
-                self._hosts.pop(host_id, None)
-                self._hosts[host_id] = host_data
+        await self._add_prepared_hosts_local(prepared_hosts)
 
+        async with self._lock:
             for host_id in hosts_to_remove:
                 self._hosts.pop(host_id, None)
 
-            await self._reset_cache()
+        await self._persist_state()
+
+    async def _add_hosts_redis(self, db: AsyncSession, hosts: list[BaseHost]):
+        serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
+        inbounds_list = await core_manager.get_inbounds()
+        await upsert_inbounds(db, inbounds_list)
+        await db.commit()
+
+        prepared_hosts = []
+        hosts_to_remove = []
+        for host in serialized_hosts:
+            result = await self._prepare_host_entry(db, host, inbounds_list)
+            if result:
+                prepared_hosts.append(result)
+            else:
+                hosts_to_remove.append(host.id)
+
+        await self._add_prepared_hosts_local(prepared_hosts)
+
+        async with self._lock:
+            for host_id in hosts_to_remove:
+                self._hosts.pop(host_id, None)
+
+        await self._persist_state()
+
+        for host_id, host_data in prepared_hosts:
+            await self._publish({"action": "add", "host": {"id": host_id, "data": host_data}})
+        for host_id in hosts_to_remove:
+            await self._publish({"action": "remove", "host_id": host_id})
 
     async def remove_host(self, id: int):
+        await self._remove_host_impl(id)
+
+    async def _remove_host_local(self, id: int):
         async with self._lock:
             self._hosts.pop(id, None)
             await self._reset_cache()
+        await self._persist_state()
+
+    async def _remove_host_redis(self, id: int):
+        await self._remove_host_local(id)
+        await self._publish({"action": "remove", "host_id": id})
 
     async def get_host(self, id: int) -> dict | None:
         async with self._lock:
@@ -318,3 +484,10 @@ host_manager: HostManager = HostManager()
 async def initialize_hosts():
     async with GetDB() as db:
         await host_manager.setup(db)
+
+
+@on_shutdown
+async def shutdown_hosts():
+    task = host_manager._listener_task
+    if task and not task.done():
+        task.cancel()

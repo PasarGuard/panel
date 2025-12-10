@@ -34,6 +34,7 @@ REDIS_HOST = config("REDIS_HOST", default="localhost")
 REDIS_PORT = config("REDIS_PORT", cast=int, default=6379)
 REDIS_DB = config("REDIS_DB", cast=int, default=0)
 CORE_PUBSUB_CHANNEL = config("CORE_PUBSUB_CHANNEL", default="core_hosts_updates")
+HOST_PUBSUB_CHANNEL = config("HOST_PUBSUB_CHANNEL", default="host_manager_updates")
 
 DEBUG = config("DEBUG", default=False, cast=bool)
 DOCS = config("DOCS", default=False, cast=bool)
