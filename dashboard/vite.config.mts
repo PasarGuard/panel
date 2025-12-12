@@ -7,8 +7,22 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const ensureBase = (value?: string) => {
+  if (!value) {
+    return '/dashboard/'
+  }
+
+  if (!value.startsWith('/')) {
+    value = `/${value}`
+  }
+
+  return value.endsWith('/') ? value : `${value}/`
+}
+
+const base = ensureBase(process.env.BASE_URL)
+
 export default defineConfig({
-  base: process.env.BASE_URL,
+  base,
   clearScreen: false,
   server: {
     host: true,
@@ -77,7 +91,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: false,
       workbox: {
-        navigateFallback: '/index.html',
+        navigateFallback: `${base}offline.html`,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         skipWaiting: true,
         clientsClaim: true,
