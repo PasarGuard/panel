@@ -395,32 +395,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </TooltipProvider>
                 </div>
               ) : state !== 'collapsed' && !isMobile ? (
-                <SidebarMenuButton size="lg" className={cn('relative !gap-2', isRTL ? 'pl-10' : 'pr-10')}>
-                  <a href={REPO_URL} target="_blank" className="flex items-center gap-2 flex-1 min-w-0">
-                    <img
-                      src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
-                      alt="PasarGuard Logo"
-                      className="h-8 w-8 flex-shrink-0 object-contain"
-                    />
-                    <div className="flex flex-col overflow-hidden min-w-0 flex-1 items-start">
-                      <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-xs opacity-45 shrink-0">{version}</span>
-                        <div className="min-w-0 flex-1">
-                          <TooltipProvider>
-                            <VersionBadge currentVersion={currentVersion} />
-                          </TooltipProvider>
+                <div className={cn('relative', isRTL ? 'pl-10' : 'pr-10')}>
+                  <SidebarMenuButton size="lg" className={cn('!gap-2 w-full')}>
+                    <a href={REPO_URL} target="_blank" className="flex items-center gap-2 flex-1 min-w-0">
+                      <img
+                        src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
+                        alt="PasarGuard Logo"
+                        className="h-8 w-8 flex-shrink-0 object-contain"
+                      />
+                      <div className="flex flex-col overflow-hidden min-w-0 flex-1 items-start">
+                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs opacity-45 shrink-0">{version}</span>
+                          <div className="min-w-0 flex-1">
+                            <TooltipProvider>
+                              <VersionBadge currentVersion={currentVersion} />
+                            </TooltipProvider>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </a>
+                    </a>
+                  </SidebarMenuButton>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className={cn('absolute h-8 w-8 shrink-0 z-10', isRTL ? 'left-2' : 'right-2')}
+                          className={cn('absolute top-1/2 -translate-y-1/2 h-8 w-8 shrink-0 z-10', isRTL ? 'left-2' : 'right-2')}
                           onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
@@ -436,7 +438,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                </SidebarMenuButton>
+                </div>
               ) : (
                 <SidebarMenuButton size="lg" asChild className="!gap-2">
                   <a href={REPO_URL} target="_blank">
