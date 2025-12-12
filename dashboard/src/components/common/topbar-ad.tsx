@@ -244,6 +244,7 @@ export default function TopbarAd() {
           : 'opacity 400ms ease-out, transform 400ms ease-out',
         opacity: isClosing ? 0 : isAnimating ? 1 : 0,
         transform: isClosing ? 'translateY(-8px)' : isAnimating ? 'translateY(0)' : 'translateY(-8px)',
+        paddingTop: isClosing ? undefined : 'env(safe-area-inset-top, 0px)',
       }}
     >
       <a
