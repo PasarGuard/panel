@@ -154,25 +154,26 @@ class SubscriptionOperation(BaseOperation):
                 links = conf.splitlines()
 
             format_variables = await self.get_format_variables(user)
+            next_plan = user.next_plan.model_dump(mode="json") if user.next_plan else None
 
             return HTMLResponse(
                 render_template(
                     template,
                     {
                         "user": user,
+                        "next_plan": next_plan,
                         "links": links,
                         "apps": self._make_apps_import_urls(sub_settings.applications, format_variables),
                     },
                 )
             )
-        else:
-            client_type = await self.detect_client_type(user_agent, sub_settings.rules)
-            if client_type == ConfigFormat.block or not client_type:
-                await self.raise_error(message="Client not supported", code=406)
+        client_type = await self.detect_client_type(user_agent, sub_settings.rules)
+        if client_type == ConfigFormat.block or not client_type:
+            await self.raise_error(message="Client not supported", code=406)
 
-            # Update user subscription info
-            await user_sub_update(db, db_user.id, user_agent)
-            conf, media_type = await self.fetch_config(user, client_type)
+        # Update user subscription info
+        await user_sub_update(db, db_user.id, user_agent)
+        conf, media_type = await self.fetch_config(user, client_type)
 
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
