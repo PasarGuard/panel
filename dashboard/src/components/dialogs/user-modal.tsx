@@ -61,8 +61,6 @@ const templateModifySchema = z.object({
   user_template_id: z.number(),
 })
 
-// Helper for UUID namespace (for v5)
-const UUID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
 
 // Helper function to get local ISO time string with timezone offset
 // This is kept for backward compatibility with normalizeExpire function
@@ -321,37 +319,56 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const [expireCalendarOpen, setExpireCalendarOpen] = useState(false)
   const [onHoldCalendarOpen, setOnHoldCalendarOpen] = useState(false)
 
-  const hasNextPlanValues = React.useCallback((nextPlan: any): boolean => {
-    if (!nextPlan || typeof nextPlan !== 'object') return false
+  // Watch next plan values directly for reactivity
+  const nextPlanUserTemplateId = form.watch('next_plan.user_template_id')
+  const nextPlanExpire = form.watch('next_plan.expire')
+  const nextPlanDataLimit = form.watch('next_plan.data_limit')
+  const nextPlanAddRemainingTraffic = form.watch('next_plan.add_remaining_traffic')
 
-    const hasAnyValue = !!(
+  // Check if template is selected (template_id exists and is not null/undefined)
+  const hasTemplateSelected = !!nextPlanUserTemplateId
+
+  const hasNextPlanData = React.useMemo(() => {
+    const nextPlan = form.getValues('next_plan')
+    
+    if (!nextPlan || nextPlan === null || nextPlan === undefined) {
+      return false
+    }
+    
+    return (
       (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
       (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
       (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
-      nextPlan.add_remaining_traffic !== undefined
+      (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
     )
-
-    return hasAnyValue
-  }, [])
-
-  const nextPlanValue = React.useMemo(
-    () => ({
-      user_template_id: form.watch('next_plan.user_template_id'),
-      expire: form.watch('next_plan.expire'),
-      data_limit: form.watch('next_plan.data_limit'),
-      add_remaining_traffic: form.watch('next_plan.add_remaining_traffic'),
-    }),
-    [form.watch('next_plan.user_template_id'), form.watch('next_plan.expire'), form.watch('next_plan.data_limit'), form.watch('next_plan.add_remaining_traffic')],
-  )
+  }, [form, nextPlanUserTemplateId, nextPlanExpire, nextPlanDataLimit, nextPlanAddRemainingTraffic])
 
   useEffect(() => {
     if (!isDialogOpen) {
+      // Reset when dialog closes
       setExpireCalendarOpen(false)
       setOnHoldCalendarOpen(false)
       setNextPlanEnabled(false)
       setNextPlanManuallyDisabled(false)
+    } else {
+      setNextPlanManuallyDisabled(false)
+      if (editingUser) {
+        const nextPlan = form.getValues('next_plan')
+        const hasData = nextPlan !== null && 
+                       nextPlan !== undefined && 
+                       typeof nextPlan === 'object' && (
+          (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
+          (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
+          (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
+          (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
+        )
+        setNextPlanEnabled(!!hasData)
+      } else {
+        // For create mode, always start with switch off
+        setNextPlanEnabled(false)
+      }
     }
-  }, [isDialogOpen])
+  }, [isDialogOpen, editingUser, form])
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [isFormValid, setIsFormValid] = useState(false)
   // Ref to store raw input value for data_limit to allow typing decimals
@@ -364,17 +381,25 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         // When editing, parent component will repopulate the form
         if (!editingUser) {
           form.reset()
+          // Ensure next_plan is cleared in create mode
+          form.setValue('next_plan', undefined)
+        } else {
+          // When editing, clear next_plan if switch was manually disabled
+          if (!nextPlanEnabled) {
+            form.setValue('next_plan', undefined)
+          }
         }
         setTouchedFields({})
         setIsFormValid(false)
         setActiveTab('groups')
         setSelectedTemplateId(null)
         setNextPlanEnabled(false)
+        setNextPlanManuallyDisabled(false)
         dataLimitInputRef.current = ''
       }
       onOpenChange(open)
     },
-    [form, onOpenChange, editingUser],
+    [form, onOpenChange, editingUser, nextPlanEnabled],
   )
 
   const handleFieldChange = React.useCallback(
@@ -477,7 +502,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   // Function to refresh all user-related data
   const refreshUserData = (user: UserResponse, isEdit: boolean = false) => {
     if (isEdit) {
-      // When editing, update the specific user in the cache without refreshing all users
+      // When editing, update the specific user in the cache
       // Get all cached queries for users
       queryClient.setQueriesData<UsersResponse>(
         {
@@ -496,6 +521,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           }
         },
       )
+
+      // Invalidate the users query to ensure all components refetch and see the updated data
+      // This is important for components that read user data to repopulate forms
+      queryClient.invalidateQueries({ queryKey: ['/api/users'], exact: false })
 
       // Still invalidate usage/stats queries as they may have changed
       queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
@@ -608,28 +637,58 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
   useEffect(() => {
     if (!nextPlanEnabled) {
-      form.setValue('next_plan', undefined)
-      handleFieldChange('next_plan', undefined)
-    } else {
-      setNextPlanManuallyDisabled(false)
-      const isEmpty = !nextPlanValue.user_template_id && !nextPlanValue.expire && !nextPlanValue.data_limit && nextPlanValue.add_remaining_traffic === undefined
-      if (isEmpty) {
-        form.setValue('next_plan', {})
-        handleFieldChange('next_plan', {})
+      const currentNextPlan = form.getValues('next_plan')
+      if (currentNextPlan !== null && currentNextPlan !== undefined) {
+        form.setValue('next_plan', undefined, { shouldValidate: false, shouldDirty: false })
+        handleFieldChange('next_plan', undefined)
       }
+    } else {
+      const currentNextPlan = form.getValues('next_plan')
+      if (currentNextPlan === null || currentNextPlan === undefined) {
+        form.setValue('next_plan', {
+          expire: 0,
+          data_limit: 0,
+          add_remaining_traffic: false,
+        }, { shouldValidate: false, shouldDirty: false })
+      } else {
+        if (!currentNextPlan.user_template_id) {
+          const updatedPlan = {
+            ...currentNextPlan,
+            expire: currentNextPlan.expire ?? 0,
+            data_limit: currentNextPlan.data_limit ?? 0,
+            add_remaining_traffic: currentNextPlan.add_remaining_traffic ?? false,
+          }
+          form.setValue('next_plan', updatedPlan, { shouldValidate: false, shouldDirty: false })
+        }
+      }
+      setNextPlanManuallyDisabled(false)
     }
-  }, [nextPlanEnabled, nextPlanValue])
+  }, [nextPlanEnabled, form, handleFieldChange])
 
   useEffect(() => {
-    if (!isDialogOpen || !editingUser || nextPlanManuallyDisabled) return
+    if (!isDialogOpen || !editingUser) return
 
-    const shouldBeEnabled = hasNextPlanValues(nextPlanValue)
+    const nextPlan = form.getValues('next_plan')
+    
+    const hasDataFromForm = nextPlan !== null && 
+                           nextPlan !== undefined && 
+                           typeof nextPlan === 'object' && (
+      (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
+      (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
+      (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
+      (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
+    )
 
-    if (shouldBeEnabled && !nextPlanEnabled) {
-      setNextPlanEnabled(true)
+    const hasData = hasDataFromForm
+
+    if (!hasData && nextPlanEnabled && !nextPlanManuallyDisabled) {
+      setNextPlanEnabled(false)
     }
-    // Don't automatically disable - let user control it via the toggle
-  }, [nextPlanValue, nextPlanEnabled, isDialogOpen, editingUser, hasNextPlanValues, nextPlanManuallyDisabled])
+    else if (hasData && !nextPlanEnabled && !nextPlanManuallyDisabled) {
+      setNextPlanEnabled(true)
+      setNextPlanManuallyDisabled(false)
+    }
+  }, [isDialogOpen, editingUser, hasNextPlanData, nextPlanManuallyDisabled, form, nextPlanUserTemplateId, nextPlanExpire, nextPlanDataLimit, nextPlanAddRemainingTraffic])
 
   // Helper to convert expire field to needed schema using the same logic as other components
   function normalizeExpire(expire: Date | string | number | null | undefined, useUtcTimestamp: boolean = false): string | number | undefined {
@@ -659,8 +718,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   // Helper to clear template selection
   const clearTemplate = () => setSelectedTemplateId(null)
 
-  // Helper to check if a template is selected in next plan
-  const nextPlanTemplateSelected = !!form.watch('next_plan.user_template_id')
 
   // Update validateAllFields function
   const validateAllFields = (currentValues: any, touchedFields: any, isSubmit: boolean = false) => {
@@ -939,8 +996,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         }
 
         // Convert data to the right format before validation
+        // Exclude next_plan from preparedValues - it will be handled separately
+        const { next_plan, ...valuesWithoutNextPlan } = values
         const preparedValues = {
-          ...values,
+          ...valuesWithoutNextPlan,
           data_limit: typeof values.data_limit === 'string' ? parseFloat(values.data_limit) : values.data_limit,
           on_hold_expire_duration: values.on_hold_expire_duration
             ? typeof values.on_hold_expire_duration === 'string'
@@ -977,35 +1036,43 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
             }
           : undefined
 
+        // Prepare next plan data
         let nextPlanData = undefined
         if (nextPlanEnabled) {
-          const nextPlanFromValues = values.next_plan
-          const hasValues = nextPlanFromValues && hasNextPlanValues(nextPlanFromValues)
-
-          if (hasValues) {
-            nextPlanData = { ...nextPlanFromValues }
-
-            if (nextPlanData.user_template_id) {
-              delete nextPlanData.data_limit
-              delete nextPlanData.expire
-            }
-          } else {
+          // Switch is ON - create next_plan object
+          // Handle null/undefined by using empty object
+          const nextPlan = (values.next_plan && values.next_plan !== null) ? values.next_plan : {}
+          
+          if (nextPlan.user_template_id) {
+            // Scenario 3: Template selected - only send template_id and add_remaining_traffic
             nextPlanData = {
-              expire: 0,
-              data_limit: 0,
+              user_template_id: nextPlan.user_template_id,
+              add_remaining_traffic: nextPlan.add_remaining_traffic || false,
             }
+            // Explicitly don't include expire and data_limit when template is selected
+          } else {
+            // Scenario 1 & 2: No template - send expire and data_limit (0 means unlimited)
+            nextPlanData = {
+              expire: nextPlan.expire ?? 0,
+              data_limit: nextPlan.data_limit ?? 0,
+              add_remaining_traffic: nextPlan.add_remaining_traffic || false,
+            }
+            // Explicitly don't include user_template_id when no template
           }
         }
+        // Scenario 4: Switch is OFF - nextPlanData remains undefined
 
-        const sendValues = {
+        const sendValues: any = {
           ...preparedValues,
           data_limit: gbToBytes(preparedValues.data_limit as any),
           expire: preparedValues.expire,
           ...(hasProxySettings ? { proxy_settings: cleanedProxySettings } : {}),
         }
 
-        if (nextPlanEnabled) {
+        if (nextPlanEnabled && nextPlanData) {
           sendValues.next_plan = nextPlanData
+        } else {
+          sendValues.next_plan = null
         }
 
         if (!hasProxySettings) {
@@ -1905,60 +1972,86 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                             )}
                           />
                           {/* Only show expire and data_limit if no template is selected */}
-                          {!nextPlanTemplateSelected && (
+                          {!hasTemplateSelected && (
                             <div className="flex gap-4">
                               <FormField
                                 control={form.control}
                                 name="next_plan.expire"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>{t('userDialog.nextPlanExpire', { defaultValue: 'Expire' })}</FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="any"
-                                        {...field}
-                                        value={field.value ? dateUtils.secondsToDays(field.value) || '' : ''}
-                                        onChange={e => {
-                                          const days = e.target.value ? Number(e.target.value) : 0
-                                          const seconds = dateUtils.daysToSeconds(days)
-                                          field.onChange(seconds)
-                                          handleFieldChange('next_plan.expire', seconds)
-                                        }}
-                                      />
-                                    </FormControl>
-                                    <span className="text-xs text-muted-foreground">{t('userDialog.days', { defaultValue: 'Days' })}</span>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
+                                render={({ field }) => {
+                                  // Convert seconds to days for display, show empty if 0
+                                  const displayValue = field.value && field.value > 0 ? dateUtils.secondsToDays(field.value) : ''
+                                  return (
+                                    <FormItem>
+                                      <FormLabel>{t('userDialog.nextPlanExpire', { defaultValue: 'Expire' })}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="any"
+                                          {...field}
+                                          value={displayValue}
+                                          onChange={e => {
+                                            const inputValue = e.target.value.trim()
+                                            if (inputValue === '' || inputValue === null || inputValue === undefined) {
+                                              // Empty means 0 (unlimited)
+                                              field.onChange(0)
+                                              handleFieldChange('next_plan.expire', 0)
+                                            } else {
+                                              const days = Number(inputValue)
+                                              if (!isNaN(days) && days >= 0) {
+                                                const seconds = dateUtils.daysToSeconds(days)
+                                                field.onChange(seconds)
+                                                handleFieldChange('next_plan.expire', seconds)
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <span className="text-xs text-muted-foreground">{t('userDialog.days', { defaultValue: 'Days' })}</span>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )
+                                }}
                               />
                               <FormField
                                 control={form.control}
                                 name="next_plan.data_limit"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>{t('userDialog.nextPlanDataLimit', { defaultValue: 'Data Limit' })}</FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="any"
-                                        {...field}
-                                        onChange={e => {
-                                          const value = e.target.value ? Number(e.target.value) : 0
-                                          // Convert GB to bytes (1 GB = 1024 * 1024 * 1024 bytes)
-                                          const bytesValue = value ? value * 1024 * 1024 * 1024 : 0
-                                          field.onChange(bytesValue)
-                                          handleFieldChange('next_plan.data_limit', bytesValue)
-                                        }}
-                                        value={field.value ? Math.round(field.value / (1024 * 1024 * 1024)) : ''}
-                                      />
-                                    </FormControl>
-                                    <span className="text-xs text-muted-foreground">GB</span>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
+                                render={({ field }) => {
+                                  // Convert bytes to GB for display, show empty if 0
+                                  const displayValue = field.value && field.value > 0 ? Math.round(field.value / (1024 * 1024 * 1024)) : ''
+                                  return (
+                                    <FormItem>
+                                      <FormLabel>{t('userDialog.nextPlanDataLimit', { defaultValue: 'Data Limit' })}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="any"
+                                          {...field}
+                                          value={displayValue}
+                                          onChange={e => {
+                                            const inputValue = e.target.value.trim()
+                                            if (inputValue === '' || inputValue === null || inputValue === undefined) {
+                                              // Empty means 0 (unlimited)
+                                              field.onChange(0)
+                                              handleFieldChange('next_plan.data_limit', 0)
+                                            } else {
+                                              const value = Number(inputValue)
+                                              if (!isNaN(value) && value >= 0) {
+                                                // Convert GB to bytes (1 GB = 1024 * 1024 * 1024 bytes)
+                                                const bytesValue = value * 1024 * 1024 * 1024
+                                                field.onChange(bytesValue)
+                                                handleFieldChange('next_plan.data_limit', bytesValue)
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <span className="text-xs text-muted-foreground">GB</span>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )
+                                }}
                               />
                             </div>
                           )}

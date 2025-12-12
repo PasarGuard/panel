@@ -121,7 +121,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
       group_ids: user.group_ids || [], // Add group_ids
       on_hold_expire_duration: user.on_hold_expire_duration || undefined,
-      next_plan: user.next_plan
+      next_plan: user.next_plan && user.next_plan !== null
         ? {
             user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
             data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : undefined,
@@ -144,7 +144,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       group_ids: user.group_ids || [],
       on_hold_expire_duration: user.on_hold_expire_duration || undefined,
       proxy_settings: user.proxy_settings || undefined,
-      next_plan: user.next_plan
+      next_plan: user.next_plan && user.next_plan !== null
         ? {
             user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
             data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : undefined,
