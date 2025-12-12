@@ -651,7 +651,10 @@
     "disableSuccess": "模板「{{name}}」已成功禁用",
     "enableFailed": "启用管理员「{{name}}」失败",
     "disableFailed": "禁用管理员「{{name}}」失败",
-    "resetUsages": "重置使用量"
+    "resetUsages": "重置使用量",
+    "noTemplates": "未配置模板",
+    "noTemplatesDescription": "开始创建您的第一个用户模板。",
+    "noSearchResults": "没有模板匹配您的搜索条件。请尝试调整搜索词。"
   },
   "core.configuration": "配置",
   "core.generalErrorMessage": "配置有误, 请检查",
@@ -1174,6 +1177,9 @@
   "usersTable.dataUsage": "流量统计",
   "usersTable.noUser": "还没有添加任何用户",
   "usersTable.noUserMatched": "没有找到您搜索的用户",
+  "users.noUsers": "未配置用户",
+  "users.noUsersDescription": "开始创建您的第一个用户账户。",
+  "users.noSearchResults": "没有用户匹配您的搜索条件。请尝试调整搜索词。",
   "usersTable.status": "状态",
   "usersTable.sortByExpire": "按过期时间排序",
   "usersTable.total": "总共",
@@ -1243,7 +1249,10 @@
     "duplicateSuccess": "主机「{{name}}」已成功复制",
     "duplicateFailed": "复制主机「{{name}}」失败",
     "priorityUpdated": "主机已成功更新",
-    "priorityUpdateError": "更新主机失败"
+    "priorityUpdateError": "更新主机失败",
+    "noHosts": "未配置主机",
+    "noHostsDescription": "开始创建您的第一个主机配置。",
+    "noSearchResults": "没有主机匹配您的搜索条件。请尝试调整搜索词。"
   },
   "pasarguard": "PasarGuard",
   "group": {
@@ -1258,7 +1267,10 @@
     "enableFailed": "启用群组「{{name}}」失败",
     "disableSuccess": "群组「{{name}}」已成功禁用",
     "disableFailed": "禁用群组「{{name}}」失败",
-    "deleteConfirmation": "移除群组"
+    "deleteConfirmation": "移除群组",
+    "noGroups": "未配置群组",
+    "noGroupsDescription": "开始创建您的第一个群组。",
+    "noSearchResults": "没有群组匹配您的搜索条件。请尝试调整搜索词。"
   },
   "name": "名称",
   "nodeModal": {

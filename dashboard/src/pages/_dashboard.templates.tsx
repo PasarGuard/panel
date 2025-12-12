@@ -4,7 +4,7 @@ import PageHeader from '@/components/layout/page-header'
 import { Plus, RefreshCw } from 'lucide-react'
 import { Separator } from '@/components/ui/separator.tsx'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 
 import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValue } from '@/components/dialogs/user-template-modal.tsx'
 import { useState, useMemo } from 'react'
@@ -118,6 +118,9 @@ export default function UserTemplates() {
     await refetch()
   }
 
+  const isEmpty = !isLoading && (!filteredTemplates || filteredTemplates.length === 0) && !searchQuery.trim()
+  const isSearchEmpty = !isLoading && (!filteredTemplates || filteredTemplates.length === 0) && searchQuery.trim() !== ''
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
@@ -157,30 +160,52 @@ export default function UserTemplates() {
           </Button>
         </div>
 
-        <div
-          className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-          style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-        >
-          {isLoading
-            ? [...Array(6)].map((_, i) => (
-                <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
-                  <div className="flex items-start justify-between gap-2 sm:gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-x-2">
-                        <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
-                        <Skeleton className="h-5 w-24 sm:w-32" />
+        {isEmpty && (
+          <Card className="mb-12">
+            <CardContent className="p-8 text-center">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">{t('templates.noTemplates')}</h3>
+                <p className="mx-auto max-w-2xl text-muted-foreground">{t('templates.noTemplatesDescription')}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {isSearchEmpty && (
+          <Card className="mb-12">
+            <CardContent className="p-8 text-center">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">{t('noResults')}</h3>
+                <p className="mx-auto max-w-2xl text-muted-foreground">{t('templates.noSearchResults')}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {!isEmpty && !isSearchEmpty && (
+          <div
+            className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+            style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+          >
+            {isLoading
+              ? [...Array(6)].map((_, i) => (
+                  <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
+                    <div className="flex items-start justify-between gap-2 sm:gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-x-2">
+                          <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                          <Skeleton className="h-5 w-24 sm:w-32" />
+                        </div>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-32 sm:w-40 md:w-48" />
+                          <Skeleton className="h-4 w-28 sm:w-36 md:w-40" />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-32 sm:w-40 md:w-48" />
-                        <Skeleton className="h-4 w-28 sm:w-36 md:w-40" />
-                      </div>
+                      <Skeleton className="h-8 w-8 shrink-0" />
                     </div>
-                    <Skeleton className="h-8 w-8 shrink-0" />
-                  </div>
-                </Card>
-              ))
-            : filteredTemplates?.map((template: UserTemplateResponse) => <UserTemplate onEdit={handleEdit} template={template} key={template.id} onToggleStatus={handleToggleStatus} />)}
-        </div>
+                  </Card>
+                ))
+              : filteredTemplates?.map((template: UserTemplateResponse) => <UserTemplate onEdit={handleEdit} template={template} key={template.id} onToggleStatus={handleToggleStatus} />)}
+          </div>
+        )}
       </div>
 
       <UserTemplateModal

@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { RefreshCw, Search, X } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface Brutal {
   enable?: boolean
@@ -830,6 +831,9 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     })
   }, [sortedHosts, searchQuery])
 
+  const isEmpty = filteredHosts.length === 0 && !searchQuery.trim() && sortedHosts.length === 0
+  const isSearchEmpty = filteredHosts.length === 0 && searchQuery.trim() !== ''
+
   return (
     <div>
       {/* Search Input */}
@@ -854,19 +858,41 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
         </Button>
       </div>
-      <div>
-        <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
-            <div className="max-w-screen-[2000px] min-h-screen overflow-hidden">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredHosts.map(host => (
-                  <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
-                ))}
-              </div>
+      {isEmpty && (
+        <Card className="mb-12">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">{t('host.noHosts')}</h3>
+              <p className="mx-auto max-w-2xl text-muted-foreground">{t('host.noHostsDescription')}</p>
             </div>
-          </SortableContext>
-        </DndContext>
-      </div>
+          </CardContent>
+        </Card>
+      )}
+      {isSearchEmpty && (
+        <Card className="mb-12">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">{t('noResults')}</h3>
+              <p className="mx-auto max-w-2xl text-muted-foreground">{t('host.noSearchResults')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {!isEmpty && !isSearchEmpty && (
+        <div>
+          <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
+              <div className="max-w-screen-[2000px] min-h-screen overflow-hidden">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredHosts.map(host => (
+                    <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
+                  ))}
+                </div>
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
+      )}
 
       <HostModal
         isDialogOpen={isDialogOpen}

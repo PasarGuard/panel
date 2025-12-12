@@ -652,7 +652,10 @@
     "disableSuccess": "Template «{{name}}» has been disabled successfully",
     "enableFailed": "Failed to enable admin «{{name}}»",
     "disableFailed": "Failed to disable admin «{{name}}»",
-    "resetUsages": "Reset Usages"
+    "resetUsages": "Reset Usages",
+    "noTemplates": "No templates configured",
+    "noTemplatesDescription": "Get started by creating your first user template.",
+    "noSearchResults": "No templates match your search criteria. Try adjusting your search terms."
   },
   "core.configuration": "Configuration",
   "core.generalErrorMessage": "Something went wrong, please check the configuration",
@@ -1228,6 +1231,9 @@
   "usersTable.dataUsage": "data usage",
   "usersTable.noUser": "There is no user Created to the system",
   "usersTable.noUserMatched": "It seems there is no user matched with what you are looking for",
+  "users.noUsers": "No users configured",
+  "users.noUsersDescription": "Get started by creating your first user account.",
+  "users.noSearchResults": "No users match your search criteria. Try adjusting your search terms.",
   "usersTable.status": "Status",
   "usersTable.total": "Total",
   "autoRefresh": {
@@ -1274,6 +1280,9 @@
     "disableFailed": "Failed to disable host «{{name}}»",
     "duplicateSuccess": "Host «{{name}}» has been duplicated successfully",
     "duplicateFailed": "Failed to duplicate host «{{name}}»",
+    "noHosts": "No hosts configured",
+    "noHostsDescription": "Get started by creating your first host configuration.",
+    "noSearchResults": "No hosts match your search criteria. Try adjusting your search terms.",
     "xudp_proxy_443": "XUDP Proxy 443",
     "reject": "Reject",
     "allow": "Allow",
@@ -1299,7 +1308,10 @@
     "enableFailed": "Failed to enable group «{{name}}»",
     "disableSuccess": "Group «{{name}}» has been disabled successfully",
     "disableFailed": "Failed to disable group «{{name}}»",
-    "deleteConfirmation": "Remove Group"
+    "deleteConfirmation": "Remove Group",
+    "noGroups": "No groups configured",
+    "noGroupsDescription": "Get started by creating your first group.",
+    "noSearchResults": "No groups match your search criteria. Try adjusting your search terms."
   },
   "name": "Name",
   "inboundTags": "Inbound Tags",

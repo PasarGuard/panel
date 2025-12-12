@@ -8,8 +8,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import CoreConfigModal, { coreConfigFormSchema, CoreConfigFormValues } from '@/components/dialogs/core-config-modal'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { LoaderButton } from '@/components/ui/loader-button'
-import useDirDetection from '@/hooks/use-dir-detection'
-import { cn } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
 
 const defaultConfig = {
@@ -42,7 +40,6 @@ export default function CoreSettings() {
   const deleteCoreConfig = useDeleteCoreConfig()
   const createCoreMutation = useCreateCoreConfig()
   const { t } = useTranslation()
-  const dir = useDirDetection()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCoreId, setEditingCoreId] = useState<number | undefined>(undefined)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -50,12 +47,13 @@ export default function CoreSettings() {
   const [coreIdToDelete, setCoreIdToDelete] = useState<number | null>(null)
 
   const coreConfigForm = useForm<CoreConfigFormValues>({
-    resolver: zodResolver(coreConfigFormSchema),
+    resolver: zodResolver(coreConfigFormSchema) as any,
     defaultValues: {
       name: '',
       config: JSON.stringify(defaultConfig, null, 2),
       excluded_inbound_ids: [],
       fallback_id: [],
+      restart_nodes: true,
     },
   })
 
@@ -76,6 +74,7 @@ export default function CoreSettings() {
           config: JSON.stringify(coreToEdit.config, null, 2),
           excluded_inbound_ids: excludedInboundIds,
           fallback_id: fallbackIds,
+          restart_nodes: true,
         })
       } else {
         coreConfigForm.reset({
@@ -83,6 +82,7 @@ export default function CoreSettings() {
           config: JSON.stringify(defaultConfig, null, 2),
           excluded_inbound_ids: [],
           fallback_id: [],
+          restart_nodes: true,
         })
       }
 
@@ -167,12 +167,24 @@ export default function CoreSettings() {
           setCoreToDelete(null)
           queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
         },
-        onError: () => {
-          toast.error(
-            t('settings.cores.deleteFailed', {
-              name: `Core ${coreToDelete}`,
-            }),
-          )
+        onError: (error: any) => {
+          // Extract backend error message
+          let errorMessage = t('settings.cores.deleteFailed', {
+            name: `Core ${coreToDelete}`,
+          })
+
+          const responseData = error?.response?._data || error?.response?.data || error?.data
+          if (responseData?.detail) {
+            if (typeof responseData.detail === 'string') {
+              errorMessage = responseData.detail
+            } else if (Array.isArray(responseData.detail) && responseData.detail.length > 0) {
+              errorMessage = responseData.detail[0]?.msg || responseData.detail[0] || errorMessage
+            }
+          } else if (error?.message) {
+            errorMessage = error.message
+          }
+
+          toast.error(errorMessage)
           setDeleteDialogOpen(false)
           setCoreToDelete(null)
         },
@@ -202,13 +214,13 @@ export default function CoreSettings() {
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogClose}>
         <AlertDialogContent>
-          <AlertDialogHeader className={cn(dir === 'rtl' && 'sm:text-right')}>
+          <AlertDialogHeader>
             <AlertDialogTitle>{t('settings.cores.delete')}</AlertDialogTitle>
             <AlertDialogDescription>
-              <span dir={dir} dangerouslySetInnerHTML={{ __html: t('core.deleteConfirm', { name: coreToDelete }) }} />
+              <span dangerouslySetInnerHTML={{ __html: t('core.deleteConfirm', { name: coreToDelete }) }} />
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className={cn('flex items-center gap-2', dir === 'rtl' && 'sm:gap-x-2')}>
+          <AlertDialogFooter>
             <AlertDialogCancel onClick={handleDeleteDialogClose} disabled={deleteCoreConfig.isPending}>
               {t('cancel')}
             </AlertDialogCancel>

@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { queryClient } from '@/utils/query-client'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Search, X } from 'lucide-react'
@@ -93,6 +93,9 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     await refetch()
   }
 
+  const isEmpty = !isLoading && (!filteredGroups || filteredGroups.length === 0) && !searchQuery.trim()
+  const isSearchEmpty = !isLoading && (!filteredGroups || filteredGroups.length === 0) && searchQuery.trim() !== ''
+
   return (
     <div className="w-full flex-1 space-y-4">
       {/* Search Input */}
@@ -117,24 +120,46 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
         </Button>
       </div>
-      <ScrollArea className="h-[calc(100vh-8rem)]">
-        <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {isLoading
-            ? [...Array(6)].map((_, i) => (
-                <Card key={i} className="px-4 py-5">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Skeleton className="h-5 w-24 sm:w-32" />
-                      <Skeleton className="h-4 w-20 sm:w-24" />
+      {isEmpty && (
+        <Card className="mb-12">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">{t('group.noGroups')}</h3>
+              <p className="mx-auto max-w-2xl text-muted-foreground">{t('group.noGroupsDescription')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {isSearchEmpty && (
+        <Card className="mb-12">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">{t('noResults')}</h3>
+              <p className="mx-auto max-w-2xl text-muted-foreground">{t('group.noSearchResults')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {!isEmpty && !isSearchEmpty && (
+        <ScrollArea className="h-[calc(100vh-8rem)]">
+          <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {isLoading
+              ? [...Array(6)].map((_, i) => (
+                  <Card key={i} className="px-4 py-5">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <Skeleton className="h-5 w-24 sm:w-32" />
+                        <Skeleton className="h-4 w-20 sm:w-24" />
+                      </div>
+                      <Skeleton className="h-8 w-8 shrink-0" />
                     </div>
-                    <Skeleton className="h-8 w-8 shrink-0" />
-                  </div>
-                </Card>
-              ))
-            : filteredGroups?.map(group => <Group key={group.id} group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
-        </div>
-      </ScrollArea>
+                  </Card>
+                ))
+              : filteredGroups?.map(group => <Group key={group.id} group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
+          </div>
+        </ScrollArea>
+      )}
 
       <GroupModal
         isDialogOpen={isDialogOpen}
