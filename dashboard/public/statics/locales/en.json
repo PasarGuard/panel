@@ -1314,6 +1314,8 @@
     "addressPlaceholder": "Enter node address",
     "port": "Node Port",
     "portPlaceholder": "Enter node port",
+    "apiPort": "API Port",
+    "apiPortPlaceholder": "Enter API port (e.g. 62051)",
     "usageRatio": "Usage Ratio",
     "usageRatioPlaceholder": "Enter usage ratio",
     "connectionType": "Connection Type",

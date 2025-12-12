@@ -1270,6 +1270,8 @@
     "addressPlaceholder": "输入节点地址",
     "port": "节点端口",
     "portPlaceholder": "输入节点端口",
+    "apiPort": "API 端口",
+    "apiPortPlaceholder": "输入 API 端口 (例如: 62051)",
     "usageRatio": "使用系数",
     "usageRatioPlaceholder": "输入使用系数",
     "connectionType": "连接类型",

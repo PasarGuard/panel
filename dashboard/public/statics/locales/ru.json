@@ -1212,6 +1212,8 @@
     "addressPlaceholder": "Введите адрес узла",
     "port": "Порт узла",
     "portPlaceholder": "Введите порт узла",
+    "apiPort": "API Порт",
+    "apiPortPlaceholder": "Введите API порт (например: 62051)",
     "usageRatio": "Коэффициент использования",
     "usageRatioPlaceholder": "Введите коэффициент использования",
     "connectionType": "Тип подключения",

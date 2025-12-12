@@ -1155,6 +1155,8 @@
     "addressPlaceholder": "آدرس گره را وارد کنید",
     "port": "پورت گره",
     "portPlaceholder": "پورت گره را وارد کنید",
+    "apiPort": "پورت API",
+    "apiPortPlaceholder": "پورت API را وارد کنید (مثال: 62051)",
     "usageRatio": "نسبت استفاده",
     "usageRatioPlaceholder": "نسبت استفاده را وارد کنید",
     "connectionType": "نوع اتصال",
