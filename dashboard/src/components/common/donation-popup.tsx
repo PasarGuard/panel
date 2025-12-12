@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils'
 import { getAuthToken } from '@/utils/authStorage'
 
 const DONATION_STORAGE_KEY = 'donation_popup_data'
-const DAYS_BETWEEN_SHOWS = 3
 const FIRST_SHOW_DELAY = 10 * 60 * 1000 // 10 minutes in milliseconds
 const SUBSEQUENT_SHOW_DELAY = 5000 // 5 seconds for subsequent shows
 const SECRET_SALT = 'pasarguard_donation_v1' // Simple salt for checksum
@@ -14,12 +13,27 @@ const SECRET_SALT = 'pasarguard_donation_v1' // Simple salt for checksum
 interface DonationData {
   lastShown: string | null
   nextShowTime: string
+  showCount: number
   checksum: string
 }
 
+// Calculate delay in days based on show count (progressive delays)
+const getDelayDays = (showCount: number): number => {
+  switch (showCount) {
+    case 0:
+      return 3 // First show: 3 days
+    case 1:
+      return 7 // Second show: 7 days
+    case 2:
+      return 14 // Third show: 14 days
+    default:
+      return 30 // Fourth show and beyond: 30 days (1 month)
+  }
+}
+
 // Simple hash function for tamper detection
-const generateChecksum = (lastShown: string | null, nextShowTime: string): string => {
-  const data = `${lastShown || 'null'}_${nextShowTime}_${SECRET_SALT}`
+const generateChecksum = (lastShown: string | null, nextShowTime: string, showCount: number): string => {
+  const data = `${lastShown || 'null'}_${nextShowTime}_${showCount}_${SECRET_SALT}`
   let hash = 0
   for (let i = 0; i < data.length; i++) {
     const char = data.charCodeAt(i)
@@ -32,9 +46,15 @@ const generateChecksum = (lastShown: string | null, nextShowTime: string): strin
 // Validate data integrity and reasonableness
 const validateData = (data: DonationData): boolean => {
   // Check checksum
-  const expectedChecksum = generateChecksum(data.lastShown, data.nextShowTime)
+  const expectedChecksum = generateChecksum(data.lastShown, data.nextShowTime, data.showCount ?? 0)
   if (data.checksum !== expectedChecksum) {
     console.warn('Donation popup: Data tampering detected (checksum mismatch)')
+    return false
+  }
+
+  // Validate showCount is a non-negative integer
+  if (typeof data.showCount !== 'number' || data.showCount < 0 || !Number.isInteger(data.showCount)) {
+    console.warn('Donation popup: Invalid showCount')
     return false
   }
 
@@ -58,8 +78,9 @@ const validateData = (data: DonationData): boolean => {
       return false
     }
 
-    // Validate: nextShowTime shouldn't be more than 4 days after lastShown (max 3 days + 1 day buffer)
-    const maxExpectedNext = lastShownTimestamp + 4 * 24 * 60 * 60 * 1000
+    // Validate: nextShowTime should match expected delay based on showCount
+    const expectedDelayDays = getDelayDays(data.showCount)
+    const maxExpectedNext = lastShownTimestamp + (expectedDelayDays + 1) * 24 * 60 * 60 * 1000 // +1 day buffer
     if (nextShowTimestamp > maxExpectedNext) {
       console.warn('Donation popup: nextShowTime too far in future')
       return false
@@ -81,7 +102,7 @@ const validateData = (data: DonationData): boolean => {
 
 // localStorage helper functions
 const setStorageData = (data: Omit<DonationData, 'checksum'>) => {
-  const checksum = generateChecksum(data.lastShown, data.nextShowTime)
+  const checksum = generateChecksum(data.lastShown, data.nextShowTime, data.showCount ?? 0)
   const fullData: DonationData = { ...data, checksum }
   localStorage.setItem(DONATION_STORAGE_KEY, JSON.stringify(fullData))
 }
@@ -90,14 +111,19 @@ const getStorageData = (): DonationData | null => {
   const stored = localStorage.getItem(DONATION_STORAGE_KEY)
   if (!stored) return null
   try {
-    const data = JSON.parse(stored) as DonationData
+    const data = JSON.parse(stored) as Partial<DonationData>
+    // Handle backward compatibility: if showCount is missing, default to 0
+    const fullData: DonationData = {
+      ...data,
+      showCount: data.showCount ?? 0,
+    } as DonationData
     // Validate data integrity
-    if (!validateData(data)) {
+    if (!validateData(fullData)) {
       // Tampering detected, clear invalid data
       localStorage.removeItem(DONATION_STORAGE_KEY)
       return null
     }
-    return data
+    return fullData
   } catch {
     return null
   }
@@ -110,11 +136,18 @@ export default function DonationPopup() {
 
   const showPopup = useCallback(() => {
     const now = Date.now()
-    // Update storage: set lastShown to now and nextShowTime to 3 days from now
-    const nextShowTime = new Date(now + DAYS_BETWEEN_SHOWS * 24 * 60 * 60 * 1000).toISOString()
+    const data = getStorageData()
+    const currentShowCount = data?.showCount ?? 0
+    
+    // Calculate next delay based on current show count
+    const delayDays = getDelayDays(currentShowCount)
+    const nextShowTime = new Date(now + delayDays * 24 * 60 * 60 * 1000).toISOString()
+    
+    // Update storage: increment showCount and set nextShowTime based on progressive delay
     setStorageData({
       lastShown: new Date(now).toISOString(),
       nextShowTime,
+      showCount: currentShowCount + 1,
     })
 
     // Make visible immediately
@@ -139,9 +172,9 @@ export default function DonationPopup() {
       const now = Date.now()
 
       if (!data) {
-        // First time - schedule for 1 hour from now and store it
+        // First time - schedule for initial delay and store it with showCount 0
         const nextShowTime = new Date(now + FIRST_SHOW_DELAY).toISOString()
-        setStorageData({ lastShown: null, nextShowTime })
+        setStorageData({ lastShown: null, nextShowTime, showCount: 0 })
         setTimeout(() => showPopup(), FIRST_SHOW_DELAY)
         return
       }
