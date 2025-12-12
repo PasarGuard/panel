@@ -1,21 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
 
-interface CachedRelease {
+interface Release {
   version: string
   url: string
+}
+
+interface CachedReleases {
+  releases: Release[]
   timestamp: number
 }
 
-interface VersionCheckResult {
-  hasUpdate: boolean
+interface XrayReleaseResult {
   latestVersion: string | null
-  currentVersion: string | null
   releaseUrl: string | null
+  versions: Release[]
   isLoading: boolean
+  hasUpdate: (currentVersion: string | null) => boolean
 }
 
-const GITHUB_API_URL = 'https://api.github.com/repos/PasarGuard/panel/releases/latest'
-const CACHE_KEY = 'pg_release'
+const GITHUB_API_URL = 'https://api.github.com/repos/XTLS/Xray-core/releases?per_page=10'
+const CACHE_KEY = 'pg_xray_releases'
 const CACHE_DURATION = 10 * 60 * 1000
 
 function compareVersions(current: string, latest: string): number {
@@ -31,7 +35,7 @@ function compareVersions(current: string, latest: string): number {
   return 0
 }
 
-function getCached(): CachedRelease | null {
+function getCached(): CachedReleases | null {
   try {
     const cached = localStorage.getItem(CACHE_KEY)
     if (!cached) return null
@@ -41,19 +45,19 @@ function getCached(): CachedRelease | null {
   }
 }
 
-function setCache(version: string, url: string): void {
+function setCache(releases: Release[]): void {
   try {
-    const data: CachedRelease = { version, url, timestamp: Date.now() }
+    const data: CachedReleases = { releases, timestamp: Date.now() }
     localStorage.setItem(CACHE_KEY, JSON.stringify(data))
   } catch {
     return
   }
 }
 
-async function fetchLatestRelease(): Promise<{ version: string; url: string } | null> {
+async function fetchXrayReleases(): Promise<Release[]> {
   const cached = getCached()
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return { version: cached.version, url: cached.url }
+    return cached.releases
   }
 
   try {
@@ -64,24 +68,28 @@ async function fetchLatestRelease(): Promise<{ version: string; url: string } | 
     })
 
     if (!response.ok) {
-      return cached ? { version: cached.version, url: cached.url } : null
+      return cached?.releases || []
     }
 
     const data = await response.json()
-    const version = data.tag_name?.replace(/^v/, '') || ''
-    const url = data.html_url || ''
+    const releases: Release[] = data
+      .map((release: any) => ({
+        version: release.tag_name?.replace(/^v/, '') || '',
+        url: release.html_url || '',
+      }))
+      .filter((r: Release) => r.version)
 
-    if (version) setCache(version, url)
-    return { version, url }
+    if (releases.length > 0) setCache(releases)
+    return releases
   } catch {
-    return cached ? { version: cached.version, url: cached.url } : null
+    return cached?.releases || []
   }
 }
 
-export function useVersionCheck(currentVersion: string | null): VersionCheckResult {
+export function useXrayReleases(): XrayReleaseResult {
   const { data, isLoading } = useQuery({
-    queryKey: ['github-release-check'],
-    queryFn: fetchLatestRelease,
+    queryKey: ['github-xray-releases'],
+    queryFn: fetchXrayReleases,
     staleTime: CACHE_DURATION,
     gcTime: CACHE_DURATION * 2,
     refetchOnWindowFocus: false,
@@ -90,16 +98,23 @@ export function useVersionCheck(currentVersion: string | null): VersionCheckResu
     retry: 1,
   })
 
-  const latestVersion = data?.version || null
-  const cleanCurrentVersion = currentVersion?.replace(/^v/, '') || null
+  const releases = data || []
+  const latestVersion = releases[0]?.version || null
+  const releaseUrl = releases[0]?.url || null
 
-  const hasUpdate = !!(cleanCurrentVersion && latestVersion && compareVersions(cleanCurrentVersion, latestVersion) < 0)
+  const hasUpdate = (currentVersion: string | null) => {
+    if (!currentVersion || !latestVersion) return false
+    const cleanCurrent = currentVersion.replace(/^v/, '')
+    const cleanLatest = latestVersion.replace(/^v/, '')
+    return compareVersions(cleanCurrent, cleanLatest) < 0
+  }
 
   return {
-    hasUpdate,
     latestVersion,
-    currentVersion: cleanCurrentVersion,
-    releaseUrl: data?.url || null,
+    releaseUrl,
+    versions: releases,
     isLoading,
+    hasUpdate,
   }
 }
+
