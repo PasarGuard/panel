@@ -831,8 +831,9 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     })
   }, [sortedHosts, searchQuery])
 
-  const isEmpty = filteredHosts.length === 0 && !searchQuery.trim() && sortedHosts.length === 0
-  const isSearchEmpty = filteredHosts.length === 0 && searchQuery.trim() !== ''
+  const isCurrentlyLoading = !data || (isRefreshing && sortedHosts.length === 0)
+  const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !searchQuery.trim() && sortedHosts.length === 0
+  const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && searchQuery.trim() !== ''
 
   return (
     <div>
@@ -858,7 +859,26 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
         </Button>
       </div>
-      {isEmpty && (
+      {isCurrentlyLoading && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Card key={index} className="animate-pulse">
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-2">
+                  <div className="h-5 w-2/3 rounded-md bg-muted"></div>
+                  <div className="h-3 w-full rounded-md bg-muted"></div>
+                  <div className="h-3 w-4/5 rounded-md bg-muted"></div>
+                  <div className="mt-2 flex justify-between">
+                    <div className="h-6 w-1/4 rounded-md bg-muted"></div>
+                    <div className="h-6 w-1/4 rounded-md bg-muted"></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
@@ -868,7 +888,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           </CardContent>
         </Card>
       )}
-      {isSearchEmpty && (
+      {isSearchEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
@@ -878,7 +898,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           </CardContent>
         </Card>
       )}
-      {!isEmpty && !isSearchEmpty && (
+      {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
         <div>
           <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>

@@ -1,18 +1,6 @@
-const ensureBase = (value?: string) => {
-  if (!value) {
-    return '/dashboard/'
-  }
-
-  if (!value.startsWith('/')) {
-    value = `/${value}`
-  }
-
-  return value.endsWith('/') ? value : `${value}/`
-}
-
 export function registerSW() {
   if ('serviceWorker' in navigator) {
-    const baseUrl = ensureBase(import.meta.env.BASE_URL)
+    const baseUrl = import.meta.env.BASE_URL || '/'
 
     navigator.serviceWorker
       .register(`${baseUrl}sw.js`)

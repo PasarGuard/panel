@@ -998,27 +998,30 @@ export default function SubscriptionSettings() {
 
           {/* Subscription Rules with Drag & Drop */}
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="space-y-1">
-                <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-                  {t('settings.subscriptions.rules.title')}
-                  {ruleFields.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {ruleFields.length}
-                    </Badge>
-                  )}
-                </h3>
-                <p className="text-sm text-muted-foreground">{t('settings.subscriptions.rules.description')}</p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={handleResetToDefault} className="flex items-center gap-2" disabled={isSaving}>
-                  <RotateCcw className="h-4 w-4" />
-                  {t('settings.subscriptions.resetToDefault', { defaultValue: 'Reset to Default' })}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={addRule} className="flex shrink-0 items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  {t('settings.subscriptions.rules.addRule')}
-                </Button>
+            <div className="rounded-lg border bg-card p-4 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="space-y-1">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+                    <Sword className="h-5 w-5 text-primary" />
+                    {t('settings.subscriptions.rules.title')}
+                    {ruleFields.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {ruleFields.length}
+                      </Badge>
+                    )}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">{t('settings.subscriptions.rules.description')}</p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={handleResetToDefault} className="flex items-center gap-2" disabled={isSaving}>
+                    <RotateCcw className="h-4 w-4" />
+                    {t('settings.subscriptions.resetToDefault', { defaultValue: 'Reset to Default' })}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={addRule} className="flex shrink-0 items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    {t('settings.subscriptions.rules.addRule')}
+                  </Button>
+                </div>
               </div>
             </div>
 

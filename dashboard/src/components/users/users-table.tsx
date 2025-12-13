@@ -487,12 +487,12 @@ const UsersTable = memo(() => {
 
   const totalUsers = usersData?.total || 0
   const totalPages = Math.ceil(totalUsers / itemsPerPage)
-  const showLoadingSpinner = isLoading && isFirstLoadRef.current
   const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current)
   const hasActiveFilters = !!(filters.search || filters.proxy_id || filters.status || filters.admin?.length || filters.group?.length)
   const usersList = usersData?.users || []
-  const isEmpty = !showLoadingSpinner && usersList.length === 0 && totalUsers === 0 && !hasActiveFilters
-  const isSearchEmpty = !showLoadingSpinner && usersList.length === 0 && hasActiveFilters
+  const isCurrentlyLoading = isLoading || (isFetching && !usersData)
+  const isEmpty = !isCurrentlyLoading && usersList.length === 0 && totalUsers === 0 && !hasActiveFilters
+  const isSearchEmpty = !isCurrentlyLoading && usersList.length === 0 && hasActiveFilters
 
   return (
     <div>
@@ -541,11 +541,20 @@ const UsersTable = memo(() => {
           </CardContent>
         </Card>
       )}
-      {!isEmpty && !isSearchEmpty && (
+      {isCurrentlyLoading && !isSearchEmpty && (
+        <DataTable
+          columns={columns}
+          data={[]}
+          isLoading={true}
+          isFetching={false}
+          onEdit={handleEdit}
+        />
+      )}
+      {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
         <DataTable
           columns={columns}
           data={usersList}
-          isLoading={showLoadingSpinner}
+          isLoading={false}
           isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}
           onEdit={handleEdit}
         />

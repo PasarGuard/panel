@@ -93,8 +93,9 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     await refetch()
   }
 
-  const isEmpty = !isLoading && (!filteredGroups || filteredGroups.length === 0) && !searchQuery.trim()
-  const isSearchEmpty = !isLoading && (!filteredGroups || filteredGroups.length === 0) && searchQuery.trim() !== ''
+  const isCurrentlyLoading = isLoading || (isFetching && !groupsData)
+  const isEmpty = !isCurrentlyLoading && (!filteredGroups || filteredGroups.length === 0) && !searchQuery.trim()
+  const isSearchEmpty = !isCurrentlyLoading && (!filteredGroups || filteredGroups.length === 0) && searchQuery.trim() !== ''
 
   return (
     <div className="w-full flex-1 space-y-4">
@@ -120,7 +121,25 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
         </Button>
       </div>
-      {isEmpty && (
+      {isCurrentlyLoading && (
+        <ScrollArea className="h-[calc(100vh-8rem)]">
+          <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i} className="px-4 py-5">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-5 w-24 sm:w-32" />
+                    <Skeleton className="h-4 w-20 sm:w-24" />
+                  </div>
+                  <Skeleton className="h-8 w-8 shrink-0" />
+                </div>
+              </Card>
+            ))}
+          </div>
+        </ScrollArea>
+      )}
+      {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
@@ -130,7 +149,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           </CardContent>
         </Card>
       )}
-      {isSearchEmpty && (
+      {isSearchEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
@@ -140,23 +159,10 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           </CardContent>
         </Card>
       )}
-      {!isEmpty && !isSearchEmpty && (
+      {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
         <ScrollArea className="h-[calc(100vh-8rem)]">
           <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {isLoading
-              ? [...Array(6)].map((_, i) => (
-                  <Card key={i} className="px-4 py-5">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <Skeleton className="h-5 w-24 sm:w-32" />
-                        <Skeleton className="h-4 w-20 sm:w-24" />
-                      </div>
-                      <Skeleton className="h-8 w-8 shrink-0" />
-                    </div>
-                  </Card>
-                ))
-              : filteredGroups?.map(group => <Group key={group.id} group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
+            {filteredGroups?.map(group => <Group key={group.id} group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
           </div>
         </ScrollArea>
       )}
