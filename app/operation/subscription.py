@@ -183,9 +183,11 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         format_variables = setup_format_variables(user)
         sub_url = await UserOperation.generate_subscription_url(user)
+        formatted_title = SubscriptionOperation._format_profile_title(user, format_variables, sub_settings)
 
-        format_variables.update({"PROFILE_TITLE": sub_settings.profile_title})
+        format_variables.update({"PROFILE_TITLE": formatted_title})
         format_variables.update({"url": sub_url})
+
         return format_variables
 
     async def user_subscription_with_client_type(
