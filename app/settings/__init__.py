@@ -5,10 +5,7 @@ from app.db.crud.settings import get_settings
 from app.models import settings
 
 
-CACHE_OPTS = {"ttl": 30}
-
-
-@cached(**CACHE_OPTS)
+@cached()
 async def telegram_settings() -> settings.Telegram:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -17,7 +14,7 @@ async def telegram_settings() -> settings.Telegram:
     return validated_settings
 
 
-@cached(**CACHE_OPTS)
+@cached()
 async def discord_settings() -> settings.Discord:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -26,7 +23,7 @@ async def discord_settings() -> settings.Discord:
     return validated_settings
 
 
-@cached(**CACHE_OPTS)
+@cached()
 async def webhook_settings() -> settings.Webhook:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -35,7 +32,7 @@ async def webhook_settings() -> settings.Webhook:
     return validated_settings
 
 
-@cached(**CACHE_OPTS)
+@cached()
 async def notification_settings() -> settings.NotificationSettings:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -44,7 +41,7 @@ async def notification_settings() -> settings.NotificationSettings:
     return validated_settings
 
 
-@cached(**CACHE_OPTS)
+@cached()
 async def notification_enable() -> settings.NotificationEnable:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -53,7 +50,7 @@ async def notification_enable() -> settings.NotificationEnable:
     return validated_settings
 
 
-@cached(**CACHE_OPTS)
+@cached()
 async def subscription_settings() -> settings.Subscription:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -62,10 +59,15 @@ async def subscription_settings() -> settings.Subscription:
     return validated_settings
 
 
-async def refresh_caches():
+async def refresh_caches() -> None:
     await telegram_settings.cache.clear()
     await discord_settings.cache.clear()
     await webhook_settings.cache.clear()
     await notification_settings.cache.clear()
     await notification_enable.cache.clear()
     await subscription_settings.cache.clear()
+
+
+async def handle_settings_message(_: dict):
+    """Handle settings update message from NATS router."""
+    await refresh_caches()

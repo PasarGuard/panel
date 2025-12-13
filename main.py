@@ -10,7 +10,7 @@ from cryptography.hazmat.backends import default_backend
 
 import dashboard  # noqa
 from app import app, logger  # noqa
-from app.core.redis_config import require_redis_if_multiworker
+from app.nats import require_nats_if_multiworker
 from app.utils.logger import LOGGING_CONFIG
 from config import (
     DEBUG,
@@ -29,7 +29,7 @@ workers = UVICORN_WORKERS or 1
 if workers < 1:
     logger.warning(f"Invalid UVICORN_WORKERS value '{UVICORN_WORKERS}', defaulting to 1.")
     workers = 1
-require_redis_if_multiworker(workers)
+require_nats_if_multiworker(workers)
 
 
 def check_and_modify_ip(ip_address: str) -> str:

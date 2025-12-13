@@ -1,21 +1,24 @@
-import asyncio
-import json
-import uuid
+import pickle
 from asyncio import Lock
 from copy import deepcopy
 
-import redis.asyncio as redis
-from aiocache import cached, caches
+import nats
+from nats.js import api
+from nats.js.kv import KeyValue
+from aiocache import cached
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import on_shutdown, on_startup
 from app.core.manager import core_manager
-from app.core.redis_config import get_redis_config, is_redis_enabled
+from app.nats import is_nats_enabled
+from app.nats.client import setup_nats_kv
+from app.nats.message import MessageTopic
+from app.nats.router import router
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
 from app.utils.logger import get_logger
-from config import HOST_PUBSUB_CHANNEL, MULTI_WORKER
+from config import MULTI_WORKER
 from app.models.host import BaseHost, TransportSettings
 from app.models.subscription import (
     GRPCTransportConfig,
@@ -238,129 +241,95 @@ async def _prepare_subscription_inbound_data(
 
 
 class HostManager:
-    STATE_CACHE_KEY = "host_manager:state"
+    STATE_CACHE_KEY = "state"
+    KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
         self._hosts = {}
         self._lock = Lock()
-        self._redis_enabled = is_redis_enabled()
+        self._nats_enabled = is_nats_enabled()
         self._multi_worker = MULTI_WORKER
-        self._cache = caches.get("default") if self._redis_enabled else None
-        self._redis: redis.Redis | None = None
-        self._listener_task: asyncio.Task | None = None
+        self._nc: nats.NATS | None = None
+        self._js: api.JetStreamContext | None = None
+        self._kv: KeyValue | None = None
         self._logger = get_logger("host-manager")
-        self._worker_id = uuid.uuid4().hex
         self._add_hosts_impl = (
-            self._add_hosts_redis if (self._redis_enabled and self._multi_worker) else self._add_hosts_local
+            self._add_hosts_nats if (self._nats_enabled and self._multi_worker) else self._add_hosts_local
         )
         self._remove_host_impl = (
-            self._remove_host_redis if (self._redis_enabled and self._multi_worker) else self._remove_host_local
+            self._remove_host_nats if (self._nats_enabled and self._multi_worker) else self._remove_host_local
         )
-
-    def _get_redis_client(self) -> redis.Redis | None:
-        if not self._redis_enabled:
-            return None
-        if not self._redis:
-            cfg = get_redis_config()
-            self._redis = redis.Redis(host=cfg["endpoint"], port=cfg["port"], db=cfg["db"])
-        return self._redis
 
     async def _snapshot_state(self) -> dict[int, dict]:
         async with self._lock:
             return deepcopy(self._hosts)
 
     async def _persist_state(self):
-        if not self._redis_enabled:
+        if not self._kv:
             return
-        await self._cache.set(self.STATE_CACHE_KEY, await self._snapshot_state())
+        state = await self._snapshot_state()
+        # Serialize state using pickle (same as CoreManager)
+        state_bytes = pickle.dumps(state)
+        await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
 
     async def _load_state_from_cache(self) -> bool:
-        if not self._redis_enabled:
+        if not self._kv:
             return False
-        cached_state = await self._cache.get(self.STATE_CACHE_KEY)
-        if cached_state is None:
+
+        try:
+            entry = await self._kv.get(self.STATE_CACHE_KEY)
+            if not entry:
+                return False
+
+            # Deserialize state using pickle
+            cached_state = pickle.loads(entry.value)
+            async with self._lock:
+                self._hosts = cached_state
+            await self._reset_cache()
+            return True
+        except Exception:
             return False
-        async with self._lock:
-            self._hosts = cached_state
-        await self._reset_cache()
-        return True
 
     async def _reload_from_cache(self):
         loaded = await self._load_state_from_cache()
         if loaded:
-            self._logger.debug("HostManager state reloaded from Redis cache")
+            self._logger.debug("HostManager state reloaded from JetStream KV cache")
+
+    async def _handle_host_message(self, data: dict):
+        """Handle incoming host messages from router."""
+        action = data.get("action")
+        if action == "remove":
+            host_id = data.get("host_id")
+            if host_id:
+                await self._remove_host_local(host_id)
+            else:
+                await self._reload_from_cache()
+        elif action == "add":
+            host_entry = data.get("host")
+            if host_entry:
+                await self._add_prepared_hosts_local([(host_entry["id"], host_entry["data"])])
+            else:
+                await self._reload_from_cache()
+        else:
+            await self._reload_from_cache()
 
     async def _publish(self, message: dict):
-        if not (self._redis_enabled and self._multi_worker):
-            return
-        client = self._get_redis_client()
-        if not client:
-            return
-        try:
-            msg = {**message, "sender_id": self._worker_id}
-            await client.publish(HOST_PUBSUB_CHANNEL, json.dumps(msg))
-        except Exception as exc:  # pragma: no cover
-            self._logger.warning(f"Failed to publish host update: {exc}")
-
-    async def _listen_for_updates(self):
-        client = self._get_redis_client()
-        if not client:
-            return
-
-        pubsub = client.pubsub()
-        await pubsub.subscribe(HOST_PUBSUB_CHANNEL)
-
-        try:
-            async for message in pubsub.listen():
-                if message.get("type") != "message":
-                    continue
-                data = message.get("data")
-                if isinstance(data, bytes):
-                    data = data.decode()
-                try:
-                    payload = json.loads(data)
-                except Exception:
-                    await self._reload_from_cache()
-                    continue
-
-                if payload.get("sender_id") == self._worker_id:
-                    continue
-
-                action = payload.get("action")
-                if action == "remove":
-                    host_id = payload.get("host_id")
-                    if host_id:
-                        await self._remove_host_local(host_id)
-                    else:
-                        await self._reload_from_cache()
-                elif action == "add":
-                    host_entry = payload.get("host")
-                    if host_entry:
-                        await self._add_prepared_hosts_local([host_entry])
-                    else:
-                        await self._reload_from_cache()
-                else:
-                    await self._reload_from_cache()
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # pragma: no cover
-            self._logger.error(f"HostManager pubsub listener stopped: {exc}")
-
-    async def _ensure_listener(self):
-        if not (self._redis_enabled and self._multi_worker):
-            return
-        if self._listener_task and not self._listener_task.done():
-            return
-        self._listener_task = asyncio.create_task(self._listen_for_updates())
+        """Publish host update message via global router."""
+        await router.publish(MessageTopic.HOST, message)
 
     async def setup(self, db: AsyncSession):
+        # Register handler with global router
+        router.register_handler(MessageTopic.HOST, self._handle_host_message)
+
+        # Initialize NATS if enabled
+        if self._nats_enabled:
+            self._nc, self._js, self._kv = await setup_nats_kv(self.KV_BUCKET_NAME)
+
         if await self._load_state_from_cache():
-            await self._ensure_listener()
             return
 
         db_hosts = await get_hosts(db)
         await self.add_hosts(db, db_hosts)
-        await self._ensure_listener()
 
     async def _reset_cache(self):
         await self.get_hosts.cache.clear()
@@ -424,7 +393,8 @@ class HostManager:
 
         await self._persist_state()
 
-    async def _add_hosts_redis(self, db: AsyncSession, hosts: list[BaseHost]):
+    async def _add_hosts_nats(self, db: AsyncSession, hosts: list[BaseHost]):
+        # Don't update locally - all workers (including this one) will update via listener
         serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
         inbounds_list = await core_manager.get_inbounds()
         await upsert_inbounds(db, inbounds_list)
@@ -439,14 +409,7 @@ class HostManager:
             else:
                 hosts_to_remove.append(host.id)
 
-        await self._add_prepared_hosts_local(prepared_hosts)
-
-        async with self._lock:
-            for host_id in hosts_to_remove:
-                self._hosts.pop(host_id, None)
-
-        await self._persist_state()
-
+        # Publish messages - all workers will process via listener
         for host_id, host_data in prepared_hosts:
             await self._publish({"action": "add", "host": {"id": host_id, "data": host_data}})
         for host_id in hosts_to_remove:
@@ -461,8 +424,8 @@ class HostManager:
             await self._reset_cache()
         await self._persist_state()
 
-    async def _remove_host_redis(self, id: int):
-        await self._remove_host_local(id)
+    async def _remove_host_nats(self, id: int):
+        # Don't remove locally - all workers (including this one) will remove via listener
         await self._publish({"action": "remove", "host_id": id})
 
     async def get_host(self, id: int) -> dict | None:
@@ -488,6 +451,6 @@ async def initialize_hosts():
 
 @on_shutdown
 async def shutdown_hosts():
-    task = host_manager._listener_task
-    if task and not task.done():
-        task.cancel()
+    # Close NATS connection
+    if host_manager._nc:
+        await host_manager._nc.close()

@@ -33,6 +33,10 @@ REDIS_ENABLED = config("REDIS_ENABLED", default=False, cast=bool)
 REDIS_HOST = config("REDIS_HOST", default="localhost")
 REDIS_PORT = config("REDIS_PORT", cast=int, default=6379)
 REDIS_DB = config("REDIS_DB", cast=int, default=0)
+
+NATS_ENABLED = config("NATS_ENABLED", default=False, cast=bool)
+NATS_URL = config("NATS_URL", default="nats://localhost:4222")
+NATS_WORKER_SYNC_SUBJECT = config("NATS_WORKER_SYNC_SUBJECT", default="pasarguard.worker_sync")
 CORE_PUBSUB_CHANNEL = config("CORE_PUBSUB_CHANNEL", default="core_hosts_updates")
 HOST_PUBSUB_CHANNEL = config("HOST_PUBSUB_CHANNEL", default="host_manager_updates")
 
@@ -72,9 +76,7 @@ GRPC_USER_AGENT_TEMPLATE = config("GRPC_USER_AGENT_TEMPLATE", default="user_agen
 EXTERNAL_CONFIG = config("EXTERNAL_CONFIG", default="", cast=str)
 
 USERS_AUTODELETE_DAYS = config("USERS_AUTODELETE_DAYS", default=-1, cast=int)
-USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS = config(
-    "USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS", default=False, cast=bool
-)
+USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS = config("USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS", default=False, cast=bool)
 
 DO_NOT_LOG_TELEGRAM_BOT = config("DO_NOT_LOG_TELEGRAM_BOT", default=True, cast=bool)
 

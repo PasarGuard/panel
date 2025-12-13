@@ -1,7 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from aiocache import caches
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request, status
@@ -11,32 +10,17 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from sqlalchemy.engine import make_url
 
-from app.core.redis_config import get_redis_config, is_redis_enabled, require_redis_if_multiworker
 from app.middlewares import setup_middleware
+from app.nats.message import MessageTopic
+from app.nats.router import router
+from app.settings import handle_settings_message
 from app.utils.logger import get_logger
-from config import DOCS, MULTI_WORKER, RUN_SCHEDULER, SQLALCHEMY_DATABASE_URL, SUBSCRIPTION_PATH
+from config import DOCS, RUN_SCHEDULER, SQLALCHEMY_DATABASE_URL, SUBSCRIPTION_PATH
 
 __version__ = "1.9.2"
 
 startup_functions = []
 shutdown_functions = []
-
-require_redis_if_multiworker(MULTI_WORKER)
-
-
-if is_redis_enabled():
-    cfg = get_redis_config()
-    caches.set_config(
-        {
-            "default": {
-                "cache": "aiocache.RedisCache",
-                "endpoint": cfg["endpoint"],
-                "port": cfg["port"],
-                "db": cfg["db"],
-                "serializer": {"class": "aiocache.serializers.PickleSerializer"},
-            }
-        }
-    )
 
 logger = get_logger()
 
@@ -144,11 +128,21 @@ def validate_paths():
 
 if RUN_SCHEDULER:
     from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
+    from app.notification.queue_manager import initialize_queue, shutdown_queue
 
     on_startup(scheduler.start)
     on_shutdown(scheduler.shutdown)
+    on_startup(initialize_queue)
+    on_shutdown(shutdown_queue)
     on_startup(start_notification_dispatcher)
     on_shutdown(stop_notification_dispatcher)
+
+on_startup(router.start)
+on_shutdown(router.stop)
+
+# Register settings handler
+router.register_handler(MessageTopic.SETTINGS, handle_settings_message)
+
 on_startup(lambda: logger.info(f"PasarGuard v{__version__}"))
 
 
