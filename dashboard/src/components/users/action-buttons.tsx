@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { useClipboard } from '@/hooks/use-clipboard'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { UseEditFormValues, UseFormValues } from '@/pages/_dashboard.users'
+import { UseEditFormValues } from '@/pages/_dashboard.users'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Cpu, EllipsisVertical, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
@@ -36,6 +36,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const [subscribeLinks, setSubscribeLinks] = useState<SubscribeLink[]>([])
   const [showQRModal, setShowQRModal] = useState(false)
   const [isEditModalOpen, setEditModalOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isResetUsageDialogOpen, setResetUsageDialogOpen] = useState(false)
   const [isRevokeSubDialogOpen, setRevokeSubDialogOpen] = useState(false)
@@ -121,20 +122,22 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
       group_ids: user.group_ids || [], // Add group_ids
       on_hold_expire_duration: user.on_hold_expire_duration || undefined,
-      next_plan: user.next_plan && user.next_plan !== null
+      on_hold_timeout: user.on_hold_timeout || undefined,
+      proxy_settings: user.proxy_settings || undefined,
+      next_plan: user.next_plan
         ? {
-            user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-            data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : undefined,
-            expire: user.next_plan.expire ? Number(user.next_plan.expire) : undefined,
-            add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-          }
+          user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
+          data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
+          expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
+          add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
+        }
         : undefined,
     },
   })
 
   // Update form when user data changes
   useEffect(() => {
-    const values: UseFormValues = {
+    const values: UseEditFormValues = {
       username: user.username,
       status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as any) : 'active',
       data_limit: user.data_limit ? Math.round((Number(user.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
@@ -143,14 +146,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
       group_ids: user.group_ids || [],
       on_hold_expire_duration: user.on_hold_expire_duration || undefined,
+      on_hold_timeout: user.on_hold_timeout || undefined,
       proxy_settings: user.proxy_settings || undefined,
-      next_plan: user.next_plan && user.next_plan !== null
+      next_plan: user.next_plan
         ? {
-            user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-            data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : undefined,
-            expire: user.next_plan.expire ? Number(user.next_plan.expire) : undefined,
-            add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-          }
+          user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
+          data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
+          expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
+          add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
+        }
         : undefined,
     }
 
@@ -194,7 +198,46 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   // Handlers for menu items
   const handleEdit = () => {
-    // Only need to open modal since form values are already updated via useEffect
+    const cachedData = queryClient.getQueriesData<UsersResponse>({
+      queryKey: ['/api/users'],
+      exact: false,
+    })
+
+    let latestUser = user
+    for (const [, data] of cachedData) {
+      if (data?.users) {
+        const foundUser = data.users.find(u => u.username === user.username)
+        if (foundUser) {
+          latestUser = foundUser
+          break
+        }
+      }
+    }
+
+    // Update form with latest user data
+    const values: UseEditFormValues = {
+      username: latestUser.username,
+      status: latestUser.status === 'active' || latestUser.status === 'on_hold' || latestUser.status === 'disabled' ? (latestUser.status as any) : 'active',
+      data_limit: latestUser.data_limit ? Math.round((Number(latestUser.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
+      expire: latestUser.expire,
+      note: latestUser.note || '',
+      data_limit_reset_strategy: latestUser.data_limit_reset_strategy || undefined,
+      group_ids: latestUser.group_ids || [],
+      on_hold_expire_duration: latestUser.on_hold_expire_duration || undefined,
+      on_hold_timeout: latestUser.on_hold_timeout || undefined,
+      proxy_settings: latestUser.proxy_settings || undefined,
+      next_plan: latestUser.next_plan
+        ? {
+          user_template_id: latestUser.next_plan.user_template_id ? Number(latestUser.next_plan.user_template_id) : undefined,
+          data_limit: latestUser.next_plan.data_limit ? Number(latestUser.next_plan.data_limit) : 0,
+          expire: latestUser.next_plan.expire ? Number(latestUser.next_plan.expire) : 0,
+          add_remaining_traffic: latestUser.next_plan.add_remaining_traffic || false,
+        }
+        : undefined,
+    }
+
+    userForm.reset(values)
+    setSelectedUser(latestUser)
     setEditModalOpen(true)
   }
 
@@ -557,18 +600,26 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       </AlertDialog>
 
       {/* Edit User Modal */}
-      <UserModal
-        isDialogOpen={isEditModalOpen}
-        onOpenChange={setEditModalOpen}
-        form={userForm}
-        editingUser={true}
-        editingUserId={user.id}
-        editingUserData={user}
-        onSuccessCallback={() => {
-          // No need to invalidate - cache is already updated by the modal
-          setEditModalOpen(false)
-        }}
-      />
+      {selectedUser && (
+        <UserModal
+          isDialogOpen={isEditModalOpen}
+          onOpenChange={(open) => {
+            setEditModalOpen(open)
+            if (!open) {
+              setSelectedUser(null)
+            }
+          }}
+          form={userForm}
+          editingUser={true}
+          editingUserId={selectedUser.id}
+          editingUserData={selectedUser}
+          onSuccessCallback={() => {
+            // No need to invalidate - cache is already updated by the modal
+            setEditModalOpen(false)
+            setSelectedUser(null)
+          }}
+        />
+      )}
 
       <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={user.username} />
 

@@ -302,7 +302,7 @@ const StatusSelectItem = ({ value, children, onSelect }: { value: string; childr
   )
 }
 
-export default function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserId, onSuccessCallback }: UserModalProps) {
+export default function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserId, editingUserData, onSuccessCallback }: UserModalProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const handleError = useDynamicErrorHandler()
@@ -353,7 +353,16 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     } else {
       setNextPlanManuallyDisabled(false)
       if (editingUser) {
-        const nextPlan = form.getValues('next_plan')
+        // Check both form values and editingUserData prop for next_plan
+        // This ensures we catch the data even if form hasn't been populated yet
+        const nextPlanFromForm = form.getValues('next_plan')
+        const nextPlanFromData = editingUserData?.next_plan
+        
+        // Use editingUserData if form doesn't have it yet, otherwise use form value
+        const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined 
+          ? nextPlanFromForm 
+          : nextPlanFromData
+        
         const hasData = nextPlan !== null && 
                        nextPlan !== undefined && 
                        typeof nextPlan === 'object' && (
@@ -368,11 +377,12 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         setNextPlanEnabled(false)
       }
     }
-  }, [isDialogOpen, editingUser, form])
+  }, [isDialogOpen, editingUser, form, editingUserData])
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [isFormValid, setIsFormValid] = useState(false)
-  // Ref to store raw input value for data_limit to allow typing decimals
   const dataLimitInputRef = React.useRef<string>('')
+  const nextPlanExpireInputRef = React.useRef<string>('')
+  const nextPlanDataLimitInputRef = React.useRef<string>('')
 
   const handleModalOpenChange = React.useCallback(
     (open: boolean) => {
@@ -396,6 +406,8 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         setNextPlanEnabled(false)
         setNextPlanManuallyDisabled(false)
         dataLimitInputRef.current = ''
+        nextPlanExpireInputRef.current = ''
+        nextPlanDataLimitInputRef.current = ''
       }
       onOpenChange(open)
     },
@@ -668,7 +680,14 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   useEffect(() => {
     if (!isDialogOpen || !editingUser) return
 
-    const nextPlan = form.getValues('next_plan')
+    // Check both form values and editingUserData prop for next_plan
+    const nextPlanFromForm = form.getValues('next_plan')
+    const nextPlanFromData = editingUserData?.next_plan
+    
+    // Use editingUserData if form doesn't have it yet, otherwise use form value
+    const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined 
+      ? nextPlanFromForm 
+      : nextPlanFromData
     
     const hasDataFromForm = nextPlan !== null && 
                            nextPlan !== undefined && 
@@ -688,7 +707,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       setNextPlanEnabled(true)
       setNextPlanManuallyDisabled(false)
     }
-  }, [isDialogOpen, editingUser, hasNextPlanData, nextPlanManuallyDisabled, form, nextPlanUserTemplateId, nextPlanExpire, nextPlanDataLimit, nextPlanAddRemainingTraffic])
+  }, [isDialogOpen, editingUser, hasNextPlanData, nextPlanManuallyDisabled, form, nextPlanUserTemplateId, nextPlanExpire, nextPlanDataLimit, nextPlanAddRemainingTraffic, editingUserData])
 
   // Helper to convert expire field to needed schema using the same logic as other components
   function normalizeExpire(expire: Date | string | number | null | undefined, useUtcTimestamp: boolean = false): string | number | undefined {
@@ -1037,31 +1056,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           : undefined
 
         // Prepare next plan data
-        let nextPlanData = undefined
-        if (nextPlanEnabled) {
-          // Switch is ON - create next_plan object
-          // Handle null/undefined by using empty object
-          const nextPlan = (values.next_plan && values.next_plan !== null) ? values.next_plan : {}
-          
-          if (nextPlan.user_template_id) {
-            // Scenario 3: Template selected - only send template_id and add_remaining_traffic
-            nextPlanData = {
-              user_template_id: nextPlan.user_template_id,
-              add_remaining_traffic: nextPlan.add_remaining_traffic || false,
-            }
-            // Explicitly don't include expire and data_limit when template is selected
-          } else {
-            // Scenario 1 & 2: No template - send expire and data_limit (0 means unlimited)
-            nextPlanData = {
-              expire: nextPlan.expire ?? 0,
-              data_limit: nextPlan.data_limit ?? 0,
-              add_remaining_traffic: nextPlan.add_remaining_traffic || false,
-            }
-            // Explicitly don't include user_template_id when no template
-          }
-        }
-        // Scenario 4: Switch is OFF - nextPlanData remains undefined
-
         const sendValues: any = {
           ...preparedValues,
           data_limit: gbToBytes(preparedValues.data_limit as any),
@@ -1069,9 +1063,27 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           ...(hasProxySettings ? { proxy_settings: cleanedProxySettings } : {}),
         }
 
-        if (nextPlanEnabled && nextPlanData) {
-          sendValues.next_plan = nextPlanData
+        // Handle next_plan based on switch state
+        if (nextPlanEnabled) {
+          // Switch is ON - always send next_plan with defaults or existing data
+          const nextPlan = values.next_plan || form.getValues('next_plan') || {}
+          
+          if (nextPlan.user_template_id) {
+            // Template selected - only send template_id and add_remaining_traffic
+            sendValues.next_plan = {
+              user_template_id: nextPlan.user_template_id,
+              add_remaining_traffic: nextPlan.add_remaining_traffic ?? false,
+            }
+          } else {
+            // No template - send expire and data_limit with defaults
+            sendValues.next_plan = {
+              expire: nextPlan.expire ?? 0,
+              data_limit: nextPlan.data_limit ?? 0,
+              add_remaining_traffic: nextPlan.add_remaining_traffic ?? false,
+            }
+          }
         } else {
+          // Switch is OFF - send null
           sendValues.next_plan = null
         }
 
@@ -1234,6 +1246,20 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       }
     }
   }, [isDialogOpen, editingUser, dataLimitValue])
+
+  useEffect(() => {
+    if (isDialogOpen && editingUser && nextPlanEnabled) {
+      const nextPlan = form.getValues('next_plan')
+      if (nextPlan?.expire !== undefined && nextPlan?.expire !== null && nextPlan.expire > 0) {
+        const days = dateUtils.secondsToDays(nextPlan.expire)
+        nextPlanExpireInputRef.current = String(days)
+      }
+      if (nextPlan?.data_limit !== undefined && nextPlan?.data_limit !== null && nextPlan.data_limit > 0) {
+        const gb = Math.round(nextPlan.data_limit / (1024 * 1024 * 1024))
+        nextPlanDataLimitInputRef.current = String(gb)
+      }
+    }
+  }, [isDialogOpen, editingUser, nextPlanEnabled, form])
 
   useEffect(() => {
     if (isDialogOpen) {
@@ -1978,30 +2004,68 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                 control={form.control}
                                 name="next_plan.expire"
                                 render={({ field }) => {
-                                  // Convert seconds to days for display, show empty if 0
-                                  const displayValue = field.value && field.value > 0 ? dateUtils.secondsToDays(field.value) : ''
+                                  if (nextPlanExpireInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
+                                    nextPlanExpireInputRef.current = String(dateUtils.secondsToDays(field.value))
+                                  }
+                                  const displayValue = nextPlanExpireInputRef.current !== '' ? nextPlanExpireInputRef.current : (field.value !== null && field.value !== undefined && field.value > 0 ? String(dateUtils.secondsToDays(field.value)) : '')
                                   return (
                                     <FormItem>
                                       <FormLabel>{t('userDialog.nextPlanExpire', { defaultValue: 'Expire' })}</FormLabel>
                                       <FormControl>
                                         <Input
-                                          type="number"
-                                          min="0"
-                                          step="any"
-                                          {...field}
+                                          type="text"
+                                          inputMode="decimal"
                                           value={displayValue}
                                           onChange={e => {
-                                            const inputValue = e.target.value.trim()
-                                            if (inputValue === '' || inputValue === null || inputValue === undefined) {
-                                              // Empty means 0 (unlimited)
+                                            const rawValue = e.target.value.trim()
+                                            nextPlanExpireInputRef.current = rawValue
+                                            if (rawValue === '') {
+                                              field.onChange(0)
+                                              handleFieldChange('next_plan.expire', 0)
+                                              return
+                                            }
+                                            const validNumberPattern = /^-?\d*\.?\d*$/
+                                            if (validNumberPattern.test(rawValue)) {
+                                              if (rawValue.endsWith('.') && rawValue.length > 1) {
+                                                const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
+                                                field.onChange(prevValue)
+                                                handleFieldChange('next_plan.expire', prevValue)
+                                              } else if (rawValue === '.') {
+                                                field.onChange(0)
+                                                handleFieldChange('next_plan.expire', 0)
+                                              } else {
+                                                const numValue = parseFloat(rawValue)
+                                                if (!isNaN(numValue) && numValue >= 0) {
+                                                  if (numValue === 0) {
+                                                    field.onChange(0)
+                                                    handleFieldChange('next_plan.expire', 0)
+                                                  } else {
+                                                    const seconds = dateUtils.daysToSeconds(numValue)
+                                                    field.onChange(seconds)
+                                                    handleFieldChange('next_plan.expire', seconds)
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }}
+                                          onBlur={() => {
+                                            const rawValue = nextPlanExpireInputRef.current.trim()
+                                            if (rawValue === '' || rawValue === '.') {
+                                              nextPlanExpireInputRef.current = ''
                                               field.onChange(0)
                                               handleFieldChange('next_plan.expire', 0)
                                             } else {
-                                              const days = Number(inputValue)
-                                              if (!isNaN(days) && days >= 0) {
-                                                const seconds = dateUtils.daysToSeconds(days)
+                                              const numValue = parseFloat(rawValue)
+                                              if (!isNaN(numValue) && numValue >= 0) {
+                                                const finalValue = numValue
+                                                nextPlanExpireInputRef.current = String(finalValue)
+                                                const seconds = dateUtils.daysToSeconds(finalValue)
                                                 field.onChange(seconds)
                                                 handleFieldChange('next_plan.expire', seconds)
+                                              } else {
+                                                nextPlanExpireInputRef.current = ''
+                                                field.onChange(0)
+                                                handleFieldChange('next_plan.expire', 0)
                                               }
                                             }
                                           }}
@@ -2017,31 +2081,68 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                 control={form.control}
                                 name="next_plan.data_limit"
                                 render={({ field }) => {
-                                  // Convert bytes to GB for display, show empty if 0
-                                  const displayValue = field.value && field.value > 0 ? Math.round(field.value / (1024 * 1024 * 1024)) : ''
+                                  if (nextPlanDataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
+                                    nextPlanDataLimitInputRef.current = String(Math.round(field.value / (1024 * 1024 * 1024)))
+                                  }
+                                  const displayValue = nextPlanDataLimitInputRef.current !== '' ? nextPlanDataLimitInputRef.current : (field.value !== null && field.value !== undefined && field.value > 0 ? String(Math.round(field.value / (1024 * 1024 * 1024))) : '')
                                   return (
                                     <FormItem>
                                       <FormLabel>{t('userDialog.nextPlanDataLimit', { defaultValue: 'Data Limit' })}</FormLabel>
                                       <FormControl>
                                         <Input
-                                          type="number"
-                                          min="0"
-                                          step="any"
-                                          {...field}
+                                          type="text"
+                                          inputMode="decimal"
                                           value={displayValue}
                                           onChange={e => {
-                                            const inputValue = e.target.value.trim()
-                                            if (inputValue === '' || inputValue === null || inputValue === undefined) {
-                                              // Empty means 0 (unlimited)
+                                            const rawValue = e.target.value.trim()
+                                            nextPlanDataLimitInputRef.current = rawValue
+                                            if (rawValue === '') {
+                                              field.onChange(0)
+                                              handleFieldChange('next_plan.data_limit', 0)
+                                              return
+                                            }
+                                            const validNumberPattern = /^-?\d*\.?\d*$/
+                                            if (validNumberPattern.test(rawValue)) {
+                                              if (rawValue.endsWith('.') && rawValue.length > 1) {
+                                                const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
+                                                field.onChange(prevValue)
+                                                handleFieldChange('next_plan.data_limit', prevValue)
+                                              } else if (rawValue === '.') {
+                                                field.onChange(0)
+                                                handleFieldChange('next_plan.data_limit', 0)
+                                              } else {
+                                                const numValue = parseFloat(rawValue)
+                                                if (!isNaN(numValue) && numValue >= 0) {
+                                                  if (numValue === 0) {
+                                                    field.onChange(0)
+                                                    handleFieldChange('next_plan.data_limit', 0)
+                                                  } else {
+                                                    const bytesValue = numValue * 1024 * 1024 * 1024
+                                                    field.onChange(bytesValue)
+                                                    handleFieldChange('next_plan.data_limit', bytesValue)
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }}
+                                          onBlur={() => {
+                                            const rawValue = nextPlanDataLimitInputRef.current.trim()
+                                            if (rawValue === '' || rawValue === '.') {
+                                              nextPlanDataLimitInputRef.current = ''
                                               field.onChange(0)
                                               handleFieldChange('next_plan.data_limit', 0)
                                             } else {
-                                              const value = Number(inputValue)
-                                              if (!isNaN(value) && value >= 0) {
-                                                // Convert GB to bytes (1 GB = 1024 * 1024 * 1024 bytes)
-                                                const bytesValue = value * 1024 * 1024 * 1024
+                                              const numValue = parseFloat(rawValue)
+                                              if (!isNaN(numValue) && numValue >= 0) {
+                                                const finalValue = numValue
+                                                nextPlanDataLimitInputRef.current = String(finalValue)
+                                                const bytesValue = finalValue * 1024 * 1024 * 1024
                                                 field.onChange(bytesValue)
                                                 handleFieldChange('next_plan.data_limit', bytesValue)
+                                              } else {
+                                                nextPlanDataLimitInputRef.current = ''
+                                                field.onChange(0)
+                                                handleFieldChange('next_plan.data_limit', 0)
                                               }
                                             }
                                           }}
