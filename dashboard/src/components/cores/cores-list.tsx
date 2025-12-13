@@ -21,6 +21,7 @@ const initialDefaultValues: Partial<CoreConfigFormValues> = {
   name: '',
   config: JSON.stringify({}, null, 2),
   excluded_inbound_ids: [],
+  restart_nodes: true,
 }
 
 interface CoresProps {

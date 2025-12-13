@@ -35,7 +35,7 @@ export const coreConfigFormSchema = z.object({
   excluded_inbound_ids: z.array(z.string()).optional(),
   public_key: z.string().optional(),
   private_key: z.string().optional(),
-  restart_nodes: z.boolean().default(true),
+  restart_nodes: z.boolean().optional(),
 })
 
 export type CoreConfigFormValues = z.infer<typeof coreConfigFormSchema>
@@ -489,7 +489,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
             exclude_inbound_tags: excludeInboundTags,
           },
           params: {
-            restart_nodes: values.restart_nodes,
+            restart_nodes: values.restart_nodes ?? true,
           },
         })
       } else {

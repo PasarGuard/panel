@@ -1,5 +1,5 @@
 import { useCallback, useState, useMemo } from 'react'
-import Cores from '@/components/settings/cores'
+import Cores from '@/components/cores/cores-list'
 import { useGetAllCores, useDeleteCoreConfig, useCreateCoreConfig } from '@/service/api'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
