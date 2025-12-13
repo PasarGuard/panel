@@ -21,15 +21,15 @@ import NodeStatsModal from './node-stats-modal'
 import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
 
 // Define allowed period keys
-const PERIOD_KEYS = ['1h', '12h', '24h', '3d', '1w'] as const
+const PERIOD_KEYS = ['1h', '24h', '3d', '1w', '1m'] as const
 type PeriodKey = (typeof PERIOD_KEYS)[number]
 
 const getPeriodMap = (now: number) => ({
   '1h': { period: Period.minute, start: new Date(now - 60 * 60 * 1000) },
-  '12h': { period: Period.hour, start: new Date(now - 12 * 60 * 60 * 1000) },
   '24h': { period: Period.hour, start: new Date(now - 24 * 60 * 60 * 1000) },
   '3d': { period: Period.day, start: new Date(now - 2 * 24 * 60 * 60 * 1000) },
   '1w': { period: Period.day, start: new Date(now - 6 * 24 * 60 * 60 * 1000) },
+  '1m': { period: Period.day, start: new Date(now - 29 * 24 * 60 * 60 * 1000) },
 })
 
 interface UsageModalProps {
@@ -538,12 +538,12 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
         }
       }
       let filtered = flatStats
-      if ((period === '12h' || period === '24h') && !showCustomRange) {
+      if (period === '24h' && !showCustomRange) {
         if (!start || !end)
           return flatStats.map((point: any) => {
             const dateObj = dateUtils.toDayjs(point.period_start)
             let timeFormat
-            if (period === '12h' || period === '24h' || (showCustomRange && backendPeriod === Period.hour)) {
+            if (period === '24h' || (showCustomRange && backendPeriod === Period.hour)) {
               timeFormat = dateObj.format('HH:mm')
             } else {
               timeFormat = dateObj.format('MM/DD')
@@ -572,7 +572,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
       return filtered.map((point: any) => {
         const dateObj = dateUtils.toDayjs(point.period_start)
         let timeFormat
-        if (period === '12h' || period === '24h' || (showCustomRange && backendPeriod === Period.hour)) {
+        if (period === '24h' || (showCustomRange && backendPeriod === Period.hour)) {
           timeFormat = dateObj.format('HH:mm')
         } else {
           timeFormat = dateObj.format('MM/DD')
@@ -642,10 +642,10 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
       setShowCustomRange(true)
       const diffHours = (range.to.getTime() - range.from.getTime()) / (1000 * 60 * 60)
       if (diffHours <= 1) setPeriod('1h')
-      else if (diffHours <= 12) setPeriod('12h')
       else if (diffHours <= 24) setPeriod('24h')
       else if (diffHours <= 72) setPeriod('3d')
-      else setPeriod('1w')
+      else if (diffHours <= 168) setPeriod('1w')
+      else setPeriod('1m')
     }
   }, [])
 

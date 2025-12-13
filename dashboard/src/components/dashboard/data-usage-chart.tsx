@@ -23,11 +23,11 @@ type PeriodOption = {
 }
 
 const PERIOD_KEYS = [
-  { key: '12h', period: 'hour' as Period, amount: 12, unit: 'hour' },
   { key: '24h', period: 'hour' as Period, amount: 24, unit: 'hour' },
   { key: '3d', period: 'day' as Period, amount: 3, unit: 'day' },
   { key: '7d', period: 'day' as Period, amount: 7, unit: 'day' },
   { key: '30d', period: 'day' as Period, amount: 30, unit: 'day' },
+  { key: '1m', period: 'day' as Period, amount: 1, unit: 'month' },
   { key: '3m', period: 'day' as Period, amount: 3, unit: 'month' },
   { key: 'all', period: 'day' as Period, allTime: true },
 ]
@@ -246,7 +246,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     ],
     [t],
   )
-  const [periodOption, setPeriodOption] = useState<PeriodOption>(() => PERIOD_OPTIONS[3])
+  const [periodOption, setPeriodOption] = useState<PeriodOption>(() => PERIOD_OPTIONS[2])
 
   // Update periodOption when PERIOD_OPTIONS changes (e.g., language change)
   useEffect(() => {
@@ -334,9 +334,9 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
   }, [chartData])
 
   const xAxisInterval = useMemo(() => {
-    // For hours (12h, 24h), show approximately 6-8 labels
+    // For hours (24h), show approximately 8 labels
     if (periodOption.hours) {
-      const targetLabels = periodOption.hours === 12 ? 6 : 8
+      const targetLabels = 8
       return Math.max(1, Math.floor(chartData.length / targetLabels))
     }
 
