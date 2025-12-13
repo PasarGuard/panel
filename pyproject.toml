@@ -42,9 +42,9 @@ dependencies = [
     "typer>=0.20.0",
     "pasarguard-node-bridge>=0.3.6",
     "pip-system-certs>=5.3",
-    "redis>=7.1.0",
     "psycopg[binary]>=3.3.2",
     "pymysql>=1.1.2",
+    "nats-py>=2.12.0",
 ]
 
 [tool.ruff]
