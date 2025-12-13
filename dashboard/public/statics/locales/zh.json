@@ -915,6 +915,8 @@
       "usage_percentage": "数据使用百分比",
       "protocol": "代理协议 (例如：VMess)",
       "transport": "代理传输方法 (例如：ws)",
+      "profile_title": "配置文件标题",
+      "url": "订阅链接",
       "admin_username": "管理员用户名"
     },
     "advancedOptions": "高级选项",

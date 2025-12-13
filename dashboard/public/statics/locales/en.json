@@ -942,6 +942,8 @@
       "usage_percentage": "Data usage percentage",
       "protocol": "Proxy protocol (e.g. VMess)",
       "transport": "Proxy transport method (e.g. ws)",
+      "profile_title": "Profile title",
+      "url": "Subscription URL",
       "admin_username": "Admin username"
     },
     "advancedOptions": "Advanced Options",

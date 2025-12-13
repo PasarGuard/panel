@@ -821,6 +821,8 @@
       "usage_percentage": "درصد استفاده از داده",
       "protocol": "پروتکل پروکسی (مثال: VMess)",
       "transport": "روش انتقال پروکسی (مثال: ws)",
+      "profile_title": "عنوان پروفایل",
+      "url": "آدرس اشتراک",
       "admin_username": "نام کاربری ادمین"
     },
     "advancedOptions": "تنظیمات پیشرفته",

@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 interface VariablesPopoverProps {
   /** Whether to show protocol and transport variables (default: false) */
   includeProtocolTransport?: boolean
+  /** Whether to show profile title variable (default: false) */
+  includeProfileTitle?: boolean
   /** Popover side placement (default: "right") */
   side?: 'top' | 'right' | 'bottom' | 'left'
   /** Popover alignment (default: "start") */
@@ -16,7 +18,7 @@ interface VariablesPopoverProps {
   sideOffset?: number
 }
 
-export function VariablesPopover({ includeProtocolTransport = false, side = 'right', align = 'start', sideOffset = 0 }: VariablesPopoverProps) {
+export function VariablesPopover({ includeProtocolTransport = false, includeProfileTitle = false, side = 'bottom', align = 'start', sideOffset = 0 }: VariablesPopoverProps) {
   const { t } = useTranslation()
   const { copy } = useClipboard()
 
@@ -38,6 +40,12 @@ export function VariablesPopover({ includeProtocolTransport = false, side = 'rig
 
   const variablesList = (
     <div className="space-y-1">
+      {includeProfileTitle && (
+        <>
+          <VariableItem variable="{PROFILE_TITLE}" translationKey="hostsDialog.variables.profile_title" />
+          <VariableItem variable="{url}" translationKey="hostsDialog.variables.url" />
+        </>
+      )}
       <VariableItem variable="{SERVER_IP}" translationKey="hostsDialog.variables.server_ip" />
       <VariableItem variable="{SERVER_IPV6}" translationKey="hostsDialog.variables.server_ipv6" />
       <VariableItem variable="{USERNAME}" translationKey="hostsDialog.variables.username" />
@@ -63,8 +71,8 @@ export function VariablesPopover({ includeProtocolTransport = false, side = 'rig
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-          <Info className="h-4 w-4 text-muted-foreground" />
+        <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent">
+          <Info className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[280px] p-3 sm:w-[320px]" side={side} align={align} sideOffset={sideOffset}>
@@ -78,7 +86,7 @@ export function VariablesPopover({ includeProtocolTransport = false, side = 'rig
 }
 
 /** Component that renders just the variables list (without popover wrapper) - for use in ArrayInput */
-export function VariablesList({ includeProtocolTransport = false }: { includeProtocolTransport?: boolean }) {
+export function VariablesList({ includeProtocolTransport = false, includeProfileTitle = false }: { includeProtocolTransport?: boolean; includeProfileTitle?: boolean }) {
   const { t } = useTranslation()
   const { copy } = useClipboard()
 
@@ -100,6 +108,12 @@ export function VariablesList({ includeProtocolTransport = false }: { includePro
 
   return (
     <div className="space-y-1">
+      {includeProfileTitle && (
+        <>
+          <VariableItem variable="{PROFILE_TITLE}" translationKey="hostsDialog.variables.profile_title" />
+          <VariableItem variable="{url}" translationKey="hostsDialog.variables.url" />
+        </>
+      )}
       <VariableItem variable="{SERVER_IP}" translationKey="hostsDialog.variables.server_ip" />
       <VariableItem variable="{SERVER_IPV6}" translationKey="hostsDialog.variables.server_ipv6" />
       <VariableItem variable="{USERNAME}" translationKey="hostsDialog.variables.username" />
