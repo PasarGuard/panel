@@ -593,6 +593,25 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
     setChartData(processedChartData)
   }, [processedChartData])
 
+  // Calculate total usage during period
+  const totalUsageDuringPeriod = useMemo(() => {
+    if (!processedChartData || processedChartData.length === 0) return 0
+
+    const getTotalUsage = (dataPoint: any) => {
+      if (selectedNodeId === undefined && is_sudo) {
+        // All nodes selected - sum all node usages
+        return Object.keys(dataPoint)
+          .filter(key => !key.startsWith('_') && key !== 'time' && key !== 'usage' && (dataPoint[key] || 0) > 0)
+          .reduce((sum, nodeName) => sum + (dataPoint[nodeName] || 0), 0)
+      } else {
+        // Single node selected - use usage field
+        return dataPoint.usage || 0
+      }
+    }
+
+    return processedChartData.reduce((sum, dataPoint) => sum + getTotalUsage(dataPoint), 0)
+  }, [processedChartData, selectedNodeId, is_sudo])
+
   // Calculate trend (simple: compare last and previous usage)
   const trend = useMemo(() => {
     if (!processedChartData || processedChartData.length < 2) return null
@@ -804,6 +823,11 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
             {trend !== null && trend < 0 && (
               <div className="flex gap-2 font-medium leading-none text-red-600 dark:text-red-400">
                 {t('usersTable.trendingDown', { defaultValue: 'Trending down by' })} {Math.abs(trend).toFixed(1)}%
+              </div>
+            )}
+            {processedChartData.length > 0 && (
+              <div className="leading-none text-muted-foreground">
+                {t('statistics.usageDuringPeriod', { defaultValue: 'Usage During Period' })}: <span dir="ltr" className="font-mono">{totalUsageDuringPeriod.toFixed(2)} GB</span>
               </div>
             )}
             <div className="leading-none text-muted-foreground">{t('usersTable.usageSummary', { defaultValue: 'Showing total usage for the selected period.' })}</div>
