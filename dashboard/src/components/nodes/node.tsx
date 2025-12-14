@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { Card } from '../ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu'
 import { Button } from '../ui/button'
-import { MoreVertical, Pencil, Trash2, Power, Activity, RotateCcw, Wifi, Loader2, RefreshCw, Download, Package, Server, AlertCircle, CheckCircle2, Clock, XCircle, Link2, Map } from 'lucide-react'
+import { MoreVertical, Pencil, Trash2, Power, Activity, RotateCcw, Wifi, Loader2, RefreshCw, Download, Package, Server, AlertCircle, Link2, Map } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -213,56 +212,60 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
     switch (node.status) {
       case 'connected':
         return {
-          icon: CheckCircle2,
           label: t('nodeModal.status.connected', { defaultValue: 'Connected' }),
-          className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-          dotColor: 'bg-emerald-500',
         }
       case 'connecting':
         return {
-          icon: Clock,
           label: t('nodeModal.status.connecting', { defaultValue: 'Connecting' }),
-          className: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
-          dotColor: 'bg-amber-500',
         }
       case 'error':
         return {
-          icon: XCircle,
           label: t('nodeModal.status.error', { defaultValue: 'Error' }),
-          className: 'bg-destructive/10 text-destructive border-destructive/20',
-          dotColor: 'bg-destructive',
         }
       case 'limited':
         return {
-          icon: AlertCircle,
           label: t('status.limited', { defaultValue: 'Limited' }),
-          className: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
-          dotColor: 'bg-orange-500',
         }
       default:
         return {
-          icon: XCircle,
           label: t('nodeModal.status.disabled', { defaultValue: 'Disabled' }),
-          className: 'bg-muted text-muted-foreground border-border',
-          dotColor: 'bg-muted-foreground/50',
         }
     }
   }
 
   const statusConfig = getStatusConfig()
-  const StatusIcon = statusConfig.icon
+
+  const getStatusDotColor = () => {
+    switch (node.status) {
+      case 'connected':
+        return 'bg-green-500'
+      case 'connecting':
+        return 'bg-amber-500'
+      case 'error':
+        return 'bg-destructive'
+      case 'limited':
+        return 'bg-orange-500'
+      default:
+        return 'bg-gray-400 dark:bg-gray-600'
+    }
+  }
 
   return (
     <TooltipProvider>
       <Card className="group relative h-full cursor-pointer overflow-hidden border transition-colors hover:bg-accent" onClick={() => onEdit(node)}>
-        {/* Status accent bar */}
-        <div className={cn('absolute inset-x-0 top-0 h-0.5 sm:h-1', statusConfig.dotColor)} />
-
         <div className="p-3">
           {/* Header */}
-          <div className="mb-2 flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <div className="mb-1.5 flex items-center gap-1.5">
+              <div className="mb-0.5 flex items-center gap-1.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className={cn('h-2 w-2 rounded-full shrink-0', getStatusDotColor())} />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{statusConfig.label}</p>
+                  </TooltipContent>
+                </Tooltip>
                 <h3 className="truncate text-sm sm:text-base font-semibold leading-tight tracking-tight">{node.name}</h3>
                 {node.status === 'error' && node.message ? (
                   <Tooltip>
@@ -274,27 +277,6 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                     </TooltipContent>
                   </Tooltip>
                 ) : null}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="outline" className={cn('text-[9px] sm:text-[10px] font-medium transition-colors flex items-center gap-1', statusConfig.className)}>
-                      <StatusIcon className={cn('h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0', dir === 'rtl' ? 'ml-0.5' : 'mr-0.5')} />
-                      {statusConfig.label}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <div className="space-y-2 text-xs">
-                      <div className="font-semibold">{t('node.status', { defaultValue: 'Node Status' })}</div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-4">
-                          <span>{t('status', { defaultValue: 'Status' })}</span>
-                          <span className="font-medium">{statusConfig.label}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
               </div>
             </div>
             <div onClick={e => e.stopPropagation()}>
@@ -425,8 +407,8 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                           'group/version inline-flex items-center rounded-md border px-1.5 py-0.5 sm:px-2 sm:py-1 transition-all cursor-pointer',
                           dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
                           latestXrayVersion && hasXrayUpdate(node.xray_version)
-                            ? 'border-amber-500/50 bg-amber-500/10 hover:border-amber-500/70 hover:bg-amber-500/15'
-                            : 'border-border/50 bg-muted/40 hover:border-border hover:bg-muted/60',
+                            ? 'border-amber-500/50 bg-amber-500/10 group-hover:border-amber-500/70 group-hover:bg-amber-500/15'
+                            : 'border-border/50 bg-background/50 group-hover:border-border group-hover:bg-background/80',
                         )}
                         onClick={e => {
                           e.stopPropagation()
@@ -438,9 +420,9 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                           {node.xray_version}
                         </span>
                         {latestXrayVersion && hasXrayUpdate(node.xray_version) && (
-                          <div className={cn('flex items-center', dir === 'rtl' ? 'flex-row-reverse gap-0.5' : 'gap-0.5')}>
-                            <div className="h-1 w-1 sm:h-1.5 sm:w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                            <Download className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-amber-600 dark:text-amber-400" />
+                          <div className={cn('flex items-center gap-0.5', dir === 'rtl' ? 'flex-row-reverse' : '')}>
+                            <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                            <Download className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400 shrink-0" />
                           </div>
                         )}
                       </div>
@@ -478,8 +460,8 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                           'group/version inline-flex items-center rounded-md border px-1.5 py-0.5 sm:px-2 sm:py-1 transition-all',
                           dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
                           latestNodeVersion && hasNodeUpdate(node.node_version)
-                            ? 'border-amber-500/50 bg-amber-500/10'
-                            : 'border-border/50 bg-muted/40',
+                            ? 'border-amber-500/50 bg-amber-500/10 group-hover:border-amber-500/70 group-hover:bg-amber-500/15'
+                            : 'border-border/50 bg-background/50 group-hover:border-border group-hover:bg-background/80',
                         )}
                       >
                         <Server className={cn('h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 transition-colors', latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')} />
@@ -487,9 +469,9 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                           {node.node_version}
                         </span>
                         {latestNodeVersion && hasNodeUpdate(node.node_version) && (
-                          <div className={cn('flex items-center', dir === 'rtl' ? 'flex-row-reverse gap-0.5' : 'gap-0.5')}>
-                            <div className="h-1 w-1 sm:h-1.5 sm:w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                            <Download className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-amber-600 dark:text-amber-400" />
+                          <div className={cn('flex items-center gap-0.5', dir === 'rtl' ? 'flex-row-reverse' : '')}>
+                            <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                            <Download className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400 shrink-0" />
                           </div>
                         )}
                       </div>
