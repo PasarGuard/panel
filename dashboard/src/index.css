@@ -129,14 +129,6 @@
     scroll-behavior: smooth; /* Smooth scrolling for better UX */
   }
 
-  /* Support for safe area insets in PWA mode on mobile */
-  @supports (padding: env(safe-area-inset-top)) {
-    body {
-      padding-left: env(safe-area-inset-left, 0px);
-      padding-right: env(safe-area-inset-right, 0px);
-    }
-  }
-
   /* Enhanced shadcn-style scrollbar */
   ::-webkit-scrollbar {
     @apply h-2 w-2;
