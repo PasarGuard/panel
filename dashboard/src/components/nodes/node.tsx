@@ -374,7 +374,7 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                     }}
                     disabled={syncing || reconnecting || resettingUsage || updatingNode}
                   >
-                    {updatingNode ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4 shrink-0" />}
+                    {updatingNode ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4 shrink-0" />}
                     <span className="min-w-0 truncate">{updatingNode ? t('nodeModal.updatingNode', { defaultValue: 'Updating Node...' }) : t('nodeModal.updateNode', { defaultValue: 'Update Node' })}</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

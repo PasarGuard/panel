@@ -12,6 +12,8 @@ import { ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
 
 interface UpdateCoreDialogProps {
   node: NodeResponse
@@ -23,6 +25,9 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [selectedVersion, setSelectedVersion] = useState<string>('latest')
+  const [customVersion, setCustomVersion] = useState<string>('')
+  const [versionMode, setVersionMode] = useState<'list' | 'custom'>('list')
+  const [customVersionError, setCustomVersionError] = useState<string>('')
   const updateCoreMutation = useUpdateCore()
   const { latestVersion, releaseUrl, versions, isLoading: isLoadingReleases, hasUpdate } = useXrayReleases()
 
@@ -32,22 +37,57 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
   React.useEffect(() => {
     if (isOpen) {
       setSelectedVersion('latest')
+      setCustomVersion('')
+      setVersionMode('list')
+      setCustomVersionError('')
     }
   }, [isOpen])
 
+  const validateCustomVersion = (version: string): boolean => {
+    if (!version.trim()) {
+      setCustomVersionError(t('nodeModal.customVersionRequired', { defaultValue: 'Version is required' }))
+      return false
+    }
+    // Allow versions with or without 'v' prefix, and basic semantic versioning pattern
+    const versionPattern = /^v?\d+\.\d+\.\d+(-[\w.]+)?$/
+    const cleanVersion = version.trim()
+    if (!versionPattern.test(cleanVersion)) {
+      setCustomVersionError(t('nodeModal.invalidVersionFormat', { defaultValue: 'Invalid version format. Expected: vX.X.X or X.X.X' }))
+      return false
+    }
+    setCustomVersionError('')
+    return true
+  }
+
+  const handleCustomVersionChange = (value: string) => {
+    setCustomVersion(value)
+    if (customVersionError) {
+      validateCustomVersion(value)
+    }
+  }
+
   const handleUpdate = async () => {
     try {
-      let versionToSend = selectedVersion
-      if (selectedVersion === 'latest') {
-        if (!latestVersion) {
-          toast.error(t('nodeModal.updateCoreFailed', {
-            message: 'Latest version not available',
-            defaultValue: 'Failed to update Xray core: Latest version not available',
-          }))
+      let versionToSend: string
+
+      if (versionMode === 'custom') {
+        if (!validateCustomVersion(customVersion)) {
           return
         }
-        // Use actual latest version instead of 'latest' string
-        versionToSend = latestVersion
+        versionToSend = customVersion.trim()
+      } else {
+        versionToSend = selectedVersion
+        if (selectedVersion === 'latest') {
+          if (!latestVersion) {
+            toast.error(t('nodeModal.updateCoreFailed', {
+              message: 'Latest version not available',
+              defaultValue: 'Failed to update Xray core: Latest version not available',
+            }))
+            return
+          }
+          // Use actual latest version instead of 'latest' string
+          versionToSend = latestVersion
+        }
       }
       
       // Ensure version has 'v' prefix for backend pattern vX.X.X
@@ -133,75 +173,111 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
           </div>
 
           {/* Version Selection */}
-          <div className="space-y-2">
-            <label className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>
-              {t('nodeModal.selectVersion', { defaultValue: 'Select Version' })}
-            </label>
-            {isLoadingReleases ? (
-              <div className={cn('rounded-md border p-8 text-center', dir === 'rtl' && 'text-right')}>
-                <div className="text-sm text-muted-foreground">
-                  {t('nodeModal.loadingReleases', { defaultValue: 'Loading releases...' })}
-                </div>
-              </div>
-            ) : (
-              <ScrollArea className="h-[200px] rounded-md border sm:h-[280px]">
-                <div className="p-2 space-y-1">
-                  {latestVersion && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedVersion('latest')}
-                      className={cn(
-                        'w-full rounded-md px-3 py-2.5 text-left text-sm transition-all',
-                        'hover:bg-accent hover:text-accent-foreground',
-                        'border-2',
-                        selectedVersion === 'latest'
-                          ? 'bg-accent text-accent-foreground border-primary'
-                          : 'border-transparent',
-                        dir === 'rtl' && 'text-right',
-                      )}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{t('nodeModal.latest', { defaultValue: 'Latest' })}</span>
-                          <Badge variant="secondary" className="text-[10px] font-medium">
-                            {latestVersion}
-                          </Badge>
-                        </div>
-                        {selectedVersion === 'latest' && (
-                          <div className="h-2 w-2 rounded-full bg-primary" />
-                        )}
-                      </div>
-                    </button>
-                  )}
-                  {versions
-                    .filter(release => release.version !== latestVersion)
-                    .slice(0, 10)
-                    .map(release => (
-                      <button
-                        key={release.version}
-                        type="button"
-                        onClick={() => setSelectedVersion(release.version)}
-                        className={cn(
-                          'w-full rounded-md px-3 py-2 text-left text-sm transition-all',
-                          'hover:bg-accent hover:text-accent-foreground',
-                          'border-2',
-                          selectedVersion === release.version
-                            ? 'bg-accent text-accent-foreground border-primary'
-                            : 'border-transparent',
-                          dir === 'rtl' && 'text-right',
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono">{release.version}</span>
-                          {selectedVersion === release.version && (
-                            <div className="h-2 w-2 rounded-full bg-primary" />
+          <div className="space-y-3">
+            <Tabs value={versionMode} onValueChange={(value) => setVersionMode(value as 'list' | 'custom')} className="w-full">
+              <TabsList className={cn('grid w-full grid-cols-2', dir === 'rtl' && 'flex-row-reverse')}>
+                <TabsTrigger value="list" className={cn('text-sm', dir === 'rtl' && 'text-right')}>
+                  {t('nodeModal.selectFromList', { defaultValue: 'Select from List' })}
+                </TabsTrigger>
+                <TabsTrigger value="custom" className={cn('text-sm', dir === 'rtl' && 'text-right')}>
+                  {t('nodeModal.customVersion', { defaultValue: 'Custom Version' })}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="list" className="mt-3">
+                {isLoadingReleases ? (
+                  <div className={cn('rounded-md border p-8 text-center', dir === 'rtl' && 'text-right')}>
+                    <div className="text-sm text-muted-foreground">
+                      {t('nodeModal.loadingReleases', { defaultValue: 'Loading releases...' })}
+                    </div>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[200px] rounded-md border sm:h-[280px]">
+                    <div className="p-2 space-y-1">
+                      {latestVersion && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedVersion('latest')}
+                          className={cn(
+                            'w-full rounded-md px-3 py-2.5 text-left text-sm transition-all',
+                            'hover:bg-accent hover:text-accent-foreground',
+                            'border-2',
+                            selectedVersion === 'latest'
+                              ? 'bg-accent text-accent-foreground border-primary'
+                              : 'border-transparent',
+                            dir === 'rtl' && 'text-right',
                           )}
-                        </div>
-                      </button>
-                    ))}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className={cn('flex items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
+                              <span className="font-semibold">{t('nodeModal.latest', { defaultValue: 'Latest' })}</span>
+                              <Badge variant="secondary" className="text-[10px] font-medium">
+                                {latestVersion}
+                              </Badge>
+                            </div>
+                            {selectedVersion === 'latest' && (
+                              <div className="h-2 w-2 rounded-full bg-primary" />
+                            )}
+                          </div>
+                        </button>
+                      )}
+                      {versions
+                        .filter(release => release.version !== latestVersion)
+                        .slice(0, 10)
+                        .map(release => (
+                          <button
+                            key={release.version}
+                            type="button"
+                            onClick={() => setSelectedVersion(release.version)}
+                            className={cn(
+                              'w-full rounded-md px-3 py-2 text-left text-sm transition-all',
+                              'hover:bg-accent hover:text-accent-foreground',
+                              'border-2',
+                              selectedVersion === release.version
+                                ? 'bg-accent text-accent-foreground border-primary'
+                                : 'border-transparent',
+                              dir === 'rtl' && 'text-right',
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono">{release.version}</span>
+                              {selectedVersion === release.version && (
+                                <div className="h-2 w-2 rounded-full bg-primary" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </TabsContent>
+
+              <TabsContent value="custom" className="mt-3 space-y-3">
+                <div className="space-y-2">
+                  <label htmlFor="custom-version-input" className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>
+                    {t('nodeModal.enterVersion', { defaultValue: 'Enter Version' })}
+                  </label>
+                  <Input
+                    id="custom-version-input"
+                    type="text"
+                    placeholder={t('nodeModal.versionPlaceholder', { defaultValue: 'e.g., v1.8.0 or 1.8.0' })}
+                    value={customVersion}
+                    onChange={(e) => handleCustomVersionChange(e.target.value)}
+                    onBlur={() => {
+                      if (customVersion) {
+                        validateCustomVersion(customVersion)
+                      }
+                    }}
+                    error={customVersionError}
+                    isError={!!customVersionError}
+                    className="font-mono"
+                  />
+                  <p dir={dir} className={cn('text-xs text-muted-foreground', dir === 'rtl' && 'text-right')}>
+                    {t('nodeModal.versionHint', { defaultValue: 'Enter a version in the format vX.X.X or X.X.X (e.g., v1.8.0)' })}
+                  </p>
                 </div>
-              </ScrollArea>
-            )}
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 
@@ -212,7 +288,12 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
           <LoaderButton
             className="!m-0"
             onClick={handleUpdate}
-            disabled={updateCoreMutation.isPending || isLoadingReleases || !latestVersion}
+            disabled={
+              updateCoreMutation.isPending ||
+              isLoadingReleases ||
+              (versionMode === 'list' && !latestVersion) ||
+              (versionMode === 'custom' && (!customVersion.trim() || !!customVersionError))
+            }
             isLoading={updateCoreMutation.isPending}
             loadingText={t('nodeModal.updating', { defaultValue: 'Updating...' })}
           >
