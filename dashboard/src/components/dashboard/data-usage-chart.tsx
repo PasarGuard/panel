@@ -333,6 +333,17 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     return percent
   }, [chartData])
 
+  // Calculate total usage during period
+  const totalUsageDuringPeriod = useMemo(() => {
+    if (!chartData || chartData.length === 0) return 0
+    const totalBytes = chartData.reduce((sum, dataPoint) => {
+      const traffic = (dataPoint as { traffic: number })?.traffic || 0
+      return sum + traffic
+    }, 0)
+    // Convert bytes to GB
+    return totalBytes / (1024 * 1024 * 1024)
+  }, [chartData])
+
   const xAxisInterval = useMemo(() => {
     // For hours (24h), show approximately 8 labels
     if (periodOption.hours) {
@@ -476,6 +487,11 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
         {chartData.length > 0 && trend !== null && trend < 0 && (
           <div className="flex gap-2 font-medium leading-none text-red-600 dark:text-red-400">
             {t('usersTable.trendingDown', { defaultValue: 'Trending down by' })} {Math.abs(trend).toFixed(1)}% <TrendingDown className="h-4 w-4" />
+          </div>
+        )}
+        {chartData.length > 0 && (
+          <div className="leading-none text-muted-foreground">
+            {t('statistics.usageDuringPeriod', { defaultValue: 'Usage During Period' })}: <span dir="ltr" className="font-mono">{totalUsageDuringPeriod.toFixed(2)} GB</span>
           </div>
         )}
         <div className="leading-none text-muted-foreground">{t('statistics.trafficUsageDescription', { defaultValue: 'Total traffic usage across all servers' })}</div>
