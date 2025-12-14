@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card } from '../ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu'
 import { Button } from '../ui/button'
-import { MoreVertical, Pencil, Trash2, Power, Activity, RotateCcw, Wifi, Loader2, RefreshCw, Download, Package, Server, AlertCircle, Link2, Map } from 'lucide-react'
+import { MoreVertical, Pencil, Trash2, Power, Activity, RotateCcw, Wifi, Loader2, RefreshCw, Package, Server, AlertCircle, Link2, Map } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
@@ -398,17 +398,14 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
 
             {/* Version Info */}
             {(node.xray_version || node.node_version) && (
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-3">
                 {node.xray_version && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div
                         className={cn(
-                          'group/version inline-flex items-center rounded-md border px-1.5 py-0.5 sm:px-2 sm:py-1 transition-all cursor-pointer',
+                          'group/version inline-flex items-center cursor-pointer',
                           dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
-                          latestXrayVersion && hasXrayUpdate(node.xray_version)
-                            ? 'border-amber-500/50 bg-amber-500/10 group-hover:border-amber-500/70 group-hover:bg-amber-500/15'
-                            : 'border-border/50 bg-background/50 group-hover:border-border group-hover:bg-background/80',
                         )}
                         onClick={e => {
                           e.stopPropagation()
@@ -416,14 +413,11 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                         }}
                       >
                         <Package className={cn('h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 transition-colors', latestXrayVersion && hasXrayUpdate(node.xray_version) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')} />
-                        <span className={cn('text-[10px] sm:text-[11px] font-medium font-mono', latestXrayVersion && hasXrayUpdate(node.xray_version) ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>
+                        <span className={cn('text-[10px] sm:text-[11px] font-medium font-mono', latestXrayVersion && hasXrayUpdate(node.xray_version) ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
                           {node.xray_version}
                         </span>
                         {latestXrayVersion && hasXrayUpdate(node.xray_version) && (
-                          <div className={cn('flex items-center gap-0.5', dir === 'rtl' ? 'flex-row-reverse' : '')}>
-                            <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                            <Download className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                          </div>
+                          <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
                         )}
                       </div>
                     </TooltipTrigger>
@@ -457,22 +451,16 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                     <TooltipTrigger asChild>
                       <div
                         className={cn(
-                          'group/version inline-flex items-center rounded-md border px-1.5 py-0.5 sm:px-2 sm:py-1 transition-all',
+                          'group/version inline-flex items-center',
                           dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
-                          latestNodeVersion && hasNodeUpdate(node.node_version)
-                            ? 'border-amber-500/50 bg-amber-500/10 group-hover:border-amber-500/70 group-hover:bg-amber-500/15'
-                            : 'border-border/50 bg-background/50 group-hover:border-border group-hover:bg-background/80',
                         )}
                       >
                         <Server className={cn('h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 transition-colors', latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')} />
-                        <span className={cn('text-[10px] sm:text-[11px] font-medium font-mono', latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>
+                        <span className={cn('text-[10px] sm:text-[11px] font-medium font-mono', latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
                           {node.node_version}
                         </span>
                         {latestNodeVersion && hasNodeUpdate(node.node_version) && (
-                          <div className={cn('flex items-center gap-0.5', dir === 'rtl' ? 'flex-row-reverse' : '')}>
-                            <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                            <Download className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                          </div>
+                          <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
                         )}
                       </div>
                     </TooltipTrigger>
