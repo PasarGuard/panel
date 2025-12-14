@@ -50,9 +50,9 @@ const UsersStatistics = () => {
               )}
             />
             <CardTitle className="relative z-10 flex min-w-0 items-center justify-between gap-x-4 overflow-hidden">
-              <div className="flex min-w-0 flex-1 items-center gap-x-4 overflow-hidden">
+              <div className="flex min-w-0 flex-1 items-center gap-x-4 overflow-hidden min-h-8">
                 <div className="min-h-[10px] min-w-[10px] shrink-0 rounded-full bg-green-500 shadow-sm" />
-                <span className="truncate">{t('statistics.onlineUsers')}</span>
+                <span>{t('statistics.onlineUsers')}</span>
               </div>
               <span className={cn('mx-2 shrink-0 text-3xl transition-all duration-500', isIncreased.online_users ? 'animate-zoom-out' : '')} style={{ animationDuration: '400ms' }}>
                 {data ? <CountUp end={data.online_users} /> : 0}
@@ -72,9 +72,9 @@ const UsersStatistics = () => {
               )}
             />
             <CardTitle className="relative z-10 flex min-w-0 items-center justify-between gap-x-4 overflow-hidden">
-              <div className="flex min-w-0 flex-1 items-center gap-x-4 overflow-hidden">
+              <div className="flex min-w-0 flex-1 items-center gap-x-4 overflow-hidden min-h-8">
                 <Wifi className="h-5 w-5 shrink-0" />
-                <span className="truncate">{t('statistics.activeUsers')}</span>
+                <span>{t('statistics.activeUsers')}</span>
               </div>
               <span className={cn('mx-2 shrink-0 text-3xl transition-all duration-500', isIncreased.active_users ? 'animate-zoom-out' : '')} style={{ animationDuration: '400ms' }}>
                 {data ? <CountUp end={data.active_users} /> : 0}
@@ -94,9 +94,9 @@ const UsersStatistics = () => {
               )}
             />
             <CardTitle className="relative z-10 flex min-w-0 items-center justify-between gap-x-4 overflow-hidden">
-              <div className="flex min-w-0 flex-1 items-center gap-x-4 overflow-hidden">
+              <div className="flex min-w-0 flex-1 items-center gap-x-4 overflow-hidden min-h-8">
                 <Users className="h-5 w-5 shrink-0" />
-                <span className="truncate">{t('statistics.users')}</span>
+                <span>{t('statistics.users')}</span>
               </div>
               <span className={cn('mx-2 shrink-0 text-3xl transition-all duration-500', isIncreased.total_user ? 'animate-zoom-out' : '')} style={{ animationDuration: '400ms' }}>
                 {data ? <CountUp end={data.total_user} /> : 0}
