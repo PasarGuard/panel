@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Callable
+from typing import Awaitable, Callable
 
 import nats
 
@@ -18,7 +18,7 @@ class NatsMessageRouter:
     def __init__(self):
         self._nc: nats.NATS | None = None
         self._listener_task: asyncio.Task | None = None
-        self._handlers: dict[MessageTopic, Callable[[dict], asyncio.coroutine]] = {}
+        self._handlers: dict[MessageTopic, Callable[[dict], Awaitable[None]]] = {}
         self._running = False
 
     async def _get_client(self) -> nats.NATS | None:
@@ -27,7 +27,7 @@ class NatsMessageRouter:
             self._nc = await create_nats_client()
         return self._nc
 
-    def register_handler(self, topic: MessageTopic, handler: Callable[[dict], asyncio.coroutine]):
+    def register_handler(self, topic: MessageTopic, handler: Callable[[dict], Awaitable[None]]):
         """Register a handler function for a specific topic."""
         self._handlers[topic] = handler
         logger.debug(f"Registered handler for topic: {topic.value}")
