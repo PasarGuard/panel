@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 1.9.2
+ * OpenAPI spec version: 1.10.0
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -1116,6 +1116,19 @@ export type NotificationSettingsOutputTelegramChatId = number | null
 
 export type NotificationSettingsOutputTelegramApiToken = string | null
 
+export interface NotificationSettingsOutput {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
+  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
+  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
+  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsOutputProxyUrl
+  /** */
+  max_retries: number
+}
+
 export type NotificationSettingsInputProxyUrl = string | null
 
 export type NotificationSettingsInputDiscordWebhookUrl = string | null
@@ -1164,19 +1177,6 @@ export interface NotificationChannels {
   user_template?: NotificationChannel
 }
 
-export interface NotificationSettingsOutput {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
-  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
-  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
-  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsOutputProxyUrl
-  /** */
-  max_retries: number
-}
-
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1200,11 +1200,6 @@ export type NoiseSettingsXray = XrayNoiseSettings[] | null
 
 export interface NoiseSettings {
   xray?: NoiseSettingsXray
-}
-
-export interface NodesResponse {
-  nodes: NodeResponse[]
-  total: number
 }
 
 export type NodeUsageStatsListPeriod = Period | null
@@ -1306,6 +1301,11 @@ export interface NodeResponse {
   lifetime_downlink?: NodeResponseLifetimeDownlink
 }
 
+export interface NodesResponse {
+  nodes: NodeResponse[]
+  total: number
+}
+
 export interface NodeRealtimeStats {
   mem_total: number
   mem_used: number
@@ -1344,6 +1344,8 @@ export type NodeModifyCoreConfigId = number | null
 export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
+
+export type NodeModifyConnectionType = NodeConnectionType | null
 
 export type NodeModifyUsageCoefficient = number | null
 
@@ -1388,8 +1390,6 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
-
-export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -2098,6 +2098,31 @@ export interface AdminCreate {
   support_url?: AdminCreateSupportUrl
   notification_enable?: AdminCreateNotificationEnable
   username: string
+}
+
+export type AdminContactInfoNotificationEnable = UserNotificationEnable | null
+
+export type AdminContactInfoSupportUrl = string | null
+
+export type AdminContactInfoProfileTitle = string | null
+
+export type AdminContactInfoSubDomain = string | null
+
+export type AdminContactInfoDiscordWebhook = string | null
+
+export type AdminContactInfoTelegramId = number | null
+
+/**
+ * Base model containing the core admin identification fields.
+ */
+export interface AdminContactInfo {
+  username: string
+  telegram_id?: AdminContactInfoTelegramId
+  discord_webhook?: AdminContactInfoDiscordWebhook
+  sub_domain?: AdminContactInfoSubDomain
+  profile_title?: AdminContactInfoProfileTitle
+  support_url?: AdminContactInfoSupportUrl
+  notification_enable?: AdminContactInfoNotificationEnable
 }
 
 /**
