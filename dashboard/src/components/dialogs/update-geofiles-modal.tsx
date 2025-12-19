@@ -9,6 +9,7 @@ import { useUpdateGeofiles, NodeResponse, GeoFilseRegion } from '@/service/api'
 import { LoaderButton } from '../ui/loader-button'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
+import i18n from '@/locales/i18n'
 
 interface UpdateGeofilesDialogProps {
   node: NodeResponse
@@ -25,12 +26,12 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
     { value: 'russia', label: t('nodeModal.regions.russia', { defaultValue: 'Russia' }) },
   ]
   const dir = useDirDetection()
-  const [selectedRegion, setSelectedRegion] = useState<GeoFilseRegion | undefined>(undefined)
+  const [selectedRegion, setSelectedRegion] = useState<GeoFilseRegion | undefined>(i18n.language === 'en' ? 'iran' : 'iran')
   const updateGeofilesMutation = useUpdateGeofiles()
 
   React.useEffect(() => {
     if (isOpen) {
-      setSelectedRegion(undefined)
+      setSelectedRegion(i18n.language === 'en' ? 'iran' : 'iran')
     }
   }, [isOpen])
 
@@ -78,14 +79,13 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
               {t('nodeModal.selectRegion', { defaultValue: 'Select Region' })}
             </label>
             <Select
-              value={selectedRegion || 'all'}
-              onValueChange={value => setSelectedRegion(value === 'all' ? undefined : (value as GeoFilseRegion))}
+              value={selectedRegion || ''}
+              onValueChange={value => setSelectedRegion(value as GeoFilseRegion)}
             >
               <SelectTrigger className={cn(dir === 'rtl' && 'text-right')}>
-                <SelectValue placeholder={t('nodeModal.allRegions', { defaultValue: 'All Regions' })} />
+                <SelectValue placeholder={t('nodeModal.selectRegion', { defaultValue: 'Select Region' })} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t('nodeModal.allRegions', { defaultValue: 'All Regions' })}</SelectItem>
                 {GEO_REGIONS.map(region => (
                   <SelectItem key={region.value} value={region.value}>
                     {region.label}
@@ -95,7 +95,7 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
             </Select>
             <p className={cn('text-xs text-muted-foreground', dir === 'rtl' && 'text-right')}>
               {t('nodeModal.updateGeofilesHint', {
-                defaultValue: 'Leave empty to update all regions, or select a specific region',
+                defaultValue: 'Select a specific region to update geofiles',
               })}
             </p>
           </div>
