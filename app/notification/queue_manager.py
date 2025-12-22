@@ -3,7 +3,7 @@ import json
 from typing import Literal, Optional
 
 import nats
-from nats.js import api
+from nats.js.client import JetStreamContext
 from pydantic import BaseModel, Field
 
 from app.nats import is_nats_enabled
@@ -25,8 +25,8 @@ class NatsNotificationQueue(NotificationQueue):
 
     def __init__(self):
         self._nc: nats.NATS | None = None
-        self._js: api.JetStreamContext | None = None
-        self._consumer: api.PullConsumer | None = None
+        self._js: JetStreamContext | None = None
+        self._consumer: JetStreamContext.PullSubscription | None = None
 
     async def initialize(self):
         """Initialize NATS connection, JetStream stream, and pull consumer."""
@@ -146,8 +146,24 @@ async def shutdown_queue():
     """Close NATS connection on shutdown."""
     queue = get_queue()
     if isinstance(queue, NatsNotificationQueue):
-        if queue._nc:
-            await queue._nc.close()
+        try:
+            if queue._consumer:
+                await queue._consumer.unsubscribe()
+        except Exception:
+            pass
+
+        if queue._nc and not queue._nc.is_closed:
+            try:
+                await asyncio.wait_for(queue._nc.close(), timeout=3)
+            except asyncio.TimeoutError:
+                # Don't block shutdown if NATS is slow to close
+                pass
+            except Exception:
+                pass
+
+        queue._consumer = None
+        queue._js = None
+        queue._nc = None
 
 
 async def enqueue_telegram(message: str, chat_id: Optional[int] = None, topic_id: Optional[int] = None) -> None:

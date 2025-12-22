@@ -66,6 +66,7 @@ async def lifespan(app: FastAPI):
     yield
 
     for func in shutdown_functions:
+        print("disconnecting...", func.__name__)
         if callable(func):
             if asyncio.iscoroutinefunction(func):
                 if "app" in func.__code__.co_varnames:
@@ -133,15 +134,15 @@ if RUN_SCHEDULER:
     on_startup(scheduler.start)
     on_shutdown(scheduler.shutdown)
     on_startup(initialize_queue)
-    on_shutdown(shutdown_queue)
     on_startup(start_notification_dispatcher)
     on_shutdown(stop_notification_dispatcher)
+    on_shutdown(shutdown_queue)
 
 on_startup(router.start)
 on_shutdown(router.stop)
 
 # Register settings handler
-router.register_handler(MessageTopic.SETTINGS, handle_settings_message)
+router.register_handler(MessageTopic.SETTING, handle_settings_message)
 
 on_startup(lambda: logger.info(f"PasarGuard v{__version__}"))
 

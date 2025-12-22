@@ -3,7 +3,7 @@ from asyncio import Lock
 from copy import deepcopy
 
 import nats
-from nats.js import api
+from nats.js.client import JetStreamContext
 from nats.js.kv import KeyValue
 from aiocache import cached
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -250,7 +250,7 @@ class HostManager:
         self._nats_enabled = is_nats_enabled()
         self._multi_worker = MULTI_WORKER
         self._nc: nats.NATS | None = None
-        self._js: api.JetStreamContext | None = None
+        self._js: JetStreamContext | None = None
         self._kv: KeyValue | None = None
         self._logger = get_logger("host-manager")
         self._add_hosts_impl = (
