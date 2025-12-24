@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 1.10.0
+ * OpenAPI spec version: 1.10.1
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
