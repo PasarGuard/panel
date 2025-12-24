@@ -8,6 +8,7 @@ import { NavSecondary } from '@/components/layout/nav-secondary'
 import { NavUser } from '@/components/layout/nav-user'
 import { useTheme } from '@/components/common/theme-provider'
 import { ThemeToggle } from '@/components/common/theme-toggle'
+import Snowfall from '@/components/common/snowfall'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
@@ -333,6 +334,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarTriggerWithBadge />
       </div>
       <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
+        <Snowfall className="snowfall--sidebar" />
         <SidebarRail />
         <SidebarHeader>
           <SidebarMenu>

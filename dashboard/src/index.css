@@ -46,6 +46,7 @@
     --sidebar-border: 240 5% 80%;
     --sidebar-ring: 216 46% 40%;
     --sidebar-foreground-70: 240 5% 30%;
+    --snow-color: 210 80% 62%;
     --neon-green: 81 96% 55%;
     --background-custom: 240 5% 96%;
     --chart-1: 221.2 83.2% 53.3%;
@@ -108,6 +109,7 @@
     --sidebar-border: 0 0% 20% / 0.8;
     --sidebar-ring: 0 0% 64%;
     --sidebar-foreground-70: 0 0% 98%;
+    --snow-color: 0 0% 98%;
     --neon-green: 81 96% 55%;
     --background-custom: 240 4% 8%;
     /* Dark mode scrollbar variables */
@@ -288,6 +290,74 @@
   /* Icon-only button styling */
   .sidebar-icon-only {
     @apply flex h-8 w-8 items-center justify-center rounded-md;
+  }
+
+  .snowfall {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+
+  .snowfall ~ * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .snowfall__item {
+    position: absolute;
+    left: var(--snow-x);
+    top: -12vh;
+    width: var(--snow-size);
+    height: var(--snow-size);
+    opacity: var(--snow-opacity);
+    animation: snowfall-fall var(--snow-duration) linear infinite;
+    animation-delay: var(--snow-delay);
+  }
+
+  .snowfall__sway {
+    width: 100%;
+    height: 100%;
+    display: block;
+    color: hsl(var(--snow-color));
+    animation: snowfall-sway var(--snow-sway-duration) ease-in-out infinite;
+    animation-delay: var(--snow-delay);
+  }
+
+  .snowfall__dot {
+    width: 100%;
+    height: 100%;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+
+  .snowfall__icon {
+    width: 100%;
+    height: 100%;
+    display: block;
+    fill: currentColor;
+  }
+
+  @keyframes snowfall-fall {
+    0% {
+      transform: translate3d(0, -12vh, 0);
+    }
+    100% {
+      transform: translate3d(0, 112vh, 0);
+    }
+  }
+
+  @keyframes snowfall-sway {
+    0% {
+      transform: translateX(calc(var(--snow-sway) * -1));
+    }
+    50% {
+      transform: translateX(var(--snow-sway));
+    }
+    100% {
+      transform: translateX(calc(var(--snow-sway) * -1));
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { getDocsUrl } from '@/utils/docs-url'
+import Snowfall from '@/components/common/snowfall'
 import { HelpCircle, LucideIcon, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
@@ -25,8 +26,9 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
   const docsUrl = tutorialUrl || getDocsUrl(location.pathname)
 
   return (
-    <div dir={dir} className="mx-auto flex w-full flex-row items-start justify-between gap-4 px-4 py-4 md:pt-6">
-      <div className="flex flex-col gap-y-1">
+    <div dir={dir} className="relative mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 md:pt-6">
+      <Snowfall className="snowfall--header" />
+      <div className="relative z-10 flex flex-col gap-y-1">
         <div className="flex items-center gap-2.5">
           <h1 className="text-lg font-medium sm:text-xl">{t(title)}</h1>
           <TooltipProvider>
@@ -51,7 +53,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
         {description && <span className="whitespace-normal text-xs text-muted-foreground sm:text-sm">{t(description)}</span>}
       </div>
       {buttonText && onButtonClick && (
-        <div>
+        <div className="relative z-10">
           {buttonTooltip ? (
             <TooltipProvider>
               <Tooltip>
