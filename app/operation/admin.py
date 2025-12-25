@@ -3,6 +3,7 @@ import asyncio
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
+from app.core.permissions import PermissionManager
 from app.db import AsyncSession
 from app.db.crud.admin import (
     AdminsSortingOptions,
@@ -25,8 +26,16 @@ logger = get_logger("admin-operation")
 
 
 class AdminOperation(BaseOperation):
+    def __init__(self, operator_type: OperatorType):
+        super().__init__(operator_type)
+        self.permission_manager = PermissionManager(operator_type)
+
     async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails) -> AdminDetails:
         """Create a new admin if the current admin has sudo privileges."""
+        permission_check = await self.permission_manager.check(
+            "admin.create", admin=admin, context={"new_admin": new_admin}
+        )
+        await self.ensure_allowed(permission_check)
         try:
             db_admin = await create_admin(db, new_admin)
         except IntegrityError:
@@ -43,6 +52,10 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, username: str, modified_admin: AdminModify, current_admin: AdminDetails
     ) -> AdminDetails:
         """Modify an existing admin's details."""
+        permission_check = await self.permission_manager.check(
+            "admin.modify", admin=current_admin, context={"target_username": username, "changes": modified_admin}
+        )
+        await self.ensure_allowed(permission_check)
         db_admin = await self.get_validated_admin(db, username=username)
         if self.operator_type != OperatorType.CLI and db_admin.is_sudo:
             await self.raise_error(
@@ -62,6 +75,10 @@ class AdminOperation(BaseOperation):
 
     async def remove_admin(self, db: AsyncSession, username: str, current_admin: AdminDetails | None = None):
         """Remove an admin from the database."""
+        permission_check = await self.permission_manager.check(
+            "admin.remove", admin=current_admin, context={"target_username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_admin = await self.get_validated_admin(db, username=username)
         if self.operator_type != OperatorType.CLI and db_admin.is_sudo:
             await self.raise_error(
@@ -111,6 +128,10 @@ class AdminOperation(BaseOperation):
 
     async def disable_all_active_users(self, db: AsyncSession, username: str, admin: AdminDetails):
         """Disable all active users under a specific admin"""
+        permission_check = await self.permission_manager.check(
+            "admin.disable_users", admin=admin, context={"target_username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_admin = await self.get_validated_admin(db, username=username)
 
         if db_admin.is_sudo:
@@ -125,6 +146,10 @@ class AdminOperation(BaseOperation):
 
     async def activate_all_disabled_users(self, db: AsyncSession, username: str, admin: AdminDetails):
         """Enable all active users under a specific admin"""
+        permission_check = await self.permission_manager.check(
+            "admin.activate_users", admin=admin, context={"target_username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_admin = await self.get_validated_admin(db, username=username)
 
         if db_admin.is_sudo:
@@ -139,6 +164,10 @@ class AdminOperation(BaseOperation):
 
     async def remove_all_users(self, db: AsyncSession, username: str, admin: AdminDetails) -> int:
         """Delete all users that belong to the specified admin."""
+        permission_check = await self.permission_manager.check(
+            "admin.remove_all_users", admin=admin, context={"target_username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_admin = await self.get_validated_admin(db, username=username)
         target_username = db_admin.username
 
@@ -164,6 +193,10 @@ class AdminOperation(BaseOperation):
         return len(serialized_users)
 
     async def reset_admin_usage(self, db: AsyncSession, username: str, admin: AdminDetails) -> AdminDetails:
+        permission_check = await self.permission_manager.check(
+            "admin.reset_usage", admin=admin, context={"target_username": username}
+        )
+        await self.ensure_allowed(permission_check)
         db_admin = await self.get_validated_admin(db, username=username)
 
         db_admin = await reset_admin_usage(db, db_admin=db_admin)
