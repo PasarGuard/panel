@@ -2,11 +2,15 @@ import ipaddress
 import os
 import socket
 import ssl
+import threading
+from pathlib import Path
 
 import click
-import uvicorn
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from granian import Granian
+from granian.constants import Interfaces, Loops
+from granian.log import LogLevels
 
 import dashboard  # noqa
 from app import app, logger  # noqa
@@ -22,6 +26,8 @@ from config import (
     UVICORN_SSL_KEYFILE,
     UVICORN_UDS,
 )
+
+shutdown_message_printed = False
 
 
 def check_and_modify_ip(ip_address: str) -> str:
@@ -54,14 +60,22 @@ def check_and_modify_ip(ip_address: str) -> str:
         ip = ipaddress.ip_address(resolved_ip)
 
         if ip == ipaddress.ip_address("0.0.0.0"):
-            return "localhost"
+            return "127.0.0.1"
         elif ip.is_private:
-            return ip_address
+            return resolved_ip
         else:
-            return "localhost"
+            return "127.0.0.1"
 
     except (ValueError, socket.gaierror):
-        return "localhost"
+        return "127.0.0.1"
+
+
+def resolve_bind_address(host: str) -> str:
+    try:
+        return socket.gethostbyname(host)
+    except socket.gaierror:
+        logger.warning(f"Unable to resolve UVICORN_HOST '{host}'. Defaulting to 127.0.0.1.")
+        return "127.0.0.1"
 
 
 def validate_cert_and_key(cert_file_path, key_file_path, ca_type: str = "public"):
@@ -92,6 +106,38 @@ def validate_cert_and_key(cert_file_path, key_file_path, ca_type: str = "public"
         raise ValueError(f"Certificate verification failed: {e}")
 
 
+def resolve_loop(loop_name: str) -> Loops:
+    normalized_loop = (loop_name or "").lower()
+    try:
+        return Loops(normalized_loop)
+    except ValueError:
+        logger.warning(f"Invalid UVICORN_LOOP value '{loop_name}'. Defaulting to 'auto'.")
+        return Loops.auto
+
+
+def install_interrupt_cleanup(server: Granian) -> None:
+    original_interrupt = server.signal_handler_interrupt
+    exit_timer: list[threading.Timer | None] = [None]
+
+    def _interrupt_handler(*args, **kwargs):
+        if exit_timer[0] is None:
+            global shutdown_message_printed
+            if not shutdown_message_printed:
+                print("Shutting down PasarGuard...")
+                shutdown_message_printed = True
+            try:
+                dashboard.stop_dashboard_processes()
+            except Exception:
+                pass
+            timer = threading.Timer(5.0, lambda: os._exit(0))
+            timer.daemon = True
+            timer.start()
+            exit_timer[0] = timer
+        return original_interrupt(*args, **kwargs)
+
+    server.signal_handler_interrupt = _interrupt_handler
+
+
 if __name__ == "__main__":
     # Do NOT change workers count for now
     # multi-workers support isn't implemented yet for APScheduler
@@ -106,24 +152,17 @@ if __name__ == "__main__":
         )
         ca_type = "public"
 
-    bind_args = {}
+    bind_args = {"address": UVICORN_HOST, "port": UVICORN_PORT}
 
     if UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE:
         validate_cert_and_key(UVICORN_SSL_CERTFILE, UVICORN_SSL_KEYFILE, ca_type=ca_type)
 
-        bind_args["ssl_certfile"] = UVICORN_SSL_CERTFILE
-        bind_args["ssl_keyfile"] = UVICORN_SSL_KEYFILE
-
-        if UVICORN_UDS:
-            bind_args["uds"] = UVICORN_UDS
-        else:
-            bind_args["host"] = UVICORN_HOST
-            bind_args["port"] = UVICORN_PORT
+        bind_args["ssl_cert"] = Path(UVICORN_SSL_CERTFILE)
+        bind_args["ssl_key"] = Path(UVICORN_SSL_KEYFILE)
+        bind_args["address"] = resolve_bind_address(UVICORN_HOST)
 
     else:
-        if UVICORN_UDS:
-            bind_args["uds"] = UVICORN_UDS
-        else:
+        if not UVICORN_UDS:
             ip = check_and_modify_ip(UVICORN_HOST)
 
             logger.warning(f"""
@@ -142,26 +181,62 @@ Use the following command:
 Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on your computer.
             """)
 
-            bind_args["host"] = ip
+            bind_args["address"] = ip
             bind_args["port"] = UVICORN_PORT
+
+    if UVICORN_UDS:
+        bind_args["uds"] = Path(UVICORN_UDS)
+        bind_args.pop("address", None)
+        bind_args.pop("port", None)
 
     if DEBUG:
         bind_args["uds"] = None
-        bind_args["host"] = "0.0.0.0"
+        bind_args["address"] = "0.0.0.0"
+        bind_args["port"] = UVICORN_PORT
 
     effective_log_level = LOG_LEVEL
-    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access", "_granian", "granian.access"):
         LOGGING_CONFIG["loggers"][logger_name]["level"] = effective_log_level
 
     try:
-        uvicorn.run(
+        granian_log_level = LogLevels(effective_log_level.lower())
+    except ValueError:
+        logger.warning(f"Invalid LOG_LEVEL '{effective_log_level}'. Defaulting to 'INFO'.")
+        granian_log_level = LogLevels.info
+
+    reload_args = {"reload": DEBUG}
+    if DEBUG:
+        reload_args["reload_ignore_dirs"] = ("dashboard", "node_modules", ".git", "__pycache__", ".venv")
+
+    dashboard_dev_managed = False
+    if DEBUG:
+        manage_env = os.getenv("DASHBOARD_DEV_MANAGED", "").lower()
+        if manage_env not in {"0", "false", "no"}:
+            os.environ["DASHBOARD_DEV_MANAGED"] = "1"
+            dashboard_dev_managed = True
+            try:
+                dashboard.run_dev()
+            except Exception as exc:
+                logger.warning(f"Failed to start dashboard dev server: {exc}")
+
+    try:
+        server = Granian(
             "main:app",
             **bind_args,
             workers=1,
-            reload=DEBUG,
-            log_config=LOGGING_CONFIG,
-            log_level=effective_log_level.lower(),
-            loop=UVICORN_LOOP,
+            interface=Interfaces.ASGI,
+            log_dictconfig=LOGGING_CONFIG,
+            log_level=granian_log_level,
+            loop=resolve_loop(UVICORN_LOOP),
+            **reload_args,
         )
+        install_interrupt_cleanup(server)
+        server.serve()
     except FileNotFoundError:  # to prevent error on removing unix sock
         pass
+    finally:
+        if not shutdown_message_printed:
+            print("Shutting down PasarGuard...")
+            shutdown_message_printed = True
+        if dashboard_dev_managed:
+            dashboard.stop_dashboard_processes()
