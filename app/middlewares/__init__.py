@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.utils.logger import get_logger
 from config import ALLOWED_ORIGINS
 
 from .request_logging import RequestProcessTimeLoggingMiddleware
+from .proxy_headers import ProxyHeadersMiddleware
 
 
 def setup_middleware(app: FastAPI):
