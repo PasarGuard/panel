@@ -11,6 +11,7 @@ from cryptography.hazmat.backends import default_backend
 from granian import Granian
 from granian.constants import Interfaces, Loops
 from granian.log import LogLevels
+from granian.server import MPServer
 
 import dashboard  # noqa
 from app import app, logger  # noqa
@@ -115,7 +116,7 @@ def resolve_loop(loop_name: str) -> Loops:
         return Loops.auto
 
 
-def install_interrupt_cleanup(server: Granian) -> None:
+def install_interrupt_cleanup(server: MPServer) -> None:
     original_interrupt = server.signal_handler_interrupt
     exit_timer: list[threading.Timer | None] = [None]
 
