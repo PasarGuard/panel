@@ -3,7 +3,7 @@ name = "PasarGuard"
 version = "1.10.1"
 description = "Unified GUI Censorship Resistant Solution"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14.1"
 dependencies = [
     "APScheduler>=3.11.1",
     "Deprecated==1.2.13",
