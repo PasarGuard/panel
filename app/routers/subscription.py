@@ -51,8 +51,8 @@ async def user_subscription_apps(token: str, db: AsyncSession = Depends(get_db))
 @router.get("/{token}/usage", response_model=UserUsageStatsList)
 async def get_sub_user_usage(
     token: str,
-    start: dt | None = Query(None, example="2024-01-01T00:00:00+03:30"),
-    end: dt | None = Query(None, example="2024-01-31T23:59:59+03:30"),
+    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
     period: Period = Period.hour,
     db: AsyncSession = Depends(get_db),
 ):
