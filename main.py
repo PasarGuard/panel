@@ -222,15 +222,6 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
             "__pycache__",
             ".venv",
         )
-        # reload_args["reload_ignore_patterns"] = (
-        #     "db.sqlite3",
-        #     "_db.sqlite3",
-        #     "*.sqlite3",
-        #     "*.db",
-        #     "*.db-journal",
-        #     "*.db-wal",
-        #     "*.db-shm",
-        # )
 
     dashboard_dev_managed = False
     if DEBUG:
