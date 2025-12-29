@@ -12,6 +12,7 @@ from granian import Granian
 from granian.constants import Interfaces, Loops
 from granian.log import LogLevels
 from granian.server import MPServer
+from granian.server.mt import MTServer
 
 import dashboard  # noqa
 from app import app, logger  # noqa
@@ -205,9 +206,31 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
         logger.warning(f"Invalid LOG_LEVEL '{effective_log_level}'. Defaulting to 'INFO'.")
         granian_log_level = LogLevels.info
 
+    kill_timeout = 5 if DEBUG else 15
+
     reload_args = {"reload": DEBUG}
     if DEBUG:
-        reload_args["reload_ignore_dirs"] = ("dashboard", "node_modules", ".git", "__pycache__", ".venv")
+        reload_args["reload_paths"] = (
+            Path.cwd() / "app",
+            Path.cwd() / "main.py",
+            Path.cwd() / "config.py",
+        )
+        reload_args["reload_ignore_dirs"] = (
+            "dashboard",
+            "node_modules",
+            ".git",
+            "__pycache__",
+            ".venv",
+        )
+        # reload_args["reload_ignore_patterns"] = (
+        #     "db.sqlite3",
+        #     "_db.sqlite3",
+        #     "*.sqlite3",
+        #     "*.db",
+        #     "*.db-journal",
+        #     "*.db-wal",
+        #     "*.db-shm",
+        # )
 
     dashboard_dev_managed = False
     if DEBUG:
@@ -221,7 +244,7 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
                 logger.warning(f"Failed to start dashboard dev server: {exc}")
 
     try:
-        server = Granian(
+        server: MPServer | MTServer = Granian(
             "main:app",
             **bind_args,
             workers=1,
@@ -229,6 +252,8 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
             log_dictconfig=LOGGING_CONFIG,
             log_level=granian_log_level,
             loop=resolve_loop(UVICORN_LOOP),
+            workers_kill_timeout=kill_timeout,
+            reload_ignore_worker_failure=DEBUG,
             **reload_args,
         )
         install_interrupt_cleanup(server)
@@ -237,7 +262,6 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
         pass
     finally:
         if not shutdown_message_printed:
-            print("Shutting down PasarGuard...")
             shutdown_message_printed = True
         if dashboard_dev_managed:
             dashboard.stop_dashboard_processes()
