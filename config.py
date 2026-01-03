@@ -79,6 +79,7 @@ USERS_AUTODELETE_DAYS = config("USERS_AUTODELETE_DAYS", default=-1, cast=int)
 USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS = config("USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS", default=False, cast=bool)
 
 DO_NOT_LOG_TELEGRAM_BOT = config("DO_NOT_LOG_TELEGRAM_BOT", default=True, cast=bool)
+TELEGRAM_EMBEDDED = config("TELEGRAM_EMBEDDED", default=True, cast=bool)
 
 SAVE_LOGS_TO_FILE = config("SAVE_LOGS_TO_FILE", default=False, cast=bool)
 LOG_FILE_PATH = config("LOG_FILE_PATH", default="pasarguard.log")

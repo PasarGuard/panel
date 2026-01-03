@@ -13,6 +13,7 @@ from sqlalchemy.engine import make_url
 from app.middlewares import setup_middleware
 from app.nats.message import MessageTopic
 from app.nats.router import router
+from app.nats.broadcast import start_broadcast_client, stop_broadcast_client
 from app.settings import handle_settings_message
 from app.utils.logger import get_logger
 from config import DOCS, RUN_SCHEDULER, SQLALCHEMY_DATABASE_URL, SUBSCRIPTION_PATH
@@ -140,6 +141,8 @@ if RUN_SCHEDULER:
 
 on_startup(router.start)
 on_shutdown(router.stop)
+on_startup(start_broadcast_client)
+on_shutdown(stop_broadcast_client)
 
 # Register settings handler
 router.register_handler(MessageTopic.SETTING, handle_settings_message)

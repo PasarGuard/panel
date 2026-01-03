@@ -7,6 +7,11 @@ from pydantic import BaseModel, Field
 
 PANEL_JOBS_SUBJECT = "panel.jobs.>"
 PANEL_EVENTS_SUBJECT = "panel.events.>"
+PANEL_BROADCAST_SUBJECT = "panel.broadcast.>"
+PANEL_BROADCAST_OBJECT_CHANGED_SUBJECT = "panel.broadcast.object_changed"
+PANEL_TELEGRAM_COMMAND_SUBJECT = "panel.telegram.cmd.>"
+PANEL_TELEGRAM_EVENTS_SUBJECT = "panel.telegram.events.>"
+PANEL_BROADCAST_STREAM = "PANEL_BROADCAST"
 
 
 class JobType(str, Enum):
@@ -37,6 +42,16 @@ class EventType(str, Enum):
     NODE_STATUS = "panel.events.node.status"
     NODE_METRICS = "panel.events.node.metrics"
     AUDIT = "panel.events.audit"
+
+
+class BroadcastEvent(str, Enum):
+    """Event types for cross-worker cache/state updates."""
+
+    OBJECT_CHANGED = "object_changed"
+    USER_CHANGED = "user_changed"
+    NODE_CHANGED = "node_changed"
+    PLAN_CHANGED = "plan_changed"
+    SETTINGS_CHANGED = "settings_changed"
 
 
 class JobStatus(str, Enum):
@@ -100,6 +115,25 @@ def build_job_message(
     )
 
 
+class BroadcastEnvelope(BaseModel):
+    """Envelope for broadcasting object changes across workers."""
+
+    event_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    event_type: str = Field(default=BroadcastEvent.OBJECT_CHANGED.value)
+    object_type: str
+    object_id: str
+    schema_version: int = 1
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    publisher_id: str | None = None
+    payload_encoding: str = "pickle"
+    payload_bytes: str
+    object_version: int | None = None
+
+    @property
+    def msg_id(self) -> str:
+        return self.event_id
+
+
 __all__ = [
     "EventType",
     "JobMessage",
@@ -107,6 +141,13 @@ __all__ = [
     "JobStatus",
     "JobType",
     "PANEL_EVENTS_SUBJECT",
+    "PANEL_BROADCAST_OBJECT_CHANGED_SUBJECT",
+    "PANEL_BROADCAST_STREAM",
+    "PANEL_BROADCAST_SUBJECT",
+    "PANEL_TELEGRAM_COMMAND_SUBJECT",
+    "PANEL_TELEGRAM_EVENTS_SUBJECT",
     "PANEL_JOBS_SUBJECT",
+    "BroadcastEnvelope",
+    "BroadcastEvent",
     "build_job_message",
 ]

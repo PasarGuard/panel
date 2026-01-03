@@ -3,6 +3,8 @@ from aiocache import cached
 from app.db import GetDB
 from app.db.crud.settings import get_settings
 from app.models import settings
+from app.nats.broadcast import broadcast_client
+from app.nats.contracts import BroadcastEvent
 
 
 @cached()
@@ -71,3 +73,17 @@ async def refresh_caches() -> None:
 async def handle_settings_message(_: dict):
     """Handle settings update message from NATS router."""
     await refresh_caches()
+
+
+async def handle_settings_broadcast(envelope, payload):
+    """Handle broadcasted settings updates (single update path)."""
+    if envelope.event_type not in (
+        BroadcastEvent.SETTINGS_CHANGED.value,
+        BroadcastEvent.OBJECT_CHANGED.value,
+    ):
+        return
+    await refresh_caches()
+
+
+# Ensure settings invalidations go through broadcast handler
+broadcast_client.register_handler("settings", handle_settings_broadcast)

@@ -5,6 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Settings
 from app.db.crud.settings import get_settings, modify_settings
 from app.models.settings import SettingsSchema
+from app.nats import is_nats_enabled
+from app.nats.broadcast import broadcast_client
+from app.nats.contracts import BroadcastEvent
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.settings import refresh_caches
@@ -36,12 +39,33 @@ class SettingsOperation(BaseOperation):
         db_settings = await modify_settings(db, db_settings, modify)
         new_settings = SettingsSchema.model_validate(db_settings)
 
-        await refresh_caches()
-        # Publish settings update via NATS (all workers will refresh their caches)
-        await router.publish(MessageTopic.SETTINGS, {"action": "refresh"})
+        await self._publish_settings_invalidation(new_settings)
         asyncio.create_task(self.reset_services(old_settings, new_settings))
 
         return new_settings
+
+    async def _publish_settings_invalidation(self, new_settings: SettingsSchema):
+        """
+        Publish settings change via broadcast (and legacy router) so all workers refresh caches.
+        Falls back to a direct refresh when NATS is disabled or publish fails.
+        """
+        if not is_nats_enabled():
+            await refresh_caches()
+            return
+
+        envelope = await broadcast_client.publish_object_changed(
+            new_settings.model_dump(mode="json"),
+            object_type="settings",
+            object_id="global",
+            event_type=BroadcastEvent.SETTINGS_CHANGED.value,
+        )
+
+        # Legacy path for existing router listeners
+        await router.publish(MessageTopic.SETTING, {"action": "refresh"})
+
+        if envelope is None:
+            # If publish failed, fall back to local cache refresh
+            await refresh_caches()
 
     async def get_general_settings(self, db: AsyncSession):
         settings = await self.get_settings(db)

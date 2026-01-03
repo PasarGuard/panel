@@ -12,6 +12,7 @@ from app import on_shutdown, on_startup
 from app.models.settings import RunMethod, Telegram
 from app.settings import telegram_settings
 from app.utils.logger import get_logger
+from config import TELEGRAM_EMBEDDED
 
 from .handlers import include_routers
 from .middlewares import setup_middlewares
@@ -121,5 +122,6 @@ async def shutdown_telegram_bot():
             logger.info("Telegram bot shut down successfully.")
 
 
-on_startup(startup_telegram_bot)
-on_shutdown(shutdown_telegram_bot)
+if TELEGRAM_EMBEDDED:
+    on_startup(startup_telegram_bot)
+    on_shutdown(shutdown_telegram_bot)
