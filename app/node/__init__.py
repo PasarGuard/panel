@@ -14,6 +14,29 @@ type_map = {
 }
 
 
+def calculate_max_message_size(active_users_count: int) -> int:
+    """
+    Calculate max_message_size based on active users count.
+    
+    Formula: Base 10MB + (active_users_count * 50KB per user)
+    This ensures sufficient buffer for large node configurations with many users.
+    
+    Args:
+        active_users_count: Number of active users in the system
+        
+    Returns:
+        int: Max message size in bytes
+    """
+    base_size = 10 * 1024 * 1024  # 10MB base
+    per_user_size = 50 * 1024  # 50KB per user
+    calculated_size = base_size + (active_users_count * per_user_size)
+    
+    # Cap at 100MB to prevent excessive memory usage
+    max_cap = 100 * 1024 * 1024  # 100MB
+    
+    return min(calculated_size, max_cap)
+
+
 class NodeManager:
     def __init__(self):
         self._nodes: dict[int, PasarGuardNode] = {}
@@ -30,7 +53,7 @@ class NodeManager:
         except Exception:
             pass
 
-    async def update_node(self, node: Node) -> PasarGuardNode:
+    async def update_node(self, node: Node, max_message_size: int | None = None) -> PasarGuardNode:
         async with self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
 
@@ -45,6 +68,7 @@ class NodeManager:
                 logger=self.logger,
                 default_timeout=node.default_timeout,
                 internal_timeout=node.internal_timeout,
+                max_message_size=max_message_size,
                 extra={"id": node.id, "usage_coefficient": node.usage_coefficient},
             )
 
@@ -117,4 +141,4 @@ class NodeManager:
 node_manager: NodeManager = NodeManager()
 
 
-__all__ = ["core_users", "node_manager"]
+__all__ = ["calculate_max_message_size", "core_users", "node_manager"]

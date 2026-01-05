@@ -21,8 +21,8 @@ from app.db.crud.node import (
     reset_node_usage,
     update_node_status,
 )
-from app.db.crud.user import get_user
-from app.db.models import Node, NodeStatus
+from app.db.crud.user import get_user, get_users_count_by_status
+from app.db.models import Node, NodeStatus, UserStatus
 from app.models.admin import AdminDetails
 from app.models.node import (
     NodeCoreUpdate,
@@ -37,7 +37,7 @@ from app.models.node import (
     UserIPListAll,
 )
 from app.models.stats import NodeRealtimeStats, NodeStatsList, NodeUsageStatsList, Period
-from app.node import core_users, node_manager
+from app.node import calculate_max_message_size, core_users, node_manager
 from app.operation import BaseOperation
 from app.utils.logger import get_logger
 
@@ -197,8 +197,13 @@ class NodeOperation(BaseOperation):
         except IntegrityError:
             await self.raise_error(message=f'Node "{new_node.name}" already exists', code=409, db=db)
 
+        # Calculate max_message_size based on active users count
+        user_counts = await get_users_count_by_status(db, [UserStatus.active])
+        active_users_count = user_counts.get(UserStatus.active.value, 0)
+        max_message_size = calculate_max_message_size(active_users_count)
+
         try:
-            await node_manager.update_node(db_node)
+            await node_manager.update_node(db_node, max_message_size=max_message_size)
             asyncio.create_task(self.connect_single_node(db, db_node.id))
         except NodeAPIError as e:
             await self._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
@@ -226,8 +231,13 @@ class NodeOperation(BaseOperation):
         if db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             await self.disconnect_single_node(db_node.id)
         else:
+            # Calculate max_message_size based on active users count
+            user_counts = await get_users_count_by_status(db, [UserStatus.active])
+            active_users_count = user_counts.get(UserStatus.active.value, 0)
+            max_message_size = calculate_max_message_size(active_users_count)
+
             try:
-                await node_manager.update_node(db_node)
+                await node_manager.update_node(db_node, max_message_size=max_message_size)
                 asyncio.create_task(self.connect_single_node(db, db_node.id))
             except NodeAPIError as e:
                 await self._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
@@ -300,12 +310,17 @@ class NodeOperation(BaseOperation):
         # Fetch users ONCE for all nodes
         users = await core_users(db=db)
 
+        # Calculate max_message_size based on active users count (once for all nodes)
+        user_counts = await get_users_count_by_status(db, [UserStatus.active])
+        active_users_count = user_counts.get(UserStatus.active.value, 0)
+        max_message_size = calculate_max_message_size(active_users_count)
+
         async def connect_single(node: Node) -> dict | None:
             if node is None or node.status in (NodeStatus.disabled, NodeStatus.limited):
                 return
 
             try:
-                await node_manager.update_node(node)
+                await node_manager.update_node(node, max_message_size=max_message_size)
             except NodeAPIError as e:
                 return {
                     "node_id": node.id,
@@ -376,9 +391,14 @@ class NodeOperation(BaseOperation):
         # Get core users once
         users = await core_users(db=db)
 
+        # Calculate max_message_size based on active users count
+        user_counts = await get_users_count_by_status(db, [UserStatus.active])
+        active_users_count = user_counts.get(UserStatus.active.value, 0)
+        max_message_size = calculate_max_message_size(active_users_count)
+
         # Update node manager
         try:
-            await node_manager.update_node(db_node)
+            await node_manager.update_node(db_node, max_message_size=max_message_size)
         except NodeAPIError as e:
             # Update status to error using simple CRUD
             await update_node_status(
