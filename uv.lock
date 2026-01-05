@@ -1187,7 +1187,7 @@ requires-dist = [
     { name = "jdatetime", specifier = ">=5.2.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "packaging", specifier = ">=24.2" },
-    { name = "pasarguard-node-bridge", specifier = ">=0.3.6" },
+    { name = "pasarguard-node-bridge", specifier = ">=0.3.7" },
     { name = "pip-system-certs", specifier = ">=5.3" },
     { name = "psutil", specifier = "==5.9.4" },
     { name = "pydantic", specifier = ">=2.12.5" },
@@ -1220,16 +1220,16 @@ dev = [
 
 [[package]]
 name = "pasarguard-node-bridge"
-version = "0.3.6"
+version = "0.3.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "grpclib" },
     { name = "httpx" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/70/b8/fbd0d53db753b4217967611c51a590eb16e5effc4d7afb72c6d385adb5b8/pasarguard_node_bridge-0.3.6.tar.gz", hash = "sha256:3846e6be047c4c1df4290d5771d12563d72f56924ee8ce6c1e384234a0f3a0a7", size = 49693, upload-time = "2025-12-01T13:02:04.402Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/fd/fa2a5dab4302c8f3484f59872d08ee1d4c55a14618b5eb529672ea08d2f8/pasarguard_node_bridge-0.3.7.tar.gz", hash = "sha256:1f7dbdf29e6f8b3ced99b584b24a14d239d10c471bad7ac590a40979d901628a", size = 49830, upload-time = "2026-01-05T13:40:24.425Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/97/edbf176e75acc78aad7f50f7f619f54612484c1c9975a4585fb1ec68d85b/pasarguard_node_bridge-0.3.6-py3-none-any.whl", hash = "sha256:5bfce43d59ef816ab0fde229e8eecfff42726b4a8dd4e05936d0d1e1e4fd2833", size = 38488, upload-time = "2025-12-01T13:02:03.601Z" },
+    { url = "https://files.pythonhosted.org/packages/15/a2/7a5b97e4b2a337c3bd4afb59ff2e6cca55f9dff06a791bc19a5cf08157b4/pasarguard_node_bridge-0.3.7-py3-none-any.whl", hash = "sha256:ee77a6fde45692e91e8a9d00e565943c91959d004d4264139fa3591e7770151e", size = 38633, upload-time = "2026-01-05T13:40:23.347Z" },
 ]
 
 [[package]]
