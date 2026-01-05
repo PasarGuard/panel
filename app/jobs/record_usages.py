@@ -47,14 +47,26 @@ async def _get_process_pool():
 
 @on_shutdown
 async def _cleanup_process_pool():
-    """Cleanup process pool on shutdown (thread-safe)."""
+    """Cleanup process pool on shutdown (thread-safe, non-blocking)."""
     global _process_pool
     async with _process_pool_lock:
         if _process_pool is not None:
             logger.info("Shutting down ProcessPoolExecutor...")
-            _process_pool.shutdown(wait=True)
-            _process_pool = None
-            logger.info("ProcessPoolExecutor shut down successfully")
+            # Shutdown with timeout to avoid blocking indefinitely
+            loop = asyncio.get_running_loop()
+            try:
+                # Run shutdown in executor with timeout
+                await asyncio.wait_for(
+                    loop.run_in_executor(None, _process_pool.shutdown, True),
+                    timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("ProcessPoolExecutor shutdown timed out, forcing shutdown")
+                # Force shutdown without waiting
+                _process_pool.shutdown(wait=False)
+            finally:
+                _process_pool = None
+                logger.info("ProcessPoolExecutor shut down")
 
 
 # Helper functions for multiprocessing (must be at module level for pickling)
