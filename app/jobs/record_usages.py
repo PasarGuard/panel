@@ -94,9 +94,12 @@ async def _cleanup_thread_pool():
             logger.info("ThreadPoolExecutor shut down successfully")
 
 
-# Helper functions for multiprocessing (must be at module level for pickling)
+# Helper functions for threading (lightweight operations that release GIL)
 def _process_node_chunk(chunk_data: tuple) -> dict:
-    """Process a chunk of node data - CPU-bound operation."""
+    """
+    Process a chunk of node data - lightweight CPU operation.
+    Uses simple arithmetic and dict operations that release GIL, perfect for threads.
+    """
     node_id, params, coeff = chunk_data
     users_usage = defaultdict(int)
     for param in params:
@@ -107,7 +110,10 @@ def _process_node_chunk(chunk_data: tuple) -> dict:
 
 
 def _merge_usage_dicts(dicts: list[dict]) -> dict:
-    """Merge multiple usage dictionaries."""
+    """
+    Merge multiple usage dictionaries.
+    Dict operations release GIL, perfect for ThreadPoolExecutor.
+    """
     merged = defaultdict(int)
     for d in dicts:
         for uid, value in d.items():
@@ -445,8 +451,9 @@ async def record_node_stats_batched(all_node_params: dict):
 
 def _process_users_stats_response(stats_response):
     """
-    Process stats response (CPU-bound operation) - can run in thread pool.
-    Extracted to separate function for threading.
+    Process stats response (CPU-bound operation) - runs in thread pool.
+    Pure function designed for thread-safe execution.
+    Returns tuple: (validated_params, invalid_uids) for logging outside thread.
     """
     params = defaultdict(int)
     for stat in filter(attrgetter("value"), stats_response.stats):
@@ -454,16 +461,17 @@ def _process_users_stats_response(stats_response):
 
     # Validate UIDs and filter out invalid ones
     validated_params = []
+    invalid_uids = []
     for uid, value in params.items():
         try:
             uid_int = int(uid)
             validated_params.append({"uid": uid_int, "value": value})
         except (ValueError, TypeError):
-            # Skip invalid UIDs that can't be converted to int
-            logger.warning("Skipping invalid UID: %s", uid)
+            # Collect invalid UIDs to log outside thread
+            invalid_uids.append(uid)
             continue
 
-    return validated_params
+    return validated_params, invalid_uids
 
 
 async def get_users_stats(node: PasarGuardNode):
@@ -479,9 +487,14 @@ async def get_users_stats(node: PasarGuardNode):
             # CPU-bound operation: process stats in thread pool to utilize multiple cores
             loop = asyncio.get_running_loop()
             thread_pool = await _get_thread_pool()
-            validated_params = await loop.run_in_executor(
+            validated_params, invalid_uids = await loop.run_in_executor(
                 thread_pool, _process_users_stats_response, stats_response
             )
+            
+            # Log invalid UIDs outside of thread (thread-safe logging)
+            if invalid_uids:
+                for uid in invalid_uids:
+                    logger.warning("Skipping invalid UID: %s", uid)
             
             return validated_params
         except NodeAPIError as e:
@@ -557,7 +570,8 @@ async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
 async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
     """Calculate aggregated user usage across all nodes with coefficients applied.
     
-    Uses multiprocessing to parallelize CPU-bound operations across multiple cores.
+    Uses ThreadPoolExecutor for lightweight operations (dict/arithmetic that release GIL).
+    ThreadPoolExecutor is faster than ProcessPoolExecutor for these operations due to less overhead.
     """
     if not api_params:
         return []
@@ -587,20 +601,20 @@ async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> li
     if total_params < 1000:
         return _process_usage_sync(chunks)
 
-    # Large dataset - use multiprocessing
+    # Large dataset - use ThreadPoolExecutor (faster for lightweight operations)
     loop = asyncio.get_running_loop()
     try:
-        process_pool = await _get_process_pool()
+        thread_pool = await _get_thread_pool()
     except Exception:
-        logger.exception("Falling back to synchronous user usage calculation: failed to init process pool")
+        logger.exception("Falling back to synchronous user usage calculation: failed to init thread pool")
         return _process_usage_sync(chunks)
 
     try:
-        # Process chunks in parallel
-        tasks = [loop.run_in_executor(process_pool, _process_node_chunk, chunk) for chunk in chunks]
+        # Process chunks in parallel using threads (less overhead than processes)
+        tasks = [loop.run_in_executor(thread_pool, _process_node_chunk, chunk) for chunk in chunks]
         chunk_results = await asyncio.gather(*tasks)
 
-        # Merge results - this is also CPU-bound, so parallelize if many chunks
+        # Merge results - also lightweight, use threads
         if len(chunk_results) > 4:
             # Split merge operation into smaller chunks
             chunk_size = max(1, len(chunk_results) // 4)
@@ -609,7 +623,7 @@ async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> li
                 for i in range(0, len(chunk_results), chunk_size)
             ]
             merge_tasks = [
-                loop.run_in_executor(process_pool, _merge_usage_dicts, merge_chunk)
+                loop.run_in_executor(thread_pool, _merge_usage_dicts, merge_chunk)
                 for merge_chunk in merge_chunks
             ]
             partial_results = await asyncio.gather(*merge_tasks)
@@ -741,9 +755,9 @@ async def record_user_usages():
         # Hard timeout: prevent job from running longer than interval
         # This prevents scheduler backlog → spike → crash
         try:
-            await asyncio.wait_for(_record_user_usages_impl(), timeout=25)
+            await asyncio.wait_for(_record_user_usages_impl(), timeout=30)
         except asyncio.TimeoutError:
-            logger.warning("record_user_usages timed out after 25s; skipping cycle to prevent backlog")
+            logger.warning("record_user_usages timed out after 30s; skipping cycle to prevent backlog")
     finally:
         _running_jobs["record_user_usages"] = False
 
@@ -847,9 +861,9 @@ async def record_node_usages():
         # Hard timeout: prevent job from running longer than interval
         # This prevents scheduler backlog → spike → crash
         try:
-            await asyncio.wait_for(_record_node_usages_impl(), timeout=25)
+            await asyncio.wait_for(_record_node_usages_impl(), timeout=30)
         except asyncio.TimeoutError:
-            logger.warning("record_node_usages timed out after 25s; skipping cycle to prevent backlog")
+            logger.warning("record_node_usages timed out after 30s; skipping cycle to prevent backlog")
     finally:
         _running_jobs["record_node_usages"] = False
 
