@@ -18,7 +18,7 @@ def calculate_max_message_size(active_users_count: int) -> int:
     """
     Calculate max_message_size based on active users count.
     
-    Formula: Base 10MB + (active_users_count * 50KB per user)
+    Formula: Base 5MB + (active_users_count * 1KB per user)
     This ensures sufficient buffer for large node configurations with many users.
     
     Args:
@@ -27,8 +27,8 @@ def calculate_max_message_size(active_users_count: int) -> int:
     Returns:
         int: Max message size in bytes
     """
-    base_size = 10 * 1024 * 1024  # 10MB base
-    per_user_size = 50 * 1024  # 50KB per user
+    base_size = 5 * 1024 * 1024  # 5MB base
+    per_user_size = 1024  # 1KB per user
     calculated_size = base_size + (active_users_count * per_user_size)
     
     # Cap at 100MB to prevent excessive memory usage
