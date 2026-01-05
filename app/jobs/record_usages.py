@@ -437,6 +437,16 @@ async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> li
     if not api_params:
         return []
 
+    def _process_usage_sync(chunks_data: list[tuple[int, list[dict], float]]):
+        """Synchronous fallback used for small batches or on executor failures."""
+        users_usage = defaultdict(int)
+        for _, params, coeff in chunks_data:
+            for param in params:
+                uid = int(param["uid"])
+                value = int(param["value"] * coeff)
+                users_usage[uid] += value
+        return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
+
     # Prepare chunks for parallel processing
     chunks = [
         (node_id, params, usage_coefficient.get(node_id, 1))
@@ -450,45 +460,42 @@ async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> li
     # For small datasets, process synchronously to avoid overhead
     total_params = sum(len(params) for _, params, _ in chunks)
     if total_params < 1000:
-        # Small dataset - process synchronously
-        users_usage = defaultdict(int)
-        for node_id, params, coeff in chunks:
-            for param in params:
-                uid = int(param["uid"])
-                value = int(param["value"] * coeff)
-                users_usage[uid] += value
-        return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
+        return _process_usage_sync(chunks)
 
     # Large dataset - use multiprocessing
     loop = asyncio.get_running_loop()
-    process_pool = await _get_process_pool()
+    try:
+        process_pool = await _get_process_pool()
+    except Exception:
+        logger.exception("Falling back to synchronous user usage calculation: failed to init process pool")
+        return _process_usage_sync(chunks)
 
-    # Process chunks in parallel
-    tasks = [
-        loop.run_in_executor(process_pool, _process_node_chunk, chunk)
-        for chunk in chunks
-    ]
-    
-    chunk_results = await asyncio.gather(*tasks)
+    try:
+        # Process chunks in parallel
+        tasks = [loop.run_in_executor(process_pool, _process_node_chunk, chunk) for chunk in chunks]
+        chunk_results = await asyncio.gather(*tasks)
 
-    # Merge results - this is also CPU-bound, so parallelize if many chunks
-    if len(chunk_results) > 4:
-        # Split merge operation into smaller chunks
-        chunk_size = max(1, len(chunk_results) // 4)
-        merge_chunks = [
-            chunk_results[i:i + chunk_size]
-            for i in range(0, len(chunk_results), chunk_size)
-        ]
-        merge_tasks = [
-            loop.run_in_executor(process_pool, _merge_usage_dicts, merge_chunk)
-            for merge_chunk in merge_chunks
-        ]
-        partial_results = await asyncio.gather(*merge_tasks)
-        final_result = _merge_usage_dicts(partial_results)
-    else:
-        final_result = _merge_usage_dicts(chunk_results)
+        # Merge results - this is also CPU-bound, so parallelize if many chunks
+        if len(chunk_results) > 4:
+            # Split merge operation into smaller chunks
+            chunk_size = max(1, len(chunk_results) // 4)
+            merge_chunks = [
+                chunk_results[i : i + chunk_size]
+                for i in range(0, len(chunk_results), chunk_size)
+            ]
+            merge_tasks = [
+                loop.run_in_executor(process_pool, _merge_usage_dicts, merge_chunk)
+                for merge_chunk in merge_chunks
+            ]
+            partial_results = await asyncio.gather(*merge_tasks)
+            final_result = _merge_usage_dicts(partial_results)
+        else:
+            final_result = _merge_usage_dicts(chunk_results)
 
-    return [{"uid": uid, "value": value} for uid, value in final_result.items()]
+        return [{"uid": uid, "value": value} for uid, value in final_result.items()]
+    except Exception:
+        logger.exception("Falling back to synchronous user usage calculation: executor merge failed")
+        return _process_usage_sync(chunks)
 
 
 async def record_user_usages():
