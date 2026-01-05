@@ -3,7 +3,7 @@ import multiprocessing
 import random
 import time
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from operator import attrgetter
 
@@ -41,6 +41,11 @@ _running_jobs = {}
 _process_pool = None
 _process_pool_lock = asyncio.Lock()
 
+# Thread pool executor for I/O-bound node API calls
+# Distributes workload across threads/cores for data collection
+_thread_pool = None
+_thread_pool_lock = asyncio.Lock()
+
 
 async def _get_process_pool():
     """Get or create the process pool executor (thread-safe)."""
@@ -53,6 +58,18 @@ async def _get_process_pool():
         return _process_pool
 
 
+async def _get_thread_pool():
+    """Get or create the thread pool executor (thread-safe)."""
+    global _thread_pool
+    async with _thread_pool_lock:
+        if _thread_pool is None:
+            # Use more threads for I/O-bound operations (2x CPU cores, cap at 16)
+            num_workers = min(multiprocessing.cpu_count() * 2, 16)
+            _thread_pool = ThreadPoolExecutor(max_workers=num_workers)
+            logger.info(f"Initialized ThreadPoolExecutor with {num_workers} workers")
+        return _thread_pool
+
+
 @on_shutdown
 async def _cleanup_process_pool():
     """Cleanup process pool on shutdown (thread-safe)."""
@@ -63,6 +80,18 @@ async def _cleanup_process_pool():
             _process_pool.shutdown(wait=True)
             _process_pool = None
             logger.info("ProcessPoolExecutor shut down successfully")
+
+
+@on_shutdown
+async def _cleanup_thread_pool():
+    """Cleanup thread pool on shutdown (thread-safe)."""
+    global _thread_pool
+    async with _thread_pool_lock:
+        if _thread_pool is not None:
+            logger.info("Shutting down ThreadPoolExecutor...")
+            _thread_pool.shutdown(wait=True)
+            _thread_pool = None
+            logger.info("ThreadPoolExecutor shut down successfully")
 
 
 # Helper functions for multiprocessing (must be at module level for pickling)
@@ -414,47 +443,91 @@ async def record_node_stats_batched(all_node_params: dict):
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
+def _process_users_stats_response(stats_response):
+    """
+    Process stats response (CPU-bound operation) - can run in thread pool.
+    Extracted to separate function for threading.
+    """
+    params = defaultdict(int)
+    for stat in filter(attrgetter("value"), stats_response.stats):
+        params[stat.name.split(".", 1)[0]] += stat.value
+
+    # Validate UIDs and filter out invalid ones
+    validated_params = []
+    for uid, value in params.items():
+        try:
+            uid_int = int(uid)
+            validated_params.append({"uid": uid_int, "value": value})
+        except (ValueError, TypeError):
+            # Skip invalid UIDs that can't be converted to int
+            logger.warning("Skipping invalid UID: %s", uid)
+            continue
+
+    return validated_params
+
+
 async def get_users_stats(node: PasarGuardNode):
-    try:
-        stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
-        params = defaultdict(int)
-        for stat in filter(attrgetter("value"), stats_response.stats):
-            params[stat.name.split(".", 1)[0]] += stat.value
+    """
+    Get user stats from node using thread pool for CPU-bound processing.
+    This distributes the heavy data processing workload across cores.
+    """
+    async with JOB_SEM:
+        try:
+            # I/O operation: fetch stats from node (async, non-blocking)
+            stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
+            
+            # CPU-bound operation: process stats in thread pool to utilize multiple cores
+            loop = asyncio.get_running_loop()
+            thread_pool = await _get_thread_pool()
+            validated_params = await loop.run_in_executor(
+                thread_pool, _process_users_stats_response, stats_response
+            )
+            
+            return validated_params
+        except NodeAPIError as e:
+            logger.error("Failed to get users stats, error: %s", e.detail)
+            return []
+        except Exception as e:
+            logger.error("Failed to get users stats, unknown error: %s", e)
+            return []
 
-        # Validate UIDs and filter out invalid ones
-        validated_params = []
-        for uid, value in params.items():
-            try:
-                uid_int = int(uid)
-                validated_params.append({"uid": uid_int, "value": value})
-            except (ValueError, TypeError):
-                # Skip invalid UIDs that can't be converted to int
-                logger.warning("Skipping invalid UID: %s", uid)
-                continue
 
-        return validated_params
-    except NodeAPIError as e:
-        logger.error("Failed to get users stats, error: %s", e.detail)
-        return []
-    except Exception as e:
-        logger.error("Failed to get users stats, unknown error: %s", e)
-        return []
+def _process_outbounds_stats_response(stats_response):
+    """
+    Process outbounds stats response (CPU-bound operation) - can run in thread pool.
+    Extracted to separate function for threading.
+    """
+    params = [
+        {"up": stat.value, "down": 0} if stat.type == "uplink" else {"up": 0, "down": stat.value}
+        for stat in filter(attrgetter("value"), stats_response.stats)
+    ]
+    return params
 
 
 async def get_outbounds_stats(node: PasarGuardNode):
-    try:
-        stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
-        params = [
-            {"up": stat.value, "down": 0} if stat.type == "uplink" else {"up": 0, "down": stat.value}
-            for stat in filter(attrgetter("value"), stats_response.stats)
-        ]
-        return params
-    except NodeAPIError as e:
-        logger.error("Failed to get outbounds stats, error: %s", e.detail)
-        return []
-    except Exception as e:
-        logger.error("Failed to get outbounds stats, unknown error: %s", e)
-        return []
+    """
+    Get outbounds stats from node using thread pool for CPU-bound processing.
+    This distributes the heavy data processing workload across cores.
+    """
+    async with JOB_SEM:
+        try:
+            # I/O operation: fetch stats from node (async, non-blocking)
+            stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
+            
+            # CPU-bound operation: process stats in thread pool to utilize multiple cores
+            loop = asyncio.get_running_loop()
+            thread_pool = await _get_thread_pool()
+            params = await loop.run_in_executor(
+                thread_pool, _process_outbounds_stats_response, stats_response
+            )
+            
+            return params
+        except NodeAPIError as e:
+            logger.error("Failed to get outbounds stats, error: %s", e.detail)
+            return []
+        except Exception as e:
+            logger.error("Failed to get outbounds stats, unknown error: %s", e)
+            return []
 
 
 async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
