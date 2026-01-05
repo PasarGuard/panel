@@ -32,6 +32,9 @@ from .general import _build_trunc_expression, build_json_proxy_settings_search_c
 from .group import get_groups_by_ids
 
 
+_USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
+
+
 async def load_user_attrs(user: User):
     await user.awaitable_attrs.admin
     await user.awaitable_attrs.next_plan
@@ -845,7 +848,9 @@ async def user_sub_update(db: AsyncSession, user_id: User, user_agent: str) -> U
         user_agent (str): The user agent string.
 
     """
-    agent = UserSubscriptionUpdate(user_id=user_id, user_agent=user_agent)
+    # Clamp to column length; some clients send very long strings (e.g. encoded configs) as User-Agent.
+    sanitized_user_agent = (user_agent or "")[:_USER_AGENT_MAX_LEN]
+    agent = UserSubscriptionUpdate(user_id=user_id, user_agent=sanitized_user_agent)
     db.add(agent)
     await db.commit()
 
