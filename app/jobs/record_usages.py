@@ -1,6 +1,8 @@
 import asyncio
+import multiprocessing
 import random
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from operator import attrgetter
 
@@ -12,11 +14,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DatabaseError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
-from app import scheduler
+from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.base import engine
 from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
-from app.node import node_manager as node_manager
+from app.node import node_manager
 from app.utils.logger import get_logger
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
@@ -25,6 +27,55 @@ from config import (
 )
 
 logger = get_logger("record-usages")
+
+# Process pool executor for CPU-bound operations
+# Use number of CPU cores, but cap at reasonable limit to avoid overhead
+_process_pool = None
+_process_pool_lock = asyncio.Lock()
+
+
+async def _get_process_pool():
+    """Get or create the process pool executor (thread-safe)."""
+    global _process_pool
+    async with _process_pool_lock:
+        if _process_pool is None:
+            num_workers = min(multiprocessing.cpu_count(), 8)  # Cap at 8 workers
+            _process_pool = ProcessPoolExecutor(max_workers=num_workers)
+            logger.info(f"Initialized ProcessPoolExecutor with {num_workers} workers")
+        return _process_pool
+
+
+@on_shutdown
+async def _cleanup_process_pool():
+    """Cleanup process pool on shutdown (thread-safe)."""
+    global _process_pool
+    async with _process_pool_lock:
+        if _process_pool is not None:
+            logger.info("Shutting down ProcessPoolExecutor...")
+            _process_pool.shutdown(wait=True)
+            _process_pool = None
+            logger.info("ProcessPoolExecutor shut down successfully")
+
+
+# Helper functions for multiprocessing (must be at module level for pickling)
+def _process_node_chunk(chunk_data: tuple) -> dict:
+    """Process a chunk of node data - CPU-bound operation."""
+    node_id, params, coeff = chunk_data
+    users_usage = defaultdict(int)
+    for param in params:
+        uid = int(param["uid"])
+        value = int(param["value"] * coeff)
+        users_usage[uid] += value
+    return dict(users_usage)
+
+
+def _merge_usage_dicts(dicts: list[dict]) -> dict:
+    """Merge multiple usage dictionaries."""
+    merged = defaultdict(int)
+    for d in dicts:
+        for uid, value in d.items():
+            merged[uid] += value
+    return dict(merged)
 
 
 async def get_dialect() -> str:
@@ -244,14 +295,14 @@ async def safe_execute(stmt, params=None, max_retries: int = 5):
             raise
 
 
-async def record_user_stats(params: list[dict], node_id: int, usage_coefficient: int = 1):
+async def record_user_stats(params: list[dict], node_id: int, usage_coefficient: float = 1.0):
     """
     Record user statistics for a specific node using UPSERT for efficiency.
 
     Args:
         params (list[dict]): User statistic parameters
         node_id (int): Node identifier
-        usage_coefficient (int, optional): usage multiplier
+        usage_coefficient (float, optional): Usage multiplier (default: 1.0)
     """
     if not params:
         return
@@ -313,9 +364,9 @@ async def record_node_stats(params: list[dict], node_id: int):
 
 async def get_users_stats(node: PasarGuardNode):
     try:
-        stats_respons = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
+        stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
         params = defaultdict(int)
-        for stat in filter(attrgetter("value"), stats_respons.stats):
+        for stat in filter(attrgetter("value"), stats_response.stats):
             params[stat.name.split(".", 1)[0]] += stat.value
 
         # Validate UIDs and filter out invalid ones
@@ -340,10 +391,10 @@ async def get_users_stats(node: PasarGuardNode):
 
 async def get_outbounds_stats(node: PasarGuardNode):
     try:
-        stats_respons = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
+        stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
         params = [
             {"up": stat.value, "down": 0} if stat.type == "uplink" else {"up": 0, "down": stat.value}
-            for stat in filter(attrgetter("value"), stats_respons.stats)
+            for stat in filter(attrgetter("value"), stats_response.stats)
         ]
         return params
     except NodeAPIError as e:
@@ -379,30 +430,77 @@ async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
 
 
 async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
-    """Calculate aggregated user usage across all nodes with coefficients applied"""
-    users_usage = defaultdict(int)
+    """Calculate aggregated user usage across all nodes with coefficients applied.
+    
+    Uses multiprocessing to parallelize CPU-bound operations across multiple cores.
+    """
+    if not api_params:
+        return []
 
-    # Process all node data in a single pass
-    for node_id, params in api_params.items():
-        coeff = usage_coefficient.get(node_id, 1)
-        # Use generator to avoid intermediate lists
-        node_usage = ((int(param["uid"]), int(param["value"] * coeff)) for param in params)
-        for uid, value in node_usage:
-            users_usage[uid] += value
+    # Prepare chunks for parallel processing
+    chunks = [
+        (node_id, params, usage_coefficient.get(node_id, 1))
+        for node_id, params in api_params.items()
+        if params  # Skip empty params
+    ]
 
-    return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
+    if not chunks:
+        return []
+
+    # For small datasets, process synchronously to avoid overhead
+    total_params = sum(len(params) for _, params, _ in chunks)
+    if total_params < 1000:
+        # Small dataset - process synchronously
+        users_usage = defaultdict(int)
+        for node_id, params, coeff in chunks:
+            for param in params:
+                uid = int(param["uid"])
+                value = int(param["value"] * coeff)
+                users_usage[uid] += value
+        return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
+
+    # Large dataset - use multiprocessing
+    loop = asyncio.get_running_loop()
+    process_pool = await _get_process_pool()
+
+    # Process chunks in parallel
+    tasks = [
+        loop.run_in_executor(process_pool, _process_node_chunk, chunk)
+        for chunk in chunks
+    ]
+    
+    chunk_results = await asyncio.gather(*tasks)
+
+    # Merge results - this is also CPU-bound, so parallelize if many chunks
+    if len(chunk_results) > 4:
+        # Split merge operation into smaller chunks
+        chunk_size = max(1, len(chunk_results) // 4)
+        merge_chunks = [
+            chunk_results[i:i + chunk_size]
+            for i in range(0, len(chunk_results), chunk_size)
+        ]
+        merge_tasks = [
+            loop.run_in_executor(process_pool, _merge_usage_dicts, merge_chunk)
+            for merge_chunk in merge_chunks
+        ]
+        partial_results = await asyncio.gather(*merge_tasks)
+        final_result = _merge_usage_dicts(partial_results)
+    else:
+        final_result = _merge_usage_dicts(chunk_results)
+
+    return [{"uid": uid, "value": value} for uid, value in final_result.items()]
 
 
 async def record_user_usages():
     nodes: tuple[int, PasarGuardNode] = await node_manager.get_healthy_nodes()
 
-    node_data = await asyncio.gather(*[asyncio.create_task(node.get_extra()) for _, node in nodes])
+    # Gather node extra data directly without unnecessary task creation
+    node_data = await asyncio.gather(*[node.get_extra() for _, node in nodes])
     usage_coefficient = {node_id: data.get("usage_coefficient", 1) for (node_id, _), data in zip(nodes, node_data)}
 
-    stats_tasks = [asyncio.create_task(get_users_stats(node)) for _, node in nodes]
-    await asyncio.gather(*stats_tasks)
-
-    api_params = {nodes[i][0]: task.result() for i, task in enumerate(stats_tasks)}
+    # Gather stats directly - asyncio.gather accepts coroutines, no need for create_task
+    stats_results = await asyncio.gather(*[get_users_stats(node) for _, node in nodes])
+    api_params = {nodes[i][0]: result for i, result in enumerate(stats_results)}
 
     users_usage = await calculate_users_usage(api_params, usage_coefficient)
     if not users_usage:
@@ -413,6 +511,7 @@ async def record_user_usages():
         logger.warning("Skipping user usage recording; no matching users found for received stats")
         return
 
+    # Filter valid users - simple operation, no need to parallelize
     valid_users_usage = [usage for usage in users_usage if int(usage["uid"]) in valid_user_ids]
     if valid_users_usage:
         user_stmt = (
@@ -436,35 +535,28 @@ async def record_user_usages():
     if DISABLE_RECORDING_NODE_USAGE:
         return
 
+    # Create tasks only for nodes with valid filtered params
     record_tasks = []
     for node_id, params in api_params.items():
         filtered_params = [param for param in params if int(param["uid"]) in valid_user_ids]
-        if not filtered_params:
-            continue
-        record_tasks.append(
-            asyncio.create_task(
+        if filtered_params:
+            record_tasks.append(
                 record_user_stats(
                     params=filtered_params,
                     node_id=node_id,
-                    usage_coefficient=usage_coefficient[node_id],
+                    usage_coefficient=usage_coefficient.get(node_id, 1.0),
                 )
             )
-        )
 
     if record_tasks:
         await asyncio.gather(*record_tasks)
 
 
 async def record_node_usages():
-    # Create tasks for all nodes
-    tasks = {
-        node_id: asyncio.create_task(get_outbounds_stats(node))
-        for node_id, node in await node_manager.get_healthy_nodes()
-    }
-
-    await asyncio.gather(*tasks.values())
-
-    api_params = {node_id: task.result() for node_id, task in tasks.items()}
+    # Get healthy nodes and gather stats directly
+    nodes = await node_manager.get_healthy_nodes()
+    stats_results = await asyncio.gather(*[get_outbounds_stats(node) for _, node in nodes])
+    api_params = {nodes[i][0]: result for i, result in enumerate(stats_results)}
 
     # Calculate per-node totals
     node_totals = {
@@ -505,8 +597,10 @@ async def record_node_usages():
     if DISABLE_RECORDING_NODE_USAGE:
         return
 
-    record_tasks = [asyncio.create_task(record_node_stats(params, node_id)) for node_id, params in api_params.items()]
-    await asyncio.gather(*record_tasks)
+    # Gather record tasks directly without unnecessary task creation
+    record_tasks = [record_node_stats(params, node_id) for node_id, params in api_params.items()]
+    if record_tasks:
+        await asyncio.gather(*record_tasks)
 
 
 scheduler.add_job(
