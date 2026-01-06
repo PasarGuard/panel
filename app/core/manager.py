@@ -55,7 +55,7 @@ class CoreManager:
         if not self._kv:
             return
         state = await self._snapshot_state()
-        # Serialize state using pickle (same as Redis implementation)
+        # Serialize state using pickle (same as Nats implementation)
         state_bytes = pickle.dumps(state)
         await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
 
@@ -68,7 +68,7 @@ class CoreManager:
             if not entry:
                 return False
 
-            # Deserialize state using pickle (same as Redis implementation)
+            # Deserialize state using pickle (same as nats implementation)
             cached_state = pickle.loads(entry.value)
             async with self._lock:
                 self._cores = cached_state.get("cores", {})

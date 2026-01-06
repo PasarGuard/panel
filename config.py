@@ -32,11 +32,6 @@ if _RAW_MULTI_WORKER is None:
 else:
     MULTI_WORKER = str(_RAW_MULTI_WORKER).lower() in ("1", "true", "yes", "y", "on")
 
-REDIS_ENABLED = config("REDIS_ENABLED", default=False, cast=bool)
-REDIS_HOST = config("REDIS_HOST", default="localhost")
-REDIS_PORT = config("REDIS_PORT", cast=int, default=6379)
-REDIS_DB = config("REDIS_DB", cast=int, default=0)
-
 NATS_ENABLED = config("NATS_ENABLED", default=False, cast=bool)
 NATS_URL = config("NATS_URL", default="nats://localhost:4222")
 NATS_WORKER_SYNC_SUBJECT = config("NATS_WORKER_SYNC_SUBJECT", default="pasarguard.worker_sync")
