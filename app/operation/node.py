@@ -679,7 +679,10 @@ class NodeOperation(BaseOperation):
 
     async def _get_nodes_system_stats_remote(self) -> dict[int, NodeRealtimeStats | None]:
         data = await node_nats_client.request("get_nodes_system_stats", {})
-        return {int(node_id): (NodeRealtimeStats.model_validate(value) if value else None) for node_id, value in data.items()}
+        return {
+            int(node_id): (NodeRealtimeStats.model_validate(value) if value else None)
+            for node_id, value in data.items()
+        }
 
     async def _get_user_online_stats_local(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
         db_user = await get_user(db, username=username)

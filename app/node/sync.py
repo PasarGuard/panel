@@ -6,6 +6,7 @@ from config import IS_NODE_WORKER
 
 
 if IS_NODE_WORKER:
+
     async def sync_user(db_user: User, user: UserNotificationResponse) -> None:
         if user.status in (UserStatus.active, UserStatus.on_hold):
             inbounds = await db_user.inbounds()
@@ -19,6 +20,7 @@ if IS_NODE_WORKER:
     async def sync_users(users: list[User]) -> None:
         await node_manager.update_users(users)
 else:
+
     async def sync_user(db_user: User, user: UserNotificationResponse) -> None:
         await node_nats_client.publish("update_user", {"username": user.username})
 
