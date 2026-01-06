@@ -102,6 +102,7 @@ scheduler = AsyncIOScheduler(jobstores=jobstores, job_defaults={"max_instances":
 setup_middleware(app)
 
 from app import routers, telegram  # noqa
+from app.node import worker as node_worker  # noqa: F401
 from app.routers import api_router  # noqa
 
 if RUN_SCHEDULER:

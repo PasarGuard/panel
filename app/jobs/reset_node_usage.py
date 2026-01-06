@@ -9,7 +9,7 @@ from app.models.node import NodeResponse
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
-from config import JOB_RESET_NODE_USAGE_INTERVAL
+from config import IS_NODE_WORKER, JOB_RESET_NODE_USAGE_INTERVAL
 
 logger = get_logger("jobs")
 
@@ -41,13 +41,14 @@ async def reset_node_data_usage():
             logger.info(f'Node data usage reset for Node "{node.name}" (ID: {node.id})')
 
 
-scheduler.add_job(
-    reset_node_data_usage,
-    "interval",
-    seconds=JOB_RESET_NODE_USAGE_INTERVAL,
-    coalesce=True,
-    start_date=dt.now(tz.utc) + td(minutes=1),
-    max_instances=1,
-    id="reset_node_usage",
-    replace_existing=True,
-)
+if IS_NODE_WORKER:
+    scheduler.add_job(
+        reset_node_data_usage,
+        "interval",
+        seconds=JOB_RESET_NODE_USAGE_INTERVAL,
+        coalesce=True,
+        start_date=dt.now(tz.utc) + td(minutes=1),
+        max_instances=1,
+        id="reset_node_usage",
+        replace_existing=True,
+    )

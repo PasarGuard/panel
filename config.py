@@ -22,6 +22,8 @@ UVICORN_WORKERS = config("UVICORN_WORKERS", default=1, cast=int)
 DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
 UVICORN_LOOP = config("UVICORN_LOOP", default="auto", cast=str)
 RUN_SCHEDULER = config("RUN_SCHEDULER", default=False, cast=bool)
+NODE_ROLE = config("NODE_ROLE", default="panel").strip().lower()
+IS_NODE_WORKER = NODE_ROLE == "node-worker"
 
 _RAW_MULTI_WORKER = config("MULTI_WORKER", default=None)
 if _RAW_MULTI_WORKER is None:
@@ -37,6 +39,10 @@ REDIS_DB = config("REDIS_DB", cast=int, default=0)
 NATS_ENABLED = config("NATS_ENABLED", default=False, cast=bool)
 NATS_URL = config("NATS_URL", default="nats://localhost:4222")
 NATS_WORKER_SYNC_SUBJECT = config("NATS_WORKER_SYNC_SUBJECT", default="pasarguard.worker_sync")
+NATS_NODE_COMMAND_SUBJECT = config("NATS_NODE_COMMAND_SUBJECT", default="pasarguard.node.command")
+NATS_NODE_RPC_SUBJECT = config("NATS_NODE_RPC_SUBJECT", default="pasarguard.node.rpc")
+NATS_NODE_LOG_SUBJECT = config("NATS_NODE_LOG_SUBJECT", default="pasarguard.node.logs")
+NATS_NODE_RPC_TIMEOUT = config("NATS_NODE_RPC_TIMEOUT", cast=float, default=30.0)
 CORE_PUBSUB_CHANNEL = config("CORE_PUBSUB_CHANNEL", default="core_hosts_updates")
 HOST_PUBSUB_CHANNEL = config("HOST_PUBSUB_CHANNEL", default="host_manager_updates")
 

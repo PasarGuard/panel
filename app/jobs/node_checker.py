@@ -12,7 +12,7 @@ from app.operation.node import NodeOperation
 from app.operation import OperatorType
 from app.db.crud.node import get_limited_nodes, get_nodes
 
-from config import JOB_CORE_HEALTH_CHECK_INTERVAL, JOB_CHECK_NODE_LIMITS_INTERVAL, RUN_SCHEDULER
+from config import IS_NODE_WORKER, JOB_CORE_HEALTH_CHECK_INTERVAL, JOB_CHECK_NODE_LIMITS_INTERVAL, RUN_SCHEDULER
 
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -180,6 +180,8 @@ async def node_health_check():
     """
     Cron job that checks health of all enabled nodes.
     """
+    if not IS_NODE_WORKER:
+        return
     async with GetDB() as db:
         db_nodes, _ = await get_nodes(db=db, enabled=True)
         dict_nodes = await node_manager.get_nodes()
@@ -190,7 +192,7 @@ async def node_health_check():
 
 @on_startup
 async def initialize_nodes():
-    if not RUN_SCHEDULER:
+    if not RUN_SCHEDULER or not IS_NODE_WORKER:
         return
 
     logger.info("Starting nodes' cores...")
@@ -229,7 +231,7 @@ async def initialize_nodes():
 
 @on_shutdown
 async def shutdown_nodes():
-    if not RUN_SCHEDULER:
+    if not RUN_SCHEDULER or not IS_NODE_WORKER:
         return
 
     logger.info("Stopping nodes' cores...")

@@ -16,7 +16,8 @@ from app.db.crud.admin import (
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminsResponse
-from app.node import node_manager
+from app.node.sync import remove_user as sync_remove_user
+from app.node.sync import sync_users
 from app.operation import BaseOperation, OperatorType
 from app.operation.user import UserOperation
 from app.utils.logger import get_logger
@@ -119,7 +120,7 @@ class AdminOperation(BaseOperation):
         await disable_all_active_users(db=db, admin=db_admin)
 
         users = await get_users(db, admin=db_admin)
-        await node_manager.update_users(users)
+        await sync_users(users)
 
         logger.info(f'Admin "{username}" users has been disabled by admin "{admin.username}"')
 
@@ -133,7 +134,7 @@ class AdminOperation(BaseOperation):
         await activate_all_disabled_users(db=db, admin=db_admin)
 
         users = await get_users(db, admin=db_admin)
-        await node_manager.update_users(users)
+        await sync_users(users)
 
         logger.info(f'Admin "{username}" users has been activated by admin "{admin.username}"')
 
@@ -155,7 +156,7 @@ class AdminOperation(BaseOperation):
         await remove_users(db, users)
 
         for user in serialized_users:
-            await node_manager.remove_user(user)
+            await sync_remove_user(user)
             asyncio.create_task(notification.remove_user(user, admin))
 
         logger.info(

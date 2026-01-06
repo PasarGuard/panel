@@ -20,6 +20,7 @@ from app.node import node_manager as node_manager
 from app.utils.logger import get_logger
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
+    IS_NODE_WORKER,
     JOB_RECORD_NODE_USAGES_INTERVAL,
     JOB_RECORD_USER_USAGES_INTERVAL,
 )
@@ -509,24 +510,25 @@ async def record_node_usages():
     await asyncio.gather(*record_tasks)
 
 
-scheduler.add_job(
-    record_user_usages,
-    "interval",
-    seconds=JOB_RECORD_USER_USAGES_INTERVAL,
-    coalesce=True,
-    start_date=dt.now(tz.utc) + td(seconds=30),
-    max_instances=1,
-    id="record_user_usages",
-    replace_existing=True,
-)
+if IS_NODE_WORKER:
+    scheduler.add_job(
+        record_user_usages,
+        "interval",
+        seconds=JOB_RECORD_USER_USAGES_INTERVAL,
+        coalesce=True,
+        start_date=dt.now(tz.utc) + td(seconds=30),
+        max_instances=1,
+        id="record_user_usages",
+        replace_existing=True,
+    )
 
-scheduler.add_job(
-    record_node_usages,
-    "interval",
-    seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
-    coalesce=True,
-    start_date=dt.now(tz.utc) + td(seconds=15),
-    max_instances=1,
-    id="record_node_usages",
-    replace_existing=True,
-)
+    scheduler.add_job(
+        record_node_usages,
+        "interval",
+        seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
+        coalesce=True,
+        start_date=dt.now(tz.utc) + td(seconds=15),
+        max_instances=1,
+        id="record_node_usages",
+        replace_existing=True,
+    )
