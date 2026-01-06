@@ -196,10 +196,12 @@ jobs:
                     MARIADB_ROOT_HOST: "%"
                     MARIADB_ROOT_PASSWORD: root
                     MARIADB_DATABASE: testdb
+                    MARIADB_USER: testuser
+                    MARIADB_PASSWORD: testpassword
                 ports:
                     - 3307:3306
                 options: >-
-                    --health-cmd "mysqladmin ping -h localhost -u root --password=root"
+                    --health-cmd "mysqladmin ping -h localhost -u testuser --password=testpassword"
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
@@ -213,7 +215,7 @@ jobs:
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
                   echo "TESTING=1" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3307/testdb" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb" >> $GITHUB_ENV
                   echo "NATS_ENABLED=1" >> $GITHUB_ENV
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "MULTI_WORKER=1" >> $GITHUB_ENV
