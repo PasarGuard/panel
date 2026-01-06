@@ -4,13 +4,13 @@ on:
     push:
         paths:
             - "**.py"
-            - "app/.github/workflows/test-database-migrations.yml"
+            - ".github/workflows/test-database-migrations.yml"
     pull_request:
         paths:
             - "**.py"
             - "uv.lock"
             - "pyproject.toml"
-            - "app/.github/workflows/test-database-migrations.yml"
+            - ".github/workflows/test-database-migrations.yml"
 
 jobs:
     test-sqlite:
@@ -24,6 +24,7 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:///./test.db" >> $GITHUB_ENV
 
             - name: Install dependencies
@@ -59,6 +60,7 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/testdb" >> $GITHUB_ENV
 
             - name: Install dependencies
@@ -76,8 +78,10 @@ jobs:
             timescaledb:
                 image: timescale/timescaledb:latest-pg17
                 env:
-                    POSTGRES_PASSWORD: timescale
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
                     POSTGRES_DB: testdb
+                    POSTGRES_HOST_AUTH_METHOD: trust
                 ports:
                     - 5433:5432
                 options: >-
@@ -94,7 +98,8 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:timescale@localhost:5433/testdb" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/testdb" >> $GITHUB_ENV
                   echo "NATS_ENABLED=1" >> $GITHUB_ENV
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "MULTI_WORKER=1" >> $GITHUB_ENV
@@ -102,6 +107,29 @@ jobs:
 
             - name: Install dependencies
               run: make setup
+
+            - name: Wait for TimescaleDB
+              run: |
+                  uv run python - <<'PY'
+                  import os
+                  import time
+                  import psycopg
+                  from sqlalchemy.engine import make_url
+
+                  url = make_url(os.environ["SQLALCHEMY_DATABASE_URL"])
+                  dsn = str(url.set(drivername="postgresql"))
+
+                  for _ in range(30):
+                      try:
+                          with psycopg.connect(dsn):
+                              print("TimescaleDB is ready.")
+                              break
+                      except Exception as exc:
+                          print(f"Waiting for TimescaleDB: {exc}")
+                          time.sleep(1)
+                  else:
+                      raise SystemExit("TimescaleDB did not become ready in time.")
+                  PY
 
             - name: Start NATS (JetStream)
               run: |
@@ -118,8 +146,8 @@ jobs:
 
             - name: Run Tests (multi-worker)
               run: |
-                  NODE_ROLE=node-worker RUN_SCHEDULER=1 uv run python node_worker.py &
-                  NODE_ROLE=scheduler RUN_SCHEDULER=1 uv run python scheduler_worker.py &
+                  SCHEDULER_JOBSTORE_URL=sqlite:///./node-scheduler.db NODE_ROLE=node-worker RUN_SCHEDULER=1 uv run python node_worker.py &
+                  SCHEDULER_JOBSTORE_URL=sqlite:///./scheduler.db NODE_ROLE=scheduler RUN_SCHEDULER=1 uv run python scheduler_worker.py &
                   sleep 5
                   make test
 
@@ -147,6 +175,7 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3306/testdb" >> $GITHUB_ENV
 
             - name: Install dependencies
@@ -164,10 +193,11 @@ jobs:
             mariadb:
                 image: mariadb:10.6
                 env:
-                    MYSQL_ROOT_PASSWORD: root
-                    MYSQL_DATABASE: testdb
-                    MYSQL_USER: testuser
-                    MYSQL_PASSWORD: testpassword
+                    MARIADB_ROOT_HOST: "%"
+                    MARIADB_ROOT_PASSWORD: root
+                    MARIADB_DATABASE: testdb
+                    MARIADB_USER: testuser
+                    MARIADB_PASSWORD: testpassword
                 ports:
                     - 3307:3306
                 options: >-
@@ -184,6 +214,7 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb" >> $GITHUB_ENV
                   echo "NATS_ENABLED=1" >> $GITHUB_ENV
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
@@ -192,6 +223,74 @@ jobs:
 
             - name: Install dependencies
               run: make setup
+
+            - name: Wait for MariaDB and ensure testuser grants
+              run: |
+                  uv run python - <<'PY'
+                  import time
+                  import pymysql
+
+                  params = {
+                      "host": "127.0.0.1",
+                      "port": 3307,
+                      "user": "root",
+                      "password": "root",
+                      "database": "testdb",
+                      "autocommit": True,
+                  }
+
+                  for _ in range(60):
+                      try:
+                          conn = pymysql.connect(**params)
+                          break
+                      except Exception as exc:
+                          print(f"Waiting for MariaDB as root: {exc}")
+                          time.sleep(1)
+                  else:
+                      raise SystemExit("MariaDB did not become ready in time.")
+
+                  with conn.cursor() as cur:
+                      cur.execute("DROP USER IF EXISTS 'testuser'@'%'")
+                      cur.execute("DROP USER IF EXISTS 'testuser'@'localhost'")
+                      cur.execute("CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpassword'")
+                      cur.execute("CREATE USER 'testuser'@'localhost' IDENTIFIED BY 'testpassword'")
+                      cur.execute("GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%'")
+                      cur.execute("GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'localhost'")
+                      cur.execute("FLUSH PRIVILEGES")
+                      cur.execute("SELECT user, host, plugin FROM mysql.user WHERE user='testuser'")
+                      print("Testuser entries:", cur.fetchall())
+                  conn.close()
+                  PY
+
+            - name: Verify MariaDB connectivity as testuser
+              run: |
+                  uv run python - <<'PY'
+                  import os
+                  import pymysql
+                  from sqlalchemy.engine import make_url
+
+                  url = make_url(os.environ["SQLALCHEMY_DATABASE_URL"])
+                  params = {
+                      "host": url.host or "127.0.0.1",
+                      "port": url.port or 3306,
+                      "user": url.username,
+                      "password": url.password,
+                      "database": url.database,
+                  }
+                  params_native = params | {"client_flag": pymysql.constants.CLIENT.MULTI_STATEMENTS}
+                  print("Connecting with params:", params_native)
+                  try:
+                      conn = pymysql.connect(**params_native)
+                  except Exception as exc:
+                      print("FAILED to connect with params:", params_native)
+                      raise
+                  with conn.cursor() as cur:
+                      cur.execute("SELECT CURRENT_USER(), USER(), @@hostname")
+                      print("User/host info:", cur.fetchone())
+                      cur.execute("SHOW GRANTS")
+                      print("Grants:", cur.fetchall())
+                  conn.close()
+                  PY
 
             - name: Start NATS (JetStream)
               run: |
@@ -208,7 +307,7 @@ jobs:
 
             - name: Run Tests (multi-worker)
               run: |
-                  NODE_ROLE=node-worker RUN_SCHEDULER=1 uv run python node_worker.py &
-                  NODE_ROLE=scheduler RUN_SCHEDULER=1 uv run python scheduler_worker.py &
+                  SCHEDULER_JOBSTORE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb NODE_ROLE=node-worker RUN_SCHEDULER=1 uv run python node_worker.py &
+                  SCHEDULER_JOBSTORE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb RUN_SCHEDULER=1 uv run python scheduler_worker.py &
                   sleep 5
                   make test

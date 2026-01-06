@@ -3,22 +3,16 @@ from asyncio import Lock
 from copy import deepcopy
 
 import nats
+from aiocache import cached
 from nats.js.client import JetStreamContext
 from nats.js.kv import KeyValue
-from aiocache import cached
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import on_shutdown, on_startup
 from app.core.manager import core_manager
-from app.nats import is_nats_enabled
-from app.nats.client import setup_nats_kv
-from app.nats.message import MessageTopic
-from app.nats.router import router
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.utils.logger import get_logger
-from config import IS_NODE_WORKER, MULTI_WORKER
 from app.models.host import BaseHost, TransportSettings
 from app.models.subscription import (
     GRPCTransportConfig,
@@ -30,6 +24,12 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
+from app.nats import is_nats_enabled
+from app.nats.client import setup_nats_kv
+from app.nats.message import MessageTopic
+from app.nats.router import router
+from app.utils.logger import get_logger
+from config import IS_NODE_WORKER, MULTI_WORKER
 
 
 async def _prepare_subscription_inbound_data(
@@ -270,7 +270,10 @@ class HostManager:
         state = await self._snapshot_state()
         # Serialize state using pickle (same as CoreManager)
         state_bytes = pickle.dumps(state)
-        await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
+        try:
+            await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
+        except Exception as exc:
+            self._logger.warning(f"Failed to persist host state to NATS KV: {exc}")
 
     async def _load_state_from_cache(self) -> bool:
         if not self._kv:
@@ -394,7 +397,6 @@ class HostManager:
         await self._persist_state()
 
     async def _add_hosts_nats(self, db: AsyncSession, hosts: list[BaseHost]):
-        # Don't update locally - all workers (including this one) will update via listener
         serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
         inbounds_list = await core_manager.get_inbounds()
         await upsert_inbounds(db, inbounds_list)
@@ -415,6 +417,13 @@ class HostManager:
         for host_id in hosts_to_remove:
             await self._publish({"action": "remove", "host_id": host_id})
 
+        # Keep local state in sync immediately, while still broadcasting via NATS.
+        await self._add_prepared_hosts_local(prepared_hosts)
+        async with self._lock:
+            for host_id in hosts_to_remove:
+                self._hosts.pop(host_id, None)
+        await self._reset_cache()
+
     async def remove_host(self, id: int):
         await self._remove_host_impl(id)
 
@@ -425,8 +434,8 @@ class HostManager:
         await self._persist_state()
 
     async def _remove_host_nats(self, id: int):
-        # Don't remove locally - all workers (including this one) will remove via listener
         await self._publish({"action": "remove", "host_id": id})
+        await self._remove_host_local(id)
 
     async def get_host(self, id: int) -> dict | None:
         async with self._lock:

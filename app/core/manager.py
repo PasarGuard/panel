@@ -3,20 +3,20 @@ from asyncio import Lock
 from copy import deepcopy
 
 import nats
+from aiocache import cached
 from nats.js.client import JetStreamContext
 from nats.js.kv import KeyValue
-from aiocache import cached
 
 from app import on_shutdown, on_startup
 from app.core.abstract_core import AbstractCore
-from app.nats import is_nats_enabled
-from app.nats.client import setup_nats_kv
-from app.nats.message import MessageTopic
-from app.nats.router import router
 from app.core.xray import XRayConfig
 from app.db import GetDB
 from app.db.crud.core import get_core_configs
 from app.db.models import CoreConfig
+from app.nats import is_nats_enabled
+from app.nats.client import setup_nats_kv
+from app.nats.message import MessageTopic
+from app.nats.router import router
 from app.utils.logger import get_logger
 from config import MULTI_WORKER
 
@@ -55,9 +55,12 @@ class CoreManager:
         if not self._kv:
             return
         state = await self._snapshot_state()
-        # Serialize state using pickle (same as Redis implementation)
+        # Serialize state using pickle (same as Nats implementation)
         state_bytes = pickle.dumps(state)
-        await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
+        try:
+            await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
+        except Exception as exc:
+            self._logger.warning(f"Failed to persist core state to NATS KV: {exc}")
 
     async def _load_state_from_cache(self) -> bool:
         if not self._kv:
@@ -68,7 +71,7 @@ class CoreManager:
             if not entry:
                 return False
 
-            # Deserialize state using pickle (same as Redis implementation)
+            # Deserialize state using pickle (same as nats implementation)
             cached_state = pickle.loads(entry.value)
             async with self._lock:
                 self._cores = cached_state.get("cores", {})
@@ -194,12 +197,16 @@ class CoreManager:
         await self._persist_state()
 
     async def _update_core_nats(self, db_core_config: CoreConfig):
-        # Validate core before publishing (but don't update locally)
-        # All workers (including this one) will update via listener
+        # Validate core before publishing
+        # Keep local state in sync immediately, while still broadcasting via NATS.
         self.validate_core(
             db_core_config.config, db_core_config.exclude_inbound_tags, db_core_config.fallbacks_inbound_tags
         )
-        await self._publish_invalidation({"action": "update", "core": self._core_payload_from_db(db_core_config)})
+        try:
+            await self._publish_invalidation({"action": "update", "core": self._core_payload_from_db(db_core_config)})
+        except Exception as exc:
+            self._logger.warning(f"Failed to publish core update via NATS: {exc}")
+        await self._update_core_local(db_core_config)
 
     async def update_core(self, db_core_config: CoreConfig):
         await self._update_core_impl(db_core_config)
@@ -216,8 +223,11 @@ class CoreManager:
         await self._persist_state()
 
     async def _remove_core_nats(self, core_id: int):
-        # Don't remove locally - all workers (including this one) will remove via listener
-        await self._publish_invalidation({"action": "remove", "core_id": core_id})
+        try:
+            await self._publish_invalidation({"action": "remove", "core_id": core_id})
+        except Exception as exc:
+            self._logger.warning(f"Failed to publish core remove via NATS: {exc}")
+        await self._remove_core_local(core_id)
 
     async def remove_core(self, core_id: int):
         await self._remove_core_impl(core_id)

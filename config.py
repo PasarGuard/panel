@@ -8,6 +8,7 @@ if not TESTING:
     TESTING = config("TESTING", default=TESTING, cast=bool)
 
 SQLALCHEMY_DATABASE_URL = config("SQLALCHEMY_DATABASE_URL", default="sqlite+aiosqlite:///db.sqlite3")
+SCHEDULER_JOBSTORE_URL = config("SCHEDULER_JOBSTORE_URL", default=None)
 SQLALCHEMY_POOL_SIZE = config("SQLALCHEMY_POOL_SIZE", cast=int, default=25)
 SQLALCHEMY_MAX_OVERFLOW = config("SQLALCHEMY_MAX_OVERFLOW", cast=int, default=60)
 ECHO_SQL_QUERIES = config("ECHO_SQL_QUERIES", cast=bool, default=False)
@@ -30,11 +31,6 @@ if _RAW_MULTI_WORKER is None:
     MULTI_WORKER = UVICORN_WORKERS > 1
 else:
     MULTI_WORKER = str(_RAW_MULTI_WORKER).lower() in ("1", "true", "yes", "y", "on")
-
-REDIS_ENABLED = config("REDIS_ENABLED", default=False, cast=bool)
-REDIS_HOST = config("REDIS_HOST", default="localhost")
-REDIS_PORT = config("REDIS_PORT", cast=int, default=6379)
-REDIS_DB = config("REDIS_DB", cast=int, default=0)
 
 NATS_ENABLED = config("NATS_ENABLED", default=False, cast=bool)
 NATS_URL = config("NATS_URL", default="nats://localhost:4222")
