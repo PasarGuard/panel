@@ -1,6 +1,6 @@
 import asyncio
 
-import config as app_config  # noqa: E402
+import config as app_config
 
 app_config.RUN_SCHEDULER = True
 
