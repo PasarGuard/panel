@@ -71,3 +71,8 @@ async def refresh_caches() -> None:
 async def handle_settings_message(_: dict):
     """Handle settings update message from NATS router."""
     await refresh_caches()
+    try:
+        from app.telegram import telegram_bot_manager
+    except Exception:
+        return
+    await telegram_bot_manager.sync_from_settings()

@@ -38,7 +38,7 @@ class SettingsOperation(BaseOperation):
 
         await refresh_caches()
         # Publish settings update via NATS (all workers will refresh their caches)
-        await router.publish(MessageTopic.SETTINGS, {"action": "refresh"})
+        await router.publish(MessageTopic.SETTING, {"action": "refresh"})
         asyncio.create_task(self.reset_services(old_settings, new_settings))
 
         return new_settings
