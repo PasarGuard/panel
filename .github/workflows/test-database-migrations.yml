@@ -4,11 +4,13 @@ on:
     push:
         paths:
             - "**.py"
+            - "app/.github/workflows/test-database-migrations.yml"
     pull_request:
         paths:
             - "**.py"
             - "uv.lock"
             - "pyproject.toml"
+            - "app/.github/workflows/test-database-migrations.yml"
 
 jobs:
     test-sqlite:
