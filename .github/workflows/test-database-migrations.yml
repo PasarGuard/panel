@@ -83,15 +83,6 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
-            nats:
-                image: nats:2.10-alpine
-                options: >-
-                    --health-cmd="nats-server --help"
-                    --health-interval=5s
-                    --health-timeout=5s
-                    --health-retries=5
-                ports:
-                    - 4222:4222
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -110,13 +101,23 @@ jobs:
             - name: Install dependencies
               run: make setup
 
+            - name: Start NATS (JetStream)
+              run: |
+                  docker run -d --name nats -p 4222:4222 nats:2.10-alpine -js
+                  for i in {1..20}; do
+                    nc -z 127.0.0.1 4222 && exit 0
+                    sleep 0.5
+                  done
+                  echo "NATS did not start in time" >&2
+                  exit 1
+
             - name: Run Alembic Migrations
               run: make run-migration
 
             - name: Run Tests (multi-worker)
               run: |
-                  NODE_ROLE=node-worker RUN_SCHEDULER=1 python node_worker.py &
-                  NODE_ROLE=scheduler RUN_SCHEDULER=1 python scheduler_worker.py &
+                  NODE_ROLE=node-worker RUN_SCHEDULER=1 uv run python node_worker.py &
+                  NODE_ROLE=scheduler RUN_SCHEDULER=1 uv run python scheduler_worker.py &
                   sleep 5
                   make test
 
@@ -172,15 +173,6 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
-            nats:
-                image: nats:2.10-alpine
-                options: >-
-                    --health-cmd="nats-server --help"
-                    --health-interval=5s
-                    --health-timeout=5s
-                    --health-retries=5
-                ports:
-                    - 4222:4222
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -199,12 +191,22 @@ jobs:
             - name: Install dependencies
               run: make setup
 
+            - name: Start NATS (JetStream)
+              run: |
+                  docker run -d --name nats -p 4222:4222 nats:2.10-alpine -js
+                  for i in {1..20}; do
+                    nc -z 127.0.0.1 4222 && exit 0
+                    sleep 0.5
+                  done
+                  echo "NATS did not start in time" >&2
+                  exit 1
+
             - name: Run Alembic Migrations
               run: make run-migration
 
             - name: Run Tests (multi-worker)
               run: |
-                  NODE_ROLE=node-worker RUN_SCHEDULER=1 python node_worker.py &
-                  NODE_ROLE=scheduler RUN_SCHEDULER=1 python scheduler_worker.py &
+                  NODE_ROLE=node-worker RUN_SCHEDULER=1 uv run python node_worker.py &
+                  NODE_ROLE=scheduler RUN_SCHEDULER=1 uv run python scheduler_worker.py &
                   sleep 5
                   make test
