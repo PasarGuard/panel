@@ -47,7 +47,7 @@ def run_dev():
 
 
 def run_build():
-    if not build_dir.is_dir():
+    if not RUN_SCHEDULER and not build_dir.is_dir():
         build()
 
     app.mount(DASHBOARD_PATH, StaticFiles(directory=build_dir, html=True), name="dashboard")
@@ -56,9 +56,6 @@ def run_build():
 
 @on_startup
 def run_dashboard():
-    if RUN_SCHEDULER:
-        return
-
     if DEBUG:
         run_dev()
     else:
