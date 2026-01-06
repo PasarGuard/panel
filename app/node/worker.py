@@ -3,6 +3,7 @@ import json
 import uuid
 
 import nats
+from nats.aio.subscription import Subscription
 from PasarGuardNodeBridge import NodeAPIError
 
 from app import on_shutdown, on_startup
@@ -31,8 +32,8 @@ logger = get_logger("node-worker")
 class NodeWorkerService:
     def __init__(self):
         self._nc: nats.NATS | None = None
-        self._command_sub: nats.aio.subscription.Subscription | None = None
-        self._rpc_sub: nats.aio.subscription.Subscription | None = None
+        self._command_sub: Subscription | None = None
+        self._rpc_sub: Subscription | None = None
         self._log_tasks: dict[str, asyncio.Task] = {}
         self._stop_events: dict[str, asyncio.Event] = {}
         self._node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)

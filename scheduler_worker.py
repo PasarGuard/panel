@@ -4,11 +4,15 @@ import config as app_config  # noqa: E402
 
 app_config.RUN_SCHEDULER = True
 
-from app import app, lifespan  # noqa: E402
+from app import create_app  # noqa: E402
+from app.lifecycle import lifespan  # noqa: E402
 from app.nats import is_nats_enabled  # noqa: E402
 from app.utils.logger import get_logger  # noqa: E402
 
 logger = get_logger("scheduler-worker")
+
+
+app = create_app(role="scheduler")
 
 
 async def main():

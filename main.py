@@ -8,8 +8,7 @@ import uvicorn
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-import dashboard  # noqa
-from app import app, logger  # noqa
+from app import create_app, logger  # noqa
 from app.nats import require_nats_if_multiworker
 from app.utils.logger import LOGGING_CONFIG
 from config import (
@@ -30,6 +29,8 @@ if workers < 1:
     logger.warning(f"Invalid UVICORN_WORKERS value '{UVICORN_WORKERS}', defaulting to 1.")
     workers = 1
 require_nats_if_multiworker(workers)
+
+app = create_app(role="panel")
 
 
 def check_and_modify_ip(ip_address: str) -> str:

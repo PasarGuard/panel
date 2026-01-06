@@ -18,7 +18,7 @@ from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
 from app.utils.logger import get_logger
-from config import MULTI_WORKER
+from config import IS_NODE_WORKER, MULTI_WORKER
 from app.models.host import BaseHost, TransportSettings
 from app.models.subscription import (
     GRPCTransportConfig,
@@ -445,12 +445,16 @@ host_manager: HostManager = HostManager()
 
 @on_startup
 async def initialize_hosts():
+    if IS_NODE_WORKER:
+        return
     async with GetDB() as db:
         await host_manager.setup(db)
 
 
 @on_shutdown
 async def shutdown_hosts():
+    if IS_NODE_WORKER:
+        return
     # Close NATS connection
     if host_manager._nc:
         await host_manager._nc.close()

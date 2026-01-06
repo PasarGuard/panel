@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi.staticfiles import StaticFiles
 
-from app import app, on_startup
+from app import on_startup
 from config import DASHBOARD_PATH, DEBUG, RUN_SCHEDULER, UVICORN_PORT, VITE_BASE_API
 
 base_dir = Path(__file__).parent
@@ -46,7 +46,7 @@ def run_dev():
     atexit.register(proc.terminate)
 
 
-def run_build():
+def run_build(app):
     if not RUN_SCHEDULER and not build_dir.is_dir():
         build()
 
@@ -54,9 +54,10 @@ def run_build():
     app.mount("/statics/", StaticFiles(directory=statics_dir, html=True), name="statics")
 
 
-@on_startup
-def run_dashboard():
-    if DEBUG:
-        run_dev()
-    else:
-        run_build()
+def setup_dashboard(app):
+    @on_startup
+    def run_dashboard():
+        if DEBUG:
+            run_dev()
+        else:
+            run_build(app)

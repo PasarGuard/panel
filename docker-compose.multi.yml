@@ -1,0 +1,50 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+    volumes:
+      - nats-data:/data
+
+  panel:
+    image: pasarguard/panel:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ROLE: panel
+      RUN_SCHEDULER: "0"
+    depends_on:
+      - nats
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard
+
+  node-worker:
+    image: pasarguard/panel:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ROLE: node-worker
+      RUN_SCHEDULER: "1"
+    depends_on:
+      - nats
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard
+
+  scheduler:
+    image: pasarguard/panel:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ROLE: scheduler
+      RUN_SCHEDULER: "1"
+    depends_on:
+      - nats
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard
+
+volumes:
+  nats-data:
