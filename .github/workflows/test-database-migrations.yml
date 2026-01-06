@@ -24,6 +24,7 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:///./test.db" >> $GITHUB_ENV
 
             - name: Install dependencies
@@ -59,6 +60,7 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/testdb" >> $GITHUB_ENV
 
             - name: Install dependencies
@@ -76,7 +78,8 @@ jobs:
             timescaledb:
                 image: timescale/timescaledb:latest-pg17
                 env:
-                    POSTGRES_PASSWORD: timescale
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
                     POSTGRES_DB: testdb
                 ports:
                     - 5433:5432
@@ -94,7 +97,8 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:timescale@localhost:5433/testdb" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/testdb" >> $GITHUB_ENV
                   echo "NATS_ENABLED=1" >> $GITHUB_ENV
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "MULTI_WORKER=1" >> $GITHUB_ENV
@@ -102,6 +106,29 @@ jobs:
 
             - name: Install dependencies
               run: make setup
+
+            - name: Wait for TimescaleDB
+              run: |
+                  uv run python - <<'PY'
+                  import os
+                  import time
+                  import psycopg
+                  from sqlalchemy.engine import make_url
+
+                  url = make_url(os.environ["SQLALCHEMY_DATABASE_URL"])
+                  dsn = str(url.set(drivername="postgresql"))
+
+                  for _ in range(30):
+                      try:
+                          with psycopg.connect(dsn):
+                              print("TimescaleDB is ready.")
+                              break
+                      except Exception as exc:
+                          print(f"Waiting for TimescaleDB: {exc}")
+                          time.sleep(1)
+                  else:
+                      raise SystemExit("TimescaleDB did not become ready in time.")
+                  PY
 
             - name: Start NATS (JetStream)
               run: |
@@ -147,6 +174,7 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3306/testdb" >> $GITHUB_ENV
 
             - name: Install dependencies
@@ -164,14 +192,13 @@ jobs:
             mariadb:
                 image: mariadb:10.6
                 env:
+                    MYSQL_ROOT_HOST: "%"
                     MYSQL_ROOT_PASSWORD: root
                     MYSQL_DATABASE: testdb
-                    MYSQL_USER: testuser
-                    MYSQL_PASSWORD: testpassword
                 ports:
                     - 3307:3306
                 options: >-
-                    --health-cmd "mysqladmin ping -h localhost -u testuser --password=testpassword"
+                    --health-cmd "mysqladmin ping -h localhost -u root --password=root"
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
@@ -184,7 +211,8 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb" >> $GITHUB_ENV
+                  echo "TESTING=1" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3307/testdb" >> $GITHUB_ENV
                   echo "NATS_ENABLED=1" >> $GITHUB_ENV
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "MULTI_WORKER=1" >> $GITHUB_ENV
@@ -192,6 +220,36 @@ jobs:
 
             - name: Install dependencies
               run: make setup
+
+            - name: Wait for MariaDB
+              run: |
+                  uv run python - <<'PY'
+                  import os
+                  import time
+                  import pymysql
+                  from sqlalchemy.engine import make_url
+
+                  url = make_url(os.environ["SQLALCHEMY_DATABASE_URL"])
+                  params = {
+                      "host": url.host or "127.0.0.1",
+                      "port": url.port or 3306,
+                      "user": url.username,
+                      "password": url.password,
+                      "database": url.database,
+                  }
+
+                  for _ in range(30):
+                      try:
+                          conn = pymysql.connect(**params)
+                          conn.close()
+                          print("MariaDB is ready.")
+                          break
+                      except Exception as exc:
+                          print(f"Waiting for MariaDB: {exc}")
+                          time.sleep(1)
+                  else:
+                      raise SystemExit("MariaDB did not become ready in time.")
+                  PY
 
             - name: Start NATS (JetStream)
               run: |
