@@ -232,21 +232,18 @@ jobs:
                     docker ps -a
                     exit 1
                   fi
-                  docker exec "$CONTAINER_ID" mariadb -uroot -proot -e "\
-                    CREATE DATABASE IF NOT EXISTS testdb; \
-                    DROP USER IF EXISTS 'testuser'@'%'; \
-                    DROP USER IF EXISTS 'testuser'@'localhost'; \
-                    DROP USER IF EXISTS 'testuser'@'172.18.%'; \
-                    CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
-                    CREATE USER 'testuser'@'localhost' IDENTIFIED BY 'testpassword'; \
-                    CREATE USER 'testuser'@'172.18.%' IDENTIFIED BY 'testpassword'; \
-                    GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION; \
-                    GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'localhost' WITH GRANT OPTION; \
-                    GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'172.18.%' WITH GRANT OPTION; \
-                    DROP USER IF EXISTS 'root'@'%'; \
-                    CREATE USER 'root'@'%' IDENTIFIED BY 'root'; \
-                    GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; \
-                    FLUSH PRIVILEGES; \
+                  docker exec "$CONTAINER_ID" sh -c "\
+                    mysql -uroot -proot -e \"\
+                      CREATE DATABASE IF NOT EXISTS testdb; \
+                      DROP USER IF EXISTS 'testuser'@'%'; \
+                      CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
+                      GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION; \
+                      DROP USER IF EXISTS 'root'@'%'; \
+                      CREATE USER 'root'@'%' IDENTIFIED BY 'root'; \
+                      GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; \
+                      FLUSH PRIVILEGES; \
+                      SHOW GRANTS FOR 'testuser'@'%'; \
+                    \" \
                   "
 
             - name: Verify MariaDB connectivity as testuser
@@ -264,10 +261,16 @@ jobs:
                       "password": url.password,
                       "database": url.database,
                   }
-                  conn = pymysql.connect(**params)
+                  try:
+                      conn = pymysql.connect(**params)
+                  except Exception as exc:
+                      print("FAILED to connect with params:", params)
+                      raise
                   with conn.cursor() as cur:
-                      cur.execute("SELECT 1")
-                      print("MariaDB connectivity check OK:", cur.fetchone())
+                      cur.execute("SELECT CURRENT_USER(), USER(), @@hostname")
+                      print("User/host info:", cur.fetchone())
+                      cur.execute("SHOW GRANTS FOR CURRENT_USER()")
+                      print("Grants:", cur.fetchall())
                   conn.close()
                   PY
 
