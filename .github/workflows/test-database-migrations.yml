@@ -193,11 +193,11 @@ jobs:
             mariadb:
                 image: mariadb:10.6
                 env:
-                    MARIADB_ROOT_HOST: "%"
-                    MARIADB_ROOT_PASSWORD: root
-                    MARIADB_DATABASE: testdb
-                    MARIADB_USER: testuser
-                    MARIADB_PASSWORD: testpassword
+                    MYSQL_ROOT_HOST: "%"
+                    MYSQL_ROOT_PASSWORD: root
+                    MYSQL_DATABASE: testdb
+                    MYSQL_USER: testuser
+                    MYSQL_PASSWORD: testpassword
                 ports:
                     - 3307:3306
                 options: >-
@@ -232,7 +232,7 @@ jobs:
                     docker ps -a
                     exit 1
                   fi
-                  docker exec "$CONTAINER_ID" mariadb -uroot -proot -e "CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpassword'; GRANT ALL PRIVILEGES ON testdb.* TO 'testuser'@'%'; FLUSH PRIVILEGES;"
+                  docker exec "$CONTAINER_ID" mariadb -uroot -proot -e "CREATE DATABASE IF NOT EXISTS testdb; CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpassword'; ALTER USER 'testuser'@'%' IDENTIFIED BY 'testpassword'; GRANT ALL PRIVILEGES ON testdb.* TO 'testuser'@'%'; FLUSH PRIVILEGES;"
 
             - name: Wait for MariaDB
               run: |
