@@ -224,6 +224,16 @@ jobs:
             - name: Install dependencies
               run: make setup
 
+            - name: Ensure MariaDB grants
+              run: |
+                  CONTAINER_ID=$(docker ps -q --filter "ancestor=mariadb:10.6")
+                  if [ -z "$CONTAINER_ID" ]; then
+                    echo "MariaDB container not found" >&2
+                    docker ps -a
+                    exit 1
+                  fi
+                  docker exec "$CONTAINER_ID" mariadb -uroot -proot -e "CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpassword'; GRANT ALL PRIVILEGES ON testdb.* TO 'testuser'@'%'; FLUSH PRIVILEGES;"
+
             - name: Wait for MariaDB
               run: |
                   uv run python - <<'PY'
