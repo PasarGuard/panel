@@ -193,11 +193,11 @@ jobs:
             mariadb:
                 image: mariadb:10.6
                 env:
-                    MYSQL_ROOT_HOST: "%"
-                    MYSQL_ROOT_PASSWORD: root
-                    MYSQL_DATABASE: testdb
-                    MYSQL_USER: testuser
-                    MYSQL_PASSWORD: testpassword
+                    MARIADB_ROOT_HOST: "%"
+                    MARIADB_ROOT_PASSWORD: root
+                    MARIADB_DATABASE: testdb
+                    MARIADB_USER: testuser
+                    MARIADB_PASSWORD: testpassword
                 ports:
                     - 3307:3306
                 options: >-
@@ -223,28 +223,6 @@ jobs:
 
             - name: Install dependencies
               run: make setup
-
-            - name: Ensure MariaDB grants
-              run: |
-                  CONTAINER_ID=$(docker ps -q --filter "ancestor=mariadb:10.6")
-                  if [ -z "$CONTAINER_ID" ]; then
-                    echo "MariaDB container not found" >&2
-                    docker ps -a
-                    exit 1
-                  fi
-                  docker exec "$CONTAINER_ID" sh -c "\
-                    mysql -uroot -proot -e \"\
-                      CREATE DATABASE IF NOT EXISTS testdb; \
-                      DROP USER IF EXISTS 'testuser'@'%'; \
-                      CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
-                      GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION; \
-                      DROP USER IF EXISTS 'root'@'%'; \
-                      CREATE USER 'root'@'%' IDENTIFIED BY 'root'; \
-                      GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; \
-                      FLUSH PRIVILEGES; \
-                      SHOW GRANTS FOR 'testuser'@'%'; \
-                    \" \
-                  "
 
             - name: Verify MariaDB connectivity as testuser
               run: |
