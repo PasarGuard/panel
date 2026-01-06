@@ -234,11 +234,11 @@ jobs:
                   fi
                   docker exec "$CONTAINER_ID" mariadb -uroot -proot -e "\
                     CREATE DATABASE IF NOT EXISTS testdb; \
-                    CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
-                    ALTER USER 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
-                    GRANT ALL PRIVILEGES ON testdb.* TO 'testuser'@'%'; \
-                    CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY 'root'; \
-                    ALTER USER 'root'@'%' IDENTIFIED BY 'root'; \
+                    DROP USER IF EXISTS 'testuser'@'%'; \
+                    CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
+                    GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION; \
+                    DROP USER IF EXISTS 'root'@'%'; \
+                    CREATE USER 'root'@'%' IDENTIFIED BY 'root'; \
                     GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; \
                     FLUSH PRIVILEGES; \
                   "
