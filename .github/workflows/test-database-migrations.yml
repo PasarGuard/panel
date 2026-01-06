@@ -81,6 +81,7 @@ jobs:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
                     POSTGRES_DB: testdb
+                    POSTGRES_HOST_AUTH_METHOD: trust
                 ports:
                     - 5433:5432
                 options: >-
@@ -192,9 +193,9 @@ jobs:
             mariadb:
                 image: mariadb:10.6
                 env:
-                    MYSQL_ROOT_HOST: "%"
-                    MYSQL_ROOT_PASSWORD: root
-                    MYSQL_DATABASE: testdb
+                    MARIADB_ROOT_HOST: "%"
+                    MARIADB_ROOT_PASSWORD: root
+                    MARIADB_DATABASE: testdb
                 ports:
                     - 3307:3306
                 options: >-
