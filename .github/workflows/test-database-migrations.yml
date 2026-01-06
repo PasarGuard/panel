@@ -224,6 +224,39 @@ jobs:
             - name: Install dependencies
               run: make setup
 
+            - name: Wait for MariaDB and ensure testuser grants
+              run: |
+                  uv run python - <<'PY'
+                  import time
+                  import pymysql
+
+                  params = {
+                      "host": "127.0.0.1",
+                      "port": 3307,
+                      "user": "root",
+                      "password": "root",
+                      "database": "testdb",
+                      "autocommit": True,
+                  }
+
+                  for _ in range(60):
+                      try:
+                          conn = pymysql.connect(**params)
+                          break
+                      except Exception as exc:
+                          print(f"Waiting for MariaDB as root: {exc}")
+                          time.sleep(1)
+                  else:
+                      raise SystemExit("MariaDB did not become ready in time.")
+
+                  with conn.cursor() as cur:
+                      cur.execute("CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpassword'")
+                      cur.execute("ALTER USER 'testuser'@'%' IDENTIFIED BY 'testpassword'")
+                      cur.execute("GRANT ALL PRIVILEGES ON testdb.* TO 'testuser'@'%'")
+                      cur.execute("FLUSH PRIVILEGES")
+                  conn.close()
+                  PY
+
             - name: Verify MariaDB connectivity as testuser
               run: |
                   uv run python - <<'PY'
@@ -252,36 +285,6 @@ jobs:
                       cur.execute("SHOW GRANTS")
                       print("Grants:", cur.fetchall())
                   conn.close()
-                  PY
-
-            - name: Wait for MariaDB
-              run: |
-                  uv run python - <<'PY'
-                  import os
-                  import time
-                  import pymysql
-                  from sqlalchemy.engine import make_url
-
-                  url = make_url(os.environ["SQLALCHEMY_DATABASE_URL"])
-                  params = {
-                      "host": url.host or "127.0.0.1",
-                      "port": url.port or 3306,
-                      "user": url.username,
-                      "password": url.password,
-                      "database": url.database,
-                  }
-
-                  for _ in range(30):
-                      try:
-                          conn = pymysql.connect(**params)
-                          conn.close()
-                          print("MariaDB is ready.")
-                          break
-                      except Exception as exc:
-                          print(f"Waiting for MariaDB: {exc}")
-                          time.sleep(1)
-                  else:
-                      raise SystemExit("MariaDB did not become ready in time.")
                   PY
 
             - name: Start NATS (JetStream)
