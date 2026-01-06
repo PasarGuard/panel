@@ -235,13 +235,41 @@ jobs:
                   docker exec "$CONTAINER_ID" mariadb -uroot -proot -e "\
                     CREATE DATABASE IF NOT EXISTS testdb; \
                     DROP USER IF EXISTS 'testuser'@'%'; \
+                    DROP USER IF EXISTS 'testuser'@'localhost'; \
+                    DROP USER IF EXISTS 'testuser'@'172.18.%'; \
                     CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
+                    CREATE USER 'testuser'@'localhost' IDENTIFIED BY 'testpassword'; \
+                    CREATE USER 'testuser'@'172.18.%' IDENTIFIED BY 'testpassword'; \
                     GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION; \
+                    GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'localhost' WITH GRANT OPTION; \
+                    GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'172.18.%' WITH GRANT OPTION; \
                     DROP USER IF EXISTS 'root'@'%'; \
                     CREATE USER 'root'@'%' IDENTIFIED BY 'root'; \
                     GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; \
                     FLUSH PRIVILEGES; \
                   "
+
+            - name: Verify MariaDB connectivity as testuser
+              run: |
+                  uv run python - <<'PY'
+                  import os
+                  import pymysql
+                  from sqlalchemy.engine import make_url
+
+                  url = make_url(os.environ["SQLALCHEMY_DATABASE_URL"])
+                  params = {
+                      "host": url.host or "127.0.0.1",
+                      "port": url.port or 3306,
+                      "user": url.username,
+                      "password": url.password,
+                      "database": url.database,
+                  }
+                  conn = pymysql.connect(**params)
+                  with conn.cursor() as cur:
+                      cur.execute("SELECT 1")
+                      print("MariaDB connectivity check OK:", cur.fetchone())
+                  conn.close()
+                  PY
 
             - name: Wait for MariaDB
               run: |
