@@ -11,7 +11,29 @@ on:
             - "pyproject.toml"
 
 jobs:
-    test-databases:
+    test-sqlite:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: Set DATABASE_URL
+              run: |
+                  echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:///./test.db" >> $GITHUB_ENV
+
+            - name: Install dependencies
+              run: make setup
+
+            - name: Run Alembic Migrations
+              run: make run-migration
+
+            - name: Run Tests
+              run: make test
+
+    test-postgres:
         runs-on: ubuntu-latest
         services:
             postgres:
@@ -26,6 +48,29 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: Set DATABASE_URL
+              run: |
+                  echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/testdb" >> $GITHUB_ENV
+
+            - name: Install dependencies
+              run: make setup
+
+            - name: Run Alembic Migrations
+              run: make run-migration
+
+            - name: Run Tests
+              run: make test
+
+    test-timescaledb:
+        runs-on: ubuntu-latest
+        services:
             timescaledb:
                 image: timescale/timescaledb:latest-pg17
                 env:
@@ -38,6 +83,46 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
+            nats:
+                image: nats:2.10-alpine
+                options: >-
+                    --health-cmd="nats-server --help"
+                    --health-interval=5s
+                    --health-timeout=5s
+                    --health-retries=5
+                ports:
+                    - 4222:4222
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: Set DATABASE_URL
+              run: |
+                  echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:timescale@localhost:5433/testdb" >> $GITHUB_ENV
+                  echo "NATS_ENABLED=1" >> $GITHUB_ENV
+                  echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
+                  echo "MULTI_WORKER=1" >> $GITHUB_ENV
+                  echo "UVICORN_WORKERS=2" >> $GITHUB_ENV
+
+            - name: Install dependencies
+              run: make setup
+
+            - name: Run Alembic Migrations
+              run: make run-migration
+
+            - name: Run Tests (multi-worker)
+              run: |
+                  NODE_ROLE=node-worker RUN_SCHEDULER=1 python node_worker.py &
+                  NODE_ROLE=scheduler RUN_SCHEDULER=1 python scheduler_worker.py &
+                  sleep 5
+                  make test
+
+    test-mysql:
+        runs-on: ubuntu-latest
+        services:
             mysql:
                 image: mysql:latest
                 env:
@@ -50,6 +135,29 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: Set DATABASE_URL
+              run: |
+                  echo "TEST_FROM=github" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3306/testdb" >> $GITHUB_ENV
+
+            - name: Install dependencies
+              run: make setup
+
+            - name: Run Alembic Migrations
+              run: make run-migration
+
+            - name: Run Tests
+              run: make test
+
+    test-mariadb:
+        runs-on: ubuntu-latest
+        services:
             mariadb:
                 image: mariadb:10.6
                 env:
@@ -64,26 +172,15 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
-
-        strategy:
-            matrix:
-                db: [sqlite, postgres, timescaledb, mysql, mariadb]
-                include:
-                    - db: sqlite
-                      url: sqlite+aiosqlite:///./test.db
-
-                    - db: postgres
-                      url: postgresql+asyncpg://postgres:postgres@localhost:5432/testdb
-
-                    - db: timescaledb
-                      url: postgresql+asyncpg://postgres:timescale@localhost:5433/testdb
-
-                    - db: mysql
-                      url: mysql+asyncmy://root:root@localhost:3306/testdb
-
-                    - db: mariadb
-                      url: mysql+asyncmy://testuser:testpassword@localhost:3307/testdb
-
+            nats:
+                image: nats:2.10-alpine
+                options: >-
+                    --health-cmd="nats-server --help"
+                    --health-interval=5s
+                    --health-timeout=5s
+                    --health-retries=5
+                ports:
+                    - 4222:4222
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -93,7 +190,11 @@ jobs:
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=${{ matrix.url }}" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb" >> $GITHUB_ENV
+                  echo "NATS_ENABLED=1" >> $GITHUB_ENV
+                  echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
+                  echo "MULTI_WORKER=1" >> $GITHUB_ENV
+                  echo "UVICORN_WORKERS=2" >> $GITHUB_ENV
 
             - name: Install dependencies
               run: make setup
@@ -101,5 +202,9 @@ jobs:
             - name: Run Alembic Migrations
               run: make run-migration
 
-            - name: Run Tests
-              run: make test
+            - name: Run Tests (multi-worker)
+              run: |
+                  NODE_ROLE=node-worker RUN_SCHEDULER=1 python node_worker.py &
+                  NODE_ROLE=scheduler RUN_SCHEDULER=1 python scheduler_worker.py &
+                  sleep 5
+                  make test
