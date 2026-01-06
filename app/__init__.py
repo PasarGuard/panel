@@ -17,7 +17,7 @@ from app.settings import handle_settings_message
 from app.utils.logger import get_logger
 from config import DOCS, RUN_SCHEDULER, SQLALCHEMY_DATABASE_URL, SUBSCRIPTION_PATH
 
-__version__ = "1.9.2"
+__version__ = "1.10.1"
 
 startup_functions = []
 shutdown_functions = []

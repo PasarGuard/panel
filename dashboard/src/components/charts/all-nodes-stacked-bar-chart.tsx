@@ -499,18 +499,18 @@ export function AllNodesStackedBarChart() {
     if (!showCustomRange) {
       const now = new Date()
       let from: Date | undefined
-      if (selectedTime === '12h') {
-        from = new Date(now.getTime() - 12 * 60 * 60 * 1000)
-      } else if (selectedTime === '24h') {
+      if (selectedTime === '24h') {
         from = new Date(now.getTime() - 24 * 60 * 60 * 1000)
       } else if (selectedTime === '3d') {
         from = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)
       } else if (selectedTime === '1w') {
         from = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
+      } else if (selectedTime === '1m') {
+        from = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000)
       }
       if (from) {
-        // For 1w and 3d, set to end of current day to avoid extra bar
-        const to = selectedTime === '1w' || selectedTime === '3d' ? dateUtils.toDayjs(now).endOf('day').toDate() : now
+        // For 1w, 3d, and 1m, set to end of current day to avoid extra bar
+        const to = selectedTime === '1w' || selectedTime === '3d' || selectedTime === '1m' ? dateUtils.toDayjs(now).endOf('day').toDate() : now
         setDateRange({ from, to })
       }
     }

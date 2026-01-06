@@ -848,20 +848,20 @@ export default function SubscriptionSettings() {
               <p className="text-sm text-muted-foreground">{t('settings.subscriptions.general.description')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
               <FormField
                 control={form.control}
                 name="url_prefix"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
                     <FormLabel className="flex items-center gap-2 text-sm font-medium">
-                      <Link className="h-4 w-4" />
+                      <Link className="h-4 w-4 shrink-0" />
                       {t('settings.subscriptions.general.urlPrefix')}
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com" {...field} className="font-mono" />
+                      <Input placeholder="https://example.com" {...field} className="font-mono text-sm sm:text-base" />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.urlPrefixDescription')}</FormDescription>
+                    <FormDescription className="text-xs sm:text-sm text-muted-foreground">{t('settings.subscriptions.general.urlPrefixDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -913,12 +913,12 @@ export default function SubscriptionSettings() {
                 name="profile_title"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <FormLabel className="flex items-center gap-2 text-sm font-medium">
                         <User className="h-4 w-4" />
                         {t('settings.subscriptions.general.profileTitle')}
                       </FormLabel>
-                      <VariablesPopover />
+                      <VariablesPopover includeProfileTitle={true} />
                     </div>
                     <FormControl>
                       <Input placeholder={t('settings.subscriptions.general.profileTitlePlaceholder')} {...field} />
@@ -986,7 +986,7 @@ export default function SubscriptionSettings() {
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
                     </FormControl>
                   </FormItem>
                 )}
@@ -998,27 +998,31 @@ export default function SubscriptionSettings() {
 
           {/* Subscription Rules with Drag & Drop */}
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="space-y-1">
-                <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-                  {t('settings.subscriptions.rules.title')}
-                  {ruleFields.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {ruleFields.length}
-                    </Badge>
-                  )}
-                </h3>
-                <p className="text-sm text-muted-foreground">{t('settings.subscriptions.rules.description')}</p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={handleResetToDefault} className="flex items-center gap-2" disabled={isSaving}>
-                  <RotateCcw className="h-4 w-4" />
-                  {t('settings.subscriptions.resetToDefault', { defaultValue: 'Reset to Default' })}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={addRule} className="flex shrink-0 items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  {t('settings.subscriptions.rules.addRule')}
-                </Button>
+            <div className="rounded-lg border bg-card p-4 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <div className="space-y-1 min-w-0 flex-1">
+                  <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
+                    <Sword className="h-5 w-5 text-primary shrink-0" />
+                    {t('settings.subscriptions.rules.title')}
+                    {ruleFields.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 shrink-0">
+                        {ruleFields.length}
+                      </Badge>
+                    )}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">{t('settings.subscriptions.rules.description')}</p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
+                  <Button type="button" variant="outline" size="sm" onClick={handleResetToDefault} className="flex items-center justify-center gap-2 w-full sm:w-auto" disabled={isSaving}>
+                    <RotateCcw className="h-4 w-4" />
+                    <span className="hidden sm:inline">{t('settings.subscriptions.resetToDefault', { defaultValue: 'Reset to Default' })}</span>
+                    <span className="sm:hidden">{t('settings.subscriptions.resetToDefault', { defaultValue: 'Reset' })}</span>
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={addRule} className="flex shrink-0 items-center justify-center gap-2 w-full sm:w-auto">
+                    <Plus className="h-4 w-4" />
+                    {t('settings.subscriptions.rules.addRule')}
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -1030,7 +1034,7 @@ export default function SubscriptionSettings() {
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={ruleFields.map(field => field.id)} strategy={rectSortingStrategy}>
-                  <div className="scrollbar-thin grid max-h-[500px] touch-pan-y grid-cols-1 gap-4 overflow-y-auto p-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="scrollbar-thin grid max-h-[500px] touch-pan-y grid-cols-1 gap-3 overflow-y-auto p-1 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {ruleFields.map((field, index) => (
                       <SortableRule key={field.id} id={field.id} rule={field} index={index} onRemove={removeRule} form={form} />
                     ))}
@@ -1044,28 +1048,36 @@ export default function SubscriptionSettings() {
 
           {/* Applications with Drag & Drop */}
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="space-y-1">
-                <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="space-y-1 min-w-0 flex-1">
+                <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
                   {t('settings.subscriptions.applications.title')}
                   {applicationFields.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
+                    <Badge variant="secondary" className="ml-2 shrink-0">
                       {applicationFields.length}
                     </Badge>
                   )}
                 </h3>
                 <p className="text-sm text-muted-foreground">{t('settings.subscriptions.applications.description')}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={handleLoadOrResetApplications} className="flex shrink-0 items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
+                <Button type="button" variant="outline" size="sm" onClick={handleLoadOrResetApplications} className="flex shrink-0 items-center justify-center gap-2 w-full sm:w-auto">
                   <RotateCcw className="h-4 w-4" />
-                  {applicationFields.length === 0
-                    ? t('settings.subscriptions.applications.loadDefaults', { defaultValue: 'Load defaults' })
-                    : t('settings.subscriptions.applications.resetToDefault', { defaultValue: 'Reset to default' })}
+                  <span className="hidden sm:inline">
+                    {applicationFields.length === 0
+                      ? t('settings.subscriptions.applications.loadDefaults', { defaultValue: 'Load defaults' })
+                      : t('settings.subscriptions.applications.resetToDefault', { defaultValue: 'Reset to default' })}
+                  </span>
+                  <span className="sm:hidden">
+                    {applicationFields.length === 0
+                      ? t('settings.subscriptions.applications.loadDefaults', { defaultValue: 'Load' })
+                      : t('settings.subscriptions.applications.resetToDefault', { defaultValue: 'Reset' })}
+                  </span>
                 </Button>
-                <Button type="button" variant="outline" size="sm" onClick={addApplication} className="flex shrink-0 items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={addApplication} className="flex shrink-0 items-center justify-center gap-2 w-full sm:w-auto">
                   <Plus className="h-4 w-4" />
-                  {t('settings.subscriptions.applications.addApplication')}
+                  <span className="hidden sm:inline">{t('settings.subscriptions.applications.addApplication')}</span>
+                  <span className="sm:hidden">{t('settings.subscriptions.applications.addApplication', { defaultValue: 'Add' })}</span>
                 </Button>
               </div>
             </div>
@@ -1085,10 +1097,10 @@ export default function SubscriptionSettings() {
                   return (
                     <SortableContext key={platformKey} items={indices.map(i => i.id)} strategy={rectSortingStrategy}>
                       <div className="mb-2 mt-2 flex items-center gap-2 px-1 sm:px-0">
-                        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t(`settings.subscriptions.applications.platforms.${platformKey}`)}</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground shrink-0">{t(`settings.subscriptions.applications.platforms.${platformKey}`)}</span>
                         <div className="hidden h-px flex-1 bg-border sm:block" />
                       </div>
-                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
                         {indices.map(({ id, idx }) => (
                           <SortableApplication key={id} id={id} application={applicationFields[idx]} index={idx} onRemove={removeApplication} form={form} />
                         ))}
@@ -1261,7 +1273,7 @@ export default function SubscriptionSettings() {
         </form>
         {/* Create Application Modal */}
         <Dialog open={isAddAppOpen} onOpenChange={setIsAddAppOpen}>
-          <DialogContent className="h-full max-w-full sm:h-auto sm:max-w-[520px]" onOpenAutoFocus={e => e.preventDefault()}>
+          <DialogContent className="h-full max-w-full sm:h-auto sm:max-w-[520px] sm:max-h-[90vh]" onOpenAutoFocus={e => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle className={dir === 'rtl' ? 'text-right' : 'text-left'}>{t('settings.subscriptions.applications.addApplication')}</DialogTitle>
             </DialogHeader>
@@ -1312,7 +1324,10 @@ export default function SubscriptionSettings() {
                   </FormDescription>
                 </div>
                 <div className="space-y-1 sm:col-span-2">
-                  <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
+                  <div className="flex items-center gap-1.5">
+                    <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
+                    <VariablesPopover includeProfileTitle={true} />
+                  </div>
                   <Input
                     value={newAppImportUrl}
                     onChange={e => setNewAppImportUrl(e.target.value)}
@@ -1345,7 +1360,7 @@ export default function SubscriptionSettings() {
                       value={newAppDescription?.[newDescLang] || ''}
                       onChange={e => setNewAppDescription(prev => ({ ...(prev || {}), [newDescLang]: e.target.value }))}
                       placeholder={t('settings.subscriptions.applications.descriptionPlaceholder', { lang: newDescLang.toUpperCase() })}
-                      className="h-8 flex-1 text-xs"
+                      className="h-8 flex-1 min-w-0 text-xs"
                     />
                   </div>
                 </div>
@@ -1369,13 +1384,13 @@ export default function SubscriptionSettings() {
                       value={newLinkName}
                       onChange={e => setNewLinkName(e.target.value)}
                       placeholder={t('settings.subscriptions.applications.downloadLinkNamePlaceholder')}
-                      className="h-8 flex-1 text-xs"
+                      className="h-8 flex-1 min-w-0 text-xs"
                     />
                     <Input
                       value={newLinkUrl}
                       onChange={e => setNewLinkUrl(e.target.value)}
                       placeholder={t('settings.subscriptions.applications.downloadLinkUrlPlaceholder')}
-                      className="h-8 flex-1 font-mono text-xs"
+                      className="h-8 flex-1 min-w-0 font-mono text-xs"
                       dir="ltr"
                     />
                     <Select value={newLinkLang} onValueChange={(v: any) => setNewLinkLang(v)}>
@@ -1396,11 +1411,11 @@ export default function SubscriptionSettings() {
                 </div>
               </div>
             </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsAddAppOpen(false)} disabled={isSaving}>
+            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setIsAddAppOpen(false)} disabled={isSaving} className="w-full sm:w-auto">
                 {t('cancel')}
               </Button>
-              <Button type="button" onClick={handleConfirmCreateApplication} disabled={isSaving}>
+              <Button type="button" onClick={handleConfirmCreateApplication} disabled={isSaving} className="w-full sm:w-auto">
                 {t('create')}
               </Button>
             </div>

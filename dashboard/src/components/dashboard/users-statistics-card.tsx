@@ -15,8 +15,8 @@ const UserStatisticsCard = ({ data }: { data: SystemStats | undefined }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('statistics.users')}</CardTitle>
-        <CardDescription>{t('monitorUsers')}</CardDescription>
+        <CardTitle className="truncate">{t('statistics.users')}</CardTitle>
+        <CardDescription className="truncate">{t('monitorUsers')}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">

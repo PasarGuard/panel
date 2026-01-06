@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { Progress } from '@/components/ui/progress'
 import { formatBytes } from '@/utils/formatByte'
 import { NodeResponse } from '@/service/api'
-import { Upload, Download } from 'lucide-react'
+import { ArrowUp, ArrowDown } from 'lucide-react'
 import { statusColors } from '@/constants/UserSettings'
 
 interface NodeUsageDisplayProps {
@@ -37,42 +37,54 @@ export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
   }
 
   return (
-    <div className={cn('mt-2 space-y-1.5', isRTL ? 'text-right' : 'text-left')}>
-      {!isUnlimited && dataLimit && <Progress value={progressValue} className="h-1.5" indicatorClassName={getProgressColor()} />}
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
-          <span dir="ltr" className="font-medium">
+    <div className={cn('space-y-1.5', isRTL ? 'text-right' : 'text-left')}>
+      {/* Progress Bar */}
+      {!isUnlimited && dataLimit && (
+        <Progress value={progressValue} className="h-1" indicatorClassName={getProgressColor()} />
+      )}
+
+      {/* Main Usage Info */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+        <div className={cn('flex items-center gap-1.5', isRTL && 'flex-row-reverse')}>
+          <span dir="ltr" className={cn("text-xs font-medium text-foreground", isRTL && 'justify-end')}>
             {formatBytes(totalUsed)}
           </span>
           {!isUnlimited && dataLimit && (
-            <span dir="ltr" className="text-muted-foreground/70">
-              / {formatBytes(dataLimit)}
-            </span>
+            <>
+              <span className="text-muted-foreground/60">/</span>
+              <span dir="ltr" className="text-xs text-muted-foreground">
+                {formatBytes(dataLimit)}
+              </span>
+            </>
           )}
         </div>
         {totalLifetime > 0 && (
-          <div className={cn('flex items-center gap-1')}>
-            <span className="text-[10px]">{t('usersTable.total', { defaultValue: 'Total' })}:</span>
-            <span dir="ltr" className="text-[10px]">
+          <div className='flex items-center gap-1'>
+            <span className="text-[10px] text-muted-foreground">
+              {t('usersTable.total', { defaultValue: 'Total' })}:
+            </span>
+            <span dir="ltr" className="text-[10px] font-medium text-muted-foreground">
               {formatBytes(totalLifetime)}
             </span>
           </div>
         )}
       </div>
+
+      {/* Upload/Download Stats */}
       {(uplink > 0 || downlink > 0) && (
-        <div className={cn('flex items-center gap-3 text-[10px]', isRTL ? 'justify-end' : 'justify-start')}>
+        <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', isRTL ? 'justify-end' : 'justify-start')}>
           {uplink > 0 && (
             <div className={cn('flex items-center gap-1', isRTL && 'flex-row-reverse')}>
-              <Upload className="h-3 w-3 flex-shrink-0 text-blue-500" />
-              <span dir="ltr" className="text-blue-500">
+              <ArrowUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-blue-500 dark:text-blue-400" strokeWidth={2} />
+              <span dir="ltr" className="text-[10px] font-medium text-blue-500 dark:text-blue-400">
                 {formatBytes(uplink)}
               </span>
             </div>
           )}
           {downlink > 0 && (
             <div className={cn('flex items-center gap-1', isRTL && 'flex-row-reverse')}>
-              <Download className="h-3 w-3 flex-shrink-0 text-green-500" />
-              <span dir="ltr" className="text-green-500">
+              <ArrowDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-emerald-500 dark:text-emerald-400" strokeWidth={2} />
+              <span dir="ltr" className="text-[10px] font-medium text-emerald-500 dark:text-emerald-400">
                 {formatBytes(downlink)}
               </span>
             </div>

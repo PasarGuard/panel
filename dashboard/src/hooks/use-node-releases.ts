@@ -6,16 +6,15 @@ interface CachedRelease {
   timestamp: number
 }
 
-interface VersionCheckResult {
-  hasUpdate: boolean
+interface NodeReleaseResult {
   latestVersion: string | null
-  currentVersion: string | null
   releaseUrl: string | null
   isLoading: boolean
+  hasUpdate: (currentVersion: string | null) => boolean
 }
 
-const GITHUB_API_URL = 'https://api.github.com/repos/PasarGuard/panel/releases/latest'
-const CACHE_KEY = 'pg_release'
+const GITHUB_API_URL = 'https://api.github.com/repos/PasarGuard/node/releases/latest'
+const CACHE_KEY = 'pg_node_release'
 const CACHE_DURATION = 10 * 60 * 1000
 
 function compareVersions(current: string, latest: string): number {
@@ -50,7 +49,7 @@ function setCache(version: string, url: string): void {
   }
 }
 
-async function fetchLatestRelease(): Promise<{ version: string; url: string } | null> {
+async function fetchLatestNodeRelease(): Promise<{ version: string; url: string } | null> {
   const cached = getCached()
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     return { version: cached.version, url: cached.url }
@@ -78,10 +77,10 @@ async function fetchLatestRelease(): Promise<{ version: string; url: string } | 
   }
 }
 
-export function useVersionCheck(currentVersion: string | null): VersionCheckResult {
+export function useNodeReleases(): NodeReleaseResult {
   const { data, isLoading } = useQuery({
-    queryKey: ['github-release-check'],
-    queryFn: fetchLatestRelease,
+    queryKey: ['github-node-release-check'],
+    queryFn: fetchLatestNodeRelease,
     staleTime: CACHE_DURATION,
     gcTime: CACHE_DURATION * 2,
     refetchOnWindowFocus: false,
@@ -90,16 +89,18 @@ export function useVersionCheck(currentVersion: string | null): VersionCheckResu
     retry: 1,
   })
 
-  const latestVersion = data?.version || null
-  const cleanCurrentVersion = currentVersion?.replace(/^v/, '') || null
-
-  const hasUpdate = !!(cleanCurrentVersion && latestVersion && compareVersions(cleanCurrentVersion, latestVersion) < 0)
+  const hasUpdate = (currentVersion: string | null) => {
+    if (!currentVersion || !data?.version) return false
+    const cleanCurrent = currentVersion.replace(/^v/, '')
+    const cleanLatest = data.version.replace(/^v/, '')
+    return compareVersions(cleanCurrent, cleanLatest) < 0
+  }
 
   return {
-    hasUpdate,
-    latestVersion,
-    currentVersion: cleanCurrentVersion,
+    latestVersion: data?.version || null,
     releaseUrl: data?.url || null,
     isLoading,
+    hasUpdate,
   }
 }
+

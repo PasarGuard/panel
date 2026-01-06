@@ -25,6 +25,7 @@ ebl = html_decoration.expandable_blockquote
 class Button:
     modify_groups = "👥 Modify Groups"
     subscription_url = "🔗 Subscription URL"
+    v2ray_links = "🌀 V2Ray Links"
     modify_note = "📝 Modify Note"
     random_username = "🎲 Random Username"
     modify_data_limit = "📶 Modify Data Limit"
@@ -88,6 +89,7 @@ class Message:
     syncing = "🔄 Syncing..."
     synced = "✅ Users successfully Synced"
     choose_a_template = "📦 Choose a Template:"
+    v2ray_links_unavailable = "❌ No V2Ray links available for this user."
 
     @staticmethod
     def start(stats: SystemStats):

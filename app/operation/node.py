@@ -21,8 +21,8 @@ from app.db.crud.node import (
     reset_node_usage,
     update_node_status,
 )
-from app.db.crud.user import get_user
-from app.db.models import Node, NodeStatus
+from app.db.crud.user import get_user, get_users_count_by_status
+from app.db.models import Node, NodeStatus, UserStatus
 from app.models.admin import AdminDetails
 from app.models.node import (
     NodeCoreUpdate,
@@ -38,7 +38,7 @@ from app.models.node import (
 )
 from app.models.stats import NodeRealtimeStats, NodeStatsList, NodeUsageStatsList, Period
 from app.nats.node_rpc import node_nats_client
-from app.node import core_users, node_manager
+from app.node import calculate_max_message_size, core_users, node_manager
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from config import IS_NODE_WORKER
@@ -245,7 +245,6 @@ class NodeOperation(BaseOperation):
         logger.info(f'New node "{db_node.name}" with id "{db_node.id}" added by admin "{admin.username}"')
 
         node = NodeResponse.model_validate(db_node)
-
         asyncio.create_task(notification.create_node(node, admin.username))
 
         return node
@@ -274,7 +273,6 @@ class NodeOperation(BaseOperation):
         logger.info(f'Node "{db_node.name}" with id "{db_node.id}" modified by admin "{admin.username}"')
 
         node = NodeResponse.model_validate(db_node)
-
         asyncio.create_task(notification.modify_node(node, admin.username))
 
         return node
@@ -346,67 +344,7 @@ class NodeOperation(BaseOperation):
             db (AsyncSession): Database session.
             node_id (int): ID of the node to connect.
         """
-        await self._connect_single_impl(db, node_id)
-        return
-        if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
-            return
-
-        # Get core users once
-        users = await core_users(db=db)
-
-        # Update node manager
-        try:
-            await node_manager.update_node(db_node)
-        except NodeAPIError as e:
-            # Update status to error using simple CRUD
-            await update_node_status(
-                db=db,
-                db_node=db_node,
-                status=NodeStatus.error,
-                message=e.detail,
-            )
-
-            # Send error notification
-            node_notif = NodeNotification(
-                id=db_node.id,
-                name=db_node.name,
-                message=e.detail,
-            )
-            asyncio.create_task(notification.error_node(node_notif))
-            return
-
-        # Connect the node
-        result = await NodeOperation.connect_node(db_node, users)
-
-        if not result:
-            return
-
-        # Update status using simple CRUD (NOT bulk!)
-        await update_node_status(
-            db=db,
-            db_node=db_node,
-            status=result["status"],
-            message=result.get("message", ""),
-            xray_version=result.get("xray_version", ""),
-            node_version=result.get("node_version", ""),
-        )
-
-        # Send appropriate notification
-        if result["status"] == NodeStatus.connected:
-            node_notif = NodeNotification(
-                id=db_node.id,
-                name=db_node.name,
-                xray_version=result.get("xray_version"),
-                node_version=result.get("node_version"),
-            )
-            asyncio.create_task(notification.connect_node(node_notif))
-        elif result["status"] == NodeStatus.error and result["old_status"] != NodeStatus.error:
-            node_notif = NodeNotification(
-                id=db_node.id,
-                name=db_node.name,
-                message=result.get("message"),
-            )
-            asyncio.create_task(notification.error_node(node_notif))
+        return await self._connect_single_impl(db, node_id)
 
     async def _connect_single_node_remote(self, db: AsyncSession, node_id: int) -> None:
         await node_nats_client.publish("connect_node", {"node_id": node_id})
@@ -539,12 +477,17 @@ class NodeOperation(BaseOperation):
         # Fetch users ONCE for all nodes
         users = await core_users(db=db)
 
+        # Calculate max_message_size based on active users count (once for all nodes)
+        user_counts = await get_users_count_by_status(db, [UserStatus.active])
+        active_users_count = user_counts.get(UserStatus.active.value, 0)
+        max_message_size = calculate_max_message_size(active_users_count)
+
         async def connect_single(node: Node) -> dict | None:
             if node is None or node.status in (NodeStatus.disabled, NodeStatus.limited):
                 return
 
             try:
-                await node_manager.update_node(node)
+                await node_manager.update_node(node, max_message_size=max_message_size)
             except NodeAPIError as e:
                 return {
                     "node_id": node.id,
@@ -610,9 +553,12 @@ class NodeOperation(BaseOperation):
         # Get core users once
         users = await core_users(db=db)
 
+        # Calculate max_message_size based on active users count
+        max_message_size = calculate_max_message_size(len(users))
+
         # Update node manager
         try:
-            await node_manager.update_node(db_node)
+            await node_manager.update_node(db_node, max_message_size=max_message_size)
         except NodeAPIError as e:
             # Update status to error using simple CRUD
             await update_node_status(

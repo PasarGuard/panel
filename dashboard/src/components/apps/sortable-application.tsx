@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { GripVertical, Trash2, Plus, ChevronDown, ChevronRight, Apple, Tv, Monitor, Laptop, Smartphone, Star } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { VariablesPopover } from '@/components/ui/variables-popover'
 
 const platformOptions = [
   { value: 'android', label: 'settings.subscriptions.applications.platforms.android' },
@@ -89,14 +90,14 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
     <div ref={setNodeRef} style={style} className="cursor-default">
       <div className="group relative rounded-md border bg-card transition-colors hover:bg-accent/20">
         {/* Header with drag handle, expand/collapse, and delete button */}
-        <div className="flex items-center gap-3 p-4">
-          <button type="button" style={{ cursor: cursor }} className="touch-none opacity-50 transition-opacity group-hover:opacity-100" {...attributes} {...listeners}>
-            <GripVertical className="h-5 w-5" />
+        <div className="flex items-center gap-2 p-3 sm:gap-3 sm:p-4">
+          <button type="button" style={{ cursor: cursor }} className="touch-none shrink-0 opacity-50 transition-opacity group-hover:opacity-100" {...attributes} {...listeners}>
+            <GripVertical className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="sr-only">Drag to reorder</span>
           </button>
 
-          <button type="button" onClick={() => setIsExpanded(!isExpanded)} className={'flex flex-1 flex-wrap items-center gap-2 hover:text-foreground sm:flex-nowrap'}>
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <button type="button" onClick={() => setIsExpanded(!isExpanded)} className={'flex flex-1 min-w-0 flex-wrap items-center gap-1.5 hover:text-foreground sm:gap-2 sm:flex-nowrap'}>
+            {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
             {/* Icon preview with graceful fallback */}
             {(() => {
               const iconUrl = form.watch(`applications.${index}.icon_url`)
@@ -104,10 +105,10 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
               const initial = name ? name.charAt(0).toUpperCase() : ''
               const platform = form.watch(`applications.${index}.platform`)
               if (iconUrl && !iconBroken) {
-                return <img src={iconUrl} alt={name || 'icon'} className="h-5 w-5 rounded-sm object-cover" onError={() => setIconBroken(true)} onClick={e => e.stopPropagation()} />
+                return <img src={iconUrl} alt={name || 'icon'} className="h-4 w-4 shrink-0 rounded-sm object-cover sm:h-5 sm:w-5" onError={() => setIconBroken(true)} onClick={e => e.stopPropagation()} />
               }
               return (
-                <span aria-label="app-icon-fallback" className="inline-flex h-5 w-5 items-center justify-center overflow-hidden rounded-sm bg-muted text-muted-foreground/90">
+                <span aria-label="app-icon-fallback" className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-muted text-muted-foreground/90 sm:h-5 sm:w-5">
                   {initial ? (
                     <span className="text-[10px] font-medium leading-none">{initial}</span>
                   ) : (
@@ -122,13 +123,13 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
             <FormField
               control={form.control}
               name={`applications.${index}.platform`}
-              render={({ field }) => <span className="text-xs text-muted-foreground">{t(platformOptions.find(o => o.value === field.value)?.label || '')}</span>}
+              render={({ field }) => <span className="hidden text-xs text-muted-foreground sm:inline">{t(platformOptions.find(o => o.value === field.value)?.label || '')}</span>}
             />
             <FormField
               control={form.control}
               name={`applications.${index}.platform`}
               render={({ field }) => (
-                <span className="text-muted-foreground/80">
+                <span className="text-muted-foreground/80 shrink-0">
                   <PlatformIcon platform={field.value} />
                 </span>
               )}
@@ -137,11 +138,11 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
               control={form.control}
               name={`applications.${index}.name`}
               render={({ field }) => (
-                <h4 className="flex min-w-0 items-center gap-1.5 truncate text-sm font-medium">
+                <h4 className="flex min-w-0 items-center gap-1.5 truncate text-xs font-medium sm:text-sm">
                   {field.value || t('settings.subscriptions.applications.application', { defaultValue: 'Application' })}
                   {form.watch(`applications.${index}.recommended`) ? (
-                    <span title={t('settings.subscriptions.applications.recommended')} className="inline-flex items-center text-amber-500/90">
-                      <Star className="h-3.5 w-3.5 fill-amber-500/30" />
+                    <span title={t('settings.subscriptions.applications.recommended')} className="inline-flex shrink-0 items-center text-amber-500/90">
+                      <Star className="h-3 w-3 fill-amber-500/30 sm:h-3.5 sm:w-3.5" />
                     </span>
                   ) : null}
                 </h4>
@@ -158,16 +159,16 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
               e.stopPropagation()
               onRemove(index)
             }}
-            className="h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
+            className="h-7 w-7 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100 sm:h-8 sm:w-8"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
         </div>
 
         {/* Collapsible content */}
         {isExpanded && (
-          <div className="border-t bg-muted/20 p-4">
-            <div className="space-y-4">
+          <div className="border-t bg-muted/20 p-3 sm:p-4">
+            <div className="space-y-3 sm:space-y-4">
               {/* Application fields */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <FormField
@@ -241,7 +242,10 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
                   name={`applications.${index}.import_url`}
                   render={({ field }) => (
                     <FormItem className="space-y-1 sm:col-span-2">
-                      <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
+                      <div className="flex items-center gap-1.5">
+                        <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
+                        <VariablesPopover includeProfileTitle={true} />
+                      </div>
                       <FormControl>
                         <Input placeholder={t('settings.subscriptions.applications.importUrlPlaceholder')} {...field} className="h-8 text-left font-mono text-xs" dir="ltr" />
                       </FormControl>
@@ -258,9 +262,9 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
                     <FormItem className="space-y-1 sm:col-span-2">
                       <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
                       <FormControl>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-                            <SelectTrigger className="h-8 w-32 text-xs">
+                            <SelectTrigger className="h-8 w-full text-xs sm:w-32">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="scrollbar-thin z-[50]">
@@ -316,13 +320,14 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
 
               {/* Download Links */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <FormLabel className="text-xs font-medium text-muted-foreground/80">
                     {t('settings.subscriptions.applications.downloadLinks')} ({downloadLinkFields.length})
                   </FormLabel>
-                  <Button type="button" variant="outline" size="sm" onClick={addDownloadLink} className="h-7 text-xs">
+                  <Button type="button" variant="outline" size="sm" onClick={addDownloadLink} className="h-7 w-full text-xs sm:w-auto">
                     <Plus className="mr-1 h-3 w-3" />
-                    {t('settings.subscriptions.applications.addDownloadLink')}
+                    <span className="hidden sm:inline">{t('settings.subscriptions.applications.addDownloadLink')}</span>
+                    <span className="sm:hidden">{t('settings.subscriptions.applications.addDownloadLink', { defaultValue: 'Add Link' })}</span>
                   </Button>
                 </div>
 
@@ -342,12 +347,12 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
                       const linkLang = form.watch(`applications.${index}.download_links.${linkIndex}.language`)
                       const ltrForThis = isRtl && linkLang !== 'fa'
                       return (
-                        <div key={linkField.id} className="flex gap-2 rounded-md border bg-muted/20 p-2">
+                        <div key={linkField.id} className="flex flex-col gap-2 rounded-md border bg-muted/20 p-2 sm:flex-row">
                           <FormField
                             control={form.control}
                             name={`applications.${index}.download_links.${linkIndex}.name`}
                             render={({ field }) => (
-                              <FormItem className="flex-1">
+                              <FormItem className="flex-1 min-w-0">
                                 <FormControl>
                                   <Input
                                     placeholder={t('settings.subscriptions.applications.downloadLinkNamePlaceholder')}
@@ -368,7 +373,7 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
                             control={form.control}
                             name={`applications.${index}.download_links.${linkIndex}.url`}
                             render={({ field }) => (
-                              <FormItem className="flex-1">
+                              <FormItem className="flex-1 min-w-0">
                                 <FormControl>
                                   <Input placeholder={t('settings.subscriptions.applications.downloadLinkUrlPlaceholder')} {...field} className="h-7 text-left font-mono text-xs" dir="ltr" />
                                 </FormControl>
@@ -378,35 +383,37 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
                               </FormItem>
                             )}
                           />
-                          <FormField
-                            control={form.control}
-                            name={`applications.${index}.download_links.${linkIndex}.language`}
-                            render={({ field }) => (
-                              <FormItem className="w-24">
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger className="h-7 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent className="scrollbar-thin z-[50]">
-                                    {languageOptions.map(option => (
-                                      <SelectItem key={option.value} value={option.value}>
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-xs">{option.icon}</span>
-                                          <span className="text-xs">{option.label}</span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <Button type="button" variant="ghost" size="icon" onClick={() => removeDownloadLink(linkIndex)} className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10">
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <div className="flex items-start gap-2 sm:items-center">
+                            <FormField
+                              control={form.control}
+                              name={`applications.${index}.download_links.${linkIndex}.language`}
+                              render={({ field }) => (
+                                <FormItem className="w-full sm:w-24">
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger className="h-7 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent className="scrollbar-thin z-[50]">
+                                      {languageOptions.map(option => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-xs">{option.icon}</span>
+                                            <span className="text-xs">{option.label}</span>
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removeDownloadLink(linkIndex)} className="h-7 w-7 shrink-0 p-0 text-destructive hover:bg-destructive/10">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
                       )
                     })}

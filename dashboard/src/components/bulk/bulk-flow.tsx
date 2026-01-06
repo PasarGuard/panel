@@ -14,6 +14,7 @@ import {
   ShadowsocksMethods,
 } from '@/service/api'
 import { Button } from '@/components/ui/button'
+import { LoaderButton } from '@/components/ui/loader-button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -157,10 +158,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           case 'expire':
             return expireSeconds !== undefined
           case 'groups':
-            if (groupsOperation === 'remove') {
-              return selectedHasGroups.length > 0 || selectedUsers.length > 0 || selectedAdmins.length > 0
-            }
-            return selectedUsers.length > 0 || selectedAdmins.length > 0 || selectedHasGroups.length > 0
+            // Allow proceeding even if no targets selected - will apply to all users
+            return true
           default:
             return false
         }
@@ -172,10 +171,13 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   }
 
   const handleApply = () => {
-    const totalTargets = selectedUsers.length + selectedAdmins.length + selectedGroups.length + selectedHasGroups.length
-    if (operationType === 'groups' && groupsOperation === 'remove' && totalTargets === 0) {
-      toast.error(t('error'), { description: t('bulk.noTargetsSelected') })
-      return
+    // For groups remove operation, require at least hasGroups, users, or admins to be selected
+    if (operationType === 'groups' && groupsOperation === 'remove') {
+      const totalTargets = selectedUsers.length + selectedAdmins.length + selectedHasGroups.length
+      if (totalTargets === 0) {
+        toast.error(t('error'), { description: t('bulk.noTargetsSelected') })
+        return
+      }
     }
     setShowConfirmDialog(true)
   }
@@ -275,7 +277,9 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
     )
   }
 
-  const totalTargets = selectedUsers.length + selectedAdmins.length + selectedGroups.length + (operationType === 'groups' ? selectedHasGroups.length : 0)
+  // For groups operation, groups are the operation target, not user targets
+  // So isApplyToAll should only check users, admins, and hasGroups
+  const totalTargets = selectedUsers.length + selectedAdmins.length + (operationType === 'groups' ? selectedHasGroups.length : selectedGroups.length)
   const isApplyToAll = totalTargets === 0
 
   const formatTime = (seconds: number) => {
@@ -841,10 +845,19 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <ChevronRight className={cn('h-4 w-4', isRTL ? 'mr-1.5 rotate-180' : 'ml-1.5')} />
           </Button>
         ) : (
-          <Button onClick={handleApply} disabled={!canProceedToNext()} size="sm" className="w-full sm:w-auto">
-            <CheckCircle className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
-            <span>{t('bulk.applyOperation', { defaultValue: 'Apply Operation' })}</span>
-          </Button>
+          <LoaderButton
+            onClick={handleApply}
+            disabled={!canProceedToNext()}
+            isLoading={proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending}
+            loadingText={t('applying', { defaultValue: 'Applying...' })}
+            size="sm"
+            className="w-full sm:w-auto"
+          >
+            <div className="flex items-center gap-1.5">
+              <CheckCircle className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
+              <span>{t('bulk.applyOperation', { defaultValue: 'Apply Operation' })}</span>
+            </div>
+          </LoaderButton>
         )}
       </div>
 

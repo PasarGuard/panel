@@ -23,11 +23,11 @@ type PeriodOption = {
 }
 
 const PERIOD_KEYS = [
-  { key: '12h', period: 'hour' as Period, amount: 12, unit: 'hour' },
   { key: '24h', period: 'hour' as Period, amount: 24, unit: 'hour' },
   { key: '3d', period: 'day' as Period, amount: 3, unit: 'day' },
   { key: '7d', period: 'day' as Period, amount: 7, unit: 'day' },
   { key: '30d', period: 'day' as Period, amount: 30, unit: 'day' },
+  { key: '1m', period: 'day' as Period, amount: 1, unit: 'month' },
   { key: '3m', period: 'day' as Period, amount: 3, unit: 'month' },
   { key: 'all', period: 'day' as Period, allTime: true },
 ]
@@ -246,7 +246,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     ],
     [t],
   )
-  const [periodOption, setPeriodOption] = useState<PeriodOption>(() => PERIOD_OPTIONS[3])
+  const [periodOption, setPeriodOption] = useState<PeriodOption>(() => PERIOD_OPTIONS[2])
 
   // Update periodOption when PERIOD_OPTIONS changes (e.g., language change)
   useEffect(() => {
@@ -333,10 +333,21 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     return percent
   }, [chartData])
 
+  // Calculate total usage during period
+  const totalUsageDuringPeriod = useMemo(() => {
+    if (!chartData || chartData.length === 0) return 0
+    const totalBytes = chartData.reduce((sum, dataPoint) => {
+      const traffic = (dataPoint as { traffic: number })?.traffic || 0
+      return sum + traffic
+    }, 0)
+    // Convert bytes to GB
+    return totalBytes / (1024 * 1024 * 1024)
+  }, [chartData])
+
   const xAxisInterval = useMemo(() => {
-    // For hours (12h, 24h), show approximately 6-8 labels
+    // For hours (24h), show approximately 8 labels
     if (periodOption.hours) {
-      const targetLabels = periodOption.hours === 12 ? 6 : 8
+      const targetLabels = 8
       return Math.max(1, Math.floor(chartData.length / targetLabels))
     }
 
@@ -476,6 +487,11 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
         {chartData.length > 0 && trend !== null && trend < 0 && (
           <div className="flex gap-2 font-medium leading-none text-red-600 dark:text-red-400">
             {t('usersTable.trendingDown', { defaultValue: 'Trending down by' })} {Math.abs(trend).toFixed(1)}% <TrendingDown className="h-4 w-4" />
+          </div>
+        )}
+        {chartData.length > 0 && (
+          <div className="leading-none text-muted-foreground">
+            {t('statistics.usageDuringPeriod', { defaultValue: 'Usage During Period' })}: <span dir="ltr" className="font-mono">{totalUsageDuringPeriod.toFixed(2)} GB</span>
           </div>
         )}
         <div className="leading-none text-muted-foreground">{t('statistics.trafficUsageDescription', { defaultValue: 'Total traffic usage across all servers' })}</div>

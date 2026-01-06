@@ -326,8 +326,9 @@ class ClashMetaConfiguration(ClashConfiguration):
             "port": inbound.port,
             "udp": True,
             "uuid": settings["id"],
-            "encryption": "" if inbound.encryption == "none" else inbound.encryption,
         }
+        if inbound.encryption != "none":
+            node["encryption"] = inbound.encryption
 
         # Only add flow if inbound supports it
         if inbound.flow_enabled and (flow := settings.get("flow", "")):

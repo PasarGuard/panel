@@ -638,7 +638,10 @@
     "disableSuccess": "Шаблон «{{name}}» был успешно отключён",
     "enableFailed": "Не удалось включить администратора «{{name}}»",
     "disableFailed": "Не удалось отключить администратора «{{name}}»",
-    "resetUsages": "Сброс использования"
+    "resetUsages": "Сброс использования",
+    "noTemplates": "Шаблоны не настроены",
+    "noTemplatesDescription": "Начните с создания первого шаблона пользователя.",
+    "noSearchResults": "Нет шаблонов, соответствующих вашим критериям поиска. Попробуйте изменить условия поиска."
   },
   "core.configuration": "Конфигурация",
   "core.generalErrorMessage": "Что-то пошло не так, пожалуйста, проверьте конфигурацию",
@@ -859,6 +862,9 @@
   "usersTable.dataUsage": "Расход трафика",
   "usersTable.noUser": "В системе нет созданных пользователей",
   "usersTable.noUserMatched": "Похоже, нет пользователя, соответствующего вашему запросу",
+  "users.noUsers": "Пользователи не настроены",
+  "users.noUsersDescription": "Начните с создания первой учетной записи пользователя.",
+  "users.noSearchResults": "Нет пользователей, соответствующих вашим критериям поиска. Попробуйте изменить условия поиска.",
   "usersTable.status": "Статус",
   "usersTable.total": "Всего",
   "autoRefresh": {
@@ -1093,6 +1099,8 @@
       "usage_percentage": "Процент использования данных",
       "protocol": "Протокол прокси (например, VMess)",
       "transport": "Метод транспорта прокси (например, ws)",
+      "profile_title": "Название профиля",
+      "url": "URL подписки",
       "admin_username": "Имя пользователя администратора"
     },
     "httpVersions": {
@@ -1186,7 +1194,10 @@
     "allow": "Разрешить",
     "skip": "Пропустить",
     "priorityUpdated": "Хосты успешно обновлены",
-    "priorityUpdateError": "Не удалось обновить хосты"
+    "priorityUpdateError": "Не удалось обновить хосты",
+    "noHosts": "Хосты не настроены",
+    "noHostsDescription": "Начните с создания первой конфигурации хоста.",
+    "noSearchResults": "Нет хостов, соответствующих вашим критериям поиска. Попробуйте изменить условия поиска."
   },
   "group": {
     "createSuccess": "Группа «{{name}}» успешно создана",
@@ -1200,7 +1211,10 @@
     "enableFailed": "Не удалось включить группу «{{name}}»",
     "disableSuccess": "Группа «{{name}}» успешно отключена",
     "disableFailed": "Не удалось отключить группу «{{name}}»",
-    "deleteConfirmation": "Удалить группу"
+    "deleteConfirmation": "Удалить группу",
+    "noGroups": "Группы не настроены",
+    "noGroupsDescription": "Начните с создания первой группы.",
+    "noSearchResults": "Нет групп, соответствующих вашим критериям поиска. Попробуйте изменить условия поиска."
   },
   "name": "Имя",
   "nodeModal": {
@@ -1212,6 +1226,8 @@
     "addressPlaceholder": "Введите адрес узла",
     "port": "Порт узла",
     "portPlaceholder": "Введите порт узла",
+    "apiPort": "API Порт",
+    "apiPortPlaceholder": "Введите API порт (например: 62051)",
     "usageRatio": "Коэффициент использования",
     "usageRatioPlaceholder": "Введите коэффициент использования",
     "connectionType": "Тип подключения",
@@ -1284,7 +1300,7 @@
       "checkUnavailableForNew": "Проверка статуса недоступна для новых узлов. Сначала создайте узел, чтобы проверить его статус."
     },
     "onlineStats": {
-      "button": "Онлайн статистика",
+      "button": "Статистика",
       "title": "Статистика онлайн пользователей",
       "ipListTitle": "IP адреса для {{username}}",
       "nodeInfo": "Узел: {{nodeName}}",
@@ -1307,7 +1323,41 @@
     "defaultTimeout": "Тайм-аут по умолчанию",
     "internalTimeout": "Внутренний тайм-аут",
     "defaultTimeoutPlaceholder": "Введите тайм-аут по умолчанию (в секундах)",
-    "internalTimeoutPlaceholder": "Введите внутренний тайм-аут (в секундах)"
+    "internalTimeoutPlaceholder": "Введите внутренний тайм-аут (в секундах)",
+    "updateCore": "Обновить Core",
+    "updateCoreTitle": "Обновить Xray Core",
+    "updateCoreDescription": "Обновить Xray core для узла «{{nodeName}}»",
+    "updateCoreSuccess": "Xray core успешно обновлен",
+    "updateCoreFailed": "Не удалось обновить Xray core: {{message}}",
+    "selectFromList": "Выбрать из списка",
+    "customVersion": "Пользовательская версия",
+    "enterVersion": "Ввести версию",
+    "versionPlaceholder": "например, v1.8.0 или 1.8.0",
+    "versionHint": "Введите версию в формате vX.X.X или X.X.X (например, v1.8.0)",
+    "customVersionRequired": "Версия обязательна",
+    "invalidVersionFormat": "Неверный формат версии. Ожидается: vX.X.X или X.X.X",
+    "updateGeofiles": "Обновить гео",
+    "updateGeofilesTitle": "Обновить геофайлы",
+    "updateGeofilesDescription": "Обновить геофайлы для узла «{{nodeName}}»",
+    "updateGeofilesSuccess": "Геофайлы успешно обновлены",
+    "updateGeofilesFailed": "Не удалось обновить геофайлы: {{message}}",
+    "updateGeofilesHint": "Оставьте пустым для обновления всех регионов или выберите конкретный регион",
+    "updateNode": "Обновить узел",
+    "updateNodeSuccess": "Узел успешно обновлен",
+    "updateNodeFailed": "Не удалось обновить узел: {{message}}",
+    "updatingNode": "Обновление узла...",
+    "selectVersion": "Выбрать версию",
+    "selectRegion": "Выбрать регион",
+    "regions": {
+      "iran": "Иран",
+      "china": "Китай",
+      "russia": "Россия"
+    },
+    "latest": "Последняя",
+    "update": "Обновить",
+    "updating": "Обновление...",
+    "updateAvailable": "Доступно обновление",
+    "loadingReleases": "Загрузка релизов..."
   },
   "theme": {
     "title": "Тема",
@@ -1487,6 +1537,11 @@
     "activeNextPlanError": "Не удалось активировать следующий план для пользователя «{{name}}».",
     "deleteConfirmTitle": "Удалить пользователя",
     "deleteConfirm": "Вы уверены, что хотите удалить пользователя «{{name}}»?",
+    "nextPlanTitle": "Следующий план",
+    "nextPlanTemplateId": "ID шаблона",
+    "nextPlanDataLimit": "Лимит данных (ГБ)",
+    "nextPlanExpire": "Срок действия",
+    "nextPlanAddRemainingTraffic": "Добавить оставшийся трафик",
     "selectTemplate": "Выберите шаблон",
     "selectTemplatePlaceholder": "Выберите шаблон",
     "proxySettingsAccordion": "Настройки прокси",

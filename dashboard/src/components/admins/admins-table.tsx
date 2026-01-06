@@ -336,7 +336,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     onRemoveAllUsers: handleRemoveAllUsersClick,
   })
 
-  const showLoadingSpinner = isLoading && isFirstLoadRef.current
+  const isCurrentlyLoading = isLoading || (isFetching && !adminsResponse)
   const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current)
 
   return (
@@ -351,7 +351,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         onResetUsage={handleResetUsersUsageClick}
         onRemoveAllUsers={handleRemoveAllUsersClick}
         setStatusToggleDialogOpen={setStatusToggleDialogOpen}
-        isLoading={showLoadingSpinner}
+        isLoading={isCurrentlyLoading && isFirstLoadRef.current}
         isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}
       />
       <PaginationControls

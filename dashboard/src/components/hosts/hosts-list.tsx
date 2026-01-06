@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { RefreshCw, Search, X } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface Brutal {
   enable?: boolean
@@ -745,7 +746,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     setIsUpdatingPriorities(true)
 
     try {
-      // Prepare the hosts data for the API call
+      // Prepare the hosts data for the API call with proper data transformation
       const hostsToUpdate: CreateHost[] = updatedHosts.map((host, index) => ({
         id: host.id,
         remark: host.remark || '',
@@ -767,8 +768,112 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         ech_config_list: host.ech_config_list,
         fragment_settings: host.fragment_settings,
         noise_settings: host.noise_settings,
-        mux_settings: host.mux_settings,
-        transport_settings: host.transport_settings as any,
+        mux_settings: host.mux_settings
+          ? {
+              xray: host.mux_settings.xray
+                ? {
+                    enabled: host.mux_settings.xray.enabled ?? false,
+                    concurrency: host.mux_settings.xray.concurrency ?? null,
+                    xudp_concurrency: host.mux_settings.xray.xudpConcurrency ?? null,
+                    xudp_proxy_443: host.mux_settings.xray.xudpProxyUDP443 ?? 'reject',
+                  }
+                : undefined,
+              sing_box: host.mux_settings.sing_box
+                ? {
+                    enable: host.mux_settings.sing_box.enable ?? false,
+                    protocol: host.mux_settings.sing_box.protocol ?? 'smux',
+                    max_connections: host.mux_settings.sing_box.max_connections ?? null,
+                    max_streams: host.mux_settings.sing_box.max_streams ?? null,
+                    min_streams: host.mux_settings.sing_box.min_streams ?? null,
+                    padding: host.mux_settings.sing_box.padding ?? undefined,
+                    brutal: host.mux_settings.sing_box.brutal ?? null,
+                  }
+                : undefined,
+              clash: host.mux_settings.clash
+                ? {
+                    enable: host.mux_settings.clash.enable ?? false,
+                    protocol: host.mux_settings.clash.protocol ?? 'smux',
+                    max_connections: host.mux_settings.clash.max_connections ?? null,
+                    max_streams: host.mux_settings.clash.max_streams ?? null,
+                    min_streams: host.mux_settings.clash.min_streams ?? null,
+                    padding: host.mux_settings.clash.padding ?? undefined,
+                    brutal: host.mux_settings.clash.brutal ?? null,
+                    statistic: host.mux_settings.clash.statistic ?? undefined,
+                    only_tcp: host.mux_settings.clash.only_tcp ?? undefined,
+                  }
+                : undefined,
+            }
+          : undefined,
+        transport_settings: host.transport_settings
+          ? {
+              xhttp_settings: host.transport_settings.xhttp_settings
+                ? {
+                    mode: host.transport_settings.xhttp_settings.mode ?? undefined,
+                    no_grpc_header: host.transport_settings.xhttp_settings.no_grpc_header === null ? undefined : !!host.transport_settings.xhttp_settings.no_grpc_header,
+                    x_padding_bytes: host.transport_settings.xhttp_settings.x_padding_bytes ?? undefined,
+                    sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
+                    sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
+                    download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,
+                    xmux: host.transport_settings.xhttp_settings.xmux
+                      ? {
+                          max_concurrency: host.transport_settings.xhttp_settings.xmux.maxConcurrency ?? undefined,
+                          max_connections: host.transport_settings.xhttp_settings.xmux.maxConnections ?? undefined,
+                          c_max_reuse_times: host.transport_settings.xhttp_settings.xmux.cMaxReuseTimes ?? undefined,
+                          h_max_reusable_secs: host.transport_settings.xhttp_settings.xmux.hMaxReusableSecs ?? undefined,
+                          h_max_request_times: host.transport_settings.xhttp_settings.xmux.hMaxRequestTimes ?? undefined,
+                          h_keep_alive_period: host.transport_settings.xhttp_settings.xmux.hKeepAlivePeriod ?? undefined,
+                        }
+                      : undefined,
+                  }
+                : undefined,
+              grpc_settings: host.transport_settings.grpc_settings
+                ? {
+                    multi_mode: host.transport_settings.grpc_settings.multi_mode === null ? undefined : !!host.transport_settings.grpc_settings.multi_mode,
+                    idle_timeout: host.transport_settings.grpc_settings.idle_timeout ?? undefined,
+                    health_check_timeout: host.transport_settings.grpc_settings.health_check_timeout ?? undefined,
+                    permit_without_stream: host.transport_settings.grpc_settings.permit_without_stream ?? undefined,
+                    initial_windows_size: host.transport_settings.grpc_settings.initial_windows_size ?? undefined,
+                  }
+                : undefined,
+              kcp_settings: host.transport_settings.kcp_settings
+                ? {
+                    header: host.transport_settings.kcp_settings.header ?? undefined,
+                    mtu: host.transport_settings.kcp_settings.mtu ?? undefined,
+                    tti: host.transport_settings.kcp_settings.tti ?? undefined,
+                    uplink_capacity: host.transport_settings.kcp_settings.uplink_capacity ?? undefined,
+                    downlink_capacity: host.transport_settings.kcp_settings.downlink_capacity ?? undefined,
+                    congestion: host.transport_settings.kcp_settings.congestion ?? undefined,
+                    read_buffer_size: host.transport_settings.kcp_settings.read_buffer_size ?? undefined,
+                    write_buffer_size: host.transport_settings.kcp_settings.write_buffer_size ?? undefined,
+                  }
+                : undefined,
+              tcp_settings: host.transport_settings.tcp_settings
+                ? {
+                    header: host.transport_settings.tcp_settings.header ?? undefined,
+                    request: host.transport_settings.tcp_settings.request
+                      ? {
+                          version: host.transport_settings.tcp_settings.request.version ?? undefined,
+                          method: host.transport_settings.tcp_settings.request.method ?? undefined,
+                          headers: host.transport_settings.tcp_settings.request.headers ?? undefined,
+                        }
+                      : undefined,
+                    response: host.transport_settings.tcp_settings.response
+                      ? {
+                          version: host.transport_settings.tcp_settings.response.version ?? undefined,
+                          status: host.transport_settings.tcp_settings.response.status ?? undefined,
+                          reason: host.transport_settings.tcp_settings.response.reason ?? undefined,
+                          headers: host.transport_settings.tcp_settings.response.headers ?? undefined,
+                        }
+                      : undefined,
+                  }
+                : undefined,
+              websocket_settings: host.transport_settings.websocket_settings
+                ? {
+                    heartbeatPeriod: host.transport_settings.websocket_settings.heartbeatPeriod ?? undefined,
+                  }
+                : undefined,
+            }
+          : undefined,
         http_headers: host.http_headers || {},
       }))
 
@@ -830,6 +935,10 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     })
   }, [sortedHosts, searchQuery])
 
+  const isCurrentlyLoading = !data || (isRefreshing && sortedHosts.length === 0)
+  const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !searchQuery.trim() && sortedHosts.length === 0
+  const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && searchQuery.trim() !== ''
+
   return (
     <div>
       {/* Search Input */}
@@ -854,19 +963,60 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
         </Button>
       </div>
-      <div>
-        <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
-            <div className="max-w-screen-[2000px] min-h-screen overflow-hidden">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredHosts.map(host => (
-                  <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
-                ))}
-              </div>
+      {isCurrentlyLoading && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Card key={index} className="animate-pulse">
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-2">
+                  <div className="h-5 w-2/3 rounded-md bg-muted"></div>
+                  <div className="h-3 w-full rounded-md bg-muted"></div>
+                  <div className="h-3 w-4/5 rounded-md bg-muted"></div>
+                  <div className="mt-2 flex justify-between">
+                    <div className="h-6 w-1/4 rounded-md bg-muted"></div>
+                    <div className="h-6 w-1/4 rounded-md bg-muted"></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      {isEmpty && !isCurrentlyLoading && (
+        <Card className="mb-12">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">{t('host.noHosts')}</h3>
+              <p className="mx-auto max-w-2xl text-muted-foreground">{t('host.noHostsDescription')}</p>
             </div>
-          </SortableContext>
-        </DndContext>
-      </div>
+          </CardContent>
+        </Card>
+      )}
+      {isSearchEmpty && !isCurrentlyLoading && (
+        <Card className="mb-12">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">{t('noResults')}</h3>
+              <p className="mx-auto max-w-2xl text-muted-foreground">{t('host.noSearchResults')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
+        <div>
+          <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
+              <div className="max-w-screen-[2000px] min-h-screen overflow-hidden">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredHosts.map(host => (
+                    <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
+                  ))}
+                </div>
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
+      )}
 
       <HostModal
         isDialogOpen={isDialogOpen}

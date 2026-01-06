@@ -651,7 +651,10 @@
     "disableSuccess": "模板「{{name}}」已成功禁用",
     "enableFailed": "启用管理员「{{name}}」失败",
     "disableFailed": "禁用管理员「{{name}}」失败",
-    "resetUsages": "重置使用量"
+    "resetUsages": "重置使用量",
+    "noTemplates": "未配置模板",
+    "noTemplatesDescription": "开始创建您的第一个用户模板。",
+    "noSearchResults": "没有模板匹配您的搜索条件。请尝试调整搜索词。"
   },
   "core.configuration": "配置",
   "core.generalErrorMessage": "配置有误, 请检查",
@@ -912,6 +915,8 @@
       "usage_percentage": "数据使用百分比",
       "protocol": "代理协议 (例如：VMess)",
       "transport": "代理传输方法 (例如：ws)",
+      "profile_title": "配置文件标题",
+      "url": "订阅链接",
       "admin_username": "管理员用户名"
     },
     "advancedOptions": "高级选项",
@@ -1174,6 +1179,9 @@
   "usersTable.dataUsage": "流量统计",
   "usersTable.noUser": "还没有添加任何用户",
   "usersTable.noUserMatched": "没有找到您搜索的用户",
+  "users.noUsers": "未配置用户",
+  "users.noUsersDescription": "开始创建您的第一个用户账户。",
+  "users.noSearchResults": "没有用户匹配您的搜索条件。请尝试调整搜索词。",
   "usersTable.status": "状态",
   "usersTable.sortByExpire": "按过期时间排序",
   "usersTable.total": "总共",
@@ -1243,7 +1251,10 @@
     "duplicateSuccess": "主机「{{name}}」已成功复制",
     "duplicateFailed": "复制主机「{{name}}」失败",
     "priorityUpdated": "主机已成功更新",
-    "priorityUpdateError": "更新主机失败"
+    "priorityUpdateError": "更新主机失败",
+    "noHosts": "未配置主机",
+    "noHostsDescription": "开始创建您的第一个主机配置。",
+    "noSearchResults": "没有主机匹配您的搜索条件。请尝试调整搜索词。"
   },
   "pasarguard": "PasarGuard",
   "group": {
@@ -1258,7 +1269,10 @@
     "enableFailed": "启用群组「{{name}}」失败",
     "disableSuccess": "群组「{{name}}」已成功禁用",
     "disableFailed": "禁用群组「{{name}}」失败",
-    "deleteConfirmation": "移除群组"
+    "deleteConfirmation": "移除群组",
+    "noGroups": "未配置群组",
+    "noGroupsDescription": "开始创建您的第一个群组。",
+    "noSearchResults": "没有群组匹配您的搜索条件。请尝试调整搜索词。"
   },
   "name": "名称",
   "nodeModal": {
@@ -1270,6 +1284,8 @@
     "addressPlaceholder": "输入节点地址",
     "port": "节点端口",
     "portPlaceholder": "输入节点端口",
+    "apiPort": "API 端口",
+    "apiPortPlaceholder": "输入 API 端口 (例如: 62051)",
     "usageRatio": "使用系数",
     "usageRatioPlaceholder": "输入使用系数",
     "connectionType": "连接类型",
@@ -1331,7 +1347,7 @@
       "checkUnavailableForNew": "新节点无法进行状态检查。请先创建节点，然后检查其状态。"
     },
     "onlineStats": {
-      "button": "在线统计",
+      "button": "统计",
       "title": "在线用户统计",
       "ipListTitle": "{{username}} 的 IP 地址",
       "nodeInfo": "节点：{{nodeName}}",
@@ -1369,7 +1385,41 @@
     "defaultTimeout": "默认超时",
     "internalTimeout": "内部超时",
     "defaultTimeoutPlaceholder": "请输入默认超时（秒）",
-    "internalTimeoutPlaceholder": "请输入内部超时（秒）"
+    "internalTimeoutPlaceholder": "请输入内部超时（秒）",
+    "updateCore": "更新核心",
+    "updateCoreTitle": "更新 Xray 核心",
+    "updateCoreDescription": "更新节点 «{{nodeName}}» 的 Xray 核心",
+    "updateCoreSuccess": "Xray 核心更新成功",
+    "updateCoreFailed": "更新 Xray 核心失败: {{message}}",
+    "selectFromList": "从列表选择",
+    "customVersion": "自定义版本",
+    "enterVersion": "输入版本",
+    "versionPlaceholder": "例如：v1.8.0 或 1.8.0",
+    "versionHint": "输入格式为 vX.X.X 或 X.X.X 的版本（例如：v1.8.0）",
+    "customVersionRequired": "版本是必需的",
+    "invalidVersionFormat": "版本格式无效。预期格式：vX.X.X 或 X.X.X",
+    "updateGeofiles": "更新 Geo 文件",
+    "updateGeofilesTitle": "更新 Geo 文件",
+    "updateGeofilesDescription": "更新节点 «{{nodeName}}» 的 Geo 文件",
+    "updateGeofilesSuccess": "Geo 文件更新成功",
+    "updateGeofilesFailed": "更新 Geo 文件失败: {{message}}",
+    "updateGeofilesHint": "留空以更新所有区域，或选择特定区域",
+    "updateNode": "更新节点",
+    "updateNodeSuccess": "节点更新成功",
+    "updateNodeFailed": "更新节点失败: {{message}}",
+    "updatingNode": "正在更新节点...",
+    "selectVersion": "选择版本",
+    "selectRegion": "选择区域",
+    "regions": {
+      "iran": "伊朗",
+      "china": "中国",
+      "russia": "俄罗斯"
+    },
+    "latest": "最新",
+    "update": "更新",
+    "updating": "更新中...",
+    "updateAvailable": "有更新可用",
+    "loadingReleases": "正在加载版本..."
   },
   "theme": {
     "title": "主题",

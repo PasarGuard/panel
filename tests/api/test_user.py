@@ -176,6 +176,29 @@ def test_user_sub_update_user_agent(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_sub_update_user_agent_truncates_long_values(access_token):
+    """Ensure overly long User-Agent strings are stored without failing."""
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_user_agent_truncate")},
+    )
+    try:
+        url = user["subscription_url"]
+        long_user_agent = "A" * 1000
+        client.get(url, headers={"User-Agent": long_user_agent})
+        response = client.get(
+            f"/api/user/{user['username']}/sub_update",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["updates"][0]["user_agent"] == long_user_agent[:512]
+    finally:
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_user_get(access_token):
     """Test that the user get by id route is accessible."""
     core, groups = setup_groups(access_token, 1)

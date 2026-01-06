@@ -25,6 +25,7 @@ export const nodeFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   address: z.string().min(1, 'Address is required'),
   port: z.number().min(1, 'Port is required'),
+  api_port: z.number().min(1).optional().nullable(),
   usage_coefficient: z.number().optional(),
   connection_type: z.enum([NodeConnectionType.grpc, NodeConnectionType.rest]),
   server_ca: z.string().min(1, 'Server CA is required'),
@@ -136,6 +137,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         name: node.name,
         address: node.address,
         port: node.port,
+        api_port: node.api_port ?? null,
         usage_coefficient: node.usage_coefficient,
         connection_type: node.connection_type,
         server_ca: node.server_ca,
@@ -196,6 +198,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           name: nodeData.name,
           address: nodeData.address,
           port: nodeData.port,
+          api_port: nodeData.api_port ?? null,
           usage_coefficient: nodeData.usage_coefficient,
           connection_type: nodeData.connection_type,
           server_ca: nodeData.server_ca,
@@ -230,6 +233,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               name: nodeData.name,
               address: nodeData.address,
               port: nodeData.port,
+              api_port: nodeData.api_port ?? null,
               usage_coefficient: nodeData.usage_coefficient,
               connection_type: nodeData.connection_type,
               server_ca: nodeData.server_ca,
@@ -258,6 +262,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         name: '',
         address: '',
         port: 62050,
+        api_port: 62051,
         usage_coefficient: 1,
         connection_type: NodeConnectionType.grpc,
         server_ca: '',
@@ -333,6 +338,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         keep_alive_unit: undefined,
         data_limit: gbToBytes(values.data_limit),
         reset_time: values.reset_time !== null && values.reset_time !== undefined ? values.reset_time : -1,
+        api_port: values.api_port ?? undefined,
       }
 
       let nodeId: number | undefined
@@ -398,7 +404,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
             <div className="flex items-center gap-2">
               <div
                 className={`h-2 w-2 rounded-full ${
-                  statusChecking || currentNode?.status === 'connecting'
+                  currentNode?.status === 'connecting' || (statusChecking && !currentNode?.status)
                     ? 'bg-yellow-500 dark:bg-yellow-400'
                     : currentNode?.status === 'connected'
                       ? 'bg-green-500 dark:bg-green-400'
@@ -408,7 +414,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                 }`}
               />
               <span className="text-sm font-medium text-foreground">
-                {statusChecking || currentNode?.status === 'connecting'
+                {currentNode?.status === 'connecting' || (statusChecking && !currentNode?.status)
                   ? t('nodeModal.status.connecting')
                   : currentNode?.status === 'connected'
                     ? t('nodeModal.status.connected')
@@ -590,6 +596,36 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                       placeholder={t('nodeModal.usageRatioPlaceholder')}
                                       {...field}
                                       onChange={e => field.onChange(parseFloat(e.target.value))}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="api_port"
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <FormLabel>{t('nodeModal.apiPort')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      isError={!!form.formState.errors.api_port}
+                                      type="number"
+                                      placeholder={t('nodeModal.apiPortPlaceholder')}
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      onChange={e => {
+                                        const value = e.target.value
+                                        if (value === '') {
+                                          field.onChange(null)
+                                        } else {
+                                          const numValue = parseInt(value)
+                                          if (!isNaN(numValue) && numValue > 0) {
+                                            field.onChange(numValue)
+                                          }
+                                        }
+                                      }}
                                     />
                                   </FormControl>
                                   <FormMessage />

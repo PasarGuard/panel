@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal, { AdvanceSearchFormValue } from '@/components/dialogs/advance-search-modal.tsx'
+import { Card, CardContent } from '@/components/ui/card'
 
 // Helper function to get URL search params from hash
 const getSearchParams = (): URLSearchParams => {
@@ -486,8 +487,12 @@ const UsersTable = memo(() => {
 
   const totalUsers = usersData?.total || 0
   const totalPages = Math.ceil(totalUsers / itemsPerPage)
-  const showLoadingSpinner = isLoading && isFirstLoadRef.current
   const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current)
+  const hasActiveFilters = !!(filters.search || filters.proxy_id || filters.status || filters.admin?.length || filters.group?.length)
+  const usersList = usersData?.users || []
+  const isCurrentlyLoading = isLoading || (isFetching && !usersData)
+  const isEmpty = !isCurrentlyLoading && usersList.length === 0 && totalUsers === 0 && !hasActiveFilters
+  const isSearchEmpty = !isCurrentlyLoading && usersList.length === 0 && hasActiveFilters
 
   return (
     <div>
@@ -516,13 +521,44 @@ const UsersTable = memo(() => {
           setCurrentPage(0)
         }}
       />
-      <DataTable
-        columns={columns}
-        data={usersData?.users || []}
-        isLoading={showLoadingSpinner}
-        isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}
-        onEdit={handleEdit}
-      />
+      {isEmpty && (
+        <Card className="mb-12">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">{t('users.noUsers')}</h3>
+              <p className="mx-auto max-w-2xl text-muted-foreground">{t('users.noUsersDescription')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {isSearchEmpty && (
+        <Card className="mb-12">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">{t('noResults')}</h3>
+              <p className="mx-auto max-w-2xl text-muted-foreground">{t('users.noSearchResults')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {isCurrentlyLoading && !isSearchEmpty && (
+        <DataTable
+          columns={columns}
+          data={[]}
+          isLoading={true}
+          isFetching={false}
+          onEdit={handleEdit}
+        />
+      )}
+      {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
+        <DataTable
+          columns={columns}
+          data={usersList}
+          isLoading={false}
+          isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}
+          onEdit={handleEdit}
+        />
+      )}
       <PaginationControls
         currentPage={currentPage}
         totalPages={totalPages}

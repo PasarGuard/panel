@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional, Union
 
-from sqlalchemy import and_, case, delete, func, select, update, bindparam, or_
+from sqlalchemy import and_, bindparam, case, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.models import (
@@ -348,7 +349,14 @@ async def update_node_status(
     )
     await db.execute(stmt)
     await db.commit()
-    await db.refresh(db_node)
+
+    try:
+        # Prefer refreshing the existing instance to keep relationships loaded
+        await db.refresh(db_node)
+    except InvalidRequestError:
+        # If the instance was detached (e.g., used across sessions), re-fetch it
+        db_node = (await db.execute(select(Node).where(Node.id == db_node.id))).scalar_one()
+
     await load_node_attrs(db_node)
     return db_node
 

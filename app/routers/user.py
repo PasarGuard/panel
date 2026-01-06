@@ -226,8 +226,8 @@ async def get_user_usage(
     period: Period,
     node_id: int | None = None,
     group_by_node: bool = False,
-    start: dt | None = Query(None, example="2024-01-01T00:00:00+03:30"),
-    end: dt | None = Query(None, example="2024-01-31T23:59:59+03:30"),
+    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
 ):
@@ -249,8 +249,8 @@ async def get_users_usage(
     period: Period,
     node_id: int | None = None,
     group_by_node: bool = False,
-    start: dt | None = Query(None, example="2024-01-01T00:00:00+03:30"),
-    end: dt | None = Query(None, example="2024-01-31T23:59:59+03:30"),
+    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
     db: AsyncSession = Depends(get_db),
     owner: list[str] | None = Query(None, alias="admin"),
     admin: AdminDetails = Depends(get_current),
@@ -273,8 +273,8 @@ async def get_expired_users(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(check_sudo_admin),
     admin_username: str | None = None,
-    expired_after: dt | None = Query(None, example="2024-01-01T00:00:00+03:30"),
-    expired_before: dt | None = Query(None, example="2024-01-31T23:59:59+03:30"),
+    expired_after: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+    expired_before: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
 ):
     """
     Get users who have expired within the specified date range.
@@ -293,8 +293,8 @@ async def delete_expired_users(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(check_sudo_admin),
     admin_username: str | None = None,
-    expired_after: dt | None = Query(None, example="2024-01-01T00:00:00+03:30"),
-    expired_before: dt | None = Query(None, example="2024-01-31T23:59:59+03:30"),
+    expired_after: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+    expired_before: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
 ):
     """
     Delete users who have expired within the specified date range.

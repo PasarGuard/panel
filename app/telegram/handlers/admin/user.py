@@ -1,16 +1,26 @@
 import random
 from datetime import datetime as dt, timedelta as td
+from io import BytesIO
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
+from aiogram.types import (
+    BufferedInputFile,
+    CallbackQuery,
+    InlineQuery,
+    InlineQueryResultArticle,
+    InputTextMessageContent,
+    Message,
+)
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.exceptions import TelegramBadRequest
 
 from app.db.models import UserStatus
+from app.models.settings import ConfigFormat
 from app.models.user import UserCreate, UserModify, UserStatusModify, CreateUserFromTemplate, ModifyUserByTemplate
 from app.models.validators import UserValidator
 from app.operation import OperatorType
+from app.operation.subscription import SubscriptionOperation
 from app.operation.user import UserOperation
 from app.operation.group import GroupOperation
 from app.operation.user_template import UserTemplateOperation
@@ -24,6 +34,7 @@ from app.telegram.keyboards.user import UserPanel, UserPanelAction, ChooseStatus
 from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
 
 user_operations = UserOperation(OperatorType.TELEGRAM)
+subscription_operations = SubscriptionOperation(OperatorType.TELEGRAM)
 group_operations = GroupOperation(OperatorType.TELEGRAM)
 user_templates = UserTemplateOperation(OperatorType.TELEGRAM)
 
@@ -566,6 +577,35 @@ async def get_user_by_sub(event: Message, db: AsyncSession, admin: AdminDetails)
 
     groups = await user_operations.validate_all_groups(db, user)
     await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+
+
+@router.callback_query(UserPanel.Callback.filter(UserPanelAction.v2ray_links == F.action))
+async def get_v2ray_links(
+    event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: UserPanel.Callback
+):
+    try:
+        db_user = await user_operations.get_validated_user_by_id(db, callback_data.user_id, admin)
+        user = await user_operations.validate_user(db_user)
+        user_with_inbounds = await subscription_operations.validated_user(db_user)
+        links, _ = await subscription_operations.fetch_config(user_with_inbounds, ConfigFormat.links)
+    except ValueError as exc:
+        return await event.answer(str(exc), show_alert=True)
+
+    if not links or not links.strip():
+        return await event.answer(Texts.v2ray_links_unavailable, show_alert=True)
+
+    max_message_length = 4085  # Telegram message limit (including formatting)
+    if len(links) < max_message_length:
+        await event.message.answer(Texts.client_user_details(user))
+        await event.message.answer(f"<pre>{links}</pre>")
+    else:
+        file = BytesIO(links.encode("utf-8"))
+        await event.message.answer_document(
+            BufferedInputFile(file.read(), f"{user.username}-v2ray-links.txt"),
+            caption=Texts.client_user_details(user),
+        )
+
+    await event.answer()
 
 
 @router.message(F.text)
