@@ -239,15 +239,17 @@ jobs:
                       "password": url.password,
                       "database": url.database,
                   }
+                  params_native = params | {"client_flag": pymysql.constants.CLIENT.MULTI_STATEMENTS}
+                  print("Connecting with params:", params_native)
                   try:
-                      conn = pymysql.connect(**params)
+                      conn = pymysql.connect(**params_native)
                   except Exception as exc:
-                      print("FAILED to connect with params:", params)
+                      print("FAILED to connect with params:", params_native)
                       raise
                   with conn.cursor() as cur:
                       cur.execute("SELECT CURRENT_USER(), USER(), @@hostname")
                       print("User/host info:", cur.fetchone())
-                      cur.execute("SHOW GRANTS FOR CURRENT_USER()")
+                      cur.execute("SHOW GRANTS")
                       print("Grants:", cur.fetchall())
                   conn.close()
                   PY
