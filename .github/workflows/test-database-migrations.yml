@@ -215,7 +215,7 @@ jobs:
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
                   echo "TESTING=1" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3307/testdb" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb" >> $GITHUB_ENV
                   echo "NATS_ENABLED=1" >> $GITHUB_ENV
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "MULTI_WORKER=1" >> $GITHUB_ENV
@@ -235,10 +235,10 @@ jobs:
                   docker exec "$CONTAINER_ID" mariadb -uroot -proot -e "\
                     CREATE DATABASE IF NOT EXISTS testdb; \
                     CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
-                    ALTER USER 'testuser'@'%' IDENTIFIED BY 'testpassword'; \
+                    ALTER USER 'testuser'@'%' IDENTIFIED WITH mysql_native_password BY 'testpassword'; \
                     GRANT ALL PRIVILEGES ON testdb.* TO 'testuser'@'%'; \
                     CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY 'root'; \
-                    ALTER USER 'root'@'%' IDENTIFIED BY 'root'; \
+                    ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'root'; \
                     GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; \
                     FLUSH PRIVILEGES; \
                   "
