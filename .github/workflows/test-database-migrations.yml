@@ -146,8 +146,8 @@ jobs:
 
             - name: Run Tests (multi-worker)
               run: |
-                  NODE_ROLE=node-worker RUN_SCHEDULER=1 uv run python node_worker.py &
-                  NODE_ROLE=scheduler RUN_SCHEDULER=1 uv run python scheduler_worker.py &
+                  SCHEDULER_JOBSTORE_URL=sqlite:///./node-scheduler.db NODE_ROLE=node-worker RUN_SCHEDULER=1 uv run python node_worker.py &
+                  SCHEDULER_JOBSTORE_URL=sqlite:///./scheduler.db NODE_ROLE=scheduler RUN_SCHEDULER=1 uv run python scheduler_worker.py &
                   sleep 5
                   make test
 
