@@ -250,10 +250,15 @@ jobs:
                       raise SystemExit("MariaDB did not become ready in time.")
 
                   with conn.cursor() as cur:
-                      cur.execute("CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpassword'")
-                      cur.execute("ALTER USER 'testuser'@'%' IDENTIFIED BY 'testpassword'")
-                      cur.execute("GRANT ALL PRIVILEGES ON testdb.* TO 'testuser'@'%'")
+                      cur.execute("DROP USER IF EXISTS 'testuser'@'%'")
+                      cur.execute("DROP USER IF EXISTS 'testuser'@'localhost'")
+                      cur.execute("CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpassword'")
+                      cur.execute("CREATE USER 'testuser'@'localhost' IDENTIFIED BY 'testpassword'")
+                      cur.execute("GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%'")
+                      cur.execute("GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'localhost'")
                       cur.execute("FLUSH PRIVILEGES")
+                      cur.execute("SELECT user, host, plugin FROM mysql.user WHERE user='testuser'")
+                      print("Testuser entries:", cur.fetchall())
                   conn.close()
                   PY
 
