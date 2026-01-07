@@ -3,13 +3,31 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import React, { useState, useMemo, memo, useCallback } from 'react'
-import { ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, User, UserRound, UserX, LoaderCircle } from 'lucide-react'
+import {
+    ChevronDown,
+    Edit2,
+    Power,
+    PowerOff,
+    RefreshCw,
+    Trash2,
+    User,
+    UserRound,
+    UserX,
+    LoaderCircle,
+    MoreVertical,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AdminDetails } from '@/service/api'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { statusColors } from '@/constants/UserSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu.tsx";
 
 interface DataTableProps<TData extends AdminDetails> {
   columns: ColumnDef<TData, any>[]
@@ -65,23 +83,62 @@ const ExpandedRowContent = memo(
           </div>
         </div>
         <div className="flex justify-end gap-1">
-          <Button onClick={() => onToggleStatus(row)} variant="ghost" size="icon">
-            {row.is_disabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => onEdit(row)} title={t('edit')}>
-            <Edit2 className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => onResetUsage(row.username)} title={t('admins.resetUsersUsage')}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          {onRemoveAllUsers && (
-            <Button variant="ghost" size="icon" onClick={() => onRemoveAllUsers(row.username)} title={t('admins.removeAllUsers')}>
-              <UserX className="h-4 w-4 text-destructive" />
+            <Button variant="ghost" size="icon" onClick={() => onEdit(row)} title={t('edit')}>
+                <Edit2 className="h-4 w-4" />
             </Button>
-          )}
-          <Button variant="ghost" size="icon" onClick={() => onDelete(row)} title={t('delete')}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <MoreVertical className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                        onSelect={e => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onToggleStatus(row)
+                        }}
+                    >
+                        {row.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
+                        {row.is_disabled ? t('enable') : t('disable')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onSelect={e => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onResetUsage(row.username)
+                        }}
+                    >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        {t('admins.reset')}
+                    </DropdownMenuItem>
+                    {onRemoveAllUsers &&
+                    <DropdownMenuItem
+                        className="text-destructive"
+                        onSelect={e => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onRemoveAllUsers(row.username)
+                        }}
+                    >
+                        <UserX className="mr-2 h-4 w-4" />
+                        {t('admins.removeAllUsers')}
+                    </DropdownMenuItem>
+                    }
+                    <DropdownMenuItem
+                        className="text-destructive"
+                        onSelect={e => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onDelete(row)
+                        }}
+                    >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {t('delete')}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </div>
       </div>
     )
