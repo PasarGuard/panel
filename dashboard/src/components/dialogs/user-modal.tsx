@@ -357,11 +357,17 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         // This ensures we catch the data even if form hasn't been populated yet
         const nextPlanFromForm = form.getValues('next_plan')
         const nextPlanFromData = editingUserData?.next_plan
+        if (nextPlanFromData === null) {
+          // Prevent stale form data from overriding explicit nulls.
+          form.setValue('next_plan', undefined, { shouldValidate: false, shouldDirty: false })
+        }
         
         // Use editingUserData if form doesn't have it yet, otherwise use form value
-        const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined 
-          ? nextPlanFromForm 
-          : nextPlanFromData
+        const nextPlan = nextPlanFromData === null
+          ? null
+          : (nextPlanFromForm !== null && nextPlanFromForm !== undefined 
+              ? nextPlanFromForm 
+              : nextPlanFromData)
         
         const hasData = nextPlan !== null && 
                        nextPlan !== undefined && 
