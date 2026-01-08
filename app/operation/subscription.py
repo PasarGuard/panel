@@ -66,7 +66,9 @@ class SubscriptionOperation(BaseOperation):
             return profile_title
 
     @staticmethod
-    def create_response_headers(user: UsersResponseWithInbounds, request_url: str, sub_settings: SubSettings) -> dict:
+    def create_response_headers(
+        user: UsersResponseWithInbounds, request_url: str, sub_settings: SubSettings, inline: bool = False
+    ) -> dict:
         """Create response headers for subscription responses, including user subscription info."""
         # Generate user subscription info
         user_info = {"upload": 0, "download": user.used_traffic, "total": 0, "expire": 0}
@@ -84,8 +86,11 @@ class SubscriptionOperation(BaseOperation):
         # Prefer admin's support_url over subscription settings
         support_url = (getattr(user.admin, "support_url", None) if user.admin else None) or sub_settings.support_url
 
+        # Use 'inline' for browser viewing, 'attachment' for download
+        disposition = "inline" if inline else "attachment"
+
         return {
-            "content-disposition": f'attachment; filename="{user.username}"',
+            "content-disposition": f'{disposition}; filename="{user.username}"',
             "profile-web-page-url": request_url,
             "support-url": support_url,
             "profile-title": encode_title(formatted_title),
@@ -140,9 +145,9 @@ class SubscriptionOperation(BaseOperation):
         db_user = await self.get_validated_sub(db, token)
         user = await self.validated_user(db_user)
 
-        response_headers = self.create_response_headers(user, request_url, sub_settings)
+        is_browser_request = "text/html" in accept_header
 
-        if not sub_settings.disable_sub_template and "text/html" in accept_header:
+        if not sub_settings.disable_sub_template and is_browser_request:
             template = (
                 db_user.admin.sub_template
                 if db_user.admin and db_user.admin.sub_template
@@ -173,6 +178,10 @@ class SubscriptionOperation(BaseOperation):
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent)
             conf, media_type = await self.fetch_config(user, client_type)
+
+            # If disable_sub_template is True and it's a browser request, use inline to view instead of download
+            inline_view = sub_settings.disable_sub_template and is_browser_request
+            response_headers = self.create_response_headers(user, request_url, sub_settings, inline=inline_view)
 
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
