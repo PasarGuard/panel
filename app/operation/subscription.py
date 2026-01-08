@@ -142,7 +142,7 @@ class SubscriptionOperation(BaseOperation):
 
         response_headers = self.create_response_headers(user, request_url, sub_settings)
 
-        if "text/html" in accept_header:
+        if not sub_settings.disable_sub_template and "text/html" in accept_header:
             template = (
                 db_user.admin.sub_template
                 if db_user.admin and db_user.admin.sub_template

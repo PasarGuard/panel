@@ -212,7 +212,9 @@
         "announceUrlPlaceholder": "https://status.example.com",
         "announceUrlDescription": "Optional link with more information about the announcement",
         "allowBrowserConfig": "Show Links in Subscription Page",
-        "allowBrowserConfigDescription": "Display subscription links on the subscription page template when accessed via browser"
+        "allowBrowserConfigDescription": "Display subscription links on the subscription page template when accessed via browser",
+        "disableSubTemplate": "Disable Subscription Template",
+        "disableSubTemplateDescription": "When disabled, browser requests will return API responses instead of HTML subscription pages"
       },
       "rules": {
         "title": "Subscription Rules",

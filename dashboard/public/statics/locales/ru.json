@@ -226,7 +226,9 @@
         "announceUrlPlaceholder": "https://status.example.com",
         "announceUrlDescription": "Необязательная ссылка с дополнительной информацией об объявлении",
         "allowBrowserConfig": "Показывать ссылки на странице подписки",
-        "allowBrowserConfigDescription": "Отображать ссылки подписки в шаблоне страницы подписки при доступе через браузер"
+        "allowBrowserConfigDescription": "Отображать ссылки подписки в шаблоне страницы подписки при доступе через браузер",
+        "disableSubTemplate": "Отключить шаблон подписки",
+        "disableSubTemplateDescription": "При отключении запросы браузера будут возвращать ответы API вместо HTML-страниц подписки"
       },
       "rules": {
         "title": "Правила подписки",

@@ -192,7 +192,9 @@
         "announceUrlPlaceholder": "https://status.example.com",
         "announceUrlDescription": "可选的链接，用于提供更多公告细节",
         "allowBrowserConfig": "在订阅页面显示链接",
-        "allowBrowserConfigDescription": "当通过浏览器访问时，在订阅页面模板中显示订阅链接"
+        "allowBrowserConfigDescription": "当通过浏览器访问时，在订阅页面模板中显示订阅链接",
+        "disableSubTemplate": "禁用订阅模板",
+        "disableSubTemplateDescription": "禁用后，浏览器请求将返回 API 响应而不是 HTML 订阅页面"
       },
       "rules": {
         "title": "订阅规则",

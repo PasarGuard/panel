@@ -119,7 +119,9 @@
         "announceUrlPlaceholder": "https://status.example.com",
         "announceUrlDescription": "لینک اختیاری برای جزئیات بیشتر اطلاعیه",
         "allowBrowserConfig": "نمایش لینک‌ها در صفحه اشتراک",
-        "allowBrowserConfigDescription": "نمایش لینک‌های اشتراک در قالب صفحه اشتراک هنگام دسترسی از طریق مرورگر"
+        "allowBrowserConfigDescription": "نمایش لینک‌های اشتراک در قالب صفحه اشتراک هنگام دسترسی از طریق مرورگر",
+        "disableSubTemplate": "غیرفعال کردن قالب اشتراک",
+        "disableSubTemplateDescription": "هنگام غیرفعال بودن، درخواست‌های مرورگر به جای صفحات HTML اشتراک، پاسخ‌های API برمی‌گردانند"
       },
       "rules": {
         "title": "قوانین اشتراک",

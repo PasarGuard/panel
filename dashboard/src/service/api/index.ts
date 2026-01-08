@@ -914,6 +914,7 @@ export interface SubscriptionOutput {
   manual_sub_request?: SubFormatEnable
   applications?: ApplicationOutput[]
   allow_browser_config?: boolean
+  disable_sub_template?: boolean
 }
 
 export interface SubscriptionInput {
@@ -928,6 +929,7 @@ export interface SubscriptionInput {
   manual_sub_request?: SubFormatEnable
   applications?: ApplicationInput[]
   allow_browser_config?: boolean
+  disable_sub_template?: boolean
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null
