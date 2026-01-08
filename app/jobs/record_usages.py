@@ -93,7 +93,31 @@ async def _cleanup_thread_pool():
             _thread_pool = None
             logger.info("ThreadPoolExecutor shut down successfully")
 
+# Helper functions for threading (lightweight operations that release GIL)
+def _process_node_chunk(chunk_data: tuple) -> dict:
+    """
+    Process a chunk of node data - lightweight CPU operation.
+    Uses simple arithmetic and dict operations that release GIL, perfect for threads.
+    """
+    node_id, params, coeff = chunk_data
+    users_usage = defaultdict(int)
+    for param in params:
+        uid = int(param["uid"])
+        value = int(param["value"] * coeff)
+        users_usage[uid] += value
+    return dict(users_usage)
 
+
+def _merge_usage_dicts(dicts: list[dict]) -> dict:
+    """
+    Merge multiple usage dictionaries.
+    Dict operations release GIL, perfect for ThreadPoolExecutor.
+    """
+    merged = defaultdict(int)
+    for d in dicts:
+        for uid, value in d.items():
+            merged[uid] += value
+    return dict(merged)
 
 
 async def get_dialect() -> str:
@@ -542,6 +566,76 @@ async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
     return admin_usage, set(user_admin_map.keys())
 
 
+async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
+    """Calculate aggregated user usage across all nodes with coefficients applied.
+    
+    Uses ThreadPoolExecutor for lightweight operations (dict/arithmetic that release GIL).
+    ThreadPoolExecutor is faster than ProcessPoolExecutor for these operations due to less overhead.
+    """
+    if not api_params:
+        return []
+
+    def _process_usage_sync(chunks_data: list[tuple[int, list[dict], float]]):
+        """Synchronous fallback used for small batches or on executor failures."""
+        users_usage = defaultdict(int)
+        for _, params, coeff in chunks_data:
+            for param in params:
+                uid = int(param["uid"])
+                value = int(param["value"] * coeff)
+                users_usage[uid] += value
+        return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
+
+    # Prepare chunks for parallel processing
+    chunks = [
+        (node_id, params, usage_coefficient.get(node_id, 1))
+        for node_id, params in api_params.items()
+        if params  # Skip empty params
+    ]
+
+    if not chunks:
+        return []
+
+    # For small datasets, process synchronously to avoid overhead
+    total_params = sum(len(params) for _, params, _ in chunks)
+    if total_params < 1000:
+        return _process_usage_sync(chunks)
+
+    # Large dataset - use ThreadPoolExecutor (faster for lightweight operations)
+    loop = asyncio.get_running_loop()
+    try:
+        thread_pool = await _get_thread_pool()
+    except Exception:
+        logger.exception("Falling back to synchronous user usage calculation: failed to init thread pool")
+        return _process_usage_sync(chunks)
+
+    try:
+        # Process chunks in parallel using threads (less overhead than processes)
+        tasks = [loop.run_in_executor(thread_pool, _process_node_chunk, chunk) for chunk in chunks]
+        chunk_results = await asyncio.gather(*tasks)
+
+        # Merge results - also lightweight, use threads
+        if len(chunk_results) > 4:
+            # Split merge operation into smaller chunks
+            chunk_size = max(1, len(chunk_results) // 4)
+            merge_chunks = [
+                chunk_results[i : i + chunk_size]
+                for i in range(0, len(chunk_results), chunk_size)
+            ]
+            merge_tasks = [
+                loop.run_in_executor(thread_pool, _merge_usage_dicts, merge_chunk)
+                for merge_chunk in merge_chunks
+            ]
+            partial_results = await asyncio.gather(*merge_tasks)
+            final_result = _merge_usage_dicts(partial_results)
+        else:
+            final_result = _merge_usage_dicts(chunk_results)
+
+        return [{"uid": uid, "value": value} for uid, value in final_result.items()]
+    except Exception:
+        logger.exception("Falling back to synchronous user usage calculation: executor merge failed")
+        return _process_usage_sync(chunks)
+
+
 async def _record_user_usages_impl():
     """
     Internal implementation of record_user_usages.
@@ -578,18 +672,7 @@ async def _record_user_usages_impl():
             else:
                 api_params[node_id] = result
 
-        # Aggregate user usage across all nodes with coefficients applied
-        users_usage_dict = defaultdict(int)
-        for node_id, params in api_params.items():
-            if not params:
-                continue
-            coeff = usage_coefficient.get(node_id, 1.0)
-            for param in params:
-                uid = int(param["uid"])
-                value = int(param["value"] * coeff)
-                users_usage_dict[uid] += value
-        
-        users_usage = [{"uid": uid, "value": value} for uid, value in users_usage_dict.items()]
+        users_usage = await calculate_users_usage(api_params, usage_coefficient)
         if not users_usage:
             logger.debug("No user usage to record")
             return
