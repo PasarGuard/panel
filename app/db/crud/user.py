@@ -885,7 +885,7 @@ async def get_users_subscription_agent_counts(
 ) -> list[tuple[str, int]]:
     stmt = select(UserSubscriptionUpdate.user_agent, func.count().label("count"))
 
-    if days:
+    if days is not None:
         since = datetime.now(timezone.utc) - timedelta(days=days)
         stmt = stmt.where(UserSubscriptionUpdate.created_at >= since)
 
