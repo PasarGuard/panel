@@ -878,9 +878,16 @@ async def get_users_sub_update_list(
 
 
 async def get_users_subscription_agent_counts(
-    db: AsyncSession, user_id: int | None = None, admin_id: int | None = None
+    db: AsyncSession,
+    user_id: int | None = None,
+    admin_id: int | None = None,
+    days: int | None = None,
 ) -> list[tuple[str, int]]:
     stmt = select(UserSubscriptionUpdate.user_agent, func.count().label("count"))
+
+    if days:
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        stmt = stmt.where(UserSubscriptionUpdate.created_at >= since)
 
     if user_id is not None:
         stmt = stmt.where(UserSubscriptionUpdate.user_id == user_id)
