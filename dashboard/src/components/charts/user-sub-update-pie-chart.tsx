@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useTheme } from 'next-themes'
-import { type GetUsersSubUpdateChartParams, useGetAdmins, useGetUsersSubUpdateChart, type UserSubscriptionUpdateChartSegment } from '@/service/api'
+import { type GetUsersSubUpdateChartParams, useGetAdmins, useGetUsersSubUpdateChart, type UserSubscriptionUpdateChartSegment, type AdminDetails } from '@/service/api'
 import { numberWithCommas } from '@/utils/formatByte'
 import { TrendingUp, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -26,7 +26,7 @@ type SegmentWithColor = UserSubscriptionUpdateChartSegment & {
 }
 
 const buildSegmentKey = (name: string, index: number) => {
-  const sanitized = name
+  const sanitized = (name || '')
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
@@ -129,6 +129,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   const dir = useDirDetection()
   const { resolvedTheme } = useTheme()
   const [selectedAdmin, setSelectedAdmin] = useState(() => (adminId != null ? String(adminId) : 'all'))
+  const [selectedDays, setSelectedDays] = useState('all')
 
   useEffect(() => {
     if (adminId != null) {
@@ -154,8 +155,13 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
       payload.admin_id = parsedAdminId
     }
 
+    const parsedDays = selectedDays !== 'all' ? Number(selectedDays) : undefined
+    if (typeof parsedDays === 'number' && Number.isFinite(parsedDays)) {
+      payload.days = parsedDays
+    }
+
     return Object.keys(payload).length > 0 ? payload : undefined
-  }, [username, selectedAdmin])
+  }, [username, selectedAdmin, selectedDays])
 
   const { data, isLoading, error } = useGetUsersSubUpdateChart(params, {
     query: {
@@ -168,10 +174,10 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
       return []
     }
 
-    return data.segments.map((segment, index) => {
+    return data.segments.map((segment: UserSubscriptionUpdateChartSegment, index: number) => {
       const safePercentage = typeof segment.percentage === 'number' && !Number.isNaN(segment.percentage) ? segment.percentage : 0
       const safeCount = typeof segment.count === 'number' && !Number.isNaN(segment.count) ? segment.count : 0
-      const key = buildSegmentKey(segment.name, index)
+      const key = buildSegmentKey(segment.name || '', index)
 
       // Color assignment logic similar to AllNodesStackedBarChart
       let color
@@ -192,13 +198,13 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         percentage: safePercentage,
         count: safeCount,
         color,
-      }
+      } as SegmentWithColor
     })
   }, [data?.segments, resolvedTheme])
 
   const chartData = useMemo(
     () =>
-      segments.map(segment => ({
+      segments.map((segment: SegmentWithColor) => ({
         segmentKey: segment.key,
         agent: segment.name,
         updates: segment.count,
@@ -209,7 +215,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   )
 
   const chartConfig = useMemo<ChartConfig>(() => {
-    const dynamicConfig = segments.reduce<ChartConfig>((config, segment) => {
+    const dynamicConfig = segments.reduce<ChartConfig>((config: ChartConfig, segment: SegmentWithColor) => {
       config[segment.key] = {
         label: segment.name,
         color: segment.color,
@@ -225,10 +231,10 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     }
   }, [segments, t])
 
-  const hasData = segments.some(segment => segment.count > 0)
+  const hasData = segments.some((segment: SegmentWithColor) => segment.count > 0)
   const total = data?.total ?? 0
   const errorDescription = error && typeof error === 'object' && 'message' in error ? String((error as { message?: string }).message) : undefined
-  const leadingSegment = useMemo(() => [...segments].sort((a, b) => b.count - a.count)[0], [segments])
+  const leadingSegment = useMemo(() => [...segments].sort((a: SegmentWithColor, b: SegmentWithColor) => b.count - a.count)[0], [segments])
 
   return (
     <Card>
@@ -237,23 +243,39 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
           <CardTitle className="mb-2">{t('statistics.subscriptionDistribution')}</CardTitle>
           <CardDescription>{t('statistics.subscriptionDistributionDescription')}</CardDescription>
         </div>
-        <div className="flex w-full flex-col gap-2 lg:max-w-xs">
-          <span className="text-xs font-medium text-muted-foreground">{t('statistics.adminFilterLabel')}</span>
-          <Select value={selectedAdmin} onValueChange={setSelectedAdmin} disabled={isLoadingAdmins}>
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder={t('statistics.adminFilterPlaceholder')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('statistics.adminFilterAll')}</SelectItem>
-              {(admins?.admins || [])
-                .filter(admin => admin.id != null)
-                .map(admin => (
-                  <SelectItem key={admin.id} value={String(admin.id)}>
-                    {admin.username}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+        <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end">
+          <div className="flex flex-1 flex-col gap-2">
+            <span className="text-xs font-medium text-muted-foreground">{t('statistics.daysFilterLabel')}</span>
+            <Select value={selectedDays} onValueChange={setSelectedDays}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder={t('statistics.daysFilterPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('statistics.daysFilterAll')}</SelectItem>
+                <SelectItem value="1">{t('statistics.daysFilter1')}</SelectItem>
+                <SelectItem value="7">{t('statistics.daysFilter7')}</SelectItem>
+                <SelectItem value="30">{t('statistics.daysFilter30')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-1 flex-col gap-2">
+            <span className="text-xs font-medium text-muted-foreground">{t('statistics.adminFilterLabel')}</span>
+            <Select value={selectedAdmin} onValueChange={setSelectedAdmin} disabled={isLoadingAdmins}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder={t('statistics.adminFilterPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('statistics.adminFilterAll')}</SelectItem>
+                {(admins?.admins || [])
+                  .filter((admin: AdminDetails) => admin.id != null)
+                  .map((admin: AdminDetails) => (
+                    <SelectItem key={admin.id} value={String(admin.id)}>
+                      {admin.username}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-4">
@@ -270,7 +292,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                 <PieChart>
                   <ChartTooltip content={<CustomTooltip />} />
                   <Pie data={chartData} dataKey="updates" nameKey="agent" innerRadius="55%" outerRadius="95%" paddingAngle={chartData.length > 1 ? 3 : 0} strokeWidth={2} isAnimationActive>
-                    {chartData.map(segment => (
+                    {chartData.map((segment: (typeof chartData)[0]) => (
                       <Cell key={segment.segmentKey} fill={segment.fill} />
                     ))}
                   </Pie>
@@ -286,7 +308,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
               </div>
               <div className="max-h-64 w-full overflow-y-auto">
                 <ul className="w-full space-y-3">
-                  {segments.map(segment => (
+                  {segments.map((segment: SegmentWithColor) => (
                     <li key={segment.key} className={`flex items-center justify-between gap-4 rounded-md border border-border/40 px-3 py-2 max-w-full ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
                       <div className={`flex items-center gap-2 overflow-hidden ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
                         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
@@ -336,7 +358,7 @@ function LoadingState() {
         <Skeleton className="h-16 w-full max-w-xs rounded-lg" />
         <Skeleton className="h-10 w-full max-w-xs rounded-lg" />
         <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, index) => (
+          {Array.from({ length: 4 }).map((_, index: number) => (
             <div key={index} className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
                 <Skeleton className="h-3 w-3 rounded-full" />

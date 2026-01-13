@@ -86,6 +86,7 @@ export type SetOwnerParams = {
 export type GetUsersSubUpdateChartParams = {
   username?: string | null
   admin_id?: number | null
+  days?: number | null
 }
 
 export type ClearUsageDataParams = {
