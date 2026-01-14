@@ -3,6 +3,7 @@ from datetime import datetime as dt
 
 from pydantic import BaseModel, field_validator
 
+from app.utils.helpers import fix_datetime_timezone
 from .validators import NumericValidatorMixin
 
 
@@ -18,6 +19,13 @@ class StatList(BaseModel):
     start: dt
     end: dt
 
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
+
 
 class UserUsageStat(BaseModel):
     total_traffic: int
@@ -26,6 +34,13 @@ class UserUsageStat(BaseModel):
     @field_validator("total_traffic", mode="before")
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
+
+    @field_validator("period_start", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
 
 
 class UserUsageStatsList(StatList):
@@ -40,6 +55,13 @@ class NodeUsageStat(BaseModel):
     @field_validator("downlink", "uplink", mode="before")
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
+
+    @field_validator("period_start", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
 
 
 class NodeUsageStatsList(StatList):
@@ -71,6 +93,13 @@ class NodeStats(BaseModel):
     )
     def cast_to_float(cls, v):
         return NumericValidatorMixin.cast_to_float(v)
+
+    @field_validator("period_start", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
 
 
 class NodeStatsList(StatList):
