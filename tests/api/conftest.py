@@ -23,6 +23,12 @@ def mock_lock(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture(autouse=True)
 def mock_settings(monkeypatch: pytest.MonkeyPatch):
+    async def mock_get_jwt_secret_key(db):
+        return "test_secret_key"
+        
+    monkeypatch.setattr("app.utils.jwt.get_jwt_secret_key", mock_get_jwt_secret_key)
+    monkeypatch.setattr("app.db.crud.general.get_jwt_secret_key", mock_get_jwt_secret_key)
+
     settings = {
         "telegram": {"enable": False, "token": "", "webhook_url": "", "webhook_secret": None, "proxy_url": None},
         "discord": None,

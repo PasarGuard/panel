@@ -1,5 +1,6 @@
 services:
   pasarguard:
+    build: .
     image: pasarguard/panel:latest
     restart: always
     env_file: .env

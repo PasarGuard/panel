@@ -5,7 +5,6 @@ from uuid import uuid4
 
 from fastapi import status
 
-from tests.api import client
 from tests.api.sample_data import XRAY_CONFIG
 
 
@@ -26,6 +25,7 @@ def strong_password(prefix: str) -> str:
 def create_admin(
     access_token: str, *, username: str | None = None, password: str | None = None, is_sudo: bool = False
 ) -> dict:
+    from tests.api import client
     username = username or unique_name("admin")
     # Ensure password always meets complexity rules (>=2 digits, 2 uppercase, 2 lowercase, special char)
     password = password or strong_password("TestAdmincreate")
@@ -41,6 +41,7 @@ def create_admin(
 
 
 def delete_admin(access_token: str, username: str) -> None:
+    from tests.api import client
     response = client.delete(f"/api/admin/{username}", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
@@ -53,6 +54,7 @@ def create_core(
     exclude: Iterable[str] | None = None,
     fallbacks: Iterable[str] | None = None,
 ) -> dict:
+    from tests.api import client
     payload = {
         "config": config or XRAY_CONFIG,
         "name": name or unique_name("core"),
@@ -65,12 +67,14 @@ def create_core(
 
 
 def delete_core(access_token: str, core_id: int) -> None:
+    from tests.api import client
     response = client.delete(f"/api/core/{core_id}", headers=auth_headers(access_token))
 
     assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN)
 
 
 def get_inbounds(access_token: str) -> list[str]:
+    from tests.api import client
     response = client.get("/api/inbounds", headers=auth_headers(access_token))
     if response.status_code == status.HTTP_200_OK:
         return response.json()
@@ -88,6 +92,7 @@ def get_inbounds(access_token: str) -> list[str]:
 
 
 def create_hosts_for_inbounds(access_token: str, *, address: list[str] | None = None, port: int = 443) -> list[dict]:
+    from tests.api import client
     inbounds = get_inbounds(access_token)
     hosts: list[dict] = []
     for idx, inbound in enumerate(inbounds):
@@ -106,6 +111,7 @@ def create_hosts_for_inbounds(access_token: str, *, address: list[str] | None = 
 
 
 def create_group(access_token: str, *, name: str | None = None, inbound_tags: Iterable[str] | None = None) -> dict:
+    from tests.api import client
     tags = list(inbound_tags or [])
     if not tags:
         tags = get_inbounds(access_token)
@@ -119,6 +125,7 @@ def create_group(access_token: str, *, name: str | None = None, inbound_tags: It
 
 
 def delete_group(access_token: str, group_id: int) -> None:
+    from tests.api import client
     response = client.delete(f"/api/group/{group_id}", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
@@ -130,6 +137,7 @@ def create_user(
     group_ids: Iterable[int] | None = None,
     payload: dict[str, Any] | None = None,
 ) -> dict:
+    from tests.api import client
     body = {
         "username": username or unique_name("user"),
         "proxy_settings": {},
@@ -147,6 +155,7 @@ def create_user(
 
 
 def delete_user(access_token: str, username: str) -> None:
+    from tests.api import client
     response = client.delete(f"/api/user/{username}", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
@@ -162,6 +171,7 @@ def create_user_template(
     status_value: str = "active",
     reset_usages: bool = True,
 ) -> dict:
+    from tests.api import client
     payload = {
         "name": name or unique_name("user_template"),
         "group_ids": list(group_ids),
@@ -177,5 +187,6 @@ def create_user_template(
 
 
 def delete_user_template(access_token: str, template_id: int) -> None:
+    from tests.api import client
     response = client.delete(f"/api/user_template/{template_id}", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_204_NO_CONTENT
