@@ -247,3 +247,25 @@ class BulkUsersFromTemplate(BulkCreationBase, CreateUserFromTemplate):
 class BulkUsersCreateResponse(BaseModel):
     subscription_urls: list[str] = Field(default_factory=list)
     created: int = Field(default=0)
+
+
+class UserNodeTraffic(BaseModel):
+    """Traffic and limit information for a user on a specific node"""
+
+    node_id: int
+    node_name: str
+    used_traffic: int = Field(description="Total bytes used on this node")
+    data_limit: int | None = Field(default=None, description="Data limit in bytes for this node, if configured")
+    has_limit: bool = Field(default=False, description="Whether user has a specific limit on this node")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserNodeTrafficResponse(BaseModel):
+    """Response containing traffic breakdown by node for a user"""
+
+    nodes: list[UserNodeTraffic] = Field(default_factory=list)
+
+
+class ResetNodeUsageRequest(BaseModel):
+    node_ids: list[int]

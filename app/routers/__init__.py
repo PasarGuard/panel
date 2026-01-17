@@ -1,6 +1,19 @@
 from fastapi import APIRouter
 
-from . import admin, core, group, home, host, node, settings, subscription, system, user, user_template
+from . import (
+    admin,
+    core,
+    group,
+    home,
+    host,
+    node,
+    node_user_limit,
+    settings,
+    subscription,
+    system,
+    user,
+    user_template,
+)
 
 api_router = APIRouter()
 
@@ -13,6 +26,7 @@ routers = [
     core.router,
     host.router,
     node.router,
+    node_user_limit.router,
     user.router,
     subscription.router,
     user_template.router,
