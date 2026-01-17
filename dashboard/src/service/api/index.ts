@@ -392,6 +392,12 @@ export interface UserUsageStatsList {
   stats: UserUsageStatsListStats
 }
 
+export interface NodeLimitSettings {
+  data_limit?: number | null
+  data_limit_reset_strategy?: DataLimitResetStrategy
+  reset_time?: number
+}
+
 export type UserTemplateResponseIsDisabled = boolean | null
 
 export type UserTemplateResponseOnHoldTimeout = number | null
@@ -432,6 +438,7 @@ export interface UserTemplateResponse {
   reset_usages?: UserTemplateResponseResetUsages
   on_hold_timeout?: UserTemplateResponseOnHoldTimeout
   data_limit_reset_strategy?: DataLimitResetStrategy
+  node_user_limits?: { [key: number]: NodeLimitSettings | number } | null
   is_disabled?: UserTemplateResponseIsDisabled
   id: number
 }
@@ -478,6 +485,7 @@ export interface UserTemplateModify {
   reset_usages?: UserTemplateModifyResetUsages
   on_hold_timeout?: UserTemplateModifyOnHoldTimeout
   data_limit_reset_strategy?: DataLimitResetStrategy
+  node_user_limits?: { [key: number]: NodeLimitSettings | number } | null
   is_disabled?: UserTemplateModifyIsDisabled
 }
 
@@ -521,6 +529,7 @@ export interface UserTemplateCreate {
   reset_usages?: UserTemplateCreateResetUsages
   on_hold_timeout?: UserTemplateCreateOnHoldTimeout
   data_limit_reset_strategy?: DataLimitResetStrategy
+  node_user_limits?: { [key: number]: NodeLimitSettings | number } | null
   is_disabled?: UserTemplateCreateIsDisabled
 }
 
@@ -1301,6 +1310,9 @@ export interface NodeResponse {
   downlink?: number
   lifetime_uplink?: NodeResponseLifetimeUplink
   lifetime_downlink?: NodeResponseLifetimeDownlink
+  user_data_limit?: number
+  user_data_limit_reset_strategy?: DataLimitResetStrategy
+  user_reset_time?: number
 }
 
 export interface NodesResponse {
@@ -1373,7 +1385,11 @@ export interface NodeModify {
   reset_time?: NodeModifyResetTime
   default_timeout?: NodeModifyDefaultTimeout
   internal_timeout?: NodeModifyInternalTimeout
+
   status?: NodeModifyStatus
+  user_data_limit?: number | null
+  user_data_limit_reset_strategy?: DataLimitResetStrategy | null
+  user_reset_time?: number | null
 }
 
 export interface NodeGeoFilesUpdate {
@@ -1405,7 +1421,7 @@ export interface NodeCreate {
   keep_alive: number
   core_config_id: number
   api_key: string
-  data_limit?: number
+  data_limit?: number | null
   data_limit_reset_strategy?: DataLimitResetStrategy
   reset_time?: number
   /**
@@ -1418,6 +1434,9 @@ export interface NodeCreate {
    * @maximum 60
    */
   internal_timeout?: number
+  user_data_limit?: number | null
+  user_data_limit_reset_strategy?: DataLimitResetStrategy
+  user_reset_time?: number
 }
 
 export type NextPlanModelExpire = number | null
@@ -5459,6 +5478,60 @@ export const useResetUserDataUsage = <
   mutation?: UseMutationOptions<TData, TError, { username: string }, TContext>
 }): UseMutationResult<TData, TError, { username: string }, TContext> => {
   const mutationOptions = getResetUserDataUsageMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+export interface ResetNodeUsageRequest {
+  node_ids: number[]
+}
+
+/**
+ * Reset user data usage for specific nodes
+ * @summary Reset User Node Usage
+ */
+export const resetUserNodeUsage = (username: string, resetNodeUsageRequest: BodyType<ResetNodeUsageRequest>, signal?: AbortSignal) => {
+  return orvalFetcher<UserResponse>({ url: `/api/user/${username}/reset-usage-by-node`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: resetNodeUsageRequest, signal })
+}
+
+export const getResetUserNodeUsageMutationOptions = <
+  TData = Awaited<ReturnType<typeof resetUserNodeUsage>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<ResetNodeUsageRequest> }, TContext>
+}) => {
+  const mutationKey = ['resetUserNodeUsage']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetUserNodeUsage>>, { username: string; data: BodyType<ResetNodeUsageRequest> }> = props => {
+    const { username, data } = props ?? {}
+
+    return resetUserNodeUsage(username, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { username: string; data: BodyType<ResetNodeUsageRequest> }, TContext>
+}
+
+export type ResetUserNodeUsageMutationResult = NonNullable<Awaited<ReturnType<typeof resetUserNodeUsage>>>
+export type ResetUserNodeUsageMutationBody = BodyType<ResetNodeUsageRequest>
+export type ResetUserNodeUsageMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Reset User Node Usage
+ */
+export const useResetUserNodeUsage = <
+  TData = Awaited<ReturnType<typeof resetUserNodeUsage>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<ResetNodeUsageRequest> }, TContext>
+}): UseMutationResult<TData, TError, { username: string; data: BodyType<ResetNodeUsageRequest> }, TContext> => {
+  const mutationOptions = getResetUserNodeUsageMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

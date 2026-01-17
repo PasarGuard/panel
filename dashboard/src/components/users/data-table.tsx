@@ -43,7 +43,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
 
   const handleEditModal = useCallback(
     (e: React.MouseEvent, user: UserResponse) => {
-      if ((e.target as HTMLElement).closest('.chevron')) return
+      if ((e.target as HTMLElement).closest('.chevron, .prevent-edit')) return
       if (window.innerWidth < 768) {
         handleRowToggle(user.id)
         return

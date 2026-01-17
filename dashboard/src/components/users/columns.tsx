@@ -179,7 +179,13 @@ export const setupColumns = ({
     },
     cell: ({ row }) => (
       <div className="flex items-center justify-between gap-2">
-        <UsageSliderCompact total={row.original.data_limit} used={row.original.used_traffic} totalUsedTraffic={row.original.lifetime_used_traffic} status={row.original.status} />
+        <UsageSliderCompact
+          total={row.original.data_limit}
+          used={row.original.used_traffic}
+          totalUsedTraffic={row.original.lifetime_used_traffic}
+          status={row.original.status}
+          username={row.original.username}
+        />
         <div className="hidden w-[200px] px-4 py-1 md:block">
           <ActionButtons user={row.original} />
         </div>
