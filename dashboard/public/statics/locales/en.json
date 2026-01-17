@@ -1982,5 +1982,6 @@
     "updateCommandLabel": "Connect via SSH and run:",
     "closeBanner": "Close update notification",
     "needsUpdate": "Needs update"
-  }
+  },
+  "traffic_by_node": "Traffic by Node"
 }

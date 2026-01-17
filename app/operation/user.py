@@ -778,7 +778,22 @@ class UserOperation(BaseOperation):
         if user_template.reset_usages:
             await self._reset_user_data_usage(db, db_user, admin)
 
-        return await self._modify_user(db, db_user, modify_user, admin)
+        user_response = await self._modify_user(db, db_user, modify_user, admin)
+
+        # Apply per-node limits from template (if configured)
+        node_user_limits = await user_template.awaitable_attrs.node_user_limits
+        if node_user_limits:
+            from app.db.crud.user import get_user
+            db_user_updated = await get_user(db, user_response.username)
+            if db_user_updated:
+                try:
+                    await self._apply_node_limits_from_template(
+                        db, db_user_updated, node_user_limits, user_template.data_limit_reset_strategy
+                    )
+                except Exception as e:
+                    logger.error(f"Error applying template node limits to user {user_response.username}: {e}", exc_info=True)
+
+        return user_response
 
     async def bulk_create_users_from_template(
         self, db: AsyncSession, bulk_users: BulkUsersFromTemplate, admin: AdminDetails
