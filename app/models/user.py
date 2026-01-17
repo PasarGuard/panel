@@ -132,6 +132,7 @@ class SubscriptionUserResponse(UserResponse):
 
 class UsersResponseWithInbounds(SubscriptionUserResponse):
     inbounds: list[str] | None = Field(default_factory=list)
+    node_traffic: list["UserNodeTraffic"] | None = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -31,11 +31,46 @@ client_config = {
 
 class SubscriptionOperation(BaseOperation):
     @staticmethod
-    async def validated_user(db_user: User) -> UsersResponseWithInbounds:
+    async def validated_user(db_user: User, db: AsyncSession | None = None) -> UsersResponseWithInbounds:
         user = UsersResponseWithInbounds.model_validate(db_user.__dict__)
         user.inbounds = await db_user.inbounds()
         user.expire = db_user.expire
         user.lifetime_used_traffic = db_user.lifetime_used_traffic
+
+        # Load per-node traffic data if db session available
+        if db:
+            from app.db.crud import node_user_limit as limit_crud
+            from app.db.models import NodeUserUsage, Node
+            from app.models.user import UserNodeTraffic
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+
+            # Get per-node usage
+            usage_stmt = select(NodeUserUsage).where(NodeUserUsage.user_id == db_user.id)
+            usage_result = await db.execute(usage_stmt)
+            usages = {u.node_id: u.used_traffic for u in usage_result.scalars().all()}
+
+            # Get per-node limits
+            limits = await limit_crud.get_node_limits_for_user(db, db_user.id)
+            limits_map = {l.node_id: l.data_limit for l in limits}
+
+            # Get node names
+            nodes_stmt = select(Node.id, Node.name)
+            nodes_result = await db.execute(nodes_stmt)
+            nodes_map = {row[0]: row[1] for row in nodes_result.fetchall()}
+
+            # Build node_traffic list
+            all_node_ids = set(usages.keys()) | set(limits_map.keys())
+            node_traffic = []
+            for node_id in all_node_ids:
+                node_traffic.append(UserNodeTraffic(
+                    node_id=node_id,
+                    node_name=nodes_map.get(node_id, f"Node {node_id}"),
+                    used_traffic=usages.get(node_id, 0),
+                    data_limit=limits_map.get(node_id),
+                    has_limit=node_id in limits_map
+                ))
+            user.node_traffic = node_traffic
 
         return user
 
@@ -143,7 +178,7 @@ class SubscriptionOperation(BaseOperation):
         # Handle HTML request (subscription page)
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token)
-        user = await self.validated_user(db_user)
+        user = await self.validated_user(db_user, db)
 
         is_browser_request = "text/html" in accept_header
 
@@ -207,7 +242,7 @@ class SubscriptionOperation(BaseOperation):
         if client_type == ConfigFormat.block or not getattr(sub_settings.manual_sub_request, client_type):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token)
-        user = await self.validated_user(db_user)
+        user = await self.validated_user(db_user, db)
 
         response_headers = self.create_response_headers(user, request_url, sub_settings)
         conf, media_type = await self.fetch_config(user, client_type)
@@ -219,7 +254,7 @@ class SubscriptionOperation(BaseOperation):
         """Retrieves detailed information about the user's subscription."""
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token=token)
-        user = await self.validated_user(db_user)
+        user = await self.validated_user(db_user, db)
 
         response_headers = self.create_info_response_headers(user, sub_settings)
         user_response = SubscriptionUserResponse.model_validate(db_user)
