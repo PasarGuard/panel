@@ -134,13 +134,19 @@ class NodeOperation(BaseOperation):
             asyncio.create_task(notification.error_node(node_notif))
 
     @staticmethod
-    async def connect_node(db_node: Node, users: list) -> dict | None:
+    async def connect_node(
+        db_node: Node,
+        users: list,
+        limit_enforcer_config: dict | None = None,
+    ) -> dict | None:
         """
         Connect to a node and return status result (does NOT update database).
 
         Args:
             db_node (Node): Node object from database.
             users (list): Pre-fetched core users list.
+            limit_enforcer_config (dict): Optional config for real-time limit enforcement.
+                Keys: panel_api_url, limit_check_interval, limit_refresh_interval
 
         Returns:
             dict: {node_id, status, message, xray_version, node_version, old_status}
@@ -155,6 +161,13 @@ class NodeOperation(BaseOperation):
 
         core = await core_manager.get_core(db_node.core_config_id if db_node.core_config_id else 1)
 
+        # Prepare limit enforcer parameters
+        le_config = limit_enforcer_config or {}
+        node_id = db_node.id if le_config.get("enabled") else 0
+        panel_api_url = le_config.get("panel_api_url", "") if le_config.get("enabled") else ""
+        limit_check_interval = le_config.get("limit_check_interval", 30)
+        limit_refresh_interval = le_config.get("limit_refresh_interval", 60)
+
         try:
             info = await pg_node.start(
                 config=core.to_str(),
@@ -162,6 +175,10 @@ class NodeOperation(BaseOperation):
                 users=users,
                 keep_alive=db_node.keep_alive,
                 exclude_inbounds=core.exclude_inbound_tags,
+                node_id=node_id,
+                panel_api_url=panel_api_url,
+                limit_check_interval=limit_check_interval,
+                limit_refresh_interval=limit_refresh_interval,
             )
             logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, xray run on v{info.core_version}')
 
@@ -223,10 +240,24 @@ class NodeOperation(BaseOperation):
         if modified_node.core_config_id is not None:
             await self.get_validated_core_config(db, modified_node.core_config_id)
 
+        # Track if user_data_limit is being changed
+        old_user_data_limit = db_node.user_data_limit
+        new_user_data_limit = modified_node.user_data_limit
+
         try:
             db_node = await modify_node(db, db_node, modified_node)
         except IntegrityError:
             await self.raise_error(message=f'Node "{db_node.name}" already exists', code=409, db=db)
+
+        # If user_data_limit changed, update existing users without individual limits
+        if new_user_data_limit is not None and new_user_data_limit != old_user_data_limit:
+            await self._propagate_user_data_limit_change(
+                db, db_node.id, new_user_data_limit,
+                db_node.user_data_limit_reset_strategy,
+                db_node.user_reset_time
+            )
+            # Refresh db_node after commit in propagate to avoid MissingGreenlet
+            await db.refresh(db_node)
 
         if db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             await self.disconnect_single_node(db_node.id)
@@ -249,6 +280,56 @@ class NodeOperation(BaseOperation):
         asyncio.create_task(notification.modify_node(node, admin.username))
 
         return node
+
+    async def _propagate_user_data_limit_change(
+        self, db: AsyncSession, node_id: int, data_limit: int,
+        reset_strategy, reset_time: int
+    ):
+        """
+        Update node_user_limits for users without individual limits when Node.user_data_limit changes.
+        Users with individual limits (set via user edit or templates) are not affected.
+        """
+        from app.db.crud import node_user_limit as node_limit_crud
+        from app.db.models import User, NodeUserLimit
+        from sqlalchemy import select
+        
+        # Ensure strategy is string
+        if hasattr(reset_strategy, "value"):
+            reset_strategy = reset_strategy.value
+        
+        # Get all active users
+        users_stmt = select(User.id)
+        users_result = await db.execute(users_stmt)
+        all_user_ids = set(row[0] for row in users_result.fetchall())
+        
+        if not all_user_ids:
+            return
+        
+        # Get users who already have limits for this node
+        existing_limits = await node_limit_crud.get_user_limits_for_node(db, node_id)
+        users_with_limits = {limit.user_id for limit in existing_limits}
+        
+        # Users without limits for this node get the new node default
+        users_to_update = all_user_ids - users_with_limits
+        
+        if data_limit > 0:
+            # Create new limits for users who don't have one
+            for user_id in users_to_update:
+                new_limit = NodeUserLimit(
+                    user_id=user_id,
+                    node_id=node_id,
+                    data_limit=data_limit,
+                    data_limit_reset_strategy=reset_strategy,
+                    reset_time=reset_time
+                )
+                db.add(new_limit)
+            
+            await db.commit()
+            
+            logger.info(
+                f"Propagated user_data_limit={data_limit} to {len(users_to_update)} users "
+                f"without individual limits on node {node_id}"
+            )
 
     async def remove_node(self, db: AsyncSession, node_id: Node, admin: AdminDetails) -> None:
         db_node: Node = await self.get_validated_node(db=db, node_id=node_id)
@@ -304,16 +385,41 @@ class NodeOperation(BaseOperation):
             db (AsyncSession): Database session.
             nodes (list[Node]): List of nodes to connect.
         """
+        from app.db.crud.settings import get_settings
+        from app.models.settings import General, Subscription
+
         if not nodes:
             return
 
-        # Fetch users ONCE for all nodes
+        # Fetch users ONCE for all nodes (without node_id filtering, as it's bulk)
+        # However, for per-node enforcement, they will be filtered later if needed.
+        # But wait, connect_nodes_bulk connects multiple nodes. 
+        # If we use a shared users list, we might include users over limit for some nodes but not others.
+        # Actually, connect_nodes_bulk is usually for startup.
+        # Let's keep it as is for bulk or handle it inside the loop.
         users = await core_users(db=db)
 
         # Calculate max_message_size based on active users count (once for all nodes)
         user_counts = await get_users_count_by_status(db, [UserStatus.active])
         active_users_count = user_counts.get(UserStatus.active.value, 0)
         max_message_size = calculate_max_message_size(active_users_count)
+
+        # Get limit enforcer config from settings (once for all nodes)
+        limit_enforcer_config = None
+        try:
+            settings = await get_settings(db)
+            if settings and settings.general and settings.subscription:
+                general = General.model_validate(settings.general)
+                subscription = Subscription.model_validate(settings.subscription)
+                if general.limit_enforcer_enabled and subscription.url_prefix:
+                    limit_enforcer_config = {
+                        "enabled": True,
+                        "panel_api_url": subscription.url_prefix.rstrip("/"),
+                        "limit_check_interval": general.limit_check_interval,
+                        "limit_refresh_interval": general.limit_refresh_interval,
+                    }
+        except Exception as e:
+            logger.warning(f"Failed to get limit enforcer config: {e}")
 
         async def connect_single(node: Node) -> dict | None:
             if node is None or node.status in (NodeStatus.disabled, NodeStatus.limited):
@@ -331,7 +437,9 @@ class NodeOperation(BaseOperation):
                     "old_status": node.status,
                 }
 
-            return await self.connect_node(node, users)
+            # For bulk, we still want to filter per node
+            node_users = await core_users(db=db, node_id=node.id)
+            return await self.connect_node(node, node_users, limit_enforcer_config)
 
         results = await asyncio.gather(*[connect_single(node) for node in nodes])
 
@@ -384,12 +492,15 @@ class NodeOperation(BaseOperation):
             db (AsyncSession): Database session.
             node_id (int): ID of the node to connect.
         """
+        from app.db.crud.settings import get_settings
+        from app.models.settings import General, Subscription
+
         db_node = await get_node_by_id(db, node_id)
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             return
 
-        # Get core users once
-        users = await core_users(db=db)
+        # Get users for this specific node with limit filtering
+        users = await core_users(db=db, node_id=node_id)
 
         # Calculate max_message_size based on active users count
         user_counts = await get_users_count_by_status(db, [UserStatus.active])
@@ -417,8 +528,25 @@ class NodeOperation(BaseOperation):
             asyncio.create_task(notification.error_node(node_notif))
             return
 
+        # Get limit enforcer config from settings
+        limit_enforcer_config = None
+        try:
+            settings = await get_settings(db)
+            if settings and settings.general and settings.subscription:
+                general = General.model_validate(settings.general)
+                subscription = Subscription.model_validate(settings.subscription)
+                if general.limit_enforcer_enabled and subscription.url_prefix:
+                    limit_enforcer_config = {
+                        "enabled": True,
+                        "panel_api_url": subscription.url_prefix.rstrip("/"),
+                        "limit_check_interval": general.limit_check_interval,
+                        "limit_refresh_interval": general.limit_refresh_interval,
+                    }
+        except Exception as e:
+            logger.warning(f"Failed to get limit enforcer config: {e}")
+
         # Connect the node
-        result = await NodeOperation.connect_node(db_node, users)
+        result = await NodeOperation.connect_node(db_node, users, limit_enforcer_config)
 
         if not result:
             return
@@ -626,7 +754,8 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="Node is not connected", code=409)
 
         try:
-            await pg_node.sync_users(await core_users(db=db), flush_pending=flush_users)
+            users = await core_users(db=db, node_id=node_id)
+            await pg_node.sync_users(users, flush_pending=flush_users)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
