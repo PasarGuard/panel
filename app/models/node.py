@@ -47,6 +47,9 @@ class Node(BaseModel):
     data_limit: int = Field(default=0)
     data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
     reset_time: int = Field(default=-1)
+    user_data_limit: int | None = Field(default=None)
+    user_data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
+    user_reset_time: int = Field(default=-1)
     default_timeout: int = Field(default=10, ge=3, le=60)
     internal_timeout: int = Field(default=15, ge=3, le=60)
 
@@ -170,6 +173,9 @@ class NodeModify(NodeCreate):
     data_limit: int | None = None
     data_limit_reset_strategy: DataLimitResetStrategy | None = None
     reset_time: int | None = None
+    user_data_limit: int | None = None
+    user_data_limit_reset_strategy: DataLimitResetStrategy | None = None
+    user_reset_time: int | None = None
     default_timeout: int | None = Field(default=None, ge=3, le=60)
     internal_timeout: int | None = Field(default=None, ge=3, le=60)
 
