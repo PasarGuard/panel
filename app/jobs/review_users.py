@@ -97,6 +97,8 @@ async def ip_limit_users_job():
                     f'User "{db_user.username}" ip-limited: {total_connections}/{db_user.ip_limit} connections'
                 )
             elif total_connections <= db_user.ip_limit and db_user.status == UserStatus.limited:
+                if db_user.is_data_reached:
+                    continue
                 updated = await update_users_status(db, [db_user], UserStatus.active)
                 for user in updated:
                     await change_status(db, user, UserStatus.active)
@@ -193,7 +195,7 @@ async def days_left_notification_job():
 
 
 now = dt.now(tz.utc)
-interval = int(JOB_REVIEW_USERS_INTERVAL / 5)
+interval = int(JOB_REVIEW_USERS_INTERVAL / 6)
 
 # Register each job separately
 scheduler.add_job(

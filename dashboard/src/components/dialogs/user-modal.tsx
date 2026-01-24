@@ -1065,7 +1065,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         const sendValues: any = {
           ...preparedValues,
           data_limit: gbToBytes(preparedValues.data_limit as any),
-          ip_limit: preparedValues.ip_limit || undefined,
+          ip_limit: preparedValues.ip_limit ?? undefined,
           expire: preparedValues.expire,
           ...(hasProxySettings ? { proxy_settings: cleanedProxySettings } : {}),
         }

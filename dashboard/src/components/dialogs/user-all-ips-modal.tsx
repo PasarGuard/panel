@@ -265,7 +265,7 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username, ipLimi
   const totalConnections = useMemo(() => {
     if (!transformedData) return 0
     return transformedData.reduce((sum, node) => {
-      return sum + Object.values(node.ips).reduce((s, count) => s + count, 0)
+      return sum + Object.keys(node.ips).length
     }, 0)
   }, [transformedData])
 
