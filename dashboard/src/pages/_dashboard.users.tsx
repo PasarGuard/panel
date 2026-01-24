@@ -73,6 +73,7 @@ export const userCreateSchema = z.object({
     }),
   on_hold_timeout: z.union([z.string(), z.number(), z.null()]).optional(),
   auto_delete_in_days: z.number().optional(),
+  ip_limit: z.number().min(0).optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
 })
@@ -101,6 +102,7 @@ export const userEditSchema = z.object({
     }),
   on_hold_timeout: z.union([z.string(), z.number(), z.null()]).optional(),
   auto_delete_in_days: z.number().optional(),
+  ip_limit: z.number().min(0).optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
 })

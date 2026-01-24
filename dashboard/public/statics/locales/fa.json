@@ -999,7 +999,8 @@
     "errorLoading": "بارگیری آدرس‌های IP ناموفق بود: {{message}}",
     "noIPs": "هیچ آدرس IP فعالی یافت نشد. این کاربر ممکن است در حال حاضر به هیچ گره‌ای متصل نباشد.",
     "ipCopied": "آدرس IP در کلیپ‌بورد کپی شد",
-    "clickToCopy": "کلیک کنید تا آدرس IP کپی شود"
+    "clickToCopy": "کلیک کنید تا آدرس IP کپی شود",
+    "connectionCount": "{{current}} / {{limit}} اتصال"
   },
   "search": "جستجو",
   "status.active": "فعال",
@@ -1029,6 +1030,8 @@
   "userDialog.onHold": "در انتظار",
   "userDialog.onHoldExpireDuration": "مدت انقضا",
   "userDialog.onHoldExpireDurationPlaceholder": "به عنوان مثال: 7",
+  "userDialog.ipLimit": "محدودیت IP",
+  "userDialog.ipLimitPlaceholder": "نامحدود",
   "userDialog.optional": "اختیاری",
   "userDialog.periodicUsageReset": "بازنشانی دوره‌ای مصرف",
   "userDialog.protocols": "پروتکل‌ها",

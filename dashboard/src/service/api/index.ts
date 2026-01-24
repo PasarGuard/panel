@@ -422,6 +422,8 @@ export interface UserTemplateResponse {
   name?: UserTemplateResponseName
   /** data_limit can be 0 or greater */
   data_limit?: UserTemplateResponseDataLimit
+  /** Maximum concurrent connections (0 or None = unlimited) */
+  ip_limit?: number | null
   /** expire_duration can be 0 or greater in seconds */
   expire_duration?: UserTemplateResponseExpireDuration
   username_prefix?: UserTemplateResponseUsernamePrefix
@@ -468,6 +470,8 @@ export interface UserTemplateModify {
   name?: UserTemplateModifyName
   /** data_limit can be 0 or greater */
   data_limit?: UserTemplateModifyDataLimit
+  /** Maximum concurrent connections (0 or None = unlimited) */
+  ip_limit?: number | null
   /** expire_duration can be 0 or greater in seconds */
   expire_duration?: UserTemplateModifyExpireDuration
   username_prefix?: UserTemplateModifyUsernamePrefix
@@ -511,6 +515,8 @@ export interface UserTemplateCreate {
   name?: UserTemplateCreateName
   /** data_limit can be 0 or greater */
   data_limit?: UserTemplateCreateDataLimit
+  /** Maximum concurrent connections (0 or None = unlimited) */
+  ip_limit?: number | null
   /** expire_duration can be 0 or greater in seconds */
   expire_duration?: UserTemplateCreateExpireDuration
   username_prefix?: UserTemplateCreateUsernamePrefix
@@ -611,6 +617,8 @@ export interface UserResponse {
   on_hold_timeout?: UserResponseOnHoldTimeout
   group_ids?: UserResponseGroupIds
   auto_delete_in_days?: UserResponseAutoDeleteInDays
+  /** Maximum concurrent connections (0 or None = unlimited) */
+  ip_limit?: number | null
   next_plan?: UserResponseNextPlan
   id: number
   username: string
@@ -670,6 +678,8 @@ export interface UserModify {
   on_hold_timeout?: UserModifyOnHoldTimeout
   group_ids?: UserModifyGroupIds
   auto_delete_in_days?: UserModifyAutoDeleteInDays
+  /** Maximum concurrent connections (0 or None = unlimited) */
+  ip_limit?: number | null
   next_plan?: UserModifyNextPlan
   status?: UserModifyStatus
 }
@@ -726,6 +736,8 @@ export interface UserCreate {
   on_hold_timeout?: UserCreateOnHoldTimeout
   group_ids?: UserCreateGroupIds
   auto_delete_in_days?: UserCreateAutoDeleteInDays
+  /** Maximum concurrent connections (0 or None = unlimited) */
+  ip_limit?: number | null
   next_plan?: UserCreateNextPlan
   username: string
   status?: UserCreateStatus

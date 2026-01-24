@@ -32,6 +32,9 @@ class UserTemplate(BaseModel):
     reset_usages: bool | None = None
     on_hold_timeout: int | None = None
     data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
+    ip_limit: int | None = Field(
+        ge=0, default=None, description="Maximum concurrent connections (0 or None = unlimited)"
+    )
     is_disabled: bool | None = None
 
 

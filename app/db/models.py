@@ -157,6 +157,7 @@ class User(Base):
     on_hold_expire_duration: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     on_hold_timeout: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     auto_delete_in_days: Mapped[Optional[int]] = mapped_column(default=None)
+    ip_limit: Mapped[Optional[int]] = mapped_column(default=None)
     edit_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
@@ -340,6 +341,7 @@ class UserTemplate(Base):
         default=DataLimitResetStrategy.no_reset,
         server_default="no_reset",
     )
+    ip_limit: Mapped[Optional[int]] = mapped_column(default=None)
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
 
     @property

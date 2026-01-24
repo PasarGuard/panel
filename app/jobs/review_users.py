@@ -12,12 +12,14 @@ from app.db.crud.user import (
     get_days_left_reached_users,
     get_on_hold_to_active_users,
     get_usage_percentage_reached_users,
+    get_users_with_ip_limit,
     reset_user_by_next,
     start_users_expire,
     update_users_status,
     bulk_create_notification_reminders,
 )
 from app.operation import OperatorType
+from app.operation.node import NodeOperation
 from app.operation.user import UserOperation
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import Webhook
@@ -29,6 +31,7 @@ from config import JOB_REVIEW_USERS_INTERVAL
 
 logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
+node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 
 
 async def reset_user_by_next_report(db: AsyncSession, db_user: User):
@@ -64,6 +67,42 @@ async def limit_users_job():
             updated_users = await update_users_status(db, limited_users, UserStatus.limited)
             for user in updated_users:
                 await change_status(db, user, UserStatus.limited)
+
+
+async def ip_limit_users_job():
+    """Check users' connection counts against their ip_limit and enforce."""
+    async with GetDB() as db:
+        users_with_limit = await get_users_with_ip_limit(db)
+        if not users_with_limit:
+            return
+
+        for db_user in users_with_limit:
+            try:
+                ip_data = await node_operator.get_user_ip_list_all_nodes(db=db, username=db_user.username)
+            except Exception as e:
+                logger.warning(f'Failed to get IP data for user "{db_user.username}": {e}')
+                continue
+
+            total_connections = sum(
+                sum(node_ips.ips.values())
+                for node_ips in (ip_data.nodes or {}).values()
+                if node_ips and node_ips.ips
+            ) if ip_data else 0
+
+            if total_connections > db_user.ip_limit and db_user.status == UserStatus.active:
+                updated = await update_users_status(db, [db_user], UserStatus.limited)
+                for user in updated:
+                    await change_status(db, user, UserStatus.limited)
+                logger.info(
+                    f'User "{db_user.username}" ip-limited: {total_connections}/{db_user.ip_limit} connections'
+                )
+            elif total_connections <= db_user.ip_limit and db_user.status == UserStatus.limited:
+                updated = await update_users_status(db, [db_user], UserStatus.active)
+                for user in updated:
+                    await change_status(db, user, UserStatus.active)
+                logger.info(
+                    f'User "{db_user.username}" ip-limit lifted: {total_connections}/{db_user.ip_limit} connections'
+                )
 
 
 async def on_hold_to_active_users_job():
@@ -191,4 +230,12 @@ scheduler.add_job(
     coalesce=True,
     max_instances=1,
     start_date=now + td(seconds=interval * 4),
+)
+scheduler.add_job(
+    ip_limit_users_job,
+    "interval",
+    seconds=JOB_REVIEW_USERS_INTERVAL,
+    coalesce=True,
+    max_instances=1,
+    start_date=now + td(seconds=interval * 5),
 )

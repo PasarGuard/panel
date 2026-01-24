@@ -50,6 +50,7 @@ export default function UserTemplates() {
       name: userTemplate.name || undefined,
       status: userTemplate.status || undefined,
       data_limit: userTemplate.data_limit || undefined,
+      ip_limit: userTemplate.ip_limit || undefined,
       expire_duration: userTemplate.expire_duration || undefined,
       method: userTemplate.extra_settings?.method || undefined,
       flow: userTemplate.extra_settings?.flow || undefined,

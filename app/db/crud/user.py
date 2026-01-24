@@ -245,6 +245,16 @@ async def get_active_to_limited_users(db: AsyncSession) -> list[User]:
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
+async def get_users_with_ip_limit(db: AsyncSession) -> list[User]:
+    """Get active or limited users that have ip_limit configured."""
+    stmt = select(User).where(
+        User.status.in_([UserStatus.active, UserStatus.limited]),
+        User.ip_limit.isnot(None),
+        User.ip_limit > 0,
+    )
+    return list((await db.execute(stmt)).unique().scalars().all())
+
+
 async def get_on_hold_to_active_users(db: AsyncSession) -> list[User]:
     stmt = select(User).where(User.status == UserStatus.on_hold).where(User.become_online)
 
@@ -660,6 +670,9 @@ async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> Us
     elif modify.on_hold_timeout is not None:
         db_user.on_hold_timeout = modify.on_hold_timeout
 
+    if modify.ip_limit is not None:
+        db_user.ip_limit = modify.ip_limit or None
+
     if modify.on_hold_expire_duration is not None:
         db_user.on_hold_expire_duration = modify.on_hold_expire_duration
 
@@ -790,6 +803,8 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
                 if db_user.next_plan.user_template.expire_duration
                 else None
             )
+
+        db_user.ip_limit = db_user.next_plan.user_template.ip_limit
 
         if db_user.next_plan.user_template.extra_settings:
             proxy_settings = deepcopy(db_user.proxy_settings)

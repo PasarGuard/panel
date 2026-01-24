@@ -1123,7 +1123,8 @@
     "errorLoading": "Unable to load IP addresses: {{message}}",
     "noIPs": "No active IP addresses found. This user may not be currently connected to any nodes.",
     "ipCopied": "IP address copied to clipboard",
-    "clickToCopy": "Click to copy IP address"
+    "clickToCopy": "Click to copy IP address",
+    "connectionCount": "{{current}} / {{limit}} connections"
   },
   "search": "Search",
   "status.active": "Active",
@@ -1154,6 +1155,8 @@
     "onHold": "On Hold",
     "onHoldExpireDuration": "On-Hold Expire Duration",
     "onHoldExpireDurationPlaceholder": "e.g. 7",
+    "ipLimit": "IP Limit",
+    "ipLimitPlaceholder": "Unlimited",
     "optional": "optional",
     "periodicUsageReset": "Periodic Usage Reset",
     "protocols": "Protocols",

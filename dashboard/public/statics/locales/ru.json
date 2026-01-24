@@ -796,7 +796,8 @@
     "errorLoading": "Не удалось загрузить IP-адреса: {{message}}",
     "noIPs": "Активные IP-адреса не найдены. Этот пользователь может быть не подключен к каким-либо узлам в данный момент.",
     "ipCopied": "IP-адрес скопирован в буфер обмена",
-    "clickToCopy": "Нажмите, чтобы скопировать IP-адрес"
+    "clickToCopy": "Нажмите, чтобы скопировать IP-адрес",
+    "connectionCount": "{{current}} / {{limit}} подключений"
   },
   "search": "Поиск",
   "status.active": "Активный",
@@ -826,6 +827,8 @@
   "userDialog.onHold": "В режиме ожидания",
   "userDialog.onHoldExpireDuration": "Продолжительность срока действия",
   "userDialog.onHoldExpireDurationPlaceholder": "например, 7",
+  "userDialog.ipLimit": "Лимит IP",
+  "userDialog.ipLimitPlaceholder": "Без ограничений",
   "userDialog.optional": "необязательно",
   "userDialog.periodicUsageReset": "Периодич. сброс",
   "userDialog.protocols": "Протоколы",

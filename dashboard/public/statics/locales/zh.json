@@ -1102,7 +1102,8 @@
     "errorLoading": "无法加载 IP 地址：{{message}}",
     "noIPs": "未找到活动的 IP 地址。此用户可能当前未连接到任何节点。",
     "ipCopied": "IP 地址已复制到剪贴板",
-    "clickToCopy": "点击复制 IP 地址"
+    "clickToCopy": "点击复制 IP 地址",
+    "connectionCount": "{{current}} / {{limit}} 连接"
   },
   "search": "搜索",
   "status.active": "活跃",
@@ -1132,6 +1133,8 @@
   "userDialog.onHold": "保持",
   "userDialog.onHoldExpireDuration": "过期时间",
   "userDialog.onHoldExpireDurationPlaceholder": "例如：7",
+  "userDialog.ipLimit": "IP 限制",
+  "userDialog.ipLimitPlaceholder": "无限制",
   "userDialog.optional": "可以为空",
   "userDialog.periodicUsageReset": "定期重置流量",
   "userDialog.protocols": "协议",

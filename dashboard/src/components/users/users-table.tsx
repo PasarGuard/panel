@@ -190,6 +190,7 @@ const UsersTable = memo(() => {
       group_ids: selectedUser?.group_ids || [],
       on_hold_expire_duration: selectedUser?.on_hold_expire_duration || undefined,
       on_hold_timeout: selectedUser?.on_hold_timeout || undefined,
+      ip_limit: selectedUser?.ip_limit || undefined,
       proxy_settings: selectedUser?.proxy_settings || undefined,
       next_plan: selectedUser?.next_plan
         ? {
@@ -214,6 +215,7 @@ const UsersTable = memo(() => {
         group_ids: selectedUser.group_ids || [],
         on_hold_expire_duration: selectedUser.on_hold_expire_duration || undefined,
         on_hold_timeout: selectedUser.on_hold_timeout || undefined,
+        ip_limit: selectedUser.ip_limit || undefined,
         proxy_settings: selectedUser.proxy_settings || undefined,
         next_plan: selectedUser.next_plan
           ? {

@@ -130,6 +130,10 @@ const UserTemplate = ({
                   {!template.expire_duration || template.expire_duration === 0 ? <Infinity className="h-4 w-4"></Infinity> : `${template.expire_duration / 60 / 60 / 24} ${t('dateInfo.day')}`}
                 </span>
               </p>
+              <p className={'flex items-center gap-x-1'}>
+                {t('userDialog.ipLimit', { defaultValue: 'IP Limit' })}:{' '}
+                <span dir="ltr">{!template.ip_limit || template.ip_limit === 0 ? <Infinity className="h-4 w-4"></Infinity> : template.ip_limit}</span>
+              </p>
             </div>
           </CardDescription>
         </div>

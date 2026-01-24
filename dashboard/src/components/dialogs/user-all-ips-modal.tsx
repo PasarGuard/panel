@@ -18,6 +18,7 @@ interface UserAllIPsModalProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   username: string
+  ipLimit?: number | null
 }
 
 interface NodeIPCardProps {
@@ -156,7 +157,7 @@ const EmptyState = React.memo(({ message }: { message: string }) => {
 
 EmptyState.displayName = 'EmptyState'
 
-export default function UserAllIPsModal({ isOpen, onOpenChange, username }: UserAllIPsModalProps) {
+export default function UserAllIPsModal({ isOpen, onOpenChange, username, ipLimit }: UserAllIPsModalProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [refreshing, setRefreshing] = useState(false)
@@ -261,6 +262,13 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username }: User
     return nodes.length > 0 ? nodes : null
   }, [userIPsData, nodeNameMap])
 
+  const totalConnections = useMemo(() => {
+    if (!transformedData) return 0
+    return transformedData.reduce((sum, node) => {
+      return sum + Object.values(node.ips).reduce((s, count) => s + count, 0)
+    }, 0)
+  }, [transformedData])
+
   const renderIPList = useCallback(() => {
     if (isLoading) {
       return <LoadingState />
@@ -341,6 +349,16 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username }: User
             })}
           </DialogDescription>
         </DialogHeader>
+
+        {ipLimit != null && ipLimit > 0 && (
+          <Badge variant={totalConnections > ipLimit ? 'destructive' : 'outline'} className="text-sm">
+            {t('userAllIPs.connectionCount', {
+              defaultValue: '{{current}} / {{limit}} connections',
+              current: totalConnections,
+              limit: ipLimit,
+            })}
+          </Badge>
+        )}
 
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={handleRefresh} disabled={refreshing || isLoading} className="flex-1 sm:flex-none">

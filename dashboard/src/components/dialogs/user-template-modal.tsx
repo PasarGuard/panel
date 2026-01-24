@@ -23,6 +23,7 @@ export const userTemplateFormSchema = z.object({
   username_prefix: z.string().optional(),
   username_suffix: z.string().optional(),
   data_limit: z.number().min(0).optional(),
+  ip_limit: z.number().min(0).optional(),
   expire_duration: z.number().min(0).optional(),
   on_hold_timeout: z.number().optional(),
   method: z
@@ -69,6 +70,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       const submitData = {
         name: values.name,
         data_limit: values.data_limit,
+        ip_limit: values.ip_limit || undefined,
         expire_duration: values.expire_duration,
         username_prefix: values.username_prefix || '',
         username_suffix: values.username_suffix || '',
@@ -116,6 +118,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       const fields = [
         'name',
         'data_limit',
+        'ip_limit',
         'expire_duration',
         'username_prefix',
         'username_suffix',
@@ -234,6 +237,32 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                           />
                           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{t('userDialog.gb', { defaultValue: 'GB' })}</span>
                         </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="ip_limit"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>{t('userDialog.ipLimit', { defaultValue: 'IP Limit' })}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder={t('userDialog.ipLimitPlaceholder', { defaultValue: 'Unlimited' })}
+                          value={field.value && field.value > 0 ? field.value : ''}
+                          onChange={e => {
+                            const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10)
+                            if (!isNaN(value) && value >= 0) {
+                              field.onChange(value)
+                            }
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

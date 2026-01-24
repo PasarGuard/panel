@@ -1065,6 +1065,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         const sendValues: any = {
           ...preparedValues,
           data_limit: gbToBytes(preparedValues.data_limit as any),
+          ip_limit: preparedValues.ip_limit || undefined,
           expire: preparedValues.expire,
           ...(hasProxySettings ? { proxy_settings: cleanedProxySettings } : {}),
         }
@@ -1141,7 +1142,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         setActiveTab('groups')
         setSelectedTemplateId(null)
       } catch (error: any) {
-        const fields = ['username', 'data_limit', 'expire', 'note', 'data_limit_reset_strategy', 'on_hold_expire_duration', 'on_hold_timeout', 'group_ids']
+        const fields = ['username', 'data_limit', 'expire', 'note', 'data_limit_reset_strategy', 'on_hold_expire_duration', 'on_hold_timeout', 'group_ids', 'ip_limit']
         handleError({ error, fields, form, contextKey: 'users' })
       } finally {
         setLoading(false)
@@ -1556,6 +1557,32 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                               )}
                             />
                           )}
+                          <FormField
+                            control={form.control}
+                            name="ip_limit"
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <FormLabel>{t('userDialog.ipLimit', { defaultValue: 'IP Limit' })}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder={t('userDialog.ipLimitPlaceholder', { defaultValue: 'Unlimited' })}
+                                    value={field.value && field.value > 0 ? field.value : ''}
+                                    onChange={e => {
+                                      const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10)
+                                      if (!isNaN(value) && value >= 0) {
+                                        field.onChange(value)
+                                        handleFieldChange('ip_limit', value)
+                                      }
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </>
                       )}
                       <div className="flex h-full items-start gap-4 lg:w-52">
