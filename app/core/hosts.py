@@ -118,10 +118,11 @@ async def _prepare_subscription_inbound_data(
     # Always create the config, merge host settings with inbound defaults (host overrides inbound)
     if network in ("xhttp", "splithttp"):
         xs = ts.xhttp_settings if ts else None
+        mode = inbound_config.get("mode", "") or (xs.mode.value if xs and xs.mode else "auto")
         transport_config = XHTTPTransportConfig(
             path=path,
             host=host_list,
-            mode=xs.mode.value if xs and xs.mode else "auto",
+            mode=mode,
             no_grpc_header=xs.no_grpc_header if xs else None,
             sc_max_each_post_bytes=xs.sc_max_each_post_bytes if xs else None,
             sc_min_posts_interval_ms=xs.sc_min_posts_interval_ms if xs else None,

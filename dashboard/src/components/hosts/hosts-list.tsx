@@ -160,7 +160,7 @@ const transportSettingsSchema = z
   .object({
     xhttp_settings: z
       .object({
-        mode: z.enum(['auto', 'packet-up', 'stream-up', 'stream-one']).nullish().optional(),
+        mode: z.enum(['', 'auto', 'packet-up', 'stream-up', 'stream-one']).nullish().optional(),
         no_grpc_header: z.boolean().nullish().optional(),
         x_padding_bytes: z.string().nullish().optional(),
         sc_max_each_post_bytes: z.string().nullish().optional(),

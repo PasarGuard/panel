@@ -1193,13 +1193,17 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel>{t('hostsDialog.xhttp.mode')}</FormLabel>
-                                  <Select onValueChange={field.onChange} value={field.value}>
+                                  <Select
+                                    onValueChange={value => field.onChange(value === '__default' ? undefined : value)}
+                                    value={field.value ?? '__default'}
+                                  >
                                     <FormControl>
                                       <SelectTrigger>
                                         <SelectValue />
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
+                                      <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
                                       <SelectItem value="auto">Auto</SelectItem>
                                       <SelectItem value="packet-up">Packet Up</SelectItem>
                                       <SelectItem value="stream-up">Stream Up</SelectItem>

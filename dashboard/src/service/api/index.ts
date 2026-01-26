@@ -279,8 +279,10 @@ export type XHttpSettingsOutputXPaddingBytes = string | null
 
 export type XHttpSettingsOutputNoGrpcHeader = boolean | null
 
+export type XHttpSettingsOutputMode = XHttpModes | null
+
 export interface XHttpSettingsOutput {
-  mode?: XHttpModes
+  mode?: XHttpSettingsOutputMode
   no_grpc_header?: XHttpSettingsOutputNoGrpcHeader
   x_padding_bytes?: XHttpSettingsOutputXPaddingBytes
   sc_max_each_post_bytes?: XHttpSettingsOutputScMaxEachPostBytes
@@ -301,6 +303,16 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export interface XHttpSettingsInput {
+  mode?: XHttpSettingsInputMode
+  no_grpc_header?: XHttpSettingsInputNoGrpcHeader
+  x_padding_bytes?: XHttpSettingsInputXPaddingBytes
+  sc_max_each_post_bytes?: XHttpSettingsInputScMaxEachPostBytes
+  sc_min_posts_interval_ms?: XHttpSettingsInputScMinPostsIntervalMs
+  xmux?: XHttpSettingsInputXmux
+  download_settings?: XHttpSettingsInputDownloadSettings
+}
+
 export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -311,15 +323,7 @@ export const XHttpModes = {
   'stream-one': 'stream-one',
 } as const
 
-export interface XHttpSettingsInput {
-  mode?: XHttpModes
-  no_grpc_header?: XHttpSettingsInputNoGrpcHeader
-  x_padding_bytes?: XHttpSettingsInputXPaddingBytes
-  sc_max_each_post_bytes?: XHttpSettingsInputScMaxEachPostBytes
-  sc_min_posts_interval_ms?: XHttpSettingsInputScMinPostsIntervalMs
-  xmux?: XHttpSettingsInputXmux
-  download_settings?: XHttpSettingsInputDownloadSettings
-}
+export type XHttpSettingsInputMode = XHttpModes | null
 
 export interface WebhookInfo {
   url: string
