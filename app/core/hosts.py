@@ -177,10 +177,11 @@ async def _prepare_subscription_inbound_data(
     elif network in ("tcp", "raw", "http", "h2"):
         # TCP/HTTP/H2 all use TCP transport
         tcps = ts.tcp_settings if ts else None
+        header_type = inbound_header_type or tcps.header if tcps else inbound_header_type
         transport_config = TCPTransportConfig(
             path=path,
             host=host_list,
-            header_type=tcps.header if tcps else inbound_header_type,
+            header_type=header_type,
             request=tcps.request.model_dump(by_alias=True, exclude_none=True) if tcps and tcps.request else None,
             response=tcps.response.model_dump(by_alias=True, exclude_none=True) if tcps and tcps.response else None,
             http_headers=host.http_headers,

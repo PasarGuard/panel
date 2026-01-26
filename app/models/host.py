@@ -101,7 +101,7 @@ class HTTPRequest(HTTPBase):
 
 
 class TcpSettings(BaseModel):
-    header: str = Field("none", pattern=r"^(:?none|http)$")
+    header: str = Field("none", pattern=r"^(?:|none|http)$")
     request: HTTPRequest | None = Field(default=None)
     response: HTTPResponse | None = Field(default=None)
 

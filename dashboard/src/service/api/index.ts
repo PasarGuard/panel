@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 1.10.1
+ * OpenAPI spec version: 1.11.0
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -815,7 +815,7 @@ export type TcpSettingsResponse = HTTPResponse | null
 export type TcpSettingsRequest = HTTPRequest | null
 
 export interface TcpSettings {
-  /** @pattern ^(:?none|http)$ */
+  /** @pattern ^(?:|none|http)$ */
   header?: string
   request?: TcpSettingsRequest
   response?: TcpSettingsResponse

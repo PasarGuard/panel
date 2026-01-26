@@ -1635,13 +1635,17 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               render={({ field }) => (
                                 <FormItem className="col-span-2">
                                   <FormLabel>{t('hostsDialog.tcp.header')}</FormLabel>
-                                  <Select onValueChange={field.onChange} value={field.value}>
+                                  <Select
+                                    onValueChange={value => field.onChange(value === '__default' ? '' : value)}
+                                    value={field.value === '' || field.value == null ? '__default' : field.value}
+                                  >
                                     <FormControl>
                                       <SelectTrigger>
                                         <SelectValue />
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
+                                      <SelectItem value="__default">{t('hostsDialog.tcp.defaultHeader', { defaultValue: 'Use default' })}</SelectItem>
                                       <SelectItem value="none">None</SelectItem>
                                       <SelectItem value="http">HTTP</SelectItem>
                                     </SelectContent>
