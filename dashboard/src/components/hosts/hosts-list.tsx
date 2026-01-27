@@ -1,21 +1,21 @@
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
 import { BaseHost, CreateHost, createHost, modifyHosts } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useState, useMemo } from 'react'
+import { RefreshCw, Search, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Resolver, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { RefreshCw, Search, X } from 'lucide-react'
-import useDirDetection from '@/hooks/use-dir-detection'
-import { cn } from '@/lib/utils'
-import { Card, CardContent } from '@/components/ui/card'
 
 interface Brutal {
   enable?: boolean
@@ -160,7 +160,7 @@ const transportSettingsSchema = z
   .object({
     xhttp_settings: z
       .object({
-        mode: z.enum(['auto', 'packet-up', 'stream-up', 'stream-one']).nullish().optional(),
+        mode: z.enum(['', 'auto', 'packet-up', 'stream-up', 'stream-one']).nullish().optional(),
         no_grpc_header: z.boolean().nullish().optional(),
         x_padding_bytes: z.string().nullish().optional(),
         sc_max_each_post_bytes: z.string().nullish().optional(),
@@ -207,7 +207,7 @@ const transportSettingsSchema = z
       .optional(),
     tcp_settings: z
       .object({
-        header: z.enum(['none', 'http']).nullish().optional(),
+        header: z.enum(['none', 'http', '']).nullish().optional(),
         request: z
           .object({
             version: z.enum(['1.0', '1.1', '2.0', '3.0']).nullish().optional(),

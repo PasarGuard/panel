@@ -305,7 +305,58 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     }
   }
 
-  const handleCopyCoreUsername = async () => {
+  // Utility functions
+  const isIOS = () => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  }
+
+  const showManualCopyAlert = (content: string, type: 'content' | 'url') => {
+    const message =
+      type === 'content' ? t('copyFailed', { defaultValue: 'Failed to copy automatically. Please copy manually:' }) : t('downloadFailed', { defaultValue: 'Download blocked. Please copy manually:' })
+    alert(`${message}\n\n${content}`)
+  }
+
+  const buildDashboardFallbackUrl = (url: string): string | null => {
+    try {
+      const parsedUrl = new URL(url, window.location.origin)
+      if (parsedUrl.origin === window.location.origin) return null
+
+      return `${window.location.origin}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
+    } catch (error) {
+      console.error('Failed to build fallback url:', error)
+      return null
+    }
+  }
+
+  async function fetchWithDashboardFallback<T>(url: string, parser: (response: Response) => Promise<T>): Promise<T> {
+    const attemptFetch = async (targetUrl: string) => {
+      const response = await fetch(targetUrl)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return parser(response)
+    }
+
+    try {
+      return await attemptFetch(url)
+    } catch (primaryError) {
+      const fallbackUrl = buildDashboardFallbackUrl(url)
+      if (fallbackUrl) {
+        try {
+          return await attemptFetch(fallbackUrl)
+        } catch (fallbackError) {
+          console.error('Fallback fetch failed:', fallbackError)
+        }
+      }
+      throw primaryError
+    }
+  }
+
+  const fetchContent = (url: string): Promise<string> => fetchWithDashboardFallback(url, response => response.text())
+
+  const fetchBlob = (url: string): Promise<Blob> => fetchWithDashboardFallback(url, response => response.blob())
+
+  const handleLinksCopy = async (subLink: SubscribeLink) => {
     try {
       await navigator.clipboard.writeText(`${user.id}.${user.username}`)
       toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
@@ -332,9 +383,27 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const handleConfigDownload = async (link: string, type: string) => {
     try {
-      const response = await fetch(link)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (isIOS()) {
+        // iOS: open in new tab or show content
+        const newWindow = window.open(subLink.link, '_blank')
+        if (!newWindow) {
+          const content = await fetchContent(subLink.link)
+          showManualCopyAlert(content, 'url')
+        } else {
+          toast.success(t('downloadSuccess', { defaultValue: 'Configuration opened in new tab' }))
+        }
+      } else {
+        // Non-iOS: regular download
+        const blob = await fetchBlob(subLink.link)
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${user.username}-${subLink.protocol}.txt`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+        toast.success(t('downloadSuccess', { defaultValue: 'Configuration downloaded successfully' }))
       }
       const content = await response.text()
       const filename = `${user.username}-${type}.yaml`
