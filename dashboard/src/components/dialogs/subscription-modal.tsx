@@ -2,10 +2,11 @@ import { FC, memo, useState, useEffect, useCallback } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { QRCodeCanvas } from 'qrcode.react'
 import { useTranslation } from 'react-i18next'
-import { ScanQrCode, Copy, QrCode, ChevronLeft, ChevronRight, Check, Loader2 } from 'lucide-react'
+import { ScanQrCode, Copy, QrCode, ChevronLeft, ChevronRight, Check, Loader2, RefreshCw } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +19,7 @@ interface SubscriptionModalProps {
 interface ConfigItem {
   config: string
   name: string
+  address: string | null
 }
 
 const CONFIGS_PER_PAGE = 3
@@ -49,6 +51,30 @@ const extractNameFromConfigURL = (url: string): string | null => {
   return null
 }
 
+const extractAddressFromConfigURL = (url: string): string | null => {
+  // Handle vmess:// (base64 JSON)
+  if (url.startsWith('vmess://')) {
+    try {
+      const encodedString = url.replace('vmess://', '').split('#')[0]
+      const decodedString = atob(encodedString)
+      const config = JSON.parse(decodedString)
+      return config.add || null
+    } catch (error) {
+      return null
+    }
+  }
+
+  // Handle vless://, trojan://, ss://, etc.
+  // Format: protocol://uuid@host:port?params#name
+  const protocolPattern = /^[a-z]+:\/\/([^@]+@)?([^:/?#]+)/i
+  const match = url.match(protocolPattern)
+  if (match && match[2]) {
+    return match[2]
+  }
+
+  return null
+}
+
 const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, username, onCloseModal }) => {
   const isOpen = subscribeUrl !== null
   const { t } = useTranslation()
@@ -69,34 +95,37 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
 
   const subscribeQrLink = sublink
 
-  useEffect(() => {
+  const fetchConfigs = useCallback(async () => {
     if (!subscribeUrl) return
 
-    const fetchConfigs = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const response = await fetch(`${sublink}/links`)
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        const text = await response.text()
-        const configLines = text.split('\n').filter(line => line.trim() !== '')
-        setConfigs(configLines.map(config => ({
-          config,
-          name: extractNameFromConfigURL(config) || t('subscriptionModal.unknownConfig', { defaultValue: 'Unknown Config' })
-        })))
-        setCurrentPage(0)
-      } catch (err) {
-        console.error('Failed to fetch configs:', err)
-        setError(t('subscriptionModal.fetchError', { defaultValue: 'Failed to fetch configurations' }))
-      } finally {
-        setIsLoading(false)
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`${sublink}/links`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
+      const text = await response.text()
+      const configLines = text.split('\n').filter(line => line.trim() !== '')
+      setConfigs(
+        configLines.map(config => ({
+          config,
+          name: extractNameFromConfigURL(config) || t('subscriptionModal.unknownConfig', { defaultValue: 'Unknown Config' }),
+          address: extractAddressFromConfigURL(config),
+        })),
+      )
+      setCurrentPage(0)
+    } catch (err) {
+      console.error('Failed to fetch configs:', err)
+      setError(t('subscriptionModal.fetchError', { defaultValue: 'Failed to fetch configurations' }))
+    } finally {
+      setIsLoading(false)
     }
-
-    fetchConfigs()
   }, [subscribeUrl, sublink, t])
+
+  useEffect(() => {
+    fetchConfigs()
+  }, [fetchConfigs])
 
   const totalPages = Math.ceil(configs.length / CONFIGS_PER_PAGE)
   const startIndex = currentPage * CONFIGS_PER_PAGE
@@ -187,8 +216,12 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : error ? (
-                <div className="flex h-[200px] items-center justify-center">
+                <div className="flex h-[200px] flex-col items-center justify-center gap-3">
                   <span className="text-sm text-destructive">{error}</span>
+                  <Button variant="outline" size="sm" onClick={fetchConfigs}>
+                    <RefreshCw className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                    {t('retry', { defaultValue: 'Retry' })}
+                  </Button>
                 </div>
               ) : configs.length === 0 ? (
                 <div className="flex h-[200px] items-center justify-center">
@@ -200,9 +233,16 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
                   <div className="flex flex-col gap-2">
                     {currentConfigs.map((item, index) => (
                       <div key={startIndex + index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
-                        <span dir="ltr" className="flex-1 truncate text-sm" title={item.name}>
-                          {item.name}
-                        </span>
+                        <div className="flex flex-1 flex-col gap-1 overflow-hidden">
+                          <span dir="ltr" className="truncate text-sm font-medium" title={item.name}>
+                            {item.name}
+                          </span>
+                          {item.address && (
+                            <Badge variant="secondary" className="w-fit text-xs font-normal opacity-70">
+                              {item.address}
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopyConfig(item.config)}>
                             {copiedConfig === item.config ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
