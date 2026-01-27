@@ -314,13 +314,43 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     }
   }
 
-  const handleLinksCopy = async (link: string, type: string, icon: string) => {
+  const buildFallbackUrl = (originalUrl: string): string | null => {
     try {
-      const response = await fetch(link)
+      const parsedUrl = new URL(originalUrl)
+      return `${window.location.origin}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
+    } catch (error) {
+      console.error('Failed to build fallback url:', error)
+      return null
+    }
+  }
+
+  async function fetchWithDashboardFallback<T>(url: string, parser: (response: Response) => Promise<T>): Promise<T> {
+    const attemptFetch = async (targetUrl: string) => {
+      const response = await fetch(targetUrl)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      const content = await response.text()
+      return parser(response)
+    }
+
+    try {
+      return await attemptFetch(url)
+    } catch (error) {
+      const fallbackUrl = buildFallbackUrl(url)
+      if (fallbackUrl && fallbackUrl !== url) {
+        return await attemptFetch(fallbackUrl)
+      }
+      throw error
+    }
+  }
+
+  const fetchContent = (url: string): Promise<string> => fetchWithDashboardFallback(url, response => response.text())
+
+  const fetchBlob = (url: string): Promise<Blob> => fetchWithDashboardFallback(url, response => response.blob())
+
+  const handleLinksCopy = async (link: string, type: string, icon: string) => {
+    try {
+      const content = await fetchContent(link)
       copy(content)
       toast.success(
         `${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`
@@ -332,13 +362,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const handleConfigDownload = async (link: string, type: string) => {
     try {
-      const response = await fetch(link)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const content = await response.text()
+      const blob = await fetchBlob(link)
       const filename = `${user.username}-${type}.yaml`
-      const blob = new Blob([content], { type: 'text/yaml' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
