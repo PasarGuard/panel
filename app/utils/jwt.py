@@ -19,7 +19,7 @@ async def get_secret_key():
 
 
 async def create_admin_token(username: str, is_sudo=False) -> str:
-    data = {"sub": username, "access": "sudo" if is_sudo else "admin", "iat": datetime.utcnow()}
+    data = {"sub": username, "access": "sudo" if is_sudo else "admin", "iat": datetime.now(timezone.utc)}
     if JWT_ACCESS_TOKEN_EXPIRE_MINUTES > 0:
         expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
         data["exp"] = expire
