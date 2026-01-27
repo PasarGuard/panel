@@ -118,7 +118,12 @@ async def _prepare_subscription_inbound_data(
     # Always create the config, merge host settings with inbound defaults (host overrides inbound)
     if network in ("xhttp", "splithttp"):
         xs = ts.xhttp_settings if ts else None
-        mode = inbound_config.get("mode", "") or (xs.mode.value if xs and xs.mode else "auto")
+        mode = inbound_config.get("mode", "")
+        if xs:
+            if xs.mode is None:
+                mode = inbound_config.get("mode", "")
+            else:
+                mode = xs.mode.value
         transport_config = XHTTPTransportConfig(
             path=path,
             host=host_list,
@@ -178,7 +183,13 @@ async def _prepare_subscription_inbound_data(
     elif network in ("tcp", "raw", "http", "h2"):
         # TCP/HTTP/H2 all use TCP transport
         tcps = ts.tcp_settings if ts else None
-        header_type = inbound_header_type or tcps.header if tcps else inbound_header_type
+        header_type = inbound_header_type
+        if tcps:
+            if tcps.header == "":
+                header_type = inbound_header_type
+            else:
+                header_type = tcps.header
+
         transport_config = TCPTransportConfig(
             path=path,
             host=host_list,
