@@ -22,7 +22,7 @@ interface ConfigItem {
   address: string | null
 }
 
-const CONFIGS_PER_PAGE = 3
+const CONFIGS_PER_PAGE = 5
 
 const extractNameFromConfigURL = (url: string): string | null => {
   const namePattern = /#([^#]*)/
