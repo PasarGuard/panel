@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { CopyButton } from '@/components/common/copy-button'
 
 interface SubscriptionModalProps {
   subscribeUrl: string | null
@@ -21,7 +20,7 @@ interface ConfigItem {
   name: string
 }
 
-const CONFIGS_PER_PAGE = 5
+const CONFIGS_PER_PAGE = 3
 
 const extractNameFromConfigURL = (url: string): string | null => {
   const namePattern = /#([^#]*)/
@@ -159,29 +158,15 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
               </div>
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="flex flex-col gap-4">
             {/* Subscription QR Code Section */}
+            <div className="flex w-full items-center justify-between">
+              <span className="text-sm font-medium">{t('subscriptionModal.subscriptionLink', { defaultValue: 'Subscription Link' })}</span>
+            </div>
             <div className="flex flex-col items-center gap-3 rounded-lg border p-4">
-              <div className="flex w-full items-center justify-between">
-                <span className="text-sm font-medium">
-                  {t('subscriptionModal.subscriptionLink', { defaultValue: 'Subscription Link' })}
-                </span>
-                <CopyButton
-                  value={subscribeQrLink}
-                  copiedMessage="usersTable.copied"
-                  defaultMessage="usersTable.copyLink"
-                  showToast={true}
-                  toastSuccessMessage="usersTable.copied"
-                  toastErrorMessage="copyFailed"
-                />
-              </div>
-              <div dir="ltr" className="flex items-center justify-center overflow-hidden max-w-[200px]">
-                <QRCodeCanvas 
-                  value={subscribeQrLink} 
-                  size={200}
-                  className="rounded-md bg-white p-2" 
-                />
+              <div dir="ltr" className="flex max-w-[200px] items-center justify-center overflow-hidden">
+                <QRCodeCanvas value={subscribeQrLink} size={200} className="rounded-md bg-white p-2" />
               </div>
             </div>
 
@@ -190,21 +175,9 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
             {/* Configs Section */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  {t('subscriptionModal.configs', { defaultValue: 'Configurations' })}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopyAllConfigs}
-                  disabled={isLoading || configs.length === 0}
-                  className="h-8"
-                >
-                  {allConfigsCopied ? (
-                    <Check className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                  ) : (
-                    <Copy className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                  )}
+                <span className="text-sm font-medium">{t('subscriptionModal.configs', { defaultValue: 'Configurations' })}</span>
+                <Button variant="outline" size="sm" onClick={handleCopyAllConfigs} disabled={isLoading || configs.length === 0} className="h-8">
+                  {allConfigsCopied ? <Check className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} /> : <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />}
                   {t('subscriptionModal.copyAll', { defaultValue: 'Copy All' })}
                 </Button>
               </div>
@@ -219,45 +192,22 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
                 </div>
               ) : configs.length === 0 ? (
                 <div className="flex h-[200px] items-center justify-center">
-                  <span className="text-sm text-muted-foreground">
-                    {t('subscriptionModal.noConfigs', { defaultValue: 'No configurations found' })}
-                  </span>
+                  <span className="text-sm text-muted-foreground">{t('subscriptionModal.noConfigs', { defaultValue: 'No configurations found' })}</span>
                 </div>
               ) : (
                 <>
                   {/* Configs List */}
                   <div className="flex flex-col gap-2">
                     {currentConfigs.map((item, index) => (
-                      <div 
-                        key={startIndex + index}
-                        className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50"
-                      >
-                        <span 
-                          dir="ltr" 
-                          className="flex-1 truncate text-sm"
-                          title={item.name}
-                        >
+                      <div key={startIndex + index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
+                        <span dir="ltr" className="flex-1 truncate text-sm" title={item.name}>
                           {item.name}
                         </span>
                         <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleCopyConfig(item.config)}
-                          >
-                            {copiedConfig === item.config ? (
-                              <Check className="h-4 w-4" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopyConfig(item.config)}>
+                            {copiedConfig === item.config ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleShowConfigQR(item)}
-                          >
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleShowConfigQR(item)}>
                             <QrCode className="h-4 w-4" />
                           </Button>
                         </div>
@@ -268,25 +218,13 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
                   {/* Pagination */}
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-4 pt-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={isRTL ? handleNextPage : handlePreviousPage}
-                        disabled={totalPages <= 1}
-                      >
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={isRTL ? handleNextPage : handlePreviousPage} disabled={totalPages <= 1}>
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
                       <span className="text-sm text-muted-foreground">
                         {currentPage + 1} / {totalPages}
                       </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={isRTL ? handlePreviousPage : handleNextPage}
-                        disabled={totalPages <= 1}
-                      >
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={isRTL ? handlePreviousPage : handleNextPage} disabled={totalPages <= 1}>
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
@@ -311,22 +249,10 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
           </DialogHeader>
           <div dir="ltr" className="flex flex-col items-center gap-4 py-4">
             <div className="flex items-center justify-center overflow-hidden">
-              <QRCodeCanvas 
-                value={selectedConfigQR?.config || ''} 
-                size={280}
-                className="rounded-md bg-white p-2" 
-              />
+              <QRCodeCanvas value={selectedConfigQR?.config || ''} size={280} className="rounded-md bg-white p-2" />
             </div>
-            <Button
-              variant="outline"
-              onClick={() => selectedConfigQR && handleCopyConfig(selectedConfigQR.config)}
-              className="w-full"
-            >
-              {copiedConfig === selectedConfigQR?.config ? (
-                <Check className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-              ) : (
-                <Copy className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-              )}
+            <Button variant="outline" onClick={() => selectedConfigQR && handleCopyConfig(selectedConfigQR.config)} className="w-full">
+              {copiedConfig === selectedConfigQR?.config ? <Check className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} /> : <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />}
               {t('subscriptionModal.copyConfig', { defaultValue: 'Copy Config' })}
             </Button>
           </div>
