@@ -129,9 +129,13 @@ class User(Base):
         cascade="all, delete-orphan",
         init=False,
     )
+    node_limits: Mapped[List["NodeUserLimit"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", init=False
+    )
     notification_reminders: Mapped[List["NotificationReminder"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
+
     subscription_updates: Mapped[List["UserSubscriptionUpdate"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
@@ -330,6 +334,7 @@ class UserTemplate(Base):
         back_populates="user_template", cascade="all, delete-orphan", init=False
     )
     groups: Mapped[List["Group"]] = relationship(secondary=template_group_association, back_populates="templates")
+    node_user_limits: Mapped[Optional[Dict[int, Any]]] = mapped_column(JSON(True), default=None)
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
     expire_duration: Mapped[int] = mapped_column(BigInteger, default=0)  # in seconds
     on_hold_timeout: Mapped[Optional[int]] = mapped_column(default=None)
@@ -499,7 +504,11 @@ class Node(Base):
     user_usages: Mapped[List["NodeUserUsage"]] = relationship(
         back_populates="node", cascade="all, delete-orphan", init=False
     )
+    user_limits: Mapped[List["NodeUserLimit"]] = relationship(
+        back_populates="node", cascade="all, delete-orphan", init=False
+    )
     usages: Mapped[List["NodeUsage"]] = relationship(back_populates="node", cascade="all, delete-orphan", init=False)
+
     usage_logs: Mapped[List["NodeUsageResetLogs"]] = relationship(
         back_populates="node", cascade="all, delete-orphan", init=False
     )
@@ -515,6 +524,13 @@ class Node(Base):
         default=DataLimitResetStrategy.no_reset,
     )
     reset_time: Mapped[int] = mapped_column(default=-1, server_default=text("-1"))
+    user_data_limit: Mapped[int] = mapped_column(BigInteger, default=0, server_default=text("0"))
+    user_data_limit_reset_strategy: Mapped[DataLimitResetStrategy] = mapped_column(
+        SQLEnum(DataLimitResetStrategy),
+        default=DataLimitResetStrategy.no_reset,
+        server_default=DataLimitResetStrategy.no_reset.name,
+    )
+    user_reset_time: Mapped[int] = mapped_column(default=-1, server_default=text("-1"))
     usage_coefficient: Mapped[float] = mapped_column(Float, server_default=text("1.0"), default=1)
     connection_type: Mapped[NodeConnectionType] = mapped_column(
         SQLEnum(NodeConnectionType),
@@ -592,7 +608,26 @@ class NodeUserUsage(Base):
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
+class NodeUserLimit(Base):
+    __tablename__ = "node_user_limits"
+    __table_args__ = (UniqueConstraint("user_id", "node_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user: Mapped["User"] = relationship(back_populates="node_limits", init=False)
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
+    node: Mapped["Node"] = relationship(back_populates="user_limits", init=False)
+    data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
+    data_limit_reset_strategy: Mapped[DataLimitResetStrategy] = mapped_column(
+        SQLEnum(DataLimitResetStrategy),
+        default=DataLimitResetStrategy.no_reset,
+        server_default="no_reset",
+    )
+    reset_time: Mapped[int] = mapped_column(default=-1, server_default=text("-1"))
+
+
 class NodeUsage(Base):
+
     __tablename__ = "node_usages"
     __table_args__ = (UniqueConstraint("created_at", "node_id"),)
 

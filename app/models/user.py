@@ -109,6 +109,13 @@ class UserNotificationResponse(User):
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
 
+    @field_validator("created_at", "edit_at", "online_at", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
+
 
 class UserResponse(UserNotificationResponse):
     admin: AdminBase | None = Field(default=None)
@@ -125,6 +132,7 @@ class SubscriptionUserResponse(UserResponse):
 
 class UsersResponseWithInbounds(SubscriptionUserResponse):
     inbounds: list[str] | None = Field(default_factory=list)
+    node_traffic: list["UserNodeTraffic"] | None = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -139,6 +147,13 @@ class UserSubscriptionUpdateSchema(BaseModel):
     user_agent: str
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
 
 
 class UserSubscriptionUpdateList(BaseModel):
@@ -233,3 +248,25 @@ class BulkUsersFromTemplate(BulkCreationBase, CreateUserFromTemplate):
 class BulkUsersCreateResponse(BaseModel):
     subscription_urls: list[str] = Field(default_factory=list)
     created: int = Field(default=0)
+
+
+class UserNodeTraffic(BaseModel):
+    """Traffic and limit information for a user on a specific node"""
+
+    node_id: int
+    node_name: str
+    used_traffic: int = Field(description="Total bytes used on this node")
+    data_limit: int | None = Field(default=None, description="Data limit in bytes for this node, if configured")
+    has_limit: bool = Field(default=False, description="Whether user has a specific limit on this node")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserNodeTrafficResponse(BaseModel):
+    """Response containing traffic breakdown by node for a user"""
+
+    nodes: list[UserNodeTraffic] = Field(default_factory=list)
+
+
+class ResetNodeUsageRequest(BaseModel):
+    node_ids: list[int]

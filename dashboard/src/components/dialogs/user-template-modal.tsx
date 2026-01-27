@@ -9,7 +9,19 @@ import { Switch } from '@/components/ui/switch.tsx'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils.ts'
-import { DataLimitResetStrategy, ShadowsocksMethods, useCreateUserTemplate, useModifyUserTemplate, UserStatusCreate, XTLSFlows } from '@/service/api'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import {
+  DataLimitResetStrategy,
+  NodeLimitSettings,
+  ShadowsocksMethods,
+  useCreateUserTemplate,
+  useGetNodes,
+  useModifyUserTemplate,
+  UserStatusCreate,
+  UserTemplateCreate,
+  UserTemplateModify,
+  XTLSFlows,
+} from '@/service/api'
 import { queryClient } from '@/utils/query-client.ts'
 import { useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -31,16 +43,10 @@ export const userTemplateFormSchema = z.object({
   flow: z.enum([XTLSFlows[''], XTLSFlows['xtls-rprx-vision']]).default(XTLSFlows['']),
   groups: z.array(z.number()).min(1, 'Groups is required'),
   data_limit_reset_strategy: z
-    .enum([
-      DataLimitResetStrategy['month'],
-      DataLimitResetStrategy['day'],
-      DataLimitResetStrategy['week'],
-      DataLimitResetStrategy['no_reset'],
-      DataLimitResetStrategy['week'],
-      DataLimitResetStrategy['year'],
-    ])
+    .enum([DataLimitResetStrategy['month'], DataLimitResetStrategy['day'], DataLimitResetStrategy['week'], DataLimitResetStrategy['no_reset'], DataLimitResetStrategy['year']])
     .optional(),
   reset_usages: z.boolean().optional(),
+  node_user_limits: z.any().optional(),
 })
 
 export type UserTemplatesFromValue = z.infer<typeof userTemplateFormSchema>
@@ -62,11 +68,34 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const [timeType, setTimeType] = useState<'seconds' | 'hours' | 'days'>('seconds')
   const [loading, setLoading] = useState(false)
 
+  const { data: nodesData } = useGetNodes(undefined, {
+    query: {
+      enabled: isDialogOpen,
+    },
+  })
+  const nodes = nodesData?.nodes || []
+
   const onSubmit = async (values: UserTemplatesFromValue) => {
     setLoading(true)
     try {
+      // Map node_user_limits from record with string keys to record with number keys
+      const nodeUserLimits: { [key: number]: NodeLimitSettings | number } = {}
+      if (values.node_user_limits) {
+        Object.entries(values.node_user_limits).forEach(([key, val]: [string, any]) => {
+          if (typeof val === 'object' && val !== null) {
+            nodeUserLimits[Number(key)] = {
+              data_limit: val.data_limit ?? undefined,
+              data_limit_reset_strategy: val.data_limit_reset_strategy ?? undefined,
+              reset_time: val.reset_time ?? undefined,
+            }
+          } else if (typeof val === 'number') {
+            nodeUserLimits[Number(key)] = val
+          }
+        })
+      }
+
       // Build payload according to UserTemplateCreate interface
-      const submitData = {
+      const submitData: UserTemplateCreate = {
         name: values.name,
         data_limit: values.data_limit,
         expire_duration: values.expire_duration,
@@ -76,6 +105,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         status: values.status,
         on_hold_timeout: values.status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
         data_limit_reset_strategy: values.data_limit ? values.data_limit_reset_strategy : undefined,
+        node_user_limits: Object.keys(nodeUserLimits).length > 0 ? nodeUserLimits : undefined,
         reset_usages: values.reset_usages,
         extra_settings:
           values.method || values.flow
@@ -89,7 +119,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       if (editingUserTemplate && editingUserTemplateId) {
         await modifyUserTemplateMutation.mutateAsync({
           templateId: editingUserTemplateId,
-          data: submitData,
+          data: submitData as UserTemplateModify,
         })
         toast.success(
           t('templates.editSuccess', {
@@ -112,7 +142,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       queryClient.invalidateQueries({ queryKey: ['/api/user_templates'] })
       onOpenChange(false)
       form.reset()
-    } catch (error: any) {
+    } catch (error: unknown) {
       const fields = [
         'name',
         'data_limit',
@@ -126,12 +156,16 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         'method',
         'flow',
         'reset_usages',
+        'node_user_limits',
       ]
       handleError({ error, fields, form, contextKey: 'groups' })
     } finally {
       setLoading(false)
     }
   }
+
+  // Debug validation errors
+  console.log('Form Errors:', form.formState.errors)
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
@@ -438,6 +472,144 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                   )}
                 />
                 <FormField control={form.control} name="groups" render={({ field }) => <GroupsSelector control={form.control} name="groups" onGroupsChange={field.onChange} />} />
+
+                {nodes.length > 0 && (
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="node-limits" className="border-b-0">
+                      <AccordionTrigger className="py-2 text-sm font-medium hover:no-underline">{t('userDialog.nodeLimits', { defaultValue: 'Per-Node Data Limits' })}</AccordionTrigger>
+                      <AccordionContent className="space-y-4 pt-4">
+                        {nodes.map(node => {
+                          const nodeKey = String(node.id)
+                          const limits = form.watch('node_user_limits') || {}
+                          const nodeLimit = limits[nodeKey]
+
+                          // Normalize limit info
+                          const nodeLimitRaw: any = nodeLimit
+                          const limitObj: NodeLimitSettings =
+                            typeof nodeLimitRaw === 'object' && nodeLimitRaw !== null
+                              ? {
+                                  data_limit: nodeLimitRaw.data_limit ?? undefined,
+                                  data_limit_reset_strategy: nodeLimitRaw.data_limit_reset_strategy ?? undefined,
+                                  reset_time: nodeLimitRaw.reset_time ?? undefined,
+                                }
+                              : { data_limit: typeof nodeLimitRaw === 'number' ? nodeLimitRaw : undefined }
+
+                          const dataLimitGB = limitObj.data_limit ? limitObj.data_limit / (1024 * 1024 * 1024) : ''
+
+                          return (
+                            <div key={node.id} className="space-y-3 rounded-lg border p-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">{node.name}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-xs text-destructive"
+                                  onClick={() => {
+                                    const newLimits = { ...limits }
+                                    delete newLimits[nodeKey]
+                                    form.setValue('node_user_limits', newLimits, { shouldDirty: true })
+                                  }}
+                                >
+                                  {t('userDialog.resetLimit', { defaultValue: 'Reset' })}
+                                </Button>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <FormLabel className="text-xs">{t('templates.dataLimit')}</FormLabel>
+                                  <div className="relative">
+                                    <Input
+                                      type="number"
+                                      placeholder={t('templates.dataLimit')}
+                                      value={dataLimitGB}
+                                      onChange={e => {
+                                        const val = parseFloat(e.target.value)
+                                        const bytes = val ? Math.round(val * 1024 * 1024 * 1024) : null
+                                        form.setValue(`node_user_limits.${nodeKey}`, { ...limitObj, data_limit: bytes }, { shouldDirty: true })
+                                      }}
+                                      className="h-8 pr-8 text-xs"
+                                      min="0"
+                                    />
+                                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">GB</span>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <FormLabel className="text-xs">{t('templates.userDataLimitStrategy')}</FormLabel>
+                                  <Select
+                                    value={limitObj.data_limit_reset_strategy || DataLimitResetStrategy.no_reset}
+                                    onValueChange={val => {
+                                      form.setValue(`node_user_limits.${nodeKey}`, { ...limitObj, data_limit_reset_strategy: val as DataLimitResetStrategy }, { shouldDirty: true })
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value={DataLimitResetStrategy['no_reset']}>{t('userDialog.resetStrategyNo')}</SelectItem>
+                                      <SelectItem value={DataLimitResetStrategy['day']}>{t('userDialog.resetStrategyDaily')}</SelectItem>
+                                      <SelectItem value={DataLimitResetStrategy['week']}>{t('userDialog.resetStrategyWeekly')}</SelectItem>
+                                      <SelectItem value={DataLimitResetStrategy['month']}>{t('userDialog.resetStrategyMonthly')}</SelectItem>
+                                      <SelectItem value={DataLimitResetStrategy['year']}>{t('userDialog.resetStrategyAnnually')}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {limitObj.data_limit_reset_strategy && limitObj.data_limit_reset_strategy !== DataLimitResetStrategy.no_reset && (
+                                  <div className="space-y-1.5">
+                                    <FormLabel className="text-xs">{t('nodeModal.resetTime', { defaultValue: 'Reset Time' })}</FormLabel>
+                                    <div className="flex items-center gap-1">
+                                      <Select
+                                        value={String(Math.floor((limitObj.reset_time || 0) / 3600))}
+                                        onValueChange={val => {
+                                          const minutes = (limitObj.reset_time || 0) % 3600
+                                          const newSeconds = parseInt(val) * 3600 + minutes
+                                          form.setValue(`node_user_limits.${nodeKey}`, { ...limitObj, reset_time: newSeconds }, { shouldDirty: true })
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-8 text-xs">
+                                          <SelectValue placeholder="Hr" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {Array.from({ length: 24 }).map((_, i) => (
+                                            <SelectItem key={i} value={String(i)}>
+                                              {String(i).padStart(2, '0')}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <span className="text-xs">:</span>
+                                      <Select
+                                        value={String(Math.floor(((limitObj.reset_time || 0) % 3600) / 60))}
+                                        onValueChange={val => {
+                                          const hours = Math.floor((limitObj.reset_time || 0) / 3600)
+                                          const newSeconds = hours * 3600 + parseInt(val) * 60
+                                          form.setValue(`node_user_limits.${nodeKey}`, { ...limitObj, reset_time: newSeconds }, { shouldDirty: true })
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-8 text-xs">
+                                          <SelectValue placeholder="Min" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {[0, 15, 30, 45].map(m => (
+                                            <SelectItem key={m} value={String(m)}>
+                                              {String(m).padStart(2, '0')}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                )}
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2 pt-4">

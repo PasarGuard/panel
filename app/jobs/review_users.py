@@ -17,6 +17,8 @@ from app.db.crud.user import (
     update_users_status,
     bulk_create_notification_reminders,
 )
+from app.db.crud.node_user_limit import get_nodes_with_over_limit_users
+from app.operation.node import NodeOperation
 from app.operation import OperatorType
 from app.operation.user import UserOperation
 from app.jobs.dependencies import SYSTEM_ADMIN
@@ -29,6 +31,7 @@ from config import JOB_REVIEW_USERS_INTERVAL
 
 logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
+node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 
 
 async def reset_user_by_next_report(db: AsyncSession, db_user: User):
@@ -153,6 +156,21 @@ async def days_left_notification_job():
                 await notification.wh.bulk_notify(webhook_data)
 
 
+async def node_user_limit_review_job():
+    """
+    Review per-user per-node traffic limits and sync nodes if necessary.
+    """
+    async with GetDB() as db:
+        node_ids = await get_nodes_with_over_limit_users(db)
+        if node_ids:
+            logger.info(f"Nodes needing sync due to per-node limits: {node_ids}")
+            for node_id in node_ids:
+                try:
+                    await node_operator.sync_node_users(db, node_id)
+                except Exception as e:
+                    logger.error(f"Failed to sync node {node_id} in limit review job: {e}")
+
+
 now = dt.now(tz.utc)
 interval = int(JOB_REVIEW_USERS_INTERVAL / 5)
 
@@ -191,4 +209,12 @@ scheduler.add_job(
     coalesce=True,
     max_instances=1,
     start_date=now + td(seconds=interval * 4),
+)
+scheduler.add_job(
+    node_user_limit_review_job,
+    "interval",
+    seconds=JOB_REVIEW_USERS_INTERVAL,
+    coalesce=True,
+    max_instances=1,
+    start_date=now + td(seconds=interval * 4 + 10),
 )

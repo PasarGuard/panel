@@ -4,7 +4,7 @@ import { useClipboard } from '@/hooks/use-clipboard'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UseEditFormValues } from '@/pages/_dashboard.users'
-import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
+import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Cpu, EllipsisVertical, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -18,8 +18,10 @@ import UsageModal from '@/components/dialogs/usage-modal'
 import UserModal from '@/components/dialogs/user-modal'
 import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
 import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
+import { ResetUsageDialog } from '@/components/dialogs/reset-usage-dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { TrafficModal } from './traffic-modal'
 
 type ActionButtonsProps = {
   user: UserResponse
@@ -45,6 +47,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const [isActiveNextPlanModalOpen, setIsActiveNextPlanModalOpen] = useState(false)
   const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
   const [isUserAllIPsModalOpen, setUserAllIPsModalOpen] = useState(false)
+  const [isTrafficModalOpen, setTrafficModalOpen] = useState(false)
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -76,18 +79,10 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   }
 
   const removeUserMutation = useRemoveUser()
-  const resetUserDataUsageMutation = useResetUserDataUsage({
-    mutation: {
-      onSuccess: (updatedUser) => {
-        if (updatedUser) {
-          updateUserInCache(updatedUser)
-        }
-      },
-    },
-  })
+
   const revokeUserSubscriptionMutation = useRevokeUserSubscription({
     mutation: {
-      onSuccess: (updatedUser) => {
+      onSuccess: updatedUser => {
         if (updatedUser) {
           updateUserInCache(updatedUser)
         }
@@ -96,7 +91,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   })
   const activeNextMutation = useActiveNextPlan({
     mutation: {
-      onSuccess: (updatedUser) => {
+      onSuccess: updatedUser => {
         if (updatedUser) {
           updateUserInCache(updatedUser)
         }
@@ -126,11 +121,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       proxy_settings: user.proxy_settings || undefined,
       next_plan: user.next_plan
         ? {
-          user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-          data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
-          expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
-          add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-        }
+            user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
+            data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
+            expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
+            add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
+          }
         : undefined,
     },
   })
@@ -150,11 +145,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       proxy_settings: user.proxy_settings || undefined,
       next_plan: user.next_plan
         ? {
-          user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-          data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
-          expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
-          add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-        }
+            user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
+            data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
+            expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
+            add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
+          }
         : undefined,
     }
 
@@ -228,11 +223,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       proxy_settings: latestUser.proxy_settings || undefined,
       next_plan: latestUser.next_plan
         ? {
-          user_template_id: latestUser.next_plan.user_template_id ? Number(latestUser.next_plan.user_template_id) : undefined,
-          data_limit: latestUser.next_plan.data_limit ? Number(latestUser.next_plan.data_limit) : 0,
-          expire: latestUser.next_plan.expire ? Number(latestUser.next_plan.expire) : 0,
-          add_remaining_traffic: latestUser.next_plan.add_remaining_traffic || false,
-        }
+            user_template_id: latestUser.next_plan.user_template_id ? Number(latestUser.next_plan.user_template_id) : undefined,
+            data_limit: latestUser.next_plan.data_limit ? Number(latestUser.next_plan.data_limit) : 0,
+            expire: latestUser.next_plan.expire ? Number(latestUser.next_plan.expire) : 0,
+            add_remaining_traffic: latestUser.next_plan.add_remaining_traffic || false,
+          }
         : undefined,
     }
 
@@ -275,16 +270,6 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const handleResetUsage = () => {
     setResetUsageDialogOpen(true)
-  }
-
-  const confirmResetUsage = async () => {
-    try {
-      await resetUserDataUsageMutation.mutateAsync({ username: user.username })
-      toast.success(t('usersTable.resetUsageSuccess', { name: user.username }))
-      setResetUsageDialogOpen(false)
-    } catch (error: any) {
-      toast.error(t('usersTable.resetUsageFailed', { name: user.username, error: error?.message || '' }))
-    }
   }
 
   const handleUsageState = () => {
@@ -459,7 +444,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 {subscribeLinks.map(subLink => (
-                  <DropdownMenuItem dir='ltr' className="justify-start p-0" key={subLink.link} onClick={() => handleCopyOrDownload(subLink)}>
+                  <DropdownMenuItem dir="ltr" className="justify-start p-0" key={subLink.link} onClick={() => handleCopyOrDownload(subLink)}>
                     <span className="flex w-full items-center gap-2 px-2 py-1.5">
                       <span className="text-sm">{subLink.icon}</span>
                       <span>{subLink.protocol}</span>
@@ -478,6 +463,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setTrafficModalOpen(true)}>
+              <Network className="mr-2 h-4 w-4" />
+              <span>{t('traffic_by_node')}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             {/* Edit */}
             <DropdownMenuItem className="hidden md:flex" onClick={handleEdit}>
               <Pencil className="mr-2 h-4 w-4" />
@@ -595,20 +585,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       </AlertDialog>
 
       {/* Reset Usage Confirm Dialog */}
-      <AlertDialog open={isResetUsageDialogOpen} onOpenChange={setResetUsageDialogOpen}>
-        <AlertDialogContent dir={dir}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('usersTable.resetUsageTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('usersTable.resetUsagePrompt', { name: user.username })}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
-            <AlertDialogCancel onClick={() => setResetUsageDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmResetUsage} disabled={resetUserDataUsageMutation.isPending}>
-              {t('usersTable.resetUsageSubmit')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Reset Usage Confirm Dialog - Replaced with ResetUsageDialog */}
+      <ResetUsageDialog open={isResetUsageDialogOpen} onOpenChange={setResetUsageDialogOpen} username={user.username} onSuccess={refreshUserData} />
 
       {/* Revoke Subscription Confirm Dialog */}
       <AlertDialog open={isRevokeSubDialogOpen} onOpenChange={setRevokeSubDialogOpen}>
@@ -630,7 +608,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       {selectedUser && (
         <UserModal
           isDialogOpen={isEditModalOpen}
-          onOpenChange={(open) => {
+          onOpenChange={open => {
             setEditModalOpen(open)
             if (!open) {
               setSelectedUser(null)
@@ -649,6 +627,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       )}
 
       <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={user.username} />
+
+      {/* Traffic by Node Modal */}
+      <TrafficModal isOpen={isTrafficModalOpen} onClose={() => setTrafficModalOpen(false)} username={user.username} />
 
       {/* SetOwnerModal: only for sudo admins */}
       {currentAdmin?.is_sudo && (

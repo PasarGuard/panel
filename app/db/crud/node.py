@@ -13,6 +13,7 @@ from app.db.models import (
     NodeStatus,
     NodeUsage,
     NodeUsageResetLogs,
+    NodeUserLimit,
     NodeUserUsage,
 )
 from app.db.compiles_types import DateDiff
@@ -274,6 +275,7 @@ async def remove_node(db: AsyncSession, db_node: Node) -> None:
 
     # Remove dependent rows explicitly to avoid ORM cascading overhead on large tables.
     await db.execute(delete(NodeUserUsage).where(NodeUserUsage.node_id == node_id))
+    await db.execute(delete(NodeUserLimit).where(NodeUserLimit.node_id == node_id))
     await db.execute(delete(NodeUsage).where(NodeUsage.node_id == node_id))
     await db.execute(delete(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id == node_id))
     await db.execute(delete(NodeStat).where(NodeStat.node_id == node_id))

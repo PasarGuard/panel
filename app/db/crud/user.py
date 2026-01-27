@@ -14,6 +14,7 @@ from app.db.models import (
     DataLimitResetStrategy,
     Group,
     NextPlan,
+    NodeUserLimit,
     NodeUserUsage,
     NotificationReminder,
     ReminderType,
@@ -406,6 +407,10 @@ async def get_user_usages(
         node_id_val = row_dict.pop("node_id", node_id)
         if node_id_val not in stats:
             stats[node_id_val] = []
+        # Convert period_start from string to datetime if needed
+        if "period_start" in row_dict and isinstance(row_dict["period_start"], str):
+            row_dict["period_start"] = datetime.fromisoformat(row_dict["period_start"])
+        
         stats[node_id_val].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
@@ -502,6 +507,29 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
         await db.commit()
         await db.refresh(db_user)
 
+    # Apply per-node default limits from nodes that have user_data_limit configured
+    # This provides the lowest-priority default; template limits will override this later
+    from app.db.models import Node, NodeUserLimit
+    
+    # Get all nodes with user_data_limit configured
+    nodes_stmt = select(Node).where(Node.user_data_limit > 0)
+    nodes_result = await db.execute(nodes_stmt)
+    nodes = nodes_result.scalars().all()
+    
+    for node in nodes:
+        # Create default limit for new user based on Node.user_data_limit
+        new_limit = NodeUserLimit(
+            user_id=db_user.id,
+            node_id=node.id,
+            data_limit=node.user_data_limit,
+            data_limit_reset_strategy=node.user_data_limit_reset_strategy,
+            reset_time=node.user_reset_time
+        )
+        db.add(new_limit)
+    
+    await db.commit()
+    await db.refresh(db_user)
+
     await load_user_attrs(db_user)
     return db_user
 
@@ -553,11 +581,13 @@ async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
         return
 
     await db.execute(delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)))
+    await db.execute(delete(NodeUserLimit).where(NodeUserLimit.user_id.in_(user_ids)))
     await db.execute(delete(NotificationReminder).where(NotificationReminder.user_id.in_(user_ids)))
     await db.execute(delete(UserSubscriptionUpdate).where(UserSubscriptionUpdate.user_id.in_(user_ids)))
     await db.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)))
     await db.execute(delete(NextPlan).where(NextPlan.user_id.in_(user_ids)))
     await db.execute(users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)))
+
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
@@ -751,6 +781,49 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
         await db.refresh(user)
         await load_user_attrs(user)
     return users
+
+
+async def reset_user_node_usage(db: AsyncSession, db_user: User, node_ids: list[int]) -> User:
+    """
+    Resets the data usage of a user for specific nodes.
+
+    Args:
+        db (AsyncSession): Database session.
+        db_user (User): The user object.
+        node_ids (list[int]): List of node IDs to reset usage for.
+
+    Returns:
+        User: The updated user object.
+    """
+    if not node_ids:
+        return db_user
+
+    # Delete usage records for these nodes
+    await db.execute(
+        delete(NodeUserUsage)
+        .where(NodeUserUsage.user_id == db_user.id)
+        .where(NodeUserUsage.node_id.in_(node_ids))
+    )
+
+    # Recalculate total used traffic from remaining records
+    # If no records left, sum will be None, so we coalesce to 0
+    result = await db.execute(
+        select(func.coalesce(func.sum(NodeUserUsage.used_traffic), 0))
+        .where(NodeUserUsage.user_id == db_user.id)
+    )
+    total_usage = result.scalar()
+    
+    db_user.used_traffic = total_usage
+
+    # If user was limited due to usage, check if we can reactivate
+    if db_user.status not in [UserStatus.expired, UserStatus.disabled, UserStatus.on_hold]:
+        if not db_user.data_limit or db_user.used_traffic < db_user.data_limit:
+             db_user.status = UserStatus.active
+
+    await db.commit()
+    await db.refresh(db_user)
+    await load_user_attrs(db_user)
+    return db_user
 
 
 async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
@@ -1013,6 +1086,11 @@ async def get_all_users_usages(
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+        
+        # Convert period_start from string to datetime if needed
+        if "period_start" in row_dict and isinstance(row_dict["period_start"], str):
+            row_dict["period_start"] = datetime.fromisoformat(row_dict["period_start"])
+        
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(UserUsageStat(**row_dict))

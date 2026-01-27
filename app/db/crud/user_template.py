@@ -11,6 +11,7 @@ from .group import get_groups_by_ids
 
 async def load_user_template_attrs(template: UserTemplate):
     await template.awaitable_attrs.groups
+    await template.awaitable_attrs.node_user_limits
 
 
 async def create_user_template(db: AsyncSession, user_template: UserTemplateCreate) -> UserTemplate:
@@ -24,7 +25,6 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
     Returns:
         UserTemplate: The created user template object.
     """
-
     db_user_template = UserTemplate(
         name=user_template.name,
         data_limit=user_template.data_limit,
@@ -38,6 +38,11 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
         on_hold_timeout=user_template.on_hold_timeout,
         is_disabled=user_template.is_disabled,
         data_limit_reset_strategy=user_template.data_limit_reset_strategy,
+        node_user_limits={
+            k: (v.dict() if hasattr(v, "dict") else v) for k, v in user_template.node_user_limits.items()
+        }
+        if user_template.node_user_limits
+        else None,
     )
 
     db.add(db_user_template)
@@ -85,6 +90,10 @@ async def modify_user_template(
         db_user_template.is_disabled = modified_user_template.is_disabled
     if modified_user_template.data_limit_reset_strategy is not None:
         db_user_template.data_limit_reset_strategy = modified_user_template.data_limit_reset_strategy
+    if modified_user_template.node_user_limits is not None:
+        db_user_template.node_user_limits = {
+            k: (v.dict() if hasattr(v, "dict") else v) for k, v in modified_user_template.node_user_limits.items()
+        }
 
     await db.commit()
     await db.refresh(db_user_template)

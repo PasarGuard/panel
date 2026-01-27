@@ -59,6 +59,7 @@ export default function UserTemplates() {
       on_hold_timeout: typeof userTemplate.on_hold_timeout === 'number' ? userTemplate.on_hold_timeout : undefined,
       data_limit_reset_strategy: userTemplate.data_limit_reset_strategy || undefined,
       reset_usages: userTemplate.reset_usages || false,
+      node_user_limits: userTemplate.node_user_limits ? (userTemplate.node_user_limits as any) : undefined,
     })
 
     setIsDialogOpen(true)
@@ -139,7 +140,7 @@ export default function UserTemplates() {
 
       <div className="w-full flex-1 space-y-4 px-4">
         {/* Search Input */}
-        <div dir={dir} className="flex items-center gap-2 md:gap-4 pt-4">
+        <div dir={dir} className="flex items-center gap-2 pt-4 md:gap-4">
           <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
             <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
             <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
@@ -210,7 +211,9 @@ export default function UserTemplates() {
             className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
             style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
           >
-            {filteredTemplates?.map((template: UserTemplateResponse) => <UserTemplate onEdit={handleEdit} template={template} key={template.id} onToggleStatus={handleToggleStatus} />)}
+            {filteredTemplates?.map((template: UserTemplateResponse) => (
+              <UserTemplate onEdit={handleEdit} template={template} key={template.id} onToggleStatus={handleToggleStatus} />
+            ))}
           </div>
         )}
       </div>

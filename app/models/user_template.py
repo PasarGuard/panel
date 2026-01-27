@@ -18,6 +18,12 @@ class ExtraSettings(BaseModel):
         return super().model_dump(**kwargs)
 
 
+class NodeLimitSettings(BaseModel):
+    data_limit: int | None = Field(ge=0, default=None)
+    data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
+    reset_time: int = Field(default=-1)
+
+
 class UserTemplate(BaseModel):
     name: str | None = None
     data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
@@ -28,6 +34,10 @@ class UserTemplate(BaseModel):
     username_suffix: str | None = Field(max_length=20, default=None)
     group_ids: list[int]
     extra_settings: ExtraSettings | None = None
+    node_user_limits: dict[int, NodeLimitSettings | int] | None = Field(
+        default=None,
+        description="Per-node data limits: {node_id: limit_bytes or NodeLimitSettings}"
+    )
     status: UserStatusCreate | None = None
     reset_usages: bool | None = None
     on_hold_timeout: int | None = None

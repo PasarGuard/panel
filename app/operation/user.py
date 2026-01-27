@@ -35,6 +35,7 @@ from app.db.crud.user import (
     reset_user_data_usage,
     revoke_user_sub,
     set_owner,
+    reset_user_node_usage,
 )
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
@@ -50,6 +51,8 @@ from app.models.user import (
     UserCreate,
     UserModify,
     UsernameGenerationStrategy,
+    UserNodeTraffic,
+    UserNodeTrafficResponse,
     UserNotificationResponse,
     UserResponse,
     UsersResponse,
@@ -295,6 +298,24 @@ class UserOperation(BaseOperation):
 
         return await self._reset_user_data_usage(db, db_user, admin)
 
+    async def _reset_user_node_usage(self, db: AsyncSession, db_user: User, node_ids: list[int], admin: AdminDetails):
+        old_status = db_user.status
+
+        db_user = await reset_user_node_usage(db=db, db_user=db_user, node_ids=node_ids)
+        user = await self.update_user(db_user)
+
+        if user.status != old_status:
+            asyncio.create_task(notification.user_status_change(user, admin))
+
+        logger.info(f'User "{db_user.username}" usage for nodes {node_ids} was reset by admin "{admin.username}"')
+
+        return user
+
+    async def reset_user_node_usage(self, db: AsyncSession, username: str, node_ids: list[int], admin: AdminDetails):
+        db_user = await self.get_validated_user(db, username, admin)
+
+        return await self._reset_user_node_usage(db, db_user, node_ids, admin)
+
     async def revoke_user_sub(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
 
@@ -370,6 +391,84 @@ class UserOperation(BaseOperation):
     async def get_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserNotificationResponse:
         db_user = await self.get_validated_user(db, username, admin)
         return await self.validate_user(db_user)
+
+    async def get_user_node_traffic(
+        self, db: AsyncSession, username: str, admin: AdminDetails
+    ) -> UserNodeTrafficResponse:
+        """
+        Get traffic and limit breakdown by node for a specific user.
+        
+        Returns aggregated traffic usage per node along with configured limits from NodeUserLimit.
+        """
+        from sqlalchemy import func, select
+        from app.db.models import Node, NodeUserLimit, NodeUserUsage
+        
+        # Validate user and permissions
+        db_user = await self.get_validated_user(db, username, admin)
+        
+        # Query to aggregate traffic usage per node
+        # SELECT node_id, SUM(used_traffic) as total_traffic
+        # FROM node_user_usages
+        # WHERE user_id = ?
+        # GROUP BY node_id
+        traffic_query = (
+            select(
+                NodeUserUsage.node_id,
+                func.sum(NodeUserUsage.used_traffic).label("total_traffic")
+            )
+            .where(NodeUserUsage.user_id == db_user.id)
+            .group_by(NodeUserUsage.node_id)
+        )
+        
+        traffic_result = await db.execute(traffic_query)
+        traffic_by_node = {row.node_id: row.total_traffic for row in traffic_result}
+        
+        # Query to get all node limits for this user
+        limits_query = (
+            select(NodeUserLimit)
+            .where(NodeUserLimit.user_id == db_user.id)
+        )
+        
+        limits_result = await db.execute(limits_query)
+        limits_by_node = {limit.node_id: limit for limit in limits_result.scalars()}
+        
+        # Get all nodes that either have traffic or limits
+        all_node_ids = set(traffic_by_node.keys()) | set(limits_by_node.keys())
+        
+        if not all_node_ids:
+            # No traffic and no limits, return empty
+            return UserNodeTrafficResponse(nodes=[])
+        
+        # Fetch node information
+        nodes_query = select(Node).where(Node.id.in_(all_node_ids))
+        nodes_result = await db.execute(nodes_query)
+        nodes_by_id = {node.id: node for node in nodes_result.scalars()}
+        
+        # Build response
+        node_traffic_list = []
+        for node_id in all_node_ids:
+            node = nodes_by_id.get(node_id)
+            if not node:
+                # Skip if node was deleted
+                continue
+                
+            limit_record = limits_by_node.get(node_id)
+            used_traffic = traffic_by_node.get(node_id, 0)
+            
+            node_traffic_list.append(
+                UserNodeTraffic(
+                    node_id=node.id,
+                    node_name=node.name,
+                    used_traffic=used_traffic,
+                    data_limit=limit_record.data_limit if limit_record else None,
+                    has_limit=limit_record is not None
+                )
+            )
+        
+        # Sort by node_id for consistent ordering
+        node_traffic_list.sort(key=lambda x: x.node_id)
+        
+        return UserNodeTrafficResponse(nodes=node_traffic_list)
 
     async def get_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserNotificationResponse:
         db_user = await self.get_validated_user_by_id(db, user_id, admin)
@@ -574,6 +673,55 @@ class UserOperation(BaseOperation):
 
         return new_user
 
+
+    async def _apply_node_limits_from_template(self, db: AsyncSession, db_user: User, node_user_limits: dict, data_limit_reset_strategy):
+        """Apply per-node limits if configured in template. Uses upsert to override node defaults."""
+        if not node_user_limits:
+            return
+
+        from app.db.crud import node_user_limit as node_limit_crud
+        from app.models.node_user_limit import NodeUserLimitCreate
+
+        for node_id, limit_info in node_user_limits.items():
+            try:
+                # Handle Pydantic model, dict, or integer
+                if hasattr(limit_info, "data_limit"):
+                    limit_bytes = limit_info.data_limit
+                    strategy = limit_info.data_limit_reset_strategy
+                    reset_time = limit_info.reset_time
+                elif isinstance(limit_info, dict):
+                    limit_bytes = limit_info.get("data_limit")
+                    strategy = limit_info.get("data_limit_reset_strategy") or data_limit_reset_strategy
+                    reset_time = limit_info.get("reset_time")
+                    if reset_time is None:
+                        reset_time = -1
+                else:
+                    limit_bytes = limit_info
+                    strategy = data_limit_reset_strategy
+                    reset_time = -1
+
+                # Ensure strategy is string
+                if hasattr(strategy, "value"):
+                    strategy = strategy.value
+                
+                if limit_bytes is not None:
+                    # Use upsert to override any existing node default limits
+                    await node_limit_crud.upsert_node_user_limit(
+                        db,
+                        NodeUserLimitCreate(
+                            user_id=db_user.id,
+                            node_id=int(node_id),
+                            data_limit=limit_bytes,
+                            data_limit_reset_strategy=strategy,
+                            reset_time=reset_time
+                        )
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to apply template node limit for user {db_user.username} "
+                    f"on node {node_id}: {str(e)}"
+                )
+
     async def create_user_from_template(
         self, db: AsyncSession, new_template_user: CreateUserFromTemplate, admin: AdminDetails
     ) -> UserResponse:
@@ -587,7 +735,25 @@ class UserOperation(BaseOperation):
         except HTTPException as exc:
             raise exc
 
-        return await self.create_user(db, new_user, admin)
+        # Create the user
+        user_response = await self.create_user(db, new_user, admin)
+
+        # Apply per-node limits if configured in template
+        # Load node_user_limits eagerly to avoid MissingGreenlet errors
+        node_user_limits = await user_template.awaitable_attrs.node_user_limits
+        if node_user_limits:
+            from app.db.crud.user import get_user
+            db_user = await get_user(db, user_response.username)
+            if db_user:
+                try:
+                    await self._apply_node_limits_from_template(
+                        db, db_user, node_user_limits, user_template.data_limit_reset_strategy
+                    )
+                except Exception as e:
+                    logger.error(f"Error applying template node limits to user {user_response.username}: {e}", exc_info=True)
+                    # We do not re-raise because the user is already created successfully.
+
+        return user_response
 
     async def modify_user_with_template(
         self, db: AsyncSession, username: str, modified_template: ModifyUserByTemplate, admin: AdminDetails
@@ -612,7 +778,22 @@ class UserOperation(BaseOperation):
         if user_template.reset_usages:
             await self._reset_user_data_usage(db, db_user, admin)
 
-        return await self._modify_user(db, db_user, modify_user, admin)
+        user_response = await self._modify_user(db, db_user, modify_user, admin)
+
+        # Apply per-node limits from template (if configured)
+        node_user_limits = await user_template.awaitable_attrs.node_user_limits
+        if node_user_limits:
+            from app.db.crud.user import get_user
+            db_user_updated = await get_user(db, user_response.username)
+            if db_user_updated:
+                try:
+                    await self._apply_node_limits_from_template(
+                        db, db_user_updated, node_user_limits, user_template.data_limit_reset_strategy
+                    )
+                except Exception as e:
+                    logger.error(f"Error applying template node limits to user {user_response.username}: {e}", exc_info=True)
+
+        return user_response
 
     async def bulk_create_users_from_template(
         self, db: AsyncSession, bulk_users: BulkUsersFromTemplate, admin: AdminDetails
@@ -657,6 +838,14 @@ class UserOperation(BaseOperation):
 
         db_admin = await get_admin(db, admin.username)
         subscription_urls = await self._persist_bulk_users(db, admin, db_admin, users_to_create, groups)
+
+        # Apply per-node limits if configured in template
+        if user_template.node_user_limits and users_to_create:
+            from app.db.crud.user import get_user
+            for user in users_to_create:
+                db_user = await get_user(db, user.username)
+                if db_user:
+                    await self._apply_node_limits_from_template(db, db_user, user_template)
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 

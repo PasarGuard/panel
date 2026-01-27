@@ -283,6 +283,11 @@ class Subscription(BaseModel):
 class General(BaseModel):
     default_flow: XTLSFlows = Field(default=XTLSFlows.NONE)
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
+    
+    # Real-time limit enforcement settings
+    limit_enforcer_enabled: bool = Field(default=False)
+    limit_check_interval: int = Field(default=30, ge=10, le=300)  # seconds
+    limit_refresh_interval: int = Field(default=60, ge=30, le=600)  # seconds
 
 
 class SettingsSchema(BaseModel):

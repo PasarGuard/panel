@@ -38,6 +38,9 @@ export const nodeFormSchema = z.object({
   reset_time: z.union([z.null(), z.undefined(), z.number().min(-1)]),
   default_timeout: z.number().min(3, 'Default timeout must be 3 or greater').max(60, 'Default timeout must be 60 or lower').optional(),
   internal_timeout: z.number().min(3, 'Internal timeout must be 3 or greater').max(60, 'Internal timeout must be 60 or lower').optional(),
+  user_data_limit: z.number().min(0).optional().nullable(),
+  user_data_limit_reset_strategy: z.nativeEnum(DataLimitResetStrategy).optional().nullable(),
+  user_reset_time: z.union([z.null(), z.undefined(), z.number().min(-1)]),
 })
 
 export type NodeFormValues = z.infer<typeof nodeFormSchema>
@@ -65,6 +68,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   const [debouncedValues, setDebouncedValues] = useState<NodeFormValues | null>(null)
   const [isFetchingNodeData, setIsFetchingNodeData] = useState(false)
   const dataLimitInputRef = React.useRef<string>('')
+  const userDataLimitInputRef = React.useRef<string>('')
 
   const { data: node, refetch: refetchNode } = useGetNode(
     editingNodeId || 0,
@@ -149,6 +153,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         reset_time: node.reset_time ?? null,
         default_timeout: node.default_timeout ?? 10,
         internal_timeout: node.internal_timeout ?? 15,
+        user_data_limit: null,
       },
       { keepDirty: false, keepValues: false },
     )
@@ -194,6 +199,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           dataLimitInputRef.current = ''
         }
 
+        const userDataLimitBytes = nodeData.user_data_limit ?? null
+        const userDataLimitGB = userDataLimitBytes !== null && userDataLimitBytes !== undefined && userDataLimitBytes > 0 ? userDataLimitBytes / (1024 * 1024 * 1024) : 0
+
         form.reset({
           name: nodeData.name,
           address: nodeData.address,
@@ -210,6 +218,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           reset_time: nodeData.reset_time ?? null,
           default_timeout: nodeData.default_timeout ?? 10,
           internal_timeout: nodeData.internal_timeout ?? 15,
+          user_data_limit: userDataLimitGB,
+          user_data_limit_reset_strategy: nodeData.user_data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
+          user_reset_time: nodeData.user_reset_time ?? -1,
         })
         lastSyncedNodeRef.current = nodeData
         setIsFetchingNodeData(false)
@@ -229,6 +240,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               dataLimitInputRef.current = ''
             }
 
+            const userDataLimitBytes = nodeData.user_data_limit ?? null
+            const userDataLimitGB = userDataLimitBytes !== null && userDataLimitBytes !== undefined && userDataLimitBytes > 0 ? userDataLimitBytes / (1024 * 1024 * 1024) : 0
+
             form.reset({
               name: nodeData.name,
               address: nodeData.address,
@@ -245,6 +259,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               reset_time: nodeData.reset_time ?? null,
               default_timeout: nodeData.default_timeout ?? 10,
               internal_timeout: nodeData.internal_timeout ?? 15,
+              user_data_limit: userDataLimitGB,
+              user_data_limit_reset_strategy: nodeData.user_data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
+              user_reset_time: nodeData.user_reset_time ?? -1,
             })
             lastSyncedNodeRef.current = nodeData
           } catch (error) {
@@ -339,6 +356,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         data_limit: gbToBytes(values.data_limit),
         reset_time: values.reset_time !== null && values.reset_time !== undefined ? values.reset_time : -1,
         api_port: values.api_port ?? undefined,
+        user_data_limit: gbToBytes(values.user_data_limit) ?? null,
+        user_data_limit_reset_strategy: values.user_data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
+        user_reset_time: values.user_reset_time !== null && values.user_reset_time !== undefined ? values.user_reset_time : -1,
       }
 
       let nodeId: number | undefined
@@ -382,6 +402,26 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         lastSyncedNodeRef.current = null
       }
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+
+      // Apply bulk user limits if set
+      if (nodeId && values.user_data_limit !== null && values.user_data_limit !== undefined) {
+        const token = localStorage.getItem('token')
+        await fetch(`/api/node-user-limits/bulk-set`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            node_id: nodeId,
+            data_limit: Math.floor(values.user_data_limit * 1073741824), // GB to bytes
+            data_limit_reset_strategy: values.user_data_limit_reset_strategy || 'no_reset',
+            reset_time: values.user_reset_time ?? -1,
+          }),
+        })
+        toast.success(t('nodes.userLimits.bulkApplySuccess'))
+      }
+
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
@@ -843,6 +883,110 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                           <SelectItem value={DataLimitResetStrategy.week}>{t('nodeModal.week')}</SelectItem>
                                           <SelectItem value={DataLimitResetStrategy.month}>{t('nodeModal.month')}</SelectItem>
                                           <SelectItem value={DataLimitResetStrategy.year}>{t('nodeModal.year')}</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )
+                                }}
+                              />
+                            )}
+
+                            <FormField
+                              control={form.control}
+                              name="user_data_limit"
+                              render={({ field }) => {
+                                if (userDataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
+                                  userDataLimitInputRef.current = String(field.value)
+                                } else if ((field.value === null || field.value === undefined) && userDataLimitInputRef.current !== '') {
+                                  userDataLimitInputRef.current = ''
+                                }
+
+                                const displayValue =
+                                  userDataLimitInputRef.current !== '' ? userDataLimitInputRef.current : field.value !== null && field.value !== undefined && field.value > 0 ? String(field.value) : ''
+
+                                return (
+                                  <FormItem className="relative h-full flex-1">
+                                    <FormLabel>{t('nodes.userLimits.perUserDataLimit', 'Data Limit Per User (GB)')}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        isError={!!form.formState.errors.user_data_limit}
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder={t('nodeModal.dataLimitPlaceholder', { defaultValue: 'e.g. 1' })}
+                                        value={displayValue}
+                                        onChange={e => {
+                                          const rawValue = e.target.value.trim()
+                                          userDataLimitInputRef.current = rawValue
+                                          if (rawValue === '') {
+                                            field.onChange(null)
+                                            return
+                                          }
+                                          const validNumberPattern = /^-?\d*\.?\d*$/
+                                          if (validNumberPattern.test(rawValue)) {
+                                            if (rawValue.endsWith('.') && rawValue.length > 1) {
+                                              field.onChange(field.value)
+                                            } else if (rawValue === '.') {
+                                              field.onChange(0)
+                                            } else {
+                                              const numValue = parseFloat(rawValue)
+                                              if (!isNaN(numValue) && numValue >= 0) {
+                                                field.onChange(numValue)
+                                              }
+                                            }
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          const rawValue = userDataLimitInputRef.current.trim()
+                                          if (rawValue === '' || rawValue === '.' || rawValue === '0') {
+                                            userDataLimitInputRef.current = ''
+                                            field.onChange(null)
+                                          } else {
+                                            const numValue = parseFloat(rawValue)
+                                            if (!isNaN(numValue) && numValue >= 0) {
+                                              userDataLimitInputRef.current = String(numValue)
+                                              field.onChange(numValue)
+                                            } else {
+                                              userDataLimitInputRef.current = ''
+                                              field.onChange(null)
+                                            }
+                                          }
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )
+                              }}
+                            />
+
+                            {form.watch('user_data_limit') !== null && form.watch('user_data_limit') !== undefined && Number(form.watch('user_data_limit')) > 0 && (
+                              <FormField
+                                control={form.control}
+                                name="user_data_limit_reset_strategy"
+                                render={({ field }) => {
+                                  const selectValue = (field.value === null || field.value === undefined || field.value === DataLimitResetStrategy.no_reset ? 'none' : field.value) || 'none'
+
+                                  return (
+                                    <FormItem>
+                                      <FormLabel>{t('nodeModal.perUserResetStrategy', 'Per-User Reset Strategy')}</FormLabel>
+                                      <Select
+                                        onValueChange={value => {
+                                          field.onChange(value === 'none' ? DataLimitResetStrategy.no_reset : value)
+                                        }}
+                                        value={selectValue}
+                                      >
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue placeholder={t('nodeModal.selectResetStrategy')} />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          <SelectItem value="none">{t('nodeModal.noReset', 'No Reset')}</SelectItem>
+                                          <SelectItem value={DataLimitResetStrategy.day}>{t('nodeModal.day', 'Day')}</SelectItem>
+                                          <SelectItem value={DataLimitResetStrategy.week}>{t('nodeModal.week', 'Week')}</SelectItem>
+                                          <SelectItem value={DataLimitResetStrategy.month}>{t('nodeModal.month', 'Month')}</SelectItem>
+                                          <SelectItem value={DataLimitResetStrategy.year}>{t('nodeModal.year', 'Year')}</SelectItem>
                                         </SelectContent>
                                       </Select>
                                       <FormMessage />

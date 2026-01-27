@@ -1,0 +1,31 @@
+{
+  "nodeUserLimits": {
+    "title": "User Traffic Limits",
+    "description": "Manage per-user traffic limits for this node",
+    "dialog": {
+      "createTitle": "Create Traffic Limit",
+      "editTitle": "Edit Traffic Limit",
+      "description": "Set a traffic limit for a specific user on this node.",
+      "user": "User",
+      "selectUser": "Select a user",
+      "node": "Node",
+      "selectNode": "Select a node",
+      "dataLimit": "Data Limit",
+      "dataLimitHint": "Enter 0 for unlimited traffic"
+    },
+    "table": {
+      "id": "ID",
+      "user": "User",
+      "node": "Node",
+      "dataLimit": "Data Limit",
+      "noLimits": "No traffic limits configured",
+      "noLimitsHint": "Click the button above to create a limit"
+    },
+    "addLimit": "Add Limit",
+    "deleteConfirm": "Are you sure you want to delete this limit?",
+    "deleteSuccess": "Limit deleted successfully",
+    "createSuccess": "Limit created successfully",
+    "updateSuccess": "Limit updated successfully",
+    "error": "An error occurred"
+  }
+}

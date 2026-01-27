@@ -2,6 +2,7 @@ from fastapi import status
 
 from tests.api import client
 from tests.api.helpers import (
+    auth_headers,
     create_core,
     create_group,
     create_user_template,
@@ -116,4 +117,6 @@ def test_user_template_delete(access_token):
         )
         assert response.status_code == status.HTTP_204_NO_CONTENT
     finally:
+        cleanup_groups(access_token, core, groups)
+
         cleanup_groups(access_token, core, groups)

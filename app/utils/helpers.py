@@ -30,7 +30,7 @@ def readable_datetime(date_time: Union[dt, int, None], include_date: bool = True
     return date_time.strftime(get_datetime_format()) if date_time else "-"
 
 
-def fix_datetime_timezone(value: dt | int):
+def fix_datetime_timezone(value: dt | int | str):
     if isinstance(value, dt):
         # If datetime is naive (no timezone), assume it's UTC
         if value.tzinfo is None:
@@ -41,8 +41,16 @@ def fix_datetime_timezone(value: dt | int):
     elif isinstance(value, int):
         # Timestamp will be assume it's UTC
         return dt.fromtimestamp(value, tz=tz.utc)
+    elif isinstance(value, str):
+        try:
+            val = dt.fromisoformat(value)
+            if val.tzinfo is None:
+                return val.replace(tzinfo=tz.utc)
+            return val.astimezone(tz.utc)
+        except ValueError:
+            pass
 
-    raise ValueError("input can be datetime or timestamp")
+    raise ValueError(f"input can be datetime, timestamp or string, got {type(value)}")
 
 
 class UUIDEncoder(json.JSONEncoder):

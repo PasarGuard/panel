@@ -2,7 +2,16 @@ from PasarGuardNodeBridge import create_proxy, create_user
 from sqlalchemy import and_, func, select
 
 from app.db import AsyncSession
-from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
+from app.db.models import (
+    Group,
+    NodeUserLimit,
+    NodeUserUsage,
+    ProxyInbound,
+    User,
+    UserStatus,
+    inbounds_groups_association,
+    users_groups_association,
+)
 
 
 def serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None):
@@ -25,7 +34,7 @@ def serialize_user_for_node(id: int, username: str, user_settings: dict, inbound
     )
 
 
-async def core_users(db: AsyncSession):
+async def core_users(db: AsyncSession, node_id: int | None = None):
     dialect = db.bind.dialect.name
 
     # Use dialect-specific aggregation and grouping
@@ -53,8 +62,28 @@ async def core_users(db: AsyncSession):
         .outerjoin(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
         .outerjoin(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
-        .group_by(User.id)
     )
+
+    # Filter by node-specific traffic limits if node_id is provided
+    if node_id:
+        # Subquery to find users who exceeded their limit on this node
+        over_limit_subquery = (
+            select(NodeUserLimit.user_id)
+            .join(
+                NodeUserUsage,
+                and_(
+                    NodeUserLimit.user_id == NodeUserUsage.user_id,
+                    NodeUserLimit.node_id == NodeUserUsage.node_id,
+                ),
+            )
+            .where(NodeUserLimit.node_id == node_id)
+            .where(NodeUserLimit.data_limit > 0)
+            .group_by(NodeUserLimit.user_id, NodeUserLimit.data_limit)
+            .having(func.sum(NodeUserUsage.used_traffic) >= NodeUserLimit.data_limit)
+        )
+        stmt = stmt.where(User.id.notin_(over_limit_subquery))
+
+    stmt = stmt.group_by(User.id)
 
     results = (await db.execute(stmt)).all()
     bridge_users: list = []

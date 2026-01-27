@@ -36,6 +36,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { NodeLimitsManager } from '@/components/users/node-limits-manager'
 
 interface UserModalProps {
   isDialogOpen: boolean
@@ -60,7 +61,6 @@ const templateModifySchema = z.object({
   note: z.string().optional(),
   user_template_id: z.number(),
 })
-
 
 // Helper function to get local ISO time string with timezone offset
 // This is kept for backward compatibility with normalizeExpire function
@@ -330,11 +330,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
   const hasNextPlanData = React.useMemo(() => {
     const nextPlan = form.getValues('next_plan')
-    
+
     if (!nextPlan || nextPlan === null || nextPlan === undefined) {
       return false
     }
-    
+
     return (
       (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
       (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
@@ -361,22 +361,18 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           // Prevent stale form data from overriding explicit nulls.
           form.setValue('next_plan', undefined, { shouldValidate: false, shouldDirty: false })
         }
-        
+
         // Use editingUserData if form doesn't have it yet, otherwise use form value
-        const nextPlan = nextPlanFromData === null
-          ? null
-          : (nextPlanFromForm !== null && nextPlanFromForm !== undefined 
-              ? nextPlanFromForm 
-              : nextPlanFromData)
-        
-        const hasData = nextPlan !== null && 
-                       nextPlan !== undefined && 
-                       typeof nextPlan === 'object' && (
-          (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
-          (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
-          (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
-          (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
-        )
+        const nextPlan = nextPlanFromData === null ? null : nextPlanFromForm !== null && nextPlanFromForm !== undefined ? nextPlanFromForm : nextPlanFromData
+
+        const hasData =
+          nextPlan !== null &&
+          nextPlan !== undefined &&
+          typeof nextPlan === 'object' &&
+          ((nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
+            (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
+            (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
+            (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null))
         setNextPlanEnabled(!!hasData)
       } else {
         // For create mode, always start with switch off
@@ -663,11 +659,15 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     } else {
       const currentNextPlan = form.getValues('next_plan')
       if (currentNextPlan === null || currentNextPlan === undefined) {
-        form.setValue('next_plan', {
-          expire: 0,
-          data_limit: 0,
-          add_remaining_traffic: false,
-        }, { shouldValidate: false, shouldDirty: false })
+        form.setValue(
+          'next_plan',
+          {
+            expire: 0,
+            data_limit: 0,
+            add_remaining_traffic: false,
+          },
+          { shouldValidate: false, shouldDirty: false },
+        )
       } else {
         if (!currentNextPlan.user_template_id) {
           const updatedPlan = {
@@ -689,27 +689,24 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     // Check both form values and editingUserData prop for next_plan
     const nextPlanFromForm = form.getValues('next_plan')
     const nextPlanFromData = editingUserData?.next_plan
-    
+
     // Use editingUserData if form doesn't have it yet, otherwise use form value
-    const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined 
-      ? nextPlanFromForm 
-      : nextPlanFromData
-    
-    const hasDataFromForm = nextPlan !== null && 
-                           nextPlan !== undefined && 
-                           typeof nextPlan === 'object' && (
-      (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
-      (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
-      (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
-      (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
-    )
+    const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined ? nextPlanFromForm : nextPlanFromData
+
+    const hasDataFromForm =
+      nextPlan !== null &&
+      nextPlan !== undefined &&
+      typeof nextPlan === 'object' &&
+      ((nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
+        (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
+        (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
+        (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null))
 
     const hasData = hasDataFromForm
 
     if (!hasData && nextPlanEnabled && !nextPlanManuallyDisabled) {
       setNextPlanEnabled(false)
-    }
-    else if (hasData && !nextPlanEnabled && !nextPlanManuallyDisabled) {
+    } else if (hasData && !nextPlanEnabled && !nextPlanManuallyDisabled) {
       setNextPlanEnabled(true)
       setNextPlanManuallyDisabled(false)
     }
@@ -742,7 +739,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const clearGroups = () => form.setValue('group_ids', [])
   // Helper to clear template selection
   const clearTemplate = () => setSelectedTemplateId(null)
-
 
   // Update validateAllFields function
   const validateAllFields = (currentValues: any, touchedFields: any, isSubmit: boolean = false) => {
@@ -1073,7 +1069,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         if (nextPlanEnabled) {
           // Switch is ON - always send next_plan with defaults or existing data
           const nextPlan = values.next_plan || form.getValues('next_plan') || {}
-          
+
           if (nextPlan.user_template_id) {
             // Template selected - only send template_id and add_remaining_traffic
             sendValues.next_plan = {
@@ -1929,6 +1925,21 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                           />
                         </AccordionContent>
                       </AccordionItem>
+
+                      {/* Per-Node Data Limits */}
+                      {editingUser && (
+                        <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="nodeLimits">
+                          <AccordionTrigger>
+                            <div className="flex items-center gap-2">
+                              <ListStart className="h-4 w-4" />
+                              <span>{t('per_node_limits', { defaultValue: 'Per-Node Data Limits' })}</span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="px-2">
+                            <NodeLimitsManager userId={editingUserId} isEditMode={editingUser} />
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
                     </Accordion>
                   )}
                   {/* Next Plan Section (toggleable) */}
@@ -2013,7 +2024,12 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                   if (nextPlanExpireInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
                                     nextPlanExpireInputRef.current = String(dateUtils.secondsToDays(field.value))
                                   }
-                                  const displayValue = nextPlanExpireInputRef.current !== '' ? nextPlanExpireInputRef.current : (field.value !== null && field.value !== undefined && field.value > 0 ? String(dateUtils.secondsToDays(field.value)) : '')
+                                  const displayValue =
+                                    nextPlanExpireInputRef.current !== ''
+                                      ? nextPlanExpireInputRef.current
+                                      : field.value !== null && field.value !== undefined && field.value > 0
+                                        ? String(dateUtils.secondsToDays(field.value))
+                                        : ''
                                   return (
                                     <FormItem>
                                       <FormLabel>{t('userDialog.nextPlanExpire', { defaultValue: 'Expire' })}</FormLabel>
@@ -2090,7 +2106,12 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                   if (nextPlanDataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
                                     nextPlanDataLimitInputRef.current = String(Math.round(field.value / (1024 * 1024 * 1024)))
                                   }
-                                  const displayValue = nextPlanDataLimitInputRef.current !== '' ? nextPlanDataLimitInputRef.current : (field.value !== null && field.value !== undefined && field.value > 0 ? String(Math.round(field.value / (1024 * 1024 * 1024))) : '')
+                                  const displayValue =
+                                    nextPlanDataLimitInputRef.current !== ''
+                                      ? nextPlanDataLimitInputRef.current
+                                      : field.value !== null && field.value !== undefined && field.value > 0
+                                        ? String(Math.round(field.value / (1024 * 1024 * 1024)))
+                                        : ''
                                   return (
                                     <FormItem>
                                       <FormLabel>{t('userDialog.nextPlanDataLimit', { defaultValue: 'Data Limit' })}</FormLabel>

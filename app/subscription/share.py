@@ -158,6 +158,23 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
         },
     )
 
+    # Add per-node variables: NODE_USAGE_1, NODE_LIMIT_1, NODE_LEFT_1, NODE_NAME_1, etc.
+    if hasattr(user, 'node_traffic') and user.node_traffic:
+        for node_data in user.node_traffic:
+            node_id = node_data.node_id
+            node_usage = readable_size(node_data.used_traffic)
+            node_limit = readable_size(node_data.data_limit) if node_data.data_limit else "∞"
+            if node_data.data_limit:
+                node_left_bytes = node_data.data_limit - node_data.used_traffic
+                node_left = readable_size(max(0, node_left_bytes))
+            else:
+                node_left = "∞"
+            
+            format_variables[f"NODE_USAGE_{node_id}"] = node_usage
+            format_variables[f"NODE_LIMIT_{node_id}"] = node_limit
+            format_variables[f"NODE_LEFT_{node_id}"] = node_left
+            format_variables[f"NODE_NAME_{node_id}"] = node_data.node_name
+
     return format_variables
 
 

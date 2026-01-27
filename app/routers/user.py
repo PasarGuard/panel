@@ -16,10 +16,12 @@ from app.models.user import (
     RemoveUsersResponse,
     UserCreate,
     UserModify,
+    UserNodeTrafficResponse,
     UserResponse,
     UsersResponse,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateList,
+    ResetNodeUsageRequest,
 )
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -106,6 +108,17 @@ async def reset_user_data_usage(
 ):
     """Reset user data usage"""
     return await user_operator.reset_user_data_usage(db, username=username, admin=admin)
+
+
+@router.post("/{username}/reset-usage-by-node", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
+async def reset_user_node_usage(
+    username: str,
+    request: ResetNodeUsageRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current)
+):
+    """Reset user data usage for specific nodes"""
+    return await user_operator.reset_user_node_usage(db, username=username, node_ids=request.node_ids, admin=admin)
 
 
 @router.post(
@@ -242,6 +255,57 @@ async def get_user_usage(
         node_id=node_id,
         group_by_node=group_by_node,
     )
+
+
+@router.get(
+    "/{username}/node-limits",
+    responses={403: responses._403, 404: responses._404}
+)
+async def get_user_node_limits(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Get per-node limits for a specific user"""
+    from app.db.crud import user as user_crud, node_user_limit as node_limit_crud
+    from app.models.node_user_limit import NodeUserLimitsResponse
+    
+    # Validate user exists
+    db_user = await user_crud.get_user(db, username)
+    if not db_user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check admin permission
+    if not admin.is_sudo and db_user.admin_id != admin.id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    # Get all node limits for this user
+    limits = await node_limit_crud.get_node_limits_for_user(db, db_user.id)
+    return NodeUserLimitsResponse(limits=limits, total=len(limits))
+
+
+@router.get(
+    "/{username}/node-traffic",
+    response_model=UserNodeTrafficResponse,
+    responses={403: responses._403, 404: responses._404}
+)
+async def get_user_node_traffic(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """
+    Get user traffic and limits breakdown by node.
+    
+    Returns for each node:
+    - node_id, node_name
+    - used_traffic (total bytes used on this node)
+    - data_limit (limit for this node, if configured via NodeUserLimit)
+    - has_limit (boolean, whether user has specific limit on this node)
+    """
+    return await user_operator.get_user_node_traffic(db=db, username=username, admin=admin)
 
 
 @router.get("s/usage", response_model=UserUsageStatsList)
