@@ -283,7 +283,9 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
             <DialogTitle>
               <div className="flex items-center gap-2 px-2">
                 <QrCode className="h-6 w-6" />
-                <span className="truncate">{selectedConfigQR?.name}</span>
+                <span className="truncate text-sm" title={selectedConfigQR?.name}>
+                  {selectedConfigQR?.name && selectedConfigQR.name.length > 40 ? `${selectedConfigQR.name.slice(0, 40)}...` : selectedConfigQR?.name}
+                </span>
               </div>
             </DialogTitle>
           </DialogHeader>
