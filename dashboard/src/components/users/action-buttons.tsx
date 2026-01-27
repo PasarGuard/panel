@@ -6,13 +6,12 @@ import { cn } from '@/lib/utils'
 import { UseEditFormValues } from '@/pages/_dashboard.users'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, Cpu, EllipsisVertical, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
+import { Cpu, EllipsisVertical, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users, Copy, Check } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { CopyButton } from '@/components/common/copy-button'
-import QRCodeModal from '@/components/dialogs/qrcode-modal'
+import SubscriptionModal from '@/components/dialogs/subscription-modal'
 import SetOwnerModal from '@/components/dialogs/set-owner-modal'
 import UsageModal from '@/components/dialogs/usage-modal'
 import UserModal from '@/components/dialogs/user-modal'
@@ -34,7 +33,7 @@ export interface SubscribeLink {
 const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const [subscribeUrl, setSubscribeUrl] = useState<string>('')
   const [subscribeLinks, setSubscribeLinks] = useState<SubscribeLink[]>([])
-  const [showQRModal, setShowQRModal] = useState(false)
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -162,14 +161,14 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     userForm.reset(values)
   }, [user, userForm])
 
-  const onOpenQRModal = useCallback(() => {
+  const onOpenSubscriptionModal = useCallback(() => {
     setSubscribeUrl(user.subscription_url ? user.subscription_url : '')
-    setShowQRModal(true)
+    setShowSubscriptionModal(true)
   }, [user.subscription_url])
 
-  const onCloseQRModal = useCallback(() => {
+  const onCloseSubscriptionModal = useCallback(() => {
     setSubscribeUrl('')
-    setShowQRModal(false)
+    setShowSubscriptionModal(false)
   }, [])
 
   useEffect(() => {
@@ -243,6 +242,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const handleSetOwner = () => {
     setSetOwnerModalOpen(true)
+  }
+
+  const handleCopyCoreUsername = async () => {
+    try {
+      await navigator.clipboard.writeText(`${user.id}.${user.username}`)
+      toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
+    } catch (error) {
+      toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
+    }
   }
 
   const handleRevokeSubscription = () => {
@@ -357,78 +365,50 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const fetchBlob = (url: string): Promise<Blob> => fetchWithDashboardFallback(url, response => response.blob())
 
-  const handleLinksCopy = async (subLink: SubscribeLink) => {
+  const handleLinksCopy = async (link: string, type: string, icon: string) => {
     try {
-      if (isIOS()) {
-        // iOS: redirect/open in new tab instead of copying
-        const newWindow = window.open(subLink.link, '_blank')
-        if (!newWindow) {
-          const content = await fetchContent(subLink.link)
-          showManualCopyAlert(content, 'url')
-        } else {
-          toast.success(t('downloadSuccess', { defaultValue: 'Configuration opened in new tab' }))
-        }
-      } else {
-        // Non-iOS: copy content as before
-        const content = await fetchContent(subLink.link)
-        await copy(content)
-        toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
-      }
-    } catch (error) {
-      console.error('Failed to fetch and copy content:', error)
-      // Fallback: copy the URL instead
-      await handleUrlCopy(subLink.link)
-    }
-  }
-
-  const handleUrlCopy = async (url: string) => {
-    try {
-      await copy(url)
-      toast.success(t('usersTable.copied', { defaultValue: 'URL copied to clipboard' }))
+      const content = await fetchContent(link)
+      copy(content)
+      toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
     } catch (error) {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
     }
   }
 
-  const handleCopyCoreUsername = () => handleUrlCopy(`${user.id}.${user.username}`)
-
-  const handleConfigDownload = async (subLink: SubscribeLink) => {
+  const handleConfigDownload = async (link: string, type: string) => {
     try {
       if (isIOS()) {
         // iOS: open in new tab or show content
-        const newWindow = window.open(subLink.link, '_blank')
+        const newWindow = window.open(link, '_blank')
         if (!newWindow) {
-          const content = await fetchContent(subLink.link)
+          const content = await fetchContent(link)
           showManualCopyAlert(content, 'url')
         } else {
           toast.success(t('downloadSuccess', { defaultValue: 'Configuration opened in new tab' }))
         }
       } else {
         // Non-iOS: regular download
-        const blob = await fetchBlob(subLink.link)
+        const blob = await fetchBlob(link)
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `${user.username}-${subLink.protocol}.txt`
+        a.download = `${user.username}-${type}.yaml`
         document.body.appendChild(a)
         a.click()
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
-        toast.success(t('downloadSuccess', { defaultValue: 'Configuration downloaded successfully' }))
+        toast.success(t('usersTable.downloadStarted', { defaultValue: 'Download started' }))
       }
     } catch (error) {
-      console.error('Failed to download configuration:', error)
-      toast.error(t('downloadFailed', { defaultValue: 'Failed to download configuration' }))
+      toast.error(t('downloadFailed', { defaultValue: 'Failed to download config' }))
     }
   }
 
-  const handleCopyOrDownload = async (subLink: SubscribeLink) => {
-    const isLinksProtocol = subLink.protocol === 'links' || subLink.protocol === 'links (base64)'
-
-    if (isLinksProtocol) {
-      await handleLinksCopy(subLink)
+  const handleCopyOrDownload = (link: string, type: string, icon: string) => {
+    if (['clash', 'clash-meta', 'sing-box'].includes(type)) {
+      handleConfigDownload(link, type)
     } else {
-      await handleConfigDownload(subLink)
+      handleLinksCopy(link, type, icon)
     }
   }
 
@@ -439,38 +419,30 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
           <Pencil className="h-4 w-4" />
         </Button>
         <TooltipProvider>
-          <CopyButton
-            value={user.subscription_url ? (user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url) : ''}
-            copiedMessage="usersTable.copied"
-            defaultMessage="usersTable.copyLink"
-            icon="link"
-            showToast={true}
-            toastSuccessMessage="usersTable.copied"
-            toastErrorMessage="copyFailed"
-          />
-          <Tooltip open={copied ? true : undefined}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <TooltipTrigger asChild>
-                  <Button size="icon" variant="ghost">
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {subscribeLinks.map(subLink => (
-                  <DropdownMenuItem dir='ltr' className="justify-start p-0" key={subLink.link} onClick={() => handleCopyOrDownload(subLink)}>
-                    <span className="flex w-full items-center gap-2 px-2 py-1.5">
-                      <span className="text-sm">{subLink.icon}</span>
-                      <span>{subLink.protocol}</span>
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <TooltipContent>{copied ? t('usersTable.copied') : t('usersTable.copyConfigs')}</TooltipContent>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon" variant="ghost" onClick={onOpenSubscriptionModal}>
+                <QrCode className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('subscriptionModal.title', { username: user.username, defaultValue: "{{username}}'s Subscription" })}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost">
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
+            {subscribeLinks.map((item, index) => (
+              <DropdownMenuItem key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
+                <span className="mr-2">{item.icon}</span>
+                {item.protocol}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost">
@@ -482,12 +454,6 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <DropdownMenuItem className="hidden md:flex" onClick={handleEdit}>
               <Pencil className="mr-2 h-4 w-4" />
               <span>{t('edit')}</span>
-            </DropdownMenuItem>
-
-            {/* QR Code */}
-            <DropdownMenuItem onClick={onOpenQRModal}>
-              <QrCode className="mr-2 h-4 w-4" />
-              <span>Qr Code</span>
             </DropdownMenuItem>
 
             {/* Set Owner: only for sudo admins */}
@@ -559,8 +525,14 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
         </DropdownMenu>
       </div>
 
-      {/* QR Code Modal */}
-      {showQRModal && subscribeUrl && <QRCodeModal subscribeUrl={subscribeUrl} onCloseModal={onCloseQRModal} />}
+      {/* Subscription Modal */}
+      {showSubscriptionModal && subscribeUrl && (
+        <SubscriptionModal 
+          subscribeUrl={subscribeUrl} 
+          username={user.username} 
+          onCloseModal={onCloseSubscriptionModal} 
+        />
+      )}
 
       {/* Active Next Plan Confirm Dialog */}
       <AlertDialog open={isActiveNextPlanModalOpen} onOpenChange={setIsActiveNextPlanModalOpen}>

@@ -7,10 +7,11 @@ import useDirDetection from '@/hooks/use-dir-detection'
 
 interface QRCodeModalProps {
   subscribeUrl: string | null
+  username: string
   onCloseModal: () => void
 }
 
-const QRCodeModal: FC<QRCodeModalProps> = memo(({ subscribeUrl, onCloseModal }) => {
+const QRCodeModal: FC<QRCodeModalProps> = memo(({ subscribeUrl, username, onCloseModal }) => {
   const isOpen = subscribeUrl !== null
 
   const { t } = useTranslation()
@@ -39,7 +40,9 @@ const QRCodeModal: FC<QRCodeModalProps> = memo(({ subscribeUrl, onCloseModal }) 
                 />
               </div>
             </div>
-            <span className="text-center">{t('qrcodeDialog.sublink')}</span>
+            <span className="text-center">
+              {t('qrcodeDialog.sublink', { username, defaultValue: "{{username}}'s Subscribe Link" })}
+            </span>
           </div>
         </div>
       </DialogContent>
