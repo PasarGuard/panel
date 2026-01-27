@@ -244,6 +244,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     setSetOwnerModalOpen(true)
   }
 
+  const handleCopyCoreUsername = async () => {
+    try {
+      await navigator.clipboard.writeText(`${user.id}.${user.username}`)
+      toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
+    } catch (error) {
+      toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
+    }
+  }
+
   const handleRevokeSubscription = () => {
     setRevokeSubDialogOpen(true)
   }
@@ -356,26 +365,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const fetchBlob = (url: string): Promise<Blob> => fetchWithDashboardFallback(url, response => response.blob())
 
-  const handleLinksCopy = async (subLink: SubscribeLink) => {
-    try {
-      await navigator.clipboard.writeText(`${user.id}.${user.username}`)
-      toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
-    } catch (error) {
-      toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
-    }
-  }
-
   const handleLinksCopy = async (link: string, type: string, icon: string) => {
     try {
-      const response = await fetch(link)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const content = await response.text()
+      const content = await fetchContent(link)
       copy(content)
-      toast.success(
-        `${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`
-      )
+      toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
     } catch (error) {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
     }
@@ -385,38 +379,26 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     try {
       if (isIOS()) {
         // iOS: open in new tab or show content
-        const newWindow = window.open(subLink.link, '_blank')
+        const newWindow = window.open(link, '_blank')
         if (!newWindow) {
-          const content = await fetchContent(subLink.link)
+          const content = await fetchContent(link)
           showManualCopyAlert(content, 'url')
         } else {
           toast.success(t('downloadSuccess', { defaultValue: 'Configuration opened in new tab' }))
         }
       } else {
         // Non-iOS: regular download
-        const blob = await fetchBlob(subLink.link)
+        const blob = await fetchBlob(link)
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `${user.username}-${subLink.protocol}.txt`
+        a.download = `${user.username}-${type}.yaml`
         document.body.appendChild(a)
         a.click()
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
-        toast.success(t('downloadSuccess', { defaultValue: 'Configuration downloaded successfully' }))
+        toast.success(t('usersTable.downloadStarted', { defaultValue: 'Download started' }))
       }
-      const content = await response.text()
-      const filename = `${user.username}-${type}.yaml`
-      const blob = new Blob([content], { type: 'text/yaml' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      toast.success(t('usersTable.downloadStarted', { defaultValue: 'Download started' }))
     } catch (error) {
       toast.error(t('downloadFailed', { defaultValue: 'Failed to download config' }))
     }
