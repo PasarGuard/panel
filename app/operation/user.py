@@ -698,10 +698,11 @@ class UserOperation(BaseOperation):
         admin: AdminDetails,
         username: str | None = None,
         admin_id: int | None = None,
+        days: int | None = None,
     ) -> UserSubscriptionUpdateChart:
         if username:
             db_user = await self.get_validated_user(db, username, admin)
-            agent_counts = await get_users_subscription_agent_counts(db, user_id=db_user.id)
+            agent_counts = await get_users_subscription_agent_counts(db, user_id=db_user.id, days=days)
             return self._build_user_agent_chart(agent_counts)
 
         if admin_id:
@@ -712,7 +713,7 @@ class UserOperation(BaseOperation):
         else:
             admin_id = None if admin.is_sudo else admin.id
 
-        agent_counts = await get_users_subscription_agent_counts(db, admin_id=admin_id)
+        agent_counts = await get_users_subscription_agent_counts(db, admin_id=admin_id, days=days)
         return self._build_user_agent_chart(agent_counts)
 
     @classmethod
