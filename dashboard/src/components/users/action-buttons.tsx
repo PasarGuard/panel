@@ -314,20 +314,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     }
   }
 
-  const isIOS = () => {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  }
-
-  const showManualCopyAlert = (content: string, type: 'url' | 'content') => {
-    const message = type === 'url' ? t('copyUrlManually', { defaultValue: 'Please copy this URL manually:' }) : t('copyContentManually', { defaultValue: 'Please copy this content manually:' })
-    alert(`${message}\n\n${content}`)
-  }
-
-  const buildDashboardFallbackUrl = (url: string): string | null => {
+  const buildFallbackUrl = (originalUrl: string): string | null => {
     try {
-      const parsedUrl = new URL(url, window.location.origin)
-      if (parsedUrl.origin === window.location.origin) return null
-
+      const parsedUrl = new URL(originalUrl)
       return `${window.location.origin}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
     } catch (error) {
       console.error('Failed to build fallback url:', error)
@@ -346,16 +335,12 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
     try {
       return await attemptFetch(url)
-    } catch (primaryError) {
-      const fallbackUrl = buildDashboardFallbackUrl(url)
-      if (fallbackUrl) {
-        try {
-          return await attemptFetch(fallbackUrl)
-        } catch (fallbackError) {
-          console.error('Fallback fetch failed:', fallbackError)
-        }
+    } catch (error) {
+      const fallbackUrl = buildFallbackUrl(url)
+      if (fallbackUrl && fallbackUrl !== url) {
+        return await attemptFetch(fallbackUrl)
       }
-      throw primaryError
+      throw error
     }
   }
 
@@ -365,51 +350,29 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const handleLinksCopy = async (link: string, type: string, icon: string) => {
     try {
-      if (isIOS()) {
-        const content = await fetchContent(link)
-        const success = await navigator.clipboard.writeText(content)
-        if (success === undefined) {
-          toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
-        }
-      } else {
-        const content = await fetchContent(link)
-        copy(content)
-        toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
-      }
+      const content = await fetchContent(link)
+      copy(content)
+      toast.success(
+        `${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`
+      )
     } catch (error) {
-      try {
-        const content = await fetchContent(link)
-        showManualCopyAlert(content, 'content')
-      } catch {
-        toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
-      }
+      toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
     }
   }
 
   const handleConfigDownload = async (link: string, type: string) => {
     try {
-      if (isIOS()) {
-        // iOS: open in new tab or show content
-        const newWindow = window.open(link, '_blank')
-        if (!newWindow) {
-          const content = await fetchContent(link)
-          showManualCopyAlert(content, 'url')
-        } else {
-          toast.success(t('downloadSuccess', { defaultValue: 'Configuration opened in new tab' }))
-        }
-      } else {
-        // Non-iOS: regular download
-        const blob = await fetchBlob(link)
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${user.username}-${type}.yaml`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-        toast.success(t('downloadSuccess', { defaultValue: 'Configuration downloaded successfully' }))
-      }
+      const blob = await fetchBlob(link)
+      const filename = `${user.username}-${type}.yaml`
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast.success(t('usersTable.downloadStarted', { defaultValue: 'Download started' }))
     } catch (error) {
       toast.error(t('downloadFailed', { defaultValue: 'Failed to download config' }))
     }
