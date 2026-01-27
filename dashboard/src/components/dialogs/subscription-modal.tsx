@@ -234,8 +234,9 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
                     {currentConfigs.map((item, index) => (
                       <div key={startIndex + index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
                         <div className="flex flex-1 flex-col gap-1 overflow-hidden">
-                          <span dir="ltr" className="truncate text-sm font-medium" title={item.name}>
-                            {item.name}
+                          <span dir="ltr" className="text-sm font-medium" title={item.name}>
+                            <span className="sm:hidden">{item.name.length > 30 ? `${item.name.slice(0, 30)}...` : item.name}</span>
+                            <span className="hidden sm:inline">{item.name.length > 40 ? `${item.name.slice(0, 40)}...` : item.name}</span>
                           </span>
                           {item.address && (
                             <Badge variant="secondary" className="w-fit text-xs font-normal opacity-70">
@@ -278,20 +279,20 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
 
       {/* Individual Config QR Code Dialog */}
       <Dialog open={!!selectedConfigQR} onOpenChange={handleCloseConfigQR}>
-        <DialogContent className="max-w-[350px]">
-          <DialogHeader dir={dir}>
+        <DialogContent className="w-[90vw] max-w-[320px]">
+          <DialogHeader dir={dir} className={isRTL ? 'pl-10' : 'pr-10'}>
             <DialogTitle>
-              <div className="flex items-center gap-2 px-2">
-                <QrCode className="h-6 w-6" />
-                <span className="truncate text-sm" title={selectedConfigQR?.name}>
-                  {selectedConfigQR?.name && selectedConfigQR.name.length > 40 ? `${selectedConfigQR.name.slice(0, 40)}...` : selectedConfigQR?.name}
+              <div className="flex items-center gap-2">
+                <QrCode className="h-5 w-5 shrink-0" />
+                <span className="text-sm" title={selectedConfigQR?.name}>
+                  {selectedConfigQR?.name && selectedConfigQR.name.length > 20 ? `${selectedConfigQR.name.slice(0, 20)}...` : selectedConfigQR?.name}
                 </span>
               </div>
             </DialogTitle>
           </DialogHeader>
-          <div dir="ltr" className="flex flex-col items-center gap-4 py-4">
+          <div dir="ltr" className="flex flex-col items-center gap-4 py-2">
             <div className="flex items-center justify-center overflow-hidden">
-              <QRCodeCanvas value={selectedConfigQR?.config || ''} size={280} className="rounded-md bg-white p-2" />
+              <QRCodeCanvas value={selectedConfigQR?.config || ''} size={220} className="max-w-full rounded-md bg-white p-2" />
             </div>
             <Button variant="outline" onClick={() => selectedConfigQR && handleCopyConfig(selectedConfigQR.config)} className="w-full">
               {copiedConfig === selectedConfigQR?.config ? <Check className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} /> : <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />}
