@@ -317,13 +317,45 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     alert(`${message}\n\n${content}`)
   }
 
-  const fetchContent = async (url: string): Promise<string> => {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+  const buildDashboardFallbackUrl = (url: string): string | null => {
+    try {
+      const parsedUrl = new URL(url, window.location.origin)
+      if (parsedUrl.origin === window.location.origin) return null
+
+      return `${window.location.origin}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
+    } catch (error) {
+      console.error('Failed to build fallback url:', error)
+      return null
     }
-    return response.text()
   }
+
+  async function fetchWithDashboardFallback<T>(url: string, parser: (response: Response) => Promise<T>): Promise<T> {
+    const attemptFetch = async (targetUrl: string) => {
+      const response = await fetch(targetUrl)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return parser(response)
+    }
+
+    try {
+      return await attemptFetch(url)
+    } catch (primaryError) {
+      const fallbackUrl = buildDashboardFallbackUrl(url)
+      if (fallbackUrl) {
+        try {
+          return await attemptFetch(fallbackUrl)
+        } catch (fallbackError) {
+          console.error('Fallback fetch failed:', fallbackError)
+        }
+      }
+      throw primaryError
+    }
+  }
+
+  const fetchContent = (url: string): Promise<string> => fetchWithDashboardFallback(url, response => response.text())
+
+  const fetchBlob = (url: string): Promise<Blob> => fetchWithDashboardFallback(url, response => response.blob())
 
   const handleLinksCopy = async (subLink: SubscribeLink) => {
     try {
@@ -373,12 +405,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
         }
       } else {
         // Non-iOS: regular download
-        const response = await fetch(subLink.link)
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        const blob = await response.blob()
+        const blob = await fetchBlob(subLink.link)
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
