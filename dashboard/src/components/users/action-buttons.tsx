@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CopyButton } from '@/components/common/copy-button'
 import QRCodeModal from '@/components/dialogs/qrcode-modal'
+import ConfigsQRCodeModal from '@/components/dialogs/configs-qrcode-modal'
 import SetOwnerModal from '@/components/dialogs/set-owner-modal'
 import UsageModal from '@/components/dialogs/usage-modal'
 import UserModal from '@/components/dialogs/user-modal'
@@ -35,6 +36,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const [subscribeUrl, setSubscribeUrl] = useState<string>('')
   const [subscribeLinks, setSubscribeLinks] = useState<SubscribeLink[]>([])
   const [showQRModal, setShowQRModal] = useState(false)
+  const [showConfigsQRModal, setShowConfigsQRModal] = useState(false)
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -170,6 +172,16 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const onCloseQRModal = useCallback(() => {
     setSubscribeUrl('')
     setShowQRModal(false)
+  }, [])
+
+  const onOpenConfigsQRModal = useCallback(() => {
+    setSubscribeUrl(user.subscription_url ? user.subscription_url : '')
+    setShowConfigsQRModal(true)
+  }, [user.subscription_url])
+
+  const onCloseConfigsQRModal = useCallback(() => {
+    setSubscribeUrl('')
+    setShowConfigsQRModal(false)
   }, [])
 
   useEffect(() => {
@@ -457,10 +469,16 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
               <span>{t('edit')}</span>
             </DropdownMenuItem>
 
-            {/* QR Code */}
+            {/* Sub QR Code */}
             <DropdownMenuItem onClick={onOpenQRModal}>
               <QrCode className="mr-2 h-4 w-4" />
-              <span>Qr Code</span>
+              <span>{t('usersTable.subQrCode', { defaultValue: 'Sub QR Code' })}</span>
+            </DropdownMenuItem>
+
+            {/* Configs QR Code */}
+            <DropdownMenuItem onClick={onOpenConfigsQRModal}>
+              <QrCode className="mr-2 h-4 w-4" />
+              <span>{t('usersTable.configsQrCode', { defaultValue: 'Configs QR Code' })}</span>
             </DropdownMenuItem>
 
             {/* Set Owner: only for sudo admins */}
@@ -533,7 +551,10 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       </div>
 
       {/* QR Code Modal */}
-      {showQRModal && subscribeUrl && <QRCodeModal subscribeUrl={subscribeUrl} onCloseModal={onCloseQRModal} />}
+      {showQRModal && subscribeUrl && <QRCodeModal subscribeUrl={subscribeUrl} username={user.username} onCloseModal={onCloseQRModal} />}
+
+      {/* Configs QR Code Modal */}
+      {showConfigsQRModal && subscribeUrl && <ConfigsQRCodeModal subscribeUrl={subscribeUrl} onCloseModal={onCloseConfigsQRModal} />}
 
       {/* Active Next Plan Confirm Dialog */}
       <AlertDialog open={isActiveNextPlanModalOpen} onOpenChange={setIsActiveNextPlanModalOpen}>

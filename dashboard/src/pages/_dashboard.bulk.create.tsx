@@ -61,6 +61,7 @@ export default function BulkCreateUsersPage() {
   const [createdUrls, setCreatedUrls] = useState<string[]>([])
   const [showSuccess, setShowSuccess] = useState(false)
   const [selectedQRUrl, setSelectedQRUrl] = useState<string | null>(null)
+  const [selectedQRUsername, setSelectedQRUsername] = useState<string>('')
   const [previewUsernames, setPreviewUsernames] = useState<string[]>([])
 
   const { data: templatesData, isLoading: templatesLoading } = useGetUserTemplates({ limit: 100, offset: 0 })
@@ -310,7 +311,10 @@ export default function BulkCreateUsersPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setSelectedQRUrl(url)}
+                    onClick={() => {
+                      setSelectedQRUrl(url)
+                      setSelectedQRUsername(t('bulk.create.user', { number: index + 1, defaultValue: 'User {{number}}' }))
+                    }}
                     className="h-8 w-8 shrink-0"
                     title={t('qrcodeDialog.sublink')}
                   >
@@ -326,7 +330,11 @@ export default function BulkCreateUsersPage() {
         {selectedQRUrl && (
           <QRCodeModal 
             subscribeUrl={selectedQRUrl} 
-            onCloseModal={() => setSelectedQRUrl(null)} 
+            username={selectedQRUsername}
+            onCloseModal={() => {
+              setSelectedQRUrl(null)
+              setSelectedQRUsername('')
+            }} 
           />
         )}
       </div>
