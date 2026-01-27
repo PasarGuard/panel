@@ -192,6 +192,10 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
             {/* Subscription QR Code Section */}
             <div className="flex w-full items-center justify-between">
               <span className="text-sm font-medium">{t('subscriptionModal.subscriptionLink', { defaultValue: 'Subscription Link' })}</span>
+              <Button variant="outline" size="sm" onClick={() => handleCopyConfig(sublink)} className="h-8">
+                {copiedConfig === sublink ? <Check className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} /> : <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />}
+                {t('subscriptionModal.copyLink', { defaultValue: 'Copy Link' })}
+              </Button>
             </div>
             <div className="flex flex-col items-center gap-3 rounded-lg border p-4">
               <div dir="ltr" className="flex max-w-[200px] items-center justify-center overflow-hidden">
