@@ -334,6 +334,10 @@ class HostManager:
         db_hosts = await get_hosts(db)
         await self.add_hosts(db, db_hosts)
 
+    async def setup_local(self, db: AsyncSession):
+        db_hosts = await get_hosts(db)
+        await self._add_hosts_local(db, db_hosts)
+
     async def _reset_cache(self):
         await self.get_hosts.cache.clear()
 
