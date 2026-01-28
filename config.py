@@ -12,6 +12,7 @@ if not TESTING:
 SQLALCHEMY_DATABASE_URL = config("SQLALCHEMY_DATABASE_URL", default="sqlite+aiosqlite:///db.sqlite3")
 SQLALCHEMY_POOL_SIZE = config("SQLALCHEMY_POOL_SIZE", cast=int, default=25)
 SQLALCHEMY_MAX_OVERFLOW = config("SQLALCHEMY_MAX_OVERFLOW", cast=int, default=60)
+SQLALCHEMY_POOL_RECYCLE = config("SQLALCHEMY_POOL_RECYCLE", cast=int, default=300)
 ECHO_SQL_QUERIES = config("ECHO_SQL_QUERIES", cast=bool, default=False)
 
 UVICORN_HOST = config("UVICORN_HOST", default="0.0.0.0")

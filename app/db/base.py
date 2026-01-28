@@ -5,6 +5,7 @@ from config import (
     ECHO_SQL_QUERIES,
     SQLALCHEMY_DATABASE_URL,
     SQLALCHEMY_MAX_OVERFLOW,
+    SQLALCHEMY_POOL_RECYCLE,
     SQLALCHEMY_POOL_SIZE,
 )
 
@@ -19,7 +20,7 @@ else:
         SQLALCHEMY_DATABASE_URL,
         pool_size=SQLALCHEMY_POOL_SIZE,
         max_overflow=SQLALCHEMY_MAX_OVERFLOW,
-        pool_recycle=300,
+        pool_recycle=SQLALCHEMY_POOL_RECYCLE,
         pool_timeout=5,
         pool_pre_ping=True,
         echo=ECHO_SQL_QUERIES,
