@@ -194,12 +194,16 @@ class CoreManager:
         await self._persist_state()
 
     async def _update_core_nats(self, db_core_config: CoreConfig):
-        # Validate core before publishing (but don't update locally)
-        # All workers (including this one) will update via listener
+        # Validate core before publishing
+        # Keep local state in sync immediately, while still broadcasting via NATS.
         self.validate_core(
             db_core_config.config, db_core_config.exclude_inbound_tags, db_core_config.fallbacks_inbound_tags
         )
-        await self._publish_invalidation({"action": "update", "core": self._core_payload_from_db(db_core_config)})
+        try:
+            await self._publish_invalidation({"action": "update", "core": self._core_payload_from_db(db_core_config)})
+        except Exception as exc:
+            self._logger.warning(f"Failed to publish core update via NATS: {exc}")
+        await self._update_core_local(db_core_config)
 
     async def update_core(self, db_core_config: CoreConfig):
         await self._update_core_impl(db_core_config)
@@ -216,8 +220,11 @@ class CoreManager:
         await self._persist_state()
 
     async def _remove_core_nats(self, core_id: int):
-        # Don't remove locally - all workers (including this one) will remove via listener
-        await self._publish_invalidation({"action": "remove", "core_id": core_id})
+        try:
+            await self._publish_invalidation({"action": "remove", "core_id": core_id})
+        except Exception as exc:
+            self._logger.warning(f"Failed to publish core remove via NATS: {exc}")
+        await self._remove_core_local(core_id)
 
     async def remove_core(self, core_id: int):
         await self._remove_core_impl(core_id)

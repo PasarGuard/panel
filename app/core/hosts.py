@@ -394,7 +394,6 @@ class HostManager:
         await self._persist_state()
 
     async def _add_hosts_nats(self, db: AsyncSession, hosts: list[BaseHost]):
-        # Don't update locally - all workers (including this one) will update via listener
         serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
         inbounds_list = await core_manager.get_inbounds()
         await upsert_inbounds(db, inbounds_list)
@@ -415,6 +414,13 @@ class HostManager:
         for host_id in hosts_to_remove:
             await self._publish({"action": "remove", "host_id": host_id})
 
+        # Keep local state in sync immediately, while still broadcasting via NATS.
+        await self._add_prepared_hosts_local(prepared_hosts)
+        async with self._lock:
+            for host_id in hosts_to_remove:
+                self._hosts.pop(host_id, None)
+        await self._reset_cache()
+
     async def remove_host(self, id: int):
         await self._remove_host_impl(id)
 
@@ -425,8 +431,8 @@ class HostManager:
         await self._persist_state()
 
     async def _remove_host_nats(self, id: int):
-        # Don't remove locally - all workers (including this one) will remove via listener
         await self._publish({"action": "remove", "host_id": id})
+        await self._remove_host_local(id)
 
     async def get_host(self, id: int) -> dict | None:
         async with self._lock:
