@@ -18,7 +18,7 @@ from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
 from app.utils.logger import get_logger
-from config import IS_NODE_WORKER, MULTI_WORKER
+from config import IS_NODE_WORKER, MULTI_WORKER, TESTING
 from app.models.host import BaseHost, TransportSettings
 from app.models.subscription import (
     GRPCTransportConfig,
@@ -248,7 +248,7 @@ class HostManager:
         self._hosts = {}
         self._lock = Lock()
         self._nats_enabled = is_nats_enabled()
-        self._multi_worker = MULTI_WORKER
+        self._multi_worker = MULTI_WORKER and not TESTING
         self._nc: nats.NATS | None = None
         self._js: JetStreamContext | None = None
         self._kv: KeyValue | None = None
