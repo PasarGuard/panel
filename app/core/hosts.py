@@ -247,7 +247,7 @@ class HostManager:
     def __init__(self):
         self._hosts = {}
         self._lock = Lock()
-        self._nats_enabled = is_nats_enabled()
+        self._nats_enabled = is_nats_enabled() and not TESTING
         self._multi_worker = MULTI_WORKER and not TESTING
         self._nc: nats.NATS | None = None
         self._js: JetStreamContext | None = None

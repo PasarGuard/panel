@@ -30,7 +30,7 @@ class CoreManager:
         self._lock = Lock()
         self._inbounds: list[str] = []
         self._inbounds_by_tag = {}
-        self._nats_enabled = is_nats_enabled()
+        self._nats_enabled = is_nats_enabled() and not TESTING
         self._multi_worker = MULTI_WORKER and not TESTING
         self._nc: nats.NATS | None = None
         self._js: JetStreamContext | None = None
