@@ -18,7 +18,7 @@ from app.db import GetDB
 from app.db.crud.core import get_core_configs
 from app.db.models import CoreConfig
 from app.utils.logger import get_logger
-from config import MULTI_WORKER, TESTING
+from config import MULTI_WORKER
 
 
 class CoreManager:
@@ -30,8 +30,8 @@ class CoreManager:
         self._lock = Lock()
         self._inbounds: list[str] = []
         self._inbounds_by_tag = {}
-        self._nats_enabled = is_nats_enabled() and not TESTING
-        self._multi_worker = MULTI_WORKER and not TESTING
+        self._nats_enabled = is_nats_enabled()
+        self._multi_worker = MULTI_WORKER
         self._nc: nats.NATS | None = None
         self._js: JetStreamContext | None = None
         self._kv: KeyValue | None = None
