@@ -3,22 +3,16 @@ from asyncio import Lock
 from copy import deepcopy
 
 import nats
+from aiocache import cached
 from nats.js.client import JetStreamContext
 from nats.js.kv import KeyValue
-from aiocache import cached
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import on_shutdown, on_startup
 from app.core.manager import core_manager
-from app.nats import is_nats_enabled
-from app.nats.client import setup_nats_kv
-from app.nats.message import MessageTopic
-from app.nats.router import router
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.utils.logger import get_logger
-from config import IS_NODE_WORKER, MULTI_WORKER
 from app.models.host import BaseHost, TransportSettings
 from app.models.subscription import (
     GRPCTransportConfig,
@@ -30,6 +24,12 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
+from app.nats import is_nats_enabled
+from app.nats.client import setup_nats_kv
+from app.nats.message import MessageTopic
+from app.nats.router import router
+from app.utils.logger import get_logger
+from config import IS_NODE_WORKER, MULTI_WORKER
 
 
 async def _prepare_subscription_inbound_data(
