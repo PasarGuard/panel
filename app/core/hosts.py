@@ -270,7 +270,10 @@ class HostManager:
         state = await self._snapshot_state()
         # Serialize state using pickle (same as CoreManager)
         state_bytes = pickle.dumps(state)
-        await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
+        try:
+            await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
+        except Exception as exc:
+            self._logger.warning(f"Failed to persist host state to NATS KV: {exc}")
 
     async def _load_state_from_cache(self) -> bool:
         if not self._kv:
