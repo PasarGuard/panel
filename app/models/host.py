@@ -74,13 +74,19 @@ class XMuxSettings(BaseModel):
 
 
 class XHttpSettings(BaseModel):
-    mode: XHttpModes = Field(default=XHttpModes.auto)
+    mode: XHttpModes | None = Field(default=None)
     no_grpc_header: bool | None = Field(default=None)
     x_padding_bytes: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     sc_max_each_post_bytes: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     sc_min_posts_interval_ms: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     xmux: XMuxSettings | None = Field(default=None)
     download_settings: int | None = Field(default=None)
+
+    @field_validator("mode", mode="before")
+    def _empty_mode_to_none(cls, v):
+        if v == "":
+            return None
+        return v
 
 
 class HTTPBase(BaseModel):
@@ -101,7 +107,7 @@ class HTTPRequest(HTTPBase):
 
 
 class TcpSettings(BaseModel):
-    header: str = Field("none", pattern=r"^(:?none|http)$")
+    header: str = Field("none", pattern=r"^(?:|none|http)$")
     request: HTTPRequest | None = Field(default=None)
     response: HTTPResponse | None = Field(default=None)
 

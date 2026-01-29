@@ -69,7 +69,9 @@ async def _prepare_subscription_inbound_data(
         tls_value = inbound_config.get("tls", "none")
 
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
-    fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp", "chrome")
+    fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
+    fp = fp or ("chrome" if tls_value == "reality" else "")
+
     ais = host.allowinsecure if host.allowinsecure is not None else inbound_config.get("allowinsecure", False)
 
     # Create TLS config once with merged data
@@ -128,10 +130,16 @@ async def _prepare_subscription_inbound_data(
     # Always create the config, merge host settings with inbound defaults (host overrides inbound)
     if network in ("xhttp", "splithttp"):
         xs = ts.xhttp_settings if ts else None
+        mode = inbound_config.get("mode", "")
+        if xs:
+            if xs.mode is None:
+                mode = inbound_config.get("mode", "")
+            else:
+                mode = xs.mode.value
         transport_config = XHTTPTransportConfig(
             path=path,
             host=host_list,
-            mode=xs.mode.value if xs and xs.mode else "auto",
+            mode=mode,
             no_grpc_header=xs.no_grpc_header if xs else None,
             sc_max_each_post_bytes=xs.sc_max_each_post_bytes if xs else None,
             sc_min_posts_interval_ms=xs.sc_min_posts_interval_ms if xs else None,
@@ -187,10 +195,17 @@ async def _prepare_subscription_inbound_data(
     elif network in ("tcp", "raw", "http", "h2"):
         # TCP/HTTP/H2 all use TCP transport
         tcps = ts.tcp_settings if ts else None
+        header_type = inbound_header_type
+        if tcps:
+            if tcps.header == "":
+                header_type = inbound_header_type
+            else:
+                header_type = tcps.header
+
         transport_config = TCPTransportConfig(
             path=path,
             host=host_list,
-            header_type=tcps.header if tcps else inbound_header_type,
+            header_type=header_type,
             request=tcps.request.model_dump(by_alias=True, exclude_none=True) if tcps and tcps.request else None,
             response=tcps.response.model_dump(by_alias=True, exclude_none=True) if tcps and tcps.response else None,
             http_headers=host.http_headers,

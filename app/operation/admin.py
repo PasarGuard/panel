@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime as dt
 
 from sqlalchemy.exc import IntegrityError
 
@@ -7,6 +8,7 @@ from app.db import AsyncSession
 from app.db.crud.admin import (
     AdminsSortingOptions,
     create_admin,
+    get_admin_usages,
     get_admins,
     get_admins_count,
     remove_admin,
@@ -16,8 +18,8 @@ from app.db.crud.admin import (
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminsResponse
-from app.node.sync import remove_user as sync_remove_user
-from app.node.sync import sync_users
+from app.node.sync import sync_users, remove_user as sync_remove_user
+from app.models.stats import Period, UserUsageStatsList
 from app.operation import BaseOperation, OperatorType
 from app.operation.user import UserOperation
 from app.utils.logger import get_logger
@@ -175,3 +177,35 @@ class AdminOperation(BaseOperation):
         asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
 
         return reseted_admin
+
+    async def get_admin_usage(
+        self,
+        db: AsyncSession,
+        username: str,
+        admin: AdminDetails,
+        start: dt = None,
+        end: dt = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserUsageStatsList:
+        """Get aggregated usage for an admin's users."""
+        start, end = await self.validate_dates(start, end, True)
+
+        if not admin.is_sudo:
+            if username != admin.username:
+                await self.raise_error(message="You're not allowed", code=403)
+            node_id = None
+            group_by_node = False
+
+        db_admin = await self.get_validated_admin(db, username=username)
+
+        return await get_admin_usages(
+            db=db,
+            admin_id=db_admin.id,
+            start=start,
+            end=end,
+            period=period,
+            node_id=node_id,
+            group_by_node=group_by_node,
+        )

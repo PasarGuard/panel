@@ -277,7 +277,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                 </PieChart>
               </ChartContainer>
             </div>
-            <div className={`flex w-full flex-1 flex-col gap-4 ${dir === 'rtl' ? 'items-end' : 'items-start'}`}>
+            <div className={`flex w-full flex-1 flex-col gap-4 lg:w-1/2 ${dir === 'rtl' ? 'items-end' : 'items-start'}`}>
               <div className="w-full max-w-xs rounded-lg border border-border/60 bg-muted/30 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('statistics.totalSubscriptions')}</p>
                 <p dir="ltr" className="mt-2 text-3xl font-semibold text-foreground">
@@ -287,10 +287,10 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
               <div className="max-h-64 w-full overflow-y-auto">
                 <ul className="w-full space-y-3">
                   {segments.map(segment => (
-                    <li key={segment.key} className={`flex items-center justify-between gap-4 rounded-md border border-border/40 px-3 py-2 ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                      <div className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
+                    <li key={segment.key} className={`flex items-center justify-between gap-4 rounded-md border border-border/40 px-3 py-2 max-w-full ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
+                      <div className={`flex items-center gap-2 overflow-hidden ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
                         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
-                        <span className="text-sm font-medium text-foreground">{segment.name}</span>
+                        <span className="text-sm font-medium text-foreground flex-1 truncate">{segment.name}</span>
                       </div>
                       <div className={`flex items-baseline gap-3 text-sm font-semibold text-foreground ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
                         <span dir="ltr" className="font-mono">

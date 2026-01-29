@@ -117,6 +117,10 @@ class XRayConfig(dict):
         """Handle TLS security settings."""
         settings["tls"] = "tls"
         for certificate in tls_settings.get("certificates", []):
+            if certificate.get("serveOnNode", False):
+                # prevent error on parse by xray core
+                del certificate["serveOnNode"]
+                continue
             if certificate.get("certificateFile", None):
                 with open(certificate["certificateFile"], "rb") as file:
                     cert = file.read()

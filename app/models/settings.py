@@ -263,6 +263,7 @@ class Subscription(BaseModel):
     manual_sub_request: SubFormatEnable = Field(default_factory=SubFormatEnable)
     applications: list[Application] = Field(default_factory=list)
     allow_browser_config: bool = Field(default=True)
+    disable_sub_template: bool = Field(default=False)
 
     @field_validator("applications")
     @classmethod

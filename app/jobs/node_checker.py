@@ -1,19 +1,18 @@
 import asyncio
 
-from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode, Health
+from PasarGuardNodeBridge import Health, NodeAPIError, PasarGuardNode
 
-from app import on_shutdown, on_startup, scheduler, notification
+from app import notification, on_shutdown, on_startup, scheduler
 from app.db import GetDB
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeNotification
 from app.node import node_manager
-from app.utils.logger import get_logger
-from app.operation.node import NodeOperation
 from app.operation import OperatorType
 from app.db.crud.node import get_limited_nodes, get_nodes
+from app.utils.logger import get_logger
+from app.operation.node import NodeOperation
 
-from config import IS_NODE_WORKER, JOB_CORE_HEALTH_CHECK_INTERVAL, JOB_CHECK_NODE_LIMITS_INTERVAL, RUN_SCHEDULER
-
+from config import IS_NODE_WORKER, JOB_CORE_HEALTH_CHECK_INTERVAL, JOB_CHECK_NODE_LIMITS_INTERVAL, RUN_SCHEDULER, SHUTDOWN_NODES_ON_SHUTDOWN
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 logger = get_logger("node-checker")
@@ -235,7 +234,6 @@ async def initialize_nodes():
     )
 
 
-@on_shutdown
 async def shutdown_nodes():
     if not RUN_SCHEDULER or not IS_NODE_WORKER:
         return
@@ -250,3 +248,7 @@ async def shutdown_nodes():
     await asyncio.gather(*stop_tasks, return_exceptions=True)
 
     logger.info("All nodes' cores have been stopped.")
+
+
+if SHUTDOWN_NODES_ON_SHUTDOWN:
+    on_shutdown(shutdown_nodes)
