@@ -39,6 +39,10 @@ RUN chmod +x /usr/bin/pasarguard-cli
 COPY tui_wrapper.sh /usr/bin/pasarguard-tui
 RUN chmod +x /usr/bin/pasarguard-tui
 
+# Copy healthcheck script
+COPY healthcheck.sh /code/healthcheck.sh
+RUN chmod +x /code/healthcheck.sh
+
 RUN chmod +x /code/start.sh
 
 ENTRYPOINT ["/code/start.sh"]

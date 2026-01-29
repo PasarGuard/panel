@@ -26,12 +26,12 @@ services:
       nats:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "${UVICORN_PORT}:${UVICORN_PORT}"
     volumes:
       - /var/lib/pasarguard:/var/lib/pasarguard
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -sf http://127.0.0.1:8000/ || exit 1"]
-      interval: 2s
+      test: ["CMD", "/code/healthcheck.sh"]
+      interval: 5s
       timeout: 5s
       retries: 10
       start_period: 30s
