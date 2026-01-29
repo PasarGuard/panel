@@ -30,7 +30,7 @@ services:
       NODE_ROLE: node-worker
       RUN_SCHEDULER: "1"
     depends_on:
-      - nats
+      - panel
     volumes:
       - /var/lib/pasarguard:/var/lib/pasarguard
 
@@ -42,7 +42,7 @@ services:
       NODE_ROLE: scheduler
       RUN_SCHEDULER: "1"
     depends_on:
-      - nats
+      - panel
     volumes:
       - /var/lib/pasarguard:/var/lib/pasarguard
 
