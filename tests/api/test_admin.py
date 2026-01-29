@@ -1,7 +1,19 @@
+from datetime import datetime, timedelta, timezone
+
+import pytest
 from fastapi import status
 
-from tests.api import client
-from tests.api.helpers import create_admin, delete_admin, unique_name, strong_password
+from app.db.models import NodeUserUsage
+from tests.api import TestSession, client
+from tests.api.helpers import (
+    auth_headers,
+    create_admin,
+    create_user,
+    delete_admin,
+    delete_user,
+    unique_name,
+    strong_password,
+)
 
 
 def test_admin_login():
@@ -177,3 +189,62 @@ def test_admin_delete(access_token):
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+@pytest.mark.asyncio
+async def test_admin_usage_returns_stats_for_admin(access_token):
+    admin = create_admin(access_token)
+    login_response = client.post(
+        url="/api/admin/token",
+        data={"username": admin["username"], "password": admin["password"], "grant_type": "password"},
+    )
+    assert login_response.status_code == status.HTTP_200_OK
+    admin_token = login_response.json()["access_token"]
+
+    user = create_user(admin_token, payload={"username": unique_name("admin_usage_user")})
+    now = datetime.now(timezone.utc)
+    usages = [
+        NodeUserUsage(user_id=user["id"], node_id=None, created_at=now - timedelta(hours=2), used_traffic=123),
+        NodeUserUsage(user_id=user["id"], node_id=None, created_at=now - timedelta(hours=1), used_traffic=456),
+    ]
+
+    async with TestSession() as session:
+        session.add_all(usages)
+        await session.commit()
+
+    response = client.get(
+        f"/api/admin/{admin['username']}/usage",
+        headers=auth_headers(admin_token),
+        params={"period": "hour"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["period"] == "hour"
+    assert "-1" in data["stats"]
+    total = sum(item["total_traffic"] for item in data["stats"]["-1"])
+    assert total == 579
+
+    delete_user(admin_token, user["username"])
+    delete_admin(access_token, admin["username"])
+
+
+@pytest.mark.asyncio
+async def test_admin_usage_forbidden_for_other_admin(access_token):
+    admin_a = create_admin(access_token)
+    admin_b = create_admin(access_token)
+    login_response = client.post(
+        url="/api/admin/token",
+        data={"username": admin_a["username"], "password": admin_a["password"], "grant_type": "password"},
+    )
+    assert login_response.status_code == status.HTTP_200_OK
+    admin_a_token = login_response.json()["access_token"]
+
+    response = client.get(
+        f"/api/admin/{admin_b['username']}/usage",
+        headers=auth_headers(admin_a_token),
+        params={"period": "hour"},
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    delete_admin(access_token, admin_a["username"])
+    delete_admin(access_token, admin_b["username"])
