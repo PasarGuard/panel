@@ -12,7 +12,13 @@ from app.db.crud.node import get_limited_nodes, get_nodes
 from app.utils.logger import get_logger
 from app.operation.node import NodeOperation
 
-from config import IS_NODE_WORKER, JOB_CORE_HEALTH_CHECK_INTERVAL, JOB_CHECK_NODE_LIMITS_INTERVAL, RUN_SCHEDULER, SHUTDOWN_NODES_ON_SHUTDOWN
+from config import (
+    IS_NODE_WORKER,
+    JOB_CORE_HEALTH_CHECK_INTERVAL,
+    JOB_CHECK_NODE_LIMITS_INTERVAL,
+    RUN_SCHEDULER,
+    SHUTDOWN_NODES_ON_SHUTDOWN,
+)
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 logger = get_logger("node-checker")

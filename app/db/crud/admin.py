@@ -10,6 +10,7 @@ from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 
 from .general import _build_trunc_expression
 
+
 async def load_admin_attrs(admin: Admin):
     try:
         await admin.awaitable_attrs.users

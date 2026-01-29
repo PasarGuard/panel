@@ -94,6 +94,7 @@ async def _cleanup_thread_pool():
             _thread_pool = None
             logger.info("ThreadPoolExecutor shut down successfully")
 
+
 # Helper functions for threading (lightweight operations that release GIL)
 def _process_node_chunk(chunk_data: tuple) -> dict:
     """

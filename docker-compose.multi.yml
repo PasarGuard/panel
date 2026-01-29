@@ -7,42 +7,60 @@ services:
       - "4222:4222"
     volumes:
       - nats-data:/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 30s
 
   panel:
+    container_name: panel
     image: pasarguard/panel:latest
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ROLE: panel
-      RUN_SCHEDULER: "0"
+      RUN_SCHEDULER: 0
     depends_on:
-      - nats
+      nats:
+        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
       - /var/lib/pasarguard:/var/lib/pasarguard
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://127.0.0.1:8000/ || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   node-worker:
+    container_name: node-worker
     image: pasarguard/panel:latest
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ROLE: node-worker
-      RUN_SCHEDULER: "1"
+      RUN_SCHEDULER: 1
     depends_on:
-      - panel
+      panel:
+        condition: service_healthy
     volumes:
       - /var/lib/pasarguard:/var/lib/pasarguard
 
   scheduler:
+    container_name: scheduler
     image: pasarguard/panel:latest
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ROLE: scheduler
-      RUN_SCHEDULER: "1"
+      RUN_SCHEDULER: 1
     depends_on:
-      - panel
+      panel:
+        condition: service_healthy
     volumes:
       - /var/lib/pasarguard:/var/lib/pasarguard
 
