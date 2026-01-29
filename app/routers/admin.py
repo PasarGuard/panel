@@ -1,11 +1,13 @@
 import asyncio
+from datetime import datetime as dt
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app import notification
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token, AdminsResponse
+from app.models.stats import Period, UserUsageStatsList
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
@@ -130,6 +132,34 @@ async def get_admins(
 ):
     """Fetch a list of admins with optional filters for pagination and username."""
     return await admin_operator.get_admins(db, username=username, offset=offset, limit=limit, sort=sort)
+
+
+@router.get(
+    "/{username}/usage",
+    response_model=UserUsageStatsList,
+    responses={403: responses._403, 404: responses._404},
+)
+async def get_admin_usage(
+    username: str,
+    period: Period,
+    node_id: int | None = None,
+    group_by_node: bool = False,
+    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Get admin usage aggregated from user traffic."""
+    return await admin_operator.get_admin_usage(
+        db,
+        username=username,
+        admin=admin,
+        start=start,
+        end=end,
+        period=period,
+        node_id=node_id,
+        group_by_node=group_by_node,
+    )
 
 
 @router.post("/{username}/users/disable", responses={404: responses._404})

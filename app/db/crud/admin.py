@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Admin, AdminUsageLogs
+from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
 from app.models.admin import AdminCreate, AdminModify
+from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 
+from .general import _build_trunc_expression
 
 async def load_admin_attrs(admin: Admin):
     try:
@@ -262,6 +264,83 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     await db.refresh(db_admin)
     await load_admin_attrs(db_admin)
     return db_admin
+
+
+async def get_admin_usages(
+    db: AsyncSession,
+    admin_id: int | None,
+    start: datetime,
+    end: datetime,
+    period: Period,
+    node_id: int | None = None,
+    group_by_node: bool = False,
+) -> UserUsageStatsList:
+    """
+    Retrieves aggregated usage data for an admin's users within a specified time range,
+    grouped by the specified time period.
+
+    Args:
+        db (AsyncSession): Database session for querying.
+        admin_id (int | None): Admin ID to filter users by. If None, include all admins.
+        start (datetime): Start of the period.
+        end (datetime): End of the period.
+        period (Period): Time period to group by ('minute', 'hour', 'day', 'month').
+        node_id (Optional[int]): Filter results by specific node ID if provided.
+
+    Returns:
+        UserUsageStatsList: Aggregated usage data for each period.
+    """
+    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at)
+
+    conditions = [
+        NodeUserUsage.created_at >= start,
+        NodeUserUsage.created_at <= end,
+    ]
+
+    if admin_id is not None:
+        conditions.append(User.admin_id == admin_id)
+
+    if node_id is not None:
+        conditions.append(NodeUserUsage.node_id == node_id)
+    else:
+        node_id = -1
+
+    if group_by_node:
+        stmt = (
+            select(
+                trunc_expr.label("period_start"),
+                func.coalesce(NodeUserUsage.node_id, 0).label("node_id"),
+                func.sum(NodeUserUsage.used_traffic).label("total_traffic"),
+            )
+            .select_from(NodeUserUsage)
+            .join(User, User.id == NodeUserUsage.user_id)
+            .where(and_(*conditions))
+            .group_by(trunc_expr, NodeUserUsage.node_id)
+            .order_by(trunc_expr)
+        )
+    else:
+        stmt = (
+            select(
+                trunc_expr.label("period_start"),
+                func.sum(NodeUserUsage.used_traffic).label("total_traffic"),
+            )
+            .select_from(NodeUserUsage)
+            .join(User, User.id == NodeUserUsage.user_id)
+            .where(and_(*conditions))
+            .group_by(trunc_expr)
+            .order_by(trunc_expr)
+        )
+
+    result = await db.execute(stmt)
+    stats = {}
+    for row in result.mappings():
+        row_dict = dict(row)
+        node_id_val = row_dict.pop("node_id", node_id)
+        if node_id_val not in stats:
+            stats[node_id_val] = []
+        stats[node_id_val].append(UserUsageStat(**row_dict))
+
+    return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
 
 
 async def get_admins_count(db: AsyncSession) -> int:
