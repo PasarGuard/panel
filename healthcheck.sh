@@ -12,6 +12,72 @@ KEYFILE=${UVICORN_SSL_KEYFILE}
 UDS=${UVICORN_UDS}
 DEBUG=${DEBUG:-false}
 
+# Decode percent-encoded strings (for http+unix://%2Fpath.sock)
+url_decode() {
+    local encoded=$1
+    printf '%b' "${encoded//%/\\x}"
+}
+
+# Normalize UDS values (supports unix://, http+unix://, file://, and abstract sockets)
+UDS_IS_ABSTRACT=false
+UDS_PATH=""
+
+normalize_uds_path() {
+    local raw=$1
+    local path=$raw
+
+    UDS_IS_ABSTRACT=false
+    UDS_PATH=""
+
+    # Strip surrounding quotes (common in .env files)
+    if [[ "$path" == \"*\" && "$path" == *\" ]]; then
+        path="${path#\"}"
+        path="${path%\"}"
+    elif [[ "$path" == \'*\' && "$path" == *\' ]]; then
+        path="${path#\'}"
+        path="${path%\'}"
+    fi
+
+    # Abstract socket prefixes
+    case "$path" in
+        abstract://*) UDS_IS_ABSTRACT=true; path="${path#abstract://}" ;;
+        abstract:*) UDS_IS_ABSTRACT=true; path="${path#abstract:}" ;;
+        unix-abstract://*) UDS_IS_ABSTRACT=true; path="${path#unix-abstract://}" ;;
+        unix-abstract:*) UDS_IS_ABSTRACT=true; path="${path#unix-abstract:}" ;;
+    esac
+
+    # Strip common schemes for filesystem sockets or http+unix URLs
+    case "$path" in
+        unix://*) path="${path#unix://}" ;;
+        unix:/*) path="${path#unix:}" ;;
+        unix:*) path="${path#unix:}" ;;
+        http+unix://*) path="${path#http+unix://}" ;;
+        http+unix:/*) path="${path#http+unix:}" ;;
+        https+unix://*) path="${path#https+unix://}" ;;
+        https+unix:/*) path="${path#https+unix:}" ;;
+        file://*) path="${path#file://}" ;;
+        file:/*) path="${path#file:}" ;;
+    esac
+
+    # Leading @ indicates an abstract socket name
+    if [[ "$path" == @* ]]; then
+        UDS_IS_ABSTRACT=true
+        path="${path#@}"
+    fi
+
+    # Decode percent-encoded paths (e.g., %2F)
+    if [[ "$path" == *%* ]]; then
+        path="$(url_decode "$path")"
+    fi
+
+    # Collapse leading double slashes for filesystem paths
+    if [ "$UDS_IS_ABSTRACT" = false ] && [[ "$path" == //* ]]; then
+        path="/${path#//}"
+    fi
+
+    UDS_PATH="$path"
+}
+
 # Function to check health via HTTP/HTTPS
 check_http_health() {
     local protocol=$1
@@ -32,12 +98,26 @@ check_http_health() {
 check_uds_health() {
     local socket_path=$1
 
-    if [ ! -S "$socket_path" ]; then
+    normalize_uds_path "$socket_path"
+
+    if [ -z "$UDS_PATH" ]; then
+        return 1
+    fi
+
+    if [ "$UDS_IS_ABSTRACT" = true ]; then
+        if curl -sf --abstract-unix-socket "$UDS_PATH" "http://localhost/health" 2>/dev/null; then
+            return 0
+        fi
+        curl -sf --abstract-unix-socket "@$UDS_PATH" "http://localhost/health" 2>/dev/null
+        return $?
+    fi
+
+    if [ ! -S "$UDS_PATH" ]; then
         return 1
     fi
 
     # Use curl with unix socket
-    curl -sf --unix-socket "$socket_path" "http://localhost/health" 2>/dev/null
+    curl -sf --unix-socket "$UDS_PATH" "http://localhost/health" 2>/dev/null
     return $?
 }
 
