@@ -4,7 +4,6 @@ from app.nats.node_rpc import node_nats_client
 from app.node import node_manager
 from config import IS_NODE_WORKER
 
-
 if IS_NODE_WORKER:
 
     async def sync_user(db_user: User, user: UserNotificationResponse) -> None:
@@ -19,6 +18,7 @@ if IS_NODE_WORKER:
 
     async def sync_users(users: list[User]) -> None:
         await node_manager.update_users(users)
+
 else:
 
     async def sync_user(db_user: User, user: UserNotificationResponse) -> None:
@@ -28,4 +28,4 @@ else:
         await node_nats_client.publish("remove_user", {"username": user.username})
 
     async def sync_users(users: list[User]) -> None:
-        await node_nats_client.publish("update_users", {"usernames": [user.username for user in users]})
+        await node_nats_client.publish("update_users", {"users": [user for user in users]})

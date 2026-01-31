@@ -9,7 +9,7 @@ from PasarGuardNodeBridge import NodeAPIError
 from app import on_shutdown, on_startup
 from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
-from app.db.crud.user import get_user, get_users
+from app.db.crud.user import get_user
 from app.db.models import UserStatus
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate
 from app.models.user import UserResponse
@@ -183,11 +183,9 @@ class NodeWorkerService:
             await node_manager.remove_user(user)
 
     async def _update_users(self, data: dict):
-        usernames = data.get("usernames") or []
-        if not usernames:
+        users = data.get("users") or []
+        if not users:
             return
-        async with GetDB() as db:
-            users = await get_users(db, usernames=usernames)
         await node_manager.update_users(users)
 
     async def _update_node(self, data: dict):
