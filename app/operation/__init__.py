@@ -48,6 +48,11 @@ class BaseOperation:
         else:
             raise ValueError(message)
 
+    async def handle_rpc_error(self, exc: RuntimeError):
+        """Convert NATS RPC errors to appropriate HTTP responses."""
+        code = getattr(exc, 'code', 500)
+        await self.raise_error(message=str(exc), code=code)
+
     async def validate_dates(self, start: dt | None, end: dt | None, set_default_values: bool) -> tuple[dt, dt]:
         """Validate if start and end dates are correct and if end is after start."""
 

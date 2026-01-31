@@ -659,8 +659,11 @@ class NodeOperation(BaseOperation):
         )
 
     async def _get_node_system_stats_remote(self, node_id: Node) -> NodeRealtimeStats:
-        data = await node_nats_client.request("get_node_system_stats", {"node_id": node_id})
-        return NodeRealtimeStats.model_validate(data)
+        try:
+            data = await node_nats_client.request("get_node_system_stats", {"node_id": node_id})
+            return NodeRealtimeStats.model_validate(data)
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
     async def _get_nodes_system_stats_local(self) -> dict[int, NodeRealtimeStats | None]:
         nodes = await node_manager.get_healthy_nodes()
@@ -678,11 +681,14 @@ class NodeOperation(BaseOperation):
         return results
 
     async def _get_nodes_system_stats_remote(self) -> dict[int, NodeRealtimeStats | None]:
-        data = await node_nats_client.request("get_nodes_system_stats", {})
-        return {
-            int(node_id): (NodeRealtimeStats.model_validate(value) if value else None)
-            for node_id, value in data.items()
-        }
+        try:
+            data = await node_nats_client.request("get_nodes_system_stats", {})
+            return {
+                int(node_id): (NodeRealtimeStats.model_validate(value) if value else None)
+                for node_id, value in data.items()
+            }
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
     async def _get_user_online_stats_local(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
         db_user = await get_user(db, username=username)
@@ -705,7 +711,10 @@ class NodeOperation(BaseOperation):
         return {node_id: stats.value}
 
     async def _get_user_online_stats_remote(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
-        return await node_nats_client.request("get_user_online_stats", {"node_id": node_id, "username": username})
+        try:
+            return await node_nats_client.request("get_user_online_stats", {"node_id": node_id, "username": username})
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
     async def _get_user_ip_list_local(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
         db_user = await get_user(db, username=username)
@@ -721,8 +730,11 @@ class NodeOperation(BaseOperation):
         return UserIPList(ips=ips)
 
     async def _get_user_ip_list_remote(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
-        data = await node_nats_client.request("get_user_ip_list", {"node_id": node_id, "username": username})
-        return UserIPList.model_validate(data)
+        try:
+            data = await node_nats_client.request("get_user_ip_list", {"node_id": node_id, "username": username})
+            return UserIPList.model_validate(data)
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
     async def _get_user_ip_list_all_local(self, db: AsyncSession, username: str) -> UserIPListAll:
         db_user = await get_user(db, username=username)
@@ -746,8 +758,11 @@ class NodeOperation(BaseOperation):
         return UserIPListAll(nodes=results)
 
     async def _get_user_ip_list_all_remote(self, db: AsyncSession, username: str) -> UserIPListAll:
-        data = await node_nats_client.request("get_user_ip_list_all", {"username": username})
-        return UserIPListAll.model_validate(data)
+        try:
+            data = await node_nats_client.request("get_user_ip_list_all", {"username": username})
+            return UserIPListAll.model_validate(data)
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
     async def _sync_node_users_local(self, db: AsyncSession, node_id: int, flush_users: bool) -> NodeResponse:
         db_node = await self.get_validated_node(db, node_id=node_id)
@@ -785,7 +800,10 @@ class NodeOperation(BaseOperation):
         return response.json()
 
     async def _update_node_api_remote(self, node_id: int) -> dict:
-        return await node_nats_client.request("update_node_api", {"node_id": node_id})
+        try:
+            return await node_nats_client.request("update_node_api", {"node_id": node_id})
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
     async def _update_core_local(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         node = await node_manager.get_node(node_id)

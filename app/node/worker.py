@@ -137,7 +137,15 @@ class NodeWorkerService:
                 result = await self._dispatch_rpc(action, data)
                 await msg.respond(json.dumps({"ok": True, "data": result}).encode())
             except Exception as exc:
-                await msg.respond(json.dumps({"ok": False, "error": str(exc)}).encode())
+                error_msg = str(exc)
+                # Determine error code based on error message content
+                if "NotFound" in error_msg or "not found" in error_msg.lower():
+                    error_code = 404
+                elif "not allowed" in error_msg.lower() or "permission" in error_msg.lower():
+                    error_code = 403
+                else:
+                    error_code = 500
+                await msg.respond(json.dumps({"ok": False, "error": error_msg, "code": error_code}).encode())
 
     async def _dispatch_command(self, action: str | None, data: dict):
         if not action:

@@ -51,7 +51,11 @@ class NodeNatsClient:
         response = json.loads(reply.data.decode())
 
         if not response.get("ok", False):
-            raise RuntimeError(response.get("error", "Node RPC error"))
+            error_msg = response.get("error", "Node RPC error")
+            error_code = response.get("code", 500)
+            exc = RuntimeError(error_msg)
+            exc.code = error_code  # Attach code to exception for caller to handle
+            raise exc
 
         return response.get("data")
 

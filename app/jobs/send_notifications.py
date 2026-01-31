@@ -12,7 +12,7 @@ from app.models.settings import Webhook
 from app.notification.webhook import queue
 from app.settings import webhook_settings
 from app.utils.logger import get_logger
-from config import JOB_SEND_NOTIFICATIONS_INTERVAL
+from config import JOB_SEND_NOTIFICATIONS_INTERVAL, RUN_SCHEDULER
 
 logger = get_logger("send-notification")
 
@@ -122,22 +122,22 @@ async def send_pending_notifications_before_shutdown():
     logger.info("Webhook final flush before shutdown")
     await send_notifications()
 
-
-scheduler.add_job(
-    send_notifications,
-    "interval",
-    seconds=JOB_SEND_NOTIFICATIONS_INTERVAL,
-    max_instances=1,
-    coalesce=True,
-    id="send_notifications",
-    replace_existing=True,
-)
-scheduler.add_job(
-    delete_expired_reminders,
-    "interval",
-    hours=6,
-    start_date=dt.now(tz.utc) + td(minutes=5),
-    id="delete_expired_notification_reminders",
-    replace_existing=True,
-)
-on_shutdown(send_pending_notifications_before_shutdown)
+if RUN_SCHEDULER:
+    scheduler.add_job(
+        send_notifications,
+        "interval",
+        seconds=JOB_SEND_NOTIFICATIONS_INTERVAL,
+        max_instances=1,
+        coalesce=True,
+        id="send_notifications",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        delete_expired_reminders,
+        "interval",
+        hours=6,
+        start_date=dt.now(tz.utc) + td(minutes=5),
+        id="delete_expired_notification_reminders",
+        replace_existing=True,
+    )
+    on_shutdown(send_pending_notifications_before_shutdown)
