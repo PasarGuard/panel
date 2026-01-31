@@ -2,6 +2,7 @@ from datetime import datetime as dt
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.utils.helpers import fix_datetime_timezone
 from .validators import StringArrayValidator
 
 
@@ -45,6 +46,13 @@ class CoreResponse(CoreBase):
     created_at: dt
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
 
 
 class CoreResponseList(BaseModel):

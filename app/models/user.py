@@ -109,6 +109,13 @@ class UserNotificationResponse(User):
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
 
+    @field_validator("created_at", "edit_at", "online_at", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
+
 
 class UserResponse(UserNotificationResponse):
     admin: AdminBase | None = Field(default=None)
@@ -139,6 +146,13 @@ class UserSubscriptionUpdateSchema(BaseModel):
     user_agent: str
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return fix_datetime_timezone(v)
 
 
 class UserSubscriptionUpdateList(BaseModel):
