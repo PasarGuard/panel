@@ -2,7 +2,7 @@ from app import on_shutdown, scheduler
 from app.notification.client import process_notification
 from app.notification.queue_manager import get_queue
 from app.utils.logger import get_logger
-from config import IS_NODE_WORKER, JOB_SEND_NOTIFICATIONS_INTERVAL
+from config import IS_NODE_WORKER, JOB_SEND_NOTIFICATIONS_INTERVAL, RUN_SCHEDULER
 
 logger = get_logger("process-notification-queues")
 
@@ -24,8 +24,13 @@ async def process_all_notification_queues():
         await process_notification(item)
 
 
+async def send_pending_notifications_before_shutdown():
+    logger.info("Notification final flush before shutdown")
+    await process_all_notification_queues()
+
+
 # Schedule the job to run at the same interval as webhook notifications
-if not IS_NODE_WORKER:
+if RUN_SCHEDULER and not IS_NODE_WORKER:
     scheduler.add_job(
         process_all_notification_queues,
         "interval",
@@ -36,11 +41,4 @@ if not IS_NODE_WORKER:
         replace_existing=True,
     )
 
-
-async def send_pending_notifications_before_shutdown():
-    logger.info("Notification final flush before shutdown")
-    await process_all_notification_queues()
-
-
-if not IS_NODE_WORKER:
     on_shutdown(send_pending_notifications_before_shutdown)

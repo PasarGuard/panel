@@ -17,7 +17,7 @@ from config import (
     JOB_CORE_HEALTH_CHECK_INTERVAL,
     JOB_CHECK_NODE_LIMITS_INTERVAL,
     RUN_SCHEDULER,
-    SHUTDOWN_NODES_ON_SHUTDOWN,
+    STOP_NODES_ON_SHUTDOWN,
 )
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -239,6 +239,9 @@ async def initialize_nodes():
         replace_existing=True,
     )
 
+    if STOP_NODES_ON_SHUTDOWN:
+        on_shutdown(shutdown_nodes)
+
 
 async def shutdown_nodes():
     if not RUN_SCHEDULER or not IS_NODE_WORKER:
@@ -254,7 +257,3 @@ async def shutdown_nodes():
     await asyncio.gather(*stop_tasks, return_exceptions=True)
 
     logger.info("All nodes' cores have been stopped.")
-
-
-if SHUTDOWN_NODES_ON_SHUTDOWN:
-    on_shutdown(shutdown_nodes)

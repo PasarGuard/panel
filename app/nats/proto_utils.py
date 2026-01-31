@@ -7,13 +7,13 @@ from google.protobuf.message import Message
 def serialize_proto_message(message: Message) -> dict:
     """
     Convert a Protocol Buffer message to a JSON-serializable dictionary.
-    
+
     Uses the standard protobuf MessageToDict function to ensure compatibility
     with JSON serialization across all NATS node commands.
-    
+
     Args:
         message: A Protocol Buffer message instance
-        
+
     Returns:
         A dictionary representation of the message that is JSON-serializable
     """
@@ -23,10 +23,10 @@ def serialize_proto_message(message: Message) -> dict:
 def serialize_proto_messages(messages: list[Message]) -> list[dict]:
     """
     Convert a list of Protocol Buffer messages to JSON-serializable dictionaries.
-    
+
     Args:
         messages: A list of Protocol Buffer message instances
-        
+
     Returns:
         A list of dictionary representations that are JSON-serializable
     """
@@ -36,14 +36,14 @@ def serialize_proto_messages(messages: list[Message]) -> list[dict]:
 def deserialize_proto_message(message_dict: dict, message_type: type[Message]) -> Message:
     """
     Convert a dictionary back to a Protocol Buffer message.
-    
+
     Uses the standard protobuf ParseDict function to handle any proto message type.
     Generic implementation allows reuse for any proto message, not just User.
-    
+
     Args:
         message_dict: A dictionary representation of a proto message
         message_type: The Protocol Buffer message class to deserialize into (e.g., ProtoUser)
-        
+
     Returns:
         A Protocol Buffer message instance of the specified type
     """
@@ -53,15 +53,14 @@ def deserialize_proto_message(message_dict: dict, message_type: type[Message]) -
 def deserialize_proto_messages(messages_dicts: list[dict], message_type: type[Message]) -> list[Message]:
     """
     Convert a list of dictionaries back to Protocol Buffer messages.
-    
+
     Generic implementation allows reuse for any proto message type.
-    
+
     Args:
         messages_dicts: A list of dictionary representations of proto messages
         message_type: The Protocol Buffer message class to deserialize into (e.g., ProtoUser)
-        
+
     Returns:
         A list of Protocol Buffer message instances of the specified type
     """
     return [deserialize_proto_message(msg_dict, message_type) for msg_dict in messages_dicts]
-

@@ -21,7 +21,7 @@ services:
     env_file: .env
     environment:
       NODE_ROLE: panel
-      RUN_SCHEDULER: 0
+      RUN_SCHEDULER: False
     depends_on:
       nats:
         condition: service_healthy
@@ -43,7 +43,7 @@ services:
     env_file: .env
     environment:
       NODE_ROLE: node-worker
-      RUN_SCHEDULER: 1
+      RUN_SCHEDULER: True
     depends_on:
       panel:
         condition: service_healthy
@@ -57,7 +57,7 @@ services:
     env_file: .env
     environment:
       NODE_ROLE: scheduler
-      RUN_SCHEDULER: 1
+      RUN_SCHEDULER: True
     depends_on:
       panel:
         condition: service_healthy
