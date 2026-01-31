@@ -202,10 +202,8 @@ class UserOperation(BaseOperation):
         return user
 
     async def update_user(self, db_user: User) -> UserNotificationResponse:
+        await sync_user(db_user)
         user = await self.validate_user(db_user)
-
-        await sync_user(db_user, user)
-
         return user
 
     async def create_user(self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails) -> UserResponse:

@@ -9,10 +9,7 @@ from PasarGuardNodeBridge import NodeAPIError
 from app import on_shutdown, on_startup
 from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
-from app.db.crud.user import get_user
-from app.db.models import UserStatus
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate
-from app.models.user import UserResponse
 from app.nats import is_nats_enabled
 from app.nats.client import create_nats_client
 from app.node import node_manager
@@ -51,7 +48,6 @@ class NodeWorkerService:
 
     def _register_handlers(self):
         self.register_command_handler("update_user", self._update_user)
-        self.register_command_handler("remove_user", self._remove_user)
         self.register_command_handler("update_users", self._update_users)
         self.register_command_handler("update_node", self._update_node)
         self.register_command_handler("remove_node", self._remove_node)
@@ -157,36 +153,14 @@ class NodeWorkerService:
         return await handler(data)
 
     async def _update_user(self, data: dict):
-        username = data.get("username")
-        if not username:
-            return
-        async with GetDB() as db:
-            db_user = await get_user(db, username)
-            if not db_user:
-                return
-            user = UserResponse.model_validate(db_user)
-            if db_user.status in (UserStatus.active, UserStatus.on_hold):
-                inbounds = await db_user.inbounds()
-                await node_manager.update_user(user, inbounds)
-            else:
-                await node_manager.remove_user(user)
-
-    async def _remove_user(self, data: dict):
-        username = data.get("username")
-        if not username:
-            return
-        async with GetDB() as db:
-            db_user = await get_user(db, username)
-            if not db_user:
-                return
-            user = UserResponse.model_validate(db_user)
-            await node_manager.remove_user(user)
+        user = data.get("user")
+        await node_manager.update_user(user)
 
     async def _update_users(self, data: dict):
         users = data.get("users") or []
         if not users:
             return
-        await node_manager.update_users(users,True)
+        await node_manager.update_users(users)
 
     async def _update_node(self, data: dict):
         node_id = data.get("node_id")
