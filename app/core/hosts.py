@@ -301,8 +301,15 @@ class HostManager:
 
             # Deserialize state using pickle
             cached_state = pickle.loads(entry.value)
+            # Convert dict values back to SubscriptionInboundData models
+            converted_state = {}
+            for host_id, host_data in cached_state.items():
+                if isinstance(host_data, dict):
+                    converted_state[host_id] = SubscriptionInboundData.model_validate(host_data)
+                else:
+                    converted_state[host_id] = host_data
             async with self._lock:
-                self._hosts = cached_state
+                self._hosts = converted_state
             await self._reset_cache()
             return True
         except Exception:
@@ -359,7 +366,7 @@ class HostManager:
     @staticmethod
     async def _prepare_host_entry(
         db: AsyncSession, host: BaseHost, inbounds_list: list[str]
-    ) -> tuple[int, dict] | None:
+    ) -> tuple[int, SubscriptionInboundData] | None:
         if host.is_disabled or (host.inbound_tag not in inbounds_list):
             return None
 
@@ -385,11 +392,15 @@ class HostManager:
     async def add_hosts(self, db: AsyncSession, hosts: list[BaseHost]):
         await self._add_hosts_impl(db, hosts)
 
-    async def _add_prepared_hosts_local(self, prepared_hosts: list[tuple[int, dict]]):
+    async def _add_prepared_hosts_local(self, prepared_hosts: list[tuple[int, SubscriptionInboundData | dict]]):
         async with self._lock:
             for host_id, host_data in prepared_hosts:
                 self._hosts.pop(host_id, None)
-                self._hosts[host_id] = host_data
+                # Ensure we store SubscriptionInboundData models, not dicts
+                if isinstance(host_data, dict):
+                    self._hosts[host_id] = SubscriptionInboundData.model_validate(host_data)
+                else:
+                    self._hosts[host_id] = host_data
             await self._reset_cache()
 
     async def _add_hosts_local(self, db: AsyncSession, hosts: list[BaseHost]):
@@ -458,12 +469,16 @@ class HostManager:
 
     async def get_host(self, id: int) -> dict | None:
         async with self._lock:
-            return deepcopy(self._hosts.get(id))
+            host_data = self._hosts.get(id)
+            if host_data is None:
+                return None
+            # Convert model to dict for API compatibility
+            return host_data.model_dump() if isinstance(host_data, SubscriptionInboundData) else host_data
 
     @cached(ttl=10)
-    async def get_hosts(self) -> dict[int, dict]:
+    async def get_hosts(self) -> dict[int, SubscriptionInboundData]:
         async with self._lock:
-            # Return hosts sorted by priority (accessing from subscription_data)
+            # Return hosts sorted by priority (accessing from subscription_data model)
             sorted_hosts = dict(sorted(self._hosts.items(), key=lambda x: x[1].priority))
             return deepcopy(sorted_hosts)
 
