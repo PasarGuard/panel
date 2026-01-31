@@ -5,6 +5,7 @@ import uuid
 import nats
 from nats.aio.subscription import Subscription
 from PasarGuardNodeBridge import NodeAPIError
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app import on_shutdown, on_startup
 from app.db import GetDB
@@ -12,6 +13,7 @@ from app.db.crud.node import get_node_by_id, get_nodes
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate
 from app.nats import is_nats_enabled
 from app.nats.client import create_nats_client
+from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
 from app.node import node_manager
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -153,14 +155,18 @@ class NodeWorkerService:
         return await handler(data)
 
     async def _update_user(self, data: dict):
-        user = data.get("user")
-        await node_manager.update_user(user)
+        user_dict = data.get("user")
+        if not user_dict:
+            return
+        proto_user = deserialize_proto_message(user_dict, ProtoUser)
+        await node_manager.update_user(proto_user)
 
     async def _update_users(self, data: dict):
-        users = data.get("users") or []
-        if not users:
+        users_dicts = data.get("users") or []
+        if not users_dicts:
             return
-        await node_manager.update_users(users)
+        proto_users = deserialize_proto_messages(users_dicts, ProtoUser)
+        await node_manager.update_users(proto_users)
 
     async def _update_node(self, data: dict):
         node_id = data.get("node_id")
