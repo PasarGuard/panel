@@ -297,7 +297,7 @@ class NodeWorkerService:
                 async with node.stream_logs() as log_queue:
                     while True:
                         done, _ = await asyncio.wait(
-                            [log_queue.get(), stop_event.wait()],
+                            [asyncio.create_task(log_queue.get()), asyncio.create_task(stop_event.wait())],
                             return_when=asyncio.FIRST_COMPLETED,
                         )
                         if stop_event.is_set():
