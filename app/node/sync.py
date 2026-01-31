@@ -2,6 +2,7 @@ from app.db.models import User, UserStatus
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import node_nats_client
 from app.node import node_manager
+from app.node.user import serialize_users_for_node
 from config import IS_NODE_WORKER
 
 if IS_NODE_WORKER:
@@ -28,4 +29,5 @@ else:
         await node_nats_client.publish("remove_user", {"username": user.username})
 
     async def sync_users(users: list[User]) -> None:
-        await node_nats_client.publish("update_users", {"users": [user for user in users]})
+        proto_users = await serialize_users_for_node(users)
+        await node_nats_client.publish("update_users", {"users": proto_users})

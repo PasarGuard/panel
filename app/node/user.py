@@ -1,11 +1,12 @@
 from PasarGuardNodeBridge import create_proxy, create_user
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import and_, func, select
 
 from app.db import AsyncSession
 from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
 
 
-def serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None):
+def serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None) -> ProtoUser:
     vmess_settings = user_settings.get("vmess", {})
     vless_settings = user_settings.get("vless", {})
     trojan_settings = user_settings.get("trojan", {})
@@ -66,7 +67,7 @@ async def core_users(db: AsyncSession):
     return bridge_users
 
 
-async def serialize_users_for_node(users: list[User]):
+async def serialize_users_for_node(users: list[User]) -> list[ProtoUser]:
     bridge_users: list = []
 
     for user in users:

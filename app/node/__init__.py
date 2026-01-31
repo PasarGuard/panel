@@ -110,9 +110,12 @@ class NodeManager:
             for node in self._nodes.values():
                 await node.update_users(users)
 
-    async def update_users(self, users: list[User]):
-        proto_users = await serialize_users_for_node(users)
-        asyncio.create_task(self._update_users(proto_users))
+    async def update_users(self, users: list[User], is_serialize: bool = False) -> None:
+        if not is_serialize:
+            proto_users = await serialize_users_for_node(users)
+            asyncio.create_task(self._update_users(proto_users))
+        else:
+            asyncio.create_task(self._update_users(users))
 
     async def _update_user(self, user):
         async with self._lock.reader_lock:

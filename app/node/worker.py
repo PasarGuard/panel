@@ -186,7 +186,7 @@ class NodeWorkerService:
         users = data.get("users") or []
         if not users:
             return
-        await node_manager.update_users(users)
+        await node_manager.update_users(users,True)
 
     async def _update_node(self, data: dict):
         node_id = data.get("node_id")
