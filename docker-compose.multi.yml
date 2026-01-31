@@ -15,7 +15,7 @@ services:
       start_period: 30s
 
   panel:
-    container_name: panel
+    container_name: pasarguard
     image: pasarguard/panel:latest
     restart: unless-stopped
     env_file: .env
