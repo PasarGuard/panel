@@ -1,18 +1,17 @@
+import { Language } from '@/components/common/language'
+import Snowfall from '@/components/common/snowfall'
+import { useTheme } from '@/components/common/theme-provider'
+import { ThemeToggle } from '@/components/common/theme-toggle'
 import { GithubStar } from '@/components/layout/github-star'
 import { GoalProgress } from '@/components/layout/goal-progress'
-import { VersionBadge } from '@/components/layout/version-badge'
-import { SidebarTriggerWithBadge } from '@/components/layout/sidebar-trigger-with-badge'
-import { Language } from '@/components/common/language'
 import { NavMain } from '@/components/layout/nav-main'
 import { NavSecondary } from '@/components/layout/nav-secondary'
 import { NavUser } from '@/components/layout/nav-user'
-import { useTheme } from '@/components/common/theme-provider'
-import { ThemeToggle } from '@/components/common/theme-toggle'
-import Snowfall from '@/components/common/snowfall'
+import { SidebarTriggerWithBadge } from '@/components/layout/sidebar-trigger-with-badge'
+import { VersionBadge } from '@/components/layout/version-badge'
+import { Button } from '@/components/ui/button'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Button } from '@/components/ui/button'
-import { Link } from 'react-router'
 import { DISCUSSION_GROUP, DOCUMENTATION, DONATION_URL, REPO_URL } from '@/constants/Project'
 import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -53,6 +52,7 @@ import {
 import * as React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isRTL = useDirDetection() === 'rtl'
@@ -286,6 +286,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 },
               ],
             },
+            {
+              title: 'bulk.title',
+              url: '/bulk',
+              icon: Layers,
+              items: [
+                {
+                  title: 'bulk.createUsers',
+                  url: '/bulk',
+                  icon: UserPlus,
+                },
+              ],
+            },
           ]),
     ],
     navSecondary: [
@@ -320,7 +332,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-sidebar-border bg-neutral-200/75 px-4 py-3 backdrop-blur dark:bg-neutral-900/75 lg:hidden pt-[calc(0.75rem+env(safe-area-inset-top))]">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-sidebar-border bg-neutral-200/75 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur dark:bg-neutral-900/75 lg:hidden">
         <Link to="/" className="flex items-center gap-2">
           <img
             src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
@@ -340,25 +352,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             <SidebarMenuItem>
               {state === 'collapsed' && !isMobile ? (
-                <div
-                  className="relative group"
-                  onMouseEnter={() => setShowCollapseButton(true)}
-                  onMouseLeave={() => setShowCollapseButton(false)}
-                >
+                <div className="group relative" onMouseEnter={() => setShowCollapseButton(true)} onMouseLeave={() => setShowCollapseButton(false)}>
                   {/* Badge - always visible, positioned on top layer */}
-                  <div className="absolute inset-0 pointer-events-none z-30">
-                    <div className="relative w-full h-full">
+                  <div className="pointer-events-none absolute inset-0 z-30">
+                    <div className="relative h-full w-full">
                       <VersionBadge currentVersion={currentVersion} />
                     </div>
                   </div>
                   {/* Logo - fades out on hover */}
-                  <SidebarMenuButton 
-                    size="lg" 
-                    asChild 
-                    className={cn(
-                      "relative justify-center !gap-0 w-full transition-opacity duration-200 ease-in-out",
-                      showCollapseButton ? "opacity-0 pointer-events-none" : "opacity-100"
-                    )}
+                  <SidebarMenuButton
+                    size="lg"
+                    asChild
+                    className={cn('relative w-full justify-center !gap-0 transition-opacity duration-200 ease-in-out', showCollapseButton ? 'pointer-events-none opacity-0' : 'opacity-100')}
                   >
                     <a href={REPO_URL} target="_blank">
                       <img
@@ -380,12 +385,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <SidebarMenuButton
                           size="lg"
                           className={cn(
-                            "absolute inset-0 justify-center !gap-0 w-full transition-opacity duration-200 ease-in-out",
-                            showCollapseButton ? "opacity-100" : "opacity-0 pointer-events-none"
+                            'absolute inset-0 w-full justify-center !gap-0 transition-opacity duration-200 ease-in-out',
+                            showCollapseButton ? 'opacity-100' : 'pointer-events-none opacity-0',
                           )}
                           onClick={toggleSidebar}
                         >
-                          <PanelLeftOpen className={cn("h-6 w-6 flex-shrink-0", isRTL && "scale-x-[-1]")} />
+                          <PanelLeftOpen className={cn('h-6 w-6 flex-shrink-0', isRTL && 'scale-x-[-1]')} />
                           <span className="sr-only">Expand Sidebar</span>
                           {hasUpdate && <VersionBadge currentVersion={currentVersion} />}
                         </SidebarMenuButton>
@@ -398,17 +403,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
               ) : state !== 'collapsed' && !isMobile ? (
                 <div className={cn('relative', isRTL ? 'pl-10' : 'pr-10')}>
-                  <SidebarMenuButton size="lg" className={cn('!gap-2 w-full')}>
-                    <a href={REPO_URL} target="_blank" className="flex items-center gap-2 flex-1 min-w-0">
+                  <SidebarMenuButton size="lg" className={cn('w-full !gap-2')}>
+                    <a href={REPO_URL} target="_blank" className="flex min-w-0 flex-1 items-center gap-2">
                       <img
                         src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
                         alt="PasarGuard Logo"
                         className="h-8 w-8 flex-shrink-0 object-contain"
                       />
-                      <div className="flex flex-col overflow-hidden min-w-0 flex-1 items-start">
+                      <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
                         <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-xs opacity-45 shrink-0">{version}</span>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="shrink-0 text-xs opacity-45">{version}</span>
                           <div className="min-w-0 flex-1">
                             <TooltipProvider>
                               <VersionBadge currentVersion={currentVersion} />
@@ -424,14 +429,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className={cn('absolute top-1/2 -translate-y-1/2 h-8 w-8 shrink-0 z-10', isRTL ? 'left-2' : 'right-2')}
-                          onClick={(e) => {
+                          className={cn('absolute top-1/2 z-10 h-8 w-8 shrink-0 -translate-y-1/2', isRTL ? 'left-2' : 'right-2')}
+                          onClick={e => {
                             e.preventDefault()
                             e.stopPropagation()
                             toggleSidebar()
                           }}
                         >
-                          <PanelLeftClose className={cn("h-4 w-4", isRTL && "scale-x-[-1]")} />
+                          <PanelLeftClose className={cn('h-4 w-4', isRTL && 'scale-x-[-1]')} />
                           <span className="sr-only">Collapse Sidebar</span>
                         </Button>
                       </TooltipTrigger>
