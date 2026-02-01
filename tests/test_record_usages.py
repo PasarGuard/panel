@@ -329,4 +329,3 @@ async def test_record_node_usages_returns_when_totals_zero(monkeypatch: pytest.M
 
         node_usage_rows = await session.execute(select(NodeUsage.id))
         assert node_usage_rows.first() is None
-    exit
