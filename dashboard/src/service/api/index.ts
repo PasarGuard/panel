@@ -283,6 +283,32 @@ export type XHttpSettingsOutputScMinPostsIntervalMs = string | null
 
 export type XHttpSettingsOutputScMaxEachPostBytes = string | null
 
+export type XHttpSettingsOutputUplinkChunkSize = number | null
+
+export type XHttpSettingsOutputUplinkDataKey = string | null
+
+export type XHttpSettingsOutputUplinkDataPlacement = string | null
+
+export type XHttpSettingsOutputSeqKey = string | null
+
+export type XHttpSettingsOutputSeqPlacement = string | null
+
+export type XHttpSettingsOutputSessionKey = string | null
+
+export type XHttpSettingsOutputSessionPlacement = string | null
+
+export type XHttpSettingsOutputUplinkHttpMethod = string | null
+
+export type XHttpSettingsOutputXPaddingMethod = string | null
+
+export type XHttpSettingsOutputXPaddingPlacement = string | null
+
+export type XHttpSettingsOutputXPaddingHeader = string | null
+
+export type XHttpSettingsOutputXPaddingKey = string | null
+
+export type XHttpSettingsOutputXPaddingObfsMode = boolean | null
+
 export type XHttpSettingsOutputXPaddingBytes = string | null
 
 export type XHttpSettingsOutputNoGrpcHeader = boolean | null
@@ -293,6 +319,19 @@ export interface XHttpSettingsOutput {
   mode?: XHttpSettingsOutputMode
   no_grpc_header?: XHttpSettingsOutputNoGrpcHeader
   x_padding_bytes?: XHttpSettingsOutputXPaddingBytes
+  x_padding_obfs_mode?: XHttpSettingsOutputXPaddingObfsMode
+  x_padding_key?: XHttpSettingsOutputXPaddingKey
+  x_padding_header?: XHttpSettingsOutputXPaddingHeader
+  x_padding_placement?: XHttpSettingsOutputXPaddingPlacement
+  x_padding_method?: XHttpSettingsOutputXPaddingMethod
+  uplink_http_method?: XHttpSettingsOutputUplinkHttpMethod
+  session_placement?: XHttpSettingsOutputSessionPlacement
+  session_key?: XHttpSettingsOutputSessionKey
+  seq_placement?: XHttpSettingsOutputSeqPlacement
+  seq_key?: XHttpSettingsOutputSeqKey
+  uplink_data_placement?: XHttpSettingsOutputUplinkDataPlacement
+  uplink_data_key?: XHttpSettingsOutputUplinkDataKey
+  uplink_chunk_size?: XHttpSettingsOutputUplinkChunkSize
   sc_max_each_post_bytes?: XHttpSettingsOutputScMaxEachPostBytes
   sc_min_posts_interval_ms?: XHttpSettingsOutputScMinPostsIntervalMs
   xmux?: XHttpSettingsOutputXmux
@@ -307,19 +346,35 @@ export type XHttpSettingsInputScMinPostsIntervalMs = string | number | null
 
 export type XHttpSettingsInputScMaxEachPostBytes = string | number | null
 
+export type XHttpSettingsInputUplinkChunkSize = number | null
+
+export type XHttpSettingsInputUplinkDataKey = string | null
+
+export type XHttpSettingsInputUplinkDataPlacement = string | null
+
+export type XHttpSettingsInputSeqKey = string | null
+
+export type XHttpSettingsInputSeqPlacement = string | null
+
+export type XHttpSettingsInputSessionKey = string | null
+
+export type XHttpSettingsInputSessionPlacement = string | null
+
+export type XHttpSettingsInputUplinkHttpMethod = string | null
+
+export type XHttpSettingsInputXPaddingMethod = string | null
+
+export type XHttpSettingsInputXPaddingPlacement = string | null
+
+export type XHttpSettingsInputXPaddingHeader = string | null
+
+export type XHttpSettingsInputXPaddingKey = string | null
+
+export type XHttpSettingsInputXPaddingObfsMode = boolean | null
+
 export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
-
-export interface XHttpSettingsInput {
-  mode?: XHttpSettingsInputMode
-  no_grpc_header?: XHttpSettingsInputNoGrpcHeader
-  x_padding_bytes?: XHttpSettingsInputXPaddingBytes
-  sc_max_each_post_bytes?: XHttpSettingsInputScMaxEachPostBytes
-  sc_min_posts_interval_ms?: XHttpSettingsInputScMinPostsIntervalMs
-  xmux?: XHttpSettingsInputXmux
-  download_settings?: XHttpSettingsInputDownloadSettings
-}
 
 export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
 
@@ -332,6 +387,29 @@ export const XHttpModes = {
 } as const
 
 export type XHttpSettingsInputMode = XHttpModes | null
+
+export interface XHttpSettingsInput {
+  mode?: XHttpSettingsInputMode
+  no_grpc_header?: XHttpSettingsInputNoGrpcHeader
+  x_padding_bytes?: XHttpSettingsInputXPaddingBytes
+  x_padding_obfs_mode?: XHttpSettingsInputXPaddingObfsMode
+  x_padding_key?: XHttpSettingsInputXPaddingKey
+  x_padding_header?: XHttpSettingsInputXPaddingHeader
+  x_padding_placement?: XHttpSettingsInputXPaddingPlacement
+  x_padding_method?: XHttpSettingsInputXPaddingMethod
+  uplink_http_method?: XHttpSettingsInputUplinkHttpMethod
+  session_placement?: XHttpSettingsInputSessionPlacement
+  session_key?: XHttpSettingsInputSessionKey
+  seq_placement?: XHttpSettingsInputSeqPlacement
+  seq_key?: XHttpSettingsInputSeqKey
+  uplink_data_placement?: XHttpSettingsInputUplinkDataPlacement
+  uplink_data_key?: XHttpSettingsInputUplinkDataKey
+  uplink_chunk_size?: XHttpSettingsInputUplinkChunkSize
+  sc_max_each_post_bytes?: XHttpSettingsInputScMaxEachPostBytes
+  sc_min_posts_interval_ms?: XHttpSettingsInputScMinPostsIntervalMs
+  xmux?: XHttpSettingsInputXmux
+  download_settings?: XHttpSettingsInputDownloadSettings
+}
 
 export interface WebhookInfo {
   url: string
@@ -499,8 +577,6 @@ export type UserTemplateCreateOnHoldTimeout = number | null
 
 export type UserTemplateCreateResetUsages = boolean | null
 
-export type UserTemplateCreateStatus = UserStatusCreate | null
-
 export type UserTemplateCreateExtraSettings = ExtraSettings | null
 
 export type UserTemplateCreateUsernameSuffix = string | null
@@ -573,6 +649,8 @@ export const UserStatusCreate = {
   active: 'active',
   on_hold: 'on_hold',
 } as const
+
+export type UserTemplateCreateStatus = UserStatusCreate | null
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
 
@@ -1130,6 +1208,19 @@ export type NotificationSettingsOutputTelegramChatId = number | null
 
 export type NotificationSettingsOutputTelegramApiToken = string | null
 
+export interface NotificationSettingsOutput {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
+  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
+  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
+  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsOutputProxyUrl
+  /** */
+  max_retries: number
+}
+
 export type NotificationSettingsInputProxyUrl = string | null
 
 export type NotificationSettingsInputDiscordWebhookUrl = string | null
@@ -1165,32 +1256,6 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
-export interface NotificationSettingsOutput {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
-  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
-  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
-  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsOutputProxyUrl
-  /** */
-  max_retries: number
-}
-
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1204,6 +1269,19 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1223,13 +1301,6 @@ export interface NodesResponse {
 
 export type NodeUsageStatsListPeriod = Period | null
 
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
-
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -1237,6 +1308,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1359,8 +1437,6 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
-export type NodeModifyConnectionType = NodeConnectionType | null
-
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1404,6 +1480,8 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
+
+export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -1909,6 +1987,26 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -1934,26 +2032,6 @@ export interface BaseHost {
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
 }
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 

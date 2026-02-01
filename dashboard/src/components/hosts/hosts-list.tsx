@@ -104,10 +104,21 @@ export interface HostFormValues {
       mode?: 'auto' | 'packet-up' | 'stream-up' | 'stream-one'
       no_grpc_header?: boolean
       x_padding_bytes?: string
+      x_padding_obfs_mode?: boolean
+      x_padding_key?: string
+      x_padding_header?: string
+      x_padding_placement?: string
+      x_padding_method?: string
+      uplink_http_method?: string
+      session_placement?: string
+      session_key?: string
+      seq_placement?: string
+      seq_key?: string
+      uplink_data_placement?: string
+      uplink_data_key?: string
+      uplink_chunk_size?: number
       sc_max_each_post_bytes?: string
       sc_min_posts_interval_ms?: string
-      sc_max_buffered_posts?: string
-      sc_stream_up_server_secs?: string
       download_settings?: number
       xmux?: {
         max_concurrency?: string
@@ -163,10 +174,21 @@ const transportSettingsSchema = z
         mode: z.enum(['', 'auto', 'packet-up', 'stream-up', 'stream-one']).nullish().optional(),
         no_grpc_header: z.boolean().nullish().optional(),
         x_padding_bytes: z.string().nullish().optional(),
+        x_padding_obfs_mode: z.boolean().nullish().optional(),
+        x_padding_key: z.string().nullish().optional(),
+        x_padding_header: z.string().nullish().optional(),
+        x_padding_placement: z.string().nullish().optional(),
+        x_padding_method: z.string().nullish().optional(),
+        uplink_http_method: z.string().nullish().optional(),
+        session_placement: z.string().nullish().optional(),
+        session_key: z.string().nullish().optional(),
+        seq_placement: z.string().nullish().optional(),
+        seq_key: z.string().nullish().optional(),
+        uplink_data_placement: z.string().nullish().optional(),
+        uplink_data_key: z.string().nullish().optional(),
+        uplink_chunk_size: z.number().nullish().optional(),
         sc_max_each_post_bytes: z.string().nullish().optional(),
         sc_min_posts_interval_ms: z.string().nullish().optional(),
-        sc_max_buffered_posts: z.string().nullish().optional(),
-        sc_stream_up_server_secs: z.string().nullish().optional(),
         download_settings: z.number().nullish().optional(),
         xmux: z
           .object({
@@ -567,6 +589,20 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                   mode: host.transport_settings.xhttp_settings.mode ?? undefined,
                   no_grpc_header: host.transport_settings.xhttp_settings.no_grpc_header === null ? undefined : !!host.transport_settings.xhttp_settings.no_grpc_header,
                   x_padding_bytes: host.transport_settings.xhttp_settings.x_padding_bytes ?? undefined,
+                  x_padding_obfs_mode:
+                    host.transport_settings.xhttp_settings.x_padding_obfs_mode === null ? undefined : !!host.transport_settings.xhttp_settings.x_padding_obfs_mode,
+                  x_padding_key: host.transport_settings.xhttp_settings.x_padding_key ?? undefined,
+                  x_padding_header: host.transport_settings.xhttp_settings.x_padding_header ?? undefined,
+                  x_padding_placement: host.transport_settings.xhttp_settings.x_padding_placement ?? undefined,
+                  x_padding_method: host.transport_settings.xhttp_settings.x_padding_method ?? undefined,
+                  uplink_http_method: host.transport_settings.xhttp_settings.uplink_http_method ?? undefined,
+                  session_placement: host.transport_settings.xhttp_settings.session_placement ?? undefined,
+                  session_key: host.transport_settings.xhttp_settings.session_key ?? undefined,
+                  seq_placement: host.transport_settings.xhttp_settings.seq_placement ?? undefined,
+                  seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
+                  uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
+                  uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
+                  uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
                   sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                   sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                   download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,
@@ -811,6 +847,20 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                     mode: host.transport_settings.xhttp_settings.mode ?? undefined,
                     no_grpc_header: host.transport_settings.xhttp_settings.no_grpc_header === null ? undefined : !!host.transport_settings.xhttp_settings.no_grpc_header,
                     x_padding_bytes: host.transport_settings.xhttp_settings.x_padding_bytes ?? undefined,
+                    x_padding_obfs_mode:
+                      host.transport_settings.xhttp_settings.x_padding_obfs_mode === null ? undefined : !!host.transport_settings.xhttp_settings.x_padding_obfs_mode,
+                    x_padding_key: host.transport_settings.xhttp_settings.x_padding_key ?? undefined,
+                    x_padding_header: host.transport_settings.xhttp_settings.x_padding_header ?? undefined,
+                    x_padding_placement: host.transport_settings.xhttp_settings.x_padding_placement ?? undefined,
+                    x_padding_method: host.transport_settings.xhttp_settings.x_padding_method ?? undefined,
+                    uplink_http_method: host.transport_settings.xhttp_settings.uplink_http_method ?? undefined,
+                    session_placement: host.transport_settings.xhttp_settings.session_placement ?? undefined,
+                    session_key: host.transport_settings.xhttp_settings.session_key ?? undefined,
+                    seq_placement: host.transport_settings.xhttp_settings.seq_placement ?? undefined,
+                    seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
+                    uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
+                    uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
+                    uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
                     sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                     sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                     download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,

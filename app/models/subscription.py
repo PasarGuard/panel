@@ -98,6 +98,19 @@ class XHTTPTransportConfig(BaseTransportConfig):
         None, serialization_alias="scMinPostsIntervalMs", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
     x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes")
+    x_padding_obfs_mode: bool | None = Field(None, serialization_alias="xPaddingObfsMode")
+    x_padding_key: str | None = Field(None, serialization_alias="xPaddingKey")
+    x_padding_header: str | None = Field(None, serialization_alias="xPaddingHeader")
+    x_padding_placement: str | None = Field(None, serialization_alias="xPaddingPlacement")
+    x_padding_method: str | None = Field(None, serialization_alias="xPaddingMethod")
+    uplink_http_method: str | None = Field(None, serialization_alias="uplinkHTTPMethod")
+    session_placement: str | None = Field(None, serialization_alias="sessionPlacement")
+    session_key: str | None = Field(None, serialization_alias="sessionKey")
+    seq_placement: str | None = Field(None, serialization_alias="seqPlacement")
+    seq_key: str | None = Field(None, serialization_alias="seqKey")
+    uplink_data_placement: str | None = Field(None, serialization_alias="uplinkDataPlacement")
+    uplink_data_key: str | None = Field(None, serialization_alias="uplinkDataKey")
+    uplink_chunk_size: int | None = Field(None, serialization_alias="uplinkChunkSize")
     xmux: dict[str, Any] | None = Field(None)
     download_settings: SubscriptionInboundData | dict | None = Field(None, serialization_alias="downloadSettings")
     http_headers: dict[str, str] | None = Field(None)
@@ -229,7 +242,6 @@ class SubscriptionInboundData(BaseModel):
     # Additional settings
     random_user_agent: bool = Field(False)
     use_sni_as_host: bool = Field(False)
-
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)

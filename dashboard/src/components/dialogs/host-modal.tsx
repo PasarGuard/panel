@@ -427,6 +427,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [_isSubmitting, setIsSubmitting] = useState(false)
+  const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
 
   // Optimized noise settings handlers with useCallback for performance
   const addNoiseSetting = useCallback(() => {
@@ -1236,6 +1237,25 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <FormField
                               control={form.control}
+                              name="transport_settings.xhttp_settings.x_padding_obfs_mode"
+                              render={({ field }) => (
+                                <FormItem className="flex cursor-pointer flex-row items-center justify-between rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                                  <div className="space-y-0.5">
+                                    <FormLabel className="text-base">{t('hostsDialog.xhttp.xPaddingObfsMode')}</FormLabel>
+                                  </div>
+                                  <FormControl>
+                                    <div onClick={e => e.stopPropagation()}>
+                                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                    </div>
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <FormField
+                              control={form.control}
                               name="transport_settings.xhttp_settings.x_padding_bytes"
                               render={({ field }) => (
                                 <FormItem>
@@ -1275,6 +1295,255 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 </FormItem>
                               )}
                             />
+
+                          </div>
+
+                          {xPaddingObfsEnabled ? (
+                            <div className="space-y-4 rounded-lg border border-dashed p-4">
+                              <div className="space-y-1">
+                                <h4 className="text-sm font-medium">{t('hostsDialog.xhttp.xPaddingAdvanced')}</h4>
+                                <p className="text-xs text-muted-foreground">{t('hostsDialog.xhttp.xPaddingAdvancedHint', { defaultValue: 'Shown only when X-Padding Obfs Mode is enabled.' })}</p>
+                              </div>
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xhttp_settings.x_padding_key"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.xPaddingKey')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xhttp_settings.x_padding_header"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.xPaddingHeader')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xhttp_settings.x_padding_placement"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.xPaddingPlacement')}</FormLabel>
+                                      <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                          <SelectItem value="queryInHeader">Query In Header</SelectItem>
+                                          <SelectItem value="query">Query</SelectItem>
+                                          <SelectItem value="header">Header</SelectItem>
+                                          <SelectItem value="cookie">Cookie</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xhttp_settings.x_padding_method"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.xPaddingMethod')}</FormLabel>
+                                      <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                          <SelectItem value="repeat-x">Repeat-X</SelectItem>
+                                          <SelectItem value="tokenish">Tokenish</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+
+                          <div className="space-y-4">
+                            <h4 className="text-sm font-medium">{t('hostsDialog.xhttp.uplinkSettings')}</h4>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="transport_settings.xhttp_settings.uplink_http_method"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('hostsDialog.xhttp.uplinkHttpMethod')}</FormLabel>
+                                    <FormControl>
+                                      <Input {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="transport_settings.xhttp_settings.uplink_data_placement"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('hostsDialog.xhttp.uplinkDataPlacement')}</FormLabel>
+                                    <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                        <SelectItem value="body">Body</SelectItem>
+                                        <SelectItem value="header">Header</SelectItem>
+                                        <SelectItem value="cookie">Cookie</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="transport_settings.xhttp_settings.uplink_data_key"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('hostsDialog.xhttp.uplinkDataKey')}</FormLabel>
+                                    <FormControl>
+                                      <Input {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="transport_settings.xhttp_settings.uplink_chunk_size"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('hostsDialog.xhttp.uplinkChunkSize')}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type="number"
+                                        {...field}
+                                        value={field.value ?? ''}
+                                        onChange={e => {
+                                          const value = e.target.value
+                                          field.onChange(value === '' ? null : parseInt(value, 10))
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <h4 className="text-sm font-medium">{t('hostsDialog.xhttp.sessionSettings')}</h4>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="transport_settings.xhttp_settings.session_placement"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('hostsDialog.xhttp.sessionPlacement')}</FormLabel>
+                                    <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                        <SelectItem value="path">Path</SelectItem>
+                                        <SelectItem value="query">Query</SelectItem>
+                                        <SelectItem value="header">Header</SelectItem>
+                                        <SelectItem value="cookie">Cookie</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="transport_settings.xhttp_settings.session_key"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('hostsDialog.xhttp.sessionKey')}</FormLabel>
+                                    <FormControl>
+                                      <Input {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="transport_settings.xhttp_settings.seq_placement"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('hostsDialog.xhttp.seqPlacement')}</FormLabel>
+                                    <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                        <SelectItem value="path">Path</SelectItem>
+                                        <SelectItem value="query">Query</SelectItem>
+                                        <SelectItem value="header">Header</SelectItem>
+                                        <SelectItem value="cookie">Cookie</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="transport_settings.xhttp_settings.seq_key"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('hostsDialog.xhttp.seqKey')}</FormLabel>
+                                    <FormControl>
+                                      <Input {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
                           </div>
 
                           <div className="space-y-4">
@@ -1523,6 +1792,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <SelectItem value="wechat-video">WeChat Video</SelectItem>
                                       <SelectItem value="dtls">DTLS</SelectItem>
                                       <SelectItem value="wireguard">WireGuard</SelectItem>
+                                      <SelectItem value="dns">DNS</SelectItem>
                                     </SelectContent>
                                   </Select>
                                   <FormMessage />

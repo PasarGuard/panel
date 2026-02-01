@@ -130,6 +130,19 @@ class XrayConfiguration(BaseSubscription):
             "scMaxEachPostBytes": config.sc_max_each_post_bytes,
             "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
             "xPaddingBytes": config.x_padding_bytes,
+            "xPaddingObfsMode": config.x_padding_obfs_mode,
+            "xPaddingKey": config.x_padding_key,
+            "xPaddingHeader": config.x_padding_header,
+            "xPaddingPlacement": config.x_padding_placement,
+            "xPaddingMethod": config.x_padding_method,
+            "uplinkHTTPMethod": config.uplink_http_method,
+            "sessionPlacement": config.session_placement,
+            "sessionKey": config.session_key,
+            "seqPlacement": config.seq_placement,
+            "seqKey": config.seq_key,
+            "uplinkDataPlacement": config.uplink_data_placement,
+            "uplinkDataKey": config.uplink_data_key,
+            "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
             "downloadSettings": self._download_config(config.download_settings) if config.download_settings else None,
@@ -501,9 +514,7 @@ class XrayConfiguration(BaseSubscription):
         return self._normalize_and_remove_none_values(outbound), extra_outbounds
 
     @staticmethod
-    def _stream_setting_config(
-        network=None, security=None, network_setting=None, tls_settings=None, sockopt=None
-    ) -> dict:
+    def _stream_setting_config(network=None, security=None, network_setting=None, tls_settings=None, sockopt=None) -> dict:
         """Build stream settings"""
         stream_settings = {"network": network}
 
