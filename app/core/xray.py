@@ -33,6 +33,7 @@ class XRayConfig(dict):
             exclude_inbound_tags = set()
         if fallbacks_inbound_tags is None:
             fallbacks_inbound_tags = set()
+
         exclude_inbound_tags.update(fallbacks_inbound_tags)
         self.exclude_inbound_tags = exclude_inbound_tags
 
@@ -417,7 +418,6 @@ class XRayConfig(dict):
         return {
             "config": dict(self),
             "exclude_inbound_tags": list(self.exclude_inbound_tags),
-            "fallbacks_inbound_tags": list(self.fallbacks_inbound_tags),
             "inbounds": self.inbounds,
             "inbounds_by_tag": self.inbounds_by_tag,
             "fallbacks_inbound": self._fallbacks_inbound,
@@ -429,14 +429,12 @@ class XRayConfig(dict):
         instance = cls(
             config=data.get("config", {}),
             exclude_inbound_tags=set(data.get("exclude_inbound_tags", [])),
-            fallbacks_inbound_tags=set(data.get("fallbacks_inbound_tags", [])),
+            fallbacks_inbound_tags=set(data.get("fallbacks_inbound", [])),
         )
         if "inbounds" in data:
             instance._inbounds = data["inbounds"]
         if "inbounds_by_tag" in data:
             instance._inbounds_by_tag = data["inbounds_by_tag"]
-        if "fallbacks_inbound" in data:
-            instance._fallbacks_inbound = data["fallbacks_inbound"]
         return instance
 
     def copy(self):

@@ -85,13 +85,16 @@ class NodeWorkerService:
         if not IS_NODE_WORKER:
             return
 
-        for stop_event in self._stop_events.values():
+        for stop_event in list(self._stop_events.values()):
             stop_event.set()
-        for task in self._log_tasks.values():
+
+        tasks_to_cancel = list(self._log_tasks.values())
+        for task in tasks_to_cancel:
             task.cancel()
+
         # Wait for all cancelled tasks to complete their cleanup
-        if self._log_tasks:
-            await asyncio.gather(*self._log_tasks.values(), return_exceptions=True)
+        if tasks_to_cancel:
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
         self._log_tasks.clear()
         self._stop_events.clear()
 
