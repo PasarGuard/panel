@@ -1,5 +1,5 @@
 import asyncio
-
+import signal
 import config as app_config
 
 app_config.RUN_SCHEDULER = True
@@ -21,16 +21,31 @@ async def main():
             "NATS is disabled; notification dispatching will only work when the scheduler shares a process with the API."
         )
 
+    stop_event = asyncio.Event()
+
+    def handle_signal():
+        stop_event.set()
+
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGINT, handle_signal)
+    loop.add_signal_handler(signal.SIGTERM, handle_signal)
+
     async with lifespan(app):
         try:
-            while True:
-                await asyncio.sleep(3600)
-        except KeyboardInterrupt:
+            logger.info("Scheduler worker started...")
+            await stop_event.wait()
+        except asyncio.CancelledError:
             pass
+        finally:
+            logger.info("Scheduler worker shutting down...")
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        if hasattr(asyncio, "run"):
+            asyncio.run(main())
+        else:
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(main())
     except KeyboardInterrupt:
         pass
