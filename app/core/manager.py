@@ -1,4 +1,4 @@
-import pickle
+import json
 from asyncio import Lock
 from copy import deepcopy
 
@@ -55,8 +55,13 @@ class CoreManager:
         if not self._kv:
             return
         state = await self._snapshot_state()
-        # Serialize state using pickle (same as Nats implementation)
-        state_bytes = pickle.dumps(state)
+
+        # Manually serialize cores to their JSON representation
+        serialized_state = deepcopy(state)
+        serialized_state["cores"] = {str(k): v.to_json() for k, v in state.get("cores", {}).items()}
+
+        # Serialize state using JSON
+        state_bytes = json.dumps(serialized_state).encode("utf-8")
         try:
             await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
         except Exception as exc:
@@ -68,20 +73,36 @@ class CoreManager:
 
         try:
             entry = await self._kv.get(self.STATE_CACHE_KEY)
-            if not entry:
+            if not entry or not entry.value:
                 return False
 
-            # Deserialize state using pickle (same as nats implementation)
-            cached_state = pickle.loads(entry.value)
+            # Deserialize state using JSON
+            try:
+                cached_state = json.loads(entry.value.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                self._logger.warning("Failed to decode CoreManager state as JSON, ignoring...")
+                return False
+
+            # Reconstruct Core objects
+            cores = {}
+            for core_id, core_data in cached_state.get("cores", {}).items():
+                try:
+                    # Currently we only support XRayConfig, but this could be dynamic based on type
+                    cores[int(core_id)] = XRayConfig.from_json(core_data)
+                except Exception:
+                    self._logger.warning(f"Failed to reconstruct core {core_id} from JSON")
+                    continue
+
             async with self._lock:
-                self._cores = cached_state.get("cores", {})
+                self._cores = cores
                 self._inbounds = cached_state.get("inbounds", [])
                 self._inbounds_by_tag = cached_state.get("inbounds_by_tag", {})
 
             await self.get_inbounds.cache.clear()
             await self.get_inbounds_by_tag.cache.clear()
             return True
-        except Exception:
+        except Exception as exc:
+            self._logger.error(f"Error loading core state from cache: {exc}")
             return False
 
     async def _reload_from_cache(self):

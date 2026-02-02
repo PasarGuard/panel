@@ -412,6 +412,30 @@ class XRayConfig(dict):
         """Get inbounds by tag."""
         return self._inbounds
 
+    def to_json(self) -> dict:
+        """Convert the config to a JSON-serializable dictionary."""
+        return {
+            "config": dict(self),
+            "exclude_inbound_tags": list(self.exclude_inbound_tags),
+            "fallbacks_inbound_tags": list(self.fallbacks_inbound_tags),
+            "inbounds": self.inbounds,
+            "inbounds_by_tag": self.inbounds_by_tag,
+            "fallbacks_inbound": self._fallbacks_inbound,
+        }
+
+    @classmethod
+    def from_json(cls, data: dict) -> "XRayConfig":
+        """Reconstruct the config from a dictionary."""
+        instance = cls(
+            config=data.get("config", {}),
+            exclude_inbound_tags=set(data.get("exclude_inbound_tags", [])),
+            fallbacks_inbound_tags=set(data.get("fallbacks_inbound_tags", [])),
+            _inbounds=data.get("inbounds", []),
+            _inbounds_by_tag=data.get("inbounds_by_tag", {}),
+            _fallbacks_inbound=data.get("fallbacks_inbound", []),
+        )
+        return instance
+
     def copy(self):
         """Copy the config."""
         return deepcopy(self)
