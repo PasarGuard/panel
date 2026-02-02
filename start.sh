@@ -16,5 +16,5 @@ else
         exit 1
     fi
 
-    python main.py
+    exec python main.py
 fi
