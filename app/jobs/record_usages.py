@@ -26,6 +26,8 @@ from config import (
     IS_NODE_WORKER,
     JOB_RECORD_NODE_USAGES_INTERVAL,
     JOB_RECORD_USER_USAGES_INTERVAL,
+    MULTI_WORKER,
+    RUN_SCHEDULER,
 )
 
 logger = get_logger("record-usages")
@@ -867,7 +869,7 @@ async def record_node_usages():
         _running_jobs["record_node_usages"] = False
 
 
-if IS_NODE_WORKER:
+if RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER):
     scheduler.add_job(
         record_user_usages,
         "interval",

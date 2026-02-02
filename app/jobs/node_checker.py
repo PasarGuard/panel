@@ -18,6 +18,7 @@ from config import (
     JOB_CHECK_NODE_LIMITS_INTERVAL,
     RUN_SCHEDULER,
     STOP_NODES_ON_SHUTDOWN,
+    MULTI_WORKER,
 )
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -203,7 +204,7 @@ async def node_health_check():
 
 @on_startup
 async def initialize_nodes():
-    if not RUN_SCHEDULER or not IS_NODE_WORKER:
+    if not (RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER)):
         return
 
     logger.info("Starting nodes' cores...")
@@ -244,7 +245,7 @@ async def initialize_nodes():
 
 
 async def shutdown_nodes():
-    if not RUN_SCHEDULER or not IS_NODE_WORKER:
+    if not (RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER)):
         return
 
     logger.info("Stopping nodes' cores...")

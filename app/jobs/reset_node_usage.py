@@ -11,7 +11,7 @@ from app.operation.node import NodeOperation
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
-from config import IS_NODE_WORKER, JOB_RESET_NODE_USAGE_INTERVAL, RUN_SCHEDULER
+from config import IS_NODE_WORKER, JOB_RESET_NODE_USAGE_INTERVAL, MULTI_WORKER, RUN_SCHEDULER
 
 logger = get_logger("jobs")
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -37,12 +37,12 @@ async def reset_node_data_usage():
             asyncio.create_task(notification.reset_node_usage(node, SYSTEM_ADMIN.username, old_uplink, old_downlink))
 
             if node.status == NodeStatus.connecting:
-                node_operator.connect_single_node(node)
+                await node_operator.connect_single_node(node)
 
             logger.info(f'Node data usage reset for Node "{node.name}" (ID: {node.id})')
 
 
-if RUN_SCHEDULER and not IS_NODE_WORKER:
+if RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER):
     scheduler.add_job(
         reset_node_data_usage,
         "interval",
