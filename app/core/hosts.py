@@ -1,4 +1,4 @@
-import pickle
+import json
 from asyncio import Lock
 from copy import deepcopy
 
@@ -283,8 +283,12 @@ class HostManager:
         if not self._kv:
             return
         state = await self._snapshot_state()
-        # Serialize state using pickle (same as CoreManager)
-        state_bytes = pickle.dumps(state)
+        # Serialize state to JSON using Pydantic model_dump
+        serializable_state = {
+            str(host_id): (host_data.model_dump() if isinstance(host_data, SubscriptionInboundData) else host_data)
+            for host_id, host_data in state.items()
+        }
+        state_bytes = json.dumps(serializable_state).encode("utf-8")
         try:
             await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
         except Exception as exc:
@@ -296,23 +300,36 @@ class HostManager:
 
         try:
             entry = await self._kv.get(self.STATE_CACHE_KEY)
-            if not entry:
+            if not entry or not entry.value:
                 return False
 
-            # Deserialize state using pickle
-            cached_state = pickle.loads(entry.value)
+            value = entry.value
+            # Deserialize state using JSON
+            try:
+                cached_state = json.loads(value.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                self._logger.warning("Failed to decode HostManager state as JSON, ignoring...")
+                return False
+
             # Convert dict values back to SubscriptionInboundData models
             converted_state = {}
-            for host_id, host_data in cached_state.items():
-                if isinstance(host_data, dict):
-                    converted_state[host_id] = SubscriptionInboundData.model_validate(host_data)
-                else:
-                    converted_state[host_id] = host_data
+            for host_id_str, host_data in cached_state.items():
+                try:
+                    host_id = int(host_id_str)
+                    if isinstance(host_data, dict):
+                        converted_state[host_id] = SubscriptionInboundData.model_validate(host_data)
+                    else:
+                        converted_state[host_id] = host_data
+                except (ValueError, TypeError):
+                    self._logger.warning(f"Failed to convert host data for host ID {host_id_str}: {host_data}")
+                    continue
+
             async with self._lock:
                 self._hosts = converted_state
             await self._reset_cache()
             return True
-        except Exception:
+        except Exception as exc:
+            self._logger.error(f"Error loading host state from cache: {exc}")
             return False
 
     async def _reload_from_cache(self):
