@@ -430,10 +430,13 @@ class XRayConfig(dict):
             config=data.get("config", {}),
             exclude_inbound_tags=set(data.get("exclude_inbound_tags", [])),
             fallbacks_inbound_tags=set(data.get("fallbacks_inbound_tags", [])),
-            _inbounds=data.get("inbounds", []),
-            _inbounds_by_tag=data.get("inbounds_by_tag", {}),
-            _fallbacks_inbound=data.get("fallbacks_inbound", []),
         )
+        if "inbounds" in data:
+            instance._inbounds = data["inbounds"]
+        if "inbounds_by_tag" in data:
+            instance._inbounds_by_tag = data["inbounds_by_tag"]
+        if "fallbacks_inbound" in data:
+            instance._fallbacks_inbound = data["fallbacks_inbound"]
         return instance
 
     def copy(self):

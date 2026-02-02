@@ -460,7 +460,9 @@ class HostManager:
 
         # Publish messages - all workers will process via listener
         for host_id, host_data in prepared_hosts:
-            await self._publish({"action": "add", "host": {"id": host_id, "data": host_data}})
+            # Convert model to dict for JSON serialization
+            serialized_data = host_data.model_dump()
+            await self._publish({"action": "add", "host": {"id": host_id, "data": serialized_data}})
         for host_id in hosts_to_remove:
             await self._publish({"action": "remove", "host_id": host_id})
 
@@ -469,6 +471,9 @@ class HostManager:
         async with self._lock:
             for host_id in hosts_to_remove:
                 self._hosts.pop(host_id, None)
+
+        # Persist state to NATS KV
+        await self._persist_state()
         await self._reset_cache()
 
     async def remove_host(self, id: int):

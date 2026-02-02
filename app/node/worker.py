@@ -89,6 +89,9 @@ class NodeWorkerService:
             stop_event.set()
         for task in self._log_tasks.values():
             task.cancel()
+        # Wait for all cancelled tasks to complete their cleanup
+        if self._log_tasks:
+            await asyncio.gather(*self._log_tasks.values(), return_exceptions=True)
         self._log_tasks.clear()
         self._stop_events.clear()
 
