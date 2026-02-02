@@ -233,7 +233,7 @@ class NodeWorkerService:
         stats = await self._node_operator.get_node_system_stats(node_id)
         return stats.model_dump()
 
-    async def _get_nodes_system_stats(self) -> dict:
+    async def _get_nodes_system_stats(self, data: dict = None) -> dict:
         stats = await self._node_operator.get_nodes_system_stats()
         return {node_id: value.model_dump() if value else None for node_id, value in stats.items()}
 
@@ -302,7 +302,7 @@ class NodeWorkerService:
         async def _stop_cb(msg):
             stop_event.set()
 
-        await self._nc.subscribe(stop_subject, cb=_stop_cb)
+        stop_sub = await self._nc.subscribe(stop_subject, cb=_stop_cb)
 
         async def _stream_logs():
             try:
@@ -338,6 +338,8 @@ class NodeWorkerService:
             except Exception as exc:
                 await self._nc.publish(log_subject, f"Error: {exc}".encode())
             finally:
+                with contextlib.suppress(Exception):
+                    await stop_sub.unsubscribe()
                 self._stop_events.pop(log_subject, None)
                 self._log_tasks.pop(log_subject, None)
 
