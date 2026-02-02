@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import uuid
 
@@ -303,18 +304,32 @@ class NodeWorkerService:
         async def _stream_logs():
             try:
                 async with node.stream_logs() as log_queue:
-                    while True:
-                        done, _ = await asyncio.wait(
-                            [asyncio.create_task(log_queue.get()), asyncio.create_task(stop_event.wait())],
+                    while not stop_event.is_set():
+                        log_task = asyncio.create_task(log_queue.get())
+                        wait_task = asyncio.create_task(stop_event.wait())
+                        done, pending = await asyncio.wait(
+                            [log_task, wait_task],
                             return_when=asyncio.FIRST_COMPLETED,
                         )
+
+                        # Cancel pending tasks to avoid leaks
+                        for task in pending:
+                            task.cancel()
+                            with contextlib.suppress(asyncio.CancelledError):
+                                await task
+
                         if stop_event.is_set():
+                            # If we stopped, ensure we don't try to read the log task result if it wasn't the one that finished
+                            # Although we verified stop_event is set, log_task might have been cancelled in the pending cleanup
                             break
-                        item = done.pop().result()
-                        if isinstance(item, NodeAPIError):
-                            await self._nc.publish(log_subject, f"Error: {item}".encode())
-                            break
-                        await self._nc.publish(log_subject, str(item).encode())
+
+                        if log_task in done:
+                            # log_task completed successfully
+                            item = log_task.result()
+                            if isinstance(item, NodeAPIError):
+                                await self._nc.publish(log_subject, f"Error: {item}".encode())
+                                break
+                            await self._nc.publish(log_subject, str(item).encode())
             except asyncio.CancelledError:
                 pass
             except Exception as exc:
