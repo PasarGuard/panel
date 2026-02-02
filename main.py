@@ -28,7 +28,13 @@ workers = UVICORN_WORKERS or 1
 if workers < 1:
     logger.warning(f"Invalid UVICORN_WORKERS value '{UVICORN_WORKERS}', defaulting to 1.")
     workers = 1
-require_nats_if_multiworker(workers)
+try:
+    require_nats_if_multiworker(workers)
+except RuntimeError as e:
+    logger.info("multiworker NATS is not properly configured, defaulting to single worker.")
+    logger.debug(str(e))
+    workers = 1
+
 
 app = create_app(role="panel")
 
