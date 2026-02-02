@@ -59,10 +59,20 @@ async def subscription_settings() -> settings.Subscription:
     return validated_settings
 
 
-async def refresh_caches():
+async def refresh_caches() -> None:
     await telegram_settings.cache.clear()
     await discord_settings.cache.clear()
     await webhook_settings.cache.clear()
     await notification_settings.cache.clear()
     await notification_enable.cache.clear()
     await subscription_settings.cache.clear()
+
+
+async def handle_settings_message(_: dict):
+    """Handle settings update message from NATS router."""
+    await refresh_caches()
+    try:
+        from app.telegram import telegram_bot_manager
+    except Exception:
+        return
+    await telegram_bot_manager.sync_from_settings()

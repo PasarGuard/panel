@@ -15,6 +15,17 @@ class AbstractCore(ABC):
     def inbounds_by_tag(self) -> dict:
         raise NotImplementedError
 
+    @abstractmethod
+    def to_json(self) -> dict:
+        """Convert the core config to a JSON-serializable dictionary."""
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def from_json(cls, data: dict) -> "AbstractCore":
+        """Reconstruct the core config from a dictionary."""
+        raise NotImplementedError
+
     @property
     @abstractmethod
     def inbounds(self) -> list[str]:

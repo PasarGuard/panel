@@ -33,6 +33,7 @@ class XRayConfig(dict):
             exclude_inbound_tags = set()
         if fallbacks_inbound_tags is None:
             fallbacks_inbound_tags = set()
+
         exclude_inbound_tags.update(fallbacks_inbound_tags)
         self.exclude_inbound_tags = exclude_inbound_tags
 
@@ -411,6 +412,30 @@ class XRayConfig(dict):
     def inbounds(self) -> list[str]:
         """Get inbounds by tag."""
         return self._inbounds
+
+    def to_json(self) -> dict:
+        """Convert the config to a JSON-serializable dictionary."""
+        return {
+            "config": dict(self),
+            "exclude_inbound_tags": list(self.exclude_inbound_tags),
+            "inbounds": self.inbounds,
+            "inbounds_by_tag": self.inbounds_by_tag,
+            "fallbacks_inbound": self._fallbacks_inbound,
+        }
+
+    @classmethod
+    def from_json(cls, data: dict) -> "XRayConfig":
+        """Reconstruct the config from a dictionary."""
+        instance = cls(
+            config=data.get("config", {}),
+            exclude_inbound_tags=set(data.get("exclude_inbound_tags", [])),
+            fallbacks_inbound_tags=set(data.get("fallbacks_inbound", [])),
+        )
+        if "inbounds" in data:
+            instance._inbounds = data["inbounds"]
+        if "inbounds_by_tag" in data:
+            instance._inbounds_by_tag = data["inbounds_by_tag"]
+        return instance
 
     def copy(self):
         """Copy the config."""

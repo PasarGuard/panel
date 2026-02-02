@@ -1,0 +1,68 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 30s
+
+  panel:
+    container_name: pasarguard
+    image: pasarguard/panel:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ROLE: panel
+      RUN_SCHEDULER: False
+    depends_on:
+      nats:
+        condition: service_healthy
+    ports:
+      - "${UVICORN_PORT}:${UVICORN_PORT}"
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard
+    healthcheck:
+      test: ["CMD", "/code/healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  node-worker:
+    container_name: node-worker
+    image: pasarguard/panel:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ROLE: node-worker
+      RUN_SCHEDULER: True
+    depends_on:
+      panel:
+        condition: service_healthy
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard
+
+  scheduler:
+    container_name: scheduler
+    image: pasarguard/panel:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ROLE: scheduler
+      RUN_SCHEDULER: True
+    depends_on:
+      panel:
+        condition: service_healthy
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard
+
+volumes:
+  nats-data:

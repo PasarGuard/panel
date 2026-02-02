@@ -1,10 +1,14 @@
+import json
 from asyncio import Lock
 from copy import deepcopy
 
+import nats
 from aiocache import cached
+from nats.js.client import JetStreamContext
+from nats.js.kv import KeyValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import on_startup
+from app import on_shutdown, on_startup
 from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
@@ -20,6 +24,12 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
+from app.nats import is_nats_enabled
+from app.nats.client import setup_nats_kv
+from app.nats.message import MessageTopic
+from app.nats.router import router
+from app.utils.logger import get_logger
+from config import IS_NODE_WORKER, MULTI_WORKER
 
 
 async def _prepare_subscription_inbound_data(
@@ -259,13 +269,126 @@ async def _prepare_subscription_inbound_data(
 
 
 class HostManager:
+    STATE_CACHE_KEY = "state"
+    KV_BUCKET_NAME = "host_manager_state"
+
     def __init__(self):
         self._hosts = {}
         self._lock = Lock()
+        self._nats_enabled = is_nats_enabled()
+        self._multi_worker = MULTI_WORKER
+        self._nc: nats.NATS | None = None
+        self._js: JetStreamContext | None = None
+        self._kv: KeyValue | None = None
+        self._logger = get_logger("host-manager")
+        self._add_hosts_impl = (
+            self._add_hosts_nats if (self._nats_enabled and self._multi_worker) else self._add_hosts_local
+        )
+        self._remove_host_impl = (
+            self._remove_host_nats if (self._nats_enabled and self._multi_worker) else self._remove_host_local
+        )
+
+    async def _snapshot_state(self) -> dict[int, dict]:
+        async with self._lock:
+            return deepcopy(self._hosts)
+
+    async def _persist_state(self):
+        if not self._kv:
+            return
+        state = await self._snapshot_state()
+        # Serialize state to JSON using Pydantic model_dump
+        serializable_state = {
+            str(host_id): (host_data.model_dump() if isinstance(host_data, SubscriptionInboundData) else host_data)
+            for host_id, host_data in state.items()
+        }
+        state_bytes = json.dumps(serializable_state).encode("utf-8")
+        try:
+            await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
+        except Exception as exc:
+            self._logger.warning(f"Failed to persist host state to NATS KV: {exc}")
+
+    async def _load_state_from_cache(self) -> bool:
+        if not self._kv:
+            return False
+
+        try:
+            entry = await self._kv.get(self.STATE_CACHE_KEY)
+            if not entry or not entry.value:
+                return False
+
+            value = entry.value
+            # Deserialize state using JSON
+            try:
+                cached_state = json.loads(value.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                self._logger.warning("Failed to decode HostManager state as JSON, ignoring...")
+                return False
+
+            # Convert dict values back to SubscriptionInboundData models
+            converted_state = {}
+            for host_id_str, host_data in cached_state.items():
+                try:
+                    host_id = int(host_id_str)
+                    if isinstance(host_data, dict):
+                        converted_state[host_id] = SubscriptionInboundData.model_validate(host_data)
+                    else:
+                        converted_state[host_id] = host_data
+                except (ValueError, TypeError):
+                    self._logger.warning(f"Failed to convert host data for host ID {host_id_str}: {host_data}")
+                    continue
+
+            async with self._lock:
+                self._hosts = converted_state
+            await self._reset_cache()
+            return True
+        except Exception as exc:
+            self._logger.error(f"Error loading host state from cache: {exc}")
+            return False
+
+    async def _reload_from_cache(self):
+        loaded = await self._load_state_from_cache()
+        if loaded:
+            self._logger.debug("HostManager state reloaded from JetStream KV cache")
+
+    async def _handle_host_message(self, data: dict):
+        """Handle incoming host messages from router."""
+        action = data.get("action")
+        if action == "remove":
+            host_id = data.get("host_id")
+            if host_id:
+                await self._remove_host_local(host_id)
+            else:
+                await self._reload_from_cache()
+        elif action == "add":
+            host_entry = data.get("host")
+            if host_entry:
+                await self._add_prepared_hosts_local([(host_entry["id"], host_entry["data"])])
+            else:
+                await self._reload_from_cache()
+        else:
+            await self._reload_from_cache()
+
+    async def _publish(self, message: dict):
+        """Publish host update message via global router."""
+        await router.publish(MessageTopic.HOST, message)
 
     async def setup(self, db: AsyncSession):
+        # Register handler with global router
+        router.register_handler(MessageTopic.HOST, self._handle_host_message)
+
+        # Initialize NATS if enabled
+        if self._nats_enabled:
+            self._nc, self._js, self._kv = await setup_nats_kv(self.KV_BUCKET_NAME)
+
+        if await self._load_state_from_cache():
+            return
+
         db_hosts = await get_hosts(db)
         await self.add_hosts(db, db_hosts)
+
+    async def setup_local(self, db: AsyncSession):
+        db_hosts = await get_hosts(db)
+        await self._add_hosts_local(db, db_hosts)
 
     async def _reset_cache(self):
         await self.get_hosts.cache.clear()
@@ -273,7 +396,7 @@ class HostManager:
     @staticmethod
     async def _prepare_host_entry(
         db: AsyncSession, host: BaseHost, inbounds_list: list[str]
-    ) -> tuple[int, dict] | None:
+    ) -> tuple[int, SubscriptionInboundData] | None:
         if host.is_disabled or (host.inbound_tag not in inbounds_list):
             return None
 
@@ -297,6 +420,20 @@ class HostManager:
         await self.add_hosts(db, [host])
 
     async def add_hosts(self, db: AsyncSession, hosts: list[BaseHost]):
+        await self._add_hosts_impl(db, hosts)
+
+    async def _add_prepared_hosts_local(self, prepared_hosts: list[tuple[int, SubscriptionInboundData | dict]]):
+        async with self._lock:
+            for host_id, host_data in prepared_hosts:
+                self._hosts.pop(host_id, None)
+                # Ensure we store SubscriptionInboundData models, not dicts
+                if isinstance(host_data, dict):
+                    self._hosts[host_id] = SubscriptionInboundData.model_validate(host_data)
+                else:
+                    self._hosts[host_id] = host_data
+            await self._reset_cache()
+
+    async def _add_hosts_local(self, db: AsyncSession, hosts: list[BaseHost]):
         serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
         inbounds_list = await core_manager.get_inbounds()
         await upsert_inbounds(db, inbounds_list)
@@ -311,30 +448,72 @@ class HostManager:
             else:
                 hosts_to_remove.append(host.id)
 
-        # Acquire lock only for updating the dict and cache
-        async with self._lock:
-            for host_id, host_data in prepared_hosts:
-                self._hosts.pop(host_id, None)
-                self._hosts[host_id] = host_data
+        await self._add_prepared_hosts_local(prepared_hosts)
 
+        async with self._lock:
             for host_id in hosts_to_remove:
                 self._hosts.pop(host_id, None)
 
-            await self._reset_cache()
+        await self._persist_state()
+
+    async def _add_hosts_nats(self, db: AsyncSession, hosts: list[BaseHost]):
+        serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
+        inbounds_list = await core_manager.get_inbounds()
+        await upsert_inbounds(db, inbounds_list)
+        await db.commit()
+
+        prepared_hosts = []
+        hosts_to_remove = []
+        for host in serialized_hosts:
+            result = await self._prepare_host_entry(db, host, inbounds_list)
+            if result:
+                prepared_hosts.append(result)
+            else:
+                hosts_to_remove.append(host.id)
+
+        # Publish messages - all workers will process via listener
+        for host_id, host_data in prepared_hosts:
+            # Convert model to dict for JSON serialization
+            serialized_data = host_data.model_dump()
+            await self._publish({"action": "add", "host": {"id": host_id, "data": serialized_data}})
+        for host_id in hosts_to_remove:
+            await self._publish({"action": "remove", "host_id": host_id})
+
+        # Keep local state in sync immediately, while still broadcasting via NATS.
+        await self._add_prepared_hosts_local(prepared_hosts)
+        async with self._lock:
+            for host_id in hosts_to_remove:
+                self._hosts.pop(host_id, None)
+
+        # Persist state to NATS KV
+        await self._persist_state()
+        await self._reset_cache()
 
     async def remove_host(self, id: int):
+        await self._remove_host_impl(id)
+
+    async def _remove_host_local(self, id: int):
         async with self._lock:
             self._hosts.pop(id, None)
             await self._reset_cache()
+        await self._persist_state()
+
+    async def _remove_host_nats(self, id: int):
+        await self._publish({"action": "remove", "host_id": id})
+        await self._remove_host_local(id)
 
     async def get_host(self, id: int) -> dict | None:
         async with self._lock:
-            return deepcopy(self._hosts.get(id))
+            host_data = self._hosts.get(id)
+            if host_data is None:
+                return None
+            # Convert model to dict for API compatibility
+            return host_data.model_dump() if isinstance(host_data, SubscriptionInboundData) else host_data
 
-    @cached()
-    async def get_hosts(self) -> dict[int, dict]:
+    @cached(ttl=10)
+    async def get_hosts(self) -> dict[int, SubscriptionInboundData]:
         async with self._lock:
-            # Return hosts sorted by priority (accessing from subscription_data)
+            # Return hosts sorted by priority (accessing from subscription_data model)
             sorted_hosts = dict(sorted(self._hosts.items(), key=lambda x: x[1].priority))
             return deepcopy(sorted_hosts)
 
@@ -344,5 +523,16 @@ host_manager: HostManager = HostManager()
 
 @on_startup
 async def initialize_hosts():
+    if IS_NODE_WORKER:
+        return
     async with GetDB() as db:
         await host_manager.setup(db)
+
+
+@on_shutdown
+async def shutdown_hosts():
+    if IS_NODE_WORKER:
+        return
+    # Close NATS connection
+    if host_manager._nc:
+        await host_manager._nc.close()

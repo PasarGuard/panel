@@ -28,7 +28,7 @@ class CoreOperation(BaseOperation):
         core = CoreResponse.model_validate(db_core)
         asyncio.create_task(notification.create_core(core, admin.username))
 
-        await host_manager.setup(db)
+        await host_manager.setup_local(db)
 
         return core
 
@@ -55,7 +55,7 @@ class CoreOperation(BaseOperation):
         core = CoreResponse.model_validate(db_core)
         asyncio.create_task(notification.modify_core(core, admin.username))
 
-        await host_manager.setup(db)
+        await host_manager.setup_local(db)
 
         return core
 
@@ -72,4 +72,4 @@ class CoreOperation(BaseOperation):
 
         logger.info(f'core config "{db_core.name}" deleted by admin "{admin.username}"')
 
-        await host_manager.setup(db)
+        await host_manager.setup_local(db)

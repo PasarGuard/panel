@@ -4,14 +4,22 @@ from PasarGuardNodeBridge import Health, NodeAPIError, PasarGuardNode
 
 from app import notification, on_shutdown, on_startup, scheduler
 from app.db import GetDB
-from app.db.crud.node import get_limited_nodes, get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeNotification
 from app.node import node_manager
 from app.operation import OperatorType
-from app.operation.node import NodeOperation
+from app.db.crud.node import get_limited_nodes, get_nodes
 from app.utils.logger import get_logger
-from config import JOB_CHECK_NODE_LIMITS_INTERVAL, JOB_CORE_HEALTH_CHECK_INTERVAL, SHUTDOWN_NODES_ON_SHUTDOWN
+from app.operation.node import NodeOperation
+
+from config import (
+    IS_NODE_WORKER,
+    JOB_CORE_HEALTH_CHECK_INTERVAL,
+    JOB_CHECK_NODE_LIMITS_INTERVAL,
+    RUN_SCHEDULER,
+    STOP_NODES_ON_SHUTDOWN,
+    MULTI_WORKER,
+)
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 logger = get_logger("node-checker")
@@ -184,6 +192,8 @@ async def node_health_check():
     """
     Cron job that checks health of all enabled nodes.
     """
+    if not IS_NODE_WORKER:
+        return
     async with GetDB() as db:
         db_nodes, _ = await get_nodes(db=db, enabled=True)
         dict_nodes = await node_manager.get_nodes()
@@ -194,6 +204,9 @@ async def node_health_check():
 
 @on_startup
 async def initialize_nodes():
+    if not (RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER)):
+        return
+
     logger.info("Starting nodes' cores...")
 
     async with GetDB() as db:
@@ -207,16 +220,34 @@ async def initialize_nodes():
 
     # Schedule node health check job (runs frequently)
     scheduler.add_job(
-        node_health_check, "interval", seconds=JOB_CORE_HEALTH_CHECK_INTERVAL, coalesce=True, max_instances=1
+        node_health_check,
+        "interval",
+        seconds=JOB_CORE_HEALTH_CHECK_INTERVAL,
+        coalesce=True,
+        max_instances=1,
+        id="node_health_check",
+        replace_existing=True,
     )
 
     # Schedule node limits check job (runs less frequently)
     scheduler.add_job(
-        check_node_limits, "interval", seconds=JOB_CHECK_NODE_LIMITS_INTERVAL, coalesce=True, max_instances=1
+        check_node_limits,
+        "interval",
+        seconds=JOB_CHECK_NODE_LIMITS_INTERVAL,
+        coalesce=True,
+        max_instances=1,
+        id="check_node_limits",
+        replace_existing=True,
     )
+
+    if STOP_NODES_ON_SHUTDOWN:
+        on_shutdown(shutdown_nodes)
 
 
 async def shutdown_nodes():
+    if not (RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER)):
+        return
+
     logger.info("Stopping nodes' cores...")
 
     nodes: dict[int, PasarGuardNode] = await node_manager.get_nodes()
@@ -227,7 +258,3 @@ async def shutdown_nodes():
     await asyncio.gather(*stop_tasks, return_exceptions=True)
 
     logger.info("All nodes' cores have been stopped.")
-
-
-if SHUTDOWN_NODES_ON_SHUTDOWN:
-    on_shutdown(shutdown_nodes)

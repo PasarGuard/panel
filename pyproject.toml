@@ -5,7 +5,7 @@ description = "Unified GUI Censorship Resistant Solution"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "APScheduler>=3.11.1",
+    "apscheduler>=3.11.1",
     "Deprecated==1.2.13",
     "Jinja2>=3.1.6",
     "PyJWT>=2.10.1",
@@ -17,7 +17,7 @@ dependencies = [
     "cryptography==46.0.3",
     "fastapi>=0.124.0",
     "jdatetime>=5.2.0",
-    "psutil==5.9.4",
+    "psutil==7.2.1",
     "pydantic>=2.12.5",
     "python-dateutil>=2.8.2",
     "python-decouple>=3.6",
@@ -42,6 +42,9 @@ dependencies = [
     "typer>=0.20.0",
     "pasarguard-node-bridge>=0.4.1",
     "pip-system-certs>=5.3",
+    "psycopg[binary]>=3.3.2",
+    "pymysql>=1.1.2",
+    "nats-py>=2.12.0",
 ]
 
 [tool.ruff]

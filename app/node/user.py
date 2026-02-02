@@ -1,11 +1,21 @@
 from PasarGuardNodeBridge import create_proxy, create_user
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import and_, func, select
 
 from app.db import AsyncSession
 from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
 
 
-def serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None):
+async def serialize_user(user: User) -> ProtoUser:
+    user_settings = user.proxy_settings
+    inbounds = None
+    if user.status in (UserStatus.active, UserStatus.on_hold):
+        inbounds = await user.inbounds()
+
+    return _serialize_user_for_node(user.id, user.username, user_settings, inbounds)
+
+
+def _serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None) -> ProtoUser:
     vmess_settings = user_settings.get("vmess", {})
     vless_settings = user_settings.get("vless", {})
     trojan_settings = user_settings.get("trojan", {})
@@ -62,11 +72,11 @@ async def core_users(db: AsyncSession):
     for row in results:
         inbound_tags = row.inbound_tags.split(",") if row.inbound_tags else []
         if inbound_tags:
-            bridge_users.append(serialize_user_for_node(row.id, row.username, row.proxy_settings, inbound_tags))
+            bridge_users.append(_serialize_user_for_node(row.id, row.username, row.proxy_settings, inbound_tags))
     return bridge_users
 
 
-async def serialize_users_for_node(users: list[User]):
+async def serialize_users_for_node(users: list[User]) -> list[ProtoUser]:
     bridge_users: list = []
 
     for user in users:
@@ -74,6 +84,6 @@ async def serialize_users_for_node(users: list[User]):
         if user.status in [UserStatus.active, UserStatus.on_hold]:
             inbounds_list = await user.inbounds()
 
-        bridge_users.append(serialize_user_for_node(user.id, user.username, user.proxy_settings, inbounds_list))
+        bridge_users.append(_serialize_user_for_node(user.id, user.username, user.proxy_settings, inbounds_list))
 
     return bridge_users

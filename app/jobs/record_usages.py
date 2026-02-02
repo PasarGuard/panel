@@ -23,8 +23,11 @@ from app.node import node_manager
 from app.utils.logger import get_logger
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
+    IS_NODE_WORKER,
     JOB_RECORD_NODE_USAGES_INTERVAL,
     JOB_RECORD_USER_USAGES_INTERVAL,
+    MULTI_WORKER,
+    RUN_SCHEDULER,
 )
 
 logger = get_logger("record-usages")
@@ -92,6 +95,7 @@ async def _cleanup_thread_pool():
             _thread_pool.shutdown(wait=True)
             _thread_pool = None
             logger.info("ThreadPoolExecutor shut down successfully")
+
 
 # Helper functions for threading (lightweight operations that release GIL)
 def _process_node_chunk(chunk_data: tuple) -> dict:
@@ -283,7 +287,7 @@ async def safe_execute(stmt, params=None, max_retries: int = 2):
     """
     Safely execute database operations with deadlock and connection handling.
     Creates a fresh DB session for each retry attempt to release locks.
-    
+
     Reduced retries to prevent retry amplification under load.
     Dropping some stats is better than crashing the system.
 
@@ -350,10 +354,10 @@ def _get_time_bucket(now: dt = None) -> dt:
     """
     Get 10-minute time bucket instead of hourly to reduce hot row contention.
     This reduces lock contention by 6x (60 minutes / 10 minutes = 6).
-    
+
     Args:
         now: Optional datetime to use (defaults to current time)
-    
+
     Returns:
         datetime rounded down to 10-minute bucket
     """
@@ -367,18 +371,18 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
     """
     Record user statistics for ALL nodes in a single batched UPSERT operation.
     This eliminates per-node write amplification and reduces lock contention.
-    
+
     Args:
         all_node_params: Dict mapping node_id -> list of user stat params
         usage_coefficients: Dict mapping node_id -> usage coefficient
     """
     if not all_node_params:
         return
-    
+
     # Aggregate all params across all nodes into single list
     created_at = _get_time_bucket()
     dialect = await get_dialect()
-    
+
     # Prepare parameters for all nodes in one batch
     upsert_params = []
     for node_id, params in all_node_params.items():
@@ -386,16 +390,18 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
             continue
         coeff = usage_coefficients.get(node_id, 1.0)
         for p in params:
-            upsert_params.append({
-                "uid": int(p["uid"]),
-                "value": int(p["value"] * coeff),
-                "node_id": node_id,
-                "created_at": created_at,
-            })
-    
+            upsert_params.append(
+                {
+                    "uid": int(p["uid"]),
+                    "value": int(p["value"] * coeff),
+                    "node_id": node_id,
+                    "created_at": created_at,
+                }
+            )
+
     if not upsert_params:
         return
-    
+
     # Execute single batched UPSERT with concurrency control
     async with JOB_SEM:
         queries = build_node_user_usage_upsert(dialect, upsert_params)
@@ -407,41 +413,41 @@ async def record_node_stats_batched(all_node_params: dict):
     """
     Record node-level statistics for ALL nodes in batched operations.
     This reduces write amplification and lock contention.
-    
+
     Args:
         all_node_params: Dict mapping node_id -> list of node stat params
     """
     if not all_node_params:
         return
-    
+
     created_at = _get_time_bucket()
     dialect = await get_dialect()
-    
+
     # Process each node's stats with concurrency control
     async def _record_single_node(node_id: int, params: list[dict]):
         if not params:
             return
-        
+
         # Aggregate uplink and downlink from params
         total_up = sum(p.get("up", 0) for p in params)
         total_down = sum(p.get("down", 0) for p in params)
-        
+
         if not (total_up or total_down):
             return
-        
+
         upsert_param = {
             "node_id": node_id,
             "created_at": created_at,
             "up": total_up,
             "down": total_down,
         }
-        
+
         # Execute with concurrency control
         async with JOB_SEM:
             queries = build_node_usage_upsert(dialect, upsert_param)
             for stmt, stmt_params in queries:
                 await safe_execute(stmt, stmt_params)
-    
+
     # Execute all node stats with limited concurrency
     tasks = [_record_single_node(node_id, params) for node_id, params in all_node_params.items()]
     if tasks:
@@ -482,19 +488,19 @@ async def get_users_stats(node: PasarGuardNode):
         try:
             # I/O operation: fetch stats from node (async, non-blocking)
             stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
-            
+
             # CPU-bound operation: process stats in thread pool to utilize multiple cores
             loop = asyncio.get_running_loop()
             thread_pool = await _get_thread_pool()
             validated_params, invalid_uids = await loop.run_in_executor(
                 thread_pool, _process_users_stats_response, stats_response
             )
-            
+
             # Log invalid UIDs outside of thread (thread-safe logging)
             if invalid_uids:
                 for uid in invalid_uids:
                     logger.warning("Skipping invalid UID: %s", uid)
-            
+
             return validated_params
         except NodeAPIError as e:
             logger.error("Failed to get users stats, error: %s", e.detail)
@@ -525,14 +531,12 @@ async def get_outbounds_stats(node: PasarGuardNode):
         try:
             # I/O operation: fetch stats from node (async, non-blocking)
             stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
-            
+
             # CPU-bound operation: process stats in thread pool to utilize multiple cores
             loop = asyncio.get_running_loop()
             thread_pool = await _get_thread_pool()
-            params = await loop.run_in_executor(
-                thread_pool, _process_outbounds_stats_response, stats_response
-            )
-            
+            params = await loop.run_in_executor(thread_pool, _process_outbounds_stats_response, stats_response)
+
             return params
         except NodeAPIError as e:
             logger.error("Failed to get outbounds stats, error: %s", e.detail)
@@ -568,7 +572,7 @@ async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
 
 async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
     """Calculate aggregated user usage across all nodes with coefficients applied.
-    
+
     Uses ThreadPoolExecutor for lightweight operations (dict/arithmetic that release GIL).
     ThreadPoolExecutor is faster than ProcessPoolExecutor for these operations due to less overhead.
     """
@@ -617,13 +621,9 @@ async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> li
         if len(chunk_results) > 4:
             # Split merge operation into smaller chunks
             chunk_size = max(1, len(chunk_results) // 4)
-            merge_chunks = [
-                chunk_results[i : i + chunk_size]
-                for i in range(0, len(chunk_results), chunk_size)
-            ]
+            merge_chunks = [chunk_results[i : i + chunk_size] for i in range(0, len(chunk_results), chunk_size)]
             merge_tasks = [
-                loop.run_in_executor(thread_pool, _merge_usage_dicts, merge_chunk)
-                for merge_chunk in merge_chunks
+                loop.run_in_executor(thread_pool, _merge_usage_dicts, merge_chunk) for merge_chunk in merge_chunks
             ]
             partial_results = await asyncio.gather(*merge_tasks)
             final_result = _merge_usage_dicts(partial_results)
@@ -643,13 +643,13 @@ async def _record_user_usages_impl():
     """
     job_start_time = time.time()
     nodes: tuple[int, PasarGuardNode] = await node_manager.get_healthy_nodes()
-    
+
     if not nodes:
         logger.debug("No healthy nodes found, skipping user usage recording")
         return
-    
+
     logger.debug(f"Starting user usage recording for {len(nodes)} nodes")
-    
+
     try:
         # Gather node extra data directly without unnecessary task creation
         node_data = await asyncio.gather(*[node.get_extra() for _, node in nodes], return_exceptions=True)
@@ -684,7 +684,7 @@ async def _record_user_usages_impl():
 
         # Filter valid users - simple operation, no need to parallelize
         valid_users_usage = [usage for usage in users_usage if int(usage["uid"]) in valid_user_ids]
-        
+
         # Update User table with concurrency control
         if valid_users_usage:
             user_stmt = (
@@ -720,19 +720,19 @@ async def _record_user_usages_impl():
             filtered_params = [param for param in params if int(param["uid"]) in valid_user_ids]
             if filtered_params:
                 filtered_node_params[node_id] = filtered_params
-        
+
         if filtered_node_params:
             await record_user_stats_batched(filtered_node_params, usage_coefficient)
             total_records = sum(len(params) for params in filtered_node_params.values())
             logger.debug(f"Recorded {total_records} node user usage records across {len(filtered_node_params)} nodes")
-        
+
         job_duration = time.time() - job_start_time
         logger.info(
             f"User usage recording completed in {job_duration:.2f}s: "
             f"{len(valid_users_usage)} users, {len(admin_usage)} admins, "
             f"{len(filtered_node_params)} nodes"
         )
-        
+
     except Exception as e:
         job_duration = time.time() - job_start_time
         logger.error(f"User usage recording failed after {job_duration:.2f}s: {e}", exc_info=True)
@@ -748,7 +748,7 @@ async def record_user_usages():
     if _running_jobs.get("record_user_usages"):
         logger.warning("Previous record_user_usages run still active; skipping this cycle")
         return
-    
+
     _running_jobs["record_user_usages"] = True
     try:
         # Hard timeout: prevent job from running longer than interval
@@ -768,13 +768,13 @@ async def _record_node_usages_impl():
     """
     job_start_time = time.time()
     nodes = await node_manager.get_healthy_nodes()
-    
+
     if not nodes:
         logger.debug("No healthy nodes found, skipping node usage recording")
         return
-    
+
     logger.debug(f"Starting node usage recording for {len(nodes)} nodes")
-    
+
     try:
         # Get healthy nodes and gather stats directly
         stats_results = await asyncio.gather(*[get_outbounds_stats(node) for _, node in nodes], return_exceptions=True)
@@ -823,7 +823,9 @@ async def _record_node_usages_impl():
             logger.debug(f"Updated {len(node_update_params)} nodes")
 
         # Update system totals with concurrency control
-        system_update_stmt = update(System).values(uplink=System.uplink + total_up, downlink=System.downlink + total_down)
+        system_update_stmt = update(System).values(
+            uplink=System.uplink + total_up, downlink=System.downlink + total_down
+        )
         async with JOB_SEM:
             await safe_execute(system_update_stmt)
 
@@ -832,13 +834,13 @@ async def _record_node_usages_impl():
 
         # Batch all node usage writes
         await record_node_stats_batched(api_params)
-        
+
         job_duration = time.time() - job_start_time
         logger.info(
             f"Node usage recording completed in {job_duration:.2f}s: "
             f"{len(node_update_params)} nodes, total: {total_up + total_down} bytes"
         )
-        
+
     except Exception as e:
         job_duration = time.time() - job_start_time
         logger.error(f"Node usage recording failed after {job_duration:.2f}s: {e}", exc_info=True)
@@ -854,7 +856,7 @@ async def record_node_usages():
     if _running_jobs.get("record_node_usages"):
         logger.warning("Previous record_node_usages run still active; skipping this cycle")
         return
-    
+
     _running_jobs["record_node_usages"] = True
     try:
         # Hard timeout: prevent job from running longer than interval
@@ -867,20 +869,25 @@ async def record_node_usages():
         _running_jobs["record_node_usages"] = False
 
 
-scheduler.add_job(
-    record_user_usages,
-    "interval",
-    seconds=JOB_RECORD_USER_USAGES_INTERVAL,
-    coalesce=True,
-    start_date=dt.now(tz.utc) + td(seconds=30),
-    max_instances=1,
-)
+if RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER):
+    scheduler.add_job(
+        record_user_usages,
+        "interval",
+        seconds=JOB_RECORD_USER_USAGES_INTERVAL,
+        coalesce=True,
+        start_date=dt.now(tz.utc) + td(seconds=30),
+        max_instances=1,
+        id="record_user_usages",
+        replace_existing=True,
+    )
 
-scheduler.add_job(
-    record_node_usages,
-    "interval",
-    seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
-    coalesce=True,
-    start_date=dt.now(tz.utc) + td(seconds=15),
-    max_instances=1,
-)
+    scheduler.add_job(
+        record_node_usages,
+        "interval",
+        seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
+        coalesce=True,
+        start_date=dt.now(tz.utc) + td(seconds=15),
+        max_instances=1,
+        id="record_node_usages",
+        replace_existing=True,
+    )
