@@ -3,7 +3,6 @@ import contextlib
 import json
 import uuid
 
-import nats
 from nats.aio.subscription import Subscription
 from PasarGuardNodeBridge import NodeAPIError
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
@@ -12,8 +11,7 @@ from app import on_shutdown, on_startup
 from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate
-from app.nats import is_nats_enabled
-from app.nats.client import create_nats_client
+from app.nats.rpc_service import BaseRpcService
 from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
 from app.node import node_manager
 from app.operation import OperatorType
@@ -29,25 +27,23 @@ from config import (
 logger = get_logger("node-worker")
 
 
-class NodeWorkerService:
+class NodeWorkerService(BaseRpcService):
     def __init__(self):
-        self._nc: nats.NATS | None = None
+        super().__init__(
+            subject=NATS_NODE_RPC_SUBJECT,
+            logger=logger,
+            role_check=lambda: ROLE.runs_node,
+        )
         self._command_sub: Subscription | None = None
-        self._rpc_sub: Subscription | None = None
         self._log_tasks: dict[str, asyncio.Task] = {}
         self._stop_events: dict[str, asyncio.Event] = {}
         self._node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
         self._command_semaphore = asyncio.Semaphore(10)
-        self._rpc_semaphore = asyncio.Semaphore(20)
         self._command_handlers: dict[str, callable] = {}
-        self._rpc_handlers: dict[str, callable] = {}
         self._register_handlers()
 
     def register_command_handler(self, action: str, handler):
         self._command_handlers[action] = handler
-
-    def register_rpc_handler(self, action: str, handler):
-        self._rpc_handlers[action] = handler
 
     def _register_handlers(self):
         self.register_command_handler("update_user", self._update_user)
@@ -59,7 +55,6 @@ class NodeWorkerService:
         self.register_command_handler("disconnect_node", self._disconnect_node)
         self.register_command_handler("sync_node_users", self._sync_node_users)
 
-        self.register_rpc_handler("health_check", self._health_check)
         self.register_rpc_handler("get_node_system_stats", self._get_node_system_stats)
         self.register_rpc_handler("get_nodes_system_stats", self._get_nodes_system_stats)
         self.register_rpc_handler("get_user_online_stats", self._get_user_online_stats_by_node)
@@ -71,17 +66,11 @@ class NodeWorkerService:
         self.register_rpc_handler("start_logs", self._start_logs)
 
     async def start(self):
-        if not ROLE.runs_node:
-            return
-        if ROLE.requires_nats and not is_nats_enabled():
-            return
-
-        self._nc = await create_nats_client()
+        await super().start()
         if not self._nc:
             return
 
         self._command_sub = await self._nc.subscribe(NATS_NODE_COMMAND_SUBJECT, cb=self._handle_command)
-        self._rpc_sub = await self._nc.subscribe(NATS_NODE_RPC_SUBJECT, cb=self._handle_rpc)
         logger.info("Node worker service started")
 
     async def stop(self):
@@ -104,12 +93,7 @@ class NodeWorkerService:
         if self._command_sub:
             await self._command_sub.unsubscribe()
             self._command_sub = None
-        if self._rpc_sub:
-            await self._rpc_sub.unsubscribe()
-            self._rpc_sub = None
-        if self._nc and not self._nc.is_closed:
-            await self._nc.close()
-        self._nc = None
+        await super().stop()
         logger.info("Node worker service stopped")
 
     async def _handle_command(self, msg):
@@ -122,17 +106,6 @@ class NodeWorkerService:
             return
 
         asyncio.create_task(self._run_command(action, data))
-
-    async def _handle_rpc(self, msg):
-        try:
-            payload = json.loads(msg.data.decode())
-            action = payload.get("action")
-            data = payload.get("payload", {})
-        except Exception:
-            await msg.respond(json.dumps({"ok": False, "error": "invalid payload"}).encode())
-            return
-
-        asyncio.create_task(self._run_rpc(msg, action, data))
 
     async def _run_command(self, action: str | None, data: dict):
         async with self._command_semaphore:
@@ -163,17 +136,6 @@ class NodeWorkerService:
         handler = self._command_handlers.get(action)
         if handler:
             await handler(data)
-
-    async def _dispatch_rpc(self, action: str | None, data: dict):
-        if not action:
-            raise RuntimeError("Unknown action")
-        handler = self._rpc_handlers.get(action)
-        if not handler:
-            raise RuntimeError("Unknown action")
-        return await handler(data)
-
-    async def _health_check(self, _: dict) -> dict:
-        return {"status": "ok"}
 
     async def _update_user(self, data: dict):
         user_dict = data.get("user")
