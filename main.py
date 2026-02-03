@@ -8,7 +8,7 @@ import uvicorn
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-from app import create_app
+from app import create_app # noqa: F401
 from app.utils.logger import get_logger
 from app.nats import require_nats_if_multiworker
 from app.utils.logger import LOGGING_CONFIG
