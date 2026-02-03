@@ -64,10 +64,8 @@ async def get_workers_health(_: AdminDetails = Depends(get_current)):
         return WorkersHealth(scheduler=unavailable, node=unavailable)
 
     timeout = 5.0
-    scheduler_task = _measure_worker_health(
-        scheduler_nats_client.request("health_check", {}, timeout=timeout)
-    )
-    node_task = _measure_worker_health(node_nats_client.request("health_check", {}, timeout=timeout))
+    scheduler_task = _measure_worker_health(scheduler_nats_client.request("health_check", {}, timeout))
+    node_task = _measure_worker_health(node_nats_client.request("health_check", {}, timeout))
     scheduler_health, node_health = await asyncio.gather(scheduler_task, node_task)
 
     return WorkersHealth(scheduler=scheduler_health, node=node_health)

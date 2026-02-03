@@ -21,4 +21,5 @@ class NodeNatsClient(NatsRpcClient):
         except Exception as exc:
             logger.warning(f"Failed to publish node command: {exc}")
 
+
 node_nats_client = NodeNatsClient()
