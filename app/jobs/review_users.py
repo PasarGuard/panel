@@ -25,7 +25,7 @@ from app.models.user import UserNotificationResponse
 from app.node import node_manager as node_manager
 from app.settings import webhook_settings
 from app.utils.logger import get_logger
-from config import JOB_REVIEW_USERS_INTERVAL, RUN_SCHEDULER, IS_NODE_WORKER
+from config import JOB_REVIEW_USERS_INTERVAL, ROLE
 
 logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
@@ -153,7 +153,7 @@ async def days_left_notification_job():
                 await notification.wh.bulk_notify(webhook_data)
 
 
-if RUN_SCHEDULER and not IS_NODE_WORKER:
+if ROLE.runs_scheduler:
     now = dt.now(tz.utc)
     interval = int(JOB_REVIEW_USERS_INTERVAL / 5)
 

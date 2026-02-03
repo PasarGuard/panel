@@ -8,12 +8,14 @@ shutdown_functions = []
 
 
 def on_startup(func):
-    startup_functions.append(func)
+    if func not in startup_functions:
+        startup_functions.append(func)
     return func
 
 
 def on_shutdown(func):
-    shutdown_functions.append(func)
+    if func not in shutdown_functions:
+        shutdown_functions.append(func)
     return func
 
 

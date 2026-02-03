@@ -7,7 +7,7 @@ import nats
 from app.nats.client import create_nats_client
 from app.nats.message import MessageTopic, NatsMessage
 from app.utils.logger import get_logger
-from config import MULTI_WORKER, NATS_WORKER_SYNC_SUBJECT
+from config import ROLE, NATS_WORKER_SYNC_SUBJECT
 
 logger = get_logger("nats-router")
 
@@ -71,7 +71,7 @@ class NatsMessageRouter:
 
     async def start(self):
         """Start the router listener."""
-        if not MULTI_WORKER:
+        if not ROLE.requires_nats:
             return
 
         if self._running:
@@ -100,7 +100,7 @@ class NatsMessageRouter:
 
     async def publish(self, topic: MessageTopic, data: dict):
         """Publish a message to NATS."""
-        if not MULTI_WORKER:
+        if not ROLE.requires_nats:
             return
 
         client = await self._get_client()

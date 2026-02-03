@@ -41,7 +41,7 @@ from app.nats.node_rpc import node_nats_client
 from app.node import calculate_max_message_size, core_users, node_manager
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
-from config import IS_NODE_WORKER
+from config import ROLE
 
 MAX_MESSAGE_LENGTH = 128
 
@@ -51,7 +51,7 @@ logger = get_logger("node-operation")
 class NodeOperation(BaseOperation):
     def __init__(self, operator_type: OperatorType):
         super().__init__(operator_type)
-        if IS_NODE_WORKER:
+        if ROLE.runs_node:
             self._update_node_impl = self._update_node_local
             self._remove_node_impl = self._remove_node_local
             self._connect_single_impl = self._connect_single_node_local

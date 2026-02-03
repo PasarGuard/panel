@@ -29,7 +29,8 @@ from app.nats.client import setup_nats_kv
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.utils.logger import get_logger
-from config import IS_NODE_WORKER, MULTI_WORKER
+from config import ROLE
+from role import Role
 
 
 async def _prepare_subscription_inbound_data(
@@ -276,7 +277,7 @@ class HostManager:
         self._hosts = {}
         self._lock = Lock()
         self._nats_enabled = is_nats_enabled()
-        self._multi_worker = MULTI_WORKER
+        self._multi_worker = ROLE.requires_nats
         self._nc: nats.NATS | None = None
         self._js: JetStreamContext | None = None
         self._kv: KeyValue | None = None
@@ -523,7 +524,7 @@ host_manager: HostManager = HostManager()
 
 @on_startup
 async def initialize_hosts():
-    if IS_NODE_WORKER:
+    if ROLE == Role.NODE:
         return
     async with GetDB() as db:
         await host_manager.setup(db)
@@ -531,7 +532,7 @@ async def initialize_hosts():
 
 @on_shutdown
 async def shutdown_hosts():
-    if IS_NODE_WORKER:
+    if ROLE == Role.NODE:
         return
     # Close NATS connection
     if host_manager._nc:

@@ -4,9 +4,9 @@ from app.nats.node_rpc import node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
 from app.node.user import serialize_users_for_node, serialize_user, _serialize_user_for_node
-from config import IS_NODE_WORKER
+from config import ROLE
 
-if IS_NODE_WORKER:
+if ROLE.runs_node:
 
     async def sync_user(db_user: User) -> None:
         proto_user = await serialize_user(db_user)

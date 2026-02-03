@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
-ROLE="${NODE_ROLE:-panel}"
+ROLE="${ROLE:-all-in-one}"
 
-if [ "${ROLE}" = "node-worker" ] || [ "${IS_NODE_WORKER:-0}" = 1 ]; then
+if [ "${ROLE}" = "node" ]; then
     exec python node_worker.py
-elif [ "${ROLE}" = "scheduler" ] || [ "${RUN_SCHEDULER:-0}" = 1 ]; then
+elif [ "${ROLE}" = "scheduler" ]; then
     exec python scheduler_worker.py
 else
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting PANEL..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting ${ROLE}..."
     python -m alembic upgrade head
     exit_code=$?
 

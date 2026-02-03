@@ -9,10 +9,8 @@ from app.node import node_manager
 from app.utils.logger import get_logger
 from config import (
     ENABLE_RECORDING_NODES_STATS,
-    IS_NODE_WORKER,
+    ROLE,
     JOB_GATHER_NODES_STATS_INTERVAL,
-    MULTI_WORKER,
-    RUN_SCHEDULER,
 )
 
 
@@ -52,7 +50,7 @@ async def gather_nodes_stats():
             await db.commit()
 
 
-if ENABLE_RECORDING_NODES_STATS and RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER):
+if ENABLE_RECORDING_NODES_STATS and ROLE.runs_node:
     scheduler.add_job(
         gather_nodes_stats,
         "interval",

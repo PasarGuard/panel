@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
 from app import on_startup
-from config import DASHBOARD_PATH, DEBUG, RUN_SCHEDULER, UVICORN_PORT, VITE_BASE_API
+from config import DASHBOARD_PATH, DEBUG, ROLE, UVICORN_PORT, VITE_BASE_API
 
 base_dir = Path(__file__).parent
 build_dir = base_dir / "build"
@@ -47,7 +47,7 @@ def run_dev():
 
 
 def run_build(app):
-    if not RUN_SCHEDULER and not build_dir.is_dir():
+    if ROLE.runs_panel and not build_dir.is_dir():
         build()
 
     app.mount(DASHBOARD_PATH, StaticFiles(directory=build_dir, html=True), name="dashboard")

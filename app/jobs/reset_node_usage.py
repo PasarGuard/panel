@@ -11,7 +11,7 @@ from app.operation.node import NodeOperation
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
-from config import IS_NODE_WORKER, JOB_RESET_NODE_USAGE_INTERVAL, MULTI_WORKER, RUN_SCHEDULER
+from config import ROLE, JOB_RESET_NODE_USAGE_INTERVAL
 
 logger = get_logger("jobs")
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -42,7 +42,7 @@ async def reset_node_data_usage():
             logger.info(f'Node data usage reset for Node "{node.name}" (ID: {node.id})')
 
 
-if RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER):
+if ROLE.runs_node:
     scheduler.add_job(
         reset_node_data_usage,
         "interval",

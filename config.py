@@ -1,5 +1,6 @@
 from decouple import config
 from dotenv import load_dotenv
+from role import Role
 
 TESTING = config("TESTING", default=False, cast=bool)
 if not TESTING:
@@ -23,15 +24,12 @@ UVICORN_SSL_CA_TYPE = config("UVICORN_SSL_CA_TYPE", default="public").lower()
 UVICORN_WORKERS = config("UVICORN_WORKERS", default=1, cast=int)
 DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
 UVICORN_LOOP = config("UVICORN_LOOP", default="auto", cast=str)
-RUN_SCHEDULER = config("RUN_SCHEDULER", default=False, cast=bool)
-NODE_ROLE = config("NODE_ROLE", default="panel").strip().lower()
-IS_NODE_WORKER = NODE_ROLE == "node-worker"
 
-_RAW_MULTI_WORKER = config("MULTI_WORKER", default=None)
-if _RAW_MULTI_WORKER is None:
-    MULTI_WORKER = UVICORN_WORKERS > 1
-else:
-    MULTI_WORKER = str(_RAW_MULTI_WORKER).lower() in ("1", "true", "yes", "y", "on")
+_role_raw = config("ROLE", default="all-in-one").strip().lower()
+try:
+    ROLE = Role(_role_raw)
+except ValueError:
+    raise ValueError(f"Invalid ROLE '{_role_raw}'. Must be one of: {[r.value for r in Role]}")
 
 NATS_ENABLED = config("NATS_ENABLED", default=False, cast=bool)
 NATS_URL = config("NATS_URL", default="nats://localhost:4222")

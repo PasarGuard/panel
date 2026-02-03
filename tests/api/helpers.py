@@ -8,10 +8,10 @@ from fastapi import status
 
 from tests.api import client
 from tests.api.sample_data import XRAY_CONFIG
-from config import MULTI_WORKER, NATS_ENABLED
+from config import ROLE, NATS_ENABLED
 
 
-_WAIT_FOR_INBOUNDS = MULTI_WORKER and NATS_ENABLED
+_WAIT_FOR_INBOUNDS = ROLE.requires_nats and NATS_ENABLED
 _INBOUNDS_RETRIES = 10
 _INBOUNDS_DELAY_SEC = 0.2
 

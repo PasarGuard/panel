@@ -514,7 +514,9 @@ class XrayConfiguration(BaseSubscription):
         return self._normalize_and_remove_none_values(outbound), extra_outbounds
 
     @staticmethod
-    def _stream_setting_config(network=None, security=None, network_setting=None, tls_settings=None, sockopt=None) -> dict:
+    def _stream_setting_config(
+        network=None, security=None, network_setting=None, tls_settings=None, sockopt=None
+    ) -> dict:
         """Build stream settings"""
         stream_settings = {"network": network}
 

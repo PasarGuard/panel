@@ -20,7 +20,7 @@ from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.utils.logger import get_logger
 from config import (
-    IS_NODE_WORKER,
+    ROLE,
     NATS_NODE_COMMAND_SUBJECT,
     NATS_NODE_LOG_SUBJECT,
     NATS_NODE_RPC_SUBJECT,
@@ -70,7 +70,9 @@ class NodeWorkerService:
         self.register_rpc_handler("start_logs", self._start_logs)
 
     async def start(self):
-        if not IS_NODE_WORKER or not is_nats_enabled():
+        if not ROLE.runs_node:
+            return
+        if ROLE.requires_nats and not is_nats_enabled():
             return
 
         self._nc = await create_nats_client()
@@ -82,7 +84,7 @@ class NodeWorkerService:
         logger.info("Node worker service started")
 
     async def stop(self):
-        if not IS_NODE_WORKER:
+        if not ROLE.runs_node:
             return
 
         for stop_event in list(self._stop_events.values()):

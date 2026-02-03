@@ -3,7 +3,7 @@ from app.db import GetDB
 from app.db.crud.host import get_inbounds_not_in_tags, remove_inbounds
 from app.core.manager import core_manager
 from app.utils.logger import get_logger
-from config import JOB_REMOVE_OLD_INBOUNDS_INTERVAL, RUN_SCHEDULER, IS_NODE_WORKER
+from config import JOB_REMOVE_OLD_INBOUNDS_INTERVAL, ROLE
 
 
 logger = get_logger("jobs")
@@ -21,7 +21,7 @@ async def remove_old_inbounds():
             logger.info(f"inbound {inbound.tag} removed.")
 
 
-if RUN_SCHEDULER and not IS_NODE_WORKER:
+if ROLE.runs_scheduler:
     scheduler.add_job(
         remove_old_inbounds,
         "interval",

@@ -23,11 +23,9 @@ from app.node import node_manager
 from app.utils.logger import get_logger
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
-    IS_NODE_WORKER,
+    ROLE,
     JOB_RECORD_NODE_USAGES_INTERVAL,
     JOB_RECORD_USER_USAGES_INTERVAL,
-    MULTI_WORKER,
-    RUN_SCHEDULER,
 )
 
 logger = get_logger("record-usages")
@@ -869,7 +867,7 @@ async def record_node_usages():
         _running_jobs["record_node_usages"] = False
 
 
-if RUN_SCHEDULER and (not MULTI_WORKER or IS_NODE_WORKER):
+if ROLE.runs_node:
     scheduler.add_job(
         record_user_usages,
         "interval",

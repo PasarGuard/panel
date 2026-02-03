@@ -9,8 +9,7 @@ from app.utils.logger import get_logger
 from config import (
     USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS,
     JOB_REMOVE_EXPIRED_USERS_INTERVAL,
-    RUN_SCHEDULER,
-    IS_NODE_WORKER,
+    ROLE,
 )
 
 
@@ -26,7 +25,7 @@ async def remove_expired_users():
             logger.info(f"User `{user.username}` has been deleted due to expiration.")
 
 
-if RUN_SCHEDULER and not IS_NODE_WORKER:
+if ROLE.runs_scheduler:
     scheduler.add_job(
         remove_expired_users,
         "interval",

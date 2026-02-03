@@ -1,10 +1,9 @@
 import asyncio
 import signal
 import config as app_config  # noqa: E402
+from role import Role  # noqa: E402
 
-app_config.RUN_SCHEDULER = True
-app_config.NODE_ROLE = "node-worker"
-app_config.IS_NODE_WORKER = True
+app_config.ROLE = Role.NODE
 
 from app import create_app  # noqa: E402
 from app.lifecycle import lifespan  # noqa: E402
@@ -12,9 +11,7 @@ from app.nats import is_nats_enabled  # noqa: E402
 from app.utils.logger import get_logger  # noqa: E402
 
 logger = get_logger("node-worker")
-
-
-app = create_app(role="node-worker")
+app = create_app()
 
 
 async def main():

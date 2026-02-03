@@ -66,7 +66,7 @@ async def get_test_db():
 from app import create_app  # noqa
 
 
-app = create_app(role="panel")
+app = create_app()
 
 
 app.dependency_overrides[base.get_db] = get_test_db

@@ -12,7 +12,7 @@ from app.models.settings import Webhook
 from app.notification.webhook import queue
 from app.settings import webhook_settings
 from app.utils.logger import get_logger
-from config import JOB_SEND_NOTIFICATIONS_INTERVAL, RUN_SCHEDULER, IS_NODE_WORKER
+from config import JOB_SEND_NOTIFICATIONS_INTERVAL, ROLE
 
 logger = get_logger("send-notification")
 
@@ -123,7 +123,7 @@ async def send_pending_notifications_before_shutdown():
     await send_notifications()
 
 
-if RUN_SCHEDULER and not IS_NODE_WORKER:
+if ROLE.runs_scheduler:
     scheduler.add_job(
         send_notifications,
         "interval",

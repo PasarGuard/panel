@@ -7,8 +7,7 @@ from app.utils.logger import get_logger
 from config import (
     USER_SUBSCRIPTION_CLIENTS_LIMIT,
     JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL,
-    RUN_SCHEDULER,
-    IS_NODE_WORKER,
+    ROLE,
 )
 
 logger = get_logger("jobs")
@@ -77,7 +76,7 @@ async def cleanup_user_subscription_updates():
         await db.commit()
 
 
-if USER_SUBSCRIPTION_CLIENTS_LIMIT and USER_SUBSCRIPTION_CLIENTS_LIMIT >= 0 and RUN_SCHEDULER and not IS_NODE_WORKER:
+if USER_SUBSCRIPTION_CLIENTS_LIMIT and USER_SUBSCRIPTION_CLIENTS_LIMIT >= 0 and ROLE.runs_scheduler:
     # Schedule the cleanup job to run every few minutes
     scheduler.add_job(
         cleanup_user_subscription_updates,
