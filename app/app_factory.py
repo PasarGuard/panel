@@ -33,6 +33,13 @@ def _register_nats_handlers(enable_router: bool, enable_settings: bool):
 
 
 def _register_scheduler_hooks():
+    # Notification queue must be initialized by any role that enqueues
+    # (backend/all-in-one produce, scheduler/all-in-one consume)
+    if ROLE.runs_panel or ROLE.runs_scheduler:
+        from app.notification.queue_manager import initialize_queue
+
+        on_startup(initialize_queue)
+
     # APScheduler is needed by node and scheduler roles to run their jobs
     if not (ROLE.runs_node or ROLE.runs_scheduler):
         return
@@ -42,14 +49,12 @@ def _register_scheduler_hooks():
     on_startup(scheduler.start)
     on_shutdown(scheduler.shutdown)
 
-    # Notification dispatcher is only needed by scheduler role
-    if not (ROLE.runs_panel or ROLE.runs_scheduler):
+    # Notification dispatcher (consumer loop) is only needed by scheduler role
+    if not ROLE.runs_scheduler:
         return
 
     from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
-    from app.notification.queue_manager import initialize_queue
 
-    on_startup(initialize_queue)
     on_startup(start_notification_dispatcher)
     on_shutdown(stop_notification_dispatcher)
 
