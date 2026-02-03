@@ -47,12 +47,11 @@ def _register_scheduler_hooks():
         return
 
     from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
-    from app.notification.queue_manager import initialize_queue, shutdown_queue
+    from app.notification.queue_manager import initialize_queue
 
     on_startup(initialize_queue)
     on_startup(start_notification_dispatcher)
     on_shutdown(stop_notification_dispatcher)
-    on_shutdown(shutdown_queue)
 
 
 def _register_jobs():

@@ -1,6 +1,6 @@
 from app import on_shutdown, scheduler
 from app.notification.client import process_notification
-from app.notification.queue_manager import get_queue
+from app.notification.queue_manager import get_queue, shutdown_queue
 from app.utils.logger import get_logger
 from config import ROLE, JOB_SEND_NOTIFICATIONS_INTERVAL
 
@@ -42,3 +42,4 @@ if ROLE.runs_scheduler:
     )
 
     on_shutdown(send_pending_notifications_before_shutdown)
+    on_shutdown(shutdown_queue)  # Must run after flush to keep consumer alive
