@@ -2,14 +2,13 @@ import asyncio
 from datetime import datetime as dt, timedelta as td, timezone as tz
 
 import httpx
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import delete
 
 from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.models import NotificationReminder
 from app.models.settings import Webhook
-from app.notification.webhook import queue
+from app.notification.queue_manager import get_webhook_queue, WebhookNotification, enqueue_webhook, shutdown_webhook_queue
 from app.settings import webhook_settings
 from app.utils.logger import get_logger
 from config import JOB_SEND_NOTIFICATIONS_INTERVAL, ROLE
@@ -21,11 +20,12 @@ async def send_to_all_webhooks(client: httpx.AsyncClient, notifications, webhook
     """
     Send the notifications to all webhooks concurrently.
     Returns True if at least one webhook succeeds.
+    notifications: list of already JSON-serializable dicts (webhook payloads)
     """
     if not notifications:
         return True
 
-    payload = jsonable_encoder(notifications)
+    payload = notifications  # Already JSON-serializable, no need for jsonable_encoder
 
     async def send_one(webhook):
         webhook_headers = {"x-webhook-secret": webhook.secret} if webhook.secret else None
@@ -57,13 +57,20 @@ async def send_notifications():
 
     try:
         async with httpx.AsyncClient(http2=True, timeout=httpx.Timeout(10), proxy=settings.proxy_url) as client:
+            webhook_queue = get_webhook_queue()
             while True:
                 try:
-                    notification = queue.get_nowait()
-                except asyncio.QueueEmpty:
+                    item = await webhook_queue.dequeue(timeout=0.1)
+                except Exception:
+                    # Handle any dequeue errors gracefully
+                    break
+
+                if not item:
                     break
 
                 try:
+                    notification = WebhookNotification(**item)
+
                     if notification.tries >= settings.recurrent:
                         continue
 
@@ -83,7 +90,9 @@ async def send_notifications():
                         f"Sending batch of {len(batch)} notifications to {len(settings.webhooks)} webhooks "
                         f"(chunk {start // batch_size + 1})"
                     )
-                    success = await send_to_all_webhooks(client, batch, settings.webhooks)
+                    # Extract payloads from WebhookNotification objects
+                    payloads = [notif.payload for notif in batch]
+                    success = await send_to_all_webhooks(client, payloads, settings.webhooks)
 
                     if not success:
                         retry_at = dt.now(tz.utc).timestamp()
@@ -102,7 +111,7 @@ async def send_notifications():
 
         # Requeue failed items at the end
         for notif in failed_to_requeue:
-            await queue.put(notif)
+            await enqueue_webhook(notif.payload, send_at=notif.send_at, tries=notif.tries)
 
         if processed or failed_to_requeue:
             logger.info(f"Processed {processed} notifications, requeued {len(failed_to_requeue)}")
@@ -142,3 +151,4 @@ if ROLE.runs_scheduler:
         replace_existing=True,
     )
     on_shutdown(send_pending_notifications_before_shutdown)
+    on_shutdown(shutdown_webhook_queue)  # Must run after flush to keep queue alive

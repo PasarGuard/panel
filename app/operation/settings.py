@@ -9,7 +9,6 @@ from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.settings import refresh_caches
 from app.notification.client import define_client
-from app.notification.webhook import queue as webhook_queue
 from app.telegram import startup_telegram_bot
 from . import BaseOperation
 
@@ -21,8 +20,8 @@ class SettingsOperation(BaseOperation):
             await startup_telegram_bot()
         if new_settings.discord != old_settings.discord:
             pass
-        if old_settings.webhook and new_settings.webhook is None or not new_settings.webhook.enable:
-            webhook_queue.empty()
+        # When webhooks are disabled, send_notifications() already returns early
+        # Pending webhook notifications will be processed when webhooks are re-enabled
         if old_settings.notification_settings.proxy_url != new_settings.notification_settings.proxy_url:
             await define_client()
 
