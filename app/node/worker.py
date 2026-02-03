@@ -59,6 +59,7 @@ class NodeWorkerService:
         self.register_command_handler("disconnect_node", self._disconnect_node)
         self.register_command_handler("sync_node_users", self._sync_node_users)
 
+        self.register_rpc_handler("health_check", self._health_check)
         self.register_rpc_handler("get_node_system_stats", self._get_node_system_stats)
         self.register_rpc_handler("get_nodes_system_stats", self._get_nodes_system_stats)
         self.register_rpc_handler("get_user_online_stats", self._get_user_online_stats_by_node)
@@ -170,6 +171,9 @@ class NodeWorkerService:
         if not handler:
             raise RuntimeError("Unknown action")
         return await handler(data)
+
+    async def _health_check(self, _: dict) -> dict:
+        return {"status": "ok"}
 
     async def _update_user(self, data: dict):
         user_dict = data.get("user")

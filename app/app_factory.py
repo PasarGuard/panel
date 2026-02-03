@@ -96,6 +96,12 @@ def create_app() -> FastAPI:
     if ROLE.runs_node:
         from app.node import worker as node_worker  # noqa: F401
 
+    if ROLE.runs_scheduler:
+        from app.nats.scheduler_rpc import start_scheduler_rpc, stop_scheduler_rpc
+
+        on_startup(start_scheduler_rpc)
+        on_shutdown(stop_scheduler_rpc)
+
     enable_router = ROLE.runs_panel or ROLE.runs_node
     enable_settings = ROLE.runs_panel or ROLE.runs_scheduler
     _register_nats_handlers(enable_router, enable_settings)
