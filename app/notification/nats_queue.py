@@ -1,6 +1,5 @@
 import asyncio
 import json
-from typing import Optional
 
 import nats
 from nats.js.client import JetStreamContext
@@ -32,8 +31,14 @@ class NatsNotificationQueue(NotificationQueue):
         self._js: JetStreamContext | None = None
         self._consumer: JetStreamContext.PullSubscription | None = None
 
-    async def initialize(self):
-        """Initialize NATS connection, JetStream stream, and pull consumer."""
+    async def initialize(self, create_consumer: bool = True):
+        """Initialize NATS connection, JetStream stream, and optionally pull consumer.
+
+        Args:
+            create_consumer: If True (default), create/subscribe to the pull consumer.
+                           If False, only initialize the stream for publishing.
+                           Producer-only roles (e.g., backend) should pass False.
+        """
         if not is_nats_enabled():
             raise RuntimeError("NATS is not enabled")
 
@@ -55,11 +60,13 @@ class NatsNotificationQueue(NotificationQueue):
 
         # Create or get durable pull consumer - all workers share the same consumer
         # This ensures each message is delivered to exactly one worker
-        self._consumer = await self._js.pull_subscribe(
-            subject=self.SUBJECT,
-            durable=self.CONSUMER_NAME,
-            stream=self.STREAM_NAME,
-        )
+        # Only create if this instance will actually consume (dequeue)
+        if create_consumer:
+            self._consumer = await self._js.pull_subscribe(
+                subject=self.SUBJECT,
+                durable=self.CONSUMER_NAME,
+                stream=self.STREAM_NAME,
+            )
 
     async def enqueue(self, item: dict):
         """Add a notification item to the queue - persisted in JetStream."""

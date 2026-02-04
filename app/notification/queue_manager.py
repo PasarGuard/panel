@@ -47,10 +47,17 @@ def get_queue() -> NotificationQueue:
 
 
 async def initialize_queue():
-    """Initialize the notification queue if it's a NATS queue."""
+    """Initialize the notification queue if it's a NATS queue.
+
+    Producers (backend, node) only need the stream for publishing.
+    Consumers (scheduler) need the full consumer subscription.
+    """
+    from config import ROLE
+
     queue = get_queue()
     if isinstance(queue, NatsNotificationQueue):
-        await queue.initialize()
+        # Only scheduler role (and all-in-one) actually dequeue and need the consumer
+        await queue.initialize(create_consumer=ROLE.runs_scheduler)
 
 
 async def shutdown_queue():
@@ -97,10 +104,17 @@ def get_webhook_queue() -> NotificationQueue:
 
 
 async def initialize_webhook_queue():
-    """Initialize the webhook queue if it's a NATS queue."""
+    """Initialize the webhook queue if it's a NATS queue.
+
+    Producers (backend) only need the stream for publishing.
+    Consumers (scheduler) need the full consumer subscription.
+    """
+    from config import ROLE
+
     queue = get_webhook_queue()
     if isinstance(queue, NatsNotificationQueue):
-        await queue.initialize()
+        # Only scheduler role (and all-in-one) actually dequeue and need the consumer
+        await queue.initialize(create_consumer=ROLE.runs_scheduler)
 
 
 async def shutdown_webhook_queue():
