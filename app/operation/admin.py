@@ -96,8 +96,15 @@ class AdminOperation(BaseOperation):
                 except KeyError:
                     await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
 
+        use_compact = self.operator_type in (OperatorType.API, OperatorType.WEB)
         admins, total, active, disabled = await get_admins(
-            db, offset, limit, username, sort_list if sort_list else None, return_with_count=True
+            db,
+            offset,
+            limit,
+            username,
+            sort_list if sort_list else None,
+            return_with_count=True,
+            compact=use_compact,
         )
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):

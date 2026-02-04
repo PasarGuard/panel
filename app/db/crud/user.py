@@ -5,7 +5,7 @@ from typing import List, Optional, Sequence
 
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
@@ -160,7 +160,12 @@ async def get_users(
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
     """
-    stmt = select(User)
+    stmt = select(User).options(
+        selectinload(User.admin),
+        selectinload(User.next_plan),
+        selectinload(User.groups),
+        selectinload(User.usage_logs),
+    )
 
     filters = []
     if usernames:
@@ -196,7 +201,7 @@ async def get_users(
 
     total = None
     if return_with_count:
-        count_stmt = select(func.count()).select_from(stmt.subquery())
+        count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
         result = await db.execute(count_stmt)
         total = result.scalar()
 
@@ -207,9 +212,6 @@ async def get_users(
 
     result = await db.execute(stmt)
     users = list(result.unique().scalars().all())
-
-    for user in users:
-        await load_user_attrs(user)
 
     if return_with_count:
         return users, total
