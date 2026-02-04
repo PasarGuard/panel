@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
-import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType, NodeStatus } from '@/service/api'
+import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType, NodeStatus, NodeModify } from '@/service/api'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
@@ -23,6 +23,8 @@ const initialDefaultValues: Partial<NodeFormValues> = {
   connection_type: NodeConnectionType.grpc,
   server_ca: '',
   keep_alive: 20000,
+  keep_alive_unit: 'seconds',
+  api_key: '',
 }
 
 export default function NodesList() {
@@ -165,6 +167,7 @@ export default function NodesList() {
       connection_type: node.connection_type,
       server_ca: node.server_ca,
       keep_alive: node.keep_alive,
+      keep_alive_unit: 'seconds',
     })
     setIsDialogOpen(true)
   }
@@ -173,9 +176,10 @@ export default function NodesList() {
     try {
       const shouldEnable = node.status === 'disabled'
       const newStatus = shouldEnable ? 'connected' : 'disabled'
-      const toOptional = <T,>(value: T | null | undefined) => (value === null || value === undefined ? undefined : value)
+      const toOptional = <T,>(value: T | null | undefined): Exclude<T, null> | undefined =>
+        value === null || value === undefined ? undefined : (value as Exclude<T, null>)
 
-      const data: Partial<NodeFormValues> & { status: NodeStatus } = {
+      const data: NodeModify = {
         name: node.name,
         address: node.address,
         port: toOptional(node.port),

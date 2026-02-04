@@ -40,7 +40,7 @@ export const nodeFormSchema = z.object({
   internal_timeout: z.number().min(3, 'Internal timeout must be 3 or greater').max(60, 'Internal timeout must be 60 or lower').optional(),
 })
 
-export type NodeFormValues = z.infer<typeof nodeFormSchema>
+export type NodeFormValues = z.input<typeof nodeFormSchema>
 
 interface NodeModalProps {
   isDialogOpen: boolean
@@ -142,6 +142,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         connection_type: node.connection_type,
         server_ca: node.server_ca,
         keep_alive: node.keep_alive,
+        keep_alive_unit: 'seconds',
         api_key: (node.api_key as string) || '',
         core_config_id: node.core_config_id ?? cores?.cores?.[0]?.id,
         data_limit: dataLimitGB,
@@ -203,6 +204,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           connection_type: nodeData.connection_type,
           server_ca: nodeData.server_ca,
           keep_alive: nodeData.keep_alive,
+          keep_alive_unit: 'seconds',
           api_key: (nodeData.api_key as string) || '',
           core_config_id: nodeData.core_config_id ?? cores?.cores?.[0]?.id,
           data_limit: dataLimitGB,
@@ -238,6 +240,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               connection_type: nodeData.connection_type,
               server_ca: nodeData.server_ca,
               keep_alive: nodeData.keep_alive,
+              keep_alive_unit: 'seconds',
               api_key: (nodeData.api_key as string) || '',
               core_config_id: nodeData.core_config_id ?? cores?.cores?.[0]?.id,
               data_limit: dataLimitGB,
@@ -330,7 +333,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
   const onSubmit = async (values: NodeFormValues) => {
     try {
-      const keepAliveInSeconds = values.keep_alive_unit === 'minutes' ? values.keep_alive * 60 : values.keep_alive_unit === 'hours' ? values.keep_alive * 3600 : values.keep_alive
+      const keepAliveUnit = values.keep_alive_unit ?? 'seconds'
+      const keepAliveInSeconds = keepAliveUnit === 'minutes' ? values.keep_alive * 60 : keepAliveUnit === 'hours' ? values.keep_alive * 3600 : values.keep_alive
 
       const baseData = {
         ...values,
