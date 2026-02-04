@@ -1,0 +1,193 @@
+import React, { useMemo } from 'react'
+import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
+
+export type ListColumnAlign = 'start' | 'center' | 'end'
+export type ListLayoutMode = 'list' | 'grid'
+
+export interface ListColumn<T> {
+  id: string
+  header: React.ReactNode
+  cell: (item: T) => React.ReactNode
+  width?: string
+  className?: string
+  headerClassName?: string
+  skeletonClassName?: string
+  align?: ListColumnAlign
+  hideOnMobile?: boolean
+}
+
+interface ListGeneratorProps<T> {
+  data: T[]
+  columns: ListColumn<T>[]
+  getRowId: (item: T) => string | number
+  isLoading?: boolean
+  loadingRows?: number
+  emptyState?: React.ReactNode
+  showEmptyState?: boolean
+  className?: string
+  headerClassName?: string
+  rowClassName?: string | ((item: T, index: number) => string)
+  hideHeader?: boolean
+  onRowClick?: (item: T) => void
+  mode?: ListLayoutMode
+  gridClassName?: string
+  gridStyle?: React.CSSProperties
+  renderGridItem?: (item: T, index: number) => React.ReactNode
+  renderGridSkeleton?: (index: number) => React.ReactNode
+}
+
+const getAlignClass = (align?: ListColumnAlign) => {
+  switch (align) {
+    case 'center':
+      return 'justify-center text-center'
+    case 'end':
+      return 'justify-end text-right'
+    default:
+      return 'justify-start text-left'
+  }
+}
+
+export function ListGenerator<T>({
+  data,
+  columns,
+  getRowId,
+  isLoading = false,
+  loadingRows = 6,
+  emptyState,
+  showEmptyState = true,
+  className,
+  headerClassName,
+  rowClassName,
+  hideHeader = false,
+  onRowClick,
+  mode = 'list',
+  gridClassName,
+  gridStyle,
+  renderGridItem,
+  renderGridSkeleton,
+}: ListGeneratorProps<T>) {
+  const templateColumns = useMemo(() => columns.map(column => column.width ?? 'minmax(0, 1fr)').join(' '), [columns])
+
+  const renderRowClassName = (item: T, index: number) => {
+    if (typeof rowClassName === 'function') {
+      return rowClassName(item, index)
+    }
+    return rowClassName
+  }
+
+  const hasData = data.length > 0
+  const shouldShowEmptyState = showEmptyState && !isLoading && !hasData
+  const showRows = !isLoading && hasData
+
+  const gridContent = (showRows || isLoading) && renderGridItem
+
+  if (mode === 'grid') {
+    return (
+      <div className={cn('flex w-full flex-col gap-2', className)}>
+        {gridContent ? (
+          <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3', gridClassName)} style={gridStyle}>
+            {isLoading &&
+              Array.from({ length: loadingRows }).map((_, index) =>
+                renderGridSkeleton ? (
+                  <div key={`grid-skeleton-${index}`}>{renderGridSkeleton(index)}</div>
+                ) : (
+                  <div key={`grid-skeleton-${index}`} className="rounded-md border bg-background p-4">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-4/5" />
+                    </div>
+                  </div>
+                ),
+              )}
+            {showRows && data.map((item, index) => <div key={getRowId(item)}>{renderGridItem(item, index)}</div>)}
+          </div>
+        ) : (
+          <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">
+            Provide `renderGridItem` to render grid mode.
+          </div>
+        )}
+        {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn('flex w-full flex-col gap-2', className)}>
+      {!hideHeader && (
+        <div
+          className={cn('grid gap-3 px-3 text-xs font-semibold uppercase text-muted-foreground', headerClassName)}
+          style={{ gridTemplateColumns: templateColumns }}
+        >
+          {columns.map(column => (
+            <div
+              key={column.id}
+              className={cn(
+                'min-w-0 truncate',
+                getAlignClass(column.align),
+                column.hideOnMobile && 'hidden md:block',
+                column.headerClassName,
+              )}
+            >
+              {column.header}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isLoading &&
+        Array.from({ length: loadingRows }).map((_, rowIndex) => (
+          <div
+            key={`list-skeleton-${rowIndex}`}
+            className="grid gap-3 rounded-md border bg-background px-3 py-3"
+            style={{ gridTemplateColumns: templateColumns }}
+          >
+            {columns.map(column => (
+              <div
+                key={`${column.id}-${rowIndex}`}
+                className={cn(
+                  'flex min-w-0 items-center',
+                  getAlignClass(column.align),
+                  column.hideOnMobile && 'hidden md:flex',
+                  column.className,
+                )}
+              >
+                <Skeleton className={cn('h-4 w-full', column.skeletonClassName)} />
+              </div>
+            ))}
+          </div>
+        ))}
+
+      {showRows &&
+        data.map((item, index) => (
+          <div
+            key={getRowId(item)}
+            className={cn(
+              'grid gap-3 rounded-md border bg-background px-3 py-3',
+              onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
+              renderRowClassName(item, index),
+            )}
+            style={{ gridTemplateColumns: templateColumns }}
+            onClick={() => onRowClick?.(item)}
+          >
+            {columns.map(column => (
+              <div
+                key={`${column.id}-${getRowId(item)}`}
+                className={cn(
+                  'flex min-w-0 items-center',
+                  getAlignClass(column.align),
+                  column.hideOnMobile && 'hidden md:flex',
+                  column.className,
+                )}
+              >
+                {column.cell(item)}
+              </div>
+            ))}
+          </div>
+        ))}
+
+      {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}
+    </div>
+  )
+}
