@@ -16,6 +16,9 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
+import { ListGenerator, ListColumn } from '@/components/common/list-generator'
+import CoreActionsMenu from '@/components/cores/core-actions-menu'
 
 const initialDefaultValues: Partial<CoreConfigFormValues> = {
   name: '',
@@ -36,6 +39,7 @@ interface CoresProps {
 export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, onDuplicateCore, onDeleteCore }: CoresProps) {
   const [editingCore, setEditingCore] = useState<CoreResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const { t } = useTranslation()
   const modifyCoreMutation = useModifyCoreConfig()
   const dir = useDirDetection()
@@ -123,6 +127,56 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     await refetch()
   }
 
+  const handleRowEdit = (core: CoreResponse) => {
+    if (onEditCore) {
+      onEditCore(core.id)
+      return
+    }
+    handleEdit(core)
+  }
+
+  const listColumns = useMemo<ListColumn<CoreResponse>[]>(
+    () => [
+      {
+        id: 'name',
+        header: t('name', { defaultValue: 'Name' }),
+        width: '2fr',
+        cell: core => (
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+            <span className="truncate font-medium">{core.name}</span>
+          </div>
+        ),
+      },
+      {
+        id: 'id',
+        header: t('id', { defaultValue: 'ID' }),
+        width: '1fr',
+        cell: core => (
+          <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
+            {core.id}
+          </span>
+        ),
+        hideOnMobile: true,
+      },
+      {
+        id: 'actions',
+        header: '',
+        width: '64px',
+        align: 'end',
+        cell: core => (
+          <CoreActionsMenu
+            core={core}
+            onEdit={handleRowEdit}
+            onDuplicate={onDuplicateCore ? () => onDuplicateCore(core.id) : undefined}
+            onDelete={onDeleteCore ? () => onDeleteCore(core.name, core.id) : undefined}
+          />
+        ),
+      },
+    ],
+    [t, onEditCore, onDuplicateCore, onDeleteCore],
+  )
+
   return (
     <div className={cn('flex w-full flex-col gap-4 pt-4', dir === 'rtl' && 'rtl')}>
       <div className="flex items-center gap-2 md:gap-3">
@@ -146,32 +200,42 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
         >
           <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
         </Button>
+        <ViewToggle value={viewMode} onChange={setViewMode} />
       </div>
       <ScrollArea dir={dir} className="h-[calc(100vh-8rem)]">
-        <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {isLoading
-            ? [...Array(6)].map((_, i) => (
-                <Card key={i} className="px-4 py-5">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
-                    <Skeleton className="h-5 w-24 sm:w-32" />
-                    <div className="ml-auto shrink-0">
-                      <Skeleton className="h-8 w-8" />
-                    </div>
+        {(isLoading || filteredCores.length > 0) && (
+          <ListGenerator
+            data={filteredCores}
+            columns={listColumns}
+            getRowId={core => core.id}
+            isLoading={isLoading}
+            loadingRows={6}
+            className="gap-3"
+            onRowClick={handleRowEdit}
+            mode={viewMode}
+            showEmptyState={false}
+            renderGridItem={core => (
+              <Core
+                core={core}
+                onEdit={onEditCore ? () => onEditCore(core.id) : () => handleEdit(core)}
+                onToggleStatus={handleToggleStatus}
+                onDuplicate={onDuplicateCore ? () => onDuplicateCore(core.id) : undefined}
+                onDelete={onDeleteCore ? () => onDeleteCore(core.name, core.id) : undefined}
+              />
+            )}
+            renderGridSkeleton={i => (
+              <Card key={i} className="px-4 py-5">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                  <Skeleton className="h-5 w-24 sm:w-32" />
+                  <div className="ml-auto shrink-0">
+                    <Skeleton className="h-8 w-8" />
                   </div>
-                </Card>
-              ))
-            : filteredCores.map((core: CoreResponse) => (
-                <Core
-                  key={core.id}
-                  core={core}
-                  onEdit={onEditCore ? () => onEditCore(core.id) : () => handleEdit(core)}
-                  onToggleStatus={handleToggleStatus}
-                  onDuplicate={onDuplicateCore ? () => onDuplicateCore(core.id) : undefined}
-                  onDelete={onDeleteCore ? () => onDeleteCore(core.name, core.id) : undefined}
-                />
-              ))}
-        </div>
+                </div>
+              </Card>
+            )}
+          />
+        )}
       </ScrollArea>
 
       <CoreConfigModal isDialogOpen={!!isDialogOpen} onOpenChange={handleModalClose} form={form} editingCore={!!editingCore} editingCoreId={editingCore?.id} />
