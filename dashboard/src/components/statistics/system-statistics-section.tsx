@@ -14,6 +14,15 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
   const { t } = useTranslation()
   const dir = useDirDetection()
 
+  const formatMbpsPair = (bytesPerSecond: number, decimals = 1) => {
+    const mbps = (bytesPerSecond * 8) / (1024 * 1024)
+    const mbpsText = mbps.toFixed(decimals).replace(/\.0$/, '')
+    const mbPerSec = bytesPerSecond / (1024 * 1024)
+    const mbPerSecText = mbPerSec.toFixed(decimals).replace(/\.0$/, '')
+
+    return { mbpsText, mbPerSecText }
+  }
+
   // Helper to check if stats are from a node (realtime stats)
   const isNodeStats = (stats: SystemStats | NodeRealtimeStats): stats is NodeRealtimeStats => {
     return 'incoming_bandwidth_speed' in stats
@@ -76,6 +85,9 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
 
   const memory = getMemoryUsage()
   const cpu = getCpuInfo()
+  const totalSpeed = formatMbpsPair(getTotalTrafficValue() || 0)
+  const incomingSpeed = formatMbpsPair(getIncomingBandwidth() || 0)
+  const outgoingSpeed = formatMbpsPair(getOutgoingBandwidth() || 0)
 
   return (
     <div
@@ -194,10 +206,15 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
               <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
                 <span dir="ltr" className="truncate text-xl font-bold transition-all duration-300 sm:text-2xl lg:text-3xl">
                   {currentStats && isNodeStats(currentStats) ? (
-                    <>
-                      {formatBytes(getTotalTrafficValue() || 0, 1)}
-                      <span className="text-base font-normal text-muted-foreground sm:text-lg">/s</span>
-                    </>
+                    <span className="flex flex-col leading-tight">
+                      <span>
+                        {totalSpeed.mbpsText}
+                        <span className="text-base font-normal text-muted-foreground sm:text-lg"> Mb/s</span>
+                      </span>
+                      <span className="text-[11px] font-normal text-muted-foreground">
+                        {totalSpeed.mbPerSecText} MB/s
+                      </span>
+                    </span>
                   ) : (
                     formatBytes(getTotalTrafficValue() || 0, 1)
                   )}
@@ -208,16 +225,28 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
               <div className="flex shrink-0 items-center gap-2 text-xs">
                 <div className="flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-green-600 dark:text-green-400">
                   <Download className="h-3 w-3" />
-                  <span dir="ltr" className="font-medium">
-                    {formatBytes(getIncomingBandwidth() || 0, 1)}
-                    {currentStats && isNodeStats(currentStats) && <span className="text-[10px]">/s</span>}
+                  <span dir="ltr" className="flex flex-col font-medium leading-none">
+                    {currentStats && isNodeStats(currentStats) ? (
+                      <>
+                        <span>{incomingSpeed.mbpsText} Mb/s</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">{incomingSpeed.mbPerSecText} MB/s</span>
+                      </>
+                    ) : (
+                      <span>{formatBytes(getIncomingBandwidth() || 0, 1)}</span>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-blue-600 dark:text-blue-400">
                   <Upload className="h-3 w-3" />
-                  <span dir="ltr" className="font-medium">
-                    {formatBytes(getOutgoingBandwidth() || 0, 1)}
-                    {currentStats && isNodeStats(currentStats) && <span className="text-[10px]">/s</span>}
+                  <span dir="ltr" className="flex flex-col font-medium leading-none">
+                    {currentStats && isNodeStats(currentStats) ? (
+                      <>
+                        <span>{outgoingSpeed.mbpsText} Mb/s</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">{outgoingSpeed.mbPerSecText} MB/s</span>
+                      </>
+                    ) : (
+                      <span>{formatBytes(getOutgoingBandwidth() || 0, 1)}</span>
+                    )}
                   </span>
                 </div>
               </div>
