@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.nats import is_nats_enabled
 from app.notification.nats_queue import NatsNotificationQueue, InMemoryNotificationQueue, NotificationQueue
+from config import ROLE
 
 
 class TelegramNotification(BaseModel):
@@ -36,33 +37,44 @@ class WebhookNotification(BaseModel):
 
 
 # Telegram/Discord queue singleton
-queue_instance: NotificationQueue | None = None
+queue_instance: NotificationQueue = NatsNotificationQueue() if is_nats_enabled() else InMemoryNotificationQueue()
+
+
+# Webhook queue singleton
+webhook_queue_instance: NotificationQueue = (
+    NatsNotificationQueue(
+        stream_name="WEBHOOK_NOTIFICATIONS",
+        subject="notifications.webhook",
+        consumer_name="webhook_workers",
+    )
+    if is_nats_enabled()
+    else InMemoryNotificationQueue()
+)
 
 
 def get_queue() -> NotificationQueue:
-    global queue_instance
-    if queue_instance is None:
-        queue_instance = NatsNotificationQueue() if is_nats_enabled() else InMemoryNotificationQueue()
     return queue_instance
 
 
-async def initialize_queue():
+async def init_queue(queue: NotificationQueue): 
+    if isinstance(queue, NatsNotificationQueue):
+        # Only scheduler role (and all-in-one) actually dequeue and need the consumer
+        await queue.initialize(create_consumer=ROLE.runs_scheduler)
+
+
+async def initialize_queues():
     """Initialize the notification queue if it's a NATS queue.
 
     Producers (backend, node) only need the stream for publishing.
     Consumers (scheduler) need the full consumer subscription.
     """
-    from config import ROLE
 
-    queue = get_queue()
-    if isinstance(queue, NatsNotificationQueue):
-        # Only scheduler role (and all-in-one) actually dequeue and need the consumer
-        await queue.initialize(create_consumer=ROLE.runs_scheduler)
+    await init_queue(queue_instance)
+    await init_queue(webhook_queue_instance)
 
 
-async def shutdown_queue():
+async def shutdown_queue(queue: NotificationQueue):
     """Close NATS connection on shutdown."""
-    queue = get_queue()
     if isinstance(queue, NatsNotificationQueue):
         try:
             if queue._consumer:
@@ -83,62 +95,16 @@ async def shutdown_queue():
         queue._js = None
         queue._nc = None
 
+async def shutdown_webhook_queue():
+    await shutdown_queues(webhook_queue_instance)
 
-# Webhook queue singleton
-webhook_queue_instance: NotificationQueue | None = None
+
+async def shutdown_queues():
+    await shutdown_queue(queue_instance)
 
 
 def get_webhook_queue() -> NotificationQueue:
-    global webhook_queue_instance
-    if webhook_queue_instance is None:
-        webhook_queue_instance = (
-            NatsNotificationQueue(
-                stream_name="WEBHOOK_NOTIFICATIONS",
-                subject="notifications.webhook",
-                consumer_name="webhook_workers",
-            )
-            if is_nats_enabled()
-            else InMemoryNotificationQueue()
-        )
     return webhook_queue_instance
-
-
-async def initialize_webhook_queue():
-    """Initialize the webhook queue if it's a NATS queue.
-
-    Producers (backend) only need the stream for publishing.
-    Consumers (scheduler) need the full consumer subscription.
-    """
-    from config import ROLE
-
-    queue = get_webhook_queue()
-    if isinstance(queue, NatsNotificationQueue):
-        # Only scheduler role (and all-in-one) actually dequeue and need the consumer
-        await queue.initialize(create_consumer=ROLE.runs_scheduler)
-
-
-async def shutdown_webhook_queue():
-    """Close NATS connection on shutdown."""
-    queue = get_webhook_queue()
-    if isinstance(queue, NatsNotificationQueue):
-        try:
-            if queue._consumer:
-                await queue._consumer.unsubscribe()
-        except Exception:
-            pass
-
-        if queue._nc and not queue._nc.is_closed:
-            try:
-                await asyncio.wait_for(queue._nc.close(), timeout=3)
-            except asyncio.TimeoutError:
-                # Don't block shutdown if NATS is slow to close
-                pass
-            except Exception:
-                pass
-
-        queue._consumer = None
-        queue._js = None
-        queue._nc = None
 
 
 async def enqueue_telegram(message: str, chat_id: Optional[int] = None, topic_id: Optional[int] = None) -> None:

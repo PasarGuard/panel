@@ -42,7 +42,7 @@ async def reset_node_data_usage():
             logger.info(f'Node data usage reset for Node "{node.name}" (ID: {node.id})')
 
 
-if ROLE.runs_node:
+if ROLE.runs_scheduler:
     scheduler.add_job(
         reset_node_data_usage,
         "interval",

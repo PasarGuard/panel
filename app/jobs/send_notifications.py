@@ -8,7 +8,12 @@ from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.models import NotificationReminder
 from app.models.settings import Webhook
-from app.notification.queue_manager import get_webhook_queue, WebhookNotification, enqueue_webhook, shutdown_webhook_queue
+from app.notification.queue_manager import (
+    get_webhook_queue,
+    WebhookNotification,
+    enqueue_webhook,
+    shutdown_webhook_queue,
+)
 from app.settings import webhook_settings
 from app.utils.logger import get_logger
 from config import JOB_SEND_NOTIFICATIONS_INTERVAL, ROLE

@@ -872,20 +872,14 @@ if ROLE.runs_node:
         record_user_usages,
         "interval",
         seconds=JOB_RECORD_USER_USAGES_INTERVAL,
-        coalesce=True,
         start_date=dt.now(tz.utc) + td(seconds=30),
-        max_instances=1,
         id="record_user_usages",
-        replace_existing=True,
     )
 
     scheduler.add_job(
         record_node_usages,
         "interval",
         seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
-        coalesce=True,
         start_date=dt.now(tz.utc) + td(seconds=15),
-        max_instances=1,
         id="record_node_usages",
-        replace_existing=True,
     )
