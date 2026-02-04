@@ -160,12 +160,7 @@ async def get_users(
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
     """
-    stmt = select(User).options(
-        selectinload(User.admin),
-        selectinload(User.next_plan),
-        selectinload(User.groups),
-        selectinload(User.usage_logs),
-    )
+    stmt = select(User)
 
     filters = []
     if usernames:
