@@ -173,19 +173,30 @@ export default function NodesList() {
     try {
       const shouldEnable = node.status === 'disabled'
       const newStatus = shouldEnable ? 'connected' : 'disabled'
+      const toOptional = <T,>(value: T | null | undefined) => (value === null || value === undefined ? undefined : value)
+
+      const data: Partial<NodeFormValues> & { status: NodeStatus } = {
+        name: node.name,
+        address: node.address,
+        port: toOptional(node.port),
+        api_port: toOptional(node.api_port),
+        usage_coefficient: toOptional(node.usage_coefficient),
+        connection_type: node.connection_type,
+        server_ca: node.server_ca,
+        keep_alive: node.keep_alive,
+        core_config_id: toOptional(node.core_config_id),
+        api_key: toOptional(node.api_key),
+        data_limit: toOptional(node.data_limit),
+        data_limit_reset_strategy: toOptional(node.data_limit_reset_strategy),
+        reset_time: toOptional(node.reset_time),
+        default_timeout: toOptional(node.default_timeout),
+        internal_timeout: toOptional(node.internal_timeout),
+        status: newStatus,
+      }
 
       await modifyNodeMutation.mutateAsync({
         nodeId: node.id,
-        data: {
-          name: node.name,
-          address: node.address,
-          port: node.port,
-          usage_coefficient: node.usage_coefficient,
-          connection_type: node.connection_type,
-          server_ca: node.server_ca,
-          keep_alive: node.keep_alive,
-          status: newStatus,
-        },
+        data,
       })
 
       toast.success(t('success', { defaultValue: 'Success' }), {
