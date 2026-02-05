@@ -27,22 +27,11 @@ export const useCoresListColumns = ({ onEdit, onDuplicate, onDelete }: UseCoresL
         ),
       },
       {
-        id: 'id',
-        header: t('id', { defaultValue: 'ID' }),
-        width: '24px',
-        cell: core => (
-          <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
-            {core.id}
-          </span>
-        ),
-        hideOnMobile: true,
-      },
-      {
         id: 'actions',
         header: '',
         width: '24px',
         align: 'end',
-        hideOnMobile: true,
+        hideOnMobile: false,
         cell: core => (
           <CoreActionsMenu
             core={core}
