@@ -208,8 +208,8 @@ export function ListGenerator<T>({
             <div
               className={cn(
                 listTemplateClassName,
-                'gap-3 overflow-hidden rounded-md border bg-background pl-3 py-3',
-                dir === "rtl" && "pl-0 pr-3",
+                'gap-3 overflow-hidden rounded-md border bg-background pl-3 pr-1 py-3',
+                dir === "rtl" && "pl-1 pr-3",
                 hasMobileDetails && 'relative',
                 onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
                 renderRowClassName(item, index),
@@ -262,7 +262,7 @@ export function ListGenerator<T>({
               )}
               {hasMobileDetails && isExpanded && (
                 <div className="col-span-full mt-2 px-0 pt-1 md:hidden">
-                  <div className="flex items-center justify-between gap-4 px-3">
+                  <div className="flex items-center justify-between gap-4">
                     <div className="flex gap-3 items-center flex-wrap">
                       {mobileDetailsColumns
                         .filter(column => column.header)
