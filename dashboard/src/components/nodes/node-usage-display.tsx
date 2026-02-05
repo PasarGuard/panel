@@ -33,7 +33,7 @@ export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
   }
 
   if (totalUsed === 0 && !dataLimit && totalLifetime === 0) {
-    return null
+    return <div>-</div>
   }
 
   return (

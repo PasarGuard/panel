@@ -34,7 +34,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus }: UseNodeListColumn
       {
         id: 'name',
         header: t('name', { defaultValue: 'Name' }),
-        width: '2fr',
+        width: '4fr',
         cell: node => (
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn('h-2 w-2 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
@@ -45,7 +45,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus }: UseNodeListColumn
       {
         id: 'address',
         header: t('address', { defaultValue: 'Address' }),
-        width: '2fr',
+        width: '1fr',
         cell: node => (
           <div dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
             {node.address}:{node.port}
@@ -56,7 +56,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus }: UseNodeListColumn
       {
         id: 'usage',
         header: t('usage', { defaultValue: 'Usage' }),
-        width: '3fr',
+        width: '1fr',
         cell: node => <NodeUsageDisplay node={node} />,
         hideOnMobile: true,
       },
