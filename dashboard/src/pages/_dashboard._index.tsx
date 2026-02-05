@@ -1,5 +1,6 @@
 import AdminStatisticsCard from '@/components/dashboard/admin-statistics-card'
 import DashboardStatistics from '@/components/dashboard/dashboard-statistics'
+import WorkersHealthCard from '@/components/dashboard/workers-health-card'
 import AdminModal, { adminFormSchema, AdminFormValues } from '@/components/dialogs/admin-modal'
 import { coreConfigFormSchema, CoreConfigFormValues } from '@/components/dialogs/core-config-modal'
 import GroupModal, { groupFormSchema, GroupFormValues } from '@/components/dialogs/group-modal'
@@ -354,6 +355,11 @@ const Dashboard = () => {
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
             <DashboardStatistics systemData={systemStatsData} />
           </div>
+          {is_sudo && (
+            <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '180ms', animationFillMode: 'both' }}>
+              <WorkersHealthCard />
+            </div>
+          )}
           <Separator className="my-4" />
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
             {is_sudo ? (
