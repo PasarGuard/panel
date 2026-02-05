@@ -19,7 +19,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseH
       {
         id: 'remark',
         header: t('name', { defaultValue: 'Name' }),
-        width: '2fr',
+        width: '3fr',
         cell: host => (
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn('h-2 w-2 shrink-0 rounded-full', host.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
@@ -30,7 +30,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseH
       {
         id: 'address',
         header: t('address', { defaultValue: 'Address' }),
-        width: '2fr',
+        width: '1fr',
         cell: host => (
           <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
             {Array.isArray(host.address) ? host.address[0] || '' : (host.address ?? '')}:{host.port === null ? 'auto' : host.port}
@@ -41,7 +41,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseH
       {
         id: 'inbound',
         header: t('inbound', { defaultValue: 'Inbound' }),
-        width: '1.5fr',
+        width: '1fr',
         cell: host => <span className="truncate text-xs text-muted-foreground">{host.inbound_tag ?? ''}</span>,
         hideOnMobile: true,
       },
