@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { ChevronDown, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import useDirDetection from "@/hooks/use-dir-detection.ts";
+import useDirDetection from '@/hooks/use-dir-detection'
 
 export type ListColumnAlign = 'start' | 'center' | 'end'
 export type ListLayoutMode = 'list' | 'grid'
@@ -37,6 +39,8 @@ interface ListGeneratorProps<T> {
   gridStyle?: React.CSSProperties
   renderGridItem?: (item: T, index: number) => React.ReactNode
   renderGridSkeleton?: (index: number) => React.ReactNode
+  enableSorting?: boolean
+  sortingDisabled?: boolean
 }
 
 const getAlignClass = (align?: ListColumnAlign) => {
@@ -68,6 +72,8 @@ export function ListGenerator<T>({
   gridStyle,
   renderGridItem,
   renderGridSkeleton,
+  enableSorting = false,
+  sortingDisabled = false,
 }: ListGeneratorProps<T>) {
   const templateColumns = useMemo(() => columns.map(column => column.width ?? 'minmax(0, 1fr)').join(' '), [columns])
   const [expandedRowId, setExpandedRowId] = useState<string | number | null>(null)
@@ -84,6 +90,7 @@ export function ListGenerator<T>({
   const showRows = !isLoading && hasData
   const mobileDetailsColumns = useMemo(() => columns.filter(column => column.hideOnMobile), [columns])
   const hasMobileDetails = mobileDetailsColumns.length > 0
+  const listTemplateColumns = useMemo(() => (enableSorting ? `24px ${templateColumns}` : templateColumns), [enableSorting, templateColumns])
   const dir = useDirDetection()
   const gridContent = (showRows || isLoading) && renderGridItem
 
@@ -123,8 +130,9 @@ export function ListGenerator<T>({
       {!hideHeader && (
         <div
           className={cn('grid gap-3 px-3 text-xs font-semibold uppercase text-muted-foreground', headerClassName)}
-          style={{ gridTemplateColumns: templateColumns }}
+          style={{ gridTemplateColumns: listTemplateColumns }}
         >
+          {enableSorting && <div aria-hidden="true" />}
           {columns.map(column => (
             <div
               dir={dir}
@@ -147,8 +155,9 @@ export function ListGenerator<T>({
           <div
             key={`list-skeleton-${rowIndex}`}
             className="grid gap-3 rounded-md border bg-background px-3 py-3"
-            style={{ gridTemplateColumns: templateColumns }}
+            style={{ gridTemplateColumns: listTemplateColumns }}
           >
+            {enableSorting && <div aria-hidden="true" />}
             {columns.map(column => (
               <div
                 key={`${column.id}-${rowIndex}`}
@@ -170,9 +179,8 @@ export function ListGenerator<T>({
           const rowId = getRowId(item)
           const isExpanded = hasMobileDetails && expandedRowId === rowId
 
-          return (
+          const RowContent = (props?: { attributes?: any; listeners?: any; style?: React.CSSProperties }) => (
             <div
-              key={rowId}
               className={cn(
                 'grid gap-3 overflow-hidden rounded-md border bg-background pl-3 py-3',
                 dir === "rtl" && "pl-0 pr-3",
@@ -180,9 +188,25 @@ export function ListGenerator<T>({
                 onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
                 renderRowClassName(item, index),
               )}
-              style={{ gridTemplateColumns: templateColumns }}
+              style={{ gridTemplateColumns: listTemplateColumns, ...props?.style }}
               onClick={() => onRowClick?.(item)}
+              {...props?.attributes}
             >
+              {enableSorting && (
+                <button
+                  type="button"
+                  className={cn(
+                    'flex items-center justify-center text-muted-foreground touch-none',
+                    sortingDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-grab z-50',
+                  )}
+                  onClick={event => event.stopPropagation()}
+                  {...props?.listeners}
+                  aria-label="Drag to reorder"
+                >
+                  <GripVertical className="h-5 w-5" />
+                  <span className="sr-only">Drag to reorder</span>
+                </button>
+              )}
               {columns.map(column => (
                 <div
                   key={`${column.id}-${rowId}`}
@@ -237,6 +261,30 @@ export function ListGenerator<T>({
               )}
             </div>
           )
+
+          if (!enableSorting) {
+            return <RowContent key={rowId} />
+          }
+
+          const SortableRow = () => {
+            const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+              id: rowId,
+              disabled: sortingDisabled,
+            })
+
+            const style = {
+              transform: CSS.Transform.toString(transform),
+              transition,
+            }
+
+            return (
+              <div ref={setNodeRef}>
+                <RowContent attributes={attributes} listeners={listeners} style={style} />
+              </div>
+            )
+          }
+
+          return <SortableRow key={rowId} />
         })}
 
       {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}

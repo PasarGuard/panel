@@ -1053,17 +1053,23 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         </DndContext>
       )}
       {(isCurrentlyLoading || filteredHosts.length > 0) && viewMode === 'list' && (
-        <ListGenerator
-          data={filteredHosts}
-          columns={listColumns}
-          getRowId={host => host.id ?? host.remark ?? 'host'}
-          isLoading={isCurrentlyLoading}
-          loadingRows={6}
-          className="gap-3"
-          mode="list"
-          showEmptyState={false}
-          onRowClick={handleEdit}
-        />
+        <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
+            <ListGenerator
+              data={filteredHosts}
+              columns={listColumns}
+              getRowId={host => host.id ?? host.remark ?? 'host'}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-3 max-w-screen-[2000px] min-h-screen overflow-hidden"
+              mode="list"
+              showEmptyState={false}
+              onRowClick={handleEdit}
+              enableSorting
+              sortingDisabled={isUpdatingPriorities}
+            />
+          </SortableContext>
+        </DndContext>
       )}
       {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
