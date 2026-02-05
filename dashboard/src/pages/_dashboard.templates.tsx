@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator.tsx'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 
-import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValue } from '@/components/dialogs/user-template-modal.tsx'
+import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValueInput } from '@/components/dialogs/user-template-modal.tsx'
 import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -19,7 +19,7 @@ import { Search, X } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 
-const initialDefaultValues: Partial<UserTemplatesFromValue> = {
+const initialDefaultValues: Partial<UserTemplatesFromValueInput> = {
   name: '',
   status: 'active',
   username_prefix: '',
@@ -38,7 +38,7 @@ export default function UserTemplates() {
   const [editingUserTemplate, setEditingUserTemplate] = useState<UserTemplateResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const { data: userTemplates, isLoading, isFetching, refetch } = useGetUserTemplates()
-  const form = useForm<UserTemplatesFromValue>({
+  const form = useForm<UserTemplatesFromValueInput>({
     resolver: zodResolver(userTemplateFormSchema),
   })
   const { t } = useTranslation()

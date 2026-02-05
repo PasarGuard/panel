@@ -1,14 +1,14 @@
 import AdminStatisticsCard from '@/components/dashboard/admin-statistics-card'
 import DashboardStatistics from '@/components/dashboard/dashboard-statistics'
 import WorkersHealthCard from '@/components/dashboard/workers-health-card'
-import AdminModal, { adminFormSchema, AdminFormValues } from '@/components/dialogs/admin-modal'
+import AdminModal, { adminFormSchema, AdminFormValuesInput } from '@/components/dialogs/admin-modal'
 import { coreConfigFormSchema, CoreConfigFormValues } from '@/components/dialogs/core-config-modal'
 import GroupModal, { groupFormSchema, GroupFormValues } from '@/components/dialogs/group-modal'
 import HostModal from '@/components/dialogs/host-modal'
 import NodeModal, { nodeFormSchema, NodeFormValues } from '@/components/dialogs/node-modal'
 import QuickActionsModal from '@/components/dialogs/shortcuts-modal'
 import UserModal from '@/components/dialogs/user-modal'
-import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValue } from '@/components/dialogs/user-template-modal'
+import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValueInput } from '@/components/dialogs/user-template-modal'
 import { HostFormValues } from '@/components/hosts/hosts-list'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -148,7 +148,7 @@ const Dashboard = () => {
     },
   })
 
-  const adminForm = useForm<AdminFormValues>({
+  const adminForm = useForm<AdminFormValuesInput>({
     resolver: zodResolver(adminFormSchema),
     defaultValues: {
       username: '',
@@ -175,7 +175,7 @@ const Dashboard = () => {
     },
   })
 
-  const templateForm = useForm<UserTemplatesFromValue>({
+  const templateForm = useForm<UserTemplatesFromValueInput>({
     resolver: zodResolver(userTemplateFormSchema),
     defaultValues: {
       name: '',

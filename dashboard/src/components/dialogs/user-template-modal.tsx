@@ -43,12 +43,13 @@ export const userTemplateFormSchema = z.object({
   reset_usages: z.boolean().optional(),
 })
 
+export type UserTemplatesFromValueInput = z.input<typeof userTemplateFormSchema>
 export type UserTemplatesFromValue = z.infer<typeof userTemplateFormSchema>
 
 interface UserTemplatesModalprops {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
-  form: UseFormReturn<UserTemplatesFromValue>
+  form: UseFormReturn<UserTemplatesFromValueInput>
   editingUserTemplate: boolean
   editingUserTemplateId?: number
 }
@@ -62,9 +63,10 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const [timeType, setTimeType] = useState<'seconds' | 'hours' | 'days'>('seconds')
   const [loading, setLoading] = useState(false)
 
-  const onSubmit = async (values: UserTemplatesFromValue) => {
+  const onSubmit = async (values: UserTemplatesFromValueInput) => {
     setLoading(true)
     try {
+      const status = values.status ?? UserStatusCreate.active
       // Build payload according to UserTemplateCreate interface
       const submitData = {
         name: values.name,
@@ -73,8 +75,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         username_prefix: values.username_prefix || '',
         username_suffix: values.username_suffix || '',
         group_ids: values.groups, // map groups to group_ids
-        status: values.status,
-        on_hold_timeout: values.status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
+        status,
+        on_hold_timeout: status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
         data_limit_reset_strategy: values.data_limit ? values.data_limit_reset_strategy : undefined,
         reset_usages: values.reset_usages,
         extra_settings:

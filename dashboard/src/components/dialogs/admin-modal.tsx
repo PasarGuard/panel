@@ -25,7 +25,7 @@ interface AdminModalProps {
   onOpenChange: (open: boolean) => void
   editingAdmin?: boolean
   editingAdminUserName: string
-  form: UseFormReturn<AdminFormValues>
+  form: UseFormReturn<AdminFormValuesInput>
 }
 
 const passwordValidation = z.string().refine(
@@ -131,6 +131,7 @@ export const adminFormSchema = z
     }
   })
 
+export type AdminFormValuesInput = z.input<typeof adminFormSchema>
 export type AdminFormValues = z.infer<typeof adminFormSchema>
 export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUserName, editingAdmin, form }: AdminModalProps) {
   const { t } = useTranslation()
@@ -157,10 +158,10 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
     onOpenChange(open)
   }
 
-  const onSubmit = async (values: AdminFormValues) => {
+  const onSubmit = async (values: AdminFormValuesInput) => {
     try {
       const editData = {
-        is_sudo: values.is_sudo,
+        is_sudo: values.is_sudo ?? false,
         password: values.password || undefined,
         is_disabled: values.is_disabled,
         discord_webhook: values.discord_webhook,
@@ -187,6 +188,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
         if (!values.password) return
         const createData = {
           ...values,
+          is_sudo: values.is_sudo ?? false,
           password: values.password, // Ensure password is present
         }
         await addAdminMutation.mutateAsync({
