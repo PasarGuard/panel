@@ -12,6 +12,7 @@ from app import on_shutdown, on_startup
 from app.models.settings import RunMethod, Telegram
 from app.settings import telegram_settings
 from app.utils.logger import get_logger
+from app.nats import is_nats_enabled
 
 from .handlers import include_routers
 from .middlewares import setup_middlewares
@@ -49,7 +50,7 @@ class TelegramBotManager:
             settings.webhook_secret,
         )
 
-    async def sync_from_settings(self, force: bool = False):
+    async def sync_from_settings(self, force: bool = False, is_initiator: bool = False):
         settings: Telegram = await telegram_settings()
         async with self._lock:
             if self._stop_requested:
@@ -62,7 +63,7 @@ class TelegramBotManager:
             await self._shutdown_locked()
 
             if settings and settings.enable:
-                await self._start_locked(settings)
+                await self._start_locked(settings, is_initiator=is_initiator)
 
             self._settings_key = new_key
 
@@ -71,7 +72,14 @@ class TelegramBotManager:
             self._stop_requested = True
             await self._shutdown_locked()
 
-    async def _start_locked(self, settings: Telegram):
+    async def _start_locked(self, settings: Telegram, is_initiator: bool = False):
+        if settings.method == RunMethod.LONGPOLLING and is_nats_enabled():
+            logger.warning(
+                "Long polling is not supported in multi-worker mode, skipping bot start. "
+                "Please use webhook method or disable NATS and set UVICORN_WORKERS=1."
+            )
+            return
+
         logger.info("Telegram bot starting")
         session = AiohttpSession(proxy=settings.proxy_url)
         self._bot = Bot(token=settings.token, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -90,16 +98,19 @@ class TelegramBotManager:
             if settings.method == RunMethod.LONGPOLLING:
                 self._polling_task = asyncio.create_task(self._dp.start_polling(self._bot, handle_signals=False))
             else:
-                # register webhook
+                # register webhook (only the initiator worker calls set_webhook to avoid rate limits)
                 webhook_address = f"{settings.webhook_url}/api/tghook"
                 logger.info(webhook_address)
-                await self._bot.set_webhook(
-                    webhook_address,
-                    secret_token=settings.webhook_secret,
-                    allowed_updates=["message", "callback_query", "inline_query"],
-                    drop_pending_updates=True,
-                )
-                logger.info("Telegram bot started successfully.")
+                if is_initiator:
+                    await self._bot.set_webhook(
+                        webhook_address,
+                        secret_token=settings.webhook_secret,
+                        allowed_updates=["message", "callback_query", "inline_query"],
+                        drop_pending_updates=True,
+                    )
+                    logger.info("Telegram bot started successfully.")
+                else:
+                    logger.info("Telegram bot dispatcher ready (webhook set by initiator worker).")
         except (
             TelegramNetworkError,
             ProxyConnectionError,
@@ -160,7 +171,7 @@ def get_dispatcher():
 
 
 async def startup_telegram_bot():
-    await telegram_bot_manager.sync_from_settings(force=True)
+    await telegram_bot_manager.sync_from_settings(force=True, is_initiator=True)
 
 
 async def shutdown_telegram_bot():
