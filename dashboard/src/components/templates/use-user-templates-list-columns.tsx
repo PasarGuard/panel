@@ -20,7 +20,7 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus }: UseUserT
       {
         id: 'name',
         header: t('name', { defaultValue: 'Name' }),
-        width: '2fr',
+        width: '3fr',
         cell: template => (
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn('h-2 w-2 shrink-0 rounded-full', template.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
@@ -31,7 +31,7 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus }: UseUserT
       {
         id: 'dataLimit',
         header: t('userDialog.dataLimit', { defaultValue: 'Data Limit' }),
-        width: '1.5fr',
+        width: '1fr',
         cell: template => (
           <span dir="ltr" className="text-xs text-muted-foreground">
             {!template.data_limit || template.data_limit === 0 ? <Infinity className="inline h-4 w-4" /> : formatBytes(template.data_limit)}
@@ -42,7 +42,7 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus }: UseUserT
       {
         id: 'expire',
         header: t('expire', { defaultValue: 'Expire' }),
-        width: '1.5fr',
+        width: '1fr',
         cell: template => (
           <span className="text-xs text-muted-foreground">
             {!template.expire_duration || template.expire_duration === 0 ? (
