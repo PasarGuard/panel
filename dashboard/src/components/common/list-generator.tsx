@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import useDirDetection from "@/hooks/use-dir-detection.ts";
 
 export type ListColumnAlign = 'start' | 'center' | 'end'
 export type ListLayoutMode = 'list' | 'grid'
@@ -40,11 +42,11 @@ interface ListGeneratorProps<T> {
 const getAlignClass = (align?: ListColumnAlign) => {
   switch (align) {
     case 'center':
-      return 'justify-center text-center'
+      return 'justify-center'
     case 'end':
-      return 'justify-end text-right'
+      return 'justify-end'
     default:
-      return 'justify-start text-left'
+      return 'justify-start'
   }
 }
 
@@ -68,6 +70,7 @@ export function ListGenerator<T>({
   renderGridSkeleton,
 }: ListGeneratorProps<T>) {
   const templateColumns = useMemo(() => columns.map(column => column.width ?? 'minmax(0, 1fr)').join(' '), [columns])
+  const [expandedRowId, setExpandedRowId] = useState<string | number | null>(null)
 
   const renderRowClassName = (item: T, index: number) => {
     if (typeof rowClassName === 'function') {
@@ -79,7 +82,9 @@ export function ListGenerator<T>({
   const hasData = data.length > 0
   const shouldShowEmptyState = showEmptyState && !isLoading && !hasData
   const showRows = !isLoading && hasData
-
+  const mobileDetailsColumns = useMemo(() => columns.filter(column => column.hideOnMobile), [columns])
+  const hasMobileDetails = mobileDetailsColumns.length > 0
+  const dir = useDirDetection()
   const gridContent = (showRows || isLoading) && renderGridItem
 
   if (mode === 'grid') {
@@ -122,6 +127,7 @@ export function ListGenerator<T>({
         >
           {columns.map(column => (
             <div
+              dir={dir}
               key={column.id}
               className={cn(
                 'min-w-0 truncate',
@@ -160,32 +166,78 @@ export function ListGenerator<T>({
         ))}
 
       {showRows &&
-        data.map((item, index) => (
-          <div
-            key={getRowId(item)}
-            className={cn(
-              'grid gap-3 rounded-md border bg-background px-3 py-3',
-              onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
-              renderRowClassName(item, index),
-            )}
-            style={{ gridTemplateColumns: templateColumns }}
-            onClick={() => onRowClick?.(item)}
-          >
-            {columns.map(column => (
-              <div
-                key={`${column.id}-${getRowId(item)}`}
-                className={cn(
-                  'flex min-w-0 items-center',
-                  getAlignClass(column.align),
-                  column.hideOnMobile && 'hidden md:flex',
-                  column.className,
-                )}
-              >
-                {column.cell(item)}
-              </div>
-            ))}
-          </div>
-        ))}
+        data.map((item, index) => {
+          const rowId = getRowId(item)
+          const isExpanded = hasMobileDetails && expandedRowId === rowId
+
+          return (
+            <div
+              key={rowId}
+              className={cn(
+                'grid gap-3 overflow-hidden rounded-md border bg-background pl-3 py-3',
+                dir === "rtl" && "pl-0 pr-3",
+                hasMobileDetails && 'relative',
+                onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
+                renderRowClassName(item, index),
+              )}
+              style={{ gridTemplateColumns: templateColumns }}
+              onClick={() => onRowClick?.(item)}
+            >
+              {columns.map(column => (
+                <div
+                  key={`${column.id}-${rowId}`}
+                  className={cn(
+                    'flex min-w-0 items-center justify-end',
+                    getAlignClass(column.align),
+                    column.hideOnMobile && 'hidden md:flex',
+                    column.className,
+                  )}
+                >
+                  {column.cell(item)}
+                </div>
+              ))}
+              {hasMobileDetails && (
+                <button
+                  type="button"
+                  className={cn("chevron absolute right-2 top-6 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-muted-foreground md:hidden",
+                  dir === "rtl" && "left-2 justify-end")}
+                  onClick={event => {
+                    event.stopPropagation()
+                    setExpandedRowId(prev => (prev === rowId ? null : rowId))
+                  }}
+                  aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                >
+                  <ChevronDown className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
+                </button>
+              )}
+              {hasMobileDetails && isExpanded && (
+                <div className="col-span-full mt-2 px-0 pt-1 md:hidden">
+                  <div className="flex items-center justify-between gap-4 px-3">
+                    <div className="flex gap-3 items-center flex-wrap">
+                      {mobileDetailsColumns
+                        .filter(column => column.header)
+                        .map(column => (
+                          <div key={`mobile-${column.id}-${rowId}`} className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">{column.header} :</span>
+                            <div className="flex-1 text-sm">{column.cell(item)}</div>
+                          </div>
+                        ))}
+                    </div>
+                    <div className="flex shrink-0 items-start">
+                      {mobileDetailsColumns
+                        .filter(column => !column.header)
+                        .map(column => (
+                          <div key={`mobile-actions-${column.id}-${rowId}`} className="text-sm">
+                            {column.cell(item)}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
 
       {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}
     </div>
