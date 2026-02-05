@@ -93,7 +93,7 @@ const WorkersHealthCard = () => {
                 <ServerCog className="h-4 w-4 text-primary" />
               </div>
               <div className="min-w-0">
-                <CardTitle className="truncate text-sm font-semibold">{t('workersHealth.title', { defaultValue: 'Workers Health' })}</CardTitle>
+                <CardTitle className={cn(dir === "rtl" && "text-right", "truncate text-sm font-semibold")}>{t('workersHealth.title', { defaultValue: 'Workers Health' })}</CardTitle>
                 <p className="truncate text-xs text-muted-foreground">{t('workersHealth.subtitle', { defaultValue: 'Scheduler and node worker status' })}</p>
               </div>
             </div>

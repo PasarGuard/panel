@@ -7,9 +7,14 @@ import { SystemStats } from '@/service/api'
 const UserStatisticsCard = ({ data }: { data: SystemStats | undefined }) => {
   const { t } = useTranslation()
   const totalUsers = data?.total_user ?? 0
+  const activeUsers = data?.active_users ?? 0
   const percentOfTotal = (value: number | undefined) => {
     if (!totalUsers || value === undefined || value <= 0) return null
     return Math.round((value / totalUsers) * 100)
+  }
+  const percentOfActive = (value: number | undefined) => {
+    if (!activeUsers || value === undefined || value <= 0) return null
+    return Math.round((value / activeUsers) * 100)
   }
 
   return (
@@ -40,9 +45,9 @@ const UserStatisticsCard = ({ data }: { data: SystemStats | undefined }) => {
           <div className="size-2 rounded-full bg-green-600 md:size-3" />
           <span className="truncate text-sm md:text-base">{t('statistics.onlineUsers')}</span>
           <div className="ms-auto flex items-center gap-2">
-            {percentOfTotal(data?.online_users) !== null && (
+            {percentOfActive(data?.online_users) !== null && (
               <Badge variant="secondary" className="text-[10px] md:text-xs">
-                {percentOfTotal(data?.online_users)}%
+                {percentOfActive(data?.online_users)}%
               </Badge>
             )}
             <span className="font-bold text-sm md:text-base">{data?.online_users || 0}</span>
