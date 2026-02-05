@@ -90,7 +90,32 @@ export function ListGenerator<T>({
   const showRows = !isLoading && hasData
   const mobileDetailsColumns = useMemo(() => columns.filter(column => column.hideOnMobile), [columns])
   const hasMobileDetails = mobileDetailsColumns.length > 0
-  const listTemplateColumns = useMemo(() => (enableSorting ? `24px ${templateColumns}` : templateColumns), [enableSorting, templateColumns])
+  const hasMobileTrailingWidth = useMemo(() => columns.some(column => column.hideOnMobile), [columns])
+  const mobileTemplateColumns = useMemo(() => {
+    const visibleColumns = columns
+      .filter(column => !column.hideOnMobile)
+      .map(column => column.width ?? 'minmax(0, 1fr)')
+
+    if (hasMobileTrailingWidth) {
+      visibleColumns.push('24px')
+    }
+
+    return visibleColumns.join(' ')
+  }, [columns, hasMobileTrailingWidth])
+  const listTemplateColumnsDesktop = useMemo(() => (enableSorting ? `24px ${templateColumns}` : templateColumns), [enableSorting, templateColumns])
+  const listTemplateColumnsMobile = useMemo(
+    () => (enableSorting ? `24px ${mobileTemplateColumns}` : mobileTemplateColumns),
+    [enableSorting, mobileTemplateColumns],
+  )
+  const listTemplateStyleVars = useMemo(
+    () =>
+      ({
+        '--list-cols-mobile': listTemplateColumnsMobile,
+        '--list-cols-desktop': listTemplateColumnsDesktop,
+      }) as React.CSSProperties,
+    [listTemplateColumnsMobile, listTemplateColumnsDesktop],
+  )
+  const listTemplateClassName = 'grid [grid-template-columns:var(--list-cols-mobile)] md:[grid-template-columns:var(--list-cols-desktop)]'
   const dir = useDirDetection()
   const gridContent = (showRows || isLoading) && renderGridItem
 
@@ -129,8 +154,8 @@ export function ListGenerator<T>({
     <div className={cn('flex w-full flex-col gap-2', className)}>
       {!hideHeader && (
         <div
-          className={cn('grid gap-3 px-3 text-xs font-semibold uppercase text-muted-foreground', headerClassName)}
-          style={{ gridTemplateColumns: listTemplateColumns }}
+          className={cn(listTemplateClassName, 'gap-3 px-3 text-xs font-semibold uppercase text-muted-foreground', headerClassName)}
+          style={listTemplateStyleVars}
         >
           {enableSorting && <div aria-hidden="true" />}
           {columns.map(column => (
@@ -154,8 +179,8 @@ export function ListGenerator<T>({
         Array.from({ length: loadingRows }).map((_, rowIndex) => (
           <div
             key={`list-skeleton-${rowIndex}`}
-            className="grid gap-3 rounded-md border bg-background px-3 py-3"
-            style={{ gridTemplateColumns: listTemplateColumns }}
+            className={cn(listTemplateClassName, 'gap-3 rounded-md border bg-background px-3 py-3')}
+            style={listTemplateStyleVars}
           >
             {enableSorting && <div aria-hidden="true" />}
             {columns.map(column => (
@@ -182,13 +207,14 @@ export function ListGenerator<T>({
           const RowContent = (props?: { attributes?: any; listeners?: any; style?: React.CSSProperties }) => (
             <div
               className={cn(
-                'grid gap-3 overflow-hidden rounded-md border bg-background pl-3 py-3',
+                listTemplateClassName,
+                'gap-3 overflow-hidden rounded-md border bg-background pl-3 py-3',
                 dir === "rtl" && "pl-0 pr-3",
                 hasMobileDetails && 'relative',
                 onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
                 renderRowClassName(item, index),
               )}
-              style={{ gridTemplateColumns: listTemplateColumns, ...props?.style }}
+              style={{ ...listTemplateStyleVars, ...props?.style }}
               onClick={() => onRowClick?.(item)}
               {...props?.attributes}
             >
