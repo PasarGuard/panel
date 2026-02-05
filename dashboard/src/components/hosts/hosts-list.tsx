@@ -17,8 +17,8 @@ import * as z from 'zod'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
 import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
-import { ListGenerator, ListColumn } from '@/components/common/list-generator'
-import HostActionsMenu from './host-actions-menu'
+import { ListGenerator } from '@/components/common/list-generator'
+import { useHostsListColumns } from '@/components/hosts/use-hosts-list-columns'
 
 interface Brutal {
   enable?: boolean
@@ -939,48 +939,11 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     })
   }, [sortedHosts, searchQuery])
 
-  const listColumns = useMemo<ListColumn<BaseHost>[]>(
-    () => [
-      {
-        id: 'remark',
-        header: t('name', { defaultValue: 'Name' }),
-        width: '2fr',
-        cell: host => (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className={cn('h-2 w-2 shrink-0 rounded-full', host.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
-            <span className="truncate font-medium">{host.remark ?? ''}</span>
-          </div>
-        ),
-      },
-      {
-        id: 'address',
-        header: t('address', { defaultValue: 'Address' }),
-        width: '2fr',
-        cell: host => (
-          <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
-            {Array.isArray(host.address) ? host.address[0] || '' : (host.address ?? '')}:{host.port === null ? 'auto' : host.port}
-          </span>
-        ),
-        hideOnMobile: true,
-      },
-      {
-        id: 'inbound',
-        header: t('inbound', { defaultValue: 'Inbound' }),
-        width: '1.5fr',
-        cell: host => <span className="truncate text-xs text-muted-foreground">{host.inbound_tag ?? ''}</span>,
-        hideOnMobile: true,
-      },
-      {
-        id: 'actions',
-        header: '',
-        width: '64px',
-        align: 'end',
-        hideOnMobile: true,
-        cell: host => <HostActionsMenu host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} />,
-      },
-    ],
-    [t, handleEdit, handleDuplicate, refreshHostsData],
-  )
+  const listColumns = useHostsListColumns({
+    onEdit: handleEdit,
+    onDuplicate: handleDuplicate,
+    onDataChanged: refreshHostsData,
+  })
 
   const isCurrentlyLoading = !data || (isRefreshing && sortedHosts.length === 0)
   const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !searchQuery.trim() && sortedHosts.length === 0

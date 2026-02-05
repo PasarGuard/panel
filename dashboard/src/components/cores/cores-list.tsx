@@ -17,8 +17,8 @@ import { Button } from '@/components/ui/button'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
-import { ListGenerator, ListColumn } from '@/components/common/list-generator'
-import CoreActionsMenu from '@/components/cores/core-actions-menu'
+import { ListGenerator } from '@/components/common/list-generator'
+import { useCoresListColumns } from '@/components/cores/use-cores-list-columns'
 
 const initialDefaultValues: Partial<CoreConfigFormValues> = {
   name: '',
@@ -135,48 +135,11 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     handleEdit(core)
   }
 
-  const listColumns = useMemo<ListColumn<CoreResponse>[]>(
-    () => [
-      {
-        id: 'name',
-        header: t('name', { defaultValue: 'Name' }),
-        width: '2.5fr',
-        cell: core => (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
-            <span className="truncate font-medium">{core.name}</span>
-          </div>
-        ),
-      },
-      {
-        id: 'id',
-        header: t('id', { defaultValue: 'ID' }),
-        width: '24px',
-        cell: core => (
-          <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
-            {core.id}
-          </span>
-        ),
-        hideOnMobile: true,
-      },
-      {
-        id: 'actions',
-        header: '',
-        width: '24px',
-        align: 'end',
-        hideOnMobile: true,
-        cell: core => (
-          <CoreActionsMenu
-            core={core}
-            onEdit={handleRowEdit}
-            onDuplicate={onDuplicateCore ? () => onDuplicateCore(core.id) : undefined}
-            onDelete={onDeleteCore ? () => onDeleteCore(core.name, core.id) : undefined}
-          />
-        ),
-      },
-    ],
-    [t, onEditCore, onDuplicateCore, onDeleteCore],
-  )
+  const listColumns = useCoresListColumns({
+    onEdit: handleRowEdit,
+    onDuplicate: onDuplicateCore,
+    onDelete: onDeleteCore,
+  })
 
   return (
     <div className={cn('flex w-full flex-col gap-4 pt-4', dir === 'rtl' && 'rtl')}>

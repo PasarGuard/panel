@@ -1,7 +1,7 @@
 import UserTemplate from '../components/templates/user-template'
 import { useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse, ShadowsocksMethods, XTLSFlows } from '@/service/api'
 import PageHeader from '@/components/layout/page-header'
-import { Infinity, Plus, RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { Separator } from '@/components/ui/separator.tsx'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,9 +19,8 @@ import { Search, X } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
-import { ListGenerator, ListColumn } from '@/components/common/list-generator'
-import UserTemplateActionsMenu from '@/components/templates/user-template-actions-menu'
-import { formatBytes } from '@/utils/formatByte'
+import { ListGenerator } from '@/components/common/list-generator'
+import { useUserTemplatesListColumns } from '@/components/templates/use-user-templates-list-columns'
 
 const initialDefaultValues: Partial<UserTemplatesFromValue> = {
   name: '',
@@ -119,56 +118,7 @@ export default function UserTemplates() {
     )
   }, [userTemplates, searchQuery])
 
-  const listColumns = useMemo<ListColumn<UserTemplateResponse>[]>(
-    () => [
-      {
-        id: 'name',
-        header: t('name', { defaultValue: 'Name' }),
-        width: '2fr',
-        cell: template => (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className={cn('h-2 w-2 shrink-0 rounded-full', template.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
-            <span className="truncate font-medium">{template.name}</span>
-          </div>
-        ),
-      },
-      {
-        id: 'dataLimit',
-        header: t('userDialog.dataLimit', { defaultValue: 'Data Limit' }),
-        width: '1.5fr',
-        cell: template => (
-          <span dir="ltr" className="text-xs text-muted-foreground">
-            {!template.data_limit || template.data_limit === 0 ? <Infinity className="inline h-4 w-4" /> : formatBytes(template.data_limit)}
-          </span>
-        ),
-        hideOnMobile: true,
-      },
-      {
-        id: 'expire',
-        header: t('expire', { defaultValue: 'Expire' }),
-        width: '1.5fr',
-        cell: template => (
-          <span className="text-xs text-muted-foreground">
-            {!template.expire_duration || template.expire_duration === 0 ? (
-              <Infinity className="inline h-4 w-4" />
-            ) : (
-              `${template.expire_duration / 60 / 60 / 24} ${t('dateInfo.day')}`
-            )}
-          </span>
-        ),
-        hideOnMobile: true,
-      },
-      {
-        id: 'actions',
-        header: '',
-        width: '64px',
-        align: 'end',
-        hideOnMobile: true,
-        cell: template => <UserTemplateActionsMenu template={template} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />,
-      },
-    ],
-    [t, handleEdit, handleToggleStatus],
-  )
+  const listColumns = useUserTemplatesListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus })
 
   const handleRefreshClick = async () => {
     await refetch()

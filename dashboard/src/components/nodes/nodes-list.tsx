@@ -12,9 +12,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NodeFilters, NodePaginationControls } from '@/components/nodes/node-filters'
 import NodeAdvanceSearchModal, { NodeAdvanceSearchFormValue, nodeAdvanceSearchFormSchema } from '@/components/dialogs/node-advance-search-modal'
-import { ListGenerator, ListColumn } from '@/components/common/list-generator'
-import NodeUsageDisplay from '@/components/nodes/node-usage-display'
-import NodeActionsMenu from '@/components/nodes/node-actions-menu'
+import { ListGenerator } from '@/components/common/list-generator'
+import { useNodeListColumns } from '@/components/nodes/use-node-list-columns'
 import { ViewMode } from '@/components/common/view-toggle'
 import { cn } from '@/lib/utils'
 
@@ -258,63 +257,7 @@ export default function NodesList() {
     }
   }, [calculatedTotalPages, currentPage])
 
-  const getNodeStatusDotColor = (status: NodeStatus) => {
-    switch (status) {
-      case 'connected':
-        return 'bg-green-500'
-      case 'connecting':
-        return 'bg-amber-500'
-      case 'error':
-        return 'bg-destructive'
-      case 'limited':
-        return 'bg-orange-500'
-      default:
-        return 'bg-gray-400 dark:bg-gray-600'
-    }
-  }
-
-  const listColumns = useMemo<ListColumn<NodeResponse>[]>(
-    () => [
-      {
-        id: 'name',
-        header: t('name', { defaultValue: 'Name' }),
-        width: '2fr',
-        cell: node => (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className={cn('h-2 w-2 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
-            <span className="truncate font-medium">{node.name}</span>
-          </div>
-        ),
-      },
-      {
-        id: 'address',
-        header: t('address', { defaultValue: 'Address' }),
-        width: '2fr',
-        cell: node => (
-          <div dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
-            {node.address}:{node.port}
-          </div>
-        ),
-        hideOnMobile: true,
-      },
-      {
-        id: 'usage',
-        header: t('usage', { defaultValue: 'Usage' }),
-        width: '3fr',
-        cell: node => <NodeUsageDisplay node={node} />,
-        hideOnMobile: true,
-      },
-      {
-        id: 'actions',
-        header: '',
-        width: '64px',
-        align: 'end',
-        hideOnMobile: true,
-        cell: node => <NodeActionsMenu node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />,
-      },
-    ],
-    [t, handleEdit, handleToggleStatus],
-  )
+  const listColumns = useNodeListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus })
 
   const handleAdvanceSearchSubmit = (values: NodeAdvanceSearchFormValue) => {
     setFilters(prev => ({
