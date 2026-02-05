@@ -309,6 +309,7 @@ export default function NodesList() {
         header: '',
         width: '64px',
         align: 'end',
+        hideOnMobile: true,
         cell: node => <NodeActionsMenu node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />,
       },
     ],
@@ -410,7 +411,7 @@ export default function NodesList() {
             />
           )}
 
-          {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !filters.search && !localSearchTerm && totalNodes === 0 && (
+                  {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !filters.search && !localSearchTerm && totalNodes === 0 && (
             <Card className="mb-12">
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">

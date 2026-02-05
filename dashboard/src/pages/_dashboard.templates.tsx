@@ -163,6 +163,7 @@ export default function UserTemplates() {
         header: '',
         width: '64px',
         align: 'end',
+        hideOnMobile: true,
         cell: template => <UserTemplateActionsMenu template={template} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />,
       },
     ],

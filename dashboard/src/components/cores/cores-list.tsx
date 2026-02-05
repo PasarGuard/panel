@@ -140,7 +140,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
       {
         id: 'name',
         header: t('name', { defaultValue: 'Name' }),
-        width: '2fr',
+        width: '2.5fr',
         cell: core => (
           <div className="flex min-w-0 items-center gap-2">
             <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
@@ -151,7 +151,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
       {
         id: 'id',
         header: t('id', { defaultValue: 'ID' }),
-        width: '1fr',
+        width: '24px',
         cell: core => (
           <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
             {core.id}
@@ -162,8 +162,9 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
       {
         id: 'actions',
         header: '',
-        width: '64px',
+        width: '24px',
         align: 'end',
+        hideOnMobile: true,
         cell: core => (
           <CoreActionsMenu
             core={core}

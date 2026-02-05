@@ -975,6 +975,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         header: '',
         width: '64px',
         align: 'end',
+        hideOnMobile: true,
         cell: host => <HostActionsMenu host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} />,
       },
     ],
