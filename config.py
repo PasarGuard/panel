@@ -9,7 +9,6 @@ if not TESTING:
     TESTING = config("TESTING", default=TESTING, cast=bool)
 
 SQLALCHEMY_DATABASE_URL = config("SQLALCHEMY_DATABASE_URL", default="sqlite+aiosqlite:///db.sqlite3")
-SCHEDULER_JOBSTORE_URL = config("SCHEDULER_JOBSTORE_URL", default=None)
 SQLALCHEMY_POOL_SIZE = config("SQLALCHEMY_POOL_SIZE", cast=int, default=25)
 SQLALCHEMY_MAX_OVERFLOW = config("SQLALCHEMY_MAX_OVERFLOW", cast=int, default=60)
 SQLALCHEMY_POOL_RECYCLE = config("SQLALCHEMY_POOL_RECYCLE", cast=int, default=300)
@@ -42,6 +41,15 @@ NATS_NODE_RPC_TIMEOUT = config("NATS_NODE_RPC_TIMEOUT", cast=float, default=30.0
 NATS_SCHEDULER_RPC_TIMEOUT = config("NATS_SCHEDULER_RPC_TIMEOUT", cast=float, default=5.0)
 CORE_PUBSUB_CHANNEL = config("CORE_PUBSUB_CHANNEL", default="core_hosts_updates")
 HOST_PUBSUB_CHANNEL = config("HOST_PUBSUB_CHANNEL", default="host_manager_updates")
+
+# NATS KV buckets and streams for coordination
+NATS_TELEGRAM_KV_BUCKET = config("NATS_TELEGRAM_KV_BUCKET", default="pasarguard_telegram")
+NATS_NOTIFICATION_STREAM = config("NATS_NOTIFICATION_STREAM", default="NOTIFICATIONS")
+NATS_NOTIFICATION_SUBJECT = config("NATS_NOTIFICATION_SUBJECT", default="notifications.queue")
+NATS_NOTIFICATION_CONSUMER = config("NATS_NOTIFICATION_CONSUMER", default="notification_workers")
+NATS_WEBHOOK_STREAM = config("NATS_WEBHOOK_STREAM", default="WEBHOOK_NOTIFICATIONS")
+NATS_WEBHOOK_SUBJECT = config("NATS_WEBHOOK_SUBJECT", default="notifications.webhook")
+NATS_WEBHOOK_CONSUMER = config("NATS_WEBHOOK_CONSUMER", default="webhook_workers")
 
 DEBUG = config("DEBUG", default=False, cast=bool)
 DOCS = config("DOCS", default=False, cast=bool)

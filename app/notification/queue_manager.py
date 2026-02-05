@@ -5,7 +5,15 @@ from pydantic import BaseModel, Field
 
 from app.nats import is_nats_enabled
 from app.notification.nats_queue import NatsNotificationQueue, InMemoryNotificationQueue, NotificationQueue
-from config import ROLE
+from config import (
+    ROLE,
+    NATS_NOTIFICATION_STREAM,
+    NATS_NOTIFICATION_SUBJECT,
+    NATS_NOTIFICATION_CONSUMER,
+    NATS_WEBHOOK_STREAM,
+    NATS_WEBHOOK_SUBJECT,
+    NATS_WEBHOOK_CONSUMER,
+)
 
 
 class TelegramNotification(BaseModel):
@@ -37,15 +45,23 @@ class WebhookNotification(BaseModel):
 
 
 # Telegram/Discord queue singleton
-queue_instance: NotificationQueue = NatsNotificationQueue() if is_nats_enabled() else InMemoryNotificationQueue()
+queue_instance: NotificationQueue = (
+    NatsNotificationQueue(
+        stream_name=NATS_NOTIFICATION_STREAM,
+        subject=NATS_NOTIFICATION_SUBJECT,
+        consumer_name=NATS_NOTIFICATION_CONSUMER,
+    )
+    if is_nats_enabled()
+    else InMemoryNotificationQueue()
+)
 
 
 # Webhook queue singleton
 webhook_queue_instance: NotificationQueue = (
     NatsNotificationQueue(
-        stream_name="WEBHOOK_NOTIFICATIONS",
-        subject="notifications.webhook",
-        consumer_name="webhook_workers",
+        stream_name=NATS_WEBHOOK_STREAM,
+        subject=NATS_WEBHOOK_SUBJECT,
+        consumer_name=NATS_WEBHOOK_CONSUMER,
     )
     if is_nats_enabled()
     else InMemoryNotificationQueue()
