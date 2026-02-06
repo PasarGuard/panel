@@ -43,6 +43,30 @@ interface ListGeneratorProps<T> {
   sortingDisabled?: boolean
 }
 
+interface SortableListRowProps {
+  rowId: string | number
+  sortingDisabled: boolean
+  renderRow: (props: {
+    attributes: Record<string, unknown>
+    listeners: Record<string, unknown> | undefined
+    style: React.CSSProperties
+  }) => React.ReactNode
+}
+
+function SortableListRow({ rowId, sortingDisabled, renderRow }: SortableListRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: rowId,
+    disabled: sortingDisabled,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return <div ref={setNodeRef}>{renderRow({ attributes, listeners, style })}</div>
+}
+
 const getAlignClass = (align?: ListColumnAlign) => {
   switch (align) {
     case 'center':
@@ -292,25 +316,7 @@ export function ListGenerator<T>({
             return <RowContent key={rowId} />
           }
 
-          const SortableRow = () => {
-            const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
-              id: rowId,
-              disabled: sortingDisabled,
-            })
-
-            const style = {
-              transform: CSS.Transform.toString(transform),
-              transition,
-            }
-
-            return (
-              <div ref={setNodeRef}>
-                <RowContent attributes={attributes} listeners={listeners} style={style} />
-              </div>
-            )
-          }
-
-          return <SortableRow key={rowId} />
+          return <SortableListRow key={rowId} rowId={rowId} sortingDisabled={sortingDisabled} renderRow={props => <RowContent {...props} />} />
         })}
 
       {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}
