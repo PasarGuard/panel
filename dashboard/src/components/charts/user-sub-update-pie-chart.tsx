@@ -87,6 +87,14 @@ interface CustomTooltipProps {
   label?: string
 }
 
+const formatPercentage = (value: number) => {
+  if (value > 0 && value < 0.1) {
+    return '<0.1%'
+  }
+
+  return `${value.toFixed(1)}%`
+}
+
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
   const { t } = useTranslation()
 
@@ -116,7 +124,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs text-muted-foreground">{t('statistics.percentage')}</span>
           <Badge variant="secondary" className="text-xs font-medium">
-            {percentage.toFixed(1)}%
+            {formatPercentage(percentage)}
           </Badge>
         </div>
       </div>
@@ -208,6 +216,32 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     [segments],
   )
 
+  const piePaddingAngle = useMemo(() => {
+    if (chartData.length <= 1) {
+      return 0
+    }
+
+    const validSlices = chartData.filter(segment => segment.updates > 0)
+    if (validSlices.length <= 1) {
+      return 0
+    }
+
+    const totalUpdates = validSlices.reduce((sum, segment) => sum + segment.updates, 0)
+    if (totalUpdates <= 0) {
+      return 0
+    }
+
+    const smallestSliceAngle = Math.min(...validSlices.map(segment => (segment.updates / totalUpdates) * 360))
+
+    // Keep total gap budget reasonable and avoid gap larger than tiny slices.
+    const bySegmentDensity = 36 / validSlices.length
+    const bySmallestSlice = smallestSliceAngle * 0.7
+
+    return Math.max(0, Math.min(3, bySegmentDensity, bySmallestSlice))
+  }, [chartData])
+
+  const pieStrokeWidth = chartData.length > 16 ? 1 : 2
+
   const chartConfig = useMemo<ChartConfig>(() => {
     const dynamicConfig = segments.reduce<ChartConfig>((config, segment) => {
       config[segment.key] = {
@@ -269,7 +303,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
               <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[320px] max-w-[320px] [&_.recharts-text]:fill-transparent">
                 <PieChart>
                   <ChartTooltip content={<CustomTooltip />} />
-                  <Pie data={chartData} dataKey="updates" nameKey="agent" innerRadius="55%" outerRadius="95%" paddingAngle={chartData.length > 1 ? 3 : 0} strokeWidth={2} isAnimationActive>
+                  <Pie data={chartData} dataKey="updates" nameKey="agent" innerRadius="55%" outerRadius="95%" paddingAngle={piePaddingAngle} strokeWidth={pieStrokeWidth} isAnimationActive>
                     {chartData.map(segment => (
                       <Cell key={segment.segmentKey} fill={segment.fill} />
                     ))}
@@ -296,7 +330,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                         <span dir="ltr" className="font-mono">
                           {numberWithCommas(segment.count)}
                         </span>
-                        <span className="text-xs font-normal text-muted-foreground">{segment.percentage.toFixed(1)}%</span>
+                        <span className="text-xs font-normal text-muted-foreground">{formatPercentage(segment.percentage)}</span>
                       </div>
                     </li>
                   ))}
@@ -314,7 +348,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
               <span>
                 {t('statistics.leadingClientMessage', {
                   client: leadingSegment.name,
-                  percentage: leadingSegment.percentage.toFixed(1),
+                  percentage: leadingSegment.percentage > 0 && leadingSegment.percentage < 0.1 ? '<0.1' : leadingSegment.percentage.toFixed(1),
                 })}
               </span>
             </div>
