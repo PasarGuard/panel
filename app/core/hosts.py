@@ -258,6 +258,7 @@ async def _prepare_subscription_inbound_data(
         method=ss_method,
         password=ss_password,
         encryption=encryption,
+        vless_route=host.vless_route,
         inbound_flow=inbound_flow,
         flow_enabled=flow_enabled,
         random_user_agent=host.random_user_agent,

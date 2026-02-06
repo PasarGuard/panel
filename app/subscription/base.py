@@ -143,3 +143,26 @@ class BaseSubscription:
             password = user_password
             method = user_method
         return method, password
+
+    @staticmethod
+    def vless_route(uuid: str, route: str) -> str:
+        """
+        Replace a third part of a UUID with a custom value.
+
+        Args:
+            uuid: The UUID as a string or uuid.UUID object
+            route: The value to replace the third part
+
+        Returns:
+            The modified UUID as a string with vless route
+
+        Example:
+            >>> original = "c90cff8e-d651-414e-8e83-1a187622d957"
+            >>> result = vless_route(original, "9999")
+            >>> print(result)
+            "c90cff8e-d651-9999-8e83-1a187622d957"
+        """
+
+        parts = uuid.split("-")
+        parts[2] = route
+        return "-".join(parts)

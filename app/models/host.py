@@ -235,6 +235,7 @@ class BaseHost(BaseModel):
     noise_settings: NoiseSettings | None = Field(default=None)
     random_user_agent: bool = Field(default=False)
     use_sni_as_host: bool = Field(default=False)
+    vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
     ech_config_list: str | None = Field(default=None)

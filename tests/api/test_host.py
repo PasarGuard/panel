@@ -21,6 +21,7 @@ def test_host_create(access_token):
                 "sni": [f"test_sni_{idx}.com"],
                 "inbound_tag": inbound,
                 "priority": idx + 1,
+                "vless_route": "6967" if idx == 0 else None,  # Only test vless_route on the first host
             }
             response = client.post(
                 "/api/host",

@@ -319,13 +319,18 @@ class ClashMetaConfiguration(ClashConfiguration):
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS node (Clash Meta only)"""
+        # Handle vless-route if needed (only affects ID)
+        id = settings["id"]
+        if inbound.vless_route:
+            id = self.vless_route(id, inbound.vless_route)
+
         node = {
             "name": remark,
             "type": "vless",
             "server": address,
             "port": inbound.port,
             "udp": True,
-            "uuid": settings["id"],
+            "uuid": id,
         }
         if inbound.encryption != "none":
             node["encryption"] = inbound.encryption

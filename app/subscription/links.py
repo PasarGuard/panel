@@ -239,6 +239,11 @@ class StandardLinks(BaseSubscription):
         # Process grpc path
         path = self._process_path(inbound)
 
+        # Handle vless-route if needed (only affects ID)
+        id = settings["id"]
+        if inbound.vless_route:
+            id = self.vless_route(id, inbound.vless_route)
+
         payload = {
             "encryption": inbound.encryption,
             "security": inbound.tls_config.tls,
@@ -257,9 +262,7 @@ class StandardLinks(BaseSubscription):
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
 
         payload = self._normalize_and_remove_none_values(payload)
-        return (
-            f"vless://{settings['id']}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
-        )
+        return f"vless://{id}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
 
     def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Trojan link"""

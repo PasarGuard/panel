@@ -72,7 +72,7 @@ def get_queue() -> NotificationQueue:
     return queue_instance
 
 
-async def init_queue(queue: NotificationQueue): 
+async def init_queue(queue: NotificationQueue):
     if isinstance(queue, NatsNotificationQueue):
         # Only scheduler role (and all-in-one) actually dequeue and need the consumer
         await queue.initialize(create_consumer=ROLE.runs_scheduler)
@@ -110,6 +110,7 @@ async def shutdown_queue(queue: NotificationQueue):
         queue._consumer = None
         queue._js = None
         queue._nc = None
+
 
 async def shutdown_webhook_queue():
     await shutdown_queues(webhook_queue_instance)

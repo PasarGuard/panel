@@ -396,7 +396,12 @@ class XrayConfiguration(BaseSubscription):
 
     def _build_vless(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build VLESS outbound - returns (main_outbound, extra_outbounds_list)"""
-        user_settings = {"id": str(settings["id"]), "encryption": inbound.encryption}
+        # Handle vless-route if needed (only affects ID)
+        id = settings["id"]
+        if inbound.vless_route:
+            id = self.vless_route(id, inbound.vless_route)
+
+        user_settings = {"id": id, "encryption": inbound.encryption}
 
         # Only add flow if inbound supports it
         if inbound.flow_enabled and (flow := settings.get("flow", "")):

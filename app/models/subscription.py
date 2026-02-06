@@ -234,6 +234,7 @@ class SubscriptionInboundData(BaseModel):
 
     # VLESS specific
     encryption: str = Field("none")
+    vless_route: str | None = Field(default=None)
 
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")

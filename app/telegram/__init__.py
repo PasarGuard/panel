@@ -121,7 +121,9 @@ class TelegramBotManager:
 
             if settings and settings.enable:
                 # Determine if this worker should call set_webhook
-                is_initiator = await self._try_claim_webhook_initiator(settings) if settings.method == RunMethod.WEBHOOK else False
+                is_initiator = (
+                    await self._try_claim_webhook_initiator(settings) if settings.method == RunMethod.WEBHOOK else False
+                )
                 await self._start_locked(settings, is_initiator=is_initiator)
 
             self._settings_key = new_key
