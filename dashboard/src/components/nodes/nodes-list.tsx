@@ -15,7 +15,7 @@ import NodeAdvanceSearchModal from '@/components/dialogs/node-advance-search-mod
 import { nodeAdvanceSearchFormSchema, type NodeAdvanceSearchFormValue } from '@/components/forms/node-advance-search-form'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useNodeListColumns } from '@/components/nodes/use-node-list-columns'
-import { ViewMode } from '@/components/common/view-toggle'
+import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 
 const NODES_PER_PAGE = 15
 
@@ -45,7 +45,7 @@ export default function NodesList() {
   const [allNodes, setAllNodes] = useState<NodeResponse[]>([])
   const [localSearchTerm, setLocalSearchTerm] = useState<string>('')
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [viewMode, setViewMode] = usePersistedViewMode('view-mode:nodes')
 
   const [filters, setFilters] = useState<{
     limit: number

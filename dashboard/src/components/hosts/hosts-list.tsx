@@ -16,9 +16,10 @@ import { toast } from 'sonner'
 import * as z from 'zod'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
-import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
+import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useHostsListColumns } from '@/components/hosts/use-hosts-list-columns'
+import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 
 interface Brutal {
   enable?: boolean
@@ -479,7 +480,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   const [hosts, setHosts] = useState<BaseHost[] | undefined>()
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [viewMode, setViewMode] = usePersistedViewMode('view-mode:hosts')
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const { t } = useTranslation()
   const dir = useDirDetection()

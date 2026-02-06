@@ -17,9 +17,10 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
+import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useGroupsListColumns } from '@/components/groups/use-groups-list-columns'
+import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 
 const initialDefaultValues: Partial<GroupFormValues> = {
   name: '',
@@ -35,7 +36,7 @@ interface GroupsListProps {
 export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListProps) {
   const [editingGroup, setEditingGroup] = useState<GroupResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [viewMode, setViewMode] = usePersistedViewMode('view-mode:groups')
   const { t } = useTranslation()
   const modifyGroupMutation = useModifyGroup()
   const dir = useDirDetection()

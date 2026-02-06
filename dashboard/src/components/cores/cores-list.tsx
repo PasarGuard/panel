@@ -17,9 +17,10 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
+import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useCoresListColumns } from '@/components/cores/use-cores-list-columns'
+import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 
 const initialDefaultValues: Partial<CoreConfigFormValues> = {
   name: '',
@@ -40,7 +41,7 @@ interface CoresProps {
 export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, onDuplicateCore, onDeleteCore }: CoresProps) {
   const [editingCore, setEditingCore] = useState<CoreResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [viewMode, setViewMode] = usePersistedViewMode('view-mode:cores')
   const { t } = useTranslation()
   const modifyCoreMutation = useModifyCoreConfig()
   const dir = useDirDetection()
