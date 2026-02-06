@@ -1,26 +1,12 @@
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { useVersionCheck } from '@/hooks/use-version-check'
-import { getSystemStats } from '@/service/api'
-import { useEffect, useState } from 'react'
+import { useSystemVersion } from '@/hooks/use-system-version'
 import { cn } from '@/lib/utils'
 
 export function SidebarTriggerWithBadge() {
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null)
-  const { hasUpdate, isLoading } = useVersionCheck(currentVersion)
-
-  useEffect(() => {
-    const fetchVersion = async () => {
-      try {
-        const data = await getSystemStats()
-        if (data?.version) {
-          setCurrentVersion(data.version)
-        }
-      } catch (error) {
-        console.error('Failed to fetch version:', error)
-      }
-    }
-    fetchVersion()
-  }, [])
+  const { currentVersion } = useSystemVersion()
+  const normalizedVersion = currentVersion ? currentVersion.replace(/[^0-9.]/g, '') : null
+  const { hasUpdate, isLoading } = useVersionCheck(normalizedVersion)
 
   // Show badge when there's an update available
   // The badge is especially important when sidebar is closed/collapsed, but we show it always for visibility

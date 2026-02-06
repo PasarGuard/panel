@@ -9,7 +9,7 @@ import { useCreateGroup, useModifyGroup, useGetInbounds } from '@/service/api'
 import { toast } from 'sonner'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
-import { X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { queryClient } from '@/utils/query-client'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -30,7 +30,11 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
   const handleError = useDynamicErrorHandler()
   const addGroupMutation = useCreateGroup()
   const modifyGroupMutation = useModifyGroup()
-  const { data: inbounds } = useGetInbounds()
+  const { data: inbounds, isLoading: isLoadingInbounds } = useGetInbounds({
+    query: {
+      enabled: isDialogOpen,
+    },
+  })
 
   const onSubmit = async (values: GroupFormValues) => {
     try {
@@ -105,27 +109,34 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
                     <div className="space-y-2">
                       {inbounds && inbounds.length > 0 && (
                         <div className="mb-2 flex justify-end">
-                          <Button type="button" variant="ghost" size="sm" onClick={handleSelectAll} className="h-7 text-xs">
+                          <Button type="button" variant="ghost" size="sm" onClick={handleSelectAll} className="h-7 text-xs" disabled={isLoadingInbounds}>
                             {allSelected ? t('deselectAll') : t('selectAll')}
                           </Button>
                         </div>
                       )}
                       <Command className="mb-3 rounded-md border">
-                        <CommandInput placeholder={t('searchInbounds')} />
-                        <CommandEmpty>{t('noInboundsFound')}</CommandEmpty>
+                        <CommandInput placeholder={t('searchInbounds')} disabled={isLoadingInbounds} />
+                        <CommandEmpty>{isLoadingInbounds ? t('loading', { defaultValue: 'Loading...' }) : t('noInboundsFound')}</CommandEmpty>
                         <CommandGroup dir="ltr" className="max-h-40 overflow-auto">
-                          {inbounds?.map(inbound => (
-                            <CommandItem
-                              key={inbound}
-                              onSelect={() => {
-                                const newTags = currentTags.includes(inbound) ? currentTags.filter(tag => tag !== inbound) : [...currentTags, inbound]
-                                field.onChange(newTags)
-                              }}
-                            >
-                              <div className={cn('mr-2 h-4 w-4 rounded-sm border', currentTags.includes(inbound) ? 'border-primary bg-primary' : 'border-muted')} />
-                              {inbound}
-                            </CommandItem>
-                          ))}
+                          {isLoadingInbounds ? (
+                            <div className="flex items-center justify-center gap-2 px-2 py-3 text-xs text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span>{t('loading', { defaultValue: 'Loading...' })}</span>
+                            </div>
+                          ) : (
+                            inbounds?.map(inbound => (
+                              <CommandItem
+                                key={inbound}
+                                onSelect={() => {
+                                  const newTags = currentTags.includes(inbound) ? currentTags.filter(tag => tag !== inbound) : [...currentTags, inbound]
+                                  field.onChange(newTags)
+                                }}
+                              >
+                                <div className={cn('mr-2 h-4 w-4 rounded-sm border', currentTags.includes(inbound) ? 'border-primary bg-primary' : 'border-muted')} />
+                                {inbound}
+                              </CommandItem>
+                            ))
+                          )}
                         </CommandGroup>
                       </Command>
                       <div className="flex flex-wrap gap-2">

@@ -80,7 +80,7 @@ const WorkersHealthCard = () => {
 
   return (
     <Card className="border bg-card/80" dir={dir}>
-      <CardHeader className="pb-3">
+      <CardHeader className="p-2">
         <Button
           variant="ghost"
           className="h-auto w-full px-2 py-2"
@@ -110,7 +110,7 @@ const WorkersHealthCard = () => {
           </div>
         </Button>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 px-4">
         {isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-8 w-full" />

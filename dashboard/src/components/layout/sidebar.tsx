@@ -15,9 +15,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { DISCUSSION_GROUP, DOCUMENTATION, DONATION_URL, REPO_URL } from '@/constants/Project'
 import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useSystemVersion } from '@/hooks/use-system-version'
 import { useVersionCheck } from '@/hooks/use-version-check'
 import { cn } from '@/lib/utils'
-import { getSystemStats } from '@/service/api'
 import {
   ArrowUpDown,
   Bell,
@@ -57,13 +57,14 @@ import { Link } from 'react-router'
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isRTL = useDirDetection() === 'rtl'
   const { t } = useTranslation()
-  const [version, setVersion] = useState<string>('')
+  const { currentVersion: systemVersion } = useSystemVersion()
   const { admin } = useAdmin()
   const { setOpenMobile, openMobile, state, isMobile, toggleSidebar } = useSidebar()
   const { resolvedTheme } = useTheme()
   const [showCollapseButton, setShowCollapseButton] = useState(false)
-  const currentVersion = version.replace(/[^0-9.]/g, '') || null
-  const { hasUpdate } = useVersionCheck(currentVersion)
+  const normalizedVersion = systemVersion ? systemVersion.replace(/[^0-9.]/g, '') : null
+  const displayVersion = systemVersion ? ` (v${systemVersion})` : ''
+  const { hasUpdate } = useVersionCheck(normalizedVersion)
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
   const minSwipeDistance = 50
@@ -113,20 +114,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       document.removeEventListener('touchend', handleTouchEnd)
     }
   }, [handleTouchEnd])
-
-  useEffect(() => {
-    const fetchVersion = async () => {
-      try {
-        const data = await getSystemStats()
-        if (data?.version) {
-          setVersion(` (v${data.version})`)
-        }
-      } catch (error) {
-        console.error('Failed to fetch version:', error)
-      }
-    }
-    fetchVersion()
-  }, [])
 
   const data = {
     user: {
@@ -356,7 +343,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   {/* Badge - always visible, positioned on top layer */}
                   <div className="pointer-events-none absolute inset-0 z-30">
                     <div className="relative h-full w-full">
-                      <VersionBadge currentVersion={currentVersion} />
+                      <VersionBadge currentVersion={normalizedVersion} />
                     </div>
                   </div>
                   {/* Logo - fades out on hover */}
@@ -373,7 +360,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       />
                       {hasUpdate && (
                         <TooltipProvider>
-                          <VersionBadge currentVersion={currentVersion} />
+                          <VersionBadge currentVersion={normalizedVersion} />
                         </TooltipProvider>
                       )}
                     </a>
@@ -392,7 +379,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         >
                           <PanelLeftOpen className={cn('h-6 w-6 flex-shrink-0', isRTL && 'scale-x-[-1]')} />
                           <span className="sr-only">Expand Sidebar</span>
-                          {hasUpdate && <VersionBadge currentVersion={currentVersion} />}
+                          {hasUpdate && <VersionBadge currentVersion={normalizedVersion} />}
                         </SidebarMenuButton>
                       </TooltipTrigger>
                       <TooltipContent side={isRTL ? 'left' : 'right'}>
@@ -413,10 +400,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
                         <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
                         <div className="flex min-w-0 items-center gap-1.5">
-                          <span className="shrink-0 text-xs opacity-45">{version}</span>
+                          <span className="shrink-0 text-xs opacity-45">{displayVersion}</span>
                           <div className="min-w-0 flex-1">
                             <TooltipProvider>
-                              <VersionBadge currentVersion={currentVersion} />
+                              <VersionBadge currentVersion={normalizedVersion} />
                             </TooltipProvider>
                           </div>
                         </div>
@@ -457,9 +444,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <div className="flex flex-col overflow-hidden">
                       <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs opacity-45">{version}</span>
+                        <span className="text-xs opacity-45">{displayVersion}</span>
                         <TooltipProvider>
-                          <VersionBadge currentVersion={version.replace(/[^0-9.]/g, '')} />
+                          <VersionBadge currentVersion={normalizedVersion} />
                         </TooltipProvider>
                       </div>
                     </div>

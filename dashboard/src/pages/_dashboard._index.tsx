@@ -1,6 +1,7 @@
 import AdminStatisticsCard from '@/components/dashboard/admin-statistics-card'
 import DashboardStatistics from '@/components/dashboard/dashboard-statistics'
 import WorkersHealthCard from '@/components/dashboard/workers-health-card'
+import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import AdminModal from '@/components/dialogs/admin-modal'
 import { adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
 import { coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
@@ -14,21 +15,15 @@ import UserModal from '@/components/dialogs/user-modal'
 import UserTemplateModal from '@/components/dialogs/user-template-modal'
 import { userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 import { HostFormValues } from '@/components/hosts/hosts-list'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
-import useDirDetection from '@/hooks/use-dir-detection'
+import { useAdmin } from '@/hooks/use-admin'
 import { useClipboard } from '@/hooks/use-clipboard'
-import { cn } from '@/lib/utils'
 import type { AdminDetails, UserResponse } from '@/service/api'
-import { useGetAdmins, useGetCurrentAdmin, useGetSystemStats } from '@/service/api'
+import { useGetSystemStats } from '@/service/api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
-import { useDebouncedSearch } from '@/hooks/use-debounced-search'
-import { Bookmark, Check, ChevronDown, Loader2, Sigma, UserCog, UserRound } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Bookmark } from 'lucide-react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -36,8 +31,6 @@ import PageHeader from '@/components/layout/page-header'
 import { type UseEditFormValues, type UseFormValues, getDefaultUserForm } from '@/components/forms/user-form'
 // Lazy load CoreConfigModal to prevent Monaco Editor from loading until needed
 const CoreConfigModal = lazy(() => import('@/components/dialogs/core-config-modal'))
-
-const PAGE_SIZE = 20
 
 const totalAdmin: AdminDetails = {
   username: 'Total',
@@ -53,75 +46,10 @@ const Dashboard = () => {
   const [isTemplateModalOpen, setTemplateModalOpen] = useState(false)
   const [isCoreModalOpen, setCoreModalOpen] = useState(false)
   const [isQuickActionsModalOpen, setQuickActionsModalOpen] = useState(false)
-  const { data: currentAdmin } = useGetCurrentAdmin()
+  const { admin: currentAdmin } = useAdmin()
   const is_sudo = currentAdmin?.is_sudo || false
 
-  // Admin search state - only for sudo admins
   const [selectedAdmin, setSelectedAdmin] = useState<AdminDetails | undefined>(totalAdmin)
-  const [offset, setOffset] = useState(0)
-  const [admins, setAdmins] = useState<AdminDetails[]>([])
-  const [hasMore, setHasMore] = useState(true)
-  const [isLoading, setIsLoading] = useState(false)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
-  const { debouncedSearch: adminSearch, setSearch: setAdminSearchInput } = useDebouncedSearch('', 300)
-
-  // Handle debounced search side effects - only for sudo admins
-  useEffect(() => {
-    if (!is_sudo) return // Don't run for non-sudo admins
-    setOffset(0)
-    setAdmins([])
-    setHasMore(true)
-  }, [adminSearch, is_sudo])
-
-  // In the useGetAdmins call, only set username if searching and not current admin or 'system'
-  let usernameParam: string | undefined = undefined
-  if (is_sudo && adminSearch && adminSearch !== 'system' && adminSearch !== currentAdmin?.username) {
-    usernameParam = adminSearch
-  }
-
-  // Only fetch admins for sudo admins
-  const { data: fetchedAdminsResponse } = useGetAdmins(
-    {
-      limit: PAGE_SIZE,
-      offset,
-      ...(usernameParam ? { username: usernameParam } : {}),
-    },
-    {
-      query: {
-        enabled: is_sudo, // Only fetch admins for sudo admins
-      },
-    },
-  )
-
-  // When fetchedAdmins changes, update admins and hasMore - only for sudo admins
-  useEffect(() => {
-    if (!is_sudo) return // Don't run for non-sudo admins
-    if (fetchedAdminsResponse) {
-      const fetchedAdmins = fetchedAdminsResponse.admins || []
-      setAdmins(prev => (offset === 0 ? fetchedAdmins : [...prev, ...fetchedAdmins]))
-      setHasMore(fetchedAdmins.length === PAGE_SIZE)
-      setIsLoading(false)
-    }
-  }, [fetchedAdminsResponse, offset, is_sudo])
-
-  // Infinite scroll - only for sudo admins
-  const handleScroll = useCallback(() => {
-    if (!is_sudo || !listRef.current || isLoading || !hasMore) return
-    const { scrollTop, scrollHeight, clientHeight } = listRef.current
-    if (scrollHeight - scrollTop - clientHeight < 100) {
-      setIsLoading(true)
-      setOffset(prev => prev + PAGE_SIZE)
-    }
-  }, [isLoading, hasMore, is_sudo])
-
-  useEffect(() => {
-    if (!is_sudo) return // Don't add scroll listeners for non-sudo admins
-    const el = listRef.current
-    if (!el) return
-    el.addEventListener('scroll', handleScroll)
-    return () => el.removeEventListener('scroll', handleScroll)
-  }, [handleScroll, is_sudo])
 
   const userForm = useForm<UseFormValues | UseEditFormValues>({
     defaultValues: getDefaultUserForm,
@@ -234,7 +162,6 @@ const Dashboard = () => {
 
   const queryClient = useQueryClient()
   const { t } = useTranslation()
-  const dir = useDirDetection()
   const { copy } = useClipboard()
 
   const refreshAllUserData = () => {
@@ -327,13 +254,6 @@ const Dashboard = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Auto-select current admin when it loads - only for sudo admins
-  useEffect(() => {
-    if (is_sudo && currentAdmin && !selectedAdmin) {
-      setSelectedAdmin(totalAdmin)
-    }
-  }, [currentAdmin, selectedAdmin, is_sudo])
-
   // Only send admin_username if selectedAdmin is explicitly set and not 'Total'
   // When current admin is selected, we want to show their specific stats, not global stats
   const systemStatsParams = is_sudo && selectedAdmin && selectedAdmin.username !== 'Total' ? { admin_username: selectedAdmin.username } : undefined
@@ -343,9 +263,6 @@ const Dashboard = () => {
       refetchInterval: 5000,
     },
   })
-
-  // Filter out current admin and 'system' - only for sudo admins
-  const filteredAdmins = is_sudo ? admins.filter(admin => admin.username !== currentAdmin?.username && admin.username !== 'system') : []
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
@@ -368,98 +285,25 @@ const Dashboard = () => {
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
             {is_sudo ? (
               <>
-                {/* Admin Switcher for Sudo */}
-                <div className="relative mb-3 w-full max-w-xs sm:mb-4 sm:max-w-sm lg:max-w-md" dir={dir}>
-                  <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn('h-8 w-full justify-between px-2 transition-colors hover:bg-muted/50 sm:h-9 sm:px-3', 'min-w-0 text-xs font-medium sm:text-sm')}>
-                        <div className={cn('flex min-w-0 flex-1 items-center gap-1 sm:gap-2', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}>
-                          <Avatar className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5">
-                            <AvatarFallback className="bg-muted text-xs font-medium">
-                              {selectedAdmin?.username === 'Total' ? <Sigma className="h-3 w-3" /> : selectedAdmin?.username?.charAt(0).toUpperCase() || '?'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="truncate text-xs sm:text-sm">{selectedAdmin?.username === 'Total' ? t('admins.total') : selectedAdmin?.username || t('advanceSearch.selectAdmin')}</span>
-                          {selectedAdmin && selectedAdmin.username !== 'Total' && (
-                            <div className="flex-shrink-0">{selectedAdmin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}</div>
-                          )}
-                        </div>
-                        <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-1 sm:w-72 lg:w-80" sideOffset={4} align={dir === 'rtl' ? 'end' : 'start'}>
-                      <Command>
-                        <CommandInput placeholder={t('search')} onValueChange={setAdminSearchInput} className="mb-1 h-7 text-xs sm:h-8 sm:text-sm" />
-                        <CommandList ref={listRef}>
-                          <CommandEmpty>
-                            <div className="py-3 text-center text-xs text-muted-foreground sm:py-4 sm:text-sm">{t('noAdminsFound') || 'No admins found'}</div>
-                          </CommandEmpty>
-
-                          <CommandItem
-                            onSelect={() => {
-                              setSelectedAdmin(totalAdmin)
-                              setDropdownOpen(false)
-                            }}
-                            className={cn('flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs sm:text-sm', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}
-                          >
-                            <Avatar className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5">
-                              <AvatarFallback className="bg-primary/10 text-xs font-medium">
-                                <Sigma className="h-3 w-3" />
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="flex-1 truncate">{t('admins.total')}</span>
-                            <div className="flex flex-shrink-0 items-center gap-1">{selectedAdmin?.username === 'Total' && <Check className="h-3 w-3 text-primary" />}</div>
-                          </CommandItem>
-
-                          {currentAdmin && (
-                            <CommandItem
-                              onSelect={() => {
-                                setSelectedAdmin(currentAdmin)
-                                setDropdownOpen(false)
-                              }}
-                              className={cn('flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs sm:text-sm', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}
-                            >
-                              <Avatar className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5">
-                                <AvatarFallback className="bg-primary/10 text-xs font-medium">{currentAdmin.username.charAt(0).toUpperCase()}</AvatarFallback>
-                              </Avatar>
-                              <span className="flex-1 truncate">{currentAdmin.username}</span>
-                              <div className="flex flex-shrink-0 items-center gap-1">
-                                {currentAdmin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}
-                                {selectedAdmin?.username === currentAdmin.username && <Check className="h-3 w-3 text-primary" />}
-                              </div>
-                            </CommandItem>
-                          )}
-
-                          {filteredAdmins.map(admin => (
-                            <CommandItem
-                              key={admin.username}
-                              onSelect={() => {
-                                setSelectedAdmin(admin)
-                                setDropdownOpen(false)
-                              }}
-                              className={cn('flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs sm:text-sm', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}
-                            >
-                              <Avatar className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5">
-                                <AvatarFallback className="bg-muted text-xs font-medium">{admin.username.charAt(0).toUpperCase()}</AvatarFallback>
-                              </Avatar>
-                              <span className="flex-1 truncate">{admin.username}</span>
-                              <div className="flex flex-shrink-0 items-center gap-1">
-                                {admin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}
-                                {selectedAdmin?.username === admin.username && <Check className="h-3 w-3 text-primary" />}
-                              </div>
-                            </CommandItem>
-                          ))}
-
-                          {isLoading && (
-                            <div className="flex justify-center py-2">
-                              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                            </div>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <AdminFilterCombobox
+                  value={selectedAdmin?.username === 'Total' ? 'all' : (selectedAdmin?.username ?? 'all')}
+                  onValueChange={username => {
+                    if (username === 'all') {
+                      setSelectedAdmin(totalAdmin)
+                      return
+                    }
+                    if (currentAdmin?.username === username) {
+                      setSelectedAdmin(currentAdmin)
+                      return
+                    }
+                    setSelectedAdmin(prev => (prev?.username === username ? prev : { username, is_sudo: false }))
+                  }}
+                  onAdminSelect={admin => {
+                    if (!admin) return
+                    setSelectedAdmin(admin)
+                  }}
+                  className="relative mb-3 w-full max-w-xs sm:mb-4 sm:max-w-sm lg:max-w-md"
+                />
                 {/* Show only the selected admin's card */}
                 <div className="flex flex-col gap-3 sm:gap-4">
                   {selectedAdmin && <AdminStatisticsCard key={selectedAdmin.username} admin={selectedAdmin} systemStats={systemStatsData} currentAdmin={currentAdmin} />}
@@ -473,50 +317,60 @@ const Dashboard = () => {
       </div>
 
       {/* Modals */}
-      <Suspense fallback={<div />}>
-        <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={handleCreateUserSuccess} />
-      </Suspense>
-      <Suspense fallback={<div />}>
-        <GroupModal isDialogOpen={isGroupModalOpen} onOpenChange={setGroupModalOpen} form={groupForm} editingGroup={false} />
-      </Suspense>
-      <Suspense fallback={<div />}>
-        <HostModal isDialogOpen={isHostModalOpen} onOpenChange={setHostModalOpen} onSubmit={handleHostSubmit} form={hostForm} />
-      </Suspense>
+      {isUserModalOpen && (
+        <Suspense fallback={<div />}>
+          <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={handleCreateUserSuccess} />
+        </Suspense>
+      )}
+      {isGroupModalOpen && (
+        <Suspense fallback={<div />}>
+          <GroupModal isDialogOpen={isGroupModalOpen} onOpenChange={setGroupModalOpen} form={groupForm} editingGroup={false} />
+        </Suspense>
+      )}
+      {isHostModalOpen && (
+        <Suspense fallback={<div />}>
+          <HostModal isDialogOpen={isHostModalOpen} onOpenChange={setHostModalOpen} onSubmit={handleHostSubmit} form={hostForm} />
+        </Suspense>
+      )}
       {/* Only render NodeModal for sudo admins */}
-      {is_sudo && (
+      {is_sudo && isNodeModalOpen && (
         <Suspense fallback={<div />}>
           <NodeModal isDialogOpen={isNodeModalOpen} onOpenChange={setNodeModalOpen} form={nodeForm} editingNode={false} />
         </Suspense>
       )}
       {/* Only render AdminModal for sudo admins */}
-      {is_sudo && (
+      {is_sudo && isAdminModalOpen && (
         <Suspense fallback={<div />}>
           <AdminModal isDialogOpen={isAdminModalOpen} onOpenChange={setAdminModalOpen} form={adminForm} editingAdmin={false} editingAdminUserName="" />
         </Suspense>
       )}
-      <Suspense fallback={<div />}>
-        <UserTemplateModal isDialogOpen={isTemplateModalOpen} onOpenChange={setTemplateModalOpen} form={templateForm} editingUserTemplate={false} />
-      </Suspense>
+      {isTemplateModalOpen && (
+        <Suspense fallback={<div />}>
+          <UserTemplateModal isDialogOpen={isTemplateModalOpen} onOpenChange={setTemplateModalOpen} form={templateForm} editingUserTemplate={false} />
+        </Suspense>
+      )}
       {/* Only render CoreConfigModal for sudo admins */}
       {is_sudo && isCoreModalOpen && (
         <Suspense fallback={<div />}>
           <CoreConfigModal isDialogOpen={isCoreModalOpen} onOpenChange={setCoreModalOpen} form={coreForm} editingCore={false} />
         </Suspense>
       )}
-      <Suspense fallback={<div />}>
-        <QuickActionsModal
-          open={isQuickActionsModalOpen}
-          onClose={() => setQuickActionsModalOpen(false)}
-          onCreateUser={handleCreateUser}
-          onCreateGroup={handleCreateGroup}
-          onCreateHost={handleCreateHost}
-          onCreateNode={handleCreateNode}
-          onCreateAdmin={handleCreateAdmin}
-          onCreateTemplate={handleCreateTemplate}
-          onCreateCore={handleCreateCore}
-          isSudo={is_sudo}
-        />
-      </Suspense>
+      {isQuickActionsModalOpen && (
+        <Suspense fallback={<div />}>
+          <QuickActionsModal
+            open={isQuickActionsModalOpen}
+            onClose={() => setQuickActionsModalOpen(false)}
+            onCreateUser={handleCreateUser}
+            onCreateGroup={handleCreateGroup}
+            onCreateHost={handleCreateHost}
+            onCreateNode={handleCreateNode}
+            onCreateAdmin={handleCreateAdmin}
+            onCreateTemplate={handleCreateTemplate}
+            onCreateCore={handleCreateCore}
+            isSudo={is_sudo}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

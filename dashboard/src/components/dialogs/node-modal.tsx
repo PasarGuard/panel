@@ -36,7 +36,11 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   const addNodeMutation = useCreateNode()
   const modifyNodeMutation = useModifyNode()
   const handleError = useDynamicErrorHandler()
-  const { data: cores } = useGetAllCores()
+  const { data: cores, isLoading: isLoadingCores } = useGetAllCores(undefined, {
+    query: {
+      enabled: isDialogOpen,
+    },
+  })
   const [statusChecking, setStatusChecking] = useState(false)
   const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [autoCheck, setAutoCheck] = useState(false)
@@ -503,18 +507,31 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t('nodeModal.coreConfig')}</FormLabel>
-                        <Select onValueChange={value => field.onChange(parseInt(value))} value={field.value ? field.value.toString() : t('nodeModal.selectCoreConfig')}>
+                        <Select
+                          onValueChange={value => field.onChange(parseInt(value))}
+                          value={field.value ? field.value.toString() : t('nodeModal.selectCoreConfig')}
+                          disabled={isLoadingCores}
+                        >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder={t('nodeModal.selectCoreConfig')} />
+                              <SelectValue placeholder={isLoadingCores ? t('loading', { defaultValue: 'Loading...' }) : t('nodeModal.selectCoreConfig')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {cores?.cores?.map((core: CoreResponse) => (
-                              <SelectItem key={core.id} value={core.id.toString()}>
-                                {core.name}
+                            {isLoadingCores ? (
+                              <SelectItem value="__loading_cores__" disabled>
+                                <span className="flex items-center gap-2">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  {t('loading', { defaultValue: 'Loading...' })}
+                                </span>
                               </SelectItem>
-                            ))}
+                            ) : (
+                              cores?.cores?.map((core: CoreResponse) => (
+                                <SelectItem key={core.id} value={core.id.toString()}>
+                                  {core.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />

@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { UserStatus, getHosts, getInbounds } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
+import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -544,16 +544,17 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     onOpenChange(open)
   }
 
-  const { data: inbounds = [] } = useQuery({
+  const { data: inbounds = [], isLoading: isLoadingInbounds } = useQuery({
     queryKey: ['getInboundsQueryKey'],
     queryFn: () => getInbounds(),
+    enabled: isDialogOpen,
   })
 
   // Update the hosts query to refetch only when needed (not on dialog open)
-  const { data: hosts = [] } = useQuery({
+  const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
     queryKey: ['getHostsQueryKey'],
     queryFn: () => getHosts(),
-    enabled: isTransportOpen,
+    enabled: isDialogOpen && isTransportOpen,
     select: data => data.filter(host => host.id != null),
   })
 
@@ -619,18 +620,27 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('inbound')}</FormLabel>
-                    <Select dir={dir} onValueChange={field.onChange} value={field.value}>
+                    <Select dir={dir} onValueChange={field.onChange} value={field.value} disabled={isLoadingInbounds}>
                       <FormControl className={cn(!!form.formState.errors.inbound_tag && 'border-destructive')}>
                         <SelectTrigger className="py-5">
-                          <SelectValue placeholder={t('hostsDialog.selectInbound')} />
+                          <SelectValue placeholder={isLoadingInbounds ? t('loading', { defaultValue: 'Loading...' }) : t('hostsDialog.selectInbound')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent dir="ltr">
-                        {inbounds.map(tag => (
-                          <SelectItem className="cursor-pointer px-4" value={tag} key={tag}>
-                            {tag}
+                        {isLoadingInbounds ? (
+                          <SelectItem className="px-4" value="__loading_inbounds__" disabled>
+                            <span className="flex items-center gap-2">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              {t('loading', { defaultValue: 'Loading...' })}
+                            </span>
                           </SelectItem>
-                        ))}
+                        ) : (
+                          inbounds.map(tag => (
+                            <SelectItem className="cursor-pointer px-4" value={tag} key={tag}>
+                              {tag}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -1705,6 +1715,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <Select
                                       onValueChange={value => field.onChange(value ? parseInt(value) : 0)}
                                       value={field.value?.toString() ?? '0'}
+                                      disabled={isLoadingHosts}
                                       onOpenChange={open => {
                                         // Refresh hosts list when dropdown is opened
                                         if (open) {
@@ -1716,16 +1727,25 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     >
                                       <FormControl>
                                         <SelectTrigger className="w-full">
-                                          <SelectValue placeholder={t('hostsDialog.xhttp.selectDownloadSettings')} />
+                                          <SelectValue placeholder={isLoadingHosts ? t('loading', { defaultValue: 'Loading...' }) : t('hostsDialog.xhttp.selectDownloadSettings')} />
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent className="w-full">
                                         <SelectItem value="0">{t('none')}</SelectItem>
-                                        {hosts.map(host => (
-                                          <SelectItem key={host.id} value={host.id?.toString() ?? ''}>
-                                            {host.remark}
+                                        {isLoadingHosts ? (
+                                          <SelectItem value="__loading_hosts__" disabled>
+                                            <span className="flex items-center gap-2">
+                                              <Loader2 className="h-3 w-3 animate-spin" />
+                                              {t('loading', { defaultValue: 'Loading...' })}
+                                            </span>
                                           </SelectItem>
-                                        ))}
+                                        ) : (
+                                          hosts.map(host => (
+                                            <SelectItem key={host.id} value={host.id?.toString() ?? ''}>
+                                              {host.remark}
+                                            </SelectItem>
+                                          ))
+                                        )}
                                       </SelectContent>
                                     </Select>
                                     <FormMessage />

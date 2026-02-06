@@ -17,7 +17,7 @@ import { useGetNodes, NodeResponse } from '@/service/api'
 import { useTheme } from '@/components/common/theme-provider'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import NodeStatsModal from '@/components/dialogs/node-stats-modal'
-import AdminFilterCombobox from './admin-filter-combobox'
+import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 
 import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
 import { getDateRangeFromShortcut } from '@/utils/timeShortcutUtils'

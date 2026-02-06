@@ -13,12 +13,13 @@ import { useTranslation } from 'react-i18next'
 interface AdminFilterComboboxProps {
   value: string
   onValueChange: (username: string) => void
+  onAdminSelect?: (admin: AdminDetails | null) => void
   className?: string
 }
 
 const PAGE_SIZE = 20
 
-export default function AdminFilterCombobox({ value, onValueChange, className }: AdminFilterComboboxProps) {
+export default function AdminFilterCombobox({ value, onValueChange, onAdminSelect, className }: AdminFilterComboboxProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
 
@@ -37,7 +38,7 @@ export default function AdminFilterCombobox({ value, onValueChange, className }:
     setIsLoadingMore(false)
   }, [adminSearch])
 
-  const { data: fetchedAdminsResponse, isLoading } = useGetAdmins(
+  const { data: fetchedAdminsResponse, isLoading, isFetching } = useGetAdmins(
     {
       limit: PAGE_SIZE,
       offset,
@@ -67,13 +68,13 @@ export default function AdminFilterCombobox({ value, onValueChange, className }:
   }, [fetchedAdminsResponse, offset])
 
   const handleScroll = useCallback(() => {
-    if (!listRef.current || isLoadingMore || isLoading || !hasMore) return
+    if (!listRef.current || isLoadingMore || isFetching || !hasMore) return
     const { scrollTop, scrollHeight, clientHeight } = listRef.current
     if (scrollHeight - scrollTop - clientHeight < 90) {
       setIsLoadingMore(true)
       setOffset(prev => prev + PAGE_SIZE)
     }
-  }, [hasMore, isLoading, isLoadingMore])
+  }, [hasMore, isFetching, isLoadingMore])
 
   useEffect(() => {
     const el = listRef.current
@@ -84,6 +85,7 @@ export default function AdminFilterCombobox({ value, onValueChange, className }:
 
   const selectedAdmin = useMemo(() => admins.find(admin => admin.username === value), [admins, value])
   const triggerLabel = value === 'all' ? t('statistics.adminFilterAll') : selectedAdmin?.username || value
+  const showInitialAdminsLoading = open && admins.length === 0 && isFetching
 
   return (
     <div className={cn('w-full', className)} dir={dir}>
@@ -92,9 +94,7 @@ export default function AdminFilterCombobox({ value, onValueChange, className }:
           <Button variant="outline" className="h-8 w-full min-w-0 justify-between px-2 text-xs font-medium transition-colors hover:bg-muted/50 sm:px-3 sm:text-sm">
             <div className={cn('flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}>
               <Avatar className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5">
-                <AvatarFallback className="bg-muted text-xs font-medium">
-                  {value === 'all' ? <Sigma className="h-3 w-3" /> : triggerLabel.charAt(0).toUpperCase()}
-                </AvatarFallback>
+                <AvatarFallback className="bg-muted text-xs font-medium">{value === 'all' ? <Sigma className="h-3 w-3" /> : triggerLabel.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
               <span className="truncate">{triggerLabel}</span>
               {value !== 'all' && selectedAdmin && <div className="flex-shrink-0">{selectedAdmin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}</div>}
@@ -107,13 +107,21 @@ export default function AdminFilterCombobox({ value, onValueChange, className }:
             <CommandInput placeholder={t('search', { defaultValue: 'Search' })} onValueChange={setAdminSearchInput} className="h-8 text-sm" />
             <CommandList ref={listRef}>
               <CommandEmpty>
-                <div className="py-3 text-center text-xs text-muted-foreground sm:py-4 sm:text-sm">{t('noAdminsFound', { defaultValue: 'No admins found' })}</div>
+                {showInitialAdminsLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground sm:py-4 sm:text-sm">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>{t('loading', { defaultValue: 'Loading...' })}</span>
+                  </div>
+                ) : (
+                  <div className="py-3 text-center text-xs text-muted-foreground sm:py-4 sm:text-sm">{t('noAdminsFound', { defaultValue: 'No admins found' })}</div>
+                )}
               </CommandEmpty>
 
               <CommandItem
                 value="all"
                 onSelect={() => {
                   onValueChange('all')
+                  onAdminSelect?.(null)
                   setOpen(false)
                 }}
                 className={cn('flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs sm:text-sm', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}
@@ -133,6 +141,7 @@ export default function AdminFilterCombobox({ value, onValueChange, className }:
                   value={admin.username}
                   onSelect={() => {
                     onValueChange(admin.username)
+                    onAdminSelect?.(admin)
                     setOpen(false)
                   }}
                   className={cn('flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs sm:text-sm', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}
@@ -148,7 +157,7 @@ export default function AdminFilterCombobox({ value, onValueChange, className }:
                 </CommandItem>
               ))}
 
-              {(isLoading || isLoadingMore) && (
+              {(isLoadingMore || (!showInitialAdminsLoading && (isLoading || isFetching))) && (
                 <div className="flex justify-center py-2">
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 </div>

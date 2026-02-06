@@ -16,7 +16,7 @@ import { TooltipProps } from 'recharts'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
 import { getDateRangeFromShortcut } from '@/utils/timeShortcutUtils'
-import AdminFilterCombobox from './admin-filter-combobox'
+import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 
 type DataPoint = {
   time: string

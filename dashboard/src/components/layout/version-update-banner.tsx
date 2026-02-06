@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useVersionCheck } from '@/hooks/use-version-check'
-import { getSystemStats } from '@/service/api'
 import { useTheme } from '@/components/common/theme-provider'
 import { getGradientByColorTheme, getIndicatorColorByTheme } from '@/constants/ThemeGradients'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useClipboard } from '@/hooks/use-clipboard'
 import { toast } from 'sonner'
+import { useSystemVersion } from '@/hooks/use-system-version'
 
 const VERSION_BANNER_STORAGE_KEY = 'version_update_banner_closed'
 const HOURS_TO_HIDE = 24
@@ -25,31 +25,18 @@ export function VersionUpdateBanner() {
     const { resolvedTheme, colorTheme } = useTheme()
     const isDark = resolvedTheme === 'dark'
     const { copy } = useClipboard()
-    const [currentVersion, setCurrentVersion] = useState<string | null>(null)
+    const { currentVersion } = useSystemVersion()
     const [isVisible, setIsVisible] = useState(false)
     const [isClosing, setIsClosing] = useState(false)
     const [isAnimating, setIsAnimating] = useState(false)
-    const { hasUpdate, latestVersion, releaseUrl, isLoading } = useVersionCheck(currentVersion)
+    const normalizedVersion = currentVersion ? currentVersion.replace(/[^0-9.]/g, '') : null
+    const { hasUpdate, latestVersion, releaseUrl, isLoading } = useVersionCheck(normalizedVersion)
 
     const gradientBg = getGradientByColorTheme(colorTheme, isDark, 'banner')
     const indicatorColor = getIndicatorColorByTheme(colorTheme, isDark)
 
     useEffect(() => {
-        const fetchVersion = async () => {
-            try {
-                const data = await getSystemStats()
-                if (data?.version) {
-                    setCurrentVersion(data.version)
-                }
-            } catch (error) {
-                console.error('Failed to fetch version:', error)
-            }
-        }
-        fetchVersion()
-    }, [])
-
-    useEffect(() => {
-        if (isLoading || !hasUpdate || !currentVersion) {
+        if (isLoading || !hasUpdate || !normalizedVersion) {
             setIsVisible(false)
             setIsAnimating(false)
             return
@@ -100,7 +87,7 @@ export function VersionUpdateBanner() {
         }
 
         checkShouldShow()
-    }, [hasUpdate, latestVersion, currentVersion, isLoading])
+    }, [hasUpdate, latestVersion, normalizedVersion, isLoading])
 
     const handleClose = (e: React.MouseEvent) => {
         e.preventDefault()
@@ -127,7 +114,7 @@ export function VersionUpdateBanner() {
         toast.success(t('usersTable.copied'))
     }
 
-    if (isLoading || !hasUpdate || !isVisible || !latestVersion) return null
+    if (isLoading || !hasUpdate || !isVisible || !latestVersion || !normalizedVersion) return null
 
     const releaseLink = releaseUrl || 'https://github.com/PasarGuard/panel/releases/latest'
 
@@ -181,7 +168,7 @@ export function VersionUpdateBanner() {
                             'text-[11px] sm:text-xs text-foreground/70 mt-0.5 sm:mt-1 leading-relaxed break-words',
                             isRTL ? 'text-right' : 'text-left'
                         )}>
-                            {t('version.updateBanner', { current: `v${currentVersion}`, latest: `v${latestVersion}` })}
+                            {t('version.updateBanner', { current: `v${normalizedVersion}`, latest: `v${latestVersion}` })}
                         </p>
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-1.5 mt-1.5">
                             <span className="text-[11px] sm:text-xs text-foreground/60 leading-relaxed break-words sm:whitespace-nowrap">
