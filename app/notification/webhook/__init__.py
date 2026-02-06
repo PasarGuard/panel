@@ -68,6 +68,7 @@ class UserUpdated(UserNotification):
 class UserDeleted(UserNotification):
     action: Notification.Type = Notification.Type.user_deleted
     by: AdminDetails
+    user: UserNotificationResponse
 
 
 class UserLimited(UserNotification):
