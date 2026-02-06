@@ -229,15 +229,15 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="flex max-h-[95dvh] w-[95vw] max-w-md flex-col overflow-hidden p-3 sm:max-w-lg sm:p-4 md:max-w-xl" dir={dir}>
-        <DialogHeader>
-          <div className="flex flex-col items-center gap-3">
+      <DialogContent className="flex max-h-[95dvh] w-[96vw] max-w-md flex-col overflow-hidden p-3 sm:max-w-2xl sm:p-4 md:max-w-3xl lg:max-w-4xl" dir={dir}>
+        <DialogHeader className={isRTL ? 'text-right' : 'text-left'}>
+          <div className="flex flex-col items-start gap-3">
             <DialogTitle className={`flex items-center gap-2 text-sm sm:text-base`}>
               <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
               {t('statistics.nodeStats', { defaultValue: 'Node Statistics' })}
             </DialogTitle>
             {hasNavigation && (
-              <div className="flex items-center gap-1">
+              <div className="flex w-full items-center justify-center gap-1">
                 <Button variant="outline" size="sm" onClick={handleLeftButton} disabled={!canGoLeft} className="h-8 w-8 p-0">
                   <ChevronLeft className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
                 </Button>
@@ -258,7 +258,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
             <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
               <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
                 <Calendar className="h-3 w-3 text-muted-foreground sm:h-4 sm:w-4" />
-                <span className="max-w-[120px] truncate text-xs font-medium sm:max-w-none sm:text-sm" dir="ltr">
+                <span className="max-w-[150px] truncate text-xs font-medium sm:max-w-none sm:text-sm" dir="ltr">
                   {formattedDate}
                 </span>
               </div>
