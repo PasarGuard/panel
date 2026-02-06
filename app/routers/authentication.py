@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 
 from app.db import AsyncSession, get_db
 from app.db.crud.admin import get_admin as get_admin_by_username, get_admin_by_telegram_id
-from app.models.admin import AdminDetails, AdminInDB, AdminValidationResult
+from app.models.admin import AdminDetails, AdminValidationResult, verify_password
 from app.models.settings import Telegram
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
@@ -62,7 +62,7 @@ async def validate_admin(db: AsyncSession, username: str, password: str) -> Admi
     """Validate admin credentials with environment variables or database."""
 
     db_admin = await get_admin_by_username(db, username)
-    if db_admin and AdminInDB.model_validate(db_admin).verify_password(password):
+    if db_admin and await verify_password(password, db_admin.hashed_password):
         return AdminValidationResult(
             username=db_admin.username, is_sudo=db_admin.is_sudo, is_disabled=db_admin.is_disabled
         )
