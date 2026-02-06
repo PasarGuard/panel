@@ -12,6 +12,7 @@ import { RefetchOptions } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {NodeStatus} from "@/service/api";
+import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
 
 interface NodeFiltersProps {
   filters: {
@@ -26,9 +27,11 @@ interface NodeFiltersProps {
   isFetching?: boolean
   advanceSearchOnOpen: (status: boolean) => void
   onClearAdvanceSearch?: () => void
+  viewMode?: ViewMode
+  onViewModeChange?: (mode: ViewMode) => void
 }
 
-export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, advanceSearchOnOpen, onClearAdvanceSearch }: NodeFiltersProps) => {
+export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, advanceSearchOnOpen, onClearAdvanceSearch, viewMode, onViewModeChange }: NodeFiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const { search, debouncedSearch, setSearch } = useDebouncedSearch(filters.search || '', 300)
@@ -128,6 +131,7 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, adva
       >
         <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
       </Button>
+      {viewMode && onViewModeChange && <ViewToggle value={viewMode} onChange={onViewModeChange} />}
     </div>
   )
 }

@@ -1,9 +1,6 @@
 import { Card } from '@/components/ui/card'
 import { CoreResponse } from '@/service/api'
-import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { MoreVertical, Pencil, Trash2, Copy } from 'lucide-react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import CoreActionsMenu from './core-actions-menu'
 import { cn } from '@/lib/utils'
 
 interface CoreProps {
@@ -15,15 +12,6 @@ interface CoreProps {
 }
 
 export default function Core({ core, onEdit, onDuplicate, onDelete }: CoreProps) {
-  const { t } = useTranslation()
-
-  const handleDeleteClick = (event: Event) => {
-    event.stopPropagation()
-    if (onDelete) {
-      onDelete()
-    }
-  }
-
   return (
     <Card className="group relative h-full cursor-pointer px-4 py-5 transition-colors hover:bg-accent" onClick={() => onEdit(core)}>
       <div className="flex items-center gap-3">
@@ -35,41 +23,7 @@ export default function Core({ core, onEdit, onDuplicate, onDelete }: CoreProps)
             </div>
           </div>
         </div>
-        <div onClick={e => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onEdit(core)
-                }}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                {t('edit')}
-              </DropdownMenuItem>
-              {onDuplicate && (
-                <DropdownMenuItem
-                  onSelect={e => {
-                    e.stopPropagation()
-                    onDuplicate()
-                  }}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  {t('duplicate')}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
-                {t('delete')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <CoreActionsMenu core={core} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
       </div>
     </Card>
   )

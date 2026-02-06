@@ -19,6 +19,9 @@ import { Button } from '@/components/ui/button'
 import { Search, X } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
+import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
+import { ListGenerator } from '@/components/common/list-generator'
+import { useUserTemplatesListColumns } from '@/components/templates/use-user-templates-list-columns'
 
 const initialDefaultValues: Partial<UserTemplatesFromValueInput> = {
   name: '',
@@ -38,6 +41,7 @@ export default function UserTemplates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUserTemplate, setEditingUserTemplate] = useState<UserTemplateResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const { data: userTemplates, isLoading, isFetching, refetch } = useGetUserTemplates()
   const form = useForm<UserTemplatesFromValueInput>({
     resolver: zodResolver(userTemplateFormSchema),
@@ -115,6 +119,8 @@ export default function UserTemplates() {
     )
   }, [userTemplates, searchQuery])
 
+  const listColumns = useUserTemplatesListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus })
+
   const handleRefreshClick = async () => {
     await refetch()
   }
@@ -160,14 +166,23 @@ export default function UserTemplates() {
           >
             <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
           </Button>
+          <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
 
-        {isCurrentlyLoading && (
-          <div
-            className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-            style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-          >
-            {[...Array(6)].map((_, i) => (
+        {(isCurrentlyLoading || (filteredTemplates && filteredTemplates.length > 0)) && (
+          <ListGenerator
+            data={filteredTemplates || []}
+            columns={listColumns}
+            getRowId={template => template.id}
+            isLoading={isCurrentlyLoading}
+            loadingRows={6}
+            className="gap-3"
+            mode={viewMode}
+            showEmptyState={false}
+            gridClassName="transform-gpu animate-slide-up"
+            gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+            renderGridItem={template => <UserTemplate onEdit={handleEdit} template={template} onToggleStatus={handleToggleStatus} />}
+            renderGridSkeleton={i => (
               <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
                 <div className="flex items-start justify-between gap-2 sm:gap-3">
                   <div className="min-w-0 flex-1">
@@ -183,8 +198,8 @@ export default function UserTemplates() {
                   <Skeleton className="h-8 w-8 shrink-0" />
                 </div>
               </Card>
-            ))}
-          </div>
+            )}
+          />
         )}
         {isEmpty && !isCurrentlyLoading && (
           <Card className="mb-12">
@@ -205,14 +220,6 @@ export default function UserTemplates() {
               </div>
             </CardContent>
           </Card>
-        )}
-        {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
-          <div
-            className="mb-12 grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-            style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-          >
-            {filteredTemplates?.map((template: UserTemplateResponse) => <UserTemplate onEdit={handleEdit} template={template} key={template.id} onToggleStatus={handleToggleStatus} />)}
-          </div>
         )}
       </div>
 

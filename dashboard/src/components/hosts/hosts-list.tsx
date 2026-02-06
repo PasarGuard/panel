@@ -16,6 +16,9 @@ import { toast } from 'sonner'
 import * as z from 'zod'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
+import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
+import { ListGenerator } from '@/components/common/list-generator'
+import { useHostsListColumns } from '@/components/hosts/use-hosts-list-columns'
 
 interface Brutal {
   enable?: boolean
@@ -476,6 +479,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   const [hosts, setHosts] = useState<BaseHost[] | undefined>()
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -993,6 +997,12 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     })
   }, [sortedHosts, searchQuery])
 
+  const listColumns = useHostsListColumns({
+    onEdit: handleEdit,
+    onDuplicate: handleDuplicate,
+    onDataChanged: refreshHostsData,
+  })
+
   const isCurrentlyLoading = !data || (isRefreshing && sortedHosts.length === 0)
   const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !searchQuery.trim() && sortedHosts.length === 0
   const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && searchQuery.trim() !== ''
@@ -1020,25 +1030,67 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         >
           <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
         </Button>
+        <ViewToggle value={viewMode} onChange={setViewMode} />
       </div>
-      {isCurrentlyLoading && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <Card key={index} className="animate-pulse">
-              <CardContent className="p-4">
-                <div className="flex flex-col gap-2">
-                  <div className="h-5 w-2/3 rounded-md bg-muted"></div>
-                  <div className="h-3 w-full rounded-md bg-muted"></div>
-                  <div className="h-3 w-4/5 rounded-md bg-muted"></div>
-                  <div className="mt-2 flex justify-between">
-                    <div className="h-6 w-1/4 rounded-md bg-muted"></div>
-                    <div className="h-6 w-1/4 rounded-md bg-muted"></div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {(isCurrentlyLoading || filteredHosts.length > 0) && viewMode === 'grid' && (
+        <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
+            <ListGenerator
+              data={filteredHosts}
+              columns={listColumns}
+              getRowId={host => host.id ?? host.remark ?? 'host'}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-3 max-w-screen-[2000px] min-h-screen overflow-hidden"
+              mode="grid"
+              showEmptyState={false}
+              renderGridItem={host => (
+                <SortableHost
+                  key={host.id ?? 'new'}
+                  host={host}
+                  onEdit={handleEdit}
+                  onDuplicate={handleDuplicate}
+                  onDataChanged={refreshHostsData}
+                  disabled={isUpdatingPriorities}
+                />
+              )}
+              renderGridSkeleton={index => (
+                <Card key={index} className="animate-pulse">
+                  <CardContent className="p-4">
+                    <div className="flex flex-col gap-2">
+                      <div className="h-5 w-2/3 rounded-md bg-muted"></div>
+                      <div className="h-3 w-full rounded-md bg-muted"></div>
+                      <div className="h-3 w-4/5 rounded-md bg-muted"></div>
+                      <div className="mt-2 flex justify-between">
+                        <div className="h-6 w-1/4 rounded-md bg-muted"></div>
+                        <div className="h-6 w-1/4 rounded-md bg-muted"></div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            />
+          </SortableContext>
+        </DndContext>
+      )}
+      {(isCurrentlyLoading || filteredHosts.length > 0) && viewMode === 'list' && (
+        <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
+            <ListGenerator
+              data={filteredHosts}
+              columns={listColumns}
+              getRowId={host => host.id ?? host.remark ?? 'host'}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-3 max-w-screen-[2000px] min-h-screen overflow-hidden"
+              mode="list"
+              showEmptyState={false}
+              onRowClick={handleEdit}
+              enableSorting
+              sortingDisabled={isUpdatingPriorities}
+            />
+          </SortableContext>
+        </DndContext>
       )}
       {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
@@ -1059,21 +1111,6 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
             </div>
           </CardContent>
         </Card>
-      )}
-      {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
-        <div>
-          <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
-              <div className="max-w-screen-[2000px] min-h-screen overflow-hidden">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {filteredHosts.map(host => (
-                    <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
-                  ))}
-                </div>
-              </div>
-            </SortableContext>
-          </DndContext>
-        </div>
       )}
 
       <HostModal

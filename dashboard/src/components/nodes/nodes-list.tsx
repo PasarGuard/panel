@@ -42,6 +42,7 @@ export default function NodesList() {
   const [allNodes, setAllNodes] = useState<NodeResponse[]>([])
   const [localSearchTerm, setLocalSearchTerm] = useState<string>('')
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
   const [filters, setFilters] = useState<{
     limit: number
@@ -268,6 +269,8 @@ export default function NodesList() {
     }
   }, [calculatedTotalPages, currentPage])
 
+  const listColumns = useNodeListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus })
+
   const handleAdvanceSearchSubmit = (values: NodeAdvanceSearchFormValue) => {
     setFilters(prev => ({
       ...prev,
@@ -314,53 +317,56 @@ export default function NodesList() {
           isFetching={isFetching}
           advanceSearchOnOpen={handleAdvanceSearchOpen}
           onClearAdvanceSearch={handleClearAdvanceSearch}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
         <div className="min-h-[55dvh]">
-          <div
-            className="grid transform-gpu animate-slide-up grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-            style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-          >
-            {showLoadingSpinner || showPageLoadingSkeletons
-              ? [...Array(6)].map((_, i) => (
-                  <Card key={i} className="group relative h-full p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="min-w-0 flex-1">
-                        {/* Status dot + Node name */}
-                        <div className="mb-1 flex items-center gap-2">
-                          <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
-                          <Skeleton className="h-5 w-32 sm:w-40" />
-                        </div>
-                        {/* Address:port */}
-                        <Skeleton className="mb-1 h-4 w-28 sm:w-36" />
-                        {/* Version info (optional, sometimes shown) */}
-                        {i % 3 === 0 && <Skeleton className="mb-2 mt-1 h-3 w-40 sm:w-48" />}
-                        {/* Usage display section */}
-                        <div className="mt-2 space-y-1.5">
-                          {/* Progress bar */}
-                          <Skeleton className="h-1.5 w-full rounded-full" />
-                          {/* Usage stats */}
-                          <div className="flex items-center justify-between gap-2">
-                            <Skeleton className="h-3 w-20" />
-                            <Skeleton className="h-3 w-16" />
-                          </div>
-                          {/* Uplink/Downlink */}
-                          <div className="flex items-center gap-3">
-                            <Skeleton className="h-2.5 w-16" />
-                            <Skeleton className="h-2.5 w-16" />
-                          </div>
-                        </div>
+          {(showLoadingSpinner || showPageLoadingSkeletons || nodesData.length > 0) && (
+            <ListGenerator
+              data={nodesData}
+              columns={listColumns}
+              getRowId={node => node.id}
+              isLoading={showLoadingSpinner || showPageLoadingSkeletons}
+              loadingRows={6}
+              className="gap-3"
+              onRowClick={handleEdit}
+              mode={viewMode}
+              showEmptyState={false}
+              gridClassName="transform-gpu animate-slide-up"
+              gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+              renderGridItem={node => <Node node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />}
+              renderGridSkeleton={i => (
+                <Card key={i} className="group relative h-full p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-2">
+                        <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                        <Skeleton className="h-5 w-32 sm:w-40" />
                       </div>
-                      {/* Dropdown menu button */}
-                      <div>
-                        <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                      <Skeleton className="mb-1 h-4 w-28 sm:w-36" />
+                      {i % 3 === 0 && <Skeleton className="mb-2 mt-1 h-3 w-40 sm:w-48" />}
+                      <div className="mt-2 space-y-1.5">
+                        <Skeleton className="h-1.5 w-full rounded-full" />
+                        <div className="flex items-center justify-between gap-2">
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-3 w-16" />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-2.5 w-16" />
+                          <Skeleton className="h-2.5 w-16" />
+                        </div>
                       </div>
                     </div>
-                  </Card>
-                ))
-              : nodesData.map(node => <Node key={node.id} node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
-          </div>
+                    <div>
+                      <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                    </div>
+                  </div>
+                </Card>
+              )}
+            />
+          )}
 
-          {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !filters.search && !localSearchTerm && totalNodes === 0 && (
+                  {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !filters.search && !localSearchTerm && totalNodes === 0 && (
             <Card className="mb-12">
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">
