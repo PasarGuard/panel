@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { getUsage, Period, type NodeUsageStat } from '@/service/api'
+import { getAdminUsage, getUsage, Period, type NodeUsageStat, type UserUsageStat } from '@/service/api'
 import { formatBytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
@@ -15,10 +15,34 @@ import { dateUtils } from '@/utils/dateFormatter'
 import { TooltipProps } from 'recharts'
 import { useGetNodes, NodeResponse } from '@/service/api'
 import { useTheme } from '@/components/common/theme-provider'
-import TimeSelector from './time-selector'
+import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import NodeStatsModal from '@/components/dialogs/node-stats-modal'
+import AdminFilterCombobox from './admin-filter-combobox'
 
 import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
+import { getDateRangeFromShortcut } from '@/utils/timeShortcutUtils'
+
+const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsageStat => {
+  return 'uplink' in point && 'downlink' in point
+}
+
+const getTrafficBytes = (point: NodeUsageStat | UserUsageStat) => {
+  return isNodeUsageStat(point) ? point.uplink + point.downlink : point.total_traffic
+}
+
+const getDirectionalTraffic = (point: NodeUsageStat | UserUsageStat) => {
+  if (isNodeUsageStat(point)) {
+    return {
+      uplink: point.uplink,
+      downlink: point.downlink,
+    }
+  }
+
+  return {
+    uplink: 0,
+    downlink: 0,
+  }
+}
 
 function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<any, any> & { chartConfig?: ChartConfig; dir: string; period?: string }) {
   const { t, i18n } = useTranslation()
@@ -206,6 +230,7 @@ export function AllNodesStackedBarChart() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
   const [selectedTime, setSelectedTime] = useState<string>('1w')
   const [showCustomRange, setShowCustomRange] = useState(false)
+  const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [chartData, setChartData] = useState<any[] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -314,13 +339,13 @@ export function AllNodesStackedBarChart() {
         // Always use end of day for daily period to avoid extra bars
         const endTime = period === Period.day ? dateUtils.toDayjs(endDate).endOf('day').toISOString() : new Date().toISOString()
 
-        const params: Parameters<typeof getUsage>[0] = {
+        const params = {
           period: period,
           start: startDate.toISOString(),
           end: endTime,
           group_by_node: true,
         }
-        const response = await getUsage(params)
+        const response = selectedAdmin === 'all' ? await getUsage(params) : await getAdminUsage(selectedAdmin, params)
 
         // Check if component is still mounted
         if (isCancelled) return
@@ -328,7 +353,7 @@ export function AllNodesStackedBarChart() {
         // API response and nodes list logged
 
         // Handle the response format exactly like CostumeBarChart
-        let statsByNode: Record<string, NodeUsageStat[]> = {}
+        let statsByNode: Record<string, Array<NodeUsageStat | UserUsageStat>> = {}
         if (response && response.stats) {
           if (typeof response.stats === 'object' && !Array.isArray(response.stats)) {
             // This is the expected format when no node_id is provided
@@ -361,7 +386,7 @@ export function AllNodesStackedBarChart() {
           const aggregatedStats = statsByNode['-1']
 
           if (aggregatedStats.length > 0) {
-            const data = aggregatedStats.map((point: NodeUsageStat) => {
+            const data = aggregatedStats.map(point => {
               const d = dateUtils.toDayjs(point.period_start)
               let timeFormat
               if (period === Period.hour) {
@@ -369,7 +394,10 @@ export function AllNodesStackedBarChart() {
               } else {
                 timeFormat = d.format('MM/DD')
               }
-              const usageInGB = (point.uplink + point.downlink) / (1024 * 1024 * 1024)
+              const usageBytes = getTrafficBytes(point)
+              const directionalTraffic = getDirectionalTraffic(point)
+              const usageInGB = usageBytes / (1024 * 1024 * 1024)
+              const nodeCount = Math.max(nodeList.length, 1)
 
               // Create entry with all nodes having the same usage (aggregated)
               const entry: any = {
@@ -378,11 +406,11 @@ export function AllNodesStackedBarChart() {
               }
               nodeList.forEach(node => {
                 // Distribute usage equally among nodes or show as total
-                const nodeUsage = parseFloat((usageInGB / nodeList.length).toFixed(2))
+                const nodeUsage = parseFloat((usageInGB / nodeCount).toFixed(2))
                 entry[node.name] = nodeUsage
                 // Store uplink and downlink for tooltip (distributed equally)
-                entry[`_uplink_${node.name}`] = point.uplink / nodeList.length
-                entry[`_downlink_${node.name}`] = point.downlink / nodeList.length
+                entry[`_uplink_${node.name}`] = directionalTraffic.uplink / nodeCount
+                entry[`_downlink_${node.name}`] = directionalTraffic.downlink / nodeCount
               })
               return entry
             })
@@ -392,7 +420,7 @@ export function AllNodesStackedBarChart() {
               setChartData(data)
 
               // Calculate total usage
-              const total = aggregatedStats.reduce((sum: number, point: NodeUsageStat) => sum + point.uplink + point.downlink, 0)
+              const total = aggregatedStats.reduce((sum: number, point) => sum + getTrafficBytes(point), 0)
               const formattedTotal = formatBytes(total, 2)
               if (typeof formattedTotal === 'string') setTotalUsage(formattedTotal)
             }
@@ -434,11 +462,13 @@ export function AllNodesStackedBarChart() {
                 }
                 const nodeStats = statsArr.find(s => s.period_start === periodStart)
                 if (nodeStats) {
-                  const usageInGB = (nodeStats.uplink + nodeStats.downlink) / (1024 * 1024 * 1024)
+                  const usageBytes = getTrafficBytes(nodeStats)
+                  const directionalTraffic = getDirectionalTraffic(nodeStats)
+                  const usageInGB = usageBytes / (1024 * 1024 * 1024)
                   entry[nodeName] = parseFloat(usageInGB.toFixed(2))
                   // Store uplink and downlink for tooltip
-                  entry[`_uplink_${nodeName}`] = nodeStats.uplink
-                  entry[`_downlink_${nodeName}`] = nodeStats.downlink
+                  entry[`_uplink_${nodeName}`] = directionalTraffic.uplink
+                  entry[`_downlink_${nodeName}`] = directionalTraffic.downlink
                   // Node usage processed
                 } else {
                   entry[nodeName] = 0
@@ -457,7 +487,7 @@ export function AllNodesStackedBarChart() {
               let total = 0
               Object.values(statsByNode).forEach(arr =>
                 arr.forEach(stat => {
-                  total += stat.uplink + stat.downlink
+                  total += getTrafficBytes(stat)
                 }),
               )
               const formattedTotal = formatBytes(total, 2)
@@ -492,26 +522,14 @@ export function AllNodesStackedBarChart() {
         clearTimeout(timeoutId)
       }
     }
-  }, [dateRange, nodeList])
+  }, [dateRange, nodeList, selectedAdmin])
 
   // Add effect to update dateRange when selectedTime changes
   useEffect(() => {
     if (!showCustomRange) {
-      const now = new Date()
-      let from: Date | undefined
-      if (selectedTime === '24h') {
-        from = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-      } else if (selectedTime === '3d') {
-        from = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)
-      } else if (selectedTime === '1w') {
-        from = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
-      } else if (selectedTime === '1m') {
-        from = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000)
-      }
-      if (from) {
-        // For 1w, 3d, and 1m, set to end of current day to avoid extra bar
-        const to = selectedTime === '1w' || selectedTime === '3d' || selectedTime === '1m' ? dateUtils.toDayjs(now).endOf('day').toDate() : now
-        setDateRange({ from, to })
+      const nextRange = getDateRangeFromShortcut(selectedTime)
+      if (nextRange) {
+        setDateRange(nextRange)
       }
     }
   }, [selectedTime, showCustomRange])
@@ -519,38 +537,43 @@ export function AllNodesStackedBarChart() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 sm:flex-row">
-          <div className="flex flex-1 flex-col gap-1 border-b px-6 py-6 sm:flex-row sm:py-6">
-            <div className="flex flex-1 flex-col justify-center gap-1 px-1 py-1 align-middle">
+        <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
+          <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
+            <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
               <CardTitle>{t('statistics.trafficUsage')}</CardTitle>
               <CardDescription>{t('statistics.trafficUsageDescription')}</CardDescription>
             </div>
-            <div className="flex flex-col justify-center gap-2 px-1 py-1 align-middle">
-              <div className="flex items-center gap-2">
-                {showCustomRange ? (
-                  <TimeRangeSelector
-                    onRangeChange={range => {
-                      setDateRange(range)
-                      setShowCustomRange(true)
-                    }}
-                    initialRange={dateRange}
-                  />
-                ) : (
-                  <TimeSelector
-                    selectedTime={selectedTime}
-                    setSelectedTime={v => {
-                      setSelectedTime(v)
-                      setShowCustomRange(false)
-                    }}
-                  />
-                )}
-                <button type="button" aria-label="Custom Range" className={`rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
-                  <Calendar className="h-4 w-4" />
-                </button>
-              </div>
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+              <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                  {showCustomRange ? (
+                    <TimeRangeSelector
+                      onRangeChange={range => {
+                        setDateRange(range)
+                        setShowCustomRange(true)
+                      }}
+                      initialRange={dateRange}
+                      className="w-full"
+                    />
+                  ) : (
+                    <TimeSelector
+                      selectedTime={selectedTime}
+                      setSelectedTime={v => {
+                        setSelectedTime(v)
+                        setShowCustomRange(false)
+                      }}
+                      shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS}
+                      maxVisible={5}
+                      className="w-full"
+                    />
+                  )}
+                  <button type="button" aria-label="Custom Range" className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
+                    <Calendar className="h-4 w-4" />
+                  </button>
+                </div>
+              <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="w-full sm:w-[220px] sm:shrink-0" />
             </div>
           </div>
-          <div className="m-0 flex flex-col justify-center p-6 px-4 sm:border-l">
+          <div className="m-0 flex flex-col justify-center p-4 px-2 xl:border-l xl:p-5 xl:px-4">
             <span className="text-xs text-muted-foreground sm:text-sm">{t('statistics.usageDuringPeriod')}</span>
             <span dir="ltr" className="flex justify-center text-lg text-foreground">
               {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage}

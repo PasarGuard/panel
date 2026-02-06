@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dia
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card'
 import { ChartContainer, ChartTooltip, ChartConfig } from '../ui/chart'
 import { PieChart, TrendingUp, Calendar, Info } from 'lucide-react'
-import TimeSelector from '../charts/time-selector'
+import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from '../charts/time-selector'
 import { useTranslation } from 'react-i18next'
 import { Period, useGetUserUsage, useGetNodes, useGetCurrentAdmin, NodeResponse } from '@/service/api'
 import { DateRange } from 'react-day-picker'
@@ -19,18 +19,24 @@ import { useTheme } from '@/components/common/theme-provider'
 import NodeStatsModal from './node-stats-modal'
 
 import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
+import { getDateRangeFromShortcut } from '@/utils/timeShortcutUtils'
 
 // Define allowed period keys
-const PERIOD_KEYS = ['1h', '24h', '3d', '1w', '1m'] as const
+const PERIOD_KEYS = ['1h', '2h', '4h', '6h', '12h', '24h', '2d', '3d', '5d', '1w', '2w', '1m'] as const
 type PeriodKey = (typeof PERIOD_KEYS)[number]
 
-const getPeriodMap = (now: number) => ({
-  '1h': { period: Period.minute, start: new Date(now - 60 * 60 * 1000) },
-  '24h': { period: Period.hour, start: new Date(now - 24 * 60 * 60 * 1000) },
-  '3d': { period: Period.day, start: new Date(now - 2 * 24 * 60 * 60 * 1000) },
-  '1w': { period: Period.day, start: new Date(now - 6 * 24 * 60 * 60 * 1000) },
-  '1m': { period: Period.day, start: new Date(now - 29 * 24 * 60 * 60 * 1000) },
-})
+const getPeriodMap = (now: number): Record<PeriodKey, { period: Period; start: Date }> => {
+  const currentDate = new Date(now)
+  return PERIOD_KEYS.reduce(
+    (acc, key) => {
+      const range = getDateRangeFromShortcut(key, currentDate)
+      const period = key === '1h' ? Period.minute : key.endsWith('h') ? Period.hour : Period.day
+      acc[key] = { period, start: range?.from || currentDate }
+      return acc
+    },
+    {} as Record<PeriodKey, { period: Period; start: Date }>,
+  )
+}
 
 interface UsageModalProps {
   open: boolean
@@ -538,12 +544,12 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
         }
       }
       let filtered = flatStats
-      if (period === '24h' && !showCustomRange) {
+      if (period.endsWith('h') && !showCustomRange) {
         if (!start || !end)
           return flatStats.map((point: any) => {
             const dateObj = dateUtils.toDayjs(point.period_start)
             let timeFormat
-            if (period === '24h' || (showCustomRange && backendPeriod === Period.hour)) {
+            if (period.endsWith('h') || (showCustomRange && backendPeriod === Period.hour)) {
               timeFormat = dateObj.format('HH:mm')
             } else {
               timeFormat = dateObj.format('MM/DD')
@@ -572,7 +578,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
       return filtered.map((point: any) => {
         const dateObj = dateUtils.toDayjs(point.period_start)
         let timeFormat
-        if (period === '24h' || (showCustomRange && backendPeriod === Period.hour)) {
+        if (period.endsWith('h') || (showCustomRange && backendPeriod === Period.hour)) {
           timeFormat = dateObj.format('HH:mm')
         } else {
           timeFormat = dateObj.format('MM/DD')
@@ -642,9 +648,16 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
       setShowCustomRange(true)
       const diffHours = (range.to.getTime() - range.from.getTime()) / (1000 * 60 * 60)
       if (diffHours <= 1) setPeriod('1h')
+      else if (diffHours <= 2) setPeriod('2h')
+      else if (diffHours <= 4) setPeriod('4h')
+      else if (diffHours <= 6) setPeriod('6h')
+      else if (diffHours <= 12) setPeriod('12h')
       else if (diffHours <= 24) setPeriod('24h')
+      else if (diffHours <= 48) setPeriod('2d')
       else if (diffHours <= 72) setPeriod('3d')
+      else if (diffHours <= 120) setPeriod('5d')
       else if (diffHours <= 168) setPeriod('1w')
+      else if (diffHours <= 336) setPeriod('2w')
       else setPeriod('1m')
     }
   }, [])
@@ -664,13 +677,19 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
           <CardHeader className="pb-2">
             <CardTitle className="text-center text-lg sm:text-xl">{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</CardTitle>
             <CardDescription className="flex flex-col items-center gap-4 pt-4">
-              <div className="flex w-full items-center justify-center gap-2">
-                <TimeSelector selectedTime={period} setSelectedTime={handleTimeSelect as any} />
+              <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-center">
+                <TimeSelector
+                  selectedTime={period}
+                  setSelectedTime={value => handleTimeSelect(value as PeriodKey)}
+                  shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS}
+                  maxVisible={5}
+                  className="w-full sm:w-auto"
+                />
                 <Button
                   variant="ghost"
                   size="icon"
                   aria-label={t('usersTable.selectCustomRange', { defaultValue: 'Select custom range' })}
-                  className={showCustomRange ? 'text-primary' : ''}
+                  className={`shrink-0 ${showCustomRange ? 'text-primary' : ''}`}
                   onClick={() => {
                     setShowCustomRange(!showCustomRange)
                     if (!showCustomRange) {

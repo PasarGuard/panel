@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { getUsage, Period, type NodeUsageStat } from '@/service/api'
+import { getAdminUsage, getUsage, Period, type NodeUsageStat, type UserUsageStat } from '@/service/api'
 import { formatBytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
@@ -13,8 +13,10 @@ import { EmptyState } from './empty-state'
 import { TrendingUp, Upload, Download, Calendar } from 'lucide-react'
 import { dateUtils } from '@/utils/dateFormatter'
 import { TooltipProps } from 'recharts'
-import TimeSelector from './time-selector'
+import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
+import { getDateRangeFromShortcut } from '@/utils/timeShortcutUtils'
+import AdminFilterCombobox from './admin-filter-combobox'
 
 type DataPoint = {
   time: string
@@ -31,6 +33,28 @@ const chartConfig = {
 // Define props interface
 interface CostumeBarChartProps {
   nodeId?: number
+}
+
+const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsageStat => {
+  return 'uplink' in point && 'downlink' in point
+}
+
+const getTrafficBytes = (point: NodeUsageStat | UserUsageStat) => {
+  return isNodeUsageStat(point) ? point.uplink + point.downlink : point.total_traffic
+}
+
+const getDirectionalTraffic = (point: NodeUsageStat | UserUsageStat) => {
+  if (isNodeUsageStat(point)) {
+    return {
+      uplink: point.uplink,
+      downlink: point.downlink,
+    }
+  }
+
+  return {
+    uplink: 0,
+    downlink: 0,
+  }
 }
 
 function CustomBarTooltip({ active, payload, period }: TooltipProps<any, any> & { period?: string }) {
@@ -124,6 +148,7 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<any, any> & 
   }
 
   const isRTL = i18n.language === 'fa'
+  const hasDirectionalTraffic = (data._uplink || 0) > 0 || (data._downlink || 0) > 0
 
   return (
     <div className={`min-w-[140px] rounded border border-border bg-background p-2 text-[11px] shadow ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
@@ -138,19 +163,21 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<any, any> & 
           {data.usage} GB
         </span>
       </div>
-      <div className={`flex flex-col gap-1`}>
-        <div className={`flex items-center gap-1 text-[10px] text-muted-foreground ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
-          <Upload className="h-3 w-3 flex-shrink-0" />
-          <span dir="ltr" className="inline-block font-mono">
-            {formatBytes(data._uplink)}
-          </span>
-          <span className={`opacity-60 ${isRTL ? 'mx-1' : 'mx-1'}`}>|</span>
-          <Download className="h-3 w-3 flex-shrink-0" />
-          <span dir="ltr" className="inline-block font-mono">
-            {formatBytes(data._downlink)}
-          </span>
+      {hasDirectionalTraffic && (
+        <div className={`flex flex-col gap-1`}>
+          <div className={`flex items-center gap-1 text-[10px] text-muted-foreground ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+            <Upload className="h-3 w-3 flex-shrink-0" />
+            <span dir="ltr" className="inline-block font-mono">
+              {formatBytes(data._uplink)}
+            </span>
+            <span className={`opacity-60 ${isRTL ? 'mx-1' : 'mx-1'}`}>|</span>
+            <Download className="h-3 w-3 flex-shrink-0" />
+            <span dir="ltr" className="inline-block font-mono">
+              {formatBytes(data._downlink)}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -164,6 +191,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   const [error, setError] = useState<Error | null>(null)
   const [totalUsage, setTotalUsage] = useState('0')
   const [chartKey, setChartKey] = useState(0)
+  const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
 
   const chartContainerRef = useRef<HTMLDivElement>(null)
 
@@ -288,16 +316,16 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
         const period = getPeriodFromDateRange(dateRange)
 
         // Prepare API parameters
-        const params: Parameters<typeof getUsage>[0] = {
+        const params = {
           period: period,
           start: startDate.toISOString(),
           end: dateUtils.toDayjs(endDate).endOf('day').toISOString(),
           ...(nodeId !== undefined && { node_id: nodeId }),
         }
 
-        const response = await getUsage(params)
+        const response = selectedAdmin === 'all' ? await getUsage(params) : await getAdminUsage(selectedAdmin, params)
 
-        let statsArr: NodeUsageStat[] = []
+        let statsArr: Array<NodeUsageStat | UserUsageStat> = []
         if (response && response.stats) {
           if (typeof response.stats === 'object' && !Array.isArray(response.stats)) {
             // If nodeId is provided, use that key
@@ -318,7 +346,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
         }
 
         if (statsArr.length > 0) {
-          const formattedData = statsArr.map((point: NodeUsageStat) => {
+          const formattedData = statsArr.map(point => {
             const d = dateUtils.toDayjs(point.period_start)
             let timeFormat
             if (period === Period.hour) {
@@ -326,19 +354,21 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
             } else {
               timeFormat = d.format('MM/DD')
             }
-            const usageInGB = (point.uplink + point.downlink) / (1024 * 1024 * 1024)
+            const usageBytes = getTrafficBytes(point)
+            const directionalTraffic = getDirectionalTraffic(point)
+            const usageInGB = usageBytes / (1024 * 1024 * 1024)
             return {
               time: timeFormat,
               usage: parseFloat(usageInGB.toFixed(2)),
-              _uplink: point.uplink,
-              _downlink: point.downlink,
+              _uplink: directionalTraffic.uplink,
+              _downlink: directionalTraffic.downlink,
               _period_start: point.period_start,
             }
           })
 
           setChartData(formattedData)
 
-          const total = statsArr.reduce((sum: number, point: NodeUsageStat) => sum + point.uplink + point.downlink, 0)
+          const total = statsArr.reduce((sum: number, point) => sum + getTrafficBytes(point), 0)
           const formattedTotal = formatBytes(total, 2)
           if (typeof formattedTotal === 'string') {
             setTotalUsage(formattedTotal)
@@ -358,64 +388,57 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
     }
 
     fetchUsageData()
-  }, [dateRange, nodeId])
+  }, [dateRange, nodeId, selectedAdmin])
 
   // Add effect to update dateRange when selectedTime changes
   useEffect(() => {
     if (!showCustomRange) {
-      const now = new Date()
-      let from: Date | undefined
-      if (selectedTime === '24h') {
-        from = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-      } else if (selectedTime === '3d') {
-        from = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
-      } else if (selectedTime === '1w') {
-        from = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
-      } else if (selectedTime === '1m') {
-        from = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000)
-      }
-      if (from) {
-        // For 1w, 3d, and 1m, set to end of current day to avoid extra bar
-        const to = selectedTime === '1w' || selectedTime === '3d' || selectedTime === '1m' ? dateUtils.toDayjs(now).endOf('day').toDate() : now
-        setDateRange({ from, to })
+      const nextRange = getDateRangeFromShortcut(selectedTime)
+      if (nextRange) {
+        setDateRange(nextRange)
       }
     }
   }, [selectedTime, showCustomRange])
 
   return (
     <Card>
-      <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 sm:flex-row">
-        <div className="flex flex-1 flex-col gap-1 border-b px-4 py-4 sm:flex-row sm:px-6 sm:py-6">
-          <div className="flex flex-1 flex-col justify-center gap-1 px-1 py-1 align-middle">
+      <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
+        <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
+          <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
             <CardTitle className="text-sm sm:text-base">{t('statistics.trafficUsage')}</CardTitle>
             <CardDescription className="text-xs sm:text-sm">{t('statistics.trafficUsageDescription')}</CardDescription>
           </div>
-          <div className="flex flex-col justify-center gap-2 px-1 py-1 align-middle">
-            <div className="flex items-center gap-2">
-              {showCustomRange ? (
-                <TimeRangeSelector
-                  onRangeChange={range => {
-                    setDateRange(range)
-                    setShowCustomRange(true)
-                  }}
-                  initialRange={dateRange}
-                />
-              ) : (
-                <TimeSelector
-                  selectedTime={selectedTime}
-                  setSelectedTime={v => {
-                    setSelectedTime(v)
-                    setShowCustomRange(false)
-                  }}
-                />
-              )}
-              <button type="button" aria-label="Custom Range" className={`rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
-                <Calendar className="h-4 w-4" />
-              </button>
-            </div>
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                {showCustomRange ? (
+                  <TimeRangeSelector
+                    onRangeChange={range => {
+                      setDateRange(range)
+                      setShowCustomRange(true)
+                    }}
+                    initialRange={dateRange}
+                    className="w-full"
+                  />
+                ) : (
+                  <TimeSelector
+                    selectedTime={selectedTime}
+                    setSelectedTime={v => {
+                      setSelectedTime(v)
+                      setShowCustomRange(false)
+                    }}
+                    shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS}
+                    maxVisible={5}
+                    className="w-full"
+                  />
+                )}
+                <button type="button" aria-label="Custom Range" className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
+                  <Calendar className="h-4 w-4" />
+                </button>
+              </div>
+            <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="w-full sm:w-[220px] sm:shrink-0" />
           </div>
         </div>
-        <div className="m-0 flex flex-col justify-center p-4 px-2 sm:border-l sm:p-6 sm:px-4">
+        <div className="m-0 flex flex-col justify-center p-4 px-2 xl:border-l xl:p-5 xl:px-4">
           <span className="text-xs text-muted-foreground">{t('statistics.usageDuringPeriod')}</span>
           <span dir="ltr" className="flex justify-center text-base text-foreground sm:text-lg">
             {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage}

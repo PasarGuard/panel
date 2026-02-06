@@ -4,6 +4,7 @@ import { ListColumn } from '@/components/common/list-generator'
 import { BaseHost } from '@/service/api'
 import { cn } from '@/lib/utils'
 import HostActionsMenu from '@/components/hosts/host-actions-menu'
+import { Settings } from 'lucide-react'
 
 interface UseHostsListColumnsProps {
   onEdit: (host: BaseHost) => void
@@ -33,7 +34,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseH
         width: '1fr',
         cell: host => (
           <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
-            {Array.isArray(host.address) ? host.address[0] || '' : (host.address ?? '')}:{host.port === null ? 'auto' : host.port}
+            {Array.isArray(host.address) ? host.address[0] || '' : (host.address ?? '')}:{host.port === null ? <Settings className="inline h-3 w-3" /> : host.port}
           </span>
         ),
         hideOnMobile: true,
