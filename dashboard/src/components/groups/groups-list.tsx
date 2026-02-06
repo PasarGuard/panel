@@ -17,6 +17,9 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
+import { ListGenerator } from '@/components/common/list-generator'
+import { useGroupsListColumns } from '@/components/groups/use-groups-list-columns'
 
 const initialDefaultValues: Partial<GroupFormValues> = {
   name: '',
@@ -32,6 +35,7 @@ interface GroupsListProps {
 export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListProps) {
   const [editingGroup, setEditingGroup] = useState<GroupResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const { t } = useTranslation()
   const modifyGroupMutation = useModifyGroup()
   const dir = useDirDetection()
@@ -94,6 +98,11 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     await refetch()
   }
 
+  const listColumns = useGroupsListColumns({
+    onEdit: handleEdit,
+    onToggleStatus: handleToggleStatus,
+  })
+
   const isCurrentlyLoading = isLoading || (isFetching && !groupsData)
   const isEmpty = !isCurrentlyLoading && (!filteredGroups || filteredGroups.length === 0) && !searchQuery.trim()
   const isSearchEmpty = !isCurrentlyLoading && (!filteredGroups || filteredGroups.length === 0) && searchQuery.trim() !== ''
@@ -121,25 +130,8 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
         >
           <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
         </Button>
+        <ViewToggle value={viewMode} onChange={setViewMode} />
       </div>
-      {isCurrentlyLoading && (
-        <ScrollArea className="h-[calc(100vh-8rem)]">
-          <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="px-4 py-5">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-5 w-24 sm:w-32" />
-                    <Skeleton className="h-4 w-20 sm:w-24" />
-                  </div>
-                  <Skeleton className="h-8 w-8 shrink-0" />
-                </div>
-              </Card>
-            ))}
-          </div>
-        </ScrollArea>
-      )}
       {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
@@ -160,11 +152,32 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           </CardContent>
         </Card>
       )}
-      {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
+      {(isCurrentlyLoading || (!isEmpty && !isSearchEmpty)) && (
         <ScrollArea className="h-[calc(100vh-8rem)]">
-          <div dir={dir} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredGroups?.map(group => <Group key={group.id} group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />)}
-          </div>
+          <ListGenerator
+            data={filteredGroups || []}
+            columns={listColumns}
+            getRowId={group => group.id}
+            isLoading={isCurrentlyLoading}
+            loadingRows={6}
+            className="gap-3"
+            onRowClick={handleEdit}
+            mode={viewMode}
+            showEmptyState={false}
+            renderGridItem={group => <Group group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />}
+            renderGridSkeleton={i => (
+              <Card key={i} className="px-4 py-5">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-5 w-24 sm:w-32" />
+                    <Skeleton className="h-4 w-20 sm:w-24" />
+                  </div>
+                  <Skeleton className="h-8 w-8 shrink-0" />
+                </div>
+              </Card>
+            )}
+          />
         </ScrollArea>
       )}
 
