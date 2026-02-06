@@ -465,7 +465,7 @@ export function AllNodesStackedBarChart() {
                   const usageBytes = getTrafficBytes(nodeStats)
                   const directionalTraffic = getDirectionalTraffic(nodeStats)
                   const usageInGB = usageBytes / (1024 * 1024 * 1024)
-                  entry[nodeName] = parseFloat(usageInGB.toFixed(2))
+                  entry[nodeName] = usageInGB
                   // Store uplink and downlink for tooltip
                   entry[`_uplink_${nodeName}`] = directionalTraffic.uplink
                   entry[`_downlink_${nodeName}`] = directionalTraffic.downlink
@@ -563,7 +563,7 @@ export function AllNodesStackedBarChart() {
                       }}
                       shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS}
                       maxVisible={5}
-                      className="w-full"
+                      className="w-fit max-w-full"
                     />
                   )}
                   <button type="button" aria-label="Custom Range" className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
@@ -573,7 +573,7 @@ export function AllNodesStackedBarChart() {
               <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="w-full sm:w-[220px] sm:shrink-0" />
             </div>
           </div>
-          <div className="m-0 flex flex-col justify-center p-4 px-2 xl:border-l xl:p-5 xl:px-4">
+          <div className="m-0 flex flex-col justify-center p-4 xl:border-l xl:p-5 xl:px-6">
             <span className="text-xs text-muted-foreground sm:text-sm">{t('statistics.usageDuringPeriod')}</span>
             <span dir="ltr" className="flex justify-center text-lg text-foreground">
               {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage}
@@ -611,18 +611,25 @@ export function AllNodesStackedBarChart() {
                     data={chartData}
                     margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
                     onClick={data => {
-                      if (data && data.activePayload && data.activePayload.length > 0 && chartData) {
-                        const clickedData = data.activePayload[0].payload
-                        const activeNodesCount = Object.keys(clickedData).filter(key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && (clickedData[key] || 0) > 0).length
-                        // Open modal if there are more nodes than shown in tooltip
-                        const maxShown = window.innerWidth < 768 ? 3 : 6
-                        if (activeNodesCount > maxShown) {
-                          // Find the index of the clicked data point
-                          const clickedIndex = chartData.findIndex(item => item._period_start === clickedData._period_start)
-                          setCurrentDataIndex(clickedIndex >= 0 ? clickedIndex : 0)
-                          setSelectedData(clickedData)
-                          setModalOpen(true)
-                        }
+                      if (!chartData || chartData.length === 0) return
+
+                      const clickedIndex = typeof data?.activeTooltipIndex === 'number' ? data.activeTooltipIndex : -1
+                      const clickedData = data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? chartData[clickedIndex] : undefined)
+                      if (!clickedData) return
+
+                      const activeNodesCount = Object.keys(clickedData).filter(key => {
+                        if (key.startsWith('_') || key === 'time' || key === '_period_start') return false
+                        const usageValue = Number(clickedData[key] || 0)
+                        const uplinkValue = Number(clickedData[`_uplink_${key}`] || 0)
+                        const downlinkValue = Number(clickedData[`_downlink_${key}`] || 0)
+                        return usageValue > 0 || uplinkValue > 0 || downlinkValue > 0
+                      }).length
+
+                      if (activeNodesCount > 0) {
+                        const resolvedIndex = clickedIndex >= 0 ? clickedIndex : chartData.findIndex(item => item._period_start === clickedData._period_start)
+                        setCurrentDataIndex(resolvedIndex >= 0 ? resolvedIndex : 0)
+                        setSelectedData(clickedData)
+                        setModalOpen(true)
                       }
                     }}
                   >
@@ -648,6 +655,7 @@ export function AllNodesStackedBarChart() {
                         key={node.id}
                         dataKey={node.name}
                         stackId="a"
+                        minPointSize={1}
                         fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
                         radius={nodeList.length === 1 ? [4, 4, 4, 4] : idx === 0 ? [0, 0, 4, 4] : idx === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                         cursor="pointer"

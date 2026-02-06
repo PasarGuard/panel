@@ -428,7 +428,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                     }}
                     shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS}
                     maxVisible={5}
-                    className="w-full"
+                    className="w-fit max-w-full"
                   />
                 )}
                 <button type="button" aria-label="Custom Range" className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
@@ -438,7 +438,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
             <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="w-full sm:w-[220px] sm:shrink-0" />
           </div>
         </div>
-        <div className="m-0 flex flex-col justify-center p-4 px-2 xl:border-l xl:p-5 xl:px-4">
+        <div className="m-0 flex flex-col justify-center p-4 xl:border-l xl:p-5 xl:px-6">
           <span className="text-xs text-muted-foreground">{t('statistics.usageDuringPeriod')}</span>
           <span dir="ltr" className="flex justify-center text-base text-foreground sm:text-lg">
             {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage}

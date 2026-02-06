@@ -461,7 +461,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
             }
             nodeList.forEach(node => {
               // Distribute usage equally among nodes
-              const nodeUsage = parseFloat((usageInGB / nodeList.length).toFixed(2))
+              const nodeUsage = usageInGB / nodeList.length
               entry[node.name] = nodeUsage
             })
             return entry
@@ -504,7 +504,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
               const nodeStats = statsArr.find(s => s.period_start === periodStart)
               if (nodeStats) {
                 const usageInGB = nodeStats.total_traffic / (1024 * 1024 * 1024)
-                entry[nodeName] = parseFloat(usageInGB.toFixed(2))
+                entry[nodeName] = usageInGB
               } else {
                 entry[nodeName] = 0
               }
@@ -557,7 +557,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
             const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
             return {
               time: timeFormat,
-              usage: parseFloat(usageInGB.toFixed(2)),
+              usage: usageInGB,
               _period_start: point.period_start,
               local_period_start: dateObj.toISOString(),
             }
@@ -586,7 +586,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
         const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
         return {
           time: timeFormat,
-          usage: parseFloat(usageInGB.toFixed(2)),
+          usage: usageInGB,
           _period_start: point.period_start,
           local_period_start: dateObj.toISOString(),
         }
@@ -775,20 +775,25 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                       data={processedChartData}
                       margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
                       onClick={data => {
-                        if (data && data.activePayload && data.activePayload.length > 0 && processedChartData) {
-                          const clickedData = data.activePayload[0].payload
+                        if (!processedChartData || processedChartData.length === 0) return
+
+                        const clickedIndex = typeof data?.activeTooltipIndex === 'number' ? data.activeTooltipIndex : -1
+                        const clickedData = data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? processedChartData[clickedIndex] : undefined)
+                        if (!clickedData) return
+
+                        if (selectedNodeId === undefined && is_sudo) {
                           const activeNodesCount = Object.keys(clickedData).filter(
-                            key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && key !== 'usage' && (clickedData[key] || 0) > 0,
+                            key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && key !== 'usage' && Number(clickedData[key] || 0) > 0,
                           ).length
-                          // Open modal if there are active nodes (regardless of count)
-                          if (activeNodesCount > 0) {
-                            // Find the index of the clicked data point
-                            const clickedIndex = processedChartData.findIndex(item => item._period_start === clickedData._period_start)
-                            setCurrentDataIndex(clickedIndex >= 0 ? clickedIndex : 0)
-                            setSelectedData(clickedData)
-                            setModalOpen(true)
-                          }
+                          if (activeNodesCount === 0) return
+                        } else {
+                          if (Number(clickedData.usage || 0) <= 0) return
                         }
+
+                        const resolvedIndex = clickedIndex >= 0 ? clickedIndex : processedChartData.findIndex(item => item._period_start === clickedData._period_start)
+                        setCurrentDataIndex(resolvedIndex >= 0 ? resolvedIndex : 0)
+                        setSelectedData(clickedData)
+                        setModalOpen(true)
                       }}
                     >
                       <CartesianGrid direction={'ltr'} vertical={false} />
@@ -814,6 +819,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                             key={node.id}
                             dataKey={node.name}
                             stackId="a"
+                            minPointSize={1}
                             fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
                             radius={nodeList.length === 1 ? [4, 4, 4, 4] : idx === 0 ? [0, 0, 4, 4] : idx === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                             cursor="pointer"
@@ -821,7 +827,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                         ))
                       ) : (
                         // Single node selected OR non-sudo admin aggregated data - render single bar
-                        <Bar dataKey="usage" radius={6} cursor="pointer">
+                        <Bar dataKey="usage" radius={6} cursor="pointer" minPointSize={2}>
                           {processedChartData.map((_: any, index: number) => (
                             <Cell key={`cell-${index}`} fill={'hsl(var(--primary))'} />
                           ))}
