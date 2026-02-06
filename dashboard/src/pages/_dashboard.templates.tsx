@@ -6,7 +6,8 @@ import { Separator } from '@/components/ui/separator.tsx'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 
-import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValueInput } from '@/components/dialogs/user-template-modal.tsx'
+import UserTemplateModal from '@/components/dialogs/user-template-modal.tsx'
+import { userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -231,3 +232,4 @@ export default function UserTemplates() {
     </div>
   )
 }
+

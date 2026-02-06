@@ -925,7 +925,11 @@
       "504": "زمان درگاه به پایان رسید",
       "505": "نسخه HTTP پشتیبانی نمی‌شود"
     },
-    "selectReason": "انتخاب دلیل"
+    "selectReason": "انتخاب دلیل",
+    "routingSettings": "Routing",
+    "vlessRoute": "VLESS Route",
+    "vlessRoutePlaceholder": "e.g. abcd",
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
   },
   "inbound": "ورودی",
   "remark": "اسم هاست",

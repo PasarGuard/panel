@@ -59,6 +59,7 @@ export default function HostsPage() {
         alpn: formData.alpn as ProxyHostALPN[] | undefined,
         fingerprint: formData.fingerprint as ProxyHostFingerprint | undefined,
         ech_config_list: formData.ech_config_list || undefined,
+        vless_route: formData.vless_route || undefined,
         transport_settings: formData.transport_settings
           ? {
               ...formData.transport_settings,

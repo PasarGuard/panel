@@ -23,40 +23,114 @@ export default defineConfig({
     assetsDir: 'statics',
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          'react-router': ['react-router'],
-          'react-query': ['@tanstack/react-query'],
-          recharts: ['recharts'],
-          radix: [
-            '@radix-ui/react-accordion',
-            '@radix-ui/react-alert-dialog',
-            '@radix-ui/react-avatar',
-            '@radix-ui/react-checkbox',
-            '@radix-ui/react-collapsible',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-hover-card',
-            '@radix-ui/react-label',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-progress',
-            '@radix-ui/react-radio-group',
-            '@radix-ui/react-scroll-area',
-            '@radix-ui/react-select',
-            '@radix-ui/react-separator',
-            '@radix-ui/react-slot',
-            '@radix-ui/react-switch',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-toast',
-            '@radix-ui/react-toggle',
-            '@radix-ui/react-toggle-group',
-            '@radix-ui/react-tooltip',
-          ],
-          zustand: ['zustand'],
-          i18n: ['i18next', 'react-i18next', 'i18next-browser-languagedetector', 'i18next-http-backend'],
-          lodash: ['lodash.debounce'],
-          dayjs: ['dayjs'],
-          utils: ['clsx', 'uuid', 'date-fns', 'date-fns-jalali'],
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, '/')
+
+          if (
+            normalizedId.includes('/node_modules/react/') ||
+            normalizedId.includes('/node_modules/react-dom/') ||
+            normalizedId.includes('/node_modules/scheduler/') ||
+            normalizedId.includes('react-dom/index.js?commonjs-es-import')
+          ) {
+            return 'react'
+          }
+
+          if (normalizedId.includes('/node_modules/react-router/') || normalizedId.includes('/node_modules/react-router-dom/')) {
+            return 'react-router'
+          }
+
+          if (normalizedId.includes('/node_modules/@tanstack/react-query/') || normalizedId.includes('/node_modules/@tanstack/query-core/')) {
+            return 'react-query'
+          }
+
+          if (normalizedId.includes('/node_modules/recharts/')) {
+            return 'recharts'
+          }
+
+          if (normalizedId.includes('/node_modules/@radix-ui/react-slot/')) {
+            return 'radix-slot'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@radix-ui/react-dialog/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-alert-dialog/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-toast/')
+          ) {
+            return 'radix-dialog'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@radix-ui/react-popover/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-dropdown-menu/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-hover-card/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-tooltip/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-select/')
+          ) {
+            return 'radix-popover'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@radix-ui/react-tabs/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-accordion/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-collapsible/')
+          ) {
+            return 'radix-navigation'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@radix-ui/react-checkbox/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-radio-group/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-switch/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-label/')
+          ) {
+            return 'radix-forms'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@radix-ui/react-scroll-area/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-separator/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-progress/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-avatar/')
+          ) {
+            return 'radix-layout'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@radix-ui/react-toggle/') ||
+            normalizedId.includes('/node_modules/@radix-ui/react-toggle-group/')
+          ) {
+            return 'radix-toggle'
+          }
+
+          if (normalizedId.includes('/node_modules/zustand/')) {
+            return 'zustand'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/i18next/') ||
+            normalizedId.includes('/node_modules/react-i18next/') ||
+            normalizedId.includes('/node_modules/i18next-browser-languagedetector/') ||
+            normalizedId.includes('/node_modules/i18next-http-backend/')
+          ) {
+            return 'i18n'
+          }
+
+          if (normalizedId.includes('/node_modules/lodash.debounce/')) {
+            return 'lodash'
+          }
+
+          if (normalizedId.includes('/node_modules/dayjs/')) {
+            return 'dayjs'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/clsx/') ||
+            normalizedId.includes('/node_modules/uuid/') ||
+            normalizedId.includes('/node_modules/date-fns/') ||
+            normalizedId.includes('/node_modules/date-fns-jalali/')
+          ) {
+            return 'utils'
+          }
         },
       },
     },

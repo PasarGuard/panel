@@ -191,16 +191,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
+
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -220,11 +220,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsOutput {
+export interface XrayMuxSettingsInput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -594,8 +594,6 @@ export type UserTemplateCreateOnHoldTimeout = number | null
 
 export type UserTemplateCreateResetUsages = boolean | null
 
-export type UserTemplateCreateStatus = UserStatusCreate | null
-
 export type UserTemplateCreateExtraSettings = ExtraSettings | null
 
 export type UserTemplateCreateUsernameSuffix = string | null
@@ -668,6 +666,8 @@ export const UserStatusCreate = {
   active: 'active',
   on_hold: 'on_hold',
 } as const
+
+export type UserTemplateCreateStatus = UserStatusCreate | null
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
 
@@ -1788,6 +1788,8 @@ export type CreateHostEchConfigList = string | null
 
 export type CreateHostStatus = UserStatus[] | null
 
+export type CreateHostVlessRoute = string | null
+
 export type CreateHostNoiseSettings = NoiseSettings | null
 
 export type CreateHostFragmentSettings = FragmentSettings | null
@@ -1837,6 +1839,7 @@ export interface CreateHost {
   noise_settings?: CreateHostNoiseSettings
   random_user_agent?: boolean
   use_sni_as_host?: boolean
+  vless_route?: CreateHostVlessRoute
   priority: number
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
@@ -1996,6 +1999,8 @@ export type BaseHostEchConfigList = string | null
 
 export type BaseHostStatus = UserStatus[] | null
 
+export type BaseHostVlessRoute = string | null
+
 export type BaseHostNoiseSettings = NoiseSettings | null
 
 export type BaseHostFragmentSettings = FragmentSettings | null
@@ -2045,6 +2050,7 @@ export interface BaseHost {
   noise_settings?: BaseHostNoiseSettings
   random_user_agent?: boolean
   use_sni_as_host?: boolean
+  vless_route?: BaseHostVlessRoute
   priority: number
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList

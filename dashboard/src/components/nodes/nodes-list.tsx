@@ -7,11 +7,12 @@ import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { nodeFormSchema, NodeFormValues } from '@/components/dialogs/node-modal'
+import { nodeFormSchema, type NodeFormValues } from '@/components/forms/node-form'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NodeFilters, NodePaginationControls } from '@/components/nodes/node-filters'
-import NodeAdvanceSearchModal, { NodeAdvanceSearchFormValue, nodeAdvanceSearchFormSchema } from '@/components/dialogs/node-advance-search-modal'
+import NodeAdvanceSearchModal from '@/components/dialogs/node-advance-search-modal'
+import { nodeAdvanceSearchFormSchema, type NodeAdvanceSearchFormValue } from '@/components/forms/node-advance-search-form'
 
 const NODES_PER_PAGE = 15
 
@@ -414,3 +415,4 @@ export default function NodesList() {
     </div>
   )
 }
+

@@ -2,7 +2,8 @@ import { useGetAllGroups, useModifyGroup } from '@/service/api'
 import { GroupResponse } from '@/service/api'
 import Group from './group'
 import { useState, useMemo } from 'react'
-import GroupModal, { groupFormSchema, GroupFormValues } from '@/components/dialogs/group-modal'
+import GroupModal from '@/components/dialogs/group-modal'
+import { groupFormSchema, type GroupFormValues } from '@/components/forms/group-form'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -183,3 +184,4 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     </div>
   )
 }
+

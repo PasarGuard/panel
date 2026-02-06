@@ -25,20 +25,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { z } from 'zod'
 import { useTheme } from '@/components/common/theme-provider'
-
-export const coreConfigFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  config: z.string().min(1, 'Configuration is required'),
-  fallback_id: z.array(z.string()).optional(),
-  excluded_inbound_ids: z.array(z.string()).optional(),
-  public_key: z.string().optional(),
-  private_key: z.string().optional(),
-  restart_nodes: z.boolean().optional(),
-})
-
-export type CoreConfigFormValues = z.infer<typeof coreConfigFormSchema>
+import type { CoreConfigFormValues } from '@/components/forms/core-config-form'
 
 interface CoreConfigModalProps {
   isDialogOpen: boolean
@@ -1687,3 +1675,4 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     </>
   )
 }
+

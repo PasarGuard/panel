@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { UseEditFormValues, UseFormValues, userCreateSchema, userEditSchema } from '@/pages/_dashboard.users'
+import { type UseEditFormValues, type UseFormValues, userCreateSchema, userEditSchema } from '@/components/forms/user-form'
 import {
   getGeneralSettings,
   getGetGeneralSettingsQueryKey,
@@ -2341,3 +2341,4 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     </Dialog>
   )
 }
+

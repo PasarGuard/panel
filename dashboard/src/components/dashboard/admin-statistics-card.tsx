@@ -1,8 +1,39 @@
 import { AdminDetails, SystemStats, useGetSystemStats } from '@/service/api'
 import { UserCog, Users } from 'lucide-react'
+import { Suspense, lazy, useEffect, useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import UserStatisticsCard from './users-statistics-card'
-import DataUsageChart from './data-usage-chart'
+
+const DataUsageChart = lazy(() => import('./data-usage-chart'))
+
+function DataUsageChartSkeleton() {
+  return (
+    <div className="rounded-lg border bg-card/80 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+        <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+      </div>
+      <div className="mt-4 h-[240px] w-full animate-pulse rounded bg-muted sm:h-[320px]" />
+    </div>
+  )
+}
+
+function DeferredDataUsageChart(props: ComponentProps<typeof DataUsageChart>) {
+  const [shouldLoad, setShouldLoad] = useState(false)
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setShouldLoad(true), 250)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  if (!shouldLoad) return <DataUsageChartSkeleton />
+
+  return (
+    <Suspense fallback={<DataUsageChartSkeleton />}>
+      <DataUsageChart {...props} />
+    </Suspense>
+  )
+}
 
 const AdminStatisticsCard = ({
   admin,
@@ -50,7 +81,7 @@ const AdminStatisticsCard = ({
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <UserStatisticsCard data={statsToUse} />
-          <DataUsageChart admin_username={shouldPassAdminUsername ? admin.username : undefined} />
+          <DeferredDataUsageChart admin_username={shouldPassAdminUsername ? admin.username : undefined} />
         </div>
       </div>
     )
@@ -58,7 +89,7 @@ const AdminStatisticsCard = ({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <UserStatisticsCard data={statsToUse} />
-      <DataUsageChart admin_username={shouldPassAdminUsername ? admin.username : undefined} />
+      <DeferredDataUsageChart admin_username={shouldPassAdminUsername ? admin.username : undefined} />
     </div>
   )
 }

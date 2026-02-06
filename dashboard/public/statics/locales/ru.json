@@ -1209,7 +1209,11 @@
     "nextPlanTemplateId": "ID шаблона",
     "nextPlanDataLimit": "Лимит данных (ГБ)",
     "nextPlanExpire": "Срок действия (дней)",
-    "nextPlanAddRemainingTraffic": "Добавить оставшийся трафик"
+    "nextPlanAddRemainingTraffic": "Добавить оставшийся трафик",
+    "routingSettings": "Routing",
+    "vlessRoute": "VLESS Route",
+    "vlessRoutePlaceholder": "e.g. abcd",
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
   },
   "enable": "Включить",
   "host": {

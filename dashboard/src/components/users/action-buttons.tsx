@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { useClipboard } from '@/hooks/use-clipboard'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { UseEditFormValues } from '@/pages/_dashboard.users'
+import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Cpu, EllipsisVertical, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users, Copy, Check } from 'lucide-react'
@@ -647,3 +647,4 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 }
 
 export default ActionButtons
+

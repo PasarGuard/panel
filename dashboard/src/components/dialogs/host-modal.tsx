@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { UserStatus, getHosts, getInbounds } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Lock, Network, Plus, Trash2, X } from 'lucide-react'
+import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -1147,6 +1147,50 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         )}
                       />
                     </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="routing">
+                  <AccordionTrigger>
+                    <div className="flex items-center gap-2">
+                      <Route className="h-4 w-4" />
+                      <span>{t('hostsDialog.routingSettings')}</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-2">
+                    <FormField
+                      control={form.control}
+                      name="vless_route"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center gap-2">
+                            <FormLabel>{t('hostsDialog.vlessRoute')}</FormLabel>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                  <Info className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                <p className="text-[11px] text-muted-foreground">{t('hostsDialog.vlessRoute.info')}</p>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <FormControl>
+                            <Input
+                              placeholder={t('hostsDialog.vlessRoutePlaceholder')}
+                              maxLength={4}
+                              value={field.value ?? ''}
+                              onChange={e => {
+                                const normalized = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 4)
+                                field.onChange(normalized)
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </AccordionContent>
                 </AccordionItem>
 

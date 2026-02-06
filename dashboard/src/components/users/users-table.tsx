@@ -1,8 +1,8 @@
 import { setupColumns } from '@/components/users/columns'
 import { DataTable } from '@/components/users/data-table'
 import { Filters } from '@/components/users/filters'
+import { type UseEditFormValues } from '@/components/forms/user-form'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { UseEditFormValues } from '@/pages/_dashboard.users'
 import { useGetUsers, UserResponse, UserStatus, UsersResponse } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
 import { getUsersPerPageLimitSize, setUsersPerPageLimitSize } from '@/utils/userPreferenceStorage'
@@ -12,7 +12,8 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
-import AdvanceSearchModal, { AdvanceSearchFormValue } from '@/components/dialogs/advance-search-modal.tsx'
+import AdvanceSearchModal from '@/components/dialogs/advance-search-modal.tsx'
+import type { AdvanceSearchFormValue } from '@/components/forms/advance-search-form'
 import { Card, CardContent } from '@/components/ui/card'
 
 // Helper function to get URL search params from hash
@@ -596,3 +597,5 @@ const UsersTable = memo(() => {
 })
 
 export default UsersTable
+
+

@@ -6,7 +6,8 @@ import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import AdminsTable from '@/components/admins/admins-table'
-import AdminModal, { adminFormSchema, AdminFormValuesInput } from '@/components/dialogs/admin-modal'
+import AdminModal from '@/components/dialogs/admin-modal'
+import { adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
 import { useActivateAllDisabledUsers, useDisableAllActiveUsers, useModifyAdmin, useRemoveAdmin, useResetAdminUsage } from '@/service/api'
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/components/admins/admin-statistics'
@@ -221,3 +222,4 @@ export default function AdminsPage() {
     </div>
   )
 }
+

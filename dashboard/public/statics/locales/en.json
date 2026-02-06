@@ -1058,7 +1058,11 @@
     "nextPlanTemplateId": "Template ID",
     "nextPlanDataLimit": "Data Limit (GB)",
     "nextPlanExpire": "Expire (days)",
-    "nextPlanAddRemainingTraffic": "Add Remaining Traffic"
+    "nextPlanAddRemainingTraffic": "Add Remaining Traffic",
+    "routingSettings": "Routing",
+    "vlessRoute": "VLESS Route",
+    "vlessRoutePlaceholder": "e.g. abcd",
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
   },
   "inbound": "Inbound",
   "remark": "Host Name",

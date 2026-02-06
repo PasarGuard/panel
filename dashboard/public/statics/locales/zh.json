@@ -1031,7 +1031,11 @@
     "nextPlanTemplateId": "模板 ID",
     "nextPlanDataLimit": "数据限制 (GB)",
     "nextPlanExpire": "有效期 (天)",
-    "nextPlanAddRemainingTraffic": "添加剩余流量"
+    "nextPlanAddRemainingTraffic": "添加剩余流量",
+    "routingSettings": "Routing",
+    "vlessRoute": "VLESS Route",
+    "vlessRoutePlaceholder": "e.g. abcd",
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
   },
   "inbound": "入站",
   "remark": "主机名",

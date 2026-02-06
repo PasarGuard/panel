@@ -76,6 +76,7 @@ export interface HostFormValues {
   is_disabled: boolean
   random_user_agent: boolean
   use_sni_as_host: boolean
+  vless_route?: string
   priority: number
   ech_config_list?: string
   fragment_settings?: {
@@ -336,6 +337,9 @@ export const HostFormSchema = z.object({
   allowinsecure: z.boolean().default(false),
   random_user_agent: z.boolean().default(false),
   use_sni_as_host: z.boolean().default(false),
+  vless_route: z
+    .union([z.literal(''), z.string().regex(/^[0-9a-fA-F]{4}$/, 'VLESS route must be exactly 4 hex characters')])
+    .optional(),
   priority: z.number().default(0),
   is_disabled: z.boolean().default(false),
   ech_config_list: z.string().optional(),
@@ -450,6 +454,7 @@ const initialDefaultValues: HostFormValues = {
   is_disabled: false,
   random_user_agent: false,
   use_sni_as_host: false,
+  vless_route: '',
   priority: 0,
   ech_config_list: undefined,
   fragment_settings: undefined,
@@ -526,6 +531,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
       allowinsecure: host.allowinsecure || false,
       random_user_agent: host.random_user_agent || false,
       use_sni_as_host: host.use_sni_as_host || false,
+      vless_route: host.vless_route || '',
       priority: host.priority || 0,
       is_disabled: host.is_disabled || false,
       ech_config_list: host.ech_config_list || undefined,
@@ -694,6 +700,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         is_disabled: host.is_disabled || false,
         random_user_agent: host.random_user_agent || false,
         use_sni_as_host: host.use_sni_as_host || false,
+        vless_route: host.vless_route || undefined,
         priority: host.priority ?? 0, // Use the same priority as the original host
         ech_config_list: host.ech_config_list,
         fragment_settings: host.fragment_settings,
@@ -800,6 +807,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         is_disabled: host.is_disabled || false,
         random_user_agent: host.random_user_agent || false,
         use_sni_as_host: host.use_sni_as_host || false,
+        vless_route: host.vless_route || undefined,
         priority: index, // New priority based on position
         ech_config_list: host.ech_config_list,
         fragment_settings: host.fragment_settings,
