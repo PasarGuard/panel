@@ -1,13 +1,12 @@
-import os
-
 from decouple import config
 from dotenv import load_dotenv
+from role import Role
 
-TESTING = os.getenv("TESTING", False)
-
+TESTING = config("TESTING", default=False, cast=bool)
 if not TESTING:
     load_dotenv()
-
+    # Reload TESTING in case it is defined in .env
+    TESTING = config("TESTING", default=TESTING, cast=bool)
 
 SQLALCHEMY_DATABASE_URL = config("SQLALCHEMY_DATABASE_URL", default="sqlite+aiosqlite:///db.sqlite3")
 SQLALCHEMY_POOL_SIZE = config("SQLALCHEMY_POOL_SIZE", cast=int, default=25)
@@ -21,8 +20,36 @@ UVICORN_UDS = config("UVICORN_UDS", default=None)
 UVICORN_SSL_CERTFILE = config("UVICORN_SSL_CERTFILE", default=None)
 UVICORN_SSL_KEYFILE = config("UVICORN_SSL_KEYFILE", default=None)
 UVICORN_SSL_CA_TYPE = config("UVICORN_SSL_CA_TYPE", default="public").lower()
+UVICORN_WORKERS = config("UVICORN_WORKERS", default=1, cast=int)
 DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
 UVICORN_LOOP = config("UVICORN_LOOP", default="auto", cast=str)
+
+_role_raw = config("ROLE", default="all-in-one").strip().lower()
+try:
+    ROLE = Role(_role_raw)
+except ValueError:
+    raise ValueError(f"Invalid ROLE '{_role_raw}'. Must be one of: {[r.value for r in Role]}")
+
+NATS_ENABLED = config("NATS_ENABLED", default=False, cast=bool)
+NATS_URL = config("NATS_URL", default="nats://localhost:4222")
+NATS_WORKER_SYNC_SUBJECT = config("NATS_WORKER_SYNC_SUBJECT", default="pasarguard.worker_sync")
+NATS_NODE_COMMAND_SUBJECT = config("NATS_NODE_COMMAND_SUBJECT", default="pasarguard.node.command")
+NATS_NODE_RPC_SUBJECT = config("NATS_NODE_RPC_SUBJECT", default="pasarguard.node.rpc")
+NATS_SCHEDULER_RPC_SUBJECT = config("NATS_SCHEDULER_RPC_SUBJECT", default="pasarguard.scheduler.rpc")
+NATS_NODE_LOG_SUBJECT = config("NATS_NODE_LOG_SUBJECT", default="pasarguard.node.logs")
+NATS_NODE_RPC_TIMEOUT = config("NATS_NODE_RPC_TIMEOUT", cast=float, default=30.0)
+NATS_SCHEDULER_RPC_TIMEOUT = config("NATS_SCHEDULER_RPC_TIMEOUT", cast=float, default=5.0)
+CORE_PUBSUB_CHANNEL = config("CORE_PUBSUB_CHANNEL", default="core_hosts_updates")
+HOST_PUBSUB_CHANNEL = config("HOST_PUBSUB_CHANNEL", default="host_manager_updates")
+
+# NATS KV buckets and streams for coordination
+NATS_TELEGRAM_KV_BUCKET = config("NATS_TELEGRAM_KV_BUCKET", default="pasarguard_telegram")
+NATS_NOTIFICATION_STREAM = config("NATS_NOTIFICATION_STREAM", default="NOTIFICATIONS")
+NATS_NOTIFICATION_SUBJECT = config("NATS_NOTIFICATION_SUBJECT", default="notifications.queue")
+NATS_NOTIFICATION_CONSUMER = config("NATS_NOTIFICATION_CONSUMER", default="notification_workers")
+NATS_WEBHOOK_STREAM = config("NATS_WEBHOOK_STREAM", default="WEBHOOK_NOTIFICATIONS")
+NATS_WEBHOOK_SUBJECT = config("NATS_WEBHOOK_SUBJECT", default="notifications.webhook")
+NATS_WEBHOOK_CONSUMER = config("NATS_WEBHOOK_CONSUMER", default="webhook_workers")
 
 DEBUG = config("DEBUG", default=False, cast=bool)
 DOCS = config("DOCS", default=False, cast=bool)
@@ -107,4 +134,4 @@ JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL = config("JOB_CLEANUP_SUBSCRIPTION_UPD
 
 
 ## Experimental featueres
-SHUTDOWN_NODES_ON_SHUTDOWN = config("SHUTDOWN_NODES_ON_SHUTDOWN", cast=bool, default=True)
+STOP_NODES_ON_SHUTDOWN = config("SHUTDOWN_NODES_ON_SHUTDOWN", cast=bool, default=True)

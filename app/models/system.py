@@ -16,3 +16,14 @@ class SystemStats(BaseModel):
     limited_users: int
     incoming_bandwidth: int
     outgoing_bandwidth: int
+
+
+class WorkerHealth(BaseModel):
+    status: str
+    response_time_ms: int | None = None
+    error: str | None = None
+
+
+class WorkersHealth(BaseModel):
+    scheduler: WorkerHealth
+    node: WorkerHealth

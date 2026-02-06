@@ -21,7 +21,7 @@ const generalSettingsSchema = z.object({
   default_method: z.string().default(''),
 })
 
-type GeneralSettingsForm = z.infer<typeof generalSettingsSchema>
+type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
 
 export default function General() {
   const { t } = useTranslation()
@@ -29,7 +29,7 @@ export default function General() {
   const [isReconnectAllDialogOpen, setIsReconnectAllDialogOpen] = useState(false)
   const reconnectAllNodeMutation = useReconnectAllNode()
 
-  const form = useForm<GeneralSettingsForm>({
+  const form = useForm<GeneralSettingsFormInput>({
     resolver: zodResolver(generalSettingsSchema),
     defaultValues: {
       default_flow: '',
@@ -44,7 +44,7 @@ export default function General() {
     })
   }, [settings])
 
-  const onSubmit = async (data: GeneralSettingsForm) => {
+  const onSubmit = async (data: GeneralSettingsFormInput) => {
     try {
       // Filter out empty values and prepare the payload
       const filteredData: any = {
@@ -149,7 +149,7 @@ export default function General() {
     )
   }
 
-  const clearField = (field: keyof GeneralSettingsForm) => {
+  const clearField = (field: keyof GeneralSettingsFormInput) => {
     return (e: React.MouseEvent<HTMLButtonElement>) => {
       e.preventDefault()
       e.stopPropagation()

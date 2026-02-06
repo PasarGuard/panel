@@ -1,21 +1,18 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
-import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType, NodeStatus } from '@/service/api'
+import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType, NodeStatus, NodeModify } from '@/service/api'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { nodeFormSchema, NodeFormValues } from '@/components/dialogs/node-modal'
+import { nodeFormSchema, type NodeFormValues } from '@/components/forms/node-form'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NodeFilters, NodePaginationControls } from '@/components/nodes/node-filters'
-import NodeAdvanceSearchModal, { NodeAdvanceSearchFormValue, nodeAdvanceSearchFormSchema } from '@/components/dialogs/node-advance-search-modal'
-import { ListGenerator } from '@/components/common/list-generator'
-import { useNodeListColumns } from '@/components/nodes/use-node-list-columns'
-import { ViewMode } from '@/components/common/view-toggle'
-import { cn } from '@/lib/utils'
+import NodeAdvanceSearchModal from '@/components/dialogs/node-advance-search-modal'
+import { nodeAdvanceSearchFormSchema, type NodeAdvanceSearchFormValue } from '@/components/forms/node-advance-search-form'
 
 const NODES_PER_PAGE = 15
 
@@ -27,6 +24,8 @@ const initialDefaultValues: Partial<NodeFormValues> = {
   connection_type: NodeConnectionType.grpc,
   server_ca: '',
   keep_alive: 20000,
+  keep_alive_unit: 'seconds',
+  api_key: '',
 }
 
 export default function NodesList() {
@@ -170,6 +169,7 @@ export default function NodesList() {
       connection_type: node.connection_type,
       server_ca: node.server_ca,
       keep_alive: node.keep_alive,
+      keep_alive_unit: 'seconds',
     })
     setIsDialogOpen(true)
   }
@@ -178,19 +178,31 @@ export default function NodesList() {
     try {
       const shouldEnable = node.status === 'disabled'
       const newStatus = shouldEnable ? 'connected' : 'disabled'
+      const toOptional = <T,>(value: T | null | undefined): Exclude<T, null> | undefined =>
+        value === null || value === undefined ? undefined : (value as Exclude<T, null>)
+
+      const data: NodeModify = {
+        name: node.name,
+        address: node.address,
+        port: toOptional(node.port),
+        api_port: toOptional(node.api_port),
+        usage_coefficient: toOptional(node.usage_coefficient),
+        connection_type: node.connection_type,
+        server_ca: node.server_ca,
+        keep_alive: node.keep_alive,
+        core_config_id: toOptional(node.core_config_id),
+        api_key: toOptional(node.api_key),
+        data_limit: toOptional(node.data_limit),
+        data_limit_reset_strategy: toOptional(node.data_limit_reset_strategy),
+        reset_time: toOptional(node.reset_time),
+        default_timeout: toOptional(node.default_timeout),
+        internal_timeout: toOptional(node.internal_timeout),
+        status: newStatus,
+      }
 
       await modifyNodeMutation.mutateAsync({
         nodeId: node.id,
-        data: {
-          name: node.name,
-          address: node.address,
-          port: node.port,
-          usage_coefficient: node.usage_coefficient,
-          connection_type: node.connection_type,
-          server_ca: node.server_ca,
-          keep_alive: node.keep_alive,
-          status: newStatus,
-        },
+        data,
       })
 
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -409,3 +421,4 @@ export default function NodesList() {
     </div>
   )
 }
+

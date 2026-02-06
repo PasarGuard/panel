@@ -8,8 +8,9 @@ import uvicorn
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-import dashboard  # noqa
-from app import app, logger  # noqa
+from app import create_app  # noqa: F401
+from app.utils.logger import get_logger
+from app.nats import require_nats_if_multiworker
 from app.utils.logger import LOGGING_CONFIG
 from config import (
     DEBUG,
@@ -21,7 +22,17 @@ from config import (
     UVICORN_SSL_CERTFILE,
     UVICORN_SSL_KEYFILE,
     UVICORN_UDS,
+    UVICORN_WORKERS,
 )
+
+logger = get_logger("uvicorn-main")
+
+workers = UVICORN_WORKERS or 1
+if workers < 1:
+    logger.warning(f"Invalid UVICORN_WORKERS value '{UVICORN_WORKERS}', defaulting to 1.")
+    workers = 1
+elif workers > 1:
+    require_nats_if_multiworker(workers)
 
 
 def check_and_modify_ip(ip_address: str) -> str:
@@ -93,9 +104,6 @@ def validate_cert_and_key(cert_file_path, key_file_path, ca_type: str = "public"
 
 
 if __name__ == "__main__":
-    # Do NOT change workers count for now
-    # multi-workers support isn't implemented yet for APScheduler
-
     # Validate UVICORN_SSL_CA_TYPE value
     valid_ca_types = ("public", "private")
     ca_type = UVICORN_SSL_CA_TYPE
@@ -155,9 +163,10 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
 
     try:
         uvicorn.run(
-            "main:app",
+            "main:create_app",
+            factory=True,
             **bind_args,
-            workers=1,
+            workers=workers,
             reload=DEBUG,
             log_config=LOGGING_CONFIG,
             log_level=effective_log_level.lower(),

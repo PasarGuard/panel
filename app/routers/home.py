@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.templates import render_template
@@ -50,3 +50,8 @@ async def get_manifest(request: Request, start_url: Optional[str] = None):
     }
 
     return JSONResponse(content=manifest)
+
+
+@router.get("/health", response_model=dict, status_code=status.HTTP_200_OK)
+async def health():
+    return {"status": "ok"}

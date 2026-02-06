@@ -65,6 +65,14 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
     }
   }
 
+  const uplink = node.uplink || 0
+  const downlink = node.downlink || 0
+  const totalUsed = uplink + downlink
+  const lifetimeUplink = node.lifetime_uplink || 0
+  const lifetimeDownlink = node.lifetime_downlink || 0
+  const totalLifetime = lifetimeUplink + lifetimeDownlink
+  const hasUsageDisplay = !(totalUsed === 0 && !node.data_limit && totalLifetime === 0)
+
   return (
     <TooltipProvider>
       <Card className="group relative h-full cursor-pointer overflow-hidden border transition-colors hover:bg-accent" onClick={() => onEdit(node)}>
@@ -193,10 +201,13 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
             )}
           </div>
 
-          <Separator className="my-2 opacity-50" />
-
-          {/* Usage Display */}
-          <NodeUsageDisplay node={node} />
+          {hasUsageDisplay && (
+            <>
+              <Separator className="my-2 opacity-50" />
+              {/* Usage Display */}
+              <NodeUsageDisplay node={node} />
+            </>
+          )}
         </div>
       </Card>
 

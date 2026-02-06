@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Iterable
 from uuid import uuid4
 
@@ -7,6 +8,12 @@ from fastapi import status
 
 from tests.api import client
 from tests.api.sample_data import XRAY_CONFIG
+from config import ROLE, NATS_ENABLED
+
+
+_WAIT_FOR_INBOUNDS = ROLE.requires_nats and NATS_ENABLED
+_INBOUNDS_RETRIES = 10
+_INBOUNDS_DELAY_SEC = 0.2
 
 
 def unique_name(prefix: str) -> str:
@@ -71,20 +78,42 @@ def delete_core(access_token: str, core_id: int) -> None:
 
 
 def get_inbounds(access_token: str) -> list[str]:
-    response = client.get("/api/inbounds", headers=auth_headers(access_token))
-    if response.status_code == status.HTTP_200_OK:
-        return response.json()
+    def _fetch() -> tuple[int, list[str]]:
+        response = client.get("/api/inbounds", headers=auth_headers(access_token))
+        if response.status_code == status.HTTP_200_OK:
+            return response.status_code, response.json()
+        return response.status_code, []
 
-    if response.status_code == status.HTTP_404_NOT_FOUND:
+    def _poll() -> list[str]:
+        last_data: list[str] = []
+        for _ in range(_INBOUNDS_RETRIES):
+            code, data = _fetch()
+            if code == status.HTTP_200_OK:
+                last_data = data
+                if last_data:
+                    return last_data
+            time.sleep(_INBOUNDS_DELAY_SEC)
+        return last_data
+
+    response_code, data = _fetch()
+
+    if response_code == status.HTTP_200_OK:
+        if data or not _WAIT_FOR_INBOUNDS:
+            return data
+        return _poll()
+
+    if response_code == status.HTTP_404_NOT_FOUND:
         core = create_core(access_token)
         try:
+            if _WAIT_FOR_INBOUNDS:
+                return _poll()
             response = client.get("/api/inbounds", headers=auth_headers(access_token))
             assert response.status_code == status.HTTP_200_OK
             return response.json()
         finally:
             delete_core(access_token, core["id"])
 
-    raise AssertionError(f"Unexpected response from /api/inbounds: {response.status_code} {response.text}")
+    raise AssertionError(f"Unexpected response from /api/inbounds: {response_code}")
 
 
 def create_hosts_for_inbounds(access_token: str, *, address: list[str] | None = None, port: int = 443) -> list[dict]:

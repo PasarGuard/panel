@@ -6,7 +6,8 @@ import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import AdminsTable from '@/components/admins/admins-table'
-import AdminModal, { adminFormSchema, AdminFormValues } from '@/components/dialogs/admin-modal'
+import AdminModal from '@/components/dialogs/admin-modal'
+import { adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
 import { useActivateAllDisabledUsers, useDisableAllActiveUsers, useModifyAdmin, useRemoveAdmin, useResetAdminUsage } from '@/service/api'
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/components/admins/admin-statistics'
@@ -14,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { queryClient } from '@/utils/query-client.ts'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
 
-const initialDefaultValues: Partial<AdminFormValues> = {
+const initialDefaultValues: Partial<AdminFormValuesInput> = {
   username: '',
   is_sudo: false,
   password: '',
@@ -41,7 +42,7 @@ export default function AdminsPage() {
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminDetails> | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number } | null>(null)
-  const form = useForm<AdminFormValues>({
+  const form = useForm<AdminFormValuesInput>({
     resolver: zodResolver(adminFormSchema),
     defaultValues: initialDefaultValues,
   })
@@ -221,3 +222,4 @@ export default function AdminsPage() {
     </div>
   )
 }
+

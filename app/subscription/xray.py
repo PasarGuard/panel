@@ -130,6 +130,19 @@ class XrayConfiguration(BaseSubscription):
             "scMaxEachPostBytes": config.sc_max_each_post_bytes,
             "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
             "xPaddingBytes": config.x_padding_bytes,
+            "xPaddingObfsMode": config.x_padding_obfs_mode,
+            "xPaddingKey": config.x_padding_key,
+            "xPaddingHeader": config.x_padding_header,
+            "xPaddingPlacement": config.x_padding_placement,
+            "xPaddingMethod": config.x_padding_method,
+            "uplinkHTTPMethod": config.uplink_http_method,
+            "sessionPlacement": config.session_placement,
+            "sessionKey": config.session_key,
+            "seqPlacement": config.seq_placement,
+            "seqKey": config.seq_key,
+            "uplinkDataPlacement": config.uplink_data_placement,
+            "uplinkDataKey": config.uplink_data_key,
+            "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
             "downloadSettings": self._download_config(config.download_settings) if config.download_settings else None,
@@ -383,7 +396,12 @@ class XrayConfiguration(BaseSubscription):
 
     def _build_vless(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build VLESS outbound - returns (main_outbound, extra_outbounds_list)"""
-        user_settings = {"id": str(settings["id"]), "encryption": inbound.encryption}
+        # Handle vless-route if needed (only affects ID)
+        id = settings["id"]
+        if inbound.vless_route:
+            id = self.vless_route(id, inbound.vless_route)
+
+        user_settings = {"id": id, "encryption": inbound.encryption}
 
         # Only add flow if inbound supports it
         if inbound.flow_enabled and (flow := settings.get("flow", "")):

@@ -32,13 +32,13 @@ const webhookSettingsSchema = z.object({
   proxy_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
 })
 
-type WebhookSettingsForm = z.infer<typeof webhookSettingsSchema>
+type WebhookSettingsFormInput = z.input<typeof webhookSettingsSchema>
 
 export default function WebhookSettings() {
   const { t } = useTranslation()
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
 
-  const form = useForm<WebhookSettingsForm>({
+  const form = useForm<WebhookSettingsFormInput>({
     resolver: zodResolver(webhookSettingsSchema),
     defaultValues: {
       enable: false,
@@ -97,16 +97,21 @@ export default function WebhookSettings() {
     }
   }, [settings, form])
 
-  const onSubmit = async (data: WebhookSettingsForm) => {
+  const onSubmit = async (data: WebhookSettingsFormInput) => {
     try {
       // Filter out empty values and prepare the payload
       const filteredData: any = {
         webhook: {
           ...data,
+          enable: data.enable ?? false,
+          days_left: data.days_left ?? [],
+          usage_percent: data.usage_percent ?? [],
+          timeout: data.timeout ?? 30,
+          recurrent: data.recurrent ?? 3,
           // Convert empty strings to undefined
           proxy_url: data.proxy_url?.trim() || undefined,
           // Ensure arrays are properly formatted
-          webhooks: data.webhooks.map(webhook => ({
+          webhooks: (data.webhooks ?? []).map(webhook => ({
             url: webhook.url.trim(),
             secret: webhook.secret.trim(),
           })),

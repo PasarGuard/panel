@@ -1,18 +1,20 @@
-import httpx
 import asyncio
+from contextlib import suppress
+from typing import Any
 
+import httpx
+
+from app import on_startup
 from app.models.settings import NotificationSettings
+from app.notification.queue_manager import (
+    DiscordNotification,
+    TelegramNotification,
+    enqueue_discord,
+    enqueue_telegram,
+    get_queue,
+)
 from app.settings import notification_settings
 from app.utils.logger import get_logger
-from app import on_startup
-from app.notification.queue_manager import (
-    telegram_queue,
-    discord_queue,
-    enqueue_telegram,
-    enqueue_discord,
-    TelegramNotification,
-    DiscordNotification,
-)
 
 
 client = None
@@ -147,65 +149,83 @@ async def send_telegram_message(message, chat_id: int | None = None, topic_id: i
     await enqueue_telegram(message, chat_id, topic_id)
 
 
-async def process_telegram_queue():
-    """
-    Process Telegram notification queue, sending messages one by one.
-    """
+async def _process_discord_notification(notification: DiscordNotification):
     settings: NotificationSettings = await notification_settings()
-    if not settings.telegram_api_token:
+    if not settings.notify_discord:
         return
 
-    processed = 0
-    failed = 0
+    success = await _send_discord_webhook_direct(
+        json_data=notification.json_data, webhook=notification.webhook, max_retries=settings.max_retries
+    )
 
-    while not telegram_queue.empty():
-        try:
-            notification: TelegramNotification = await telegram_queue.get()
-
-            success = await _send_telegram_message_direct(
-                message=notification.message,
-                chat_id=notification.chat_id,
-                topic_id=notification.topic_id,
-                max_retries=settings.max_retries,
-                telegram_api_token=settings.telegram_api_token,
-            )
-
-            if success:
-                processed += 1
-            else:
-                failed += 1
-        except Exception as err:
-            logger.error(f"Error processing Telegram notification: {str(err)}")
-            failed += 1
-
-    if processed > 0 or failed > 0:
-        logger.info(f"Telegram queue processed: {processed} sent, {failed} failed")
+    if success:
+        logger.debug("Discord notification delivered")
 
 
-async def process_discord_queue():
-    """
-    Process Discord notification queue, sending webhooks one by one.
-    """
+async def _process_telegram_notification(notification: TelegramNotification):
     settings: NotificationSettings = await notification_settings()
+    if not settings.notify_telegram or not settings.telegram_api_token:
+        return
 
-    processed = 0
-    failed = 0
+    success = await _send_telegram_message_direct(
+        message=notification.message,
+        chat_id=notification.chat_id,
+        topic_id=notification.topic_id,
+        max_retries=settings.max_retries,
+        telegram_api_token=settings.telegram_api_token,
+    )
 
-    while not discord_queue.empty():
+    if success:
+        logger.debug("Telegram notification delivered")
+
+
+async def process_notification(item: dict | None):
+    if not item:
+        return
+
+    try:
+        match item.get("type"):
+            case "discord":
+                notification = DiscordNotification(**item)
+                await _process_discord_notification(notification)
+            case "telegram":
+                notification = TelegramNotification(**item)
+                await _process_telegram_notification(notification)
+            case _:
+                logger.warning(f"Unknown notification type received: {item}")
+    except Exception as err:
+        logger.error(f"Failed to process notification: {err}")
+
+
+async def run_notification_dispatcher():
+    queue = get_queue()
+    while True:
         try:
-            notification: DiscordNotification = await discord_queue.get()
-
-            success = await _send_discord_webhook_direct(
-                json_data=notification.json_data, webhook=notification.webhook, max_retries=settings.max_retries
-            )
-
-            if success:
-                processed += 1
-            else:
-                failed += 1
+            item: dict[str, Any] | None = await queue.dequeue(timeout=1)
+            if item:
+                await process_notification(item)
+        except asyncio.CancelledError:
+            break
         except Exception as err:
-            logger.error(f"Error processing Discord notification: {str(err)}")
-            failed += 1
+            logger.error(f"Notification dispatcher error: {err}")
+            await asyncio.sleep(1)
 
-    if processed > 0 or failed > 0:
-        logger.info(f"Discord queue processed: {processed} sent, {failed} failed")
+
+dispatcher_task: asyncio.Task | None = None
+
+
+async def start_notification_dispatcher():
+    global dispatcher_task
+    if dispatcher_task is None:
+        dispatcher_task = asyncio.create_task(run_notification_dispatcher())
+
+
+async def stop_notification_dispatcher():
+    global dispatcher_task
+    if dispatcher_task is None:
+        return
+
+    dispatcher_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await dispatcher_task
+    dispatcher_task = None

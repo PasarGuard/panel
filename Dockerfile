@@ -28,11 +28,20 @@ WORKDIR /code
 
 ENV PATH="/code/.venv/bin:$PATH"
 
+# Install curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY cli_wrapper.sh /usr/bin/pasarguard-cli
 RUN chmod +x /usr/bin/pasarguard-cli
 
 COPY tui_wrapper.sh /usr/bin/pasarguard-tui
 RUN chmod +x /usr/bin/pasarguard-tui
+
+# Copy healthcheck script
+COPY healthcheck.sh /code/healthcheck.sh
+RUN chmod +x /code/healthcheck.sh
 
 RUN chmod +x /code/start.sh
 

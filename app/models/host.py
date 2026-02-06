@@ -77,6 +77,19 @@ class XHttpSettings(BaseModel):
     mode: XHttpModes | None = Field(default=None)
     no_grpc_header: bool | None = Field(default=None)
     x_padding_bytes: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
+    x_padding_obfs_mode: bool | None = Field(default=None)
+    x_padding_key: str | None = Field(default=None)
+    x_padding_header: str | None = Field(default=None)
+    x_padding_placement: str | None = Field(default=None, pattern=r"^$|^(cookie|header|query|queryInHeader)$")
+    x_padding_method: str | None = Field(default=None, pattern=r"^$|^(repeat-x|tokenish)$")
+    uplink_http_method: str | None = Field(default=None)
+    session_placement: str | None = Field(default=None, pattern=r"^$|^(path|cookie|header|query)$")
+    session_key: str | None = Field(default=None)
+    seq_placement: str | None = Field(default=None, pattern=r"^$|^(path|cookie|header|query)$")
+    seq_key: str | None = Field(default=None)
+    uplink_data_placement: str | None = Field(default=None, pattern=r"^$|^(body|cookie|header)$")
+    uplink_data_key: str | None = Field(default=None)
+    uplink_chunk_size: int | None = Field(default=None)
     sc_max_each_post_bytes: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     sc_min_posts_interval_ms: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     xmux: XMuxSettings | None = Field(default=None)
@@ -84,6 +97,25 @@ class XHttpSettings(BaseModel):
 
     @field_validator("mode", mode="before")
     def _empty_mode_to_none(cls, v):
+        if v == "":
+            return None
+        return v
+
+    @field_validator(
+        "x_padding_key",
+        "x_padding_header",
+        "x_padding_placement",
+        "x_padding_method",
+        "uplink_http_method",
+        "session_placement",
+        "session_key",
+        "seq_placement",
+        "seq_key",
+        "uplink_data_placement",
+        "uplink_data_key",
+        mode="before",
+    )
+    def _empty_str_to_none(cls, v):
         if v == "":
             return None
         return v
@@ -117,7 +149,7 @@ class WebSocketSettings(BaseModel):
 
 
 class KCPSettings(BaseModel):
-    header: str = Field(default="none", pattern=r"^(:?none|srtp|utp|wechat-video|dtls|wireguard)$")
+    header: str = Field(default="none", pattern=r"^(:?none|srtp|utp|wechat-video|dtls|wireguard|dns)$")
     mtu: int | None = Field(default=None)
     tti: int | None = Field(default=None)
     uplink_capacity: int | None = Field(default=None)
@@ -203,6 +235,7 @@ class BaseHost(BaseModel):
     noise_settings: NoiseSettings | None = Field(default=None)
     random_user_agent: bool = Field(default=False)
     use_sni_as_host: bool = Field(default=False)
+    vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
     ech_config_list: str | None = Field(default=None)

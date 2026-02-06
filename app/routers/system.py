@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from aiogram.types import Update
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -7,7 +8,10 @@ from fastapi.responses import JSONResponse
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.settings import Telegram
-from app.models.system import SystemStats
+from app.models.system import SystemStats, WorkerHealth, WorkersHealth
+from app.nats import is_nats_enabled
+from app.nats.node_rpc import node_nats_client
+from app.nats.scheduler_rpc import scheduler_nats_client
 from app.operation import OperatorType
 from app.operation.system import SystemOperation
 from app.settings import telegram_settings
@@ -39,6 +43,32 @@ async def get_system_stats(
 async def get_inbounds(_: AdminDetails = Depends(get_current)):
     """Retrieve inbound configurations grouped by protocol."""
     return await system_operator.get_inbounds()
+
+
+async def _measure_worker_health(request_coro) -> WorkerHealth:
+    start = time.monotonic()
+    try:
+        await request_coro
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        return WorkerHealth(status="ok", response_time_ms=elapsed_ms)
+    except Exception as exc:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        error_msg = str(exc) or exc.__class__.__name__
+        return WorkerHealth(status="down", response_time_ms=elapsed_ms, error=error_msg)
+
+
+@router.get("/workers/health", response_model=WorkersHealth)
+async def get_workers_health(_: AdminDetails = Depends(get_current)):
+    if not is_nats_enabled():
+        unavailable = WorkerHealth(status="unavailable", error="NATS is disabled")
+        return WorkersHealth(scheduler=unavailable, node=unavailable)
+
+    timeout = 5.0
+    scheduler_task = _measure_worker_health(scheduler_nats_client.request("health_check", {}, timeout))
+    node_task = _measure_worker_health(node_nats_client.request("health_check", {}, timeout))
+    scheduler_health, node_health = await asyncio.gather(scheduler_task, node_task)
+
+    return WorkersHealth(scheduler=scheduler_health, node=node_health)
 
 
 @router.post(TELEGRAM_WEBHOOK_PATH, include_in_schema=False)

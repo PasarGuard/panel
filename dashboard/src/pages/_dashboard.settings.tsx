@@ -51,7 +51,7 @@ const sudoTabs: Tab[] = [
 const nonSudoTabs: Tab[] = [{ id: 'theme', label: 'theme.title', icon: Palette, url: '/settings/theme' }]
 
 export default function Settings() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const { admin } = useAdmin()
@@ -203,7 +203,7 @@ export default function Settings() {
       settings: is_sudo ? settings || {} : {}, // Non-sudo admins don't need settings data
       isLoading: is_sudo ? isLoading : false,
       error: is_sudo ? error : null,
-      updateSettings: is_sudo ? handleUpdateSettings : () => {}, // No-op for non-sudo admins
+      updateSettings: is_sudo ? handleUpdateSettings : () => { }, // No-op for non-sudo admins
       isSaving: is_sudo ? isSaving : false,
     }),
     [is_sudo, settings, isLoading, error, isSaving, handleUpdateSettings],

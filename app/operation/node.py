@@ -37,9 +37,11 @@ from app.models.node import (
     UserIPListAll,
 )
 from app.models.stats import NodeRealtimeStats, NodeStatsList, NodeUsageStatsList, Period
+from app.nats.node_rpc import node_nats_client
 from app.node import calculate_max_message_size, core_users, node_manager
-from app.operation import BaseOperation
+from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
+from config import ROLE
 
 MAX_MESSAGE_LENGTH = 128
 
@@ -47,6 +49,43 @@ logger = get_logger("node-operation")
 
 
 class NodeOperation(BaseOperation):
+    def __init__(self, operator_type: OperatorType):
+        super().__init__(operator_type)
+        if ROLE.runs_node:
+            self._update_node_impl = self._update_node_local
+            self._remove_node_impl = self._remove_node_local
+            self._connect_single_impl = self._connect_single_node_local
+            self._connect_bulk_impl = self._connect_nodes_bulk_local
+            self._disconnect_single_impl = self._disconnect_single_node_local
+            self._sync_node_users_impl = self._sync_node_users_local
+            self._get_node_stats_impl = self._get_node_system_stats_local
+            self._get_nodes_stats_impl = self._get_nodes_system_stats_local
+            self._get_user_online_stats_impl = self._get_user_online_stats_local
+            self._get_user_ip_list_impl = self._get_user_ip_list_local
+            self._get_user_ip_list_all_impl = self._get_user_ip_list_all_local
+            self._update_node_api_impl = self._update_node_api_local
+            self._update_core_impl = self._update_core_local
+            self._update_geofiles_impl = self._update_geofiles_local
+            self._get_logs_impl = self._get_logs_local
+            self._restart_all_impl = self._restart_all_nodes_local
+        else:
+            self._update_node_impl = self._update_node_remote
+            self._remove_node_impl = self._remove_node_remote
+            self._connect_single_impl = self._connect_single_node_remote
+            self._connect_bulk_impl = self._connect_nodes_bulk_remote
+            self._disconnect_single_impl = self._disconnect_single_node_remote
+            self._sync_node_users_impl = self._sync_node_users_remote
+            self._get_node_stats_impl = self._get_node_system_stats_remote
+            self._get_nodes_stats_impl = self._get_nodes_system_stats_remote
+            self._get_user_online_stats_impl = self._get_user_online_stats_remote
+            self._get_user_ip_list_impl = self._get_user_ip_list_remote
+            self._get_user_ip_list_all_impl = self._get_user_ip_list_all_remote
+            self._update_node_api_impl = self._update_node_api_remote
+            self._update_core_impl = self._update_core_remote
+            self._update_geofiles_impl = self._update_geofiles_remote
+            self._get_logs_impl = self._get_logs_remote
+            self._restart_all_impl = self._restart_all_nodes_remote
+
     async def get_db_nodes(
         self,
         db: AsyncSession,
@@ -197,21 +236,15 @@ class NodeOperation(BaseOperation):
         except IntegrityError:
             await self.raise_error(message=f'Node "{new_node.name}" already exists', code=409, db=db)
 
-        # Calculate max_message_size based on active users count
-        user_counts = await get_users_count_by_status(db, [UserStatus.active])
-        active_users_count = user_counts.get(UserStatus.active.value, 0)
-        max_message_size = calculate_max_message_size(active_users_count)
-
         try:
-            await node_manager.update_node(db_node, max_message_size=max_message_size)
-            asyncio.create_task(self.connect_single_node(db, db_node.id))
+            await self._update_node_impl(db_node)
+            asyncio.create_task(self._connect_single_impl(db, db_node.id))
         except NodeAPIError as e:
             await self._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
 
         logger.info(f'New node "{db_node.name}" with id "{db_node.id}" added by admin "{admin.username}"')
 
         node = NodeResponse.model_validate(db_node)
-
         asyncio.create_task(notification.create_node(node, admin.username))
 
         return node
@@ -231,21 +264,15 @@ class NodeOperation(BaseOperation):
         if db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             await self.disconnect_single_node(db_node.id)
         else:
-            # Calculate max_message_size based on active users count
-            user_counts = await get_users_count_by_status(db, [UserStatus.active])
-            active_users_count = user_counts.get(UserStatus.active.value, 0)
-            max_message_size = calculate_max_message_size(active_users_count)
-
             try:
-                await node_manager.update_node(db_node, max_message_size=max_message_size)
-                asyncio.create_task(self.connect_single_node(db, db_node.id))
+                await self._update_node_impl(db_node)
+                asyncio.create_task(self._connect_single_impl(db, db_node.id))
             except NodeAPIError as e:
                 await self._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
 
         logger.info(f'Node "{db_node.name}" with id "{db_node.id}" modified by admin "{admin.username}"')
 
         node = NodeResponse.model_validate(db_node)
-
         asyncio.create_task(notification.modify_node(node, admin.username))
 
         return node
@@ -254,7 +281,7 @@ class NodeOperation(BaseOperation):
         db_node: Node = await self.get_validated_node(db=db, node_id=node_id)
         node_response = NodeResponse.model_validate(db_node)
 
-        await node_manager.remove_node(db_node.id)
+        await self._remove_node_impl(db_node.id)
         await remove_node(db=db, db_node=db_node)
 
         logger.info(f'Node "{node_response.name}" with id "{node_response.id}" deleted by admin "{admin.username}"')
@@ -304,6 +331,146 @@ class NodeOperation(BaseOperation):
             db (AsyncSession): Database session.
             nodes (list[Node]): List of nodes to connect.
         """
+        await self._connect_bulk_impl(db, nodes)
+
+    async def connect_single_node(self, db: AsyncSession, node_id: int) -> None:
+        """
+        Connect a single node and update its status (optimized for single-node operations).
+
+        Uses simple UPDATE statement instead of bulk update to avoid deadlock risks
+        and unnecessary complexity.
+
+        Args:
+            db (AsyncSession): Database session.
+            node_id (int): ID of the node to connect.
+        """
+        return await self._connect_single_impl(db, node_id)
+
+    async def _connect_single_node_remote(self, db: AsyncSession, node_id: int) -> None:
+        await node_nats_client.publish("connect_node", {"node_id": node_id})
+
+    async def disconnect_single_node(self, node_id: int) -> None:
+        """
+        Disconnect a single node from the node manager (stop it from running).
+
+        Used when a node needs to be stopped (e.g., when limited or disabled).
+
+        Args:
+            node_id (int): ID of the node to disconnect.
+        """
+        await self._disconnect_single_impl(node_id)
+        logger.info(f'Node "{node_id}" disconnected')
+
+    async def restart_node(self, db: AsyncSession, node_id: Node, admin: AdminDetails) -> None:
+        await self.connect_single_node(db, node_id)
+        logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
+
+    async def restart_all_node(self, db: AsyncSession, admin: AdminDetails, core_id: int | None = None) -> None:
+        await self._restart_all_impl(db, admin, core_id)
+        logger.info(f'All nodes restarted by admin "{admin.username}"')
+
+    async def get_usage(
+        self,
+        db: AsyncSession,
+        start: dt = None,
+        end: dt = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> NodeUsageStatsList:
+        start, end = await self.validate_dates(start, end, True)
+        return await get_nodes_usage(db, start, end, period=period, node_id=node_id, group_by_node=group_by_node)
+
+    async def get_logs(self, node_id: Node) -> Callable[[], AsyncIterator[asyncio.Queue]]:
+        return await self._get_logs_impl(node_id)
+
+    async def get_node_stats_periodic(
+        self, db: AsyncSession, node_id: id, start: dt = None, end: dt = None, period: Period = Period.hour
+    ) -> NodeStatsList:
+        start, end = await self.validate_dates(start, end, True)
+
+        return await get_node_stats(db, node_id, start, end, period=period)
+
+    async def get_node_system_stats(self, node_id: Node) -> NodeRealtimeStats:
+        return await self._get_node_stats_impl(node_id)
+
+    async def get_nodes_system_stats(self) -> dict[int, NodeRealtimeStats | None]:
+        return await self._get_nodes_stats_impl()
+
+    async def _get_node_stats_safe(self, node_id: Node) -> NodeRealtimeStats | None:
+        """Wrapper method that returns None instead of raising exceptions"""
+        try:
+            return await self.get_node_system_stats(node_id)
+        except Exception as e:
+            logger.error(f"Error getting system stats for node {node_id}: {e}")
+            return None
+
+    async def get_user_online_stats_by_node(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
+        return await self._get_user_online_stats_impl(db, node_id, username)
+
+    async def get_user_ip_list_by_node(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
+        return await self._get_user_ip_list_impl(db, node_id, username)
+
+    async def get_user_ip_list_all_nodes(self, db: AsyncSession, username: str) -> UserIPListAll:
+        return await self._get_user_ip_list_all_impl(db, username)
+
+    async def _get_node_user_ip_list_safe(self, node_id: int, email: str) -> dict[str, int] | None:
+        """Wrapper method that returns None instead of raising exceptions"""
+        try:
+            node = await node_manager.get_node(node_id)
+            if node is None:
+                return None
+
+            stats = await node.get_user_online_ip_list(email=email)
+            if stats is None:
+                return None
+
+            return stats.ips
+        except NodeAPIError as e:
+            if e.code != 404:
+                logger.error(f"Error getting IP list for user {email} on node {node_id}: {e}")
+            return None
+
+    async def sync_node_users(self, db: AsyncSession, node_id: int, flush_users: bool = False) -> NodeResponse:
+        return await self._sync_node_users_impl(db, node_id, flush_users)
+
+    async def clear_usage_data(
+        self, db: AsyncSession, table: UsageTable, start: dt | None = None, end: dt | None = None
+    ):
+        if start and end and start >= end:
+            await self.raise_error(code=400, message="Start time must be before end time.")
+
+        try:
+            await clear_usage_data(db, table, start, end)
+            return {"detail": f"All data from '{table}' has been deleted successfully."}
+        except Exception as e:
+            await self.raise_error(code=400, message=f"Deletion failed due to server error: {str(e)}")
+
+    async def update_node(self, db: AsyncSession, node_id: int) -> dict:
+        await self.get_validated_node(db, node_id)
+        return await self._update_node_api_impl(node_id)
+
+    async def update_core(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+        await self.get_validated_node(db, node_id)
+        return await self._update_core_impl(node_id, node_core_update)
+
+    async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+        await self.get_validated_node(db, node_id)
+        return await self._update_geofiles_impl(node_id, node_geofiles_update)
+
+    async def _update_node_local(self, db_node: Node) -> None:
+        await node_manager.update_node(db_node)
+
+    async def _update_node_remote(self, db_node: Node) -> None:
+        await node_nats_client.publish("update_node", {"node_id": db_node.id})
+
+    async def _remove_node_local(self, node_id: int) -> None:
+        await node_manager.remove_node(node_id)
+
+    async def _remove_node_remote(self, node_id: int) -> None:
+        await node_nats_client.publish("remove_node", {"node_id": node_id})
+
+    async def _connect_nodes_bulk_local(self, db: AsyncSession, nodes: list[Node]) -> None:
         if not nodes:
             return
 
@@ -373,17 +540,12 @@ class NodeOperation(BaseOperation):
             elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
                 asyncio.create_task(notification.error_node(notif["node"]))
 
-    async def connect_single_node(self, db: AsyncSession, node_id: int) -> None:
-        """
-        Connect a single node and update its status (optimized for single-node operations).
+    async def _connect_nodes_bulk_remote(self, db: AsyncSession, nodes: list[Node]) -> None:
+        if not nodes:
+            return
+        await node_nats_client.publish("connect_nodes_bulk", {"node_ids": [node.id for node in nodes]})
 
-        Uses simple UPDATE statement instead of bulk update to avoid deadlock risks
-        and unnecessary complexity.
-
-        Args:
-            db (AsyncSession): Database session.
-            node_id (int): ID of the node to connect.
-        """
+    async def _connect_single_node_local(self, db: AsyncSession, node_id: int) -> None:
         db_node = await get_node_by_id(db, node_id)
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             return
@@ -392,9 +554,7 @@ class NodeOperation(BaseOperation):
         users = await core_users(db=db)
 
         # Calculate max_message_size based on active users count
-        user_counts = await get_users_count_by_status(db, [UserStatus.active])
-        active_users_count = user_counts.get(UserStatus.active.value, 0)
-        max_message_size = calculate_max_message_size(active_users_count)
+        max_message_size = calculate_max_message_size(len(users))
 
         # Update node manager
         try:
@@ -450,55 +610,32 @@ class NodeOperation(BaseOperation):
             )
             asyncio.create_task(notification.error_node(node_notif))
 
-    async def disconnect_single_node(self, node_id: int) -> None:
-        """
-        Disconnect a single node from the node manager (stop it from running).
+    async def _connect_single_node_remote(self, db: AsyncSession, node_id: int) -> None:
+        await node_nats_client.publish("connect_node", {"node_id": node_id})
 
-        Used when a node needs to be stopped (e.g., when limited or disabled).
-
-        Args:
-            node_id (int): ID of the node to disconnect.
-        """
+    async def _disconnect_single_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
-        logger.info(f'Node "{node_id}" disconnected')
 
-    async def restart_node(self, db: AsyncSession, node_id: Node, admin: AdminDetails) -> None:
-        await self.connect_single_node(db, node_id)
-        logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
+    async def _disconnect_single_node_remote(self, node_id: int) -> None:
+        await node_nats_client.publish("disconnect_node", {"node_id": node_id})
 
-    async def restart_all_node(self, db: AsyncSession, admin: AdminDetails, core_id: int | None = None) -> None:
+    async def _restart_all_nodes_local(self, db: AsyncSession, admin: AdminDetails, core_id: int | None) -> None:
         nodes, _ = await get_nodes(db, core_id=core_id, enabled=True)
         await self.connect_nodes_bulk(db, nodes)
-        logger.info(f'All nodes restarted by admin "{admin.username}"')
 
-    async def get_usage(
-        self,
-        db: AsyncSession,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
-    ) -> NodeUsageStatsList:
-        start, end = await self.validate_dates(start, end, True)
-        return await get_nodes_usage(db, start, end, period=period, node_id=node_id, group_by_node=group_by_node)
+    async def _restart_all_nodes_remote(self, db: AsyncSession, admin: AdminDetails, core_id: int | None) -> None:
+        await node_nats_client.publish("connect_nodes_bulk", {"core_id": core_id})
 
-    async def get_logs(self, node_id: Node) -> Callable[[], AsyncIterator[asyncio.Queue]]:
+    async def _get_logs_local(self, node_id: Node) -> Callable[[], AsyncIterator[asyncio.Queue]]:
         node = await node_manager.get_node(node_id)
-
         if node is None:
             await self.raise_error(message="Node not found", code=404)
-
         return node.stream_logs
 
-    async def get_node_stats_periodic(
-        self, db: AsyncSession, node_id: id, start: dt = None, end: dt = None, period: Period = Period.hour
-    ) -> NodeStatsList:
-        start, end = await self.validate_dates(start, end, True)
+    async def _get_logs_remote(self, node_id: Node) -> Callable[[], AsyncIterator[asyncio.Queue]]:
+        await self.raise_error(message="Node logs are only available via node-worker", code=409)
 
-        return await get_node_stats(db, node_id, start, end, period=period)
-
-    async def get_node_system_stats(self, node_id: Node) -> NodeRealtimeStats:
+    async def _get_node_system_stats_local(self, node_id: Node) -> NodeRealtimeStats:
         node = await node_manager.get_node(node_id)
 
         if node is None:
@@ -521,7 +658,14 @@ class NodeOperation(BaseOperation):
             outgoing_bandwidth_speed=stats.outgoing_bandwidth_speed,
         )
 
-    async def get_nodes_system_stats(self) -> dict[int, NodeRealtimeStats | None]:
+    async def _get_node_system_stats_remote(self, node_id: Node) -> NodeRealtimeStats:
+        try:
+            data = await node_nats_client.request("get_node_system_stats", {"node_id": node_id})
+            return NodeRealtimeStats.model_validate(data)
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
+
+    async def _get_nodes_system_stats_local(self) -> dict[int, NodeRealtimeStats | None]:
         nodes = await node_manager.get_healthy_nodes()
         stats_tasks = {id: asyncio.create_task(self._get_node_stats_safe(id)) for id, _ in nodes}
 
@@ -536,15 +680,17 @@ class NodeOperation(BaseOperation):
 
         return results
 
-    async def _get_node_stats_safe(self, node_id: Node) -> NodeRealtimeStats | None:
-        """Wrapper method that returns None instead of raising exceptions"""
+    async def _get_nodes_system_stats_remote(self) -> dict[int, NodeRealtimeStats | None]:
         try:
-            return await self.get_node_system_stats(node_id)
-        except Exception as e:
-            logger.error(f"Error getting system stats for node {node_id}: {e}")
-            return None
+            data = await node_nats_client.request("get_nodes_system_stats", {})
+            return {
+                int(node_id): (NodeRealtimeStats.model_validate(value) if value else None)
+                for node_id, value in data.items()
+            }
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
-    async def get_user_online_stats_by_node(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
+    async def _get_user_online_stats_local(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
         db_user = await get_user(db, username=username)
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
@@ -564,7 +710,13 @@ class NodeOperation(BaseOperation):
 
         return {node_id: stats.value}
 
-    async def get_user_ip_list_by_node(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
+    async def _get_user_online_stats_remote(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
+        try:
+            return await node_nats_client.request("get_user_online_stats", {"node_id": node_id, "username": username})
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
+
+    async def _get_user_ip_list_local(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
         db_user = await get_user(db, username=username)
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
@@ -577,7 +729,14 @@ class NodeOperation(BaseOperation):
 
         return UserIPList(ips=ips)
 
-    async def get_user_ip_list_all_nodes(self, db: AsyncSession, username: str) -> UserIPListAll:
+    async def _get_user_ip_list_remote(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
+        try:
+            data = await node_nats_client.request("get_user_ip_list", {"node_id": node_id, "username": username})
+            return UserIPList.model_validate(data)
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
+
+    async def _get_user_ip_list_all_local(self, db: AsyncSession, username: str) -> UserIPListAll:
         db_user = await get_user(db, username=username)
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
@@ -598,24 +757,14 @@ class NodeOperation(BaseOperation):
 
         return UserIPListAll(nodes=results)
 
-    async def _get_node_user_ip_list_safe(self, node_id: int, email: str) -> dict[str, int] | None:
-        """Wrapper method that returns None instead of raising exceptions"""
+    async def _get_user_ip_list_all_remote(self, db: AsyncSession, username: str) -> UserIPListAll:
         try:
-            node = await node_manager.get_node(node_id)
-            if node is None:
-                return None
+            data = await node_nats_client.request("get_user_ip_list_all", {"username": username})
+            return UserIPListAll.model_validate(data)
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
-            stats = await node.get_user_online_ip_list(email=email)
-            if stats is None:
-                return None
-
-            return stats.ips
-        except NodeAPIError as e:
-            if e.code != 404:
-                logger.error(f"Error getting IP list for user {email} on node {node_id}: {e}")
-            return None
-
-    async def sync_node_users(self, db: AsyncSession, node_id: int, flush_users: bool = False) -> NodeResponse:
+    async def _sync_node_users_local(self, db: AsyncSession, node_id: int, flush_users: bool) -> NodeResponse:
         db_node = await self.get_validated_node(db, node_id=node_id)
 
         if db_node.status != NodeStatus.connected:
@@ -633,20 +782,14 @@ class NodeOperation(BaseOperation):
 
         return NodeResponse.model_validate(db_node)
 
-    async def clear_usage_data(
-        self, db: AsyncSession, table: UsageTable, start: dt | None = None, end: dt | None = None
-    ):
-        if start and end and start >= end:
-            await self.raise_error(code=400, message="Start time must be before end time.")
+    async def _sync_node_users_remote(self, db: AsyncSession, node_id: int, flush_users: bool) -> NodeResponse:
+        await node_nats_client.publish(
+            "sync_node_users",
+            {"node_id": node_id, "flush_users": flush_users},
+        )
+        return NodeResponse.model_validate(await self.get_validated_node(db, node_id))
 
-        try:
-            await clear_usage_data(db, table, start, end)
-            return {"detail": f"All data from '{table}' has been deleted successfully."}
-        except Exception as e:
-            await self.raise_error(code=400, message=f"Deletion failed due to server error: {str(e)}")
-
-    async def update_node(self, db: AsyncSession, node_id: int) -> dict:
-        await self.get_validated_node(db, node_id)
+    async def _update_node_api_local(self, node_id: int) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -656,8 +799,13 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message=e.detail, code=e.code)
         return response.json()
 
-    async def update_core(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
-        await self.get_validated_node(db, node_id)
+    async def _update_node_api_remote(self, node_id: int) -> dict:
+        try:
+            return await node_nats_client.request("update_node_api", {"node_id": node_id})
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
+
+    async def _update_core_local(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -667,8 +815,13 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message=e.detail, code=e.code)
         return response.json()
 
-    async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
-        await self.get_validated_node(db, node_id)
+    async def _update_core_remote(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+        return await node_nats_client.request(
+            "update_core",
+            {"node_id": node_id, "core_update": node_core_update.model_dump(mode="json")},
+        )
+
+    async def _update_geofiles_local(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -677,3 +830,9 @@ class NodeOperation(BaseOperation):
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
         return response.json()
+
+    async def _update_geofiles_remote(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+        return await node_nats_client.request(
+            "update_geofiles",
+            {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},
+        )

@@ -19,13 +19,13 @@ const discordSettingsSchema = z.object({
   proxy_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
 })
 
-type DiscordSettingsForm = z.infer<typeof discordSettingsSchema>
+type DiscordSettingsFormInput = z.input<typeof discordSettingsSchema>
 
 export default function DiscordSettings() {
   const { t } = useTranslation()
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
 
-  const form = useForm<DiscordSettingsForm>({
+  const form = useForm<DiscordSettingsFormInput>({
     resolver: zodResolver(discordSettingsSchema),
     defaultValues: {
       enable: false,
@@ -49,12 +49,13 @@ export default function DiscordSettings() {
     }
   }, [settings, form])
 
-  const onSubmit = async (data: DiscordSettingsForm) => {
+  const onSubmit = async (data: DiscordSettingsFormInput) => {
     try {
       // Filter out empty values and prepare the payload
       const filteredData: any = {
         discord: {
           ...data,
+          enable: data.enable ?? false,
           // Convert empty strings to undefined
           token: data.token?.trim() || undefined,
           proxy_url: data.proxy_url?.trim() || undefined,

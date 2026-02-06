@@ -38,7 +38,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
       icon: <UsersIcon className="h-5 w-5" />,
       action: onCreateUser,
       disabled: false,
-      category: 'users',
+      category: 'users' as const,
     },
     // Only show these actions for sudo admins
     ...(isSudo
@@ -50,7 +50,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             icon: <Users2 className="h-5 w-5" />,
             action: onCreateGroup,
             disabled: false,
-            category: 'users',
+            category: 'users' as const,
           },
           {
             id: '3',
@@ -59,7 +59,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             icon: <LayoutTemplate className="h-5 w-5" />,
             action: onCreateTemplate || (() => {}),
             disabled: !onCreateTemplate,
-            category: 'users',
+            category: 'users' as const,
           },
           {
             id: '4',
@@ -68,7 +68,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             icon: <ListTodo className="h-5 w-5" />,
             action: onCreateHost,
             disabled: false,
-            category: 'system',
+            category: 'system' as const,
           },
           {
             id: '5',
@@ -77,7 +77,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             icon: <Share2Icon className="h-5 w-5" />,
             action: onCreateNode,
             disabled: false,
-            category: 'system',
+            category: 'system' as const,
           },
           {
             id: '6',
@@ -86,7 +86,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             icon: <Cpu className="h-5 w-5" />,
             action: onCreateCore || (() => {}),
             disabled: !onCreateCore,
-            category: 'system',
+            category: 'system' as const,
           },
           // Admin Management
           {
@@ -96,7 +96,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             icon: <UserCog className="h-5 w-5" />,
             action: onCreateAdmin || (() => {}),
             disabled: !onCreateAdmin,
-            category: 'management',
+            category: 'management' as const,
           },
         ]
       : []),

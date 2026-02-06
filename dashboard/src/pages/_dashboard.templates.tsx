@@ -6,7 +6,8 @@ import { Separator } from '@/components/ui/separator.tsx'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 
-import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValue } from '@/components/dialogs/user-template-modal.tsx'
+import UserTemplateModal from '@/components/dialogs/user-template-modal.tsx'
+import { userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -22,7 +23,7 @@ import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useUserTemplatesListColumns } from '@/components/templates/use-user-templates-list-columns'
 
-const initialDefaultValues: Partial<UserTemplatesFromValue> = {
+const initialDefaultValues: Partial<UserTemplatesFromValueInput> = {
   name: '',
   status: 'active',
   username_prefix: '',
@@ -42,7 +43,7 @@ export default function UserTemplates() {
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const { data: userTemplates, isLoading, isFetching, refetch } = useGetUserTemplates()
-  const form = useForm<UserTemplatesFromValue>({
+  const form = useForm<UserTemplatesFromValueInput>({
     resolver: zodResolver(userTemplateFormSchema),
   })
   const { t } = useTranslation()
@@ -238,3 +239,4 @@ export default function UserTemplates() {
     </div>
   )
 }
+

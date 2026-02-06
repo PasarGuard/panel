@@ -58,7 +58,7 @@ const telegramSettingsSchema = z.object({
   for_admins_only: z.boolean().default(true),
 })
 
-type TelegramSettingsForm = z.infer<typeof telegramSettingsSchema>
+type TelegramSettingsFormInput = z.input<typeof telegramSettingsSchema>
 
 // Helper function to get current panel URL
 const getCurrentPanelUrl = () => {
@@ -68,15 +68,18 @@ const getCurrentPanelUrl = () => {
 }
 
 // Helper to map frontend Telegram form data to backend payload
-function mapTelegramFormToPayload(data: TelegramSettingsForm) {
+function mapTelegramFormToPayload(data: TelegramSettingsFormInput) {
   const mapped = {
     ...data,
+    enable: data.enable ?? false,
+    method: data.method ?? 'webhook',
+    mini_app_login: data.mini_app_login ?? false,
+    for_admins_only: data.for_admins_only ?? true,
     token: data.token?.trim() || undefined,
     webhook_url: data.webhook_url?.trim() || undefined,
     webhook_secret: data.webhook_secret?.trim() || undefined,
     proxy_url: data.proxy_url?.trim() || undefined,
     mini_app_web_url: data.mini_app_url?.trim() || undefined,
-    for_admins_only: data.for_admins_only,
   }
   delete mapped.mini_app_url
   return { telegram: mapped }
@@ -87,7 +90,7 @@ export default function TelegramSettings() {
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
   const [popoverOpen, setPopoverOpen] = useState(false)
 
-  const form = useForm<TelegramSettingsForm>({
+  const form = useForm<TelegramSettingsFormInput>({
     resolver: zodResolver(telegramSettingsSchema),
     defaultValues: {
       enable: false,
@@ -124,7 +127,7 @@ export default function TelegramSettings() {
     }
   }, [settings, form])
 
-  const onSubmit = async (data: TelegramSettingsForm) => {
+  const onSubmit = async (data: TelegramSettingsFormInput) => {
     try {
       // Use the mapping helper
       const filteredData = mapTelegramFormToPayload(data)

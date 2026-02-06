@@ -25,11 +25,86 @@ from app.models.stats import NodeRealtimeStats, NodeStatsList, NodeUsageStatsLis
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.utils import responses
+from app.nats.node_rpc import node_nats_client
+from config import ROLE
 
 from .authentication import check_sudo_admin
 
 node_operator = NodeOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Node"], prefix="/api/node", responses={401: responses._401, 403: responses._403})
+
+
+async def _node_logs_local(node_id: int, request: Request) -> EventSourceResponse:
+    context_manager = await node_operator.get_logs(node_id=node_id)
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        try:
+            async with context_manager() as log_queue:
+                while True:
+                    if await request.is_disconnected():
+                        break
+
+                    item = await log_queue.get()
+                    # Check if we received an error
+                    if isinstance(item, NodeAPIError):
+                        raise item
+                    # Process the log message
+                    yield f"{item}"
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            yield f"Error retrieving logs: {str(e)}\n"
+
+    return EventSourceResponse(event_generator())
+
+
+async def _node_logs_remote(node_id: int, request: Request) -> EventSourceResponse:
+    async def event_generator() -> AsyncGenerator[str, None]:
+        sub = None
+        stop_subject = None
+        nc = await node_nats_client.get_client()
+        if not nc:
+            yield "Error retrieving logs: NATS not available\n"
+            return
+
+        try:
+            stream_info = await node_nats_client.request("start_logs", {"node_id": node_id})
+            subject = stream_info.get("subject")
+            stop_subject = stream_info.get("stop_subject")
+            if not subject or not stop_subject:
+                yield "Error retrieving logs: invalid stream response\n"
+                return
+
+            sub = await nc.subscribe(subject)
+
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    msg = await sub.next_msg(timeout=1)
+                except asyncio.TimeoutError:
+                    continue
+                yield msg.data.decode()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            yield f"Error retrieving logs: {str(e)}\n"
+        finally:
+            if stop_subject:
+                try:
+                    await nc.publish(stop_subject, b"stop")
+                except Exception:
+                    pass
+            if sub:
+                try:
+                    await sub.unsubscribe()
+                except Exception:
+                    pass
+
+    return EventSourceResponse(event_generator())
+
+
+_node_logs_handler = _node_logs_local if ROLE.runs_node else _node_logs_remote
 
 
 @router.get("/settings", response_model=NodeSettings)
@@ -193,27 +268,7 @@ async def node_logs(node_id: int, request: Request, _: AdminDetails = Depends(ch
     """
     Stream logs for a specific node as Server-Sent Events.
     """
-    context_manager = await node_operator.get_logs(node_id=node_id)
-
-    async def event_generator() -> AsyncGenerator[str, None]:
-        try:
-            async with context_manager() as log_queue:
-                while True:
-                    if await request.is_disconnected():
-                        break
-
-                    item = await log_queue.get()
-                    # Check if we received an error
-                    if isinstance(item, NodeAPIError):
-                        raise item
-                    # Process the log message
-                    yield f"{item}"
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            yield f"Error retrieving logs: {str(e)}\n"
-
-    return EventSourceResponse(event_generator())
+    return await _node_logs_handler(node_id, request)
 
 
 @router.get("/{node_id}/stats", response_model=NodeStatsList)

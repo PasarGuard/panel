@@ -1,14 +1,15 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
-from app.models.admin import AdminCreate, AdminModify
+from app.models.admin import AdminCreate, AdminDetails, AdminModify
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 
 from .general import _build_trunc_expression
+
 
 async def load_admin_attrs(admin: Admin):
     try:
@@ -178,6 +179,7 @@ async def get_admins(
     username: str | None = None,
     sort: list[AdminsSortingOptions] | None = None,
     return_with_count: bool = False,
+    compact: bool = False,
 ) -> list[Admin] | tuple[list[Admin], int, int, int]:
     """
     Retrieves a list of admins with optional filters and pagination.
@@ -202,28 +204,18 @@ async def get_admins(
     disabled = None
 
     if return_with_count:
-        # Get total count
-        count_stmt = select(func.count(Admin.id))
+        counts_stmt = select(
+            func.count(Admin.id).label("total"),
+            func.sum(case((Admin.is_disabled.is_(False), 1), else_=0)).label("active"),
+            func.sum(case((Admin.is_disabled.is_(True), 1), else_=0)).label("disabled"),
+        )
         if username:
-            count_stmt = count_stmt.where(Admin.username.ilike(f"%{username}%"))
-        result = await db.execute(count_stmt)
-        total = result.scalar()
-
-        # Get active count (not disabled)
-        active_stmt = select(func.count(Admin.id))
-        if username:
-            active_stmt = active_stmt.where(Admin.username.ilike(f"%{username}%"))
-        active_stmt = active_stmt.where(Admin.is_disabled.is_(False))
-        result = await db.execute(active_stmt)
-        active = result.scalar()
-
-        # Get disabled count
-        disabled_stmt = select(func.count(Admin.id))
-        if username:
-            disabled_stmt = disabled_stmt.where(Admin.username.ilike(f"%{username}%"))
-        disabled_stmt = disabled_stmt.where(Admin.is_disabled.is_(True))
-        result = await db.execute(disabled_stmt)
-        disabled = result.scalar()
+            counts_stmt = counts_stmt.where(Admin.username.ilike(f"%{username}%"))
+        result = await db.execute(counts_stmt)
+        row = result.one()
+        total = row.total or 0
+        active = row.active or 0
+        disabled = row.disabled or 0
 
     query = base_query
     if sort:
@@ -234,8 +226,68 @@ async def get_admins(
     if limit:
         query = query.limit(limit)
 
-    admins = (await db.execute(query)).scalars().all()
+    if compact:
+        users_count_subq = (
+            select(User.admin_id.label("admin_id"), func.count(User.id).label("total_users"))
+            .group_by(User.admin_id)
+            .subquery()
+        )
+        reset_usage_subq = (
+            select(
+                AdminUsageLogs.admin_id.label("admin_id"),
+                func.coalesce(func.sum(AdminUsageLogs.used_traffic_at_reset), 0).label("reseted_usage"),
+            )
+            .group_by(AdminUsageLogs.admin_id)
+            .subquery()
+        )
 
+        query = (
+            select(
+                Admin,
+                func.coalesce(users_count_subq.c.total_users, 0).label("total_users"),
+                func.coalesce(reset_usage_subq.c.reseted_usage, 0).label("reseted_usage"),
+            )
+            .outerjoin(users_count_subq, users_count_subq.c.admin_id == Admin.id)
+            .outerjoin(reset_usage_subq, reset_usage_subq.c.admin_id == Admin.id)
+        )
+        if username:
+            query = query.where(Admin.username.ilike(f"%{username}%"))
+        if sort:
+            query = query.order_by(*sort)
+        if offset:
+            query = query.offset(offset)
+        if limit:
+            query = query.limit(limit)
+
+        rows = (await db.execute(query)).all()
+        admins = []
+        for admin, total_users, reseted_usage in rows:
+            lifetime_used_traffic = int((reseted_usage or 0) + (admin.used_traffic or 0))
+            admins.append(
+                AdminDetails(
+                    id=admin.id,
+                    username=admin.username,
+                    is_sudo=admin.is_sudo,
+                    total_users=int(total_users or 0),
+                    used_traffic=int(admin.used_traffic or 0),
+                    is_disabled=admin.is_disabled,
+                    telegram_id=admin.telegram_id,
+                    discord_webhook=admin.discord_webhook,
+                    sub_domain=admin.sub_domain,
+                    profile_title=admin.profile_title,
+                    support_url=admin.support_url,
+                    notification_enable=admin.notification_enable,
+                    discord_id=admin.discord_id,
+                    sub_template=admin.sub_template,
+                    lifetime_used_traffic=lifetime_used_traffic,
+                )
+            )
+
+        if return_with_count:
+            return admins, total, active, disabled
+        return admins
+
+    admins = (await db.execute(query)).scalars().all()
     for admin in admins:
         await load_admin_attrs(admin)
 

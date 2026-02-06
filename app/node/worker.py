@@ -1,0 +1,332 @@
+import asyncio
+import contextlib
+import json
+import uuid
+
+from nats.aio.subscription import Subscription
+from PasarGuardNodeBridge import NodeAPIError
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
+
+from app import on_shutdown, on_startup
+from app.db import GetDB
+from app.db.crud.node import get_node_by_id, get_nodes
+from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate
+from app.nats.rpc_service import BaseRpcService
+from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
+from app.node import node_manager
+from app.operation import OperatorType
+from app.operation.node import NodeOperation
+from app.utils.logger import get_logger
+from config import (
+    ROLE,
+    NATS_NODE_COMMAND_SUBJECT,
+    NATS_NODE_LOG_SUBJECT,
+    NATS_NODE_RPC_SUBJECT,
+)
+
+logger = get_logger("node-worker")
+
+
+class NodeWorkerService(BaseRpcService):
+    def __init__(self):
+        super().__init__(
+            subject=NATS_NODE_RPC_SUBJECT,
+            logger=logger,
+            role_check=lambda: ROLE.runs_node,
+        )
+        self._command_sub: Subscription | None = None
+        self._log_tasks: dict[str, asyncio.Task] = {}
+        self._stop_events: dict[str, asyncio.Event] = {}
+        self._node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
+        self._command_semaphore = asyncio.Semaphore(10)
+        self._command_handlers: dict[str, callable] = {}
+        self._register_handlers()
+
+    def register_command_handler(self, action: str, handler):
+        self._command_handlers[action] = handler
+
+    def _register_handlers(self):
+        self.register_command_handler("update_user", self._update_user)
+        self.register_command_handler("update_users", self._update_users)
+        self.register_command_handler("update_node", self._update_node)
+        self.register_command_handler("remove_node", self._remove_node)
+        self.register_command_handler("connect_node", self._connect_node)
+        self.register_command_handler("connect_nodes_bulk", self._connect_nodes_bulk)
+        self.register_command_handler("disconnect_node", self._disconnect_node)
+        self.register_command_handler("sync_node_users", self._sync_node_users)
+
+        self.register_rpc_handler("get_node_system_stats", self._get_node_system_stats)
+        self.register_rpc_handler("get_nodes_system_stats", self._get_nodes_system_stats)
+        self.register_rpc_handler("get_user_online_stats", self._get_user_online_stats_by_node)
+        self.register_rpc_handler("get_user_ip_list", self._get_user_ip_list_by_node)
+        self.register_rpc_handler("get_user_ip_list_all", self._get_user_ip_list_all_nodes)
+        self.register_rpc_handler("update_node_api", self._update_node_api)
+        self.register_rpc_handler("update_core", self._update_core)
+        self.register_rpc_handler("update_geofiles", self._update_geofiles)
+        self.register_rpc_handler("start_logs", self._start_logs)
+
+    async def start(self):
+        await super().start()
+        if not self._nc:
+            return
+
+        self._command_sub = await self._nc.subscribe(NATS_NODE_COMMAND_SUBJECT, cb=self._handle_command)
+        logger.info("Node worker service started")
+
+    async def stop(self):
+        if not ROLE.runs_node:
+            return
+
+        for stop_event in list(self._stop_events.values()):
+            stop_event.set()
+
+        tasks_to_cancel = list(self._log_tasks.values())
+        for task in tasks_to_cancel:
+            task.cancel()
+
+        # Wait for all cancelled tasks to complete their cleanup
+        if tasks_to_cancel:
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+        self._log_tasks.clear()
+        self._stop_events.clear()
+
+        if self._command_sub:
+            await self._command_sub.unsubscribe()
+            self._command_sub = None
+        await super().stop()
+        logger.info("Node worker service stopped")
+
+    async def _handle_command(self, msg):
+        try:
+            payload = json.loads(msg.data.decode())
+            action = payload.get("action")
+            data = payload.get("payload", {})
+        except Exception:
+            logger.warning("Invalid node command message")
+            return
+
+        asyncio.create_task(self._run_command(action, data))
+
+    async def _run_command(self, action: str | None, data: dict):
+        async with self._command_semaphore:
+            try:
+                await self._dispatch_command(action, data)
+            except Exception as exc:
+                logger.error(f"Node command failed: {action} - {exc}", exc_info=True)
+
+    async def _run_rpc(self, msg, action: str | None, data: dict):
+        async with self._rpc_semaphore:
+            try:
+                result = await self._dispatch_rpc(action, data)
+                await msg.respond(json.dumps({"ok": True, "data": result}).encode())
+            except Exception as exc:
+                error_msg = str(exc)
+                # Determine error code based on error message content
+                if "NotFound" in error_msg or "not found" in error_msg.lower():
+                    error_code = 404
+                elif "not allowed" in error_msg.lower() or "permission" in error_msg.lower():
+                    error_code = 403
+                else:
+                    error_code = 500
+                await msg.respond(json.dumps({"ok": False, "error": error_msg, "code": error_code}).encode())
+
+    async def _dispatch_command(self, action: str | None, data: dict):
+        if not action:
+            return
+        handler = self._command_handlers.get(action)
+        if handler:
+            await handler(data)
+
+    async def _update_user(self, data: dict):
+        user_dict = data.get("user")
+        if not user_dict:
+            return
+        proto_user = deserialize_proto_message(user_dict, ProtoUser)
+        await node_manager.update_user(proto_user)
+
+    async def _update_users(self, data: dict):
+        users_dicts = data.get("users") or []
+        if not users_dicts:
+            return
+        proto_users = deserialize_proto_messages(users_dicts, ProtoUser)
+        await node_manager.update_users(proto_users)
+
+    async def _update_node(self, data: dict):
+        node_id = data.get("node_id")
+        if not node_id:
+            return
+        async with GetDB() as db:
+            db_node = await get_node_by_id(db, node_id)
+        if db_node:
+            await node_manager.update_node(db_node)
+
+    async def _remove_node(self, data: dict):
+        node_id = data.get("node_id")
+        if not node_id:
+            return
+        await node_manager.remove_node(node_id)
+
+    async def _connect_node(self, data: dict):
+        node_id = data.get("node_id")
+        if not node_id:
+            return
+        async with GetDB() as db:
+            await self._node_operator.connect_single_node(db, node_id)
+
+    async def _connect_nodes_bulk(self, data: dict):
+        node_ids = data.get("node_ids")
+        core_id = data.get("core_id")
+        async with GetDB() as db:
+            if node_ids:
+                nodes, _ = await get_nodes(db, ids=node_ids)
+            else:
+                nodes, _ = await get_nodes(db, enabled=True, core_id=core_id)
+            await self._node_operator.connect_nodes_bulk(db, nodes)
+
+    async def _disconnect_node(self, data: dict):
+        node_id = data.get("node_id")
+        if not node_id:
+            return
+        await self._node_operator.disconnect_single_node(node_id)
+
+    async def _sync_node_users(self, data: dict):
+        node_id = data.get("node_id")
+        flush_users = data.get("flush_users", False)
+        if not node_id:
+            return
+        async with GetDB() as db:
+            await self._node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users)
+
+    async def _get_node_system_stats(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        if not node_id:
+            raise RuntimeError("node_id is required")
+        stats = await self._node_operator.get_node_system_stats(node_id)
+        return stats.model_dump()
+
+    async def _get_nodes_system_stats(self, data: dict = None) -> dict:
+        stats = await self._node_operator.get_nodes_system_stats()
+        return {node_id: value.model_dump() if value else None for node_id, value in stats.items()}
+
+    async def _get_user_online_stats_by_node(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        username = data.get("username")
+        if not node_id or not username:
+            raise RuntimeError("node_id and username are required")
+        async with GetDB() as db:
+            return await self._node_operator.get_user_online_stats_by_node(db, node_id, username)
+
+    async def _get_user_ip_list_by_node(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        username = data.get("username")
+        if not node_id or not username:
+            raise RuntimeError("node_id and username are required")
+        async with GetDB() as db:
+            user_ips = await self._node_operator.get_user_ip_list_by_node(db, node_id, username)
+        return user_ips.model_dump()
+
+    async def _get_user_ip_list_all_nodes(self, data: dict) -> dict:
+        username = data.get("username")
+        if not username:
+            raise RuntimeError("username is required")
+        async with GetDB() as db:
+            user_ips = await self._node_operator.get_user_ip_list_all_nodes(db, username)
+        return user_ips.model_dump()
+
+    async def _update_node_api(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        if not node_id:
+            raise RuntimeError("node_id is required")
+        async with GetDB() as db:
+            return await self._node_operator.update_node(db, node_id)
+
+    async def _update_core(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        payload = data.get("core_update")
+        if not node_id or payload is None:
+            raise RuntimeError("node_id and core_update are required")
+        async with GetDB() as db:
+            return await self._node_operator.update_core(db, node_id, NodeCoreUpdate.model_validate(payload))
+
+    async def _update_geofiles(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        payload = data.get("geofiles_update")
+        if not node_id or payload is None:
+            raise RuntimeError("node_id and geofiles_update are required")
+        async with GetDB() as db:
+            return await self._node_operator.update_geofiles(db, node_id, NodeGeoFilesUpdate.model_validate(payload))
+
+    async def _start_logs(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        if not node_id:
+            raise RuntimeError("node_id is required")
+        node = await node_manager.get_node(node_id)
+        if node is None:
+            raise RuntimeError("Node not found")
+
+        log_subject = f"{NATS_NODE_LOG_SUBJECT}.{uuid.uuid4().hex}"
+        stop_subject = f"{log_subject}.stop"
+
+        stop_event = asyncio.Event()
+        self._stop_events[log_subject] = stop_event
+
+        async def _stop_cb(msg):
+            stop_event.set()
+
+        stop_sub = await self._nc.subscribe(stop_subject, cb=_stop_cb)
+
+        async def _stream_logs():
+            try:
+                async with node.stream_logs() as log_queue:
+                    while not stop_event.is_set():
+                        log_task = asyncio.create_task(log_queue.get())
+                        wait_task = asyncio.create_task(stop_event.wait())
+                        done, pending = await asyncio.wait(
+                            [log_task, wait_task],
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
+
+                        # Cancel pending tasks to avoid leaks
+                        for task in pending:
+                            task.cancel()
+                            with contextlib.suppress(asyncio.CancelledError):
+                                await task
+
+                        if stop_event.is_set():
+                            # If we stopped, ensure we don't try to read the log task result if it wasn't the one that finished
+                            # Although we verified stop_event is set, log_task might have been cancelled in the pending cleanup
+                            break
+
+                        if log_task in done:
+                            # log_task completed successfully
+                            item = log_task.result()
+                            if isinstance(item, NodeAPIError):
+                                await self._nc.publish(log_subject, f"Error: {item}".encode())
+                                break
+                            await self._nc.publish(log_subject, str(item).encode())
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                await self._nc.publish(log_subject, f"Error: {exc}".encode())
+            finally:
+                with contextlib.suppress(Exception):
+                    await stop_sub.unsubscribe()
+                self._stop_events.pop(log_subject, None)
+                self._log_tasks.pop(log_subject, None)
+
+        self._log_tasks[log_subject] = asyncio.create_task(_stream_logs())
+
+        return {"subject": log_subject, "stop_subject": stop_subject}
+
+
+node_worker_service = NodeWorkerService()
+
+
+@on_startup
+async def start_node_worker():
+    await node_worker_service.start()
+
+
+@on_shutdown
+async def stop_node_worker():
+    await node_worker_service.stop()

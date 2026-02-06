@@ -15,40 +15,12 @@ import { useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { z } from 'zod'
-
-export const userTemplateFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  status: z.enum([UserStatusCreate.active, UserStatusCreate.on_hold]).default(UserStatusCreate.active),
-  username_prefix: z.string().optional(),
-  username_suffix: z.string().optional(),
-  data_limit: z.number().min(0).optional(),
-  expire_duration: z.number().min(0).optional(),
-  on_hold_timeout: z.number().optional(),
-  method: z
-    .enum([ShadowsocksMethods['aes-128-gcm'], ShadowsocksMethods['aes-256-gcm'], ShadowsocksMethods['chacha20-ietf-poly1305'], ShadowsocksMethods['xchacha20-poly1305']])
-    .default(ShadowsocksMethods['chacha20-ietf-poly1305']),
-  flow: z.enum([XTLSFlows[''], XTLSFlows['xtls-rprx-vision']]).default(XTLSFlows['']),
-  groups: z.array(z.number()).min(1, 'Groups is required'),
-  data_limit_reset_strategy: z
-    .enum([
-      DataLimitResetStrategy['month'],
-      DataLimitResetStrategy['day'],
-      DataLimitResetStrategy['week'],
-      DataLimitResetStrategy['no_reset'],
-      DataLimitResetStrategy['week'],
-      DataLimitResetStrategy['year'],
-    ])
-    .optional(),
-  reset_usages: z.boolean().optional(),
-})
-
-export type UserTemplatesFromValue = z.infer<typeof userTemplateFormSchema>
+import type { UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 
 interface UserTemplatesModalprops {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
-  form: UseFormReturn<UserTemplatesFromValue>
+  form: UseFormReturn<UserTemplatesFromValueInput>
   editingUserTemplate: boolean
   editingUserTemplateId?: number
 }
@@ -62,9 +34,10 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const [timeType, setTimeType] = useState<'seconds' | 'hours' | 'days'>('seconds')
   const [loading, setLoading] = useState(false)
 
-  const onSubmit = async (values: UserTemplatesFromValue) => {
+  const onSubmit = async (values: UserTemplatesFromValueInput) => {
     setLoading(true)
     try {
+      const status = values.status ?? UserStatusCreate.active
       // Build payload according to UserTemplateCreate interface
       const submitData = {
         name: values.name,
@@ -73,8 +46,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         username_prefix: values.username_prefix || '',
         username_suffix: values.username_suffix || '',
         group_ids: values.groups, // map groups to group_ids
-        status: values.status,
-        on_hold_timeout: values.status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
+        status,
+        on_hold_timeout: status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
         data_limit_reset_strategy: values.data_limit ? values.data_limit_reset_strategy : undefined,
         reset_usages: values.reset_usages,
         extra_settings:
@@ -454,3 +427,4 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
     </Dialog>
   )
 }
+

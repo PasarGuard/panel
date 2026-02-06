@@ -6,18 +6,20 @@ from app.db import GetDB
 from app.db.models import NodeStatus
 from app.db.crud.node import get_nodes_to_reset_usage, bulk_reset_node_usage
 from app.models.node import NodeResponse
+from app.operation import OperatorType
+from app.operation.node import NodeOperation
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
-from config import JOB_RESET_NODE_USAGE_INTERVAL
+from config import ROLE, JOB_RESET_NODE_USAGE_INTERVAL
 
 logger = get_logger("jobs")
+node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 
 
 async def reset_node_data_usage():
     async with GetDB() as db:
         nodes = await get_nodes_to_reset_usage(db)
-        old_statuses = {node.id: node.status for node in nodes}
 
         updated_nodes = await bulk_reset_node_usage(db, nodes)
 
@@ -34,18 +36,20 @@ async def reset_node_data_usage():
 
             asyncio.create_task(notification.reset_node_usage(node, SYSTEM_ADMIN.username, old_uplink, old_downlink))
 
-            if old_statuses.get(node.id) == NodeStatus.limited and node.status != NodeStatus.limited:
-                # Node was limited but now reset - could send status change notification if needed
-                pass
+            if node.status == NodeStatus.connecting:
+                await node_operator.connect_single_node(node)
 
             logger.info(f'Node data usage reset for Node "{node.name}" (ID: {node.id})')
 
 
-scheduler.add_job(
-    reset_node_data_usage,
-    "interval",
-    seconds=JOB_RESET_NODE_USAGE_INTERVAL,
-    coalesce=True,
-    start_date=dt.now(tz.utc) + td(minutes=1),
-    max_instances=1,
-)
+if ROLE.runs_scheduler:
+    scheduler.add_job(
+        reset_node_data_usage,
+        "interval",
+        seconds=JOB_RESET_NODE_USAGE_INTERVAL,
+        coalesce=True,
+        start_date=dt.now(tz.utc) + td(minutes=1),
+        max_instances=1,
+        id="reset_node_usage",
+        replace_existing=True,
+    )

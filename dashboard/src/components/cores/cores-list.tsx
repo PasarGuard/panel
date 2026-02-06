@@ -2,7 +2,8 @@ import { useGetAllCores, useModifyCoreConfig } from '@/service/api'
 import { CoreResponse } from '@/service/api'
 import Core from './core'
 import { useState, useEffect, useMemo } from 'react'
-import CoreConfigModal, { coreConfigFormSchema, CoreConfigFormValues } from '@/components/dialogs/core-config-modal'
+import CoreConfigModal from '@/components/dialogs/core-config-modal'
+import { coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -206,3 +207,4 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     </div>
   )
 }
+

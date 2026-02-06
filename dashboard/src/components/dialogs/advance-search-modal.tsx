@@ -7,13 +7,13 @@ import { LoaderButton } from '@/components/ui/loader-button.tsx'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { z } from 'zod'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.tsx'
 import GroupsSelector from '@/components/common/groups-selector.tsx'
 import AdminsSelector from '@/components/common/admins-selector.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 import { X } from 'lucide-react'
 import { useGetAllGroups } from '@/service/api'
+import type { AdvanceSearchFormValue } from '@/components/forms/advance-search-form'
 
 interface AdvanceSearchModalProps {
   isDialogOpen: boolean
@@ -22,16 +22,6 @@ interface AdvanceSearchModalProps {
   onSubmit: (values: AdvanceSearchFormValue) => void
   isSudo?: boolean
 }
-
-export const advanceSearchFormSchema = z.object({
-  is_username: z.boolean().default(true),
-  is_protocol: z.boolean().default(false),
-  admin: z.array(z.string()).optional(),
-  group: z.array(z.number()).optional(),
-  status: z.enum(['0', 'active', 'on_hold', 'disabled', 'expired', 'limited']).default('0').optional(),
-})
-
-export type AdvanceSearchFormValue = z.infer<typeof advanceSearchFormSchema>
 export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, onSubmit, isSudo }: AdvanceSearchModalProps) {
   const dir = useDirDetection()
   const { t } = useTranslation()
@@ -239,3 +229,4 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
     </Dialog>
   )
 }
+

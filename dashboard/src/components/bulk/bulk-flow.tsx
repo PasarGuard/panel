@@ -12,6 +12,7 @@ import {
   useBulkRemoveUsersFromGroups,
   XTLSFlows,
   ShadowsocksMethods,
+  UserStatus,
 } from '@/service/api'
 import { Button } from '@/components/ui/button'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -19,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -66,6 +68,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const [selectedUsers, setSelectedUsers] = useState<number[]>([])
   const [selectedAdmins, setSelectedAdmins] = useState<number[]>([])
   const [selectedHasGroups, setSelectedHasGroups] = useState<number[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<UserStatus[]>([])
 
   const [groupCommandSearch, setGroupCommandSearch] = useState('')
 
@@ -105,6 +108,14 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const { data: groupsData, isLoading: groupsLoading } = useGetAllGroups({ limit: PAGE_SIZE, offset: 0 })
   const { data: usersData, isLoading: usersLoading } = useGetUsers({ limit: PAGE_SIZE, offset: 0, search: debouncedUserSearch || undefined })
   const { data: adminsData, isLoading: adminsLoading } = useGetAdmins({ limit: PAGE_SIZE, offset: 0, username: debouncedAdminSearch || undefined })
+
+  const statusOptions: { value: UserStatus; label: string }[] = [
+    { value: 'active', label: t('status.active', { defaultValue: 'Active' }) },
+    { value: 'disabled', label: t('status.disabled', { defaultValue: 'Disabled' }) },
+    { value: 'limited', label: t('status.limited', { defaultValue: 'Limited' }) },
+    { value: 'expired', label: t('status.expired', { defaultValue: 'Expired' }) },
+    { value: 'on_hold', label: t('status.on_hold', { defaultValue: 'On Hold' }) },
+  ]
 
   const filteredGroups =
     groupsData?.groups?.filter(group => {
@@ -190,6 +201,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       users: selectedUsers.length ? selectedUsers : [],
       admins: selectedAdmins.length ? selectedAdmins : [],
     }
+    const statusPayload = selectedStatuses.length ? { status: selectedStatuses } : {}
 
     const payload = (() => {
       switch (operationType) {
@@ -203,11 +215,13 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           const dataLimitBytes = gbToBytes(dataLimit!)
           return {
             ...basePayload,
+            ...statusPayload,
             amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
           }
         case 'expire':
           return {
             ...basePayload,
+            ...statusPayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
           }
         case 'groups':
@@ -265,6 +279,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           setSelectedUsers([])
           setSelectedAdmins([])
           setSelectedHasGroups([])
+          setSelectedStatuses([])
           setShowConfirmDialog(false)
         },
         onError: error => {
@@ -280,7 +295,10 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   // For groups operation, groups are the operation target, not user targets
   // So isApplyToAll should only check users, admins, and hasGroups
   const totalTargets = selectedUsers.length + selectedAdmins.length + (operationType === 'groups' ? selectedHasGroups.length : selectedGroups.length)
-  const isApplyToAll = totalTargets === 0
+  const hasStatusFilter = (operationType === 'data' || operationType === 'expire') && selectedStatuses.length > 0
+  const statusTargetCount = hasStatusFilter ? selectedStatuses.length : 0
+  const displayTargetCount = totalTargets + statusTargetCount
+  const isApplyToAll = totalTargets === 0 && !hasStatusFilter
 
   const formatTime = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`
@@ -653,6 +671,74 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   </div>
                 )}
               </div>
+              {(operationType === 'data' || operationType === 'expire') && (
+                <Card>
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="space-y-2">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <Label className="text-sm font-medium">{t('status', { defaultValue: 'Status' })}</Label>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedStatuses.length > 0 ? (
+                          selectedStatuses.map(status => {
+                            const option = statusOptions.find(opt => opt.value === status)
+                            if (!option) return null
+                            return (
+                              <span key={status} className="flex items-center gap-2 rounded-md bg-muted/80 px-2 py-1 text-sm">
+                                {option.label}
+                                <button
+                                  type="button"
+                                  className="hover:text-destructive"
+                                  onClick={() => {
+                                    setSelectedStatuses(selectedStatuses.filter(s => s !== status))
+                                  }}
+                                >
+                                  x
+                                </button>
+                              </span>
+                            )
+                          })
+                        ) : (
+                          <span className="text-sm text-muted-foreground">{t('hostsDialog.noStatus', { defaultValue: 'No status selected' })}</span>
+                        )}
+                      </div>
+                      <Select
+                        value=""
+                        onValueChange={(value: UserStatus) => {
+                          if (!value) return
+                          if (!selectedStatuses.includes(value)) {
+                            setSelectedStatuses([...selectedStatuses, value])
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={t('hostsDialog.selectStatus', { defaultValue: 'Select status' })} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background">
+                          {statusOptions.map(option => (
+                            <SelectItem
+                              key={option.value}
+                              value={option.value}
+                              className="flex cursor-pointer items-center gap-2 px-4 py-2 focus:bg-accent"
+                              disabled={selectedStatuses.includes(option.value)}
+                            >
+                              <div className="flex w-full items-center gap-3">
+                                <Checkbox checked={selectedStatuses.includes(option.value)} className="h-4 w-4" />
+                                <span className="text-sm font-normal">{option.label}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedStatuses.length > 0 && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => setSelectedStatuses([])} className="w-full">
+                          {t('hostsDialog.clearAllStatuses', { defaultValue: 'Clear all statuses' })}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
                 {operationType === 'groups' ? (
                   <SelectorPanel
@@ -781,6 +867,15 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                     </div>
                   )}
 
+                  {(operationType === 'data' || operationType === 'expire') && selectedStatuses.length > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('status', { defaultValue: 'Status' })}:</span>
+                      <span className="text-sm">
+                        {selectedStatuses.map(status => t(`status.${status}`, { defaultValue: status.replace(/_/g, ' ') })).join(', ')}
+                      </span>
+                    </div>
+                  )}
+
                   {operationType === 'groups' && (
                     <>
                       <div className="flex items-center justify-between">
@@ -808,7 +903,11 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">{t('bulk.targets', { defaultValue: 'Targets' })}:</span>
-                    <span>{isApplyToAll ? t('bulk.allTargets', { defaultValue: 'All users, admins, and groups' }) : t('bulk.targetsCount', { count: totalTargets })}</span>
+                    <span>
+                      {isApplyToAll
+                        ? t('bulk.allTargets', { defaultValue: 'All users, admins, and groups' })
+                        : t('bulk.targetsCount', { count: displayTargetCount })}
+                    </span>
                   </div>
                 </div>
               </div>

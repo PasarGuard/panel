@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import CoreConfigModal, { coreConfigFormSchema, CoreConfigFormValues } from '@/components/dialogs/core-config-modal'
+import CoreConfigModal from '@/components/dialogs/core-config-modal'
+import { coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { useQueryClient } from '@tanstack/react-query'
@@ -233,3 +234,4 @@ export default function CoreSettings() {
     </div>
   )
 }
+

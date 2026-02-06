@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { UseFormReturn } from 'react-hook-form'
 import { useCreateGroup, useModifyGroup, useGetInbounds } from '@/service/api'
 import { toast } from 'sonner'
-import { z } from 'zod'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
 import { X } from 'lucide-react'
@@ -15,14 +14,7 @@ import { cn } from '@/lib/utils'
 import { queryClient } from '@/utils/query-client'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
-
-export const groupFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  inbound_tags: z.array(z.string()),
-  is_disabled: z.boolean().optional(),
-})
-
-export type GroupFormValues = z.infer<typeof groupFormSchema>
+import type { GroupFormValues } from '@/components/forms/group-form'
 
 interface GroupModalProps {
   isDialogOpen: boolean
@@ -174,3 +166,4 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
     </Dialog>
   )
 }
+

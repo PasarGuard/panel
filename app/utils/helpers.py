@@ -30,7 +30,7 @@ def readable_datetime(date_time: Union[dt, int, None], include_date: bool = True
     return date_time.strftime(get_datetime_format()) if date_time else "-"
 
 
-def fix_datetime_timezone(value: dt | int):
+def fix_datetime_timezone(value: dt | int | str):
     if isinstance(value, dt):
         # If datetime is naive (no timezone), assume it's UTC
         if value.tzinfo is None:
@@ -41,6 +41,12 @@ def fix_datetime_timezone(value: dt | int):
     elif isinstance(value, int):
         # Timestamp will be assume it's UTC
         return dt.fromtimestamp(value, tz=tz.utc)
+    elif isinstance(value, str):
+        # SQLite strftime returns naive ISO strings; treat them as UTC.
+        parsed = dt.fromisoformat(value)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=tz.utc)
+        return parsed.astimezone(tz.utc)
 
     raise ValueError("input can be datetime or timestamp")
 

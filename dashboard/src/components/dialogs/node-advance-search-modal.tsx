@@ -5,13 +5,13 @@ import { LoaderButton } from '@/components/ui/loader-button.tsx'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { z } from 'zod'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 import { X } from 'lucide-react'
 import { NodeStatus } from '@/service/api'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
 import CoresSelector from '@/components/common/cores-selector.tsx'
+import type { NodeAdvanceSearchFormValue } from '@/components/forms/node-advance-search-form'
 
 interface NodeAdvanceSearchModalProps {
   isDialogOpen: boolean
@@ -19,13 +19,6 @@ interface NodeAdvanceSearchModalProps {
   form: UseFormReturn<NodeAdvanceSearchFormValue>
   onSubmit: (values: NodeAdvanceSearchFormValue) => void
 }
-
-export const nodeAdvanceSearchFormSchema = z.object({
-  status: z.array(z.nativeEnum(NodeStatus)).optional(),
-  core_id: z.number().nullable().optional()
-})
-
-export type NodeAdvanceSearchFormValue = z.infer<typeof nodeAdvanceSearchFormSchema>
 
 const statusOptions = [
   { value: NodeStatus.connected, label: 'nodeModal.status.connected' },
@@ -168,3 +161,4 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
     </Dialog>
   )
 }
+

@@ -156,12 +156,22 @@ export type GetSystemStatsParams = {
   admin_username?: string | null
 }
 
+export type GetAdminUsageParams = {
+  period: Period
+  node_id?: number | null
+  group_by_node?: boolean
+  start?: string | null
+  end?: string | null
+}
+
 export type GetAdminsParams = {
   username?: string | null
   offset?: number | null
   limit?: number | null
   sort?: string | null
 }
+
+export type Health200 = { [key: string]: unknown }
 
 export type GetManifestParams = {
   start_url?: string | null
@@ -275,6 +285,32 @@ export type XHttpSettingsOutputScMinPostsIntervalMs = string | null
 
 export type XHttpSettingsOutputScMaxEachPostBytes = string | null
 
+export type XHttpSettingsOutputUplinkChunkSize = number | null
+
+export type XHttpSettingsOutputUplinkDataKey = string | null
+
+export type XHttpSettingsOutputUplinkDataPlacement = string | null
+
+export type XHttpSettingsOutputSeqKey = string | null
+
+export type XHttpSettingsOutputSeqPlacement = string | null
+
+export type XHttpSettingsOutputSessionKey = string | null
+
+export type XHttpSettingsOutputSessionPlacement = string | null
+
+export type XHttpSettingsOutputUplinkHttpMethod = string | null
+
+export type XHttpSettingsOutputXPaddingMethod = string | null
+
+export type XHttpSettingsOutputXPaddingPlacement = string | null
+
+export type XHttpSettingsOutputXPaddingHeader = string | null
+
+export type XHttpSettingsOutputXPaddingKey = string | null
+
+export type XHttpSettingsOutputXPaddingObfsMode = boolean | null
+
 export type XHttpSettingsOutputXPaddingBytes = string | null
 
 export type XHttpSettingsOutputNoGrpcHeader = boolean | null
@@ -285,6 +321,19 @@ export interface XHttpSettingsOutput {
   mode?: XHttpSettingsOutputMode
   no_grpc_header?: XHttpSettingsOutputNoGrpcHeader
   x_padding_bytes?: XHttpSettingsOutputXPaddingBytes
+  x_padding_obfs_mode?: XHttpSettingsOutputXPaddingObfsMode
+  x_padding_key?: XHttpSettingsOutputXPaddingKey
+  x_padding_header?: XHttpSettingsOutputXPaddingHeader
+  x_padding_placement?: XHttpSettingsOutputXPaddingPlacement
+  x_padding_method?: XHttpSettingsOutputXPaddingMethod
+  uplink_http_method?: XHttpSettingsOutputUplinkHttpMethod
+  session_placement?: XHttpSettingsOutputSessionPlacement
+  session_key?: XHttpSettingsOutputSessionKey
+  seq_placement?: XHttpSettingsOutputSeqPlacement
+  seq_key?: XHttpSettingsOutputSeqKey
+  uplink_data_placement?: XHttpSettingsOutputUplinkDataPlacement
+  uplink_data_key?: XHttpSettingsOutputUplinkDataKey
+  uplink_chunk_size?: XHttpSettingsOutputUplinkChunkSize
   sc_max_each_post_bytes?: XHttpSettingsOutputScMaxEachPostBytes
   sc_min_posts_interval_ms?: XHttpSettingsOutputScMinPostsIntervalMs
   xmux?: XHttpSettingsOutputXmux
@@ -299,19 +348,35 @@ export type XHttpSettingsInputScMinPostsIntervalMs = string | number | null
 
 export type XHttpSettingsInputScMaxEachPostBytes = string | number | null
 
+export type XHttpSettingsInputUplinkChunkSize = number | null
+
+export type XHttpSettingsInputUplinkDataKey = string | null
+
+export type XHttpSettingsInputUplinkDataPlacement = string | null
+
+export type XHttpSettingsInputSeqKey = string | null
+
+export type XHttpSettingsInputSeqPlacement = string | null
+
+export type XHttpSettingsInputSessionKey = string | null
+
+export type XHttpSettingsInputSessionPlacement = string | null
+
+export type XHttpSettingsInputUplinkHttpMethod = string | null
+
+export type XHttpSettingsInputXPaddingMethod = string | null
+
+export type XHttpSettingsInputXPaddingPlacement = string | null
+
+export type XHttpSettingsInputXPaddingHeader = string | null
+
+export type XHttpSettingsInputXPaddingKey = string | null
+
+export type XHttpSettingsInputXPaddingObfsMode = boolean | null
+
 export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
-
-export interface XHttpSettingsInput {
-  mode?: XHttpSettingsInputMode
-  no_grpc_header?: XHttpSettingsInputNoGrpcHeader
-  x_padding_bytes?: XHttpSettingsInputXPaddingBytes
-  sc_max_each_post_bytes?: XHttpSettingsInputScMaxEachPostBytes
-  sc_min_posts_interval_ms?: XHttpSettingsInputScMinPostsIntervalMs
-  xmux?: XHttpSettingsInputXmux
-  download_settings?: XHttpSettingsInputDownloadSettings
-}
 
 export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
 
@@ -324,6 +389,44 @@ export const XHttpModes = {
 } as const
 
 export type XHttpSettingsInputMode = XHttpModes | null
+
+export interface XHttpSettingsInput {
+  mode?: XHttpSettingsInputMode
+  no_grpc_header?: XHttpSettingsInputNoGrpcHeader
+  x_padding_bytes?: XHttpSettingsInputXPaddingBytes
+  x_padding_obfs_mode?: XHttpSettingsInputXPaddingObfsMode
+  x_padding_key?: XHttpSettingsInputXPaddingKey
+  x_padding_header?: XHttpSettingsInputXPaddingHeader
+  x_padding_placement?: XHttpSettingsInputXPaddingPlacement
+  x_padding_method?: XHttpSettingsInputXPaddingMethod
+  uplink_http_method?: XHttpSettingsInputUplinkHttpMethod
+  session_placement?: XHttpSettingsInputSessionPlacement
+  session_key?: XHttpSettingsInputSessionKey
+  seq_placement?: XHttpSettingsInputSeqPlacement
+  seq_key?: XHttpSettingsInputSeqKey
+  uplink_data_placement?: XHttpSettingsInputUplinkDataPlacement
+  uplink_data_key?: XHttpSettingsInputUplinkDataKey
+  uplink_chunk_size?: XHttpSettingsInputUplinkChunkSize
+  sc_max_each_post_bytes?: XHttpSettingsInputScMaxEachPostBytes
+  sc_min_posts_interval_ms?: XHttpSettingsInputScMinPostsIntervalMs
+  xmux?: XHttpSettingsInputXmux
+  download_settings?: XHttpSettingsInputDownloadSettings
+}
+
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
+
+export type WorkerHealthError = string | null
+
+export type WorkerHealthResponseTimeMs = number | null
+
+export interface WorkerHealth {
+  status: string
+  response_time_ms?: WorkerHealthResponseTimeMs
+  error?: WorkerHealthError
+}
 
 export interface WebhookInfo {
   url: string
@@ -491,8 +594,6 @@ export type UserTemplateCreateOnHoldTimeout = number | null
 
 export type UserTemplateCreateResetUsages = boolean | null
 
-export type UserTemplateCreateStatus = UserStatusCreate | null
-
 export type UserTemplateCreateExtraSettings = ExtraSettings | null
 
 export type UserTemplateCreateUsernameSuffix = string | null
@@ -565,6 +666,8 @@ export const UserStatusCreate = {
   active: 'active',
   on_hold: 'on_hold',
 } as const
+
+export type UserTemplateCreateStatus = UserStatusCreate | null
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
 
@@ -678,13 +781,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
-
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -695,6 +791,13 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
+
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -1170,19 +1273,6 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1198,6 +1288,19 @@ export interface NotificationChannel {
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
 }
 
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
 export interface NotFound {
   detail?: string
 }
@@ -1208,14 +1311,12 @@ export interface NoiseSettings {
   xray?: NoiseSettingsXray
 }
 
-export type NodeUsageStatsListPeriod = Period | null
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
+export interface NodesResponse {
+  nodes: NodeResponse[]
+  total: number
 }
+
+export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStat {
   uplink: number
@@ -1224,6 +1325,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1307,11 +1415,6 @@ export interface NodeResponse {
   lifetime_downlink?: NodeResponseLifetimeDownlink
 }
 
-export interface NodesResponse {
-  nodes: NodeResponse[]
-  total: number
-}
-
 export interface NodeRealtimeStats {
   mem_total: number
   mem_used: number
@@ -1350,8 +1453,6 @@ export type NodeModifyCoreConfigId = number | null
 export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
-
-export type NodeModifyConnectionType = NodeConnectionType | null
 
 export type NodeModifyUsageCoefficient = number | null
 
@@ -1396,6 +1497,8 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
+
+export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -1502,7 +1605,7 @@ export type KCPSettingsTti = number | null
 export type KCPSettingsMtu = number | null
 
 export interface KCPSettings {
-  /** @pattern ^(:?none|srtp|utp|wechat-video|dtls|wireguard)$ */
+  /** @pattern ^(:?none|srtp|utp|wechat-video|dtls|wireguard|dns)$ */
   header?: string
   mtu?: KCPSettingsMtu
   tti?: KCPSettingsTti
@@ -1685,6 +1788,8 @@ export type CreateHostEchConfigList = string | null
 
 export type CreateHostStatus = UserStatus[] | null
 
+export type CreateHostVlessRoute = string | null
+
 export type CreateHostNoiseSettings = NoiseSettings | null
 
 export type CreateHostFragmentSettings = FragmentSettings | null
@@ -1734,6 +1839,7 @@ export interface CreateHost {
   noise_settings?: CreateHostNoiseSettings
   random_user_agent?: boolean
   use_sni_as_host?: boolean
+  vless_route?: CreateHostVlessRoute
   priority: number
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
@@ -1893,6 +1999,8 @@ export type BaseHostEchConfigList = string | null
 
 export type BaseHostStatus = UserStatus[] | null
 
+export type BaseHostVlessRoute = string | null
+
 export type BaseHostNoiseSettings = NoiseSettings | null
 
 export type BaseHostFragmentSettings = FragmentSettings | null
@@ -1942,6 +2050,7 @@ export interface BaseHost {
   noise_settings?: BaseHostNoiseSettings
   random_user_agent?: boolean
   use_sni_as_host?: boolean
+  vless_route?: BaseHostVlessRoute
   priority: number
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
@@ -2242,6 +2351,57 @@ export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, 
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetManifestQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * @summary Health
+ */
+export const health = (signal?: AbortSignal) => {
+  return orvalFetcher<Health200>({ url: `/health`, method: 'GET', signal })
+}
+
+export const getHealthQueryKey = () => {
+  return [`/health`] as const
+}
+
+export const getHealthQueryOptions = <TData = Awaited<ReturnType<typeof health>>, TError = ErrorType<unknown>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>>
+}) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getHealthQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof health>>> = ({ signal }) => health(signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type HealthQueryResult = NonNullable<Awaited<ReturnType<typeof health>>>
+export type HealthQueryError = ErrorType<unknown>
+
+export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = ErrorType<unknown>>(options: {
+  query: Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof health>>, TError, TData>, 'initialData'>
+}): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = ErrorType<unknown>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>> & Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof health>>, TError, TData>, 'initialData'>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = ErrorType<unknown>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Health
+ */
+
+export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = ErrorType<unknown>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getHealthQueryOptions(options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
@@ -2602,6 +2762,73 @@ export function useGetAdmins<TData = Awaited<ReturnType<typeof getAdmins>>, TErr
 }
 
 /**
+ * Get admin usage aggregated from user traffic.
+ * @summary Get Admin Usage
+ */
+export const getAdminUsage = (username: string, params: GetAdminUsageParams, signal?: AbortSignal) => {
+  return orvalFetcher<UserUsageStatsList>({ url: `/api/admin/${username}/usage`, method: 'GET', params, signal })
+}
+
+export const getGetAdminUsageQueryKey = (username: string, params: GetAdminUsageParams) => {
+  return [`/api/admin/${username}/usage`, ...(params ? [params] : [])] as const
+}
+
+export const getGetAdminUsageQueryOptions = <TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  username: string,
+  params: GetAdminUsageParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminUsageQueryKey(username, params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminUsage>>> = ({ signal }) => getAdminUsage(username, params, signal)
+
+  return { queryKey, queryFn, enabled: !!username, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAdminUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminUsage>>>
+export type GetAdminUsageQueryError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  username: string,
+  params: GetAdminUsageParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  username: string,
+  params: GetAdminUsageParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  username: string,
+  params: GetAdminUsageParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Admin Usage
+ */
+
+export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  username: string,
+  params: GetAdminUsageParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetAdminUsageQueryOptions(username, params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Disable all active users under a specific admin
  * @summary Disable All Active Users
  */
@@ -2900,6 +3127,59 @@ export function useGetInbounds<TData = Awaited<ReturnType<typeof getInbounds>>, 
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInbounds>>, TError, TData>>
 }): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetInboundsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * @summary Get Workers Health
+ */
+export const getWorkersHealth = (signal?: AbortSignal) => {
+  return orvalFetcher<WorkersHealth>({ url: `/api/workers/health`, method: 'GET', signal })
+}
+
+export const getGetWorkersHealthQueryKey = () => {
+  return [`/api/workers/health`] as const
+}
+
+export const getGetWorkersHealthQueryOptions = <TData = Awaited<ReturnType<typeof getWorkersHealth>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkersHealth>>, TError, TData>>
+}) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetWorkersHealthQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkersHealth>>> = ({ signal }) => getWorkersHealth(signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getWorkersHealth>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWorkersHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkersHealth>>>
+export type GetWorkersHealthQueryError = ErrorType<Unauthorized>
+
+export function useGetWorkersHealth<TData = Awaited<ReturnType<typeof getWorkersHealth>>, TError = ErrorType<Unauthorized>>(options: {
+  query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkersHealth>>, TError, TData>> &
+    Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getWorkersHealth>>, TError, TData>, 'initialData'>
+}): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkersHealth<TData = Awaited<ReturnType<typeof getWorkersHealth>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkersHealth>>, TError, TData>> &
+    Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getWorkersHealth>>, TError, TData>, 'initialData'>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkersHealth<TData = Awaited<ReturnType<typeof getWorkersHealth>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkersHealth>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Workers Health
+ */
+
+export function useGetWorkersHealth<TData = Awaited<ReturnType<typeof getWorkersHealth>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkersHealth>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetWorkersHealthQueryOptions(options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 

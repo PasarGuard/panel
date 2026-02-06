@@ -235,7 +235,11 @@ class SingBoxConfiguration(BaseSubscription):
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS outbound"""
-        user_settings = {"uuid": str(settings["id"])}
+        # Handle vless-route if needed (only affects ID)
+        id = settings["id"]
+        if inbound.vless_route:
+            id = self.vless_route(id, inbound.vless_route)
+        user_settings = {"uuid": id}
 
         # Only add flow if inbound supports it
         if inbound.flow_enabled and (flow := settings.get("flow", "")):

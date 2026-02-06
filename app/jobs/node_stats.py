@@ -7,7 +7,11 @@ from app.db import GetDB
 from app.db.models import NodeStat
 from app.node import node_manager
 from app.utils.logger import get_logger
-from config import ENABLE_RECORDING_NODES_STATS, JOB_GATHER_NODES_STATS_INTERVAL
+from config import (
+    ENABLE_RECORDING_NODES_STATS,
+    ROLE,
+    JOB_GATHER_NODES_STATS_INTERVAL,
+)
 
 
 logger = get_logger("jobs")
@@ -46,7 +50,13 @@ async def gather_nodes_stats():
             await db.commit()
 
 
-if ENABLE_RECORDING_NODES_STATS:
+if ENABLE_RECORDING_NODES_STATS and ROLE.runs_node:
     scheduler.add_job(
-        gather_nodes_stats, "interval", seconds=JOB_GATHER_NODES_STATS_INTERVAL, coalesce=True, max_instances=1
+        gather_nodes_stats,
+        "interval",
+        seconds=JOB_GATHER_NODES_STATS_INTERVAL,
+        coalesce=True,
+        max_instances=1,
+        id="gather_nodes_stats",
+        replace_existing=True,
     )

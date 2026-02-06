@@ -1,13 +1,18 @@
 import AdminStatisticsCard from '@/components/dashboard/admin-statistics-card'
 import DashboardStatistics from '@/components/dashboard/dashboard-statistics'
-import AdminModal, { adminFormSchema, AdminFormValues } from '@/components/dialogs/admin-modal'
-import { coreConfigFormSchema, CoreConfigFormValues } from '@/components/dialogs/core-config-modal'
-import GroupModal, { groupFormSchema, GroupFormValues } from '@/components/dialogs/group-modal'
+import WorkersHealthCard from '@/components/dashboard/workers-health-card'
+import AdminModal from '@/components/dialogs/admin-modal'
+import { adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
+import { coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
+import GroupModal from '@/components/dialogs/group-modal'
+import { groupFormSchema, type GroupFormValues } from '@/components/forms/group-form'
 import HostModal from '@/components/dialogs/host-modal'
-import NodeModal, { nodeFormSchema, NodeFormValues } from '@/components/dialogs/node-modal'
+import NodeModal from '@/components/dialogs/node-modal'
+import { nodeFormSchema, type NodeFormValues } from '@/components/forms/node-form'
 import QuickActionsModal from '@/components/dialogs/shortcuts-modal'
 import UserModal from '@/components/dialogs/user-modal'
-import UserTemplateModal, { userTemplateFormSchema, UserTemplatesFromValue } from '@/components/dialogs/user-template-modal'
+import UserTemplateModal from '@/components/dialogs/user-template-modal'
+import { userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 import { HostFormValues } from '@/components/hosts/hosts-list'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -28,7 +33,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import PageHeader from '@/components/layout/page-header'
-import { getDefaultUserForm, UseEditFormValues, UseFormValues } from './_dashboard.users'
+import { type UseEditFormValues, type UseFormValues, getDefaultUserForm } from '@/components/forms/user-form'
 // Lazy load CoreConfigModal to prevent Monaco Editor from loading until needed
 const CoreConfigModal = lazy(() => import('@/components/dialogs/core-config-modal'))
 
@@ -147,7 +152,7 @@ const Dashboard = () => {
     },
   })
 
-  const adminForm = useForm<AdminFormValues>({
+  const adminForm = useForm<AdminFormValuesInput>({
     resolver: zodResolver(adminFormSchema),
     defaultValues: {
       username: '',
@@ -174,7 +179,7 @@ const Dashboard = () => {
     },
   })
 
-  const templateForm = useForm<UserTemplatesFromValue>({
+  const templateForm = useForm<UserTemplatesFromValueInput>({
     resolver: zodResolver(userTemplateFormSchema),
     defaultValues: {
       name: '',
@@ -354,6 +359,11 @@ const Dashboard = () => {
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
             <DashboardStatistics systemData={systemStatsData} />
           </div>
+          {is_sudo && (
+            <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '180ms', animationFillMode: 'both' }}>
+              <WorkersHealthCard />
+            </div>
+          )}
           <Separator className="my-4" />
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
             {is_sudo ? (
@@ -488,7 +498,7 @@ const Dashboard = () => {
         <UserTemplateModal isDialogOpen={isTemplateModalOpen} onOpenChange={setTemplateModalOpen} form={templateForm} editingUserTemplate={false} />
       </Suspense>
       {/* Only render CoreConfigModal for sudo admins */}
-      {is_sudo && (
+      {is_sudo && isCoreModalOpen && (
         <Suspense fallback={<div />}>
           <CoreConfigModal isDialogOpen={isCoreModalOpen} onOpenChange={setCoreModalOpen} form={coreForm} editingCore={false} />
         </Suspense>
@@ -512,3 +522,5 @@ const Dashboard = () => {
 }
 
 export default Dashboard
+
+

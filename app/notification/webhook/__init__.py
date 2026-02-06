@@ -1,15 +1,14 @@
 from datetime import datetime as dt, timezone as tz
 from enum import Enum
 from typing import Type
-import asyncio
 
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from app.settings import webhook_settings
 from app.models.admin import AdminDetails
 from app.models.user import UserNotificationResponse, UserStatus
-
-queue = asyncio.Queue()
+from app.notification.queue_manager import enqueue_webhook
 
 
 def get_current_timestamp() -> float:
@@ -126,10 +125,10 @@ async def status_change(user: UserNotificationResponse):
 
 async def notify(message: Type[Notification]) -> None:
     if (await webhook_settings()).enable:
-        await queue.put(message)
+        await enqueue_webhook(jsonable_encoder(message))
 
 
 async def bulk_notify(messages: list[Type[Notification]]) -> None:
     if (await webhook_settings()).enable:
         for message in messages:
-            await queue.put(message)
+            await enqueue_webhook(jsonable_encoder(message))

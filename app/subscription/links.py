@@ -101,6 +101,19 @@ class StandardLinks(BaseSubscription):
             "scMaxEachPostBytes": config.sc_max_each_post_bytes,
             "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
             "xPaddingBytes": config.x_padding_bytes,
+            "xPaddingObfsMode": config.x_padding_obfs_mode,
+            "xPaddingKey": config.x_padding_key,
+            "xPaddingHeader": config.x_padding_header,
+            "xPaddingPlacement": config.x_padding_placement,
+            "xPaddingMethod": config.x_padding_method,
+            "uplinkHTTPMethod": config.uplink_http_method,
+            "sessionPlacement": config.session_placement,
+            "sessionKey": config.session_key,
+            "seqPlacement": config.seq_placement,
+            "seqKey": config.seq_key,
+            "uplinkDataPlacement": config.uplink_data_placement,
+            "uplinkDataKey": config.uplink_data_key,
+            "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
             "headers": config.http_headers if config.http_headers else {},
@@ -226,6 +239,11 @@ class StandardLinks(BaseSubscription):
         # Process grpc path
         path = self._process_path(inbound)
 
+        # Handle vless-route if needed (only affects ID)
+        id = settings["id"]
+        if inbound.vless_route:
+            id = self.vless_route(id, inbound.vless_route)
+
         payload = {
             "encryption": inbound.encryption,
             "security": inbound.tls_config.tls,
@@ -244,9 +262,7 @@ class StandardLinks(BaseSubscription):
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
 
         payload = self._normalize_and_remove_none_values(payload)
-        return (
-            f"vless://{settings['id']}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
-        )
+        return f"vless://{id}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
 
     def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Trojan link"""

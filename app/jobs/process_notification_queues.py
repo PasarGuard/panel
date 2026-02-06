@@ -1,32 +1,45 @@
-import asyncio
-
 from app import on_shutdown, scheduler
-from app.notification.client import process_telegram_queue, process_discord_queue
+from app.notification.client import process_notification
+from app.notification.queue_manager import get_queue, shutdown_queues
 from app.utils.logger import get_logger
-from config import JOB_SEND_NOTIFICATIONS_INTERVAL
+from config import ROLE, JOB_SEND_NOTIFICATIONS_INTERVAL
 
 logger = get_logger("process-notification-queues")
 
 
 async def process_all_notification_queues():
     """
-    Process both Telegram and Discord notification queues concurrently.
-    Each queue sends messages one by one internally.
+    Drain queued notifications and process them.
     """
+    if not ROLE.runs_scheduler:
+        return
+
     logger.debug("Processing notification queues")
 
-    await asyncio.gather(process_telegram_queue(), process_discord_queue(), return_exceptions=True)
-
-
-# Schedule the job to run at the same interval as webhook notifications
-scheduler.add_job(
-    process_all_notification_queues, "interval", seconds=JOB_SEND_NOTIFICATIONS_INTERVAL, max_instances=1, coalesce=True
-)
+    queue = get_queue()
+    while True:
+        item = await queue.dequeue(timeout=0.1)
+        if not item:
+            break
+        await process_notification(item)
 
 
 async def send_pending_notifications_before_shutdown():
-    logger.info("Webhook final flush before shutdown")
+    logger.info("Notification final flush before shutdown")
     await process_all_notification_queues()
 
 
-on_shutdown(send_pending_notifications_before_shutdown)
+# Schedule the job to run at the same interval as webhook notifications
+if ROLE.runs_scheduler:
+    scheduler.add_job(
+        process_all_notification_queues,
+        "interval",
+        seconds=JOB_SEND_NOTIFICATIONS_INTERVAL,
+        max_instances=1,
+        coalesce=True,
+        id="process_notification_queues",
+        replace_existing=True,
+    )
+
+    on_shutdown(send_pending_notifications_before_shutdown)
+    on_shutdown(shutdown_queues)  # Must run after flush to keep consumer alive

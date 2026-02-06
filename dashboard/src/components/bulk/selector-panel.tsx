@@ -7,7 +7,7 @@ import type { TFunction } from 'i18next'
 import { Search, Check } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { memo } from 'react'
+import { memo, useCallback, useDeferredValue, useMemo } from 'react'
 
 // Types for selector items
 interface GroupResponse {
@@ -66,26 +66,52 @@ export const SelectorPanel = memo(function SelectorPanel({
   isRequired = false,
   hasError = false,
 }: SelectorPanelProps) {
-  const handleSelectAll = () => setSelected(items.map(item => (typeof item[itemValueKey] === 'number' ? (item[itemValueKey] as number) : -1)).filter(id => id !== -1))
-  const handleDeselectAll = () => setSelected([])
-  const filteredItems = items.filter(item => {
-    const value =
-      searchKey === 'name' && 'name' in item && typeof item.name === 'string' ? item.name : searchKey === 'username' && 'username' in item && typeof item.username === 'string' ? item.username : ''
-    return value.toLowerCase().includes(search.toLowerCase())
-  })
+  const deferredSearch = useDeferredValue(search)
+  const normalizedSearch = deferredSearch.trim().toLowerCase()
 
-  const handleItemToggle = (id: number) => {
+  const allItemIds = useMemo(
+    () =>
+      items
+        .map(item => (typeof item[itemValueKey] === 'number' ? (item[itemValueKey] as number) : -1))
+        .filter(id => id !== -1),
+    [items, itemValueKey],
+  )
+
+  const selectedSet = useMemo(() => new Set(selected), [selected])
+
+  const handleSelectAll = useCallback(() => setSelected(allItemIds), [allItemIds, setSelected])
+  const handleDeselectAll = useCallback(() => setSelected([]), [setSelected])
+
+  const filteredItems = useMemo(() => {
+    if (!normalizedSearch) return items
+
+    return items.filter(item => {
+      const rawValue =
+        searchKey === 'name' && 'name' in item
+          ? item.name
+          : searchKey === 'username' && 'username' in item
+            ? item.username
+            : ''
+
+      if (typeof rawValue !== 'string') return false
+      return rawValue.toLowerCase().includes(normalizedSearch)
+    })
+  }, [items, normalizedSearch, searchKey])
+
+  const handleItemToggle = useCallback((id: number) => {
     if (selected.includes(id)) {
       setSelected(selected.filter(selectedId => selectedId !== id))
     } else {
       setSelected([...selected, id])
     }
-  }
+  }, [selected, setSelected])
 
-  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every(item => {
-    const id = typeof item[itemValueKey] === 'number' ? (item[itemValueKey] as number) : undefined
-    return id !== undefined && selected.includes(id)
-  })
+  const allFilteredSelected =
+    filteredItems.length > 0 &&
+    filteredItems.every(item => {
+      const id = typeof item[itemValueKey] === 'number' ? (item[itemValueKey] as number) : undefined
+      return id !== undefined && selectedSet.has(id)
+    })
 
   return (
     <Card className={cn("flex-1 flex flex-col h-full min-w-[200px] sm:min-w-[240px] overflow-hidden", hasError && "border-destructive")}>
@@ -158,7 +184,7 @@ export const SelectorPanel = memo(function SelectorPanel({
                 if (itemLabelKey === 'username' && 'username' in item && typeof item.username === 'string') label = item.username
                 if (id === undefined) return null
 
-                const isSelected = selected.includes(id)
+                const isSelected = selectedSet.has(id)
 
                 return (
                   <div
