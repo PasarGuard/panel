@@ -89,19 +89,21 @@ export function ListGenerator<T>({
   const shouldShowEmptyState = showEmptyState && !isLoading && !hasData
   const showRows = !isLoading && hasData
   const mobileDetailsColumns = useMemo(() => columns.filter(column => column.hideOnMobile), [columns])
-  const hasMobileDetails = mobileDetailsColumns.length > 0
-  const hasMobileTrailingWidth = useMemo(() => columns.some(column => column.hideOnMobile), [columns])
+  const mobileDetailDataColumns = useMemo(() => mobileDetailsColumns.filter(column => !!column.header), [mobileDetailsColumns])
+  const mobileDetailActionColumns = useMemo(() => mobileDetailsColumns.filter(column => !column.header), [mobileDetailsColumns])
+  const hasMobileExpandableDetails = mobileDetailDataColumns.length > 0
+  const hasMobileTrailingWidth = mobileDetailsColumns.length > 0
   const mobileTemplateColumns = useMemo(() => {
     const visibleColumns = columns
       .filter(column => !column.hideOnMobile)
       .map(column => column.width ?? 'minmax(0, 1fr)')
 
     if (hasMobileTrailingWidth) {
-      visibleColumns.push('24px')
+      visibleColumns.push(mobileDetailActionColumns.length > 0 ? 'max-content' : '32px')
     }
 
     return visibleColumns.join(' ')
-  }, [columns, hasMobileTrailingWidth])
+  }, [columns, hasMobileTrailingWidth, mobileDetailActionColumns.length])
   const listTemplateColumnsDesktop = useMemo(() => (enableSorting ? `24px ${templateColumns}` : templateColumns), [enableSorting, templateColumns])
   const listTemplateColumnsMobile = useMemo(
     () => (enableSorting ? `24px ${mobileTemplateColumns}` : mobileTemplateColumns),
@@ -202,15 +204,13 @@ export function ListGenerator<T>({
       {showRows &&
         data.map((item, index) => {
           const rowId = getRowId(item)
-          const isExpanded = hasMobileDetails && expandedRowId === rowId
+          const isExpanded = hasMobileExpandableDetails && expandedRowId === rowId
 
           const RowContent = (props?: { attributes?: any; listeners?: any; style?: React.CSSProperties }) => (
             <div
               className={cn(
                 listTemplateClassName,
-                'gap-3 overflow-hidden rounded-md border bg-background pl-3 pr-1 py-3',
-                dir === "rtl" && "pl-1 pr-3",
-                hasMobileDetails && 'relative',
+                'gap-3 overflow-hidden rounded-md border bg-background px-3 py-3',
                 onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
                 renderRowClassName(item, index),
               )}
@@ -246,43 +246,43 @@ export function ListGenerator<T>({
                   {column.cell(item)}
                 </div>
               ))}
-              {hasMobileDetails && (
-                <button
-                  type="button"
-                  className={cn("chevron absolute right-2 top-6 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-muted-foreground md:hidden",
-                  dir === "rtl" && "left-2 justify-end")}
-                  onClick={event => {
-                    event.stopPropagation()
-                    setExpandedRowId(prev => (prev === rowId ? null : rowId))
-                  }}
-                  aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
-                >
-                  <ChevronDown className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
-                </button>
+              {hasMobileTrailingWidth && (
+                <div className={cn('flex items-center justify-end gap-1 md:hidden', dir === 'rtl' && 'justify-start')}>
+                  {mobileDetailActionColumns.map(column => (
+                    <div key={`mobile-inline-actions-${column.id}-${rowId}`} className="text-sm">
+                      {column.cell(item)}
+                    </div>
+                  ))}
+                  {hasMobileExpandableDetails && (
+                    <button
+                      type="button"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground/80 transition-all hover:text-foreground active:scale-95"
+                      onClick={event => {
+                        event.stopPropagation()
+                        setExpandedRowId(prev => (prev === rowId ? null : rowId))
+                      }}
+                      aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                    >
+                      <ChevronDown className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
+                    </button>
+                  )}
+                </div>
               )}
-              {hasMobileDetails && isExpanded && (
-                <div className="col-span-full mt-2 px-0 pt-1 md:hidden">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex gap-3 items-center flex-wrap">
-                      {mobileDetailsColumns
-                        .filter(column => column.header)
-                        .map(column => (
-                          <div key={`mobile-${column.id}-${rowId}`} className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">{column.header} :</span>
-                            <div className="flex-1 text-sm">{column.cell(item)}</div>
-                          </div>
-                        ))}
+              {hasMobileExpandableDetails && isExpanded && (
+                <div className="col-span-full mt-2 space-y-1.5 md:hidden">
+                  {mobileDetailDataColumns.length > 0 && (
+                    <div className="space-y-1">
+                      {mobileDetailDataColumns.map(column => (
+                        <div
+                          key={`mobile-${column.id}-${rowId}`}
+                          className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}
+                        >
+                          <div className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{column.header}</div>
+                          <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{column.cell(item)}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex shrink-0 items-start">
-                      {mobileDetailsColumns
-                        .filter(column => !column.header)
-                        .map(column => (
-                          <div key={`mobile-actions-${column.id}-${rowId}`} className="text-sm">
-                            {column.cell(item)}
-                          </div>
-                        ))}
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>

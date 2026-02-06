@@ -932,6 +932,13 @@
     "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
   },
   "inbound": "ورودی",
+  "inbounds": "ورودی‌ها",
+  "address": "آدرس",
+  "usage": "مصرف",
+  "usageLabel": "مصرف",
+  "viewMode": "حالت نمایش",
+  "gridView": "نمای شبکه‌ای",
+  "listView": "نمای لیستی",
   "remark": "اسم هاست",
   "none": "هیچ",
   "create": "ایجاد",

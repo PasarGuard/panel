@@ -96,42 +96,44 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, adva
         )}
       </div>
 
-      {/* Advanced Filter Button */}
-      <div className="flex h-full flex-shrink-0 items-center gap-1">
-        <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10" onClick={handleOpenAdvanceSearch}>
-          <Filter className="h-4 w-4" />
-          {hasActiveAdvanceFilters() && (
-            <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
-              {getActiveFiltersCount()}
-            </Badge>
+      <div className="flex flex-shrink-0 items-center gap-2">
+        {/* Advanced Filter Button */}
+        <div className="flex h-full flex-shrink-0 items-center gap-1">
+          <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" onClick={handleOpenAdvanceSearch}>
+            <Filter className="h-4 w-4" />
+            {hasActiveAdvanceFilters() && (
+              <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
+                {getActiveFiltersCount()}
+              </Badge>
+            )}
+          </Button>
+          {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button size="sm" variant="outline" className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2" side={dir === 'rtl' ? 'left' : 'right'} align="center">
+                <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
+              </PopoverContent>
+            </Popover>
           )}
-        </Button>
-        {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button size="sm" variant="outline" className={cn('h-9 w-9 p-0 md:h-8 md:w-8', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
-                <X className="h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" side={dir === 'rtl' ? 'left' : 'right'} align="center">
-              <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
-            </PopoverContent>
-          </Popover>
-        )}
-      </div>
+        </div>
 
-      {/* Refresh Button */}
-      <Button
-        size="icon-md"
-        onClick={handleManualRefresh}
-        variant="ghost"
-        className={cn('relative flex h-9 w-9 items-center justify-center border transition-all duration-200 md:h-10 md:w-10', isFetching && 'opacity-70')}
-        aria-label={t('autoRefresh.refreshNow')}
-        title={t('autoRefresh.refreshNow')}
-      >
-        <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-      </Button>
-      {viewMode && onViewModeChange && <ViewToggle value={viewMode} onChange={onViewModeChange} />}
+        {/* Refresh Button */}
+        <Button
+          size="icon-md"
+          onClick={handleManualRefresh}
+          variant="ghost"
+          className={cn('relative flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200', isFetching && 'opacity-70')}
+          aria-label={t('autoRefresh.refreshNow')}
+          title={t('autoRefresh.refreshNow')}
+        >
+          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+        </Button>
+        {viewMode && onViewModeChange && <ViewToggle value={viewMode} onChange={onViewModeChange} />}
+      </div>
     </div>
   )
 }

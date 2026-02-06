@@ -7,7 +7,7 @@ import HostActionsMenu from '@/components/hosts/host-actions-menu'
 
 interface UseHostsListColumnsProps {
   onEdit: (host: BaseHost) => void
-  onDuplicate: (host: BaseHost) => void
+  onDuplicate: (host: BaseHost) => Promise<void>
   onDataChanged: () => void
 }
 
@@ -18,7 +18,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseH
     () => [
       {
         id: 'remark',
-        header: t('name', { defaultValue: 'Name' }),
+        header: t('name'),
         width: '3fr',
         cell: host => (
           <div className="flex min-w-0 items-center gap-2">
@@ -29,7 +29,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseH
       },
       {
         id: 'address',
-        header: t('address', { defaultValue: 'Address' }),
+        header: t('address'),
         width: '1fr',
         cell: host => (
           <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
@@ -40,7 +40,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseH
       },
       {
         id: 'inbound',
-        header: t('inbound', { defaultValue: 'Inbound' }),
+        header: t('inbound'),
         width: '1fr',
         cell: host => <span className="truncate text-xs text-muted-foreground">{host.inbound_tag ?? ''}</span>,
         hideOnMobile: true,

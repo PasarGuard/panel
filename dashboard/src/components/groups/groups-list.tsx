@@ -108,7 +108,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   const isSearchEmpty = !isCurrentlyLoading && (!filteredGroups || filteredGroups.length === 0) && searchQuery.trim() !== ''
 
   return (
-    <div className="w-full flex-1 space-y-4">
+    <div className={cn('w-full flex-1 space-y-4', dir === 'rtl' && 'rtl')}>
       {/* Search Input */}
       <div dir={dir} className="flex items-center gap-2 md:gap-4">
         <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
@@ -120,17 +120,19 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
             </button>
           )}
         </div>
-        <Button
-          size="icon-md"
-          variant="ghost"
-          onClick={handleRefresh}
-          className={cn('border', isFetching && 'opacity-70')}
-          aria-label={t('autoRefresh.refreshNow')}
-          title={t('autoRefresh.refreshNow')}
-        >
-          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-        </Button>
-        <ViewToggle value={viewMode} onChange={setViewMode} />
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Button
+            size="icon-md"
+            variant="ghost"
+            onClick={handleRefresh}
+            className={cn('h-9 w-9 rounded-lg border', isFetching && 'opacity-70')}
+            aria-label={t('autoRefresh.refreshNow')}
+            title={t('autoRefresh.refreshNow')}
+          >
+            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+          </Button>
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+        </div>
       </div>
       {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
@@ -153,7 +155,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
         </Card>
       )}
       {(isCurrentlyLoading || (!isEmpty && !isSearchEmpty)) && (
-        <ScrollArea className="h-[calc(100vh-8rem)]">
+        <ScrollArea dir={dir} className="h-[calc(100vh-8rem)]">
           <ListGenerator
             data={filteredGroups || []}
             columns={listColumns}

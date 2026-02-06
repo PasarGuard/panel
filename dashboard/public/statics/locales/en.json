@@ -1065,6 +1065,12 @@
     "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
   },
   "inbound": "Inbound",
+  "inbounds": "Inbounds",
+  "address": "Address",
+  "usageLabel": "Usage",
+  "viewMode": "View mode",
+  "gridView": "Grid view",
+  "listView": "List view",
   "remark": "Host Name",
   "none": "None",
   "create": "Create",

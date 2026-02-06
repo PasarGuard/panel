@@ -1011,7 +1011,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     <div>
       {/* Search Input */}
       <div className="mb-4 flex items-center gap-2 md:gap-3">
-        <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
+        <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none" dir={dir}>
           <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
           <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
           {searchQuery && (
@@ -1020,17 +1020,19 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
             </button>
           )}
         </div>
-        <Button
-          size="icon-md"
-          variant="ghost"
-          onClick={handleRefreshClick}
-          className={cn('border', isRefreshing && 'opacity-70')}
-          aria-label={t('autoRefresh.refreshNow')}
-          title={t('autoRefresh.refreshNow')}
-        >
-          <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
-        </Button>
-        <ViewToggle value={viewMode} onChange={setViewMode} />
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Button
+            size="icon-md"
+            variant="ghost"
+            onClick={handleRefreshClick}
+            className={cn('h-9 w-9 rounded-lg border', isRefreshing && 'opacity-70')}
+            aria-label={t('autoRefresh.refreshNow')}
+            title={t('autoRefresh.refreshNow')}
+          >
+            <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
+          </Button>
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+        </div>
       </div>
       {(isCurrentlyLoading || filteredHosts.length > 0) && viewMode === 'grid' && (
         <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

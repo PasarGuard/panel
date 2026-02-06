@@ -17,7 +17,7 @@ export const useGroupsListColumns = ({ onEdit, onToggleStatus }: UseGroupsListCo
     () => [
       {
         id: 'name',
-        header: t('name', { defaultValue: 'Name' }),
+        header: t('name'),
         width: '3fr',
         cell: group => (
           <div className="flex min-w-0 items-center gap-2">
@@ -28,7 +28,7 @@ export const useGroupsListColumns = ({ onEdit, onToggleStatus }: UseGroupsListCo
       },
       {
         id: 'inbounds',
-        header: t('inbounds', { defaultValue: 'Inbounds' }),
+        header: t('inbounds', { defaultValue: t('inbound') }),
         width: '1fr',
         cell: group => <span className="truncate text-xs text-muted-foreground">{group.inbound_tags?.length || 0}</span>,
         hideOnMobile: true,

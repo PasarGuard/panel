@@ -146,7 +146,7 @@ export default function UserTemplates() {
 
       <div className="w-full flex-1 space-y-4 px-4">
         {/* Search Input */}
-        <div dir={dir} className="flex items-center gap-2 md:gap-4 pt-4">
+        <div dir={dir} className="flex items-center gap-2 pt-4 md:gap-4">
           <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
             <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
             <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
@@ -156,17 +156,19 @@ export default function UserTemplates() {
               </button>
             )}
           </div>
-          <Button
-            size="icon-md"
-            variant="ghost"
-            onClick={handleRefreshClick}
-            className={cn('border', isFetching && 'opacity-70')}
-            aria-label={t('autoRefresh.refreshNow')}
-            title={t('autoRefresh.refreshNow')}
-          >
-            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-          </Button>
-          <ViewToggle value={viewMode} onChange={setViewMode} />
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <Button
+              size="icon-md"
+              variant="ghost"
+              onClick={handleRefreshClick}
+              className={cn('h-9 w-9 rounded-lg border', isFetching && 'opacity-70')}
+              aria-label={t('autoRefresh.refreshNow')}
+              title={t('autoRefresh.refreshNow')}
+            >
+              <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+            </Button>
+            <ViewToggle value={viewMode} onChange={setViewMode} />
+          </div>
         </div>
 
         {(isCurrentlyLoading || (filteredTemplates && filteredTemplates.length > 0)) && (

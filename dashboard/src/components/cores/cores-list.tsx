@@ -146,7 +146,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     <div className={cn('flex w-full flex-col gap-4 pt-4', dir === 'rtl' && 'rtl')}>
       <div className="flex items-center gap-2 md:gap-3">
         {/* Search Input */}
-        <div className="relative w-full md:w-[calc(100%/3-10px)]" dir={dir}>
+        <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none" dir={dir}>
           <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
           <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
           {searchQuery && (
@@ -155,17 +155,19 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
             </button>
           )}
         </div>
-        <Button
-          size="icon-md"
-          variant="ghost"
-          onClick={handleRefreshClick}
-          className={cn('border', isFetching && 'opacity-70')}
-          aria-label={t('autoRefresh.refreshNow')}
-          title={t('autoRefresh.refreshNow')}
-        >
-          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-        </Button>
-        <ViewToggle value={viewMode} onChange={setViewMode} />
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Button
+            size="icon-md"
+            variant="ghost"
+            onClick={handleRefreshClick}
+            className={cn('h-9 w-9 rounded-lg border', isFetching && 'opacity-70')}
+            aria-label={t('autoRefresh.refreshNow')}
+            title={t('autoRefresh.refreshNow')}
+          >
+            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+          </Button>
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+        </div>
       </div>
       <ScrollArea dir={dir} className="h-[calc(100vh-8rem)]">
         {(isLoading || filteredCores.length > 0) && (

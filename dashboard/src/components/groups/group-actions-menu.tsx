@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import { GroupResponse, useRemoveGroup } from '@/service/api'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
 
 interface GroupActionsMenuProps {
   group: GroupResponse
@@ -23,13 +24,13 @@ const DeleteAlertDialog = ({ group, isOpen, onClose, onConfirm }: { group: Group
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
-        <AlertDialogHeader>
+        <AlertDialogHeader className={cn(dir === 'rtl' && 'sm:text-right')}>
           <AlertDialogTitle>{t('group.deleteConfirmation')}</AlertDialogTitle>
           <AlertDialogDescription>
             <span dir={dir} dangerouslySetInnerHTML={{ __html: t('group.deleteConfirm', { name: group.name }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
+        <AlertDialogFooter className={cn(dir === 'rtl' && 'sm:flex-row-reverse sm:gap-x-2')}>
           <AlertDialogCancel onClick={onClose}>{t('cancel')}</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={onConfirm}>
             {t('delete')}
@@ -42,6 +43,7 @@ const DeleteAlertDialog = ({ group, isOpen, onClose, onConfirm }: { group: Group
 
 export default function GroupActionsMenu({ group, onEdit, onToggleStatus, className }: GroupActionsMenuProps) {
   const { t } = useTranslation()
+  const dir = useDirDetection()
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const removeGroupMutation = useRemoveGroup()
 
@@ -82,14 +84,14 @@ export default function GroupActionsMenu({ group, onEdit, onToggleStatus, classN
               <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'} dir={dir}>
             <DropdownMenuItem
               onSelect={e => {
                 e.stopPropagation()
                 onEdit(group)
               }}
             >
-              <Pencil className="mr-2 h-4 w-4 shrink-0" />
+              <Pencil className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
               <span className="min-w-0 truncate">{t('edit')}</span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -98,12 +100,12 @@ export default function GroupActionsMenu({ group, onEdit, onToggleStatus, classN
                 onToggleStatus(group)
               }}
             >
-              <Power className="mr-2 h-4 w-4 shrink-0" />
+              <Power className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
               <span className="min-w-0 truncate">{group.is_disabled ? t('enable') : t('disable')}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-              <Trash2 className="mr-2 h-4 w-4 shrink-0" />
+              <Trash2 className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
               <span className="min-w-0 truncate">{t('delete')}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -1038,6 +1038,13 @@
     "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
   },
   "inbound": "入站",
+  "inbounds": "入站",
+  "address": "地址",
+  "usage": "用量",
+  "usageLabel": "用量",
+  "viewMode": "视图模式",
+  "gridView": "网格视图",
+  "listView": "列表视图",
   "remark": "主机名",
   "itemsPerPage": "每页条数",
   "login": "登录",

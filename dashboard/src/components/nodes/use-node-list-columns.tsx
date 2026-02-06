@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 interface UseNodeListColumnsProps {
   onEdit: (node: NodeResponse) => void
-  onToggleStatus: (node: NodeResponse) => void
+  onToggleStatus: (node: NodeResponse) => Promise<void>
 }
 
 const getNodeStatusDotColor = (status: NodeStatus) => {
@@ -33,7 +33,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus }: UseNodeListColumn
     () => [
       {
         id: 'name',
-        header: t('name', { defaultValue: 'Name' }),
+        header: t('name'),
         width: '4fr',
         cell: node => (
           <div className="flex min-w-0 items-center gap-2">
@@ -44,7 +44,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus }: UseNodeListColumn
       },
       {
         id: 'address',
-        header: t('address', { defaultValue: 'Address' }),
+        header: t('address'),
         width: '1fr',
         cell: node => (
           <div dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
@@ -55,7 +55,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus }: UseNodeListColumn
       },
       {
         id: 'usage',
-        header: t('usage', { defaultValue: 'Usage' }),
+        header: t('usageLabel'),
         width: '1fr',
         cell: node => <NodeUsageDisplay node={node} />,
         hideOnMobile: true,
