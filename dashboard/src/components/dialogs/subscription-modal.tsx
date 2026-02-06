@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { ScanQrCode, Copy, QrCode, ChevronLeft, ChevronRight, Check, Loader2, RefreshCw } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -178,7 +177,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
   return (
     <>
       <Dialog open={isOpen && !selectedConfigQR} onOpenChange={onCloseModal}>
-        <DialogContent className="max-h-[90dvh] max-w-[500px] overflow-y-auto overflow-x-hidden">
+        <DialogContent className="max-h-[90dvh] max-w-[860px] overflow-y-auto overflow-x-hidden">
           <DialogHeader dir={dir}>
             <DialogTitle>
               <div className="flex items-center gap-2 px-2">
@@ -188,30 +187,24 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
             {/* Subscription QR Code Section */}
-            <div className="flex w-full items-center justify-between">
-              <span className="text-sm font-medium">{t('subscriptionModal.subscriptionLink', { defaultValue: 'Subscription Link' })}</span>
-              <Button variant="outline" size="sm" onClick={() => handleCopyConfig(sublink)} className="h-8">
-                {copiedConfig === sublink ? <Check className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} /> : <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />}
-                {t('subscriptionModal.copyLink', { defaultValue: 'Copy Link' })}
-              </Button>
-            </div>
-            <div className="flex flex-col items-center gap-3 rounded-lg border p-4">
-              <div dir="ltr" className="flex max-w-[200px] items-center justify-center overflow-hidden">
-                <QRCodeCanvas value={subscribeQrLink} size={200} className="rounded-md bg-white p-2" />
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex w-full items-center justify-center">
+                <span className="text-sm font-medium">{t('subscriptionModal.subscriptionLink', { defaultValue: 'Subscription Link' })}</span>
+              </div>
+              <div dir="ltr" className="flex max-w-[240px] items-center justify-center overflow-hidden">
+                <QRCodeCanvas value={subscribeQrLink} size={240} className="rounded-sm bg-white p-1.5" />
               </div>
             </div>
-
-            <Separator />
 
             {/* Configs Section */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{t('subscriptionModal.configs', { defaultValue: 'Configurations' })}</span>
-                <Button variant="outline" size="sm" onClick={handleCopyAllConfigs} disabled={isLoading || configs.length === 0} className="h-8">
-                  {allConfigsCopied ? <Check className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} /> : <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />}
-                  {t('subscriptionModal.copyAll', { defaultValue: 'Copy All' })}
+                <Button variant="ghost" size="sm" onClick={handleCopyAllConfigs} disabled={isLoading || configs.length === 0} className="h-7 px-2 text-xs">
+                  {allConfigsCopied ? <Check className={cn('h-3 w-3', isRTL ? 'ml-1' : 'mr-1')} /> : <Copy className={cn('h-3 w-3', isRTL ? 'ml-1' : 'mr-1')} />}
+                  <span className="hidden sm:inline">{t('subscriptionModal.copyAll', { defaultValue: 'Copy All' })}</span>
                 </Button>
               </div>
 
@@ -296,9 +289,9 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
           </DialogHeader>
           <div dir="ltr" className="flex flex-col items-center gap-4 py-2">
             <div className="flex items-center justify-center overflow-hidden">
-              <QRCodeCanvas value={selectedConfigQR?.config || ''} size={220} className="max-w-full rounded-md bg-white p-2" />
+              <QRCodeCanvas value={selectedConfigQR?.config || ''} size={220} className="max-w-full rounded-sm bg-white p-2" />
             </div>
-            <Button variant="outline" onClick={() => selectedConfigQR && handleCopyConfig(selectedConfigQR.config)} className="w-full">
+            <Button variant="outline" onClick={() => selectedConfigQR && handleCopyConfig(selectedConfigQR.config)} className="w-full md:hidden">
               {copiedConfig === selectedConfigQR?.config ? <Check className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} /> : <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />}
               {t('subscriptionModal.copyConfig', { defaultValue: 'Copy Config' })}
             </Button>

@@ -11,6 +11,7 @@ import { FC, useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { CopyButton } from '@/components/common/copy-button'
 import SubscriptionModal from '@/components/dialogs/subscription-modal'
 import SetOwnerModal from '@/components/dialogs/set-owner-modal'
 import UsageModal from '@/components/dialogs/usage-modal'
@@ -419,30 +420,33 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
           <Pencil className="h-4 w-4" />
         </Button>
         <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon" variant="ghost" onClick={onOpenSubscriptionModal}>
-                <QrCode className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('subscriptionModal.title', { username: user.username, defaultValue: "{{username}}'s Subscription" })}</TooltipContent>
+          <CopyButton
+            value={user.subscription_url ? (user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url) : ''}
+            copiedMessage="usersTable.copied"
+            defaultMessage="usersTable.copyLink"
+            icon="link"
+          />
+          <Tooltip open={copied ? true : undefined}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <TooltipTrigger asChild>
+                  <Button size="icon" variant="ghost">
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
+                {subscribeLinks.map((item, index) => (
+                  <DropdownMenuItem key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
+                    <span className="mr-2">{item.icon}</span>
+                    {item.protocol}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <TooltipContent>{copied ? t('usersTable.copied') : t('usersTable.copyConfigs')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost">
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
-            {subscribeLinks.map((item, index) => (
-              <DropdownMenuItem key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
-                <span className="mr-2">{item.icon}</span>
-                {item.protocol}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost">
@@ -454,6 +458,12 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <DropdownMenuItem className="hidden md:flex" onClick={handleEdit}>
               <Pencil className="mr-2 h-4 w-4" />
               <span>{t('edit')}</span>
+            </DropdownMenuItem>
+
+            {/* QR Code */}
+            <DropdownMenuItem onClick={onOpenSubscriptionModal}>
+              <QrCode className="mr-2 h-4 w-4" />
+              <span>QR Code</span>
             </DropdownMenuItem>
 
             {/* Set Owner: only for sudo admins */}
