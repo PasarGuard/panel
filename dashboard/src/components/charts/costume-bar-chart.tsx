@@ -40,14 +40,17 @@ const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsa
 }
 
 const getTrafficBytes = (point: NodeUsageStat | UserUsageStat) => {
-  return isNodeUsageStat(point) ? point.uplink + point.downlink : point.total_traffic
+  if ('total_traffic' in point) {
+    return Number(point.total_traffic || 0)
+  }
+  return Number(point.uplink || 0) + Number(point.downlink || 0)
 }
 
 const getDirectionalTraffic = (point: NodeUsageStat | UserUsageStat) => {
-  if (isNodeUsageStat(point)) {
+  if (isNodeUsageStat(point) && !('total_traffic' in point)) {
     return {
-      uplink: point.uplink,
-      downlink: point.downlink,
+      uplink: Number(point.uplink || 0),
+      downlink: Number(point.downlink || 0),
     }
   }
 

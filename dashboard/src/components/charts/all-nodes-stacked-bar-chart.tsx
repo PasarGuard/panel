@@ -27,14 +27,17 @@ const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsa
 }
 
 const getTrafficBytes = (point: NodeUsageStat | UserUsageStat) => {
-  return isNodeUsageStat(point) ? point.uplink + point.downlink : point.total_traffic
+  if ('total_traffic' in point) {
+    return Number(point.total_traffic || 0)
+  }
+  return Number(point.uplink || 0) + Number(point.downlink || 0)
 }
 
 const getDirectionalTraffic = (point: NodeUsageStat | UserUsageStat) => {
-  if (isNodeUsageStat(point)) {
+  if (isNodeUsageStat(point) && !('total_traffic' in point)) {
     return {
-      uplink: point.uplink,
-      downlink: point.downlink,
+      uplink: Number(point.uplink || 0),
+      downlink: Number(point.downlink || 0),
     }
   }
 
@@ -170,6 +173,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
       downlink: data[`_downlink_${nodeName}`] || 0,
     }))
     .sort((a, b) => b.usage - a.usage)
+  const hasDirectionalTraffic = activeNodes.some(node => (node.uplink || 0) > 0 || (node.downlink || 0) > 0)
 
   // Determine how many nodes to show based on screen size
   const maxNodesToShow = isMobile ? 3 : 6
@@ -202,17 +206,22 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
                 {node.name}
               </span>
             </span>
-            <span className={`flex items-center gap-0.5 text-[9px] text-muted-foreground sm:text-[10px] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
-              <Upload className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
-              <span dir="ltr" className="inline-block max-w-[40px] overflow-hidden truncate text-ellipsis font-mono sm:max-w-[50px]" title={String(formatBytes(node.uplink))}>
-                {formatBytes(node.uplink)}
-              </span>
-              <span className={`opacity-60 ${isRTL ? 'mx-0.5' : 'mx-0.5'} text-[8px] sm:text-[10px]`}>|</span>
-              <Download className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
-              <span dir="ltr" className="inline-block max-w-[40px] overflow-hidden truncate text-ellipsis font-mono sm:max-w-[50px]" title={String(formatBytes(node.downlink))}>
-                {formatBytes(node.downlink)}
-              </span>
+            <span dir="ltr" className="text-[9px] font-mono text-muted-foreground sm:text-[10px]">
+              {node.usage.toFixed(2)} GB
             </span>
+            {hasDirectionalTraffic && (
+              <span className={`flex items-center gap-0.5 text-[9px] text-muted-foreground sm:text-[10px] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+                <Upload className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
+                <span dir="ltr" className="inline-block max-w-[40px] overflow-hidden truncate text-ellipsis font-mono sm:max-w-[50px]" title={String(formatBytes(node.uplink))}>
+                  {formatBytes(node.uplink)}
+                </span>
+                <span className={`opacity-60 ${isRTL ? 'mx-0.5' : 'mx-0.5'} text-[8px] sm:text-[10px]`}>|</span>
+                <Download className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
+                <span dir="ltr" className="inline-block max-w-[40px] overflow-hidden truncate text-ellipsis font-mono sm:max-w-[50px]" title={String(formatBytes(node.downlink))}>
+                  {formatBytes(node.downlink)}
+                </span>
+              </span>
+            )}
           </div>
         ))}
         {hasMoreNodes && (
@@ -703,6 +712,7 @@ export function AllNodesStackedBarChart() {
         allChartData={chartData || []}
         currentIndex={currentDataIndex}
         onNavigate={handleModalNavigate}
+        hideUplinkDownlink={selectedAdmin !== 'all'}
       />
     </>
   )
