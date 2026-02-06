@@ -1,3 +1,7 @@
+import asyncio
+import os
+from concurrent.futures import ThreadPoolExecutor
+
 import bcrypt
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -5,18 +9,33 @@ from .notification_enable import UserNotificationEnable
 from .validators import DiscordValidator, NumericValidatorMixin, PasswordValidator
 
 BCRYPT_ROUNDS = 12
+_PASSWORD_WORKERS = max(2, min(os.cpu_count() or 1, 8))
+_password_executor = ThreadPoolExecutor(max_workers=_PASSWORD_WORKERS, thread_name_prefix="bcrypt")
+_password_semaphore = asyncio.Semaphore(_PASSWORD_WORKERS)
 
 
-def _hash_password(raw: str) -> str:
+def _hash_password_sync(raw: str) -> str:
     salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
     return bcrypt.hashpw(raw.encode("utf-8"), salt).decode("utf-8")
 
 
-def _verify_password(raw: str, hashed: str) -> bool:
+def _verify_password_sync(raw: str, hashed: str) -> bool:
     try:
         return bcrypt.checkpw(raw.encode("utf-8"), hashed.encode("utf-8"))
     except ValueError:
         return False
+
+
+async def hash_password(raw: str) -> str:
+    loop = asyncio.get_running_loop()
+    async with _password_semaphore:
+        return await loop.run_in_executor(_password_executor, _hash_password_sync, raw)
+
+
+async def verify_password(raw: str, hashed: str) -> bool:
+    loop = asyncio.get_running_loop()
+    async with _password_semaphore:
+        return await loop.run_in_executor(_password_executor, _verify_password_sync, raw, hashed)
 
 
 class Token(BaseModel):
@@ -89,11 +108,6 @@ class AdminModify(BaseModel):
     support_url: str | None = None
     notification_enable: UserNotificationEnable | None = None
 
-    @property
-    def hashed_password(self):
-        if self.password:
-            return _hash_password(self.password)
-
     @field_validator("discord_webhook")
     @classmethod
     def validate_discord_webhook(cls, value):
@@ -116,7 +130,10 @@ class AdminInDB(AdminDetails):
     hashed_password: str
 
     def verify_password(self, plain_password):
-        return _verify_password(plain_password, self.hashed_password)
+        return _verify_password_sync(plain_password, self.hashed_password)
+
+    async def verify_password_async(self, plain_password):
+        return await verify_password(plain_password, self.hashed_password)
 
 
 class AdminValidationResult(BaseModel):

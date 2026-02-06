@@ -5,7 +5,7 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
-from app.models.admin import AdminCreate, AdminDetails, AdminModify
+from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_password
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 
 from .general import _build_trunc_expression
@@ -60,7 +60,7 @@ async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
     Returns:
         Admin: The created admin object.
     """
-    db_admin = Admin(**admin.model_dump(exclude={"password"}), hashed_password=admin.hashed_password)
+    db_admin = Admin(**admin.model_dump(exclude={"password"}), hashed_password=await hash_password(admin.password))
     db.add(db_admin)
     await db.commit()
     await db.refresh(db_admin)
@@ -84,8 +84,8 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.is_sudo = modified_admin.is_sudo
     if modified_admin.is_disabled is not None:
         db_admin.is_disabled = modified_admin.is_disabled
-    if modified_admin.hashed_password is not None and db_admin.hashed_password != modified_admin.hashed_password:
-        db_admin.hashed_password = modified_admin.hashed_password
+    if modified_admin.password is not None:
+        db_admin.hashed_password = await hash_password(modified_admin.password)
         db_admin.password_reset_at = datetime.now(timezone.utc)
     if modified_admin.telegram_id is not None:
         db_admin.telegram_id = modified_admin.telegram_id
