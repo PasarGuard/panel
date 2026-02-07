@@ -34,29 +34,11 @@ logger = get_logger("record-usages")
 # Start with 2-4, adjust based on DB performance
 JOB_SEM = asyncio.Semaphore(3)  # Max 3 concurrent DB write operations
 
-# Track running jobs for adaptive scheduling
-_running_jobs = {}
-
-# Process pool executor for CPU-bound operations
-# Use number of CPU cores, but cap at reasonable limit to avoid overhead
-_process_pool = None
-_process_pool_lock = asyncio.Lock()
 
 # Thread pool executor for I/O-bound node API calls
 # Distributes workload across threads/cores for data collection
 _thread_pool = None
 _thread_pool_lock = asyncio.Lock()
-
-
-async def _get_process_pool():
-    """Get or create the process pool executor (thread-safe)."""
-    global _process_pool
-    async with _process_pool_lock:
-        if _process_pool is None:
-            num_workers = min(multiprocessing.cpu_count(), 8)  # Cap at 8 workers
-            _process_pool = ProcessPoolExecutor(max_workers=num_workers)
-            logger.info(f"Initialized ProcessPoolExecutor with {num_workers} workers")
-        return _process_pool
 
 
 async def _get_thread_pool():
@@ -69,18 +51,6 @@ async def _get_thread_pool():
             _thread_pool = ThreadPoolExecutor(max_workers=num_workers)
             logger.info(f"Initialized ThreadPoolExecutor with {num_workers} workers")
         return _thread_pool
-
-
-@on_shutdown
-async def _cleanup_process_pool():
-    """Cleanup process pool on shutdown (thread-safe)."""
-    global _process_pool
-    async with _process_pool_lock:
-        if _process_pool is not None:
-            logger.info("Shutting down ProcessPoolExecutor...")
-            _process_pool.shutdown(wait=True)
-            _process_pool = None
-            logger.info("ProcessPoolExecutor shut down successfully")
 
 
 @on_shutdown
@@ -739,24 +709,15 @@ async def _record_user_usages_impl():
 
 async def record_user_usages():
     """
-    Record user usages with hard timeout to prevent scheduler backlog.
-    Wraps the actual implementation with timeout protection.
+    Record user usages with hard timeout.
+    Jobs running longer than 2 minutes are forcefully cancelled.
     """
-    # Check if previous run is still active (adaptive scheduling)
-    if _running_jobs.get("record_user_usages"):
-        logger.warning("Previous record_user_usages run still active; skipping this cycle")
-        return
-
-    _running_jobs["record_user_usages"] = True
     try:
-        # Hard timeout: prevent job from running longer than interval
-        # This prevents scheduler backlog → spike → crash
-        try:
-            await asyncio.wait_for(_record_user_usages_impl(), timeout=30)
-        except asyncio.TimeoutError:
-            logger.warning("record_user_usages timed out after 30s; skipping cycle to prevent backlog")
-    finally:
-        _running_jobs["record_user_usages"] = False
+        await asyncio.wait_for(_record_user_usages_impl(), timeout=120)
+    except asyncio.TimeoutError:
+        logger.warning("record_user_usages killed after 120s timeout")
+    except asyncio.CancelledError:
+        logger.warning("record_user_usages was cancelled")
 
 
 async def _record_node_usages_impl():
@@ -847,24 +808,15 @@ async def _record_node_usages_impl():
 
 async def record_node_usages():
     """
-    Record node usages with hard timeout to prevent scheduler backlog.
-    Wraps the actual implementation with timeout protection.
+    Record node usages with hard timeout.
+    Jobs running longer than 2 minutes are forcefully cancelled.
     """
-    # Check if previous run is still active (adaptive scheduling)
-    if _running_jobs.get("record_node_usages"):
-        logger.warning("Previous record_node_usages run still active; skipping this cycle")
-        return
-
-    _running_jobs["record_node_usages"] = True
     try:
-        # Hard timeout: prevent job from running longer than interval
-        # This prevents scheduler backlog → spike → crash
-        try:
-            await asyncio.wait_for(_record_node_usages_impl(), timeout=30)
-        except asyncio.TimeoutError:
-            logger.warning("record_node_usages timed out after 30s; skipping cycle to prevent backlog")
-    finally:
-        _running_jobs["record_node_usages"] = False
+        await asyncio.wait_for(_record_node_usages_impl(), timeout=120)
+    except asyncio.TimeoutError:
+        logger.warning("record_node_usages killed after 120s timeout")
+    except asyncio.CancelledError:
+        logger.warning("record_node_usages was cancelled")
 
 
 if ROLE.runs_node:
