@@ -17,6 +17,7 @@ class XRayConfig(dict):
         config: Union[dict, str, PosixPath] = {},
         exclude_inbound_tags: set[str] | None = set(),
         fallbacks_inbound_tags: set[str] | None = set(),
+        skip_validation: bool = False,
     ):
         """Initialize the XRay config."""
         if isinstance(config, str):
@@ -27,7 +28,6 @@ class XRayConfig(dict):
             config = deepcopy(config)
 
         super().__init__(config)
-        self._validate()
 
         if exclude_inbound_tags is None:
             exclude_inbound_tags = set()
@@ -44,6 +44,11 @@ class XRayConfig(dict):
             inbound = self.get_inbound(tag)
             if inbound:
                 self._fallbacks_inbound.append(inbound)
+
+        if skip_validation:
+            return
+
+        self._validate()
         self._resolve_inbounds()
 
     def _validate(self):
@@ -430,6 +435,7 @@ class XRayConfig(dict):
             config=data.get("config", {}),
             exclude_inbound_tags=set(data.get("exclude_inbound_tags", [])),
             fallbacks_inbound_tags=set(data.get("fallbacks_inbound", [])),
+            skip_validation=True,
         )
         if "inbounds" in data:
             instance._inbounds = data["inbounds"]
