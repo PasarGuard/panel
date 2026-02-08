@@ -40,16 +40,31 @@ class XRayConfig(dict):
         self._inbounds = []
         self._inbounds_by_tag = {}
         self._fallbacks_inbound = []
-        for tag in fallbacks_inbound_tags:
-            inbound = self.get_inbound(tag)
-            if inbound:
-                self._fallbacks_inbound.append(inbound)
+        self._collect_fallback_inbounds(fallbacks_inbound_tags)
 
         if skip_validation:
             return
 
         self._validate()
         self._resolve_inbounds()
+
+    def _collect_fallback_inbounds(self, explicit_fallback_tags: set[str]):
+        """Collect fallback parent inbounds.
+
+        Supports manual fallback tag selection while also auto-detecting any
+        inbound that defines `settings.fallbacks`.
+        """
+        fallback_tags = set(explicit_fallback_tags or set())
+        for inbound in self.get("inbounds", []):
+            if inbound.get("settings", {}).get("fallbacks", []):
+                fallback_tags.add(inbound.get("tag", ""))
+
+        for tag in fallback_tags:
+            if not tag:
+                continue
+            inbound = self.get_inbound(tag)
+            if inbound:
+                self._fallbacks_inbound.append(inbound)
 
     def _validate(self):
         """Validate the config."""

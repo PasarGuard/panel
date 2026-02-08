@@ -1,5 +1,6 @@
 from fastapi import status
 
+from app.core.xray import XRayConfig
 from tests.api import client
 from tests.api.helpers import create_core, delete_core, get_inbounds
 from tests.api.sample_data import XRAY_CONFIG as xray_config
@@ -90,3 +91,11 @@ def test_inbounds_get(access_token):
     assert len(inbounds) > 0
     assert set(response_tags) == set(config_tags)
     delete_core(access_token, core["id"])
+
+
+def test_xray_auto_detects_fallback_tls_without_manual_fallback_tags():
+    parsed = XRayConfig(xray_config, exclude_inbound_tags=set(), fallbacks_inbound_tags=set())
+    fallback_tag = "xhttp<=>fallback-A"
+
+    assert fallback_tag in parsed.inbounds_by_tag
+    assert parsed.inbounds_by_tag[fallback_tag]["tls"] == "reality"
