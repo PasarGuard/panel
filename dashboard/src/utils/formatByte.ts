@@ -1,9 +1,13 @@
-export function formatBytes(bytes: number, decimals = 2, size: boolean = true, asArray = false, forceUnit?: 'B' | 'KB' | 'MB' | 'GB' | 'TB' | 'PB' | 'EB' | 'ZB' | 'YB') {
+type ByteUnit = 'B' | 'KB' | 'MB' | 'GB' | 'TB' | 'PB' | 'EB' | 'ZB' | 'YB'
+
+export function formatBytes(bytes: number, decimals?: number, size?: boolean, asArray?: false, forceUnit?: ByteUnit): string
+export function formatBytes(bytes: number, decimals: number | undefined, size: boolean | undefined, asArray: true, forceUnit?: ByteUnit): [number, ByteUnit]
+export function formatBytes(bytes: number, decimals = 2, size: boolean = true, asArray = false, forceUnit?: ByteUnit) {
   if (!+bytes) return size ? '0 B' : '0'
 
   const k = 1024
   const dm = decimals < 0 ? 0 : decimals
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+  const sizes: ByteUnit[] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
 
   if (forceUnit && sizes.includes(forceUnit)) {
     const i = sizes.indexOf(forceUnit)
@@ -17,6 +21,10 @@ export function formatBytes(bytes: number, decimals = 2, size: boolean = true, a
 
   if (asArray) return [value, sizes[i]]
   return size ? `${value} ${sizes[i]}` : `${value}`
+}
+
+export function formatGigabytes(gb: number, decimals = 2): string {
+  return formatBytes(gb * 1024 * 1024 * 1024, decimals)
 }
 
 export const numberWithCommas = (x: number | undefined | null) => {

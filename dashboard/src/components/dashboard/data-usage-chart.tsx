@@ -335,13 +335,12 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
 
   // Calculate total usage during period
   const totalUsageDuringPeriod = useMemo(() => {
-    if (!chartData || chartData.length === 0) return 0
+    if (!chartData || chartData.length === 0) return '0 B'
     const totalBytes = chartData.reduce((sum, dataPoint) => {
       const traffic = (dataPoint as { traffic: number })?.traffic || 0
       return sum + traffic
     }, 0)
-    // Convert bytes to GB
-    return totalBytes / (1024 * 1024 * 1024)
+    return formatBytes(totalBytes, 2)
   }, [chartData])
 
   const xAxisInterval = useMemo(() => {
@@ -491,7 +490,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
         )}
         {chartData.length > 0 && (
           <div className="leading-none text-muted-foreground">
-            {t('statistics.usageDuringPeriod', { defaultValue: 'Usage During Period' })}: <span dir="ltr" className="font-mono">{totalUsageDuringPeriod.toFixed(2)} GB</span>
+            {t('statistics.usageDuringPeriod', { defaultValue: 'Usage During Period' })}: <span dir="ltr" className="font-mono">{totalUsageDuringPeriod}</span>
           </div>
         )}
         <div className="leading-none text-muted-foreground">{t('statistics.trafficUsageDescription', { defaultValue: 'Total traffic usage across all servers' })}</div>

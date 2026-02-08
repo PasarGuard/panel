@@ -253,7 +253,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
         </DialogHeader>
 
         <Card className="min-h-0 flex-1 border-none bg-transparent shadow-none">
-          <CardContent className="min-h-0 space-y-3 overflow-y-auto p-0 pr-1 sm:space-y-4">
+          <CardContent className="min-h-0 space-y-3 overflow-x-hidden overflow-y-auto p-0 pr-1 sm:space-y-4">
             {/* Date and Total Usage */}
             <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
               <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -304,24 +304,24 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
                     </ChartContainer>
                   </div>
 
-                  <div dir="ltr" className="grid max-h-[32dvh] flex-1 gap-2 overflow-y-auto sm:max-h-[36dvh] sm:gap-3 md:max-h-80">
+                  <div dir="ltr" className="grid max-h-[32dvh] min-w-0 flex-1 gap-2 overflow-x-hidden overflow-y-auto sm:max-h-[36dvh] sm:gap-3 md:max-h-80">
                     {nodesWithDistribution.map(node => (
-                      <div key={node.name} className={`flex items-center justify-between rounded-lg border p-2 sm:p-3`}>
+                      <div key={node.name} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 sm:flex-nowrap sm:p-3`}>
                         <div className={`flex min-w-0 flex-1 items-center gap-2 sm:gap-3`}>
                           <div className="h-2 w-2 flex-shrink-0 rounded-full sm:h-3 sm:w-3" style={{ backgroundColor: node.color }} />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                              <span dir="ltr" className="text-[10px] font-mono text-muted-foreground sm:text-xs">
+                              <span dir="ltr" className="text-[10px] font-mono font-bold text-foreground sm:text-xs">
                                 {node.percentage.toFixed(1)}%
                               </span>
-                              <div className={`truncate text-xs font-medium sm:text-sm`}>{node.name}</div>
+                              <div className={`truncate break-all text-xs font-medium sm:text-sm`}>{node.name}</div>
                             </div>
                             <div className={`text-xs text-muted-foreground`}>{formatBytes(node.bytes)}</div>
                           </div>
                         </div>
 
                         {!hideUplinkDownlink && (
-                          <div className={`flex items-center gap-1 text-xs sm:gap-2`}>
+                          <div className={`flex w-full items-center justify-end gap-1 text-xs sm:w-auto sm:gap-2`}>
                             <div className={`flex items-center gap-1`}>
                               <Upload className="h-2 w-2 text-green-500 sm:h-3 sm:w-3" />
                               <span dir="ltr" className="max-w-[60px] truncate font-mono text-xs sm:max-w-none">

@@ -6,7 +6,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { getAdminUsage, getUsage, Period, type NodeUsageStat, type UserUsageStat } from '@/service/api'
-import { formatBytes } from '@/utils/formatByte'
+import { formatBytes, formatGigabytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { EmptyState } from './empty-state'
@@ -193,8 +193,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
       <div className={`mb-1.5 flex items-center justify-center gap-1.5 text-center text-[10px] text-muted-foreground sm:text-xs`}>
         <span>{t('statistics.totalUsage', { defaultValue: 'Total' })}: </span>
         <span dir="ltr" className="inline-block truncate font-mono">
-          {activeNodes.reduce((sum, node) => sum + node.usage, 0).toFixed(2)}
-          GB
+          {formatGigabytes(activeNodes.reduce((sum, node) => sum + node.usage, 0))}
         </span>
       </div>
       <div className={`grid gap-1 sm:gap-1.5 ${nodesToShow.length > (isMobile ? 2 : 3) ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -207,7 +206,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
               </span>
             </span>
             <span dir="ltr" className="text-[9px] font-mono text-muted-foreground sm:text-[10px]">
-              {node.usage.toFixed(2)} GB
+              {formatGigabytes(node.usage)}
             </span>
             {hasDirectionalTraffic && (
               <span className={`flex items-center gap-0.5 text-[9px] text-muted-foreground sm:text-[10px] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -648,7 +647,7 @@ export function AllNodesStackedBarChart() {
                       direction={'ltr'}
                       tickLine={false}
                       axisLine={false}
-                      tickFormatter={value => `${value.toFixed(2)} GB`}
+                      tickFormatter={value => formatGigabytes(Number(value || 0))}
                       tick={{
                         fill: 'hsl(var(--muted-foreground))',
                         fontSize: 9,
