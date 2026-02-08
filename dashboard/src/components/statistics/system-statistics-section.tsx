@@ -6,9 +6,33 @@ import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { formatBytes } from '@/utils/formatByte'
 import { CircularProgress } from '@/components/ui/circular-progress'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface SystemStatisticsSectionProps {
   currentStats?: SystemStats | NodeRealtimeStats | null
+}
+
+interface SpeedValueHintProps {
+  primary: string
+  secondary: string
+  className?: string
+}
+
+function SpeedValueHint({ primary, secondary, className }: SpeedValueHintProps) {
+  return (
+    <TooltipProvider delayDuration={120}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" className="inline cursor-default rounded-sm p-0 text-left align-baseline">
+            <span dir="ltr" className={className}>
+              {primary}
+            </span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{secondary}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 export default function SystemStatisticsSection({ currentStats }: SystemStatisticsSectionProps) {
@@ -118,7 +142,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
                   <Cpu className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">{t('statistics.cpuUsage')}</p>
+                  <p className="text-xs font-medium leading-tight text-muted-foreground sm:truncate sm:text-sm">{t('statistics.cpuUsage')}</p>
                 </div>
               </div>
               <CircularProgress value={cpu.usage} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
@@ -126,7 +150,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
 
             <div className="flex items-end justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-                <span dir="ltr" className="truncate text-xl font-bold transition-all duration-300 sm:text-2xl lg:text-3xl">
+                <span dir="ltr" className="text-xl font-bold leading-tight transition-all duration-300 sm:text-2xl lg:text-3xl">
                   {cpu.usage}%
                 </span>
               </div>
@@ -134,7 +158,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
               {cpu.cores > 0 && (
                 <div className="flex shrink-0 items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-xs text-muted-foreground sm:px-2 sm:text-sm">
                   <Cpu className="h-3 w-3" />
-                  <span className="whitespace-nowrap font-medium">
+                  <span className="font-medium sm:whitespace-nowrap">
                     {cpu.cores} {t('statistics.cores')}
                   </span>
                 </div>
@@ -161,16 +185,16 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
                   <MemoryStick className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">{t('statistics.ramUsage')}</p>
+                  <p className="text-xs font-medium leading-tight text-muted-foreground sm:truncate sm:text-sm">{t('statistics.ramUsage')}</p>
                 </div>
               </div>
               <CircularProgress value={memoryPercent} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2">
-              <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
+              <span dir="ltr" className="text-base font-bold leading-tight transition-all duration-300 sm:text-xl lg:text-2xl">
                 {currentStats ? (
-                  <span className="whitespace-nowrap">
+                  <span className="whitespace-normal sm:whitespace-nowrap">
                     {formatBytes(memory.used, 1, false, false, 'GB')}/{formatBytes(memory.total, 1, true, false, 'GB')}
                     <span className="ml-1 text-sm font-medium text-muted-foreground">({memoryPercent.toFixed(1)}%)</span>
                   </span>
@@ -200,7 +224,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
                   {currentStats && isNodeStats(currentStats) ? <Activity className="h-4 w-4 text-primary sm:h-5 sm:w-5" /> : <Database className="h-4 w-4 text-primary sm:h-5 sm:w-5" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">
+                  <p className="text-xs font-medium leading-tight text-muted-foreground sm:truncate sm:text-sm">
                     {currentStats && isNodeStats(currentStats) ? t('statistics.networkSpeed') : t('statistics.totalTraffic')}
                   </p>
                 </div>
@@ -208,51 +232,35 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
             </div>
 
             <div className="flex items-end justify-between gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-                <span dir="ltr" className="truncate text-xl font-bold transition-all duration-300 sm:text-2xl lg:text-3xl">
-                  {currentStats && isNodeStats(currentStats) ? (
-                    <span className="flex flex-col leading-tight">
-                      <span>
-                        {totalSpeed.mbpsText}
-                        <span className="text-base font-normal text-muted-foreground sm:text-lg"> Mb/s</span>
-                      </span>
-                      <span className="text-[11px] font-normal text-muted-foreground">
-                        {totalSpeed.mbPerSecText} MB/s
-                      </span>
-                    </span>
-                  ) : (
-                    formatBytes(getTotalTrafficValue() || 0, 1)
-                  )}
-                </span>
+              <div className="min-w-0 flex-1" dir="ltr">
+                {currentStats && isNodeStats(currentStats) ? (
+                  <SpeedValueHint
+                    primary={`${totalSpeed.mbPerSecText} MB/s`}
+                    secondary={`${totalSpeed.mbpsText} Mb/s`}
+                    className="inline-block whitespace-nowrap text-xl font-bold leading-tight sm:text-2xl lg:text-3xl"
+                  />
+                ) : (
+                  <span className="text-xl font-bold leading-tight sm:text-2xl lg:text-3xl">{formatBytes(getTotalTrafficValue() || 0, 1)}</span>
+                )}
               </div>
 
               {/* Incoming/Outgoing Details */}
-              <div className="flex shrink-0 items-center gap-2 text-xs">
-                <div className="flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-green-600 dark:text-green-400">
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs sm:gap-2">
+                <div className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-green-600 dark:text-green-400">
                   <Download className="h-3 w-3" />
-                  <span dir="ltr" className="flex flex-col font-medium leading-none">
-                    {currentStats && isNodeStats(currentStats) ? (
-                      <>
-                        <span>{incomingSpeed.mbpsText} Mb/s</span>
-                        <span className="text-[10px] font-normal text-muted-foreground">{incomingSpeed.mbPerSecText} MB/s</span>
-                      </>
-                    ) : (
-                      <span>{formatBytes(getIncomingBandwidth() || 0, 1)}</span>
-                    )}
-                  </span>
+                  {currentStats && isNodeStats(currentStats) ? (
+                    <SpeedValueHint primary={`${incomingSpeed.mbPerSecText} MB/s`} secondary={`${incomingSpeed.mbpsText} Mb/s`} className="whitespace-nowrap font-semibold" />
+                  ) : (
+                    <span dir="ltr" className="whitespace-nowrap font-semibold">{formatBytes(getIncomingBandwidth() || 0, 1)}</span>
+                  )}
                 </div>
-                <div className="flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-blue-600 dark:text-blue-400">
+                <div className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-blue-600 dark:text-blue-400">
                   <Upload className="h-3 w-3" />
-                  <span dir="ltr" className="flex flex-col font-medium leading-none">
-                    {currentStats && isNodeStats(currentStats) ? (
-                      <>
-                        <span>{outgoingSpeed.mbpsText} Mb/s</span>
-                        <span className="text-[10px] font-normal text-muted-foreground">{outgoingSpeed.mbPerSecText} MB/s</span>
-                      </>
-                    ) : (
-                      <span>{formatBytes(getOutgoingBandwidth() || 0, 1)}</span>
-                    )}
-                  </span>
+                  {currentStats && isNodeStats(currentStats) ? (
+                    <SpeedValueHint primary={`${outgoingSpeed.mbPerSecText} MB/s`} secondary={`${outgoingSpeed.mbpsText} Mb/s`} className="whitespace-nowrap font-semibold" />
+                  ) : (
+                    <span dir="ltr" className="whitespace-nowrap font-semibold">{formatBytes(getOutgoingBandwidth() || 0, 1)}</span>
+                  )}
                 </div>
               </div>
             </div>
