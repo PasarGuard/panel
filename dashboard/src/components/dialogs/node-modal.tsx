@@ -1189,7 +1189,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-3">
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={addNodeMutation.isPending || modifyNodeMutation.isPending} size="sm">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={addNodeMutation.isPending || modifyNodeMutation.isPending} size="sm">
                 {t('cancel')}
               </Button>
               <LoaderButton
