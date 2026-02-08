@@ -5,6 +5,7 @@ import { SystemStats } from '@/service/api'
 import { formatBytes } from '@/utils/formatByte'
 import { Cpu, Database, Download, MemoryStick, Upload, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { CircularProgress } from '../ui/circular-progress'
 import { Card, CardContent } from '../ui/card'
 
 const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefined }) => {
@@ -77,6 +78,7 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
 
   const memory = getMemoryUsage()
   const cpu = getCpuInfo()
+  const memoryPercent = Math.min(Math.max(memory.percentage, 0), 100)
 
   return (
     <div
@@ -109,6 +111,7 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
                   <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">{t('statistics.cpuUsage')}</p>
                 </div>
               </div>
+              <CircularProgress value={cpu.usage} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
             </div>
 
             <div className="flex items-end justify-between gap-2">
@@ -151,17 +154,15 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
                   <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">{t('statistics.ramUsage')}</p>
                 </div>
               </div>
+              <CircularProgress value={memoryPercent} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2">
               <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
-                {systemData ? (
-                  <span className="whitespace-nowrap">
-                    {formatBytes(memory.used, 1, false, false, 'GB')}/{formatBytes(memory.total, 1, true, false, 'GB')}
-                  </span>
-                ) : (
-                  0
-                )}
+                <span className="whitespace-nowrap">
+                  {formatBytes(memory.used, 1, false, false, 'GB')}/{formatBytes(memory.total, 1, true, false, 'GB')}
+                  <span className="ml-1 text-sm font-medium text-muted-foreground">({memoryPercent.toFixed(1)}%)</span>
+                </span>
               </span>
             </div>
           </CardContent>

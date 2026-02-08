@@ -5,6 +5,7 @@ import { Cpu, MemoryStick, Database, Upload, Download, Activity } from 'lucide-r
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { formatBytes } from '@/utils/formatByte'
+import { CircularProgress } from '@/components/ui/circular-progress'
 
 interface SystemStatisticsSectionProps {
   currentStats?: SystemStats | NodeRealtimeStats | null
@@ -85,6 +86,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
 
   const memory = getMemoryUsage()
   const cpu = getCpuInfo()
+  const memoryPercent = Math.min(Math.max(memory.percentage, 0), 100)
   const totalSpeed = formatMbpsPair(getTotalTrafficValue() || 0)
   const incomingSpeed = formatMbpsPair(getIncomingBandwidth() || 0)
   const outgoingSpeed = formatMbpsPair(getOutgoingBandwidth() || 0)
@@ -119,6 +121,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
                   <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">{t('statistics.cpuUsage')}</p>
                 </div>
               </div>
+              <CircularProgress value={cpu.usage} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
             </div>
 
             <div className="flex items-end justify-between gap-2">
@@ -161,6 +164,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
                   <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">{t('statistics.ramUsage')}</p>
                 </div>
               </div>
+              <CircularProgress value={memoryPercent} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2">
@@ -168,6 +172,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
                 {currentStats ? (
                   <span className="whitespace-nowrap">
                     {formatBytes(memory.used, 1, false, false, 'GB')}/{formatBytes(memory.total, 1, true, false, 'GB')}
+                    <span className="ml-1 text-sm font-medium text-muted-foreground">({memoryPercent.toFixed(1)}%)</span>
                   </span>
                 ) : (
                   0
