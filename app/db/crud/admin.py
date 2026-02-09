@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_password
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
+from app.utils.helpers import get_timezone_offset_string
 
-from .general import _build_trunc_expression
+from .general import _build_trunc_expression_tz
 
 
 async def load_admin_attrs(admin: Admin):
@@ -395,19 +396,23 @@ async def get_admin_usages(
     """
     Retrieves aggregated usage data for an admin's users within a specified time range,
     grouped by the specified time period.
+    Groups data by periods in the timezone of the start/end parameters.
 
     Args:
         db (AsyncSession): Database session for querying.
         admin_id (int | None): Admin ID to filter users by. If None, include all admins.
-        start (datetime): Start of the period.
-        end (datetime): End of the period.
+        start (datetime): Start of the period (with timezone).
+        end (datetime): End of the period (with timezone).
         period (Period): Time period to group by ('minute', 'hour', 'day', 'month').
         node_id (Optional[int]): Filter results by specific node ID if provided.
 
     Returns:
         UserUsageStatsList: Aggregated usage data for each period.
     """
-    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at)
+    # Extract timezone offset from start parameter for timezone-aware grouping
+    timezone_offset = get_timezone_offset_string(start)
+
+    trunc_expr = _build_trunc_expression_tz(db, period, NodeUserUsage.created_at, timezone_offset)
 
     conditions = [
         NodeUserUsage.created_at >= start,
@@ -453,6 +458,16 @@ async def get_admin_usages(
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+
+        # Database returns naive datetime - attach timezone from request
+        if "period_start" in row_dict and row_dict["period_start"]:
+            period_start_naive = row_dict["period_start"]
+            if isinstance(period_start_naive, str):
+                period_start_naive = datetime.fromisoformat(period_start_naive)
+            # Attach the same timezone as the request
+            if start.tzinfo and period_start_naive.tzinfo is None:
+                row_dict["period_start"] = period_start_naive.replace(tzinfo=start.tzinfo)
+
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(UserUsageStat(**row_dict))

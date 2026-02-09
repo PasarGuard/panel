@@ -252,6 +252,7 @@ async def test_admin_usage_forbidden_for_other_admin(access_token):
 
 # Tests for /api/admins/simple endpoint
 
+
 def test_get_admins_simple_basic(access_token):
     """Test that admins/simple returns correct minimal data structure."""
     created_admins = []

@@ -18,8 +18,9 @@ from app.db.models import (
 from app.db.compiles_types import DateDiff
 from app.models.node import NodeCreate, NodeModify, UsageTable
 from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageStatsList, Period
+from app.utils.helpers import get_timezone_offset_string
 
-from .general import _build_trunc_expression
+from .general import _build_trunc_expression_tz
 
 
 async def load_node_attrs(node: Node):
@@ -164,16 +165,23 @@ async def get_nodes_usage(
 ) -> NodeUsageStatsList:
     """
     Retrieves usage data for all nodes within a specified time range.
+    Groups data by periods in the timezone of the start/end parameters.
 
     Args:
         db (AsyncSession): The database session.
-        start (datetime): The start time of the usage period.
-        end (datetime): The end time of the usage period.
+        start (datetime): The start time of the usage period (with timezone).
+        end (datetime): The end time of the usage period (with timezone).
+        period (Period): The period to group by (minute, hour, day, month).
+        node_id (int | None): Optional node ID to filter by.
+        group_by_node (bool): Whether to group results by node.
 
     Returns:
         NodeUsageStatsList: A NodeUsageStatsList contain list of NodeUsageResponse objects containing usage data.
     """
-    trunc_expr = _build_trunc_expression(db, period, NodeUsage.created_at)
+    # Extract timezone offset from start parameter for timezone-aware grouping
+    timezone_offset = get_timezone_offset_string(start)
+
+    trunc_expr = _build_trunc_expression_tz(db, period, NodeUsage.created_at, timezone_offset)
 
     conditions = [NodeUsage.created_at >= start, NodeUsage.created_at <= end]
 
@@ -211,6 +219,16 @@ async def get_nodes_usage(
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+
+        # Database returns naive datetime - attach timezone from request
+        if "period_start" in row_dict and row_dict["period_start"]:
+            period_start_naive = row_dict["period_start"]
+            if isinstance(period_start_naive, str):
+                period_start_naive = datetime.fromisoformat(period_start_naive)
+            # Attach the same timezone as the request
+            if start.tzinfo and period_start_naive.tzinfo is None:
+                row_dict["period_start"] = period_start_naive.replace(tzinfo=start.tzinfo)
+
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(NodeUsageStat(**row_dict))
@@ -221,7 +239,14 @@ async def get_nodes_usage(
 async def get_node_stats(
     db: AsyncSession, node_id: int, start: datetime, end: datetime, period: Period
 ) -> NodeStatsList:
-    trunc_expr = _build_trunc_expression(db, period, NodeStat.created_at)
+    """
+    Retrieves node statistics within a specified date range.
+    Groups data by periods in the timezone of the start/end parameters.
+    """
+    # Extract timezone offset from start parameter for timezone-aware grouping
+    timezone_offset = get_timezone_offset_string(start)
+
+    trunc_expr = _build_trunc_expression_tz(db, period, NodeStat.created_at, timezone_offset)
     conditions = [NodeStat.created_at >= start, NodeStat.created_at <= end, NodeStat.node_id == node_id]
 
     stmt = (
@@ -238,8 +263,22 @@ async def get_node_stats(
     )
 
     result = await db.execute(stmt)
+    stats = []
+    for row in result.mappings():
+        row_dict = dict(row)
 
-    return NodeStatsList(period=period, start=start, end=end, stats=[NodeStats(**row) for row in result.mappings()])
+        # Database returns naive datetime - attach timezone from request
+        if "period_start" in row_dict and row_dict["period_start"]:
+            period_start_naive = row_dict["period_start"]
+            if isinstance(period_start_naive, str):
+                period_start_naive = datetime.fromisoformat(period_start_naive)
+            # Attach the same timezone as the request
+            if start.tzinfo and period_start_naive.tzinfo is None:
+                row_dict["period_start"] = period_start_naive.replace(tzinfo=start.tzinfo)
+
+        stats.append(NodeStats(**row_dict))
+
+    return NodeStatsList(period=period, start=start, end=end, stats=stats)
 
 
 async def create_node(db: AsyncSession, node: NodeCreate) -> Node:

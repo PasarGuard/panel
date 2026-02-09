@@ -93,6 +93,7 @@ def test_groups_get(access_token):
 
 # Tests for /api/groups/simple endpoint
 
+
 def test_get_groups_simple_basic(access_token):
     """Test that groups/simple returns correct minimal data structure."""
     core = create_core(access_token)

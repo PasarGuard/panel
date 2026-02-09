@@ -51,6 +51,66 @@ def fix_datetime_timezone(value: dt | int | str):
     raise ValueError("input can be datetime or timestamp")
 
 
+def ensure_datetime_timezone(value: dt | int | str, default_tz: tz = tz.utc) -> dt:
+    """
+    Ensures datetime has timezone info WITHOUT converting to UTC.
+
+    Args:
+        value: Input datetime, timestamp, or ISO string
+        default_tz: Timezone to use if input is naive (default: UTC)
+
+    Returns:
+        Timezone-aware datetime preserving original timezone
+    """
+    if isinstance(value, dt):
+        # If datetime is naive, add default timezone
+        if value.tzinfo is None:
+            return value.replace(tzinfo=default_tz)
+        # If datetime has timezone, KEEP IT (don't convert to UTC)
+        return value
+    elif isinstance(value, int):
+        # Timestamp assumed to be UTC
+        return dt.fromtimestamp(value, tz=default_tz)
+    elif isinstance(value, str):
+        # Parse ISO string
+        parsed = dt.fromisoformat(value)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=default_tz)
+        return parsed
+
+    raise ValueError("input can be datetime, timestamp, or ISO string")
+
+
+def get_timezone_offset_string(dt_value: dt) -> str | None:
+    """
+    Extract timezone offset string from a datetime object.
+
+    Args:
+        dt_value: Datetime object with timezone info
+
+    Returns:
+        Timezone offset string in format '+HH:MM' or '-HH:MM', or None if no timezone
+
+    Examples:
+        >>> from datetime import datetime, timezone, timedelta
+        >>> dt_tehran = datetime(2024, 1, 1, tzinfo=timezone(timedelta(hours=3, minutes=30)))
+        >>> get_timezone_offset_string(dt_tehran)
+        '+03:30'
+    """
+    if dt_value is None or dt_value.tzinfo is None:
+        return None
+
+    offset = dt_value.utcoffset()
+    if offset is None:
+        return None
+
+    total_seconds = int(offset.total_seconds())
+    hours, remainder = divmod(abs(total_seconds), 3600)
+    minutes = remainder // 60
+    sign = "+" if total_seconds >= 0 else "-"
+    return f"{sign}{hours:02d}:{minutes:02d}"
+
+
 class UUIDEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, UUID):
