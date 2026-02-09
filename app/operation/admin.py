@@ -121,7 +121,7 @@ class AdminOperation(BaseOperation):
     async def get_admins_simple(
         self,
         db: AsyncSession,
-        username: str | None = None,
+        search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
         sort: str | None = None,
@@ -143,7 +143,7 @@ class AdminOperation(BaseOperation):
             db=db,
             offset=offset,
             limit=limit,
-            search=username,
+            search=search,
             sort=sort_list if sort_list else None,
             skip_pagination=all,
         )

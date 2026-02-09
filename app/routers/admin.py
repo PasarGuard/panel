@@ -142,7 +142,7 @@ async def get_admins(
     dependencies=[Depends(check_sudo_admin)],
 )
 async def get_admins_simple(
-    username: str | None = None,
+    search: str | None = None,
     offset: int | None = None,
     limit: int | None = None,
     sort: str | None = None,
@@ -152,7 +152,7 @@ async def get_admins_simple(
     """Get lightweight admin list with only id and username"""
     return await admin_operator.get_admins_simple(
         db=db,
-        username=username,
+        search=search,
         offset=offset,
         limit=limit,
         sort=sort,
