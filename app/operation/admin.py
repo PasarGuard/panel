@@ -7,17 +7,19 @@ from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import (
     AdminsSortingOptions,
+    AdminsSortingOptionsSimple,
     create_admin,
     get_admin_usages,
     get_admins,
     get_admins_count,
+    get_admins_simple,
     remove_admin,
     reset_admin_usage,
     update_admin,
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminsResponse
+from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminSimple, AdminsResponse, AdminsSimpleResponse
 from app.node.sync import sync_users, remove_user as sync_remove_user
 from app.models.stats import Period, UserUsageStatsList
 from app.operation import BaseOperation, OperatorType
@@ -115,6 +117,41 @@ class AdminOperation(BaseOperation):
                 disabled=disabled,
             )
         return admins  # type: ignore[return-value]
+
+    async def get_admins_simple(
+        self,
+        db: AsyncSession,
+        username: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        sort: str | None = None,
+        all: bool = False,
+    ) -> AdminsSimpleResponse:
+        """Get lightweight admin list with only id and username"""
+        sort_list = []
+        if sort is not None:
+            opts = sort.strip(",").split(",")
+            for opt in opts:
+                try:
+                    enum_member = AdminsSortingOptionsSimple[opt]
+                    sort_list.append(enum_member)
+                except KeyError:
+                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
+
+        # Call CRUD function
+        rows, total = await get_admins_simple(
+            db=db,
+            offset=offset,
+            limit=limit,
+            search=username,
+            sort=sort_list if sort_list else None,
+            skip_pagination=all,
+        )
+
+        # Convert tuples to Pydantic models
+        admins = [AdminSimple(id=row[0], username=row[1]) for row in rows]
+
+        return AdminsSimpleResponse(admins=admins, total=total)
 
     async def get_admins_count(self, db: AsyncSession) -> int:
         return await get_admins_count(db)

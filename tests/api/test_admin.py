@@ -248,3 +248,258 @@ async def test_admin_usage_forbidden_for_other_admin(access_token):
 
     delete_admin(access_token, admin_a["username"])
     delete_admin(access_token, admin_b["username"])
+
+
+# Tests for /api/admins/simple endpoint
+
+def test_get_admins_simple_basic(access_token):
+    """Test that admins/simple returns correct minimal data structure."""
+    created_admins = []
+    try:
+        # Create 2 admins
+        admin1 = create_admin(access_token, username=unique_name("admin_1"))
+        admin2 = create_admin(access_token, username=unique_name("admin_2"))
+        created_admins = [admin1["username"], admin2["username"]]
+
+        # Execute
+        response = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "admins" in data
+        assert "total" in data
+
+        # Check that each admin has only id and username
+        for admin in data["admins"]:
+            assert set(admin.keys()) == {"id", "username"}
+
+        # Check created admins are present
+        response_usernames = [a["username"] for a in data["admins"]]
+        for username in created_admins:
+            assert username in response_usernames
+    finally:
+        for username in created_admins:
+            delete_admin(access_token, username)
+
+
+def test_get_admins_simple_search(access_token):
+    """Test case-insensitive search by username."""
+    created_admins = []
+    try:
+        # Create 3 admins with specific names
+        admin1 = create_admin(access_token, username="admin_alpha_search")
+        admin2 = create_admin(access_token, username="admin_beta_search")
+        admin3 = create_admin(access_token, username="other_admin_search")
+        created_admins = [admin1["username"], admin2["username"], admin3["username"]]
+
+        # Execute search for "alpha"
+        response = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"search": "alpha"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data["admins"]) >= 1
+        assert any(a["username"] == "admin_alpha_search" for a in data["admins"])
+    finally:
+        for username in created_admins:
+            delete_admin(access_token, username)
+
+
+def test_get_admins_simple_sort_ascending(access_token):
+    """Test ascending sort by username."""
+    created_admins = []
+    try:
+        # Create 3 admins with specific names for ordering
+        admin1 = create_admin(access_token, username="admin_c_sort")
+        admin2 = create_admin(access_token, username="admin_a_sort")
+        admin3 = create_admin(access_token, username="admin_b_sort")
+        created_admins = [admin1["username"], admin2["username"], admin3["username"]]
+
+        # Execute with ascending sort
+        response = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"sort": "username"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        # Find our created admins in the response
+        our_admins = [a for a in data["admins"] if a["username"] in created_admins]
+        our_usernames = [a["username"] for a in our_admins]
+        assert our_usernames == sorted(created_admins)
+    finally:
+        for username in created_admins:
+            delete_admin(access_token, username)
+
+
+def test_get_admins_simple_sort_descending(access_token):
+    """Test descending sort by username."""
+    created_admins = []
+    try:
+        # Create 3 admins with specific names for ordering
+        admin1 = create_admin(access_token, username="admin_a_desc")
+        admin2 = create_admin(access_token, username="admin_b_desc")
+        admin3 = create_admin(access_token, username="admin_c_desc")
+        created_admins = [admin1["username"], admin2["username"], admin3["username"]]
+
+        # Execute with descending sort
+        response = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"sort": "-username"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        # Find our created admins in the response
+        our_admins = [a for a in data["admins"] if a["username"] in created_admins]
+        our_usernames = [a["username"] for a in our_admins]
+        assert our_usernames == sorted(created_admins, reverse=True)
+    finally:
+        for username in created_admins:
+            delete_admin(access_token, username)
+
+
+def test_get_admins_simple_pagination(access_token):
+    """Test pagination with offset and limit."""
+    created_admins = []
+    try:
+        # Create 5 admins
+        for i in range(5):
+            admin = create_admin(access_token, username=unique_name(f"admin_pag_{i}"))
+            created_admins.append(admin["username"])
+
+        # Execute first request
+        response1 = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": 0, "limit": 2},
+        )
+
+        # Execute second request
+        response2 = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": 2, "limit": 2},
+        )
+
+        # Assert
+        assert response1.status_code == status.HTTP_200_OK
+        assert response2.status_code == status.HTTP_200_OK
+        data1 = response1.json()
+        data2 = response2.json()
+
+        assert len(data1["admins"]) == 2
+        assert len(data2["admins"]) == 2
+
+        # Check no overlap
+        usernames1 = {a["username"] for a in data1["admins"]}
+        usernames2 = {a["username"] for a in data2["admins"]}
+        assert len(usernames1 & usernames2) == 0
+    finally:
+        for username in created_admins:
+            delete_admin(access_token, username)
+
+
+def test_get_admins_simple_skip_pagination(access_token):
+    """Test all=true parameter returns all records."""
+    created_admins = []
+    try:
+        # Create 8 admins
+        for i in range(8):
+            admin = create_admin(access_token, username=unique_name(f"admin_all_{i}"))
+            created_admins.append(admin["username"])
+
+        # Execute with all=true
+        response = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"all": "true"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "admins" in data
+        assert "total" in data
+        assert data["total"] >= 8
+    finally:
+        for username in created_admins:
+            delete_admin(access_token, username)
+
+
+def test_get_admins_simple_requires_sudo(access_token):
+    """Test that non-sudo admin cannot access admins/simple."""
+    non_sudo_admin = create_admin(access_token, is_sudo=False)
+    try:
+        # Login as non-sudo admin
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": non_sudo_admin["username"],
+                "password": non_sudo_admin["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        non_sudo_token = login_response.json()["access_token"]
+
+        # Try to access admins/simple
+        response = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {non_sudo_token}"},
+        )
+
+        # Assert 403 Forbidden
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, non_sudo_admin["username"])
+
+
+def test_get_admins_simple_empty_search(access_token):
+    """Test search with no matching results."""
+    created_admins = []
+    try:
+        # Create 1 admin
+        admin = create_admin(access_token, username="known_admin_search")
+        created_admins = [admin["username"]]
+
+        # Execute search for non-existent admin
+        response = client.get(
+            "/api/admins/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"search": "nonexistent_xyz"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["total"] == 0
+        assert len(data["admins"]) == 0
+    finally:
+        for username in created_admins:
+            delete_admin(access_token, username)
+
+
+def test_get_admins_simple_invalid_sort(access_token):
+    """Test error handling for invalid sort parameter."""
+    # Execute with invalid sort
+    response = client.get(
+        "/api/admins/simple",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"sort": "invalid_field"},
+    )
+
+    # Assert
+    assert response.status_code == status.HTTP_400_BAD_REQUEST

@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app import notification
 from app.db import AsyncSession, get_db
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token, AdminsResponse
+from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token, AdminsResponse, AdminsSimpleResponse
 from app.models.stats import Period, UserUsageStatsList
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
@@ -132,6 +132,32 @@ async def get_admins(
 ):
     """Fetch a list of admins with optional filters for pagination and username."""
     return await admin_operator.get_admins(db, username=username, offset=offset, limit=limit, sort=sort)
+
+
+@router.get(
+    "s/simple",
+    response_model=AdminsSimpleResponse,
+    summary="Get lightweight admin list",
+    description="Returns only id and username for admins. Optimized for dropdowns and autocomplete.",
+    dependencies=[Depends(check_sudo_admin)],
+)
+async def get_admins_simple(
+    username: str | None = None,
+    offset: int | None = None,
+    limit: int | None = None,
+    sort: str | None = None,
+    all: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get lightweight admin list with only id and username"""
+    return await admin_operator.get_admins_simple(
+        db=db,
+        username=username,
+        offset=offset,
+        limit=limit,
+        sort=sort,
+        all=all,
+    )
 
 
 @router.get(

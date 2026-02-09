@@ -149,3 +149,18 @@ class AdminsResponse(BaseModel):
     total: int
     active: int
     disabled: int
+
+
+class AdminSimple(BaseModel):
+    """Lightweight admin model with only id and username for performance."""
+
+    id: int
+    username: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminsSimpleResponse(BaseModel):
+    """Response model for lightweight admin list."""
+
+    admins: list[AdminSimple]
+    total: int

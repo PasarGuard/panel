@@ -32,6 +32,15 @@ AdminsSortingOptions = Enum(
 )
 
 
+AdminsSortingOptionsSimple = Enum(
+    "AdminsSortingOptionsSimple",
+    {
+        "username": Admin.username.asc(),
+        "-username": Admin.username.desc(),
+    },
+)
+
+
 async def get_admin(db: AsyncSession, username: str) -> Admin:
     """
     Retrieves an admin by username.
@@ -294,6 +303,62 @@ async def get_admins(
     if return_with_count:
         return admins, total, active, disabled
     return admins
+
+
+async def get_admins_simple(
+    db: AsyncSession,
+    offset: int | None = None,
+    limit: int | None = None,
+    search: str | None = None,
+    sort: list[AdminsSortingOptionsSimple] | None = None,
+    skip_pagination: bool = False,
+) -> tuple[list[tuple[int, str]], int]:
+    """
+    Retrieves lightweight admin data with only id and username.
+
+    Args:
+        db: Database session.
+        offset: Number of records to skip.
+        limit: Number of records to retrieve.
+        search: Search term for username.
+        sort: Sort options.
+        skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
+
+    Returns:
+        Tuple of (list of (id, username) tuples, total_count).
+    """
+    stmt = select(Admin.id, Admin.username)
+
+    if search:
+        stmt = stmt.where(Admin.username.ilike(f"%{search}%"))
+
+    if sort:
+        sort_list = []
+        for s in sort:
+            if isinstance(s.value, tuple):
+                sort_list.extend(s.value)
+            else:
+                sort_list.append(s.value)
+        stmt = stmt.order_by(*sort_list)
+
+    # Get count BEFORE pagination (always)
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar()
+
+    # Apply pagination or safety limit
+    if not skip_pagination:
+        if offset:
+            stmt = stmt.offset(offset)
+        if limit:
+            stmt = stmt.limit(limit)
+    else:
+        stmt = stmt.limit(10000)  # Safety limit when all=true
+
+    # Execute and return
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return rows, total
 
 
 async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
