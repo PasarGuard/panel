@@ -309,8 +309,8 @@ async def modify_expiry_done(event: Message, state: FSMContext, db: AsyncSession
         await add_to_messages_to_delete(state, msg)
         return
     user_id = await state.get_value("user_id")
-    await state.clear()
     await delete_messages(event, state)
+    await state.clear()
     try:
         user = await user_operations.get_user_by_id(db, user_id, admin)
     except ValueError:
@@ -355,8 +355,8 @@ async def modify_data_limit_done(event: Message, state: FSMContext, db: AsyncSes
         await add_to_messages_to_delete(state, msg)
         return
     user_id = await state.get_value("user_id")
-    await state.clear()
     await delete_messages(event, state)
+    await state.clear()
     try:
         user = await user_operations.get_user_by_id(db, user_id, admin)
     except ValueError:
@@ -388,8 +388,8 @@ async def modify_note_done(event: Message, state: FSMContext, db: AsyncSession, 
     await add_to_messages_to_delete(state, event)
     note = event.text
     user_id = await state.get_value("user_id")
-    await state.clear()
     await delete_messages(event, state)
+    await state.clear()
     try:
         user = await user_operations.get_user_by_id(db, user_id, admin)
     except ValueError:
@@ -550,8 +550,8 @@ async def create_user_from_template_choose(
     except ValueError:
         pass
 
-    await state.clear()
     await delete_messages(event, state)
+    await state.clear()
 
     user = await user_operations.create_user_from_template(
         db, CreateUserFromTemplate(username=username, user_template_id=template_id), admin
@@ -610,8 +610,17 @@ async def get_v2ray_links(
 
 @router.message(F.text)
 @router.callback_query(UserPanel.Callback.filter(UserPanelAction.show == F.action))
-async def get_user(event: Message | CallbackQuery, admin: AdminDetails, db: AsyncSession, **kwargs):
+async def get_user(
+    event: Message | CallbackQuery,
+    admin: AdminDetails,
+    db: AsyncSession,
+    state: FSMContext | None = None,
+    **kwargs,
+):
     """get exact user, otherwise not found"""
+    if isinstance(event, CallbackQuery) and state is not None and await state.get_state() is not None:
+        await delete_messages(event, state)
+        await state.clear()
     try:
         if isinstance(event, Message):
             user = await user_operations.get_user(db, event.text, admin)
@@ -627,7 +636,10 @@ async def get_user(event: Message | CallbackQuery, admin: AdminDetails, db: Asyn
     if isinstance(event, Message):
         await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
     else:
-        await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+        try:
+            await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+        except TelegramBadRequest:
+            await event.message.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
 
 
 @router.inline_query()
