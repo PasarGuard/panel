@@ -1839,33 +1839,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <FormField
                               control={form.control}
-                              name="transport_settings.kcp_settings.header"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>{t('hostsDialog.kcp.header')}</FormLabel>
-                                  <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl>
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                      <SelectItem value="none">None</SelectItem>
-                                      <SelectItem value="srtp">SRTP</SelectItem>
-                                      <SelectItem value="utp">uTP</SelectItem>
-                                      <SelectItem value="wechat-video">WeChat Video</SelectItem>
-                                      <SelectItem value="dtls">DTLS</SelectItem>
-                                      <SelectItem value="wireguard">WireGuard</SelectItem>
-                                      <SelectItem value="dns">DNS</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-
-                            <FormField
-                              control={form.control}
                               name="transport_settings.kcp_settings.mtu"
                               render={({ field }) => (
                                 <FormItem>
@@ -1927,7 +1900,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <FormItem>
                                   <FormLabel>{t('hostsDialog.kcp.congestion')}</FormLabel>
                                   <FormControl>
-                                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 0)} value={field.value} />
+                                    <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>

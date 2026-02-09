@@ -271,19 +271,15 @@ class XrayConfiguration(BaseSubscription):
 
     def _transport_kcp(self, config: KCPTransportConfig, path: str) -> dict:
         """Handle KCP transport - only gets KCP config"""
-        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
-
         return self._normalize_and_remove_none_values(
             {
-                "header": {"type": config.header_type, "domain": host},
-                "mtu": config.mtu if config.mtu else 1350,
-                "tti": config.tti if config.tti else 50,
-                "uplinkCapacity": config.uplink_capacity if config.uplink_capacity else 12,
-                "downlinkCapacity": config.downlink_capacity if config.downlink_capacity else 100,
+                "mtu": config.mtu if config.mtu is not None else 1350,
+                "tti": config.tti if config.tti is not None else 50,
+                "uplinkCapacity": config.uplink_capacity if config.uplink_capacity is not None else 5,
+                "downlinkCapacity": config.downlink_capacity if config.downlink_capacity is not None else 20,
                 "congestion": config.congestion,
-                "readBufferSize": config.read_buffer_size if config.read_buffer_size else 2,
-                "writeBufferSize": config.write_buffer_size if config.write_buffer_size else 2,
-                "seed": path,
+                "readBufferSize": config.read_buffer_size if config.read_buffer_size is not None else 2,
+                "writeBufferSize": config.write_buffer_size if config.write_buffer_size is not None else 2,
             }
         )
 
@@ -450,6 +446,9 @@ class XrayConfiguration(BaseSubscription):
             },
         }
 
+        if inbound.finalmask is not None:
+            outbound["streamSettings"] = self._stream_setting_config(network=inbound.network, finalmask=inbound.finalmask)
+
         return self._normalize_and_remove_none_values(outbound)
 
     def _build_outbound(
@@ -504,12 +503,15 @@ class XrayConfiguration(BaseSubscription):
                 extra_outbounds.append(dialer_outbound)
                 sockopt = {"dialerProxy": "dialer"}
 
+        finalmask = inbound.finalmask if inbound.network == "kcp" else None
+
         outbound["streamSettings"] = self._stream_setting_config(
             network=network,
             security=security,
             network_setting=network_setting,
             tls_settings=tls_settings,
             sockopt=sockopt,
+            finalmask=finalmask,
         )
 
         # Add mux
@@ -520,7 +522,7 @@ class XrayConfiguration(BaseSubscription):
 
     @staticmethod
     def _stream_setting_config(
-        network=None, security=None, network_setting=None, tls_settings=None, sockopt=None
+        network=None, security=None, network_setting=None, tls_settings=None, sockopt=None, finalmask=None
     ) -> dict:
         """Build stream settings"""
         stream_settings = {"network": network}
@@ -534,6 +536,9 @@ class XrayConfiguration(BaseSubscription):
 
         if sockopt:
             stream_settings["sockopt"] = sockopt
+
+        if finalmask is not None:
+            stream_settings["finalmask"] = finalmask
 
         return stream_settings
 

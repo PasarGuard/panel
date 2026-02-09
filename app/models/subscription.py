@@ -120,7 +120,6 @@ class XHTTPTransportConfig(BaseTransportConfig):
 class KCPTransportConfig(BaseTransportConfig):
     """KCP transport - only kcp-specific fields"""
 
-    header_type: str = Field("none")
     mtu: int | None = Field(None)
     tti: int | None = Field(None)
     uplink_capacity: int | None = Field(None)
@@ -246,6 +245,7 @@ class SubscriptionInboundData(BaseModel):
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)
+    finalmask: dict[str, Any] | None = Field(None)
 
     # Priority and status
     priority: int = Field(0)

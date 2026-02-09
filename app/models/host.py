@@ -149,12 +149,11 @@ class WebSocketSettings(BaseModel):
 
 
 class KCPSettings(BaseModel):
-    header: str = Field(default="none", pattern=r"^(:?none|srtp|utp|wechat-video|dtls|wireguard|dns)$")
     mtu: int | None = Field(default=None)
     tti: int | None = Field(default=None)
     uplink_capacity: int | None = Field(default=None)
     downlink_capacity: int | None = Field(default=None)
-    congestion: int | None = Field(default=None)
+    congestion: bool | None = Field(default=None)
     read_buffer_size: int | None = Field(default=None)
     write_buffer_size: int | None = Field(default=None)
 

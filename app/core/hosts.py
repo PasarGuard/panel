@@ -121,10 +121,12 @@ async def _prepare_subscription_inbound_data(
     if inbound_flow == "none":
         inbound_flow = ""
 
+    finalmask = inbound_config.get("finalmask")
+
     # Network comes from inbound, NOT from checking which transport exists on host!
     # Host can have ALL transport configs, inbound determines which one is used
 
-    # Get header_type from inbound (will be used for KCP, QUIC, TCP)
+    # Get header_type from inbound (will be used for QUIC, TCP)
     inbound_header_type = inbound_config.get("header_type", "none")
 
     # Create transport config based on network type from inbound
@@ -178,17 +180,29 @@ async def _prepare_subscription_inbound_data(
         )
     elif network == "kcp":
         ks = ts.kcp_settings if ts else None
+        inbound_mtu = inbound_config.get("mtu")
+        inbound_tti = inbound_config.get("tti")
+        inbound_uplink_capacity = inbound_config.get("uplink_capacity")
+        inbound_downlink_capacity = inbound_config.get("downlink_capacity")
+        inbound_congestion = inbound_config.get("congestion")
+        inbound_read_buffer_size = inbound_config.get("read_buffer_size")
+        inbound_write_buffer_size = inbound_config.get("write_buffer_size")
         transport_config = KCPTransportConfig(
-            path=path,
-            host=host_list,
-            header_type=ks.header if ks else inbound_header_type,
-            mtu=ks.mtu if ks else None,
-            tti=ks.tti if ks else None,
-            uplink_capacity=ks.uplink_capacity if ks else None,
-            downlink_capacity=ks.downlink_capacity if ks else None,
-            congestion=ks.congestion if ks else False,
-            read_buffer_size=ks.read_buffer_size if ks else None,
-            write_buffer_size=ks.write_buffer_size if ks else None,
+            path="",
+            host=[],
+            mtu=ks.mtu if ks and ks.mtu is not None else inbound_mtu,
+            tti=ks.tti if ks and ks.tti is not None else inbound_tti,
+            uplink_capacity=ks.uplink_capacity if ks and ks.uplink_capacity is not None else inbound_uplink_capacity,
+            downlink_capacity=ks.downlink_capacity
+            if ks and ks.downlink_capacity is not None
+            else inbound_downlink_capacity,
+            congestion=ks.congestion
+            if ks and ks.congestion is not None
+            else (inbound_congestion if inbound_congestion is not None else False),
+            read_buffer_size=ks.read_buffer_size if ks and ks.read_buffer_size is not None else inbound_read_buffer_size,
+            write_buffer_size=ks.write_buffer_size
+            if ks and ks.write_buffer_size is not None
+            else inbound_write_buffer_size,
         )
     elif network == "quic":
         qs = ts.quic_settings if ts else None
@@ -265,6 +279,7 @@ async def _prepare_subscription_inbound_data(
         use_sni_as_host=host.use_sni_as_host,
         fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
         noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
+        finalmask=finalmask,
         priority=host.priority,
         status=list(host.status) if host.status else None,
     )

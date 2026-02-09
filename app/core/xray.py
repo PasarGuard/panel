@@ -110,6 +110,7 @@ class XRayConfig(dict):
             "header_type": "",
             "is_fallback": False,
             "fallbacks": [],
+            "finalmask": None,
         }
         return settings
 
@@ -284,10 +285,13 @@ class XRayConfig(dict):
 
     def _handle_kcp_settings(self, net_settings: dict, settings: dict):
         """Handle KCP network settings."""
-        header = net_settings.get("header", {})
-        settings["header_type"] = header.get("type", "")
-        settings["host"] = header.get("domain", "")
-        settings["path"] = net_settings.get("seed", "")
+        settings["mtu"] = net_settings.get("mtu")
+        settings["tti"] = net_settings.get("tti")
+        settings["uplink_capacity"] = net_settings.get("uplinkCapacity")
+        settings["downlink_capacity"] = net_settings.get("downlinkCapacity")
+        settings["congestion"] = net_settings.get("congestion")
+        settings["read_buffer_size"] = net_settings.get("readBufferSize")
+        settings["write_buffer_size"] = net_settings.get("writeBufferSize")
 
     def _handle_http_settings(self, net_settings: dict, settings: dict):
         """Handle HTTP network settings."""
@@ -384,6 +388,10 @@ class XRayConfig(dict):
                 self._handle_reality_settings(tls_settings, settings, inbound["tag"])
 
             self._handle_network_settings(net, net_settings, settings, inbound["tag"])
+
+            finalmask = stream.get("finalmask") or stream.get("finalMask")
+            if finalmask is not None:
+                settings["finalmask"] = finalmask
 
         if inbound["tag"] not in self._inbounds:
             self._inbounds.append(inbound["tag"])

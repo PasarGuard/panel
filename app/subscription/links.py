@@ -153,10 +153,7 @@ class StandardLinks(BaseSubscription):
 
     def _transport_kcp(self, payload: dict, protocol: str, config: KCPTransportConfig, path: str):
         """Handle kcp transport - only gets KCP config"""
-        if protocol != "vmess":
-            host = config.host if isinstance(config.host, str) else ""
-            payload["seed"] = path
-            payload["host"] = host
+        # KCP header/seed are removed in latest Xray-core; no extra fields needed.
 
     def _transport_tcp(self, payload: dict, protocol: str, config: TCPTransportConfig, path: str):
         """Handle tcp/raw/http transport - only gets TCP config"""

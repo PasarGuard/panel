@@ -1594,7 +1594,7 @@ export type KCPSettingsWriteBufferSize = number | null
 
 export type KCPSettingsReadBufferSize = number | null
 
-export type KCPSettingsCongestion = number | null
+export type KCPSettingsCongestion = boolean | null
 
 export type KCPSettingsDownlinkCapacity = number | null
 
@@ -1605,8 +1605,6 @@ export type KCPSettingsTti = number | null
 export type KCPSettingsMtu = number | null
 
 export interface KCPSettings {
-  /** @pattern ^(:?none|srtp|utp|wechat-video|dtls|wireguard|dns)$ */
-  header?: string
   mtu?: KCPSettingsMtu
   tti?: KCPSettingsTti
   uplink_capacity?: KCPSettingsUplinkCapacity

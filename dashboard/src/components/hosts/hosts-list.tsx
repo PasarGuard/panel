@@ -142,12 +142,11 @@ export interface HostFormValues {
       initial_windows_size?: number
     }
     kcp_settings?: {
-      header?: string
       mtu?: number
       tti?: number
       uplink_capacity?: number
       downlink_capacity?: number
-      congestion?: number
+      congestion?: boolean
       read_buffer_size?: number
       write_buffer_size?: number
     }
@@ -221,12 +220,11 @@ const transportSettingsSchema = z
       .optional(),
     kcp_settings: z
       .object({
-        header: z.string().nullish().optional(),
         mtu: z.number().nullish().optional(),
         tti: z.number().nullish().optional(),
         uplink_capacity: z.number().nullish().optional(),
         downlink_capacity: z.number().nullish().optional(),
-        congestion: z.number().nullish().optional(),
+        congestion: z.boolean().nullish().optional(),
         read_buffer_size: z.number().nullish().optional(),
         write_buffer_size: z.number().nullish().optional(),
       })
@@ -640,12 +638,14 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               : undefined,
             kcp_settings: host.transport_settings.kcp_settings
               ? {
-                  header: host.transport_settings.kcp_settings.header ?? undefined,
                   mtu: host.transport_settings.kcp_settings.mtu ?? undefined,
                   tti: host.transport_settings.kcp_settings.tti ?? undefined,
                   uplink_capacity: host.transport_settings.kcp_settings.uplink_capacity ?? undefined,
                   downlink_capacity: host.transport_settings.kcp_settings.downlink_capacity ?? undefined,
-                  congestion: host.transport_settings.kcp_settings.congestion ?? undefined,
+                  congestion:
+                    host.transport_settings.kcp_settings.congestion === null
+                      ? undefined
+                      : !!host.transport_settings.kcp_settings.congestion,
                   read_buffer_size: host.transport_settings.kcp_settings.read_buffer_size ?? undefined,
                   write_buffer_size: host.transport_settings.kcp_settings.write_buffer_size ?? undefined,
                 }
@@ -900,12 +900,14 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                 : undefined,
               kcp_settings: host.transport_settings.kcp_settings
                 ? {
-                    header: host.transport_settings.kcp_settings.header ?? undefined,
                     mtu: host.transport_settings.kcp_settings.mtu ?? undefined,
                     tti: host.transport_settings.kcp_settings.tti ?? undefined,
                     uplink_capacity: host.transport_settings.kcp_settings.uplink_capacity ?? undefined,
                     downlink_capacity: host.transport_settings.kcp_settings.downlink_capacity ?? undefined,
-                    congestion: host.transport_settings.kcp_settings.congestion ?? undefined,
+                    congestion:
+                      host.transport_settings.kcp_settings.congestion === null
+                        ? undefined
+                        : !!host.transport_settings.kcp_settings.congestion,
                     read_buffer_size: host.transport_settings.kcp_settings.read_buffer_size ?? undefined,
                     write_buffer_size: host.transport_settings.kcp_settings.write_buffer_size ?? undefined,
                   }
