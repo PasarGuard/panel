@@ -1,5 +1,5 @@
 import { Heart, X } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -7,8 +7,8 @@ import { getAuthToken } from '@/utils/authStorage'
 
 const DONATION_STORAGE_KEY = 'donation_popup_data'
 const FIRST_SHOW_DELAY = 10 * 60 * 1000 // 10 minutes in milliseconds
-const SUBSEQUENT_SHOW_DELAY = 5000 // 5 seconds for subsequent shows
 const SECRET_SALT = 'pasarguard_donation_v1' // Simple salt for checksum
+const MAX_TIMEOUT_MS = 2_147_483_647 // Browser timeout limit (~24.8 days)
 
 interface DonationData {
   lastShown: string | null
@@ -133,8 +133,42 @@ export default function DonationPopup() {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
+  const timeoutIdsRef = useRef<number[]>([])
+  const hasShownRef = useRef(false)
+
+  const clearScheduledTimeouts = useCallback(() => {
+    timeoutIdsRef.current.forEach(timeoutId => window.clearTimeout(timeoutId))
+    timeoutIdsRef.current = []
+  }, [])
+
+  const schedulePopup = useCallback((delayMs: number, callback: () => void) => {
+    const scheduleChunk = (remainingMs: number) => {
+      const nextDelay = Math.min(remainingMs, MAX_TIMEOUT_MS)
+      const timeoutId = window.setTimeout(() => {
+        timeoutIdsRef.current = timeoutIdsRef.current.filter(id => id !== timeoutId)
+        if (remainingMs > MAX_TIMEOUT_MS) {
+          scheduleChunk(remainingMs - MAX_TIMEOUT_MS)
+          return
+        }
+        callback()
+      }, nextDelay)
+      timeoutIdsRef.current.push(timeoutId)
+    }
+
+    if (delayMs <= 0) {
+      callback()
+      return
+    }
+
+    scheduleChunk(delayMs)
+  }, [])
 
   const showPopup = useCallback(() => {
+    if (hasShownRef.current) {
+      return
+    }
+    hasShownRef.current = true
+
     const now = Date.now()
     const data = getStorageData()
     const currentShowCount = data?.showCount ?? 0
@@ -162,8 +196,13 @@ export default function DonationPopup() {
   }, [])
 
   useEffect(() => {
+    clearScheduledTimeouts()
+
     // Don't show popup if user is not authenticated
     if (!getAuthToken()) {
+      hasShownRef.current = false
+      setIsVisible(false)
+      setIsAnimating(false)
       return
     }
 
@@ -175,7 +214,7 @@ export default function DonationPopup() {
         // First time - schedule for initial delay and store it with showCount 0
         const nextShowTime = new Date(now + FIRST_SHOW_DELAY).toISOString()
         setStorageData({ lastShown: null, nextShowTime, showCount: 0 })
-        setTimeout(() => showPopup(), FIRST_SHOW_DELAY)
+        schedulePopup(FIRST_SHOW_DELAY, showPopup)
         return
       }
 
@@ -184,16 +223,20 @@ export default function DonationPopup() {
       const timeUntilShow = nextShowTimestamp - now
 
       if (timeUntilShow <= 0) {
-        // Time has passed, show immediately (after small delay for UX)
-        setTimeout(() => showPopup(), SUBSEQUENT_SHOW_DELAY)
+        // Time has passed, show now so refresh cannot retrigger in a delay window
+        showPopup()
       } else {
         // Schedule for the remaining time
-        setTimeout(() => showPopup(), timeUntilShow)
+        schedulePopup(timeUntilShow, showPopup)
       }
     }
 
     checkShouldShow()
-  }, [showPopup])
+
+    return () => {
+      clearScheduledTimeouts()
+    }
+  }, [clearScheduledTimeouts, schedulePopup, showPopup])
 
   // Don't render popup if user is not authenticated
   if (!getAuthToken()) {
