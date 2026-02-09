@@ -42,7 +42,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
     {
       limit: PAGE_SIZE,
       offset,
-      ...(adminSearch ? { username: adminSearch } : {}),
+      ...(adminSearch ? { search: adminSearch } : {}),
     },
     {
       query: {

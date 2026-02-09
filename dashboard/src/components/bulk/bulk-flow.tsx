@@ -107,7 +107,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
   const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ limit: PAGE_SIZE, offset: 0, all: true })
   const { data: usersData, isLoading: usersLoading } = useGetUsersSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedUserSearch || undefined })
-  const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple({ limit: PAGE_SIZE, offset: 0, username: debouncedAdminSearch || undefined })
+  const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedAdminSearch || undefined })
 
   const statusOptions: { value: UserStatus; label: string }[] = [
     { value: 'active', label: t('status.active', { defaultValue: 'Active' }) },

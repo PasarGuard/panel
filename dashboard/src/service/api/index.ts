@@ -181,7 +181,7 @@ export type GetAdminUsageParams = {
 }
 
 export type GetAdminsSimpleParams = {
-  username?: string | null
+  search?: string | null
   offset?: number | null
   limit?: number | null
   sort?: string | null
