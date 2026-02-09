@@ -56,6 +56,27 @@ def _parse_timezone_offset_to_seconds(offset_str: str) -> int:
     return total_seconds if sign == "+" else -total_seconds
 
 
+def _invert_timezone_offset_sign(offset_str: str) -> str:
+    """
+    Invert timezone offset sign for PostgreSQL AT TIME ZONE with numeric offsets.
+
+    PostgreSQL uses POSIX-style sign semantics for numeric offset text in some
+    timezone contexts, which is opposite of ISO-8601 offsets used by the API.
+    """
+    import re
+
+    if offset_str == "Z":
+        return offset_str
+
+    match = re.match(r"^([+-])(\d{2}:\d{2})$", offset_str)
+    if not match:
+        raise ValueError(f"Invalid timezone offset format: {offset_str}")
+
+    sign, hhmm = match.groups()
+    inverted_sign = "-" if sign == "+" else "+"
+    return f"{inverted_sign}{hhmm}"
+
+
 def _build_trunc_expression_tz(db: AsyncSession, period: Period, column, timezone_offset: str | None = None):
     """
     Builds timezone-aware truncation expression.
@@ -75,8 +96,11 @@ def _build_trunc_expression_tz(db: AsyncSession, period: Period, column, timezon
     if dialect == "postgresql":
         if timezone_offset:
             # Convert column to target timezone, then truncate
+            # NOTE: PostgreSQL numeric offset text has opposite sign semantics
+            # compared to API ISO-8601 offsets (e.g. +03:30). Normalize first.
+            pg_timezone_offset = _invert_timezone_offset_sign(timezone_offset)
             return func.date_trunc(
-                period.value, text(f"({column.key} AT TIME ZONE :tz)").bindparams(tz=timezone_offset)
+                period.value, text(f"({column.key} AT TIME ZONE :tz)").bindparams(tz=pg_timezone_offset)
             )
         else:
             return func.date_trunc(period.value, column)
