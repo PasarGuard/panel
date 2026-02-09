@@ -447,7 +447,9 @@ class XrayConfiguration(BaseSubscription):
         }
 
         if inbound.finalmask is not None:
-            outbound["streamSettings"] = self._stream_setting_config(network=inbound.network, finalmask=inbound.finalmask)
+            outbound["streamSettings"] = self._stream_setting_config(
+                network=inbound.network, finalmask=inbound.finalmask
+            )
 
         return self._normalize_and_remove_none_values(outbound)
 

@@ -199,7 +199,9 @@ async def _prepare_subscription_inbound_data(
             congestion=ks.congestion
             if ks and ks.congestion is not None
             else (inbound_congestion if inbound_congestion is not None else False),
-            read_buffer_size=ks.read_buffer_size if ks and ks.read_buffer_size is not None else inbound_read_buffer_size,
+            read_buffer_size=ks.read_buffer_size
+            if ks and ks.read_buffer_size is not None
+            else inbound_read_buffer_size,
             write_buffer_size=ks.write_buffer_size
             if ks and ks.write_buffer_size is not None
             else inbound_write_buffer_size,
