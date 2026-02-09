@@ -1,6 +1,6 @@
-import re
-import json
 import html
+import json
+import re
 from datetime import datetime as dt, timezone as tz
 from typing import Union
 from uuid import UUID
@@ -35,9 +35,6 @@ def fix_datetime_timezone(value: dt | int | str):
         # If datetime is naive (no timezone), assume it's UTC
         if value.tzinfo is None:
             return value.replace(tzinfo=tz.utc)
-        # If datetime has timezone, convert to UTC
-        else:
-            return value.astimezone(tz.utc)
     elif isinstance(value, int):
         # Timestamp will be assume it's UTC
         return dt.fromtimestamp(value, tz=tz.utc)
@@ -45,8 +42,8 @@ def fix_datetime_timezone(value: dt | int | str):
         # SQLite strftime returns naive ISO strings; treat them as UTC.
         parsed = dt.fromisoformat(value)
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=tz.utc)
-        return parsed.astimezone(tz.utc)
+            parsed.replace(tzinfo=tz.utc)
+        return parsed
 
     raise ValueError("input can be datetime or timestamp")
 

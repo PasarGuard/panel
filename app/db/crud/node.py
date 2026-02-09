@@ -2,10 +2,11 @@ from datetime import datetime, timezone
 from typing import Optional, Union
 
 from sqlalchemy import and_, bindparam, case, delete, func, or_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import coalesce
 
+from app.db.compiles_types import DateDiff
 from app.db.models import (
     DataLimitResetStrategy,
     Node,
@@ -15,11 +16,10 @@ from app.db.models import (
     NodeUsageResetLogs,
     NodeUserUsage,
 )
-from app.db.compiles_types import DateDiff
 from app.models.node import NodeCreate, NodeModify, UsageTable
 from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageStatsList, Period
 
-from .general import _build_trunc_expression
+from .general import _build_trunc_expression, _convert_period_start_timezone
 
 
 async def load_node_attrs(node: Node):
@@ -169,11 +169,15 @@ async def get_nodes_usage(
         db (AsyncSession): The database session.
         start (datetime): The start time of the usage period.
         end (datetime): The end time of the usage period.
+        period (Period): The time period for grouping (minute, hour, day, month).
+        node_id (Optional[int]): Filter by specific node ID.
+        group_by_node (bool): Whether to group results by node.
 
     Returns:
         NodeUsageStatsList: A NodeUsageStatsList contain list of NodeUsageResponse objects containing usage data.
     """
-    trunc_expr = _build_trunc_expression(db, period, NodeUsage.created_at)
+    # Build truncation expression with timezone support
+    trunc_expr = _build_trunc_expression(db, period, NodeUsage.created_at, start)
 
     conditions = [NodeUsage.created_at >= start, NodeUsage.created_at <= end]
 
@@ -207,10 +211,15 @@ async def get_nodes_usage(
         )
 
     result = await db.execute(stmt)
+
+    target_tz = start.tzinfo
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+
+        _convert_period_start_timezone(row_dict, target_tz)
+
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(NodeUsageStat(**row_dict))
@@ -221,7 +230,8 @@ async def get_nodes_usage(
 async def get_node_stats(
     db: AsyncSession, node_id: int, start: datetime, end: datetime, period: Period
 ) -> NodeStatsList:
-    trunc_expr = _build_trunc_expression(db, period, NodeStat.created_at)
+    # Build truncation expression with timezone support
+    trunc_expr = _build_trunc_expression(db, period, NodeStat.created_at, start)
     conditions = [NodeStat.created_at >= start, NodeStat.created_at <= end, NodeStat.node_id == node_id]
 
     stmt = (
@@ -239,7 +249,15 @@ async def get_node_stats(
 
     result = await db.execute(stmt)
 
-    return NodeStatsList(period=period, start=start, end=end, stats=[NodeStats(**row) for row in result.mappings()])
+    target_tz = start.tzinfo
+    # Convert period_start to target timezone if specified
+    stats = []
+    for row in result.mappings():
+        row_dict = dict(row)
+        _convert_period_start_timezone(row_dict, target_tz)
+        stats.append(NodeStats(**row_dict))
+
+    return NodeStatsList(period=period, start=start, end=end, stats=stats)
 
 
 async def create_node(db: AsyncSession, node: NodeCreate) -> Node:

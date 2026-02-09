@@ -4,11 +4,10 @@ from enum import Enum
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.crud.general import _build_trunc_expression, _convert_period_start_timezone
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_password
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
-
-from .general import _build_trunc_expression
 
 
 async def load_admin_attrs(admin: Admin):
@@ -407,7 +406,8 @@ async def get_admin_usages(
     Returns:
         UserUsageStatsList: Aggregated usage data for each period.
     """
-    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at)
+    # Build truncation expression with timezone support
+    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start=start)
 
     conditions = [
         NodeUserUsage.created_at >= start,
@@ -448,11 +448,15 @@ async def get_admin_usages(
             .order_by(trunc_expr)
         )
 
+    target_tz = start.tzinfo
     result = await db.execute(stmt)
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+
+        _convert_period_start_timezone(row_dict, target_tz)
+
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(UserUsageStat(**row_dict))

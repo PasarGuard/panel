@@ -28,9 +28,8 @@ from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
 from config import USERS_AUTODELETE_DAYS
 
-from .general import _build_trunc_expression, build_json_proxy_settings_search_condition
+from .general import _build_trunc_expression, _convert_period_start_timezone, build_json_proxy_settings_search_condition
 from .group import get_groups_by_ids
-
 
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
 
@@ -439,7 +438,7 @@ async def get_user_usages(
     """
 
     # Build the appropriate truncation expression
-    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at)
+    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
     conditions = [
         NodeUserUsage.created_at >= start,
@@ -473,10 +472,15 @@ async def get_user_usages(
         )
 
     result = await db.execute(stmt)
+
+    target_tz = start.tzinfo
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+
+        _convert_period_start_timezone(row_dict, target_tz)
+
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(UserUsageStat(**row_dict))
@@ -1049,7 +1053,7 @@ async def get_all_users_usages(
     users_subquery = users_subquery.subquery()
 
     # Build the appropriate truncation expression
-    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at)
+    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
     conditions = [
         NodeUserUsage.created_at >= start,
@@ -1082,10 +1086,15 @@ async def get_all_users_usages(
         )
 
     result = await db.execute(stmt)
+
+    target_tz = start.tzinfo
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+
+        _convert_period_start_timezone(row_dict, target_tz)
+
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(UserUsageStat(**row_dict))

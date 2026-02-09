@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+from typing import Optional
+
 from sqlalchemy import String, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,18 +21,68 @@ SQLITE_FORMATS = {
 }
 
 
-def _build_trunc_expression(db: AsyncSession, period: Period, column):
+def _build_trunc_expression(
+    db: AsyncSession,
+    period: Period,
+    column,
+    start: Optional[datetime] = None,
+):
+    """
+    Builds the appropriate truncation SQL expression based on dialect and period.
+
+    Args:
+        db: Database session
+        period: Time period for truncation (minute, hour, day, month)
+        column: Database column to truncate
+        start: Start datetime for timezone-aware grouping (uses its timezone if provided)
+
+    Returns:
+        SQL expression for truncation
+    """
     dialect = db.bind.dialect.name
 
-    """Builds the appropriate truncation SQL expression based on dialect and period."""
+    # Calculate timezone offset if start datetime has timezone info
+    offset_seconds = None
+    if start and start.tzinfo:
+        offset = start.tzinfo.utcoffset(start)
+        if offset:
+            offset_seconds = int(offset.total_seconds())
+
     if dialect == "postgresql":
+        if start and start.tzinfo:
+            # Convert to target timezone, then truncate
+            tz_str = str(start.tzinfo)
+            return func.date_trunc(period.value, column.op("AT TIME ZONE")("UTC").op("AT TIME ZONE")(tz_str))
         return func.date_trunc(period.value, column)
     elif dialect == "mysql":
+        if offset_seconds is not None:
+            # Add offset before truncating
+            adjusted_column = func.date_add(column, text(f"INTERVAL {offset_seconds} SECOND"))
+            return func.date_format(adjusted_column, MYSQL_FORMATS[period.value])
         return func.date_format(column, MYSQL_FORMATS[period.value])
     elif dialect == "sqlite":
+        if offset_seconds is not None:
+            # Add offset before truncating
+            adjusted_column = func.datetime(func.strftime("%s", column) + offset_seconds, "unixepoch")
+            return func.strftime(SQLITE_FORMATS[period.value], adjusted_column)
         return func.strftime(SQLITE_FORMATS[period.value], column)
 
     raise ValueError(f"Unsupported dialect: {dialect}")
+
+
+def _convert_period_start_timezone(row_dict: dict, target_tz) -> None:
+    """
+    Convert period_start to target timezone if specified.
+
+    Args:
+        row_dict: Dictionary containing 'period_start' key
+        target_tz: Reference timezone
+    """
+    if "period_start" in row_dict:
+        period_start_utc = row_dict["period_start"]
+        if period_start_utc is not None and target_tz is None:
+            # Extract timezone from start datetime (already timezone-aware)
+            row_dict["period_start"] = period_start_utc.astimezone(target_tz)
 
 
 def get_datetime_add_expression(db: AsyncSession, datetime_column, seconds: int):
