@@ -75,6 +75,27 @@ export const dateUtils = {
     return dayjs().toISOString() // ISO in UTC (standard)
   },
 
+  getSystemTimeZone: () => {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || dayjs.tz.guess()
+  },
+
+  toSystemTimezoneDayjs: (date: string | number | Date) => {
+    const systemTimezone = dateUtils.getSystemTimeZone()
+    if (typeof date === 'string') return dayjs.utc(date).tz(systemTimezone)
+    if (typeof date === 'number') return dayjs.unix(date).tz(systemTimezone)
+    return dayjs(date).tz(systemTimezone)
+  },
+
+  toSystemTimezoneISO: (date: string | number | Date) => {
+    return dateUtils.toSystemTimezoneDayjs(date).format('YYYY-MM-DDTHH:mm:ssZ')
+  },
+
+  // Serialize the selected calendar day as UTC 00:00 while preserving system-tz output format.
+  toUTCDayStartISO: (date: string | number | Date) => {
+    const systemDate = dateUtils.toSystemTimezoneDayjs(date).format('YYYY-MM-DD')
+    return dayjs.utc(`${systemDate}T00:00:00Z`).tz(dateUtils.getSystemTimeZone()).format('YYYY-MM-DDTHH:mm:ssZ')
+  },
+
   formatDate: (date: string | number | Date) => {
     const d = typeof date === 'string' ? dayjs.utc(date).local() : typeof date === 'number' ? dayjs.unix(date).local() : dayjs(date).local()
 

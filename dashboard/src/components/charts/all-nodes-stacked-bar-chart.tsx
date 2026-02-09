@@ -62,10 +62,10 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
   if (!active || !payload || !payload.length) return null
 
   const data = payload[0].payload
-  const d = dateUtils.toDayjs(data._period_start)
+  const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
 
   // Check if this is today's data
-  const today = dateUtils.toDayjs(new Date())
+  const today = dateUtils.toSystemTimezoneDayjs(new Date())
   const isToday = d.isSame(today, 'day')
 
   let formattedDate
@@ -343,13 +343,17 @@ export function AllNodesStackedBarChart() {
         const startDate = dateRange.from
         const endDate = dateRange.to
         const period = getPeriodFromDateRange(dateRange)
+        const startTime = period === Period.day ? dateUtils.toUTCDayStartISO(startDate) : dateUtils.toSystemTimezoneISO(startDate)
 
         // Always use end of day for daily period to avoid extra bars
-        const endTime = period === Period.day ? dateUtils.toDayjs(endDate).endOf('day').toISOString() : new Date().toISOString()
+        const endTime =
+          period === Period.day
+            ? dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(endDate).endOf('day').toDate())
+            : dateUtils.toSystemTimezoneISO(new Date())
 
         const params = {
           period: period,
-          start: startDate.toISOString(),
+          start: startTime,
           end: endTime,
           group_by_node: true,
         }
@@ -395,7 +399,7 @@ export function AllNodesStackedBarChart() {
 
           if (aggregatedStats.length > 0) {
             const data = aggregatedStats.map(point => {
-              const d = dateUtils.toDayjs(point.period_start)
+              const d = dateUtils.toSystemTimezoneDayjs(point.period_start)
               let timeFormat
               if (period === Period.hour) {
                 timeFormat = d.format('HH:mm')
@@ -449,7 +453,7 @@ export function AllNodesStackedBarChart() {
           if (sortedPeriods.length > 0) {
             // Build chart data: [{ time, [nodeName]: usage, ... }]
             const data = sortedPeriods.map(periodStart => {
-              const d = dateUtils.toDayjs(periodStart)
+              const d = dateUtils.toSystemTimezoneDayjs(periodStart)
               let timeFormat
               if (period === Period.hour) {
                 timeFormat = d.format('HH:mm')

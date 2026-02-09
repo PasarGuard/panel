@@ -22,7 +22,7 @@ import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
 import { getDateRangeFromShortcut } from '@/utils/timeShortcutUtils'
 
 // Define allowed period keys
-const PERIOD_KEYS = ['1h', '2h', '4h', '6h', '12h', '24h', '2d', '3d', '5d', '1w', '2w', '1m'] as const
+const PERIOD_KEYS = ['1h', '2h', '4h', '6h', '12h', '24h', '2d', '3d', '5d', '1w', '2w', '1m', 'all'] as const
 type PeriodKey = (typeof PERIOD_KEYS)[number]
 
 const getPeriodMap = (now: number): Record<PeriodKey, { period: Period; start: Date }> => {
@@ -81,10 +81,10 @@ function CustomBarTooltip({ active, payload, chartConfig, dir, period }: Tooltip
   if (!active || !payload || !payload.length) return null
 
   const data = payload[0].payload
-  const d = dateUtils.toDayjs(data._period_start)
+  const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
 
   // Check if this is today's data
-  const today = dateUtils.toDayjs(new Date())
+  const today = dateUtils.toSystemTimezoneDayjs(new Date())
   const isToday = d.isSame(today, 'day')
 
   let formattedDate
@@ -382,9 +382,10 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }, [backendPeriod])
 
   const userUsageParams = useMemo(() => {
+    const startTime = backendPeriod === Period.day ? dateUtils.toUTCDayStartISO(start) : dateUtils.toSystemTimezoneISO(start)
     const baseParams: any = {
       period: backendPeriod,
-      start: start.toISOString(),
+      start: startTime,
       node_id: selectedNodeId,
     }
 
@@ -396,12 +397,12 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
     if (showCustomRange && customRange?.from && customRange?.to) {
       return {
         ...baseParams,
-        end: dateUtils.toDayjs(customRange.to).endOf('day').toISOString(),
+        end: dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(customRange.to).endOf('day').toDate()),
       }
     }
 
     // For preset periods, set end time for daily periods to avoid extra bars
-    const endTime = backendPeriod === Period.day ? dateUtils.toDayjs(new Date()).endOf('day').toISOString() : undefined
+    const endTime = backendPeriod === Period.day ? dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(new Date()).endOf('day').toDate()) : undefined
     return {
       ...baseParams,
       ...(endTime && { end: endTime }),
@@ -446,7 +447,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
 
         if (aggregatedStats.length > 0) {
           const data = aggregatedStats.map((point: any) => {
-            const d = dateUtils.toDayjs(point.period_start)
+            const d = dateUtils.toSystemTimezoneDayjs(point.period_start)
             let timeFormat
             if (backendPeriod === Period.hour) {
               timeFormat = d.format('HH:mm')
@@ -482,7 +483,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
         if (sortedPeriods.length > 0) {
           // Build chart data: [{ time, [nodeName]: usage, ... }]
           const data = sortedPeriods.map(periodStart => {
-            const d = dateUtils.toDayjs(periodStart)
+            const d = dateUtils.toSystemTimezoneDayjs(periodStart)
             let timeFormat
             if (backendPeriod === Period.hour) {
               timeFormat = d.format('HH:mm')
@@ -547,7 +548,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
       if (period.endsWith('h') && !showCustomRange) {
         if (!start || !end)
           return flatStats.map((point: any) => {
-            const dateObj = dateUtils.toDayjs(point.period_start)
+            const dateObj = dateUtils.toSystemTimezoneDayjs(point.period_start)
             let timeFormat
             if (period.endsWith('h') || (showCustomRange && backendPeriod === Period.hour)) {
               timeFormat = dateObj.format('HH:mm')
@@ -559,24 +560,24 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
               time: timeFormat,
               usage: usageInGB,
               _period_start: point.period_start,
-              local_period_start: dateObj.toISOString(),
+              local_period_start: dateUtils.toSystemTimezoneISO(dateObj.toDate()),
             }
           })
-        const from = dateUtils.toDayjs((start as Date) || new Date(0))
-        const to = dateUtils.toDayjs((end as Date) || new Date(0))
+        const from = dateUtils.toSystemTimezoneDayjs((start as Date) || new Date(0))
+        const to = dateUtils.toSystemTimezoneDayjs((end as Date) || new Date(0))
         filtered = filtered.filter((point: any) => {
-          const pointTime = dateUtils.toDayjs(point.period_start)
+          const pointTime = dateUtils.toSystemTimezoneDayjs(point.period_start)
           return (pointTime.isSame(from) || pointTime.isAfter(from)) && (pointTime.isSame(to) || pointTime.isBefore(to))
         })
       } else if (showCustomRange && customRange?.from && customRange?.to) {
         filtered = filtered.filter((point: any) => {
           if (!customRange.from || !customRange.to) return false
-          const dateObj = dateUtils.toDayjs(point.period_start)
-          return dateObj.isAfter(dateUtils.toDayjs(customRange.from).subtract(1, 'minute')) && dateObj.isBefore(dateUtils.toDayjs(customRange.to).add(1, 'minute'))
+          const dateObj = dateUtils.toSystemTimezoneDayjs(point.period_start)
+          return dateObj.isAfter(dateUtils.toSystemTimezoneDayjs(customRange.from).subtract(1, 'minute')) && dateObj.isBefore(dateUtils.toSystemTimezoneDayjs(customRange.to).add(1, 'minute'))
         })
       }
       return filtered.map((point: any) => {
-        const dateObj = dateUtils.toDayjs(point.period_start)
+        const dateObj = dateUtils.toSystemTimezoneDayjs(point.period_start)
         let timeFormat
         if (period.endsWith('h') || (showCustomRange && backendPeriod === Period.hour)) {
           timeFormat = dateObj.format('HH:mm')
@@ -588,7 +589,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
           time: timeFormat,
           usage: usageInGB,
           _period_start: point.period_start,
-          local_period_start: dateObj.toISOString(),
+          local_period_start: dateUtils.toSystemTimezoneISO(dateObj.toDate()),
         }
       })
     }

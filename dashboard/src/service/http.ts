@@ -1,10 +1,13 @@
 import { getAuthToken } from '@/utils/authStorage'
+import { dateUtils } from '@/utils/dateFormatter'
 import { FetchError, FetchOptions, $fetch as ofetch } from 'ofetch'
 
 export const $fetch = ofetch.create({
   baseURL: import.meta.env.VITE_BASE_API,
   onRequest({ options }) {
     const token = getAuthToken()
+    options.headers.set('X-Client-Timezone', dateUtils.getSystemTimeZone())
+    options.headers.set('X-Client-Timezone-Offset-Minutes', String(-new Date().getTimezoneOffset()))
     if (token) {
       options.headers.set('Authorization', `Bearer ${getAuthToken()}`)
     }

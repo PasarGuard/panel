@@ -29,8 +29,8 @@ const CustomTooltip = ({ active, payload, period, viewMode }: any) => {
     let formattedDate = data.time
 
     if (data._period_start) {
-      const d = dateUtils.toDayjs(data._period_start)
-      const today = dateUtils.toDayjs(new Date())
+      const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
+      const today = dateUtils.toSystemTimezoneDayjs(new Date())
       const isToday = d.isSame(today, 'day')
 
       try {
@@ -281,7 +281,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
             time: timeStr,
             cpu: cpuUsage,
             ram: ramUsage,
-            _period_start: now.toISOString(),
+            _period_start: dateUtils.toSystemTimezoneISO(now),
           },
         ]
         const MAX_HISTORY = 120
@@ -320,8 +320,8 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
       try {
         const period = getPeriodFromDateRange(dateRange)
         const data = await getNodeStatsPeriodic(nodeId, {
-          start: dateRange.from!.toISOString(),
-          end: dateRange.to!.toISOString(),
+          start: dateUtils.toSystemTimezoneISO(dateRange.from!),
+          end: dateUtils.toSystemTimezoneISO(dateRange.to!),
           period: period,
         })
 
@@ -329,7 +329,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
 
         if (Array.isArray(statsArray)) {
           const formattedData = statsArray.map((point: NodeStats) => {
-            const d = dateUtils.toDayjs(point.period_start)
+            const d = dateUtils.toSystemTimezoneDayjs(point.period_start)
             let timeFormat
             if (period === Period.hour) {
               timeFormat = d.format('HH:mm')

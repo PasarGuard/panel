@@ -64,8 +64,8 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<any, any> & 
   const { t, i18n } = useTranslation()
   if (!active || !payload || !payload.length) return null
   const data = payload[0].payload
-  const d = dateUtils.toDayjs(data._period_start)
-  const today = dateUtils.toDayjs(new Date())
+  const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
+  const today = dateUtils.toSystemTimezoneDayjs(new Date())
   const isToday = d.isSame(today, 'day')
 
   let formattedDate
@@ -317,12 +317,14 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
         const endDate = dateRange.to
         // Determine period based on range
         const period = getPeriodFromDateRange(dateRange)
+        const startTime = period === Period.day ? dateUtils.toUTCDayStartISO(startDate) : dateUtils.toSystemTimezoneISO(startDate)
+        const endTime = dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(endDate).endOf('day').toDate())
 
         // Prepare API parameters
         const params = {
           period: period,
-          start: startDate.toISOString(),
-          end: dateUtils.toDayjs(endDate).endOf('day').toISOString(),
+          start: startTime,
+          end: endTime,
           ...(nodeId !== undefined && { node_id: nodeId }),
         }
 
@@ -350,7 +352,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
 
         if (statsArr.length > 0) {
           const formattedData = statsArr.map(point => {
-            const d = dateUtils.toDayjs(point.period_start)
+            const d = dateUtils.toSystemTimezoneDayjs(point.period_start)
             let timeFormat
             if (period === Period.hour) {
               timeFormat = d.format('HH:mm')

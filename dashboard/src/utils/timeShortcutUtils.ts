@@ -3,7 +3,6 @@ import { dateUtils } from '@/utils/dateFormatter'
 
 const SHORTCUT_PATTERN = /^(\d+)([hdwm])$/
 const HOUR_IN_MS = 60 * 60 * 1000
-const DAY_IN_MS = 24 * HOUR_IN_MS
 
 const getTotalDays = (amount: number, unit: 'd' | 'w' | 'm') => {
   if (unit === 'd') return amount
@@ -12,6 +11,14 @@ const getTotalDays = (amount: number, unit: 'd' | 'w' | 'm') => {
 }
 
 export const getDateRangeFromShortcut = (shortcut: string, now = new Date()): DateRange | undefined => {
+  if (shortcut.trim().toLowerCase() === 'all') {
+    const endOfDay = dateUtils.toSystemTimezoneDayjs(now).endOf('day')
+    return {
+      from: dateUtils.toSystemTimezoneDayjs('2000-01-01T00:00:00Z').toDate(),
+      to: endOfDay.toDate(),
+    }
+  }
+
   const match = shortcut.trim().match(SHORTCUT_PATTERN)
   if (!match) return undefined
 
@@ -28,8 +35,11 @@ export const getDateRangeFromShortcut = (shortcut: string, now = new Date()): Da
   }
 
   const totalDays = getTotalDays(amount, unit)
+  const endOfDay = dateUtils.toSystemTimezoneDayjs(now).endOf('day')
+  const startOfRange = endOfDay.subtract(Math.max(totalDays - 1, 0), 'day').startOf('day')
+
   return {
-    from: new Date(now.getTime() - Math.max(totalDays - 1, 0) * DAY_IN_MS),
-    to: dateUtils.toDayjs(now).endOf('day').toDate(),
+    from: startOfRange.toDate(),
+    to: endOfDay.toDate(),
   }
 }

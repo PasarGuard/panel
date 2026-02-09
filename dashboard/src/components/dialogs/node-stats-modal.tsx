@@ -71,10 +71,10 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
 
   if (!data) return null
 
-  const d = dateUtils.toDayjs(data._period_start)
+  const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
 
   // Check if this is today's data
-  const today = dateUtils.toDayjs(new Date())
+  const today = dateUtils.toSystemTimezoneDayjs(new Date())
   const isToday = d.isSame(today, 'day')
 
   let formattedDate

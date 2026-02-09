@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 export type TimePeriod = string
 export type TimeSelectorShortcut = {
@@ -31,6 +32,7 @@ export const TRAFFIC_TIME_SELECTOR_SHORTCUTS: TimeSelectorShortcut[] = [
   { value: '1w', label: '1w', quick: true },
   { value: '2w', label: '2w' },
   { value: '1m', label: '1m' },
+  { value: 'all', label: 'all' },
 ]
 
 interface TimeSelectorProps {
@@ -42,8 +44,16 @@ interface TimeSelectorProps {
 }
 
 export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts = DEFAULT_TIME_SELECTOR_SHORTCUTS, maxVisible = shortcuts.length, className }: TimeSelectorProps) {
+  const { t } = useTranslation()
   const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false)
   const [isDesktopMoreOpen, setIsDesktopMoreOpen] = useState(false)
+
+  const getShortcutLabel = (shortcut: TimeSelectorShortcut) => {
+    if (shortcut.value === 'all') {
+      return t('alltime', { defaultValue: 'All Time' })
+    }
+    return shortcut.label
+  }
 
   const quickShortcuts = useMemo(() => {
     const explicitQuick = shortcuts.filter(shortcut => shortcut.quick)
@@ -67,7 +77,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
   const isDesktopOverflowSelected = desktopOverflowShortcuts.some(shortcut => shortcut.value === selectedTime)
 
   return (
-    <div className={cn('w-full min-w-0 max-w-full overflow-hidden rounded-md border border-border/60 bg-muted/20 p-1', className)}>
+    <div dir="ltr" className={cn('w-full min-w-0 max-w-full overflow-hidden rounded-md border border-border/60 bg-muted/20 p-1', className)}>
       <div className="flex w-full min-w-0 items-center gap-1 lg:hidden">
         <ToggleGroup
           type="single"
@@ -83,7 +93,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
               variant="default"
               className="h-7 min-w-[2.25rem] shrink-0 border-0 bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
             >
-              {shortcut.label}
+              {getShortcutLabel(shortcut)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -98,10 +108,10 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
                   isMobileOverflowSelected && 'bg-background text-foreground shadow-sm',
                 )}
               >
-                More
+                {t('more', { defaultValue: 'More' })}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[7rem]" onInteractOutside={() => setIsMobileMoreOpen(false)}>
+            <DropdownMenuContent dir="ltr" align="end" className="min-w-[7rem]" onInteractOutside={() => setIsMobileMoreOpen(false)}>
               <DropdownMenuRadioGroup
                 value={selectedTime}
                 onValueChange={value => {
@@ -111,7 +121,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
               >
                 {mobileOverflowShortcuts.map(shortcut => (
                   <DropdownMenuRadioItem key={shortcut.value} value={shortcut.value} className="text-xs">
-                    {shortcut.label}
+                    {getShortcutLabel(shortcut)}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
@@ -134,7 +144,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
               variant="default"
               className="h-7 min-w-[2.25rem] shrink-0 border-0 bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
             >
-              {shortcut.label}
+              {getShortcutLabel(shortcut)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -149,10 +159,10 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
                   isDesktopOverflowSelected && 'bg-background text-foreground shadow-sm',
                 )}
               >
-                More
+                {t('more', { defaultValue: 'More' })}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[7rem]" onInteractOutside={() => setIsDesktopMoreOpen(false)}>
+            <DropdownMenuContent dir="ltr" align="end" className="min-w-[7rem]" onInteractOutside={() => setIsDesktopMoreOpen(false)}>
               <DropdownMenuRadioGroup
                 value={selectedTime}
                 onValueChange={value => {
@@ -162,7 +172,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
               >
                 {desktopOverflowShortcuts.map(shortcut => (
                   <DropdownMenuRadioItem key={shortcut.value} value={shortcut.value} className="text-xs">
-                    {shortcut.label}
+                    {getShortcutLabel(shortcut)}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>

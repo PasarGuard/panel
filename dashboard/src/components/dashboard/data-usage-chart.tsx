@@ -36,10 +36,10 @@ const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] 
   if (!apiData?.stats || !Array.isArray(apiData.stats)) {
     return []
   }
-  const today = dateUtils.toDayjs(new Date())
+  const today = dateUtils.toSystemTimezoneDayjs(new Date())
 
   return apiData.stats.map((stat: UserUsageStat | NodeUsageStat) => {
-    const d = dateUtils.toDayjs(stat.period_start)
+    const d = dateUtils.toSystemTimezoneDayjs(stat.period_start)
     const isToday = d.isSame(today, 'day')
 
     let displayLabel = ''
@@ -118,8 +118,8 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
   if (!active || !payload || !payload.length) return null
   const data = payload[0].payload
   // Use period_start if available (from transformUsageData), otherwise parse the display label
-  const d = data.period_start ? dateUtils.toDayjs(data.period_start) : dateUtils.toDayjs(data.date)
-  const today = dateUtils.toDayjs(new Date())
+  const d = data.period_start ? dateUtils.toSystemTimezoneDayjs(data.period_start) : dateUtils.toDayjs(data.date)
+  const today = dateUtils.toSystemTimezoneDayjs(new Date())
   const isToday = d.isSame(today, 'day')
 
   let formattedDate
@@ -271,7 +271,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     } else {
       start = now
     }
-    return { startDate: start.toISOString(), endDate: now.toISOString() }
+    return { startDate: dateUtils.toSystemTimezoneISO(start.toDate()), endDate: dateUtils.toSystemTimezoneISO(now.toDate()) }
   }, [periodOption])
 
   const shouldUseNodeUsage = is_sudo && !admin_username
@@ -280,7 +280,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     () => ({
       period: periodOption.period,
       start: startDate,
-      end: dateUtils.toDayjs(endDate).endOf('day').toISOString(),
+      end: dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(endDate).endOf('day').toDate()),
     }),
     [periodOption.period, startDate, endDate],
   )
@@ -290,7 +290,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
       ...(admin_username ? { admin: [admin_username] } : {}),
       period: periodOption.period,
       start: startDate,
-      end: dateUtils.toDayjs(endDate).endOf('day').toISOString(),
+      end: dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(endDate).endOf('day').toDate()),
     }),
     [admin_username, periodOption.period, startDate, endDate],
   )
@@ -451,11 +451,11 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                     const lastDataPoint = chartData[chartData.length - 1] as { date: string; period_start?: string }
                     // Check if this tick value matches the last data point's date
                     if (lastDataPoint && value === lastDataPoint.date) {
-                      const today = dateUtils.toDayjs(new Date())
+                      const today = dateUtils.toSystemTimezoneDayjs(new Date())
                       // Try to get period_start from the data point
                       const dataPoint = chartData.find(d => typeof d === 'object' && d !== null && 'date' in d && (d as { date: string }).date === value) as { period_start?: string } | undefined
                       if (dataPoint?.period_start) {
-                        const pointDate = dateUtils.toDayjs(dataPoint.period_start)
+                        const pointDate = dateUtils.toSystemTimezoneDayjs(dataPoint.period_start)
                         if (pointDate.isSame(today, 'day')) {
                           return t('today', { defaultValue: 'Today' })
                         }
