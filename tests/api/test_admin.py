@@ -16,6 +16,16 @@ from tests.api.helpers import (
 )
 
 
+def set_user_owner(access_token: str, username: str, admin_username: str) -> None:
+    response = client.put(
+        f"/api/user/{username}/set_owner",
+        headers=auth_headers(access_token),
+        params={"admin_username": admin_username},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["admin"]["username"] == admin_username
+
+
 def test_admin_login():
     """Test that the admin login route is accessible."""
 
@@ -149,13 +159,7 @@ def test_admin_delete_all_users_endpoint(access_token):
         assert user_response.status_code == status.HTTP_201_CREATED
         created_users.append(user_name)
 
-        ownership_response = client.put(
-            f"/api/user/{user_name}/set_owner",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params={"admin_username": admin_username},
-        )
-        assert ownership_response.status_code == status.HTTP_200_OK
-        assert ownership_response.json()["admin"]["username"] == admin_username
+        set_user_owner(access_token, user_name, admin_username)
 
     response = client.delete(
         url=f"/api/admin/{admin_username}/users",
@@ -178,6 +182,84 @@ def test_admin_delete_all_users_endpoint(access_token):
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert cleanup.status_code == status.HTTP_204_NO_CONTENT
+
+
+def test_admin_disable_all_active_users_endpoint(access_token):
+    """Test disabling only active users belonging to an admin."""
+    admin = create_admin(access_token)
+    admin_username = admin["username"]
+
+    active_user = create_user(
+        access_token,
+        payload={"username": unique_name(f"{admin_username}_active"), "status": "active"},
+    )
+    disabled_user = create_user(
+        access_token,
+        payload={"username": unique_name(f"{admin_username}_disabled"), "status": "disabled"},
+    )
+
+    try:
+        set_user_owner(access_token, active_user["username"], admin_username)
+        set_user_owner(access_token, disabled_user["username"], admin_username)
+
+        response = client.post(
+            url=f"/api/admin/{admin_username}/users/disable",
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        active_user_response = client.get(f"/api/user/{active_user['username']}", headers=auth_headers(access_token))
+        disabled_user_response = client.get(f"/api/user/{disabled_user['username']}", headers=auth_headers(access_token))
+
+        assert active_user_response.status_code == status.HTTP_200_OK
+        assert disabled_user_response.status_code == status.HTTP_200_OK
+        assert active_user_response.json()["status"] == "disabled"
+        assert disabled_user_response.json()["status"] == "disabled"
+    finally:
+        delete_user(access_token, active_user["username"])
+        delete_user(access_token, disabled_user["username"])
+        delete_admin(access_token, admin_username)
+
+
+def test_admin_activate_all_disabled_users_endpoint(access_token):
+    """Test activating only disabled users belonging to an admin."""
+    admin = create_admin(access_token)
+    admin_username = admin["username"]
+
+    disabled_user = create_user(
+        access_token,
+        payload={"username": unique_name(f"{admin_username}_disabled"), "status": "disabled"},
+    )
+    active_user = create_user(
+        access_token,
+        payload={"username": unique_name(f"{admin_username}_active"), "status": "active"},
+    )
+
+    try:
+        set_user_owner(access_token, disabled_user["username"], admin_username)
+        set_user_owner(access_token, active_user["username"], admin_username)
+
+        response = client.post(
+            url=f"/api/admin/{admin_username}/users/activate",
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        disabled_user_response = client.get(
+            f"/api/user/{disabled_user['username']}", headers=auth_headers(access_token)
+        )
+        active_user_response = client.get(
+            f"/api/user/{active_user['username']}", headers=auth_headers(access_token)
+        )
+
+        assert disabled_user_response.status_code == status.HTTP_200_OK
+        assert active_user_response.status_code == status.HTTP_200_OK
+        assert disabled_user_response.json()["status"] == "active"
+        assert active_user_response.json()["status"] == "active"
+    finally:
+        delete_user(access_token, disabled_user["username"])
+        delete_user(access_token, active_user["username"])
+        delete_admin(access_token, admin_username)
 
 
 def test_admin_delete(access_token):

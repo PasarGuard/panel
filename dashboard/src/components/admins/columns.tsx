@@ -1,6 +1,6 @@
 import { AdminDetails } from '@/service/api'
 import { ColumnDef } from '@tanstack/react-table'
-import { ChartPie, ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, Trash2, User, UserX } from 'lucide-react'
+import { ChartPie, ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, Trash2, User, UserCheck, UserMinus, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx'
 import { formatBytes } from '@/utils/formatByte.ts'
@@ -14,6 +14,8 @@ interface ColumnSetupProps {
   onDelete: (admin: AdminDetails) => void
   toggleStatus: (admin: AdminDetails) => void
   onResetUsage: (adminUsername: string) => void
+  onDisableAllActiveUsers: (adminUsername: string) => void
+  onActivateAllDisabledUsers: (adminUsername: string) => void
   onRemoveAllUsers: (adminUsername: string) => void
 }
 
@@ -42,7 +44,18 @@ const createSortButton = (
   )
 }
 
-export const setupColumns = ({ t, handleSort, filters, onEdit, onDelete, toggleStatus, onResetUsage, onRemoveAllUsers }: ColumnSetupProps): ColumnDef<AdminDetails>[] => [
+export const setupColumns = ({
+  t,
+  handleSort,
+  filters,
+  onEdit,
+  onDelete,
+  toggleStatus,
+  onResetUsage,
+  onDisableAllActiveUsers,
+  onActivateAllDisabledUsers,
+  onRemoveAllUsers,
+}: ColumnSetupProps): ColumnDef<AdminDetails>[] => [
   {
     accessorKey: 'username',
     header: () => createSortButton('username', 'username', t, handleSort, filters),
@@ -156,6 +169,26 @@ export const setupColumns = ({ t, handleSort, filters, onEdit, onDelete, toggleS
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               {t('admins.reset')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                onDisableAllActiveUsers(row.original.username)
+              }}
+            >
+              <UserMinus className="mr-2 h-4 w-4" />
+              {t('admins.disableAllActiveUsers')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                onActivateAllDisabledUsers(row.original.username)
+              }}
+            >
+              <UserCheck className="mr-2 h-4 w-4" />
+              {t('admins.activateAllDisabledUsers')}
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive"
