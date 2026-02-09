@@ -1203,7 +1203,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "nats-py", specifier = ">=2.12.0" },
     { name = "packaging", specifier = ">=24.2" },
-    { name = "pasarguard-node-bridge", specifier = ">=0.4.1" },
+    { name = "pasarguard-node-bridge", specifier = ">=0.4.2" },
     { name = "pip-system-certs", specifier = ">=5.3" },
     { name = "psutil", specifier = "==7.2.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.2" },
@@ -1238,16 +1238,17 @@ dev = [
 
 [[package]]
 name = "pasarguard-node-bridge"
-version = "0.4.1"
+version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "grpclib" },
     { name = "httpx" },
+    { name = "packaging" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0d/0e/354a6ef98e9770e9c33f0acb1b68ab85ff9a0154c8d14a90a893e15cc7f1/pasarguard_node_bridge-0.4.1.tar.gz", hash = "sha256:718c5867cfe578d13e07ee78490f4a9439acc6b4694c6340d8a1d8df2491cea6", size = 51209, upload-time = "2026-01-08T11:00:37.902Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/ba/4eaa8205794b829fa5fb18af490cb13e1494b4f319750e4e6dbd237b71e6/pasarguard_node_bridge-0.4.2.tar.gz", hash = "sha256:c5b5bdb007ba463093e4b9dc2ed785293503905cd3ffdf233d60a38cabd37827", size = 51912, upload-time = "2026-02-09T15:29:20.691Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/bf/a14b0befb930bd3ff6b87e67cf166318a3266324a0f48b9089e31fee7867/pasarguard_node_bridge-0.4.1-py3-none-any.whl", hash = "sha256:a14aeb09ea491474d69520c1b3b508d06846c1646e118bc2256592876a460855", size = 40248, upload-time = "2026-01-08T11:00:36.566Z" },
+    { url = "https://files.pythonhosted.org/packages/34/f8/6362327af0a5ecd5a33b1aa108767ab212211b5ad2b743a678dfe5d3d19c/pasarguard_node_bridge-0.4.2-py3-none-any.whl", hash = "sha256:453b62356d991e3e51a2f830cc12693568e89506b448da0d3281c74dd5cf9bff", size = 40643, upload-time = "2026-02-09T15:29:19.857Z" },
 ]
 
 [[package]]
