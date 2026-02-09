@@ -3,10 +3,26 @@ import asyncio
 from app import notification
 from app.db import AsyncSession
 from app.db.crud.bulk import add_groups_to_users, remove_groups_from_users
-from app.db.crud.group import create_group, get_group, modify_group, remove_group
+from app.db.crud.group import (
+    create_group,
+    get_group,
+    get_groups_simple,
+    modify_group,
+    remove_group,
+    GroupsSortingOptionsSimple,
+)
 from app.db.crud.user import get_users
 from app.db.models import Admin, UserStatus
-from app.models.group import BulkGroup, Group, GroupCreate, GroupModify, GroupResponse, GroupsResponse
+from app.models.group import (
+    BulkGroup,
+    Group,
+    GroupCreate,
+    GroupModify,
+    GroupResponse,
+    GroupsResponse,
+    GroupSimple,
+    GroupsSimpleResponse,
+)
 from app.node.sync import sync_users
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
@@ -32,6 +48,41 @@ class GroupOperation(BaseOperation):
     ) -> GroupsResponse:
         db_groups, count = await get_group(db, offset, limit)
         return GroupsResponse(groups=db_groups, total=count)
+
+    async def get_groups_simple(
+        self,
+        db: AsyncSession,
+        offset: int | None = None,
+        limit: int | None = None,
+        search: str | None = None,
+        sort: str | None = None,
+        all: bool = False,
+    ) -> GroupsSimpleResponse:
+        """Get lightweight group list with only id and name"""
+        sort_list = []
+        if sort is not None:
+            opts = sort.strip(",").split(",")
+            for opt in opts:
+                try:
+                    enum_member = GroupsSortingOptionsSimple[opt]
+                    sort_list.append(enum_member)
+                except KeyError:
+                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
+
+        # Call CRUD function
+        rows, total = await get_groups_simple(
+            db=db,
+            offset=offset,
+            limit=limit,
+            search=search,
+            sort=sort_list if sort_list else None,
+            skip_pagination=all,
+        )
+
+        # Convert tuples to Pydantic models
+        groups = [GroupSimple(id=row[0], name=row[1]) for row in rows]
+
+        return GroupsSimpleResponse(groups=groups, total=total)
 
     async def modify_group(self, db: AsyncSession, group_id: int, modified_group: GroupModify, admin: Admin) -> Group:
         db_group = await self.get_validated_group(db, group_id)

@@ -39,6 +39,21 @@ class GroupsResponse(BaseModel):
     total: int
 
 
+class GroupSimple(BaseModel):
+    """Lightweight group model with only id and name for performance."""
+
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GroupsSimpleResponse(BaseModel):
+    """Response model for lightweight group list."""
+
+    groups: list[GroupSimple]
+    total: int
+
+
 class BulkGroup(BaseModel):
     group_ids: set[int]
     has_group_ids: set[int] = Field(default_factory=set)

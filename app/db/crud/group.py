@@ -1,3 +1,4 @@
+from enum import Enum
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,6 +6,15 @@ from app.db.models import ProxyInbound, Group
 from app.models.group import GroupCreate, GroupModify
 
 from .host import upsert_inbounds
+
+
+GroupsSortingOptionsSimple = Enum(
+    "GroupsSortingOptionsSimple",
+    {
+        "name": Group.name.asc(),
+        "-name": Group.name.desc(),
+    },
+)
 
 
 async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyInbound]:
@@ -92,6 +102,62 @@ async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> 
         await load_group_attrs(group)
 
     return all_groups, count
+
+
+async def get_groups_simple(
+    db: AsyncSession,
+    offset: int | None = None,
+    limit: int | None = None,
+    search: str | None = None,
+    sort: list[GroupsSortingOptionsSimple] | None = None,
+    skip_pagination: bool = False,
+) -> tuple[list[tuple[int, str]], int]:
+    """
+    Retrieves lightweight group data with only id and name.
+
+    Args:
+        db: Database session.
+        offset: Number of records to skip.
+        limit: Number of records to retrieve.
+        search: Search term for group name.
+        sort: Sort options.
+        skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
+
+    Returns:
+        Tuple of (list of (id, name) tuples, total_count).
+    """
+    stmt = select(Group.id, Group.name)
+
+    if search:
+        stmt = stmt.where(Group.name.ilike(f"%{search}%"))
+
+    if sort:
+        sort_list = []
+        for s in sort:
+            if isinstance(s.value, tuple):
+                sort_list.extend(s.value)
+            else:
+                sort_list.append(s.value)
+        stmt = stmt.order_by(*sort_list)
+
+    # Get count BEFORE pagination (always)
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar()
+
+    # Apply pagination or safety limit
+    if not skip_pagination:
+        if offset:
+            stmt = stmt.offset(offset)
+        if limit:
+            stmt = stmt.limit(limit)
+    else:
+        stmt = stmt.limit(10000)  # Safety limit when all=true
+
+    # Execute and return
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return rows, total
 
 
 async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Group]:

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.group import BulkGroup, GroupCreate, GroupModify, GroupResponse, GroupsResponse
+from app.models.group import BulkGroup, GroupCreate, GroupModify, GroupResponse, GroupsResponse, GroupsSimpleResponse
 from app.operation import OperatorType
 from app.operation.group import GroupOperation
 from app.utils import responses
@@ -71,6 +71,32 @@ async def get_all_groups(
         401: Unauthorized - If not authenticated
     """
     return await group_operator.get_all_groups(db, offset, limit)
+
+
+@router.get(
+    "s/simple",
+    response_model=GroupsSimpleResponse,
+    summary="Get lightweight group list",
+    description="Returns only id and name for groups. Optimized for dropdowns and autocomplete.",
+)
+async def get_groups_simple(
+    offset: int = None,
+    limit: int = None,
+    search: str | None = None,
+    sort: str | None = None,
+    all: bool = False,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(get_current),
+):
+    """Get lightweight group list with only id and name"""
+    return await group_operator.get_groups_simple(
+        db=db,
+        offset=offset,
+        limit=limit,
+        search=search,
+        sort=sort,
+        all=all,
+    )
 
 
 @router.get(
