@@ -262,6 +262,7 @@ async def process_expire_before(event: Message, state: FSMContext):
         await add_to_messages_to_delete(state, msg)
         return
 
+    await delete_messages(event, state)
     await state.clear()
 
     await event.answer(
@@ -313,6 +314,7 @@ async def process_expiry(event: Message, state: FSMContext):
         await add_to_messages_to_delete(state, msg)
         return
 
+    await delete_messages(event, state)
     await state.clear()
 
     await event.answer(
@@ -356,6 +358,7 @@ async def process_data_limit(event: Message, state: FSMContext):
         await add_to_messages_to_delete(state, msg)
         return
 
+    await delete_messages(event, state)
     await state.clear()
 
     await event.answer(

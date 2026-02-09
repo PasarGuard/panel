@@ -251,6 +251,8 @@ class BaseHost(BaseModel):
 class CreateHost(BaseHost):
     @field_validator("remark", mode="after")
     def validate_remark(cls, v):
+        if not v:
+            raise ValueError("Remark cannot be empty")
         try:
             v.format_map(FormatVariables())
         except ValueError:
