@@ -11,6 +11,8 @@ import {
     RefreshCw,
     Trash2,
     User,
+    UserCheck,
+    UserMinus,
     UserRound,
     UserX,
     LoaderCircle,
@@ -37,6 +39,8 @@ interface DataTableProps<TData extends AdminDetails> {
   onToggleStatus: (admin: AdminDetails) => void
   setStatusToggleDialogOpen: (isOpen: boolean) => void
   onResetUsage: (adminUsername: string) => void
+  onDisableAllActiveUsers?: (adminUsername: string) => void
+  onActivateAllDisabledUsers?: (adminUsername: string) => void
   onRemoveAllUsers?: (adminUsername: string) => void
   isLoading?: boolean
   isFetching?: boolean
@@ -49,6 +53,8 @@ const ExpandedRowContent = memo(
     onDelete,
     onToggleStatus,
     onResetUsage,
+    onDisableAllActiveUsers,
+    onActivateAllDisabledUsers,
     onRemoveAllUsers,
   }: {
     row: AdminDetails
@@ -56,6 +62,8 @@ const ExpandedRowContent = memo(
     onDelete: (admin: AdminDetails) => void
     onToggleStatus: (admin: AdminDetails) => void
     onResetUsage: (adminUsername: string) => void
+    onDisableAllActiveUsers?: (adminUsername: string) => void
+    onActivateAllDisabledUsers?: (adminUsername: string) => void
     onRemoveAllUsers?: (adminUsername: string) => void
   }) => {
     const { t } = useTranslation()
@@ -113,6 +121,30 @@ const ExpandedRowContent = memo(
                         <RefreshCw className="mr-2 h-4 w-4" />
                         {t('admins.reset')}
                     </DropdownMenuItem>
+                    {onDisableAllActiveUsers &&
+                    <DropdownMenuItem
+                        onSelect={e => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onDisableAllActiveUsers(row.username)
+                        }}
+                    >
+                        <UserMinus className="mr-2 h-4 w-4" />
+                        {t('admins.disableAllActiveUsers')}
+                    </DropdownMenuItem>
+                    }
+                    {onActivateAllDisabledUsers &&
+                    <DropdownMenuItem
+                        onSelect={e => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onActivateAllDisabledUsers(row.username)
+                        }}
+                    >
+                        <UserCheck className="mr-2 h-4 w-4" />
+                        {t('admins.activateAllDisabledUsers')}
+                    </DropdownMenuItem>
+                    }
                     {onRemoveAllUsers &&
                     <DropdownMenuItem
                         className="text-destructive"
@@ -152,6 +184,8 @@ export function DataTable<TData extends AdminDetails>({
   onDelete,
   onToggleStatus,
   onResetUsage,
+  onDisableAllActiveUsers,
+  onActivateAllDisabledUsers,
   onRemoveAllUsers,
   isLoading = false,
   isFetching = false,
@@ -277,7 +311,16 @@ export function DataTable<TData extends AdminDetails>({
                     {expandedRow === row.id && (
                       <TableRow className="border-b hover:!bg-inherit md:hidden">
                         <TableCell colSpan={columns.length} className="p-0 text-sm">
-                          <ExpandedRowContent row={row.original} onEdit={onEdit} onDelete={onDelete} onToggleStatus={onToggleStatus} onResetUsage={onResetUsage} onRemoveAllUsers={onRemoveAllUsers} />
+                          <ExpandedRowContent
+                            row={row.original}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onToggleStatus={onToggleStatus}
+                            onResetUsage={onResetUsage}
+                            onDisableAllActiveUsers={onDisableAllActiveUsers}
+                            onActivateAllDisabledUsers={onActivateAllDisabledUsers}
+                            onRemoveAllUsers={onRemoveAllUsers}
+                          />
                         </TableCell>
                       </TableRow>
                     )}
