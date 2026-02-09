@@ -18,6 +18,7 @@ from app.models.user import (
     UserModify,
     UserResponse,
     UsersResponse,
+    UsersSimpleResponse,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateList,
 )
@@ -215,6 +216,34 @@ async def get_users(
         load_sub=load_sub,
         proxy_id=proxy_id,
         group_ids=group_ids,
+    )
+
+
+@router.get(
+    "s/simple",
+    response_model=UsersSimpleResponse,
+    summary="Get lightweight user list",
+    description="Returns only id and username for users. Optimized for dropdowns and autocomplete.",
+    responses={400: responses._400, 403: responses._403},
+)
+async def get_users_simple(
+    offset: int = None,
+    limit: int = None,
+    search: str | None = None,
+    sort: str | None = None,
+    all: bool = False,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Get lightweight user list with only id and username"""
+    return await user_operator.get_users_simple(
+        db=db,
+        admin=admin,
+        offset=offset,
+        limit=limit,
+        search=search,
+        sort=sort,
+        all=all,
     )
 
 

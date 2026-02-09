@@ -141,6 +141,21 @@ class UsersResponse(BaseModel):
     total: int
 
 
+class UserSimple(BaseModel):
+    """Lightweight user model with only id and username for performance."""
+
+    id: int
+    username: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UsersSimpleResponse(BaseModel):
+    """Response model for lightweight user list."""
+
+    users: list[UserSimple]
+    total: int
+
+
 class UserSubscriptionUpdateSchema(BaseModel):
     created_at: dt
     user_agent: str

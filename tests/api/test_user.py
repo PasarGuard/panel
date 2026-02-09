@@ -476,3 +476,286 @@ def test_bulk_create_users_from_template_random_with_username_rejected(access_to
     finally:
         delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
+
+
+# Tests for /api/users/simple endpoint
+
+def test_get_users_simple_basic(access_token):
+    """Test that users/simple returns correct minimal data structure."""
+    core, groups = setup_groups(access_token, 1)
+    created_usernames = []
+    try:
+        # Create 3 users
+        for i in range(3):
+            user = create_user(access_token, username=unique_name(f"user_{i}"))
+            created_usernames.append(user["username"])
+
+        # Execute
+        response = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "users" in data
+        assert "total" in data
+
+        # Check that each user has only id and username
+        for user in data["users"]:
+            assert set(user.keys()) == {"id", "username"}
+
+        # Check all created usernames are present
+        response_usernames = [u["username"] for u in data["users"]]
+        for username in created_usernames:
+            assert username in response_usernames
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_users_simple_search(access_token):
+    """Test case-insensitive search by username."""
+    core, groups = setup_groups(access_token, 1)
+    created_usernames = []
+    try:
+        # Create 3 users with specific names
+        user1 = create_user(access_token, username="test_search_alice")
+        user2 = create_user(access_token, username="test_search_bob")
+        user3 = create_user(access_token, username="test_search_CHARLIE")
+        created_usernames = [user1["username"], user2["username"], user3["username"]]
+
+        # Execute search for "alice"
+        response = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"search": "alice"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data["users"]) >= 1
+        assert any(u["username"] == "test_search_alice" for u in data["users"])
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_users_simple_sort_ascending(access_token):
+    """Test ascending sort by username."""
+    core, groups = setup_groups(access_token, 1)
+    created_usernames = []
+    try:
+        # Create 3 users with specific names for ordering
+        user1 = create_user(access_token, username="user_c_sort")
+        user2 = create_user(access_token, username="user_a_sort")
+        user3 = create_user(access_token, username="user_b_sort")
+        created_usernames = [user1["username"], user2["username"], user3["username"]]
+
+        # Execute with ascending sort
+        response = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"sort": "username"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        # Find our created users in the response
+        our_users = [u for u in data["users"] if u["username"] in created_usernames]
+        our_usernames = [u["username"] for u in our_users]
+        assert our_usernames == sorted(created_usernames)
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_users_simple_sort_descending(access_token):
+    """Test descending sort by username."""
+    core, groups = setup_groups(access_token, 1)
+    created_usernames = []
+    try:
+        # Create 3 users with specific names for ordering
+        user1 = create_user(access_token, username="user_a_desc")
+        user2 = create_user(access_token, username="user_b_desc")
+        user3 = create_user(access_token, username="user_c_desc")
+        created_usernames = [user1["username"], user2["username"], user3["username"]]
+
+        # Execute with descending sort
+        response = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"sort": "-username"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        # Find our created users in the response
+        our_users = [u for u in data["users"] if u["username"] in created_usernames]
+        our_usernames = [u["username"] for u in our_users]
+        assert our_usernames == sorted(created_usernames, reverse=True)
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_users_simple_pagination(access_token):
+    """Test pagination with offset and limit."""
+    core, groups = setup_groups(access_token, 1)
+    created_usernames = []
+    try:
+        # Create 5 users
+        for i in range(5):
+            user = create_user(access_token, username=unique_name(f"user_pag_{i}"))
+            created_usernames.append(user["username"])
+
+        # Execute first request
+        response1 = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": 0, "limit": 2},
+        )
+
+        # Execute second request
+        response2 = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": 2, "limit": 2},
+        )
+
+        # Assert
+        assert response1.status_code == status.HTTP_200_OK
+        assert response2.status_code == status.HTTP_200_OK
+        data1 = response1.json()
+        data2 = response2.json()
+
+        assert len(data1["users"]) == 2
+        assert len(data2["users"]) == 2
+
+        # Check no overlap
+        usernames1 = {u["username"] for u in data1["users"]}
+        usernames2 = {u["username"] for u in data2["users"]}
+        assert len(usernames1 & usernames2) == 0
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_users_simple_skip_pagination(access_token):
+    """Test all=true parameter returns all records."""
+    core, groups = setup_groups(access_token, 1)
+    created_usernames = []
+    try:
+        # Create 10 users
+        for i in range(10):
+            user = create_user(access_token, username=unique_name(f"user_all_{i}"))
+            created_usernames.append(user["username"])
+
+        # Execute with all=true
+        response = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"all": "true"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "users" in data
+        assert "total" in data
+        assert data["total"] >= 10
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_users_simple_empty_search(access_token):
+    """Test search with no matching results."""
+    core, groups = setup_groups(access_token, 1)
+    created_usernames = []
+    try:
+        # Create 2 users
+        user1 = create_user(access_token, username="known_user_1")
+        user2 = create_user(access_token, username="known_user_2")
+        created_usernames = [user1["username"], user2["username"]]
+
+        # Execute search for non-existent user
+        response = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"search": "nonexistent_xyz_12345"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["total"] == 0
+        assert len(data["users"]) == 0
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_users_simple_invalid_sort(access_token):
+    """Test error handling for invalid sort parameter."""
+    # Execute with invalid sort
+    response = client.get(
+        "/api/users/simple",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"sort": "invalid_field_xyz"},
+    )
+
+    # Assert
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_get_users_simple_search_and_sort(access_token):
+    """Test combining search and sort parameters."""
+    core, groups = setup_groups(access_token, 1)
+    created_usernames = []
+    try:
+        # Create 4 users
+        user1 = create_user(access_token, username="apple_user_combo")
+        user2 = create_user(access_token, username="banana_user_combo")
+        user3 = create_user(access_token, username="cherry_user_combo")
+        user4 = create_user(access_token, username="other_name_combo")
+        created_usernames = [
+            user1["username"],
+            user2["username"],
+            user3["username"],
+            user4["username"],
+        ]
+
+        # Execute with search and sort
+        response = client.get(
+            "/api/users/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"search": "_user_combo", "sort": "-username"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+
+        # Should return 3 users (those with _user_combo)
+        matching_users = [u for u in data["users"] if "_user_combo" in u["username"]]
+        assert len(matching_users) >= 3
+
+        # Check they're sorted descending
+        matching_usernames = [u["username"] for u in matching_users]
+        assert matching_usernames == sorted(matching_usernames, reverse=True)
+    finally:
+        for username in created_usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)

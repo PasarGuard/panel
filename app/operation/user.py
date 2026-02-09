@@ -19,6 +19,7 @@ from app.db.crud.bulk import (
 )
 from app.db.crud.user import (
     UsersSortingOptions,
+    UsersSortingOptionsSimple,
     create_user,
     create_users_bulk,
     get_all_users_usages,
@@ -26,6 +27,7 @@ from app.db.crud.user import (
     get_expired_users,
     get_user_usages,
     get_users,
+    get_users_simple,
     get_users_sub_update_list,
     get_users_subscription_agent_counts,
     modify_user,
@@ -48,6 +50,8 @@ from app.models.user import (
     ModifyUserByTemplate,
     RemoveUsersResponse,
     UserCreate,
+    UserSimple,
+    UsersSimpleResponse,
     UserModify,
     UsernameGenerationStrategy,
     UserNotificationResponse,
@@ -424,6 +428,46 @@ class UserOperation(BaseOperation):
         response = UsersResponse(users=users, total=count)
 
         return response
+
+    async def get_users_simple(
+        self,
+        db: AsyncSession,
+        admin: AdminDetails,
+        offset: int = None,
+        limit: int = None,
+        search: str | None = None,
+        sort: str | None = None,
+        all: bool = False,
+    ) -> UsersSimpleResponse:
+        """Get lightweight user list with only id and username"""
+        sort_list = []
+        if sort is not None:
+            opts = sort.strip(",").split(",")
+            for opt in opts:
+                try:
+                    enum_member = UsersSortingOptionsSimple[opt]
+                    sort_list.append(enum_member)
+                except KeyError:
+                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
+
+        # Authorization: non-sudo admins see only their users
+        admin_filter = None if admin.is_sudo else await get_admin(db, admin.username)
+
+        # Call CRUD function
+        rows, total = await get_users_simple(
+            db=db,
+            offset=offset,
+            limit=limit,
+            search=search,
+            sort=sort_list,
+            admin=admin_filter,
+            skip_pagination=all,
+        )
+
+        # Convert tuples to Pydantic models
+        users = [UserSimple(id=row[0], username=row[1]) for row in rows]
+
+        return UsersSimpleResponse(users=users, total=total)
 
     async def get_users_usage(
         self,
