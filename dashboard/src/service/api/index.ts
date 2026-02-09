@@ -61,6 +61,14 @@ export type GetUserUsageParams = {
   end?: string | null
 }
 
+export type GetUsersSimpleParams = {
+  offset?: number
+  limit?: number
+  search?: string | null
+  sort?: string | null
+  all?: boolean
+}
+
 export type GetUsersParams = {
   offset?: number
   limit?: number
@@ -147,6 +155,14 @@ export type ModifyCoreConfigParams = {
   restart_nodes: boolean
 }
 
+export type GetGroupsSimpleParams = {
+  offset?: number
+  limit?: number
+  search?: string | null
+  sort?: string | null
+  all?: boolean
+}
+
 export type GetAllGroupsParams = {
   offset?: number
   limit?: number
@@ -162,6 +178,14 @@ export type GetAdminUsageParams = {
   group_by_node?: boolean
   start?: string | null
   end?: string | null
+}
+
+export type GetAdminsSimpleParams = {
+  username?: string | null
+  offset?: number | null
+  limit?: number | null
+  sort?: string | null
+  all?: boolean
 }
 
 export type GetAdminsParams = {
@@ -413,11 +437,6 @@ export interface XHttpSettingsInput {
   download_settings?: XHttpSettingsInputDownloadSettings
 }
 
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
-}
-
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -426,6 +445,11 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
+}
+
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
 }
 
 export interface WebhookInfo {
@@ -468,6 +492,14 @@ export interface ValidationError {
 
 export interface VMessSettings {
   id?: string
+}
+
+/**
+ * Response model for lightweight user list.
+ */
+export interface UsersSimpleResponse {
+  users: UserSimple[]
+  total: number
 }
 
 export interface UsersResponse {
@@ -594,6 +626,8 @@ export type UserTemplateCreateOnHoldTimeout = number | null
 
 export type UserTemplateCreateResetUsages = boolean | null
 
+export type UserTemplateCreateStatus = UserStatusCreate | null
+
 export type UserTemplateCreateExtraSettings = ExtraSettings | null
 
 export type UserTemplateCreateUsernameSuffix = string | null
@@ -667,8 +701,6 @@ export const UserStatusCreate = {
   on_hold: 'on_hold',
 } as const
 
-export type UserTemplateCreateStatus = UserStatusCreate | null
-
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -679,6 +711,14 @@ export const UserStatus = {
   expired: 'expired',
   on_hold: 'on_hold',
 } as const
+
+/**
+ * Lightweight user model with only id and username for performance.
+ */
+export interface UserSimple {
+  id: number
+  username: string
+}
 
 export type UserResponseAdmin = AdminBase | null
 
@@ -1454,6 +1494,8 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
+export type NodeModifyConnectionType = NodeConnectionType | null
+
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1497,8 +1539,6 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
-
-export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -1655,6 +1695,27 @@ export interface HTTPException {
   detail: string
 }
 
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
+}
+
+/**
+ * Lightweight group model with only id and name for performance.
+ */
+export interface GroupSimple {
+  id: number
+  name: string
+}
+
+/**
+ * Response model for lightweight group list.
+ */
+export interface GroupsSimpleResponse {
+  groups: GroupSimple[]
+  total: number
+}
+
 export type GroupResponseInboundTags = string[] | null
 
 export interface GroupResponse {
@@ -1667,11 +1728,6 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
-}
-
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -2007,26 +2063,6 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
-
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -2053,6 +2089,26 @@ export interface BaseHost {
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
 }
+
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 
@@ -2092,6 +2148,22 @@ export interface AdminsResponse {
   total: number
   active: number
   disabled: number
+}
+
+/**
+ * Lightweight admin model with only id and username for performance.
+ */
+export interface AdminSimple {
+  id: number
+  username: string
+}
+
+/**
+ * Response model for lightweight admin list.
+ */
+export interface AdminsSimpleResponse {
+  admins: AdminSimple[]
+  total: number
 }
 
 export interface AdminNotificationEnable {
@@ -2751,6 +2823,69 @@ export function useGetAdmins<TData = Awaited<ReturnType<typeof getAdmins>>, TErr
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdmins>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetAdminsQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns only id and username for admins. Optimized for dropdowns and autocomplete.
+ * @summary Get lightweight admin list
+ */
+export const getAdminsSimple = (params?: GetAdminsSimpleParams, signal?: AbortSignal) => {
+  return orvalFetcher<AdminsSimpleResponse>({ url: `/api/admins/simple`, method: 'GET', params, signal })
+}
+
+export const getGetAdminsSimpleQueryKey = (params?: GetAdminsSimpleParams) => {
+  return [`/api/admins/simple`, ...(params ? [params] : [])] as const
+}
+
+export const getGetAdminsSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getAdminsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetAdminsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminsSimple>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminsSimpleQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminsSimple>>> = ({ signal }) => getAdminsSimple(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getAdminsSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAdminsSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminsSimple>>>
+export type GetAdminsSimpleQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetAdminsSimple<TData = Awaited<ReturnType<typeof getAdminsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetAdminsSimpleParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminsSimple>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminsSimple>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminsSimple<TData = Awaited<ReturnType<typeof getAdminsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetAdminsSimpleParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminsSimple>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminsSimple>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminsSimple<TData = Awaited<ReturnType<typeof getAdminsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetAdminsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminsSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get lightweight admin list
+ */
+
+export function useGetAdminsSimple<TData = Awaited<ReturnType<typeof getAdminsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetAdminsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminsSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetAdminsSimpleQueryOptions(params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
@@ -3427,6 +3562,69 @@ export function useGetAllGroups<TData = Awaited<ReturnType<typeof getAllGroups>>
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllGroups>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetAllGroupsQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns only id and name for groups. Optimized for dropdowns and autocomplete.
+ * @summary Get lightweight group list
+ */
+export const getGroupsSimple = (params?: GetGroupsSimpleParams, signal?: AbortSignal) => {
+  return orvalFetcher<GroupsSimpleResponse>({ url: `/api/groups/simple`, method: 'GET', params, signal })
+}
+
+export const getGetGroupsSimpleQueryKey = (params?: GetGroupsSimpleParams) => {
+  return [`/api/groups/simple`, ...(params ? [params] : [])] as const
+}
+
+export const getGetGroupsSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getGroupsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetGroupsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getGroupsSimple>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetGroupsSimpleQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getGroupsSimple>>> = ({ signal }) => getGroupsSimple(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getGroupsSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetGroupsSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getGroupsSimple>>>
+export type GetGroupsSimpleQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetGroupsSimple<TData = Awaited<ReturnType<typeof getGroupsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetGroupsSimpleParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getGroupsSimple>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getGroupsSimple>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetGroupsSimple<TData = Awaited<ReturnType<typeof getGroupsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetGroupsSimpleParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getGroupsSimple>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getGroupsSimple>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetGroupsSimple<TData = Awaited<ReturnType<typeof getGroupsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetGroupsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getGroupsSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get lightweight group list
+ */
+
+export function useGetGroupsSimple<TData = Awaited<ReturnType<typeof getGroupsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetGroupsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getGroupsSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetGroupsSimpleQueryOptions(params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
@@ -6109,6 +6307,69 @@ export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUsersQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns only id and username for users. Optimized for dropdowns and autocomplete.
+ * @summary Get lightweight user list
+ */
+export const getUsersSimple = (params?: GetUsersSimpleParams, signal?: AbortSignal) => {
+  return orvalFetcher<UsersSimpleResponse>({ url: `/api/users/simple`, method: 'GET', params, signal })
+}
+
+export const getGetUsersSimpleQueryKey = (params?: GetUsersSimpleParams) => {
+  return [`/api/users/simple`, ...(params ? [params] : [])] as const
+}
+
+export const getGetUsersSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getUsersSimple>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetUsersSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSimple>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetUsersSimpleQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsersSimple>>> = ({ signal }) => getUsersSimple(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getUsersSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUsersSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getUsersSimple>>>
+export type GetUsersSimpleQueryError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetUsersSimple<TData = Awaited<ReturnType<typeof getUsersSimple>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetUsersSimpleParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSimple>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersSimple>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersSimple<TData = Awaited<ReturnType<typeof getUsersSimple>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetUsersSimpleParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSimple>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersSimple>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersSimple<TData = Awaited<ReturnType<typeof getUsersSimple>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetUsersSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get lightweight user list
+ */
+
+export function useGetUsersSimple<TData = Awaited<ReturnType<typeof getUsersSimple>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetUsersSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUsersSimpleQueryOptions(params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 

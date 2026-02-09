@@ -12,7 +12,7 @@ import GroupsSelector from '@/components/common/groups-selector.tsx'
 import AdminsSelector from '@/components/common/admins-selector.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 import { X } from 'lucide-react'
-import { useGetAllGroups } from '@/service/api'
+import { useGetGroupsSimple } from '@/service/api'
 import type { AdvanceSearchFormValue } from '@/components/forms/advance-search-form'
 
 interface AdvanceSearchModalProps {
@@ -26,7 +26,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
   const dir = useDirDetection()
   const { t } = useTranslation()
 
-  const { data: groupsData } = useGetAllGroups(undefined, {
+  const { data: groupsData } = useGetGroupsSimple({ all: true }, {
     query: {
       staleTime: 5 * 60 * 1000, // 5 minutes
       gcTime: 10 * 60 * 1000, // 10 minutes

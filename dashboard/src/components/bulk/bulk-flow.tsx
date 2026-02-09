@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import {
-  useGetAllGroups,
-  useGetUsers,
-  useGetAdmins,
+  useGetGroupsSimple,
+  useGetUsersSimple,
+  useGetAdminsSimple,
   useBulkModifyUsersProxySettings,
   useBulkModifyUsersDatalimit,
   useBulkModifyUsersExpire,
@@ -105,9 +105,9 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
     setExpireSeconds(seconds)
   }, [expireAmount, expireUnit])
 
-  const { data: groupsData, isLoading: groupsLoading } = useGetAllGroups({ limit: PAGE_SIZE, offset: 0 })
-  const { data: usersData, isLoading: usersLoading } = useGetUsers({ limit: PAGE_SIZE, offset: 0, search: debouncedUserSearch || undefined })
-  const { data: adminsData, isLoading: adminsLoading } = useGetAdmins({ limit: PAGE_SIZE, offset: 0, username: debouncedAdminSearch || undefined })
+  const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ limit: PAGE_SIZE, offset: 0, all: true })
+  const { data: usersData, isLoading: usersLoading } = useGetUsersSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedUserSearch || undefined })
+  const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple({ limit: PAGE_SIZE, offset: 0, username: debouncedAdminSearch || undefined })
 
   const statusOptions: { value: UserStatus; label: string }[] = [
     { value: 'active', label: t('status.active', { defaultValue: 'Active' }) },
@@ -806,7 +806,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                 <SelectorPanel
                   icon={Shield}
                   title={t('bulk.selectAdmins', { defaultValue: 'Select Admins' })}
-                  items={(adminsData?.admins || []).filter(a => typeof a.id === 'number' && typeof a.username === 'string').map(a => ({ id: a.id as number, username: a.username as string }))}
+                  items={adminsData?.admins || []}
                   selected={selectedAdmins}
                   setSelected={setSelectedAdmins}
                   search={adminSearch}

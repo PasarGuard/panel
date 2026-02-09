@@ -2,7 +2,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { FormItem, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useGetAllGroups } from '@/service/api'
+import { useGetGroupsSimple } from '@/service/api'
 import { Search } from 'lucide-react'
 import { useState } from 'react'
 import { Control, FieldPath, FieldValues, useController } from 'react-hook-form'
@@ -29,7 +29,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
     name,
   })
 
-  const { data: groupsData, isLoading: groupsLoading } = useGetAllGroups(undefined, {
+  const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ all: true }, {
     query: {
       staleTime: 5 * 60 * 1000, // 5 minutes
       gcTime: 10 * 60 * 1000, // 10 minutes

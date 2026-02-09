@@ -19,6 +19,7 @@ import {
   getGetGeneralSettingsQueryKey,
   useCreateUser,
   useCreateUserFromTemplate,
+  useGetGroupsSimple,
   useGetUsers,
   useGetUserTemplates,
   useModifyUser,
@@ -509,6 +510,21 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       enabled: isDialogOpen,
     },
   })
+
+  // Prefetch lightweight groups while modal is open so the Groups tab can render immediately.
+  useGetGroupsSimple(
+    { all: true },
+    {
+      query: {
+        staleTime: 5 * 60 * 1000,
+        gcTime: 10 * 60 * 1000,
+        refetchOnWindowFocus: true,
+        refetchOnMount: true,
+        refetchOnReconnect: true,
+        enabled: isDialogOpen,
+      },
+    },
+  )
 
   const { data: generalSettings } = useQuery({
     queryKey: getGetGeneralSettingsQueryKey(),

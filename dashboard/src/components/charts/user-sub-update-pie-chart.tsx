@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useTheme } from 'next-themes'
-import { type GetUsersSubUpdateChartParams, useGetAdmins, useGetUsersSubUpdateChart, type UserSubscriptionUpdateChartSegment } from '@/service/api'
+import { type GetUsersSubUpdateChartParams, useGetAdminsSimple, useGetUsersSubUpdateChart, type UserSubscriptionUpdateChartSegment } from '@/service/api'
 import { numberWithCommas } from '@/utils/formatByte'
 import { TrendingUp, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -144,7 +144,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     }
   }, [adminId])
 
-  const { data: admins, isLoading: isLoadingAdmins } = useGetAdmins(undefined, {
+  const { data: admins, isLoading: isLoadingAdmins } = useGetAdminsSimple({ all: true }, {
     query: {
       enabled: true,
       staleTime: 5 * 60 * 1000,

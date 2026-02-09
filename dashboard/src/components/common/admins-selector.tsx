@@ -2,7 +2,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { FormItem, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useGetAdmins } from '@/service/api'
+import { useGetAdminsSimple } from '@/service/api'
 import { Search } from 'lucide-react'
 import { useState } from 'react'
 import { Control, FieldPath, FieldValues, useController } from 'react-hook-form'
@@ -26,7 +26,7 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
     name,
   })
 
-  const { data: adminsData, isLoading: adminsLoading } = useGetAdmins(undefined, {
+  const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple({ all: true }, {
     query: {
       staleTime: 5 * 60 * 1000, // 5 minutes
       gcTime: 10 * 60 * 1000, // 10 minutes

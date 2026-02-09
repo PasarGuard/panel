@@ -5,8 +5,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { cn } from '@/lib/utils'
-import { type AdminDetails, useGetAdmins } from '@/service/api'
-import { Check, ChevronDown, Loader2, Sigma, UserCog, UserRound } from 'lucide-react'
+import { type AdminDetails, type AdminSimple, useGetAdminsSimple } from '@/service/api'
+import { Check, ChevronDown, Loader2, Sigma, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,7 +25,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
 
   const [open, setOpen] = useState(false)
   const [offset, setOffset] = useState(0)
-  const [admins, setAdmins] = useState<AdminDetails[]>([])
+  const [admins, setAdmins] = useState<AdminSimple[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
@@ -38,7 +38,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
     setIsLoadingMore(false)
   }, [adminSearch])
 
-  const { data: fetchedAdminsResponse, isLoading, isFetching } = useGetAdmins(
+  const { data: fetchedAdminsResponse, isLoading, isFetching } = useGetAdminsSimple(
     {
       limit: PAGE_SIZE,
       offset,
@@ -57,7 +57,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
     const fetchedAdmins = (fetchedAdminsResponse.admins || []).filter(admin => admin.username !== 'system')
     setAdmins(prev => {
       const merged = offset === 0 ? fetchedAdmins : [...prev, ...fetchedAdmins]
-      const byUsername = new Map<string, AdminDetails>()
+      const byUsername = new Map<string, AdminSimple>()
       merged.forEach(admin => {
         byUsername.set(admin.username, admin)
       })
@@ -97,7 +97,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
                 <AvatarFallback className="bg-muted text-xs font-medium">{value === 'all' ? <Sigma className="h-3 w-3" /> : triggerLabel.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
               <span className="truncate">{triggerLabel}</span>
-              {value !== 'all' && selectedAdmin && <div className="flex-shrink-0">{selectedAdmin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}</div>}
+              {value !== 'all' && selectedAdmin && <div className="flex-shrink-0"><UserRound className="h-3 w-3 text-primary" /></div>}
             </div>
             <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0 text-muted-foreground" />
           </Button>
@@ -141,7 +141,10 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
                   value={admin.username}
                   onSelect={() => {
                     onValueChange(admin.username)
-                    onAdminSelect?.(admin)
+                    onAdminSelect?.({
+                      ...admin,
+                      is_sudo: false,
+                    })
                     setOpen(false)
                   }}
                   className={cn('flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs sm:text-sm', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}
@@ -151,7 +154,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
                   </Avatar>
                   <span className="flex-1 truncate">{admin.username}</span>
                   <div className="flex flex-shrink-0 items-center gap-1">
-                    {admin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}
+                    <UserRound className="h-3 w-3 text-primary" />
                     {value === admin.username && <Check className="h-3 w-3 text-primary" />}
                   </div>
                 </CommandItem>
