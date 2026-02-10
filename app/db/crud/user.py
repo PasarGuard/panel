@@ -29,7 +29,12 @@ from app.models.user import UserCreate, UserModify, UserNotificationResponse
 from app.utils.helpers import convert_to_utc_for_filtering
 from config import USERS_AUTODELETE_DAYS
 
-from .general import _build_trunc_expression, _convert_period_start_timezone, build_json_proxy_settings_search_condition
+from .general import (
+    _build_trunc_expression,
+    _convert_period_start_timezone,
+    _is_period_start_within_range,
+    build_json_proxy_settings_search_condition,
+)
 from .group import get_groups_by_ids
 
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
@@ -484,6 +489,8 @@ async def get_user_usages(
         node_id_val = row_dict.pop("node_id", node_id)
 
         _convert_period_start_timezone(row_dict, target_tz, db)
+        if not _is_period_start_within_range(row_dict, start, end):
+            continue
 
         if node_id_val not in stats:
             stats[node_id_val] = []
@@ -1102,6 +1109,8 @@ async def get_all_users_usages(
         node_id_val = row_dict.pop("node_id", node_id)
 
         _convert_period_start_timezone(row_dict, target_tz, db)
+        if not _is_period_start_within_range(row_dict, start, end):
+            continue
 
         if node_id_val not in stats:
             stats[node_id_val] = []

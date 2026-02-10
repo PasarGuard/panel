@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import JWT, System
 from app.models.stats import Period
-from app.utils.helpers import fix_datetime_timezone, get_timezone_offset_string
+from app.utils.helpers import fix_datetime_timezone
 
 MYSQL_FORMATS = {
     Period.minute: "%Y-%m-%d %H:%i:00",
@@ -50,10 +50,11 @@ def _build_trunc_expression(
             offset_seconds = int(offset.total_seconds())
 
     if dialect == "postgresql":
-        if start and start.tzinfo:
-            # Convert timestamptz to target timezone, then truncate
-            tz_str = get_timezone_offset_string(start)
-            return func.date_trunc(period.value, column.op("AT TIME ZONE")(tz_str))
+        if offset_seconds is not None:
+            # Shift by requested offset before truncation. This avoids
+            # AT TIME ZONE string-offset edge cases across Postgres setups.
+            adjusted_column = column + func.make_interval(0, 0, 0, 0, 0, 0, offset_seconds)
+            return func.date_trunc(period.value, adjusted_column)
         return func.date_trunc(period.value, column)
     elif dialect == "mysql":
         if offset_seconds is not None:
@@ -77,7 +78,7 @@ def _convert_period_start_timezone(row_dict: dict, target_tz, db: AsyncSession =
 
     For MySQL/SQLite, the offset is already applied in SQL, so period_start
     is already in the target timezone and should not be re-converted.
-    For PostgreSQL, the offset is applied via AT TIME ZONE in SQL.
+    For PostgreSQL, timezone offset shifting is already applied in SQL.
 
     Args:
         row_dict: Dictionary containing 'period_start' key
@@ -96,11 +97,30 @@ def _convert_period_start_timezone(row_dict: dict, target_tz, db: AsyncSession =
                     period_start = fix_datetime_timezone(period_start)
                 row_dict["period_start"] = period_start.replace(tzinfo=target_tz)
             else:
-                # PostgreSQL: AT TIME ZONE returns naive timestamp already in target timezone
-                # Just attach timezone info without converting
+                # PostgreSQL: offset is already applied in SQL; just attach tzinfo
                 if isinstance(period_start, str):
                     period_start = fix_datetime_timezone(period_start)
                 row_dict["period_start"] = period_start.replace(tzinfo=target_tz)
+
+
+def _is_period_start_within_range(
+    row_dict: dict,
+    start: Optional[datetime],
+    end: Optional[datetime],
+) -> bool:
+    """
+    Validate that an aggregated bucket start is inside requested range.
+
+    Buckets are inclusive on start and exclusive on end: [start, end).
+    """
+    period_start = row_dict.get("period_start")
+    if period_start is None:
+        return False
+    if start is not None and period_start < start:
+        return False
+    if end is not None and period_start >= end:
+        return False
+    return True
 
 
 def get_datetime_add_expression(db: AsyncSession, datetime_column, seconds: int):
