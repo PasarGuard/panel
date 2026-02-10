@@ -168,3 +168,6 @@ xray-core
 #ignore node-module for dashboard
 node_modules/
 deadlock-analysis.md
+
+# AI
+.AGENT

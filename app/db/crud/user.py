@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
 from typing import List, Optional, Sequence
 
-from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
+from sqlalchemy import and_, case, delete, desc, func, literal, literal_column, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.functions import coalesce
@@ -26,14 +26,17 @@ from app.db.models import (
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
-from app.utils.helpers import convert_to_utc_for_filtering
+
 from config import USERS_AUTODELETE_DAYS
 
 from .general import (
+    MYSQL_FORMATS,
+    SQLITE_FORMATS,
     _build_trunc_expression,
-    _convert_period_start_timezone,
-    _is_period_start_within_range,
+    _get_next_period_boundary,
+    attach_timezone_to_period_start,
     build_json_proxy_settings_search_condition,
+    to_utc_for_filter,
 )
 from .group import get_groups_by_ids
 
@@ -446,12 +449,12 @@ async def get_user_usages(
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
-    # Convert to UTC for filtering while preserving original timezone for grouping
-    start_utc = convert_to_utc_for_filtering(start)
-    end_utc = convert_to_utc_for_filtering(end)
+    # Filter using UTC timestamps (DB stores naive UTC)
+    start_utc = to_utc_for_filter(start)
+    end_utc = to_utc_for_filter(end)
     conditions = [
         NodeUserUsage.created_at >= start_utc,
-        NodeUserUsage.created_at <= end_utc,
+        NodeUserUsage.created_at < end_utc,
         NodeUserUsage.user_id == user_id,
     ]
 
@@ -460,6 +463,7 @@ async def get_user_usages(
     else:
         node_id = -1
 
+    dialect = db.bind.dialect.name
     if group_by_node:
         stmt = (
             select(
@@ -480,17 +484,35 @@ async def get_user_usages(
             .order_by(trunc_expr)
         )
 
+    # HAVING clause to exclude partial first bucket
+    # Only needed if start has timezone (which means we did timezone-aware grouping)
+    if start.tzinfo:
+        # Get the first COMPLETE bucket boundary
+        # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
+        first_complete_bucket = _get_next_period_boundary(start, period)
+
+        # Convert to naive for comparison (represents wall-clock time in target timezone)
+        boundary_value = first_complete_bucket.replace(tzinfo=None)
+
+        # Add HAVING clause with appropriate comparison based on dialect
+        if dialect == "postgresql":
+            # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
+            stmt = stmt.having(trunc_expr >= boundary_value)
+        elif dialect in ("mysql", "sqlite"):
+            # MySQL/SQLite: Use the alias 'period_start' in HAVING
+            format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
+            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
+            stmt = stmt.having(literal_column("period_start") >= boundary_str)
+
     result = await db.execute(stmt)
 
-    target_tz = start.tzinfo
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
 
-        _convert_period_start_timezone(row_dict, target_tz, db)
-        if not _is_period_start_within_range(row_dict, start, end):
-            continue
+        # Attach timezone info to period_start
+        attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
 
         if node_id_val not in stats:
             stats[node_id_val] = []
@@ -1067,12 +1089,12 @@ async def get_all_users_usages(
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
-    # Convert to UTC for filtering while preserving original timezone for grouping
-    start_utc = convert_to_utc_for_filtering(start)
-    end_utc = convert_to_utc_for_filtering(end)
+    # Filter using UTC timestamps (DB stores naive UTC)
+    start_utc = to_utc_for_filter(start)
+    end_utc = to_utc_for_filter(end)
     conditions = [
         NodeUserUsage.created_at >= start_utc,
-        NodeUserUsage.created_at <= end_utc,
+        NodeUserUsage.created_at < end_utc,
         NodeUserUsage.user_id.in_(select(users_subquery.c.id)),
     ]
 
@@ -1081,6 +1103,7 @@ async def get_all_users_usages(
     else:
         node_id = -1
 
+    dialect = db.bind.dialect.name
     if group_by_node:
         stmt = (
             select(
@@ -1100,17 +1123,35 @@ async def get_all_users_usages(
             .order_by(trunc_expr)
         )
 
+    # HAVING clause to exclude partial first bucket
+    # Only needed if start has timezone (which means we did timezone-aware grouping)
+    if start.tzinfo:
+        # Get the first COMPLETE bucket boundary
+        # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
+        first_complete_bucket = _get_next_period_boundary(start, period)
+
+        # Convert to naive for comparison (represents wall-clock time in target timezone)
+        boundary_value = first_complete_bucket.replace(tzinfo=None)
+
+        # Add HAVING clause with appropriate comparison based on dialect
+        if dialect == "postgresql":
+            # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
+            stmt = stmt.having(trunc_expr >= boundary_value)
+        elif dialect in ("mysql", "sqlite"):
+            # MySQL/SQLite: Use the alias 'period_start' in HAVING
+            format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
+            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
+            stmt = stmt.having(literal_column("period_start") >= boundary_str)
+
     result = await db.execute(stmt)
 
-    target_tz = start.tzinfo
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
 
-        _convert_period_start_timezone(row_dict, target_tz, db)
-        if not _is_period_start_within_range(row_dict, start, end):
-            continue
+        # Attach timezone info to period_start
+        attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
 
         if node_id_val not in stats:
             stats[node_id_val] = []

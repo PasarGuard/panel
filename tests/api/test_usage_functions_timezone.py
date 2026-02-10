@@ -87,15 +87,15 @@ class TestGetNodesUsageTimezone:
             # Which equals: 2026-02-09 20:30:00 UTC to 2026-02-09 23:30:00 UTC
             timestamps_utc = [
                 datetime(2026, 2, 9, 19, 45, 0, tzinfo=timezone.utc),  # 23:15 Tehran - BEFORE
-                datetime(2026, 2, 9, 20, 0, 0, tzinfo=timezone.utc),   # 23:30 Tehran - BEFORE
+                datetime(2026, 2, 9, 20, 0, 0, tzinfo=timezone.utc),  # 23:30 Tehran - BEFORE
                 datetime(2026, 2, 9, 20, 15, 0, tzinfo=timezone.utc),  # 23:45 Tehran - BEFORE
                 datetime(2026, 2, 9, 20, 30, 0, tzinfo=timezone.utc),  # 00:00 Tehran - IN RANGE ✓
                 datetime(2026, 2, 9, 20, 45, 0, tzinfo=timezone.utc),  # 00:15 Tehran - IN RANGE ✓
-                datetime(2026, 2, 9, 21, 0, 0, tzinfo=timezone.utc),   # 00:30 Tehran - IN RANGE ✓
+                datetime(2026, 2, 9, 21, 0, 0, tzinfo=timezone.utc),  # 00:30 Tehran - IN RANGE ✓
                 datetime(2026, 2, 9, 21, 30, 0, tzinfo=timezone.utc),  # 01:00 Tehran - IN RANGE ✓
                 datetime(2026, 2, 9, 22, 30, 0, tzinfo=timezone.utc),  # 02:00 Tehran - IN RANGE ✓
                 datetime(2026, 2, 9, 23, 15, 0, tzinfo=timezone.utc),  # 02:45 Tehran - IN RANGE ✓
-                datetime(2026, 2, 10, 0, 0, 0, tzinfo=timezone.utc),   # 03:30 Tehran - AFTER
+                datetime(2026, 2, 10, 0, 0, 0, tzinfo=timezone.utc),  # 03:30 Tehran - AFTER
             ]
 
             for idx, ts in enumerate(timestamps_utc):
@@ -150,21 +150,19 @@ class TestGetNodesUsageTimezone:
 
             # Validate each period has exact expected values
             for i, stat in enumerate(stats):
-                assert stat.period_start >= start, (
-                    f"Period {i}: period_start {stat.period_start} is before start {start}"
-                )
-                assert stat.period_start < end, (
-                    f"Period {i}: period_start {stat.period_start} is at or after end {end}"
-                )
+                assert (
+                    stat.period_start >= start
+                ), f"Period {i}: period_start {stat.period_start} is before start {start}"
+                assert stat.period_start < end, f"Period {i}: period_start {stat.period_start} is at or after end {end}"
 
                 # STRICT: Check exact values
                 expected_uplink, expected_downlink = expected_values[i]
-                assert stat.uplink == expected_uplink, (
-                    f"Period {i}: Expected uplink={expected_uplink}, got {stat.uplink}"
-                )
-                assert stat.downlink == expected_downlink, (
-                    f"Period {i}: Expected downlink={expected_downlink}, got {stat.downlink}"
-                )
+                assert (
+                    stat.uplink == expected_uplink
+                ), f"Period {i}: Expected uplink={expected_uplink}, got {stat.uplink}"
+                assert (
+                    stat.downlink == expected_downlink
+                ), f"Period {i}: Expected downlink={expected_downlink}, got {stat.downlink}"
 
             # Verify stats are in chronological order
             for i in range(len(stats) - 1):
@@ -181,16 +179,16 @@ class TestGetNodesUsageTimezone:
             admin_id, user_id, node_id = await setup_test_data(session)
 
             # New York timezone is UTC-05:00
-            # Request: 2026-02-10 00:00:00-05:00 = 2026-02-10 05:00:00 UTC
+            # Request: 2026-03-10 00:00:00-05:00 = 2026-03-10 05:00:00 UTC
             timestamps_utc = [
-                datetime(2026, 2, 10, 4, 0, 0, tzinfo=timezone.utc),   # BEFORE
-                datetime(2026, 2, 10, 4, 30, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 2, 10, 5, 15, 0, tzinfo=timezone.utc),  # IN RANGE (00:15 NY)
-                datetime(2026, 2, 10, 6, 15, 0, tzinfo=timezone.utc),  # IN RANGE (01:15 NY)
-                datetime(2026, 2, 10, 7, 15, 0, tzinfo=timezone.utc),  # IN RANGE (02:15 NY)
-                datetime(2026, 2, 10, 8, 0, 0, tzinfo=timezone.utc),   # IN RANGE (03:00 NY boundary)
-                datetime(2026, 2, 10, 8, 30, 0, tzinfo=timezone.utc),  # AFTER
-                datetime(2026, 2, 10, 9, 0, 0, tzinfo=timezone.utc),   # AFTER
+                datetime(2026, 3, 10, 4, 0, 0, tzinfo=timezone.utc),  # BEFORE
+                datetime(2026, 3, 10, 4, 30, 0, tzinfo=timezone.utc),  # BEFORE
+                datetime(2026, 3, 10, 5, 15, 0, tzinfo=timezone.utc),  # IN RANGE (00:15 NY)
+                datetime(2026, 3, 10, 6, 15, 0, tzinfo=timezone.utc),  # IN RANGE (01:15 NY)
+                datetime(2026, 3, 10, 7, 15, 0, tzinfo=timezone.utc),  # IN RANGE (02:15 NY)
+                datetime(2026, 3, 10, 8, 0, 0, tzinfo=timezone.utc),  # IN RANGE (03:00 NY boundary)
+                datetime(2026, 3, 10, 8, 30, 0, tzinfo=timezone.utc),  # AFTER
+                datetime(2026, 3, 10, 9, 0, 0, tzinfo=timezone.utc),  # AFTER
             ]
 
             for ts in timestamps_utc:
@@ -199,8 +197,8 @@ class TestGetNodesUsageTimezone:
             await session.commit()
 
             ny_tz = timezone(timedelta(hours=-5))
-            start = datetime(2026, 2, 10, 0, 0, 0, tzinfo=ny_tz)
-            end = datetime(2026, 2, 10, 3, 0, 0, tzinfo=ny_tz)
+            start = datetime(2026, 3, 10, 0, 0, 0, tzinfo=ny_tz)
+            end = datetime(2026, 3, 10, 3, 0, 0, tzinfo=ny_tz)
 
             result = await get_nodes_usage(
                 session,
@@ -234,12 +232,12 @@ class TestGetNodesUsageTimezone:
                 assert stat.downlink > 0, f"Downlink should be > 0, got {stat.downlink}"
 
             # STRICT: Total traffic must match expected sum from in-range records
-            assert total_uplink == expected_uplink_sum, (
-                f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
-            )
-            assert total_downlink == expected_downlink_sum, (
-                f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
-            )
+            assert (
+                total_uplink == expected_uplink_sum
+            ), f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
+            assert (
+                total_downlink == expected_downlink_sum
+            ), f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
 
     @pytest.mark.asyncio
     async def test_day_period_does_not_include_previous_day_tehran(self):
@@ -253,18 +251,18 @@ class TestGetNodesUsageTimezone:
             admin_id, user_id, node_id = await setup_test_data(session)
 
             tehran_tz = timezone(timedelta(hours=3, minutes=30))
-            start = datetime(2026, 2, 4, 0, 0, 0, tzinfo=tehran_tz)
-            end = datetime(2026, 2, 10, 23, 59, 59, tzinfo=tehran_tz)
+            start = datetime(2026, 4, 4, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2026, 4, 10, 23, 59, 59, tzinfo=tehran_tz)
 
             local_timestamps = [
-                datetime(2026, 2, 3, 12, 0, 0, tzinfo=tehran_tz),  # before range
-                datetime(2026, 2, 4, 12, 0, 0, tzinfo=tehran_tz),
-                datetime(2026, 2, 5, 12, 0, 0, tzinfo=tehran_tz),
-                datetime(2026, 2, 6, 12, 0, 0, tzinfo=tehran_tz),
-                datetime(2026, 2, 7, 12, 0, 0, tzinfo=tehran_tz),
-                datetime(2026, 2, 8, 12, 0, 0, tzinfo=tehran_tz),
-                datetime(2026, 2, 9, 12, 0, 0, tzinfo=tehran_tz),
-                datetime(2026, 2, 10, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 4, 3, 12, 0, 0, tzinfo=tehran_tz),  # before range
+                datetime(2026, 4, 4, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 4, 5, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 4, 6, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 4, 7, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 4, 8, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 4, 9, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 4, 10, 12, 0, 0, tzinfo=tehran_tz),
             ]
 
             for idx, ts_local in enumerate(local_timestamps):
@@ -288,7 +286,7 @@ class TestGetNodesUsageTimezone:
 
             stats = result.stats[node_id]
             assert len(stats) == 7, f"Expected 7 day buckets, got {len(stats)}"
-            assert stats[0].period_start == datetime(2026, 2, 4, 0, 0, 0, tzinfo=tehran_tz)
+            assert stats[0].period_start == datetime(2026, 4, 4, 0, 0, 0, tzinfo=tehran_tz)
             for stat in stats:
                 assert stat.period_start >= start
                 assert stat.period_start < end
@@ -302,13 +300,13 @@ class TestGetNodesUsageTimezone:
             admin_id, user_id, node_id = await setup_test_data(session)
 
             tehran_tz = timezone(timedelta(hours=3, minutes=30))
-            start = datetime(2026, 2, 9, 14, 2, 37, tzinfo=tehran_tz)
-            end = datetime(2026, 2, 9, 18, 0, 0, tzinfo=tehran_tz)
+            start = datetime(2026, 5, 9, 14, 2, 37, tzinfo=tehran_tz)
+            end = datetime(2026, 5, 9, 18, 0, 0, tzinfo=tehran_tz)
 
             local_timestamps = [
-                datetime(2026, 2, 9, 14, 10, 0, tzinfo=tehran_tz),  # same hour as start (partial bucket)
-                datetime(2026, 2, 9, 15, 10, 0, tzinfo=tehran_tz),
-                datetime(2026, 2, 9, 16, 10, 0, tzinfo=tehran_tz),
+                datetime(2026, 5, 9, 14, 10, 0, tzinfo=tehran_tz),  # same hour as start (partial bucket)
+                datetime(2026, 5, 9, 15, 10, 0, tzinfo=tehran_tz),
+                datetime(2026, 5, 9, 16, 10, 0, tzinfo=tehran_tz),
             ]
 
             for idx, ts_local in enumerate(local_timestamps):
@@ -334,8 +332,8 @@ class TestGetNodesUsageTimezone:
             period_starts = [s.period_start for s in stats]
 
             assert period_starts == [
-                datetime(2026, 2, 9, 15, 0, 0, tzinfo=tehran_tz),
-                datetime(2026, 2, 9, 16, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 5, 9, 15, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 5, 9, 16, 0, 0, tzinfo=tehran_tz),
             ], f"Unexpected hour buckets: {period_starts}"
 
     @pytest.mark.asyncio
@@ -351,20 +349,20 @@ class TestGetNodesUsageTimezone:
             admin_id, user_id, node_id = await setup_test_data(session)
 
             # UTC timestamps spanning a range
-            start_utc = datetime(2026, 2, 10, 0, 0, 0, tzinfo=timezone.utc)
-            end_utc = datetime(2026, 2, 11, 0, 0, 0, tzinfo=timezone.utc)
+            start_utc = datetime(2026, 6, 10, 0, 0, 0, tzinfo=timezone.utc)
+            end_utc = datetime(2026, 6, 11, 0, 0, 0, tzinfo=timezone.utc)
 
             # Inject data BEFORE the range (this is what was being returned before the fix)
             before_timestamps = [
-                datetime(2026, 2, 9, 20, 0, 0, tzinfo=timezone.utc),
-                datetime(2026, 2, 9, 22, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 6, 9, 20, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 6, 9, 22, 0, 0, tzinfo=timezone.utc),
             ]
 
             # Inject data IN the range
             in_range_timestamps = [
-                datetime(2026, 2, 10, 6, 0, 0, tzinfo=timezone.utc),
-                datetime(2026, 2, 10, 12, 0, 0, tzinfo=timezone.utc),
-                datetime(2026, 2, 10, 18, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 6, 10, 6, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 6, 10, 12, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 6, 10, 18, 0, 0, tzinfo=timezone.utc),
             ]
 
             all_timestamps = before_timestamps + in_range_timestamps
@@ -396,9 +394,9 @@ class TestGetNodesUsageTimezone:
 
             # Core validation: NO data from before start should be included
             for stat in stats:
-                assert stat.period_start >= start_utc, (
-                    f"BUG: Got data from before start! period_start {stat.period_start} < start {start_utc}"
-                )
+                assert (
+                    stat.period_start >= start_utc
+                ), f"BUG: Got data from before start! period_start {stat.period_start} < start {start_utc}"
 
                 # Validate traffic values - should be from in-range only
                 assert stat.uplink > 0, f"Uplink should be > 0, got {stat.uplink}"
@@ -413,12 +411,12 @@ class TestGetNodesUsageTimezone:
                 total_downlink += stat.downlink
 
             # STRICT: Total must match exactly in-range sum
-            assert total_uplink == expected_uplink_sum, (
-                f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
-            )
-            assert total_downlink == expected_downlink_sum, (
-                f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
-            )
+            assert (
+                total_uplink == expected_uplink_sum
+            ), f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
+            assert (
+                total_downlink == expected_downlink_sum
+            ), f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
 
 
 class TestGetUserUsagesTimezone:
@@ -436,14 +434,14 @@ class TestGetUserUsagesTimezone:
 
             # Inject 8 data points: 2 before, 5 in range, 1 after
             timestamps_utc = [
-                datetime(2026, 2, 9, 20, 0, 0, tzinfo=timezone.utc),   # BEFORE
-                datetime(2026, 2, 9, 20, 15, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 2, 9, 20, 30, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 2, 9, 20, 45, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 2, 9, 21, 30, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 2, 9, 22, 15, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 2, 9, 23, 15, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 2, 10, 0, 0, 0, tzinfo=timezone.utc),   # AFTER
+                datetime(2026, 7, 9, 20, 0, 0, tzinfo=timezone.utc),  # BEFORE
+                datetime(2026, 7, 9, 20, 15, 0, tzinfo=timezone.utc),  # BEFORE
+                datetime(2026, 7, 9, 20, 30, 0, tzinfo=timezone.utc),  # IN RANGE ✓
+                datetime(2026, 7, 9, 20, 45, 0, tzinfo=timezone.utc),  # IN RANGE ✓
+                datetime(2026, 7, 9, 21, 30, 0, tzinfo=timezone.utc),  # IN RANGE ✓
+                datetime(2026, 7, 9, 22, 15, 0, tzinfo=timezone.utc),  # IN RANGE ✓
+                datetime(2026, 7, 9, 23, 15, 0, tzinfo=timezone.utc),  # IN RANGE ✓
+                datetime(2026, 7, 10, 0, 0, 0, tzinfo=timezone.utc),  # AFTER
             ]
 
             for ts in timestamps_utc:
@@ -457,8 +455,8 @@ class TestGetUserUsagesTimezone:
             await session.commit()
 
             tehran_tz = timezone(timedelta(hours=3, minutes=30))
-            start = datetime(2026, 2, 10, 0, 0, 0, tzinfo=tehran_tz)
-            end = datetime(2026, 2, 10, 3, 0, 0, tzinfo=tehran_tz)
+            start = datetime(2026, 7, 10, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2026, 7, 10, 3, 0, 0, tzinfo=tehran_tz)
 
             result = await get_user_usages(
                 session,
@@ -489,15 +487,15 @@ class TestGetUserUsagesTimezone:
                 assert stat.period_start < end
 
                 # STRICT: Validate exact per-bucket traffic
-                assert stat.total_traffic == expected_bucket_totals[i], (
-                    f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
-                )
+                assert (
+                    stat.total_traffic == expected_bucket_totals[i]
+                ), f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
                 total_traffic += stat.total_traffic
 
             # STRICT: Total must match exactly all in-range records
-            assert total_traffic == expected_total_traffic, (
-                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
-            )
+            assert (
+                total_traffic == expected_total_traffic
+            ), f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("period", [Period.hour, Period.day, Period.month])
@@ -509,8 +507,8 @@ class TestGetUserUsagesTimezone:
             admin_id, user_id, node_id = await setup_test_data(session)
 
             # Create data spanning 3 months
-            start_utc = datetime(2026, 2, 1, 0, 0, 0, tzinfo=timezone.utc)
-            end_utc = datetime(2026, 5, 1, 0, 0, 0, tzinfo=timezone.utc)
+            start_utc = datetime(2026, 8, 1, 0, 0, 0, tzinfo=timezone.utc)
+            end_utc = datetime(2026, 11, 1, 0, 0, 0, tzinfo=timezone.utc)
 
             # Add records at various points
             current = start_utc
@@ -550,9 +548,7 @@ class TestGetUserUsagesTimezone:
                 # STRICT: Validate traffic is exactly from our records
                 assert stat.total_traffic > 0, "Total traffic should be > 0"
                 # Each record injected has 5000000, so totals must be multiples of that
-                assert stat.total_traffic % 5000000 == 0, (
-                    f"Traffic {stat.total_traffic} is not a multiple of 5000000"
-                )
+                assert stat.total_traffic % 5000000 == 0, f"Traffic {stat.total_traffic} is not a multiple of 5000000"
                 total_traffic += stat.total_traffic
 
             # STRICT: Total traffic should be sum of all records
@@ -574,14 +570,14 @@ class TestGetAllUsersUsagesTimezone:
 
             # Inject data with mixture of before and in-range records
             before_timestamps = [
-                datetime(2026, 2, 9, 20, 0, 0, tzinfo=timezone.utc),
-                datetime(2026, 2, 9, 20, 30, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 9, 20, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 9, 20, 30, 0, tzinfo=timezone.utc),
             ]
 
             in_range_timestamps = [
-                datetime(2026, 2, 9, 20, 45, 0, tzinfo=timezone.utc),
-                datetime(2026, 2, 9, 21, 30, 0, tzinfo=timezone.utc),
-                datetime(2026, 2, 9, 22, 15, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 9, 20, 45, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 9, 21, 30, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 9, 22, 15, 0, tzinfo=timezone.utc),
             ]
 
             all_timestamps = before_timestamps + in_range_timestamps
@@ -596,14 +592,12 @@ class TestGetAllUsersUsagesTimezone:
             await session.commit()
 
             tehran_tz = timezone(timedelta(hours=3, minutes=30))
-            start = datetime(2026, 2, 10, 0, 0, 0, tzinfo=tehran_tz)
-            end = datetime(2026, 2, 10, 3, 0, 0, tzinfo=tehran_tz)
+            start = datetime(2026, 9, 10, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2026, 9, 10, 3, 0, 0, tzinfo=tehran_tz)
 
             result = await get_all_users_usages(
                 session,
-                admins=[
-                    (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
-                ],
+                admins=[(await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()],
                 start=start,
                 end=end,
                 period=Period.hour,
@@ -623,25 +617,25 @@ class TestGetAllUsersUsagesTimezone:
                 if isinstance(user_stats, dict):
                     for stats_list in user_stats.values():
                         for stat in stats_list:
-                            assert stat.period_start >= start, (
-                                f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
-                            )
+                            assert (
+                                stat.period_start >= start
+                            ), f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
                             # STRICT: Validate traffic
                             assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
                             total_traffic += stat.total_traffic
                 elif isinstance(user_stats, list):
                     for stat in user_stats:
-                        assert stat.period_start >= start, (
-                            f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
-                        )
+                        assert (
+                            stat.period_start >= start
+                        ), f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
                         # STRICT: Validate traffic
                         assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
                         total_traffic += stat.total_traffic
 
             # STRICT: Total must match in-range records
-            assert total_traffic == expected_total_traffic, (
-                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
-            )
+            assert (
+                total_traffic == expected_total_traffic
+            ), f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
 
 
 class TestGetAdminUsagesTimezone:
@@ -657,21 +651,24 @@ class TestGetAdminUsagesTimezone:
 
             # Create second user under same admin with unique username
             from uuid import uuid4
+
             unique_id = str(uuid4())[:8]
-            user2 = User(username=f"user2_{unique_id}", admin_id=admin_id, proxy_settings=ProxyTable().dict(no_obj=True))
+            user2 = User(
+                username=f"user2_{unique_id}", admin_id=admin_id, proxy_settings=ProxyTable().dict(no_obj=True)
+            )
             session.add(user2)
             await session.flush()
 
             # Inject 8 data points for each user
             timestamps_utc = [
-                datetime(2026, 2, 9, 20, 0, 0, tzinfo=timezone.utc),   # BEFORE
-                datetime(2026, 2, 9, 20, 15, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 2, 9, 20, 30, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 2, 9, 20, 45, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 2, 9, 21, 30, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 2, 9, 22, 15, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 2, 9, 23, 15, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 2, 10, 0, 0, 0, tzinfo=timezone.utc),   # AFTER
+                datetime(2026, 10, 9, 20, 0, 0, tzinfo=timezone.utc),  # BEFORE
+                datetime(2026, 10, 9, 20, 15, 0, tzinfo=timezone.utc),  # BEFORE
+                datetime(2026, 10, 9, 20, 30, 0, tzinfo=timezone.utc),  # IN RANGE
+                datetime(2026, 10, 9, 20, 45, 0, tzinfo=timezone.utc),  # IN RANGE
+                datetime(2026, 10, 9, 21, 30, 0, tzinfo=timezone.utc),  # IN RANGE
+                datetime(2026, 10, 9, 22, 15, 0, tzinfo=timezone.utc),  # IN RANGE
+                datetime(2026, 10, 9, 23, 15, 0, tzinfo=timezone.utc),  # IN RANGE
+                datetime(2026, 10, 10, 0, 0, 0, tzinfo=timezone.utc),  # AFTER
             ]
 
             for ts in timestamps_utc:
@@ -695,8 +692,8 @@ class TestGetAdminUsagesTimezone:
             await session.commit()
 
             tehran_tz = timezone(timedelta(hours=3, minutes=30))
-            start = datetime(2026, 2, 10, 0, 0, 0, tzinfo=tehran_tz)
-            end = datetime(2026, 2, 10, 3, 0, 0, tzinfo=tehran_tz)
+            start = datetime(2026, 10, 10, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2026, 10, 10, 3, 0, 0, tzinfo=tehran_tz)
 
             result = await get_admin_usages(
                 session,
@@ -727,15 +724,15 @@ class TestGetAdminUsagesTimezone:
                 assert stat.period_start < end
 
                 # STRICT: Validate exact per-bucket traffic
-                assert stat.total_traffic == expected_bucket_totals[i], (
-                    f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
-                )
+                assert (
+                    stat.total_traffic == expected_bucket_totals[i]
+                ), f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
                 total_traffic += stat.total_traffic
 
             # STRICT: Total must match exactly all in-range records
-            assert total_traffic == expected_total_traffic, (
-                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
-            )
+            assert (
+                total_traffic == expected_total_traffic
+            ), f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("period", [Period.hour, Period.day])
@@ -746,8 +743,8 @@ class TestGetAdminUsagesTimezone:
         async with TestSession() as session:
             admin_id, user_id, node_id = await setup_test_data(session)
 
-            start_utc = datetime(2026, 2, 1, 0, 0, 0, tzinfo=timezone.utc)
-            end_utc = datetime(2026, 2, 15, 0, 0, 0, tzinfo=timezone.utc)
+            start_utc = datetime(2026, 11, 1, 0, 0, 0, tzinfo=timezone.utc)
+            end_utc = datetime(2026, 11, 15, 0, 0, 0, tzinfo=timezone.utc)
 
             # Create records spanning the range
             current = start_utc
@@ -787,9 +784,7 @@ class TestGetAdminUsagesTimezone:
                 # STRICT: Validate traffic is from records
                 assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
                 # Each record is 5000000, so totals must be multiples
-                assert stat.total_traffic % 5000000 == 0, (
-                    f"Traffic {stat.total_traffic} is not a multiple of 5000000"
-                )
+                assert stat.total_traffic % 5000000 == 0, f"Traffic {stat.total_traffic} is not a multiple of 5000000"
                 total_traffic += stat.total_traffic
 
             # STRICT: Total traffic should be from all records
