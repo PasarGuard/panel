@@ -247,22 +247,7 @@ async def get_node_stats(
         .group_by(trunc_expr)
         .order_by(trunc_expr)
     )
-
     result = await db.execute(stmt)
-    stats = []
-    for row in result.mappings():
-        row_dict = dict(row)
-
-        # Database returns naive datetime - attach timezone from request
-        if "period_start" in row_dict and row_dict["period_start"]:
-            period_start_naive = row_dict["period_start"]
-            if isinstance(period_start_naive, str):
-                period_start_naive = datetime.fromisoformat(period_start_naive)
-            # Attach the same timezone as the request
-            if start.tzinfo and period_start_naive.tzinfo is None:
-                row_dict["period_start"] = period_start_naive.replace(tzinfo=start.tzinfo)
-
-        stats.append(NodeStats(**row_dict))
 
     target_tz = start.tzinfo
     # Convert period_start to target timezone if specified
