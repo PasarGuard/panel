@@ -6,16 +6,17 @@ import { type ChartConfig, ChartContainer, ChartTooltip } from '../ui/chart'
 import { useTranslation } from 'react-i18next'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { Upload, Download, Calendar, Activity, ChevronLeft, ChevronRight } from 'lucide-react'
-import { dateUtils } from '@/utils/dateFormatter'
+import { Period } from '@/service/api'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Cell, Pie, PieChart } from 'recharts'
+import { formatTooltipDate } from '@/utils/chart-period-utils'
 
 interface NodeStatsModalProps {
   open: boolean
   onClose: () => void
   data: any
   chartConfig: any
-  period: string
+  period: Period
   allChartData?: any[]
   currentIndex?: number
   onNavigate?: (index: number) => void
@@ -71,97 +72,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
 
   if (!data) return null
 
-  const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
-
-  // Check if this is today's data
-  const today = dateUtils.toSystemTimezoneDayjs(new Date())
-  const isToday = d.isSame(today, 'day')
-
-  let formattedDate
-  if (i18n.language === 'fa') {
-    // Use Persian (Jalali) calendar and Persian locale
-    try {
-      // If you have dayjs with jalali plugin, use it:
-      // formattedDate = d.locale('fa').format('YYYY/MM/DD HH:mm')
-      // Otherwise, fallback to toLocaleString
-      if (period === 'day' && isToday) {
-        formattedDate = new Date()
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      } else if (period === 'day') {
-        const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-        formattedDate = localDate
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      } else {
-        // hourly or other: use actual time from data
-        formattedDate = d
-          .toDate()
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-          .replace(',', '')
-      }
-    } catch {
-      formattedDate = d.format('YYYY/MM/DD HH:mm')
-    }
-  } else {
-    if (period === 'day' && isToday) {
-      const now = new Date()
-      formattedDate = now
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    } else if (period === 'day') {
-      const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-      formattedDate = localDate
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    } else {
-      // hourly or other: use actual time from data
-      formattedDate = d
-        .toDate()
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-        .replace(',', '')
-    }
-  }
+  const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : ''
 
   const isRTL = dir === 'rtl'
 

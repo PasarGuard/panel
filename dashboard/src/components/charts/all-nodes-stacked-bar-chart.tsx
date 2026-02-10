@@ -1,30 +1,37 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { getAdminUsage, getUsage, Period, type NodeUsageStat, type UserUsageStat } from '@/service/api'
+import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsage, useGetNodes, type NodeResponse, useGetUsage } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
-import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { EmptyState } from './empty-state'
-import { TrendingUp, Upload, Download, Calendar, Info } from 'lucide-react'
-import { dateUtils } from '@/utils/dateFormatter'
-import { TooltipProps } from 'recharts'
-import { useGetNodes, NodeResponse } from '@/service/api'
+import { Calendar, Upload, Download, Info } from 'lucide-react'
 import { useTheme } from '@/components/common/theme-provider'
-import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import NodeStatsModal from '@/components/dialogs/node-stats-modal'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
+import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
+import { TimeRangeSelector } from '@/components/common/time-range-selector'
+import {
+  formatTooltipDate,
+  getChartQueryRangeFromDateRange,
+  getChartQueryRangeFromShortcut,
+  formatPeriodLabelForPeriod,
+  getXAxisIntervalForShortcut,
+  toStatsRecord,
+  TrafficShortcutKey,
+} from '@/utils/chart-period-utils'
 
-import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
-import { getDateRangeFromShortcut } from '@/utils/timeShortcutUtils'
-
-const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsageStat => {
-  return 'uplink' in point && 'downlink' in point
+type NodeChartDataPoint = {
+  time: string
+  _period_start: string
+  [key: string]: string | number
 }
+
+const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsageStat => 'uplink' in point && 'downlink' in point
 
 const getTrafficBytes = (point: NodeUsageStat | UserUsageStat) => {
   if ('total_traffic' in point) {
@@ -47,135 +54,38 @@ const getDirectionalTraffic = (point: NodeUsageStat | UserUsageStat) => {
   }
 }
 
-function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<any, any> & { chartConfig?: ChartConfig; dir: string; period?: string }) {
+function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<number, string> & { chartConfig?: ChartConfig; dir: string; period: Period }) {
   const { t, i18n } = useTranslation()
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768) // md breakpoint
+      setIsMobile(window.innerWidth < 768)
     }
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
   if (!active || !payload || !payload.length) return null
 
-  const data = payload[0].payload
-  const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
+  const data = payload[0].payload as NodeChartDataPoint
+  const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : String(data.time || '')
 
-  // Check if this is today's data
-  const today = dateUtils.toSystemTimezoneDayjs(new Date())
-  const isToday = d.isSame(today, 'day')
-
-  let formattedDate
-  if (i18n.language === 'fa') {
-    // Use Persian (Jalali) calendar and Persian locale
-    try {
-      // If you have dayjs with jalali plugin, use it:
-      // formattedDate = d.locale('fa').format('YYYY/MM/DD HH:mm')
-      // Otherwise, fallback to toLocaleString
-      if (period === 'day' && isToday) {
-        formattedDate = new Date()
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      } else if (period === 'day') {
-        const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-        formattedDate = localDate
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      } else {
-        // hourly or other: use actual time from data
-        formattedDate = d
-          .toDate()
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      }
-    } catch {
-      formattedDate = d.format('YYYY/MM/DD HH:mm')
-    }
-  } else {
-    if (period === 'day' && isToday) {
-      const now = new Date()
-      formattedDate = now
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    } else if (period === 'day') {
-      const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-      formattedDate = localDate
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    } else {
-      // hourly or other: use actual time from data
-      formattedDate = d
-        .toDate()
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    }
-  }
-
-  // Get node color from chart config
-  const getNodeColor = (nodeName: string) => {
-    return chartConfig?.[nodeName]?.color || 'hsl(var(--chart-1))'
-  }
-
+  const getNodeColor = (nodeName: string) => chartConfig?.[nodeName]?.color || 'hsl(var(--chart-1))'
   const isRTL = dir === 'rtl'
 
-  // Get active nodes with usage > 0, sorted by usage descending
   const activeNodes = Object.keys(data)
-    .filter(key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && (data[key] || 0) > 0)
+    .filter(key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && Number(data[key] || 0) > 0)
     .map(nodeName => ({
       name: nodeName,
-      usage: data[nodeName] || 0,
-      uplink: data[`_uplink_${nodeName}`] || 0,
-      downlink: data[`_downlink_${nodeName}`] || 0,
+      usage: Number(data[nodeName] || 0),
+      uplink: Number(data[`_uplink_${nodeName}`] || 0),
+      downlink: Number(data[`_downlink_${nodeName}`] || 0),
     }))
     .sort((a, b) => b.usage - a.usage)
-  const hasDirectionalTraffic = activeNodes.some(node => (node.uplink || 0) > 0 || (node.downlink || 0) > 0)
 
-  // Determine how many nodes to show based on screen size
+  const hasDirectionalTraffic = activeNodes.some(node => (node.uplink || 0) > 0 || (node.downlink || 0) > 0)
   const maxNodesToShow = isMobile ? 3 : 6
   const nodesToShow = activeNodes.slice(0, maxNodesToShow)
   const hasMoreNodes = activeNodes.length > maxNodesToShow
@@ -185,12 +95,12 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
       className={`min-w-[120px] max-w-[280px] rounded border border-border bg-background p-1.5 text-[10px] shadow sm:min-w-[140px] sm:max-w-[300px] sm:p-2 sm:text-xs ${isRTL ? 'text-right' : 'text-left'} ${isMobile ? 'max-h-[200px] overflow-y-auto' : ''}`}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
-      <div className={`mb-1 text-center text-[10px] font-semibold opacity-70 sm:text-xs`}>
+      <div className="mb-1 text-center text-[10px] font-semibold opacity-70 sm:text-xs">
         <span dir="ltr" className="inline-block truncate">
           {formattedDate}
         </span>
       </div>
-      <div className={`mb-1.5 flex items-center justify-center gap-1.5 text-center text-[10px] text-muted-foreground sm:text-xs`}>
+      <div className="mb-1.5 flex items-center justify-center gap-1.5 text-center text-[10px] text-muted-foreground sm:text-xs">
         <span>{t('statistics.totalUsage', { defaultValue: 'Total' })}: </span>
         <span dir="ltr" className="inline-block truncate font-mono">
           {formatGigabytes(activeNodes.reduce((sum, node) => sum + node.usage, 0))}
@@ -214,7 +124,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
                 <span dir="ltr" className="inline-block max-w-[40px] overflow-hidden truncate text-ellipsis font-mono sm:max-w-[50px]" title={String(formatBytes(node.uplink))}>
                   {formatBytes(node.uplink)}
                 </span>
-                <span className={`opacity-60 ${isRTL ? 'mx-0.5' : 'mx-0.5'} text-[8px] sm:text-[10px]`}>|</span>
+                <span className="mx-0.5 text-[8px] opacity-60 sm:text-[10px]">|</span>
                 <Download className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
                 <span dir="ltr" className="inline-block max-w-[40px] overflow-hidden truncate text-ellipsis font-mono sm:max-w-[50px]" title={String(formatBytes(node.downlink))}>
                   {formatBytes(node.downlink)}
@@ -224,7 +134,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
           </div>
         ))}
         {hasMoreNodes && (
-          <div className={`col-span-full mt-1 flex w-full items-center justify-center gap-0.5 text-[9px] text-muted-foreground sm:text-[10px]`}>
+          <div className="col-span-full mt-1 flex w-full items-center justify-center gap-0.5 text-[9px] text-muted-foreground sm:text-[10px]">
             <Info className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
             <span className="text-center">{t('statistics.clickForMore', { defaultValue: 'Click for more details' })}</span>
           </div>
@@ -235,316 +145,211 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
 }
 
 export function AllNodesStackedBarChart() {
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
-  const [selectedTime, setSelectedTime] = useState<string>('1w')
-  const [showCustomRange, setShowCustomRange] = useState(false)
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
-  const [chartData, setChartData] = useState<any[] | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
-  const [totalUsage, setTotalUsage] = useState('0')
+  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
+  const [showCustomRange, setShowCustomRange] = useState(false)
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [modalOpen, setModalOpen] = useState(false)
-  const [selectedData, setSelectedData] = useState<any>(null)
+  const [selectedData, setSelectedData] = useState<NodeChartDataPoint | null>(null)
   const [currentDataIndex, setCurrentDataIndex] = useState(0)
-
   const chartContainerRef = useRef<HTMLDivElement>(null)
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const { data: nodesResponse } = useGetNodes(undefined, { query: { enabled: true } })
   const { resolvedTheme } = useTheme()
 
-  // Navigation handler for modal
   const handleModalNavigate = (index: number) => {
-    if (chartData && chartData[index]) {
-      setCurrentDataIndex(index)
-      setSelectedData(chartData[index])
-    }
+    if (!chartData[index]) return
+    setCurrentDataIndex(index)
+    setSelectedData(chartData[index])
   }
 
-  // Build color palette for nodes
   const nodeList: NodeResponse[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
 
-  // Function to generate distinct colors based on theme
-  const generateDistinctColor = useCallback((index: number, _totalNodes: number, isDark: boolean): string => {
-    // Define a more distinct color palette with better contrast
-    const distinctHues = [
-      0, // Red
-      30, // Orange
-      60, // Yellow
-      120, // Green
-      180, // Cyan
-      210, // Blue
-      240, // Indigo
-      270, // Purple
-      300, // Magenta
-      330, // Pink
-      15, // Red-orange
-      45, // Yellow-orange
-      75, // Yellow-green
-      150, // Green-cyan
-      200, // Cyan-blue
-      225, // Blue-indigo
-      255, // Indigo-purple
-      285, // Purple-magenta
-      315, // Magenta-pink
-      345, // Pink-red
-    ]
-
-    const hue = distinctHues[index % distinctHues.length]
-
-    // Create more distinct saturation and lightness values
+  const generateDistinctColor = useCallback((index: number, isDark: boolean): string => {
+    const distinctHues = [0, 30, 60, 120, 180, 210, 240, 270, 300, 330, 15, 45, 75, 150, 200, 225, 255, 285, 315, 345]
     const saturationVariations = [65, 75, 85, 70, 80, 60, 90, 55, 95, 50]
     const lightnessVariations = isDark ? [45, 55, 35, 50, 40, 60, 30, 65, 25, 70] : [40, 50, 30, 45, 35, 55, 25, 60, 20, 65]
-
+    const hue = distinctHues[index % distinctHues.length]
     const saturation = saturationVariations[index % saturationVariations.length]
     const lightness = lightnessVariations[index % lightnessVariations.length]
-
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`
   }, [])
 
-  // Build chart config dynamically based on nodes
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {}
     const isDark = resolvedTheme === 'dark'
-    nodeList.forEach((node, idx) => {
-      let color
-      if (idx === 0) {
-        // First node uses primary color like CostumeBarChart
-        color = 'hsl(var(--primary))'
-      } else if (idx < 5) {
-        // Use palette colors for nodes 2-5: --chart-2, --chart-3, ...
-        color = `hsl(var(--chart-${idx + 1}))`
-      } else {
-        // Generate distinct colors for nodes beyond palette
-        color = generateDistinctColor(idx, nodeList.length, isDark)
-      }
-      config[node.name] = {
-        label: node.name,
-        color: color,
-      }
-    })
-    return config
-  }, [nodeList, resolvedTheme, generateDistinctColor])
-
-  useEffect(() => {
-    let isCancelled = false
-    let timeoutId: NodeJS.Timeout
-
-    const fetchUsageData = async () => {
-      if (!dateRange?.from || !dateRange?.to) {
-        setChartData(null)
-        setTotalUsage('0')
+    nodeList.forEach((node, index) => {
+      if (index === 0) {
+        config[node.name] = { label: node.name, color: 'hsl(var(--primary))' }
         return
       }
-      setIsLoading(true)
-      setError(null)
-      try {
-        const startDate = dateRange.from
-        const endDate = dateRange.to
-        const period = getPeriodFromDateRange(dateRange)
-        const startTime = period === Period.day ? dateUtils.toUTCDayStartISO(startDate) : dateUtils.toSystemTimezoneISO(startDate)
 
-        // Always use end of day for daily period to avoid extra bars
-        const endTime =
-          period === Period.day
-            ? dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(endDate).endOf('day').toDate())
-            : dateUtils.toSystemTimezoneISO(new Date())
+      if (index < 5) {
+        config[node.name] = { label: node.name, color: `hsl(var(--chart-${index + 1}))` }
+        return
+      }
 
-        const params = {
-          period: period,
-          start: startTime,
-          end: endTime,
-          group_by_node: true,
+      config[node.name] = { label: node.name, color: generateDistinctColor(index, isDark) }
+    })
+    return config
+  }, [generateDistinctColor, nodeList, resolvedTheme])
+
+  const activeQueryRange = useMemo(() => {
+    if (showCustomRange && customRange?.from && customRange?.to) {
+      return getChartQueryRangeFromDateRange(customRange, selectedTime)
+    }
+
+    return getChartQueryRangeFromShortcut(selectedTime)
+  }, [showCustomRange, customRange, selectedTime])
+
+  const activePeriod = activeQueryRange.period
+  const shouldUseNodeUsage = selectedAdmin === 'all'
+
+  const usageParams = useMemo(
+    () => ({
+      period: activePeriod,
+      start: activeQueryRange.startDate,
+      end: activeQueryRange.endDate,
+      group_by_node: true,
+    }),
+    [activePeriod, activeQueryRange.startDate, activeQueryRange.endDate],
+  )
+
+  const { data: nodeUsageData, isLoading: isLoadingNodesUsage, error: nodesUsageError } = useGetUsage(usageParams, {
+    query: {
+      enabled: shouldUseNodeUsage,
+      refetchInterval: 1000 * 60 * 5,
+    },
+  })
+
+  const { data: adminUsageData, isLoading: isLoadingAdminUsage, error: adminUsageError } = useGetAdminUsage(selectedAdmin, usageParams, {
+    query: {
+      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all',
+      refetchInterval: 1000 * 60 * 5,
+    },
+  })
+
+  const usageData = shouldUseNodeUsage ? nodeUsageData : adminUsageData
+  const isLoading = shouldUseNodeUsage ? isLoadingNodesUsage : isLoadingAdminUsage
+  const error = shouldUseNodeUsage ? nodesUsageError : adminUsageError
+  const statsByNode = useMemo(() => toStatsRecord<NodeUsageStat | UserUsageStat>(usageData?.stats), [usageData?.stats])
+
+  const { chartData, totalUsage } = useMemo(() => {
+    const statsKeys = Object.keys(statsByNode)
+    if (statsKeys.length === 0) {
+      return { chartData: [] as NodeChartDataPoint[], totalUsage: '0' }
+    }
+
+    const hasIndividualNodeData = statsKeys.some(key => key !== '-1')
+    const nodeCount = Math.max(nodeList.length, 1)
+
+    if (!hasIndividualNodeData && Array.isArray(statsByNode['-1'])) {
+      const aggregatedStats = statsByNode['-1']
+      const aggregatedChartData = aggregatedStats.map(point => {
+        const usageBytes = getTrafficBytes(point)
+        const directionalTraffic = getDirectionalTraffic(point)
+        const usagePerNodeInGb = usageBytes / nodeCount / (1024 * 1024 * 1024)
+
+        const entry: NodeChartDataPoint = {
+          time: formatPeriodLabelForPeriod(point.period_start, activePeriod, i18n.language),
+          _period_start: point.period_start,
         }
-        const response = selectedAdmin === 'all' ? await getUsage(params) : await getAdminUsage(selectedAdmin, params)
 
-        // Check if component is still mounted
-        if (isCancelled) return
+        nodeList.forEach(node => {
+          entry[node.name] = parseFloat(usagePerNodeInGb.toFixed(2))
+          entry[`_uplink_${node.name}`] = directionalTraffic.uplink / nodeCount
+          entry[`_downlink_${node.name}`] = directionalTraffic.downlink / nodeCount
+        })
 
-        // API response and nodes list logged
+        return entry
+      })
 
-        // Handle the response format exactly like CostumeBarChart
-        let statsByNode: Record<string, Array<NodeUsageStat | UserUsageStat>> = {}
-        if (response && response.stats) {
-          if (typeof response.stats === 'object' && !Array.isArray(response.stats)) {
-            // This is the expected format when no node_id is provided
-            statsByNode = response.stats
-          } else if (Array.isArray(response.stats)) {
-            // fallback: old format - not expected for all nodes
-            console.warn('Unexpected array format for all nodes usage')
-          }
-        }
-
-        // Stats by node processed
-
-        // Build a map from node id to node name for quick lookup
-        const nodeIdToName = nodeList.reduce(
-          (acc, node) => {
-            acc[node.id] = node.name
-            return acc
-          },
-          {} as Record<string, string>,
-        )
-
-        // Node ID to name mapping created
-
-        // Check if we have data for individual nodes or aggregated data
-        const hasIndividualNodeData = Object.keys(statsByNode).some(key => key !== '-1')
-
-        if (!hasIndividualNodeData && statsByNode['-1']) {
-          // API returned aggregated data for all nodes combined
-          // Using aggregated data for all nodes
-          const aggregatedStats = statsByNode['-1']
-
-          if (aggregatedStats.length > 0) {
-            const data = aggregatedStats.map(point => {
-              const d = dateUtils.toSystemTimezoneDayjs(point.period_start)
-              let timeFormat
-              if (period === Period.hour) {
-                timeFormat = d.format('HH:mm')
-              } else {
-                timeFormat = d.format('MM/DD')
-              }
-              const usageBytes = getTrafficBytes(point)
-              const directionalTraffic = getDirectionalTraffic(point)
-              const usageInGB = usageBytes / (1024 * 1024 * 1024)
-              const nodeCount = Math.max(nodeList.length, 1)
-
-              // Create entry with all nodes having the same usage (aggregated)
-              const entry: any = {
-                time: timeFormat,
-                _period_start: point.period_start,
-              }
-              nodeList.forEach(node => {
-                // Distribute usage equally among nodes or show as total
-                const nodeUsage = parseFloat((usageInGB / nodeCount).toFixed(2))
-                entry[node.name] = nodeUsage
-                // Store uplink and downlink for tooltip (distributed equally)
-                entry[`_uplink_${node.name}`] = directionalTraffic.uplink / nodeCount
-                entry[`_downlink_${node.name}`] = directionalTraffic.downlink / nodeCount
-              })
-              return entry
-            })
-
-            // Final chart data (aggregated) processed
-            if (!isCancelled) {
-              setChartData(data)
-
-              // Calculate total usage
-              const total = aggregatedStats.reduce((sum: number, point) => sum + getTrafficBytes(point), 0)
-              const formattedTotal = formatBytes(total, 2)
-              if (typeof formattedTotal === 'string') setTotalUsage(formattedTotal)
-            }
-          } else {
-            setChartData(null)
-            setTotalUsage('0')
-          }
-        } else {
-          // Handle individual node data (existing logic)
-          // Build a set of all period_start values
-          const allPeriods = new Set<string>()
-          Object.values(statsByNode).forEach(arr => arr.forEach(stat => allPeriods.add(stat.period_start)))
-          // Sort periods
-          const sortedPeriods = Array.from(allPeriods).sort()
-
-          // All periods and period type processed
-
-          if (sortedPeriods.length > 0) {
-            // Build chart data: [{ time, [nodeName]: usage, ... }]
-            const data = sortedPeriods.map(periodStart => {
-              const d = dateUtils.toSystemTimezoneDayjs(periodStart)
-              let timeFormat
-              if (period === Period.hour) {
-                timeFormat = d.format('HH:mm')
-              } else {
-                timeFormat = d.format('MM/DD')
-              }
-              const entry: any = {
-                time: timeFormat,
-                _period_start: periodStart,
-              }
-
-              Object.entries(statsByNode).forEach(([nodeId, statsArr]) => {
-                if (nodeId === '-1') return // Skip aggregated data
-                const nodeName = nodeIdToName[nodeId]
-                if (!nodeName) {
-                  console.warn('No node name found for ID:', nodeId)
-                  return
-                }
-                const nodeStats = statsArr.find(s => s.period_start === periodStart)
-                if (nodeStats) {
-                  const usageBytes = getTrafficBytes(nodeStats)
-                  const directionalTraffic = getDirectionalTraffic(nodeStats)
-                  const usageInGB = usageBytes / (1024 * 1024 * 1024)
-                  entry[nodeName] = usageInGB
-                  // Store uplink and downlink for tooltip
-                  entry[`_uplink_${nodeName}`] = directionalTraffic.uplink
-                  entry[`_downlink_${nodeName}`] = directionalTraffic.downlink
-                  // Node usage processed
-                } else {
-                  entry[nodeName] = 0
-                  entry[`_uplink_${nodeName}`] = 0
-                  entry[`_downlink_${nodeName}`] = 0
-                }
-              })
-              return entry
-            })
-
-            // Final chart data processed
-            if (!isCancelled) {
-              setChartData(data)
-
-              // Calculate total usage
-              let total = 0
-              Object.values(statsByNode).forEach(arr =>
-                arr.forEach(stat => {
-                  total += getTrafficBytes(stat)
-                }),
-              )
-              const formattedTotal = formatBytes(total, 2)
-              if (typeof formattedTotal === 'string') setTotalUsage(formattedTotal)
-            }
-          } else {
-            // No periods found, setting empty data
-            setChartData(null)
-            setTotalUsage('0')
-          }
-        }
-      } catch (err) {
-        setError(err as Error)
-        setChartData(null)
-        setTotalUsage('0')
-        console.error('Error fetching usage data:', err)
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false)
-        }
+      const totalBytes = aggregatedStats.reduce((sum, point) => sum + getTrafficBytes(point), 0)
+      return {
+        chartData: aggregatedChartData,
+        totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : '0',
       }
     }
 
-    // Debounce the API call to prevent excessive requests during zoom
-    timeoutId = setTimeout(() => {
-      fetchUsageData()
-    }, 300)
+    const allPeriods = new Set<string>()
+    Object.values(statsByNode).forEach(statsArray => {
+      statsArray.forEach(stat => allPeriods.add(stat.period_start))
+    })
 
-    return () => {
-      isCancelled = true
-      if (timeoutId) {
-        clearTimeout(timeoutId)
+    const sortedPeriods = Array.from(allPeriods).sort()
+    const chartRows = sortedPeriods.map(periodStart => {
+      const row: NodeChartDataPoint = {
+        time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language),
+        _period_start: periodStart,
       }
-    }
-  }, [dateRange, nodeList, selectedAdmin])
 
-  // Add effect to update dateRange when selectedTime changes
-  useEffect(() => {
-    if (!showCustomRange) {
-      const nextRange = getDateRangeFromShortcut(selectedTime)
-      if (nextRange) {
-        setDateRange(nextRange)
-      }
+      nodeList.forEach(node => {
+        const nodeStats = statsByNode[String(node.id)]?.find(stat => stat.period_start === periodStart)
+        if (!nodeStats) {
+          row[node.name] = 0
+          row[`_uplink_${node.name}`] = 0
+          row[`_downlink_${node.name}`] = 0
+          return
+        }
+
+        const usageBytes = getTrafficBytes(nodeStats)
+        const directionalTraffic = getDirectionalTraffic(nodeStats)
+        row[node.name] = usageBytes / (1024 * 1024 * 1024)
+        row[`_uplink_${node.name}`] = directionalTraffic.uplink
+        row[`_downlink_${node.name}`] = directionalTraffic.downlink
+      })
+
+      return row
+    })
+
+    let totalBytes = 0
+    Object.values(statsByNode).forEach(statsArray => {
+      statsArray.forEach(stat => {
+        totalBytes += getTrafficBytes(stat)
+      })
+    })
+
+    return {
+      chartData: chartRows,
+      totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : '0',
     }
-  }, [selectedTime, showCustomRange])
+  }, [statsByNode, nodeList, activePeriod, i18n.language])
+
+  const xAxisInterval = useMemo(() => {
+    if (showCustomRange && customRange?.from && customRange?.to) {
+      if (activePeriod === Period.hour || activePeriod === Period.minute) {
+        return Math.max(1, Math.floor(chartData.length / 8))
+      }
+
+      const daysDiff = Math.ceil(Math.abs(customRange.to.getTime() - customRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysDiff > 30) {
+        return Math.max(1, Math.floor(chartData.length / 5))
+      }
+
+      if (daysDiff > 7) {
+        return Math.max(1, Math.floor(chartData.length / 8))
+      }
+
+      return 0
+    }
+
+    return getXAxisIntervalForShortcut(selectedTime, chartData.length)
+  }, [showCustomRange, customRange, activePeriod, selectedTime, chartData.length])
+
+  const handleTimeSelect = useCallback((value: string) => {
+    setSelectedTime(value as TrafficShortcutKey)
+    setShowCustomRange(false)
+    setCustomRange(undefined)
+  }, [])
+
+  const handleCustomRangeChange = useCallback((range: DateRange | undefined) => {
+    setCustomRange(range)
+    if (range?.from && range?.to) {
+      setShowCustomRange(true)
+    }
+  }, [])
 
   return (
     <>
@@ -557,33 +362,29 @@ export function AllNodesStackedBarChart() {
             </div>
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
               <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                  {showCustomRange ? (
-                    <TimeRangeSelector
-                      onRangeChange={range => {
-                        setDateRange(range)
-                        setShowCustomRange(true)
-                      }}
-                      initialRange={dateRange}
-                      className="w-full"
-                    />
-                  ) : (
-                    <TimeSelector
-                      selectedTime={selectedTime}
-                      setSelectedTime={v => {
-                        setSelectedTime(v)
-                        setShowCustomRange(false)
-                      }}
-                      shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS}
-                      maxVisible={5}
-                      className="w-fit max-w-full"
-                    />
-                  )}
-                  <button type="button" aria-label="Custom Range" className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`} onClick={() => setShowCustomRange(v => !v)}>
-                    <Calendar className="h-4 w-4" />
-                  </button>
-                </div>
+                <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full" />
+                <button
+                  type="button"
+                  aria-label="Custom Range"
+                  className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`}
+                  onClick={() => {
+                    const next = !showCustomRange
+                    setShowCustomRange(next)
+                    if (!next) {
+                      setCustomRange(undefined)
+                    }
+                  }}
+                >
+                  <Calendar className="h-4 w-4" />
+                </button>
+              </div>
               <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="w-full sm:w-[220px] sm:shrink-0" />
             </div>
+            {showCustomRange && (
+              <div className="flex w-full">
+                <TimeRangeSelector onRangeChange={handleCustomRangeChange} initialRange={customRange} className="w-full" />
+              </div>
+            )}
           </div>
           <div className="m-0 flex flex-col justify-center p-4 xl:border-l xl:p-5 xl:px-6">
             <span className="text-xs text-muted-foreground sm:text-sm">{t('statistics.usageDuringPeriod')}</span>
@@ -599,34 +400,26 @@ export function AllNodesStackedBarChart() {
             </div>
           ) : error ? (
             <EmptyState type="error" className="max-h-[400px] min-h-[200px]" />
-          ) : !dateRange ? (
-            <EmptyState
-              type="no-data"
-              title={t('statistics.selectTimeRange')}
-              description={t('statistics.selectTimeRangeDescription')}
-              icon={<TrendingUp className="h-12 w-12 text-muted-foreground/50" />}
-              className="max-h-[400px] min-h-[200px]"
-            />
+          ) : nodeList.length === 0 ? (
+            <EmptyState type="no-nodes" className="max-h-[400px] min-h-[200px]" />
           ) : (
             <div className="mx-auto w-full">
               <ChartContainer
-                dir={'ltr'}
+                dir="ltr"
                 config={chartConfig}
                 className="max-h-[400px] min-h-[200px] w-full"
                 style={{
                   marginBottom: navigator.userAgent.includes('Safari') && navigator.platform.includes('Mac') ? `${0.18 * window.innerWidth}px` : '0',
                 }}
               >
-                {chartData && chartData.length > 0 ? (
+                {chartData.length > 0 ? (
                   <BarChart
                     accessibilityLayer
                     data={chartData}
                     margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
                     onClick={data => {
-                      if (!chartData || chartData.length === 0) return
-
                       const clickedIndex = typeof data?.activeTooltipIndex === 'number' ? data.activeTooltipIndex : -1
-                      const clickedData = data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? chartData[clickedIndex] : undefined)
+                      const clickedData = (data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? chartData[clickedIndex] : undefined)) as NodeChartDataPoint | undefined
                       if (!clickedData) return
 
                       const activeNodesCount = Object.keys(clickedData).filter(key => {
@@ -645,10 +438,10 @@ export function AllNodesStackedBarChart() {
                       }
                     }}
                   >
-                    <CartesianGrid direction={'ltr'} vertical={false} />
-                    <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} />
+                    <CartesianGrid direction="ltr" vertical={false} />
+                    <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
                     <YAxis
-                      direction={'ltr'}
+                      direction="ltr"
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={value => formatGigabytes(Number(value || 0))}
@@ -660,16 +453,15 @@ export function AllNodesStackedBarChart() {
                       width={32}
                       tickMargin={2}
                     />
-                    {/* When using ChartTooltip, pass period as a prop */}
-                    <ChartTooltip cursor={false} content={<CustomTooltip chartConfig={chartConfig} dir={dir} period={getPeriodFromDateRange(dateRange)} />} />
-                    {nodeList.map((node, idx) => (
+                    <ChartTooltip cursor={false} content={<CustomTooltip chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
+                    {nodeList.map((node, index) => (
                       <Bar
                         key={node.id}
                         dataKey={node.name}
                         stackId="a"
                         minPointSize={1}
-                        fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
-                        radius={nodeList.length === 1 ? [4, 4, 4, 4] : idx === 0 ? [0, 0, 4, 4] : idx === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                        fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
+                        radius={nodeList.length === 1 ? [4, 4, 4, 4] : index === 0 ? [0, 0, 4, 4] : index === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                         cursor="pointer"
                         className="overflow-hidden rounded-t-xl"
                       />
@@ -679,8 +471,7 @@ export function AllNodesStackedBarChart() {
                   <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
                 )}
               </ChartContainer>
-              {/* Separate scrollable legend */}
-              {chartData && chartData.length > 0 && (
+              {chartData.length > 0 && (
                 <div className="overflow-x-auto pt-3">
                   <div className="flex min-w-max items-center justify-center gap-4">
                     {nodeList.map(node => {
@@ -705,14 +496,13 @@ export function AllNodesStackedBarChart() {
         </CardContent>
       </Card>
 
-      {/* Node Stats Modal */}
       <NodeStatsModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         data={selectedData}
         chartConfig={chartConfig}
-        period={getPeriodFromDateRange(dateRange)}
-        allChartData={chartData || []}
+        period={activePeriod}
+        allChartData={chartData}
         currentIndex={currentDataIndex}
         onNavigate={handleModalNavigate}
         hideUplinkDownlink={selectedAdmin !== 'all'}

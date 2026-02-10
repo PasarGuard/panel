@@ -32,21 +32,7 @@ const PERIOD_KEYS = [
   { key: 'all', period: 'day' as Period, allTime: true },
 ]
 
-const getIsoOffsetMinutes = (value: string): number => {
-  const match = value.match(/([+-])(\d{2}):(\d{2})$/)
-  if (!match) return 0
-  const sign = match[1] === '-' ? -1 : 1
-  const hours = Number(match[2])
-  const minutes = Number(match[3])
-  return sign * (hours * 60 + minutes)
-}
-
-const toChartPeriodStart = (periodStart: string | Date, shiftByOwnOffset: boolean) => {
-  const base = dateUtils.toSystemTimezoneDayjs(periodStart)
-  if (!shiftByOwnOffset || typeof periodStart !== 'string') return base
-  const offsetMinutes = getIsoOffsetMinutes(periodStart)
-  return offsetMinutes ? base.add(offsetMinutes, 'minute') : base
-}
+const toChartPeriodStart = (periodStart: string | Date) => dateUtils.toSystemTimezoneDayjs(periodStart)
 
 const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] }, periodOption: PeriodOption, isNodeUsage: boolean = false, locale: string = 'en') => {
   if (!apiData?.stats || !Array.isArray(apiData.stats)) {
@@ -55,7 +41,7 @@ const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] 
   const now = dateUtils.toSystemTimezoneDayjs(new Date())
 
   return apiData.stats.map((stat: UserUsageStat | NodeUsageStat) => {
-    const d = toChartPeriodStart(stat.period_start, Boolean(periodOption.hours))
+    const d = toChartPeriodStart(stat.period_start)
     const isToday = d.isSame(now, 'day')
 
     let displayLabel = ''
@@ -133,7 +119,7 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
   if (!active || !payload || !payload.length) return null
   const data = payload[0].payload
   // Use period_start if available (from transformUsageData), otherwise parse the display label
-  const d = data.period_start ? toChartPeriodStart(data.period_start, period === 'hour') : dateUtils.toDayjs(data.date)
+  const d = data.period_start ? toChartPeriodStart(data.period_start) : dateUtils.toDayjs(data.date)
   const today = dateUtils.toSystemTimezoneDayjs(new Date())
   const isToday = d.isSame(today, 'day')
 

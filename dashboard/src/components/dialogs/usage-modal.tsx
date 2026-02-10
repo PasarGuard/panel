@@ -5,38 +5,25 @@ import { ChartContainer, ChartTooltip, ChartConfig } from '../ui/chart'
 import { PieChart, TrendingUp, Calendar, Info } from 'lucide-react'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from '../charts/time-selector'
 import { useTranslation } from 'react-i18next'
-import { Period, useGetUserUsage, useGetNodes, useGetCurrentAdmin, NodeResponse } from '@/service/api'
+import { Period, useGetUserUsage, useGetNodes, useGetCurrentAdmin, NodeResponse, GetUserUsageParams } from '@/service/api'
 import { DateRange } from 'react-day-picker'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { Button } from '../ui/button'
 import { ResponsiveContainer } from 'recharts'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
-import { dateUtils } from '@/utils/dateFormatter'
 import { TooltipProps } from 'recharts'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useTheme } from '@/components/common/theme-provider'
 import NodeStatsModal from './node-stats-modal'
-
-import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
-import { getDateRangeFromShortcut } from '@/utils/timeShortcutUtils'
-
-// Define allowed period keys
-const PERIOD_KEYS = ['1h', '2h', '4h', '6h', '12h', '24h', '2d', '3d', '5d', '1w', '2w', '1m', 'all'] as const
-type PeriodKey = (typeof PERIOD_KEYS)[number]
-
-const getPeriodMap = (now: number): Record<PeriodKey, { period: Period; start: Date }> => {
-  const currentDate = new Date(now)
-  return PERIOD_KEYS.reduce(
-    (acc, key) => {
-      const range = getDateRangeFromShortcut(key, currentDate)
-      const period = key === '1h' ? Period.minute : key.endsWith('h') ? Period.hour : Period.day
-      acc[key] = { period, start: range?.from || currentDate }
-      return acc
-    },
-    {} as Record<PeriodKey, { period: Period; start: Date }>,
-  )
-}
+import {
+  TrafficShortcutKey,
+  formatTooltipDate,
+  getChartQueryRangeFromDateRange,
+  getChartQueryRangeFromShortcut,
+  formatPeriodLabelForPeriod,
+  getXAxisIntervalForShortcut,
+} from '@/utils/chart-period-utils'
 
 interface UsageModalProps {
   open: boolean
@@ -66,7 +53,7 @@ const useWindowSize = () => {
   return windowSize
 }
 
-function CustomBarTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<any, any> & { chartConfig?: ChartConfig; dir: string; period?: string }) {
+function CustomBarTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<any, any> & { chartConfig?: ChartConfig; dir: string; period: Period }) {
   const { t, i18n } = useTranslation()
   const [isMobile, setIsMobile] = useState(false)
 
@@ -81,99 +68,7 @@ function CustomBarTooltip({ active, payload, chartConfig, dir, period }: Tooltip
   if (!active || !payload || !payload.length) return null
 
   const data = payload[0].payload
-  const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
-
-  // Check if this is today's data
-  const today = dateUtils.toSystemTimezoneDayjs(new Date())
-  const isToday = d.isSame(today, 'day')
-
-  let formattedDate
-  if (i18n.language === 'fa') {
-    // Use Persian (Jalali) calendar and Persian locale
-    try {
-      // If you have dayjs with jalali plugin, use it:
-      // formattedDate = d.locale('fa').format('YYYY/MM/DD HH:mm')
-      // Otherwise, fallback to toLocaleString
-      if (period === Period.day && isToday) {
-        formattedDate = new Date()
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      } else if (period === Period.day) {
-        const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-        formattedDate = localDate
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      } else {
-        // hourly or other: use actual time from data
-        formattedDate = d
-          .toDate()
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      }
-    } catch {
-      formattedDate = d.format('YYYY/MM/DD HH:mm')
-    }
-  } else {
-    if (period === 'day' && isToday) {
-      const now = new Date()
-      formattedDate = now
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    } else if (period === 'day') {
-      const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-      formattedDate = localDate
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    } else {
-      // hourly or other: use actual time from data
-      formattedDate = d
-        .toDate()
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    }
-  }
+  const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : data.time
 
   // Get node color from chart config
   const getNodeColor = (nodeName: string) => {
@@ -254,17 +149,16 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
     if (open) nowRef.current = Date.now()
   }, [open])
 
-  const [period, setPeriod] = useState<PeriodKey>('1w')
+  const [period, setPeriod] = useState<TrafficShortcutKey>('1w')
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [showCustomRange, setShowCustomRange] = useState(false)
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { width } = useWindowSize()
   const [selectedNodeId, setSelectedNodeId] = useState<number | undefined>(undefined)
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedData, setSelectedData] = useState<any>(null)
   const [currentDataIndex, setCurrentDataIndex] = useState(0)
   const [chartData, setChartData] = useState<any[] | null>(null)
-  const [currentPeriod, setCurrentPeriod] = useState<Period>(Period.hour)
 
   // Get current admin to check permissions
   const { data: currentAdmin } = useGetCurrentAdmin()
@@ -359,55 +253,33 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
     return config
   }, [nodeList, resolvedTheme, generateDistinctColor])
 
-  // Memoize periodMap only when modal opens
-  const periodMap = useMemo(() => getPeriodMap(nowRef.current), [open])
-  let backendPeriod: Period
-  let start: Date
-  let end: Date | undefined = undefined
-
-  if (showCustomRange && customRange?.from && customRange?.to) {
-    // Use the same period logic as other charts
-    backendPeriod = getPeriodFromDateRange(customRange)
-    start = customRange.from
-    end = customRange.to
-  } else {
-    const map = periodMap[period]
-    backendPeriod = map.period
-    start = map.start
-  }
-
-  // Update current period for tooltip
-  useEffect(() => {
-    setCurrentPeriod(backendPeriod)
-  }, [backendPeriod])
-
-  const userUsageParams = useMemo(() => {
-    const startTime = backendPeriod === Period.day ? dateUtils.toUTCDayStartISO(start) : dateUtils.toSystemTimezoneISO(start)
-    const baseParams: any = {
-      period: backendPeriod,
-      start: startTime,
-      node_id: selectedNodeId,
-    }
-
-    // Add group_by_node when all nodes are selected for sudo admins (selectedNodeId is undefined)
-    if (selectedNodeId === undefined && is_sudo) {
-      baseParams.group_by_node = true
-    }
-
+  const queryRange = useMemo(() => {
     if (showCustomRange && customRange?.from && customRange?.to) {
-      return {
-        ...baseParams,
-        end: dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(customRange.to).endOf('day').toDate()),
-      }
+      return getChartQueryRangeFromDateRange(customRange, period)
     }
 
-    // For preset periods, set end time for daily periods to avoid extra bars
-    const endTime = backendPeriod === Period.day ? dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(new Date()).endOf('day').toDate()) : undefined
-    return {
-      ...baseParams,
-      ...(endTime && { end: endTime }),
+    return getChartQueryRangeFromShortcut(period, new Date(nowRef.current), { minuteForOneHour: true })
+  }, [showCustomRange, customRange, period, open])
+
+  const backendPeriod = queryRange.period
+
+  const userUsageParams = useMemo<GetUserUsageParams>(() => {
+    const params: GetUserUsageParams = {
+      period: backendPeriod,
+      start: queryRange.startDate,
+      end: queryRange.endDate,
     }
-  }, [backendPeriod, start, end, period, customRange, showCustomRange, selectedNodeId])
+
+    if (selectedNodeId !== undefined) {
+      params.node_id = selectedNodeId
+    }
+
+    if (selectedNodeId === undefined && is_sudo) {
+      params.group_by_node = true
+    }
+
+    return params
+  }, [backendPeriod, queryRange.startDate, queryRange.endDate, selectedNodeId, is_sudo])
 
   // Only fetch when modal is open
   const { data, isLoading } = useGetUserUsage(username, userUsageParams, { query: { enabled: open } })
@@ -446,23 +318,17 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
         const aggregatedStats = statsByNode['-1']
 
         if (aggregatedStats.length > 0) {
+          const nodeCount = Math.max(nodeList.length, 1)
           const data = aggregatedStats.map((point: any) => {
-            const d = dateUtils.toSystemTimezoneDayjs(point.period_start)
-            let timeFormat
-            if (backendPeriod === Period.hour) {
-              timeFormat = d.format('HH:mm')
-            } else {
-              timeFormat = d.format('MM/DD')
-            }
             const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
             // Create entry with all nodes having the same usage (aggregated)
             const entry: any = {
-              time: timeFormat,
+              time: formatPeriodLabelForPeriod(point.period_start, backendPeriod, i18n.language),
               _period_start: point.period_start,
             }
             nodeList.forEach(node => {
               // Distribute usage equally among nodes
-              const nodeUsage = usageInGB / nodeList.length
+              const nodeUsage = usageInGB / nodeCount
               entry[node.name] = nodeUsage
             })
             return entry
@@ -483,15 +349,8 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
         if (sortedPeriods.length > 0) {
           // Build chart data: [{ time, [nodeName]: usage, ... }]
           const data = sortedPeriods.map(periodStart => {
-            const d = dateUtils.toSystemTimezoneDayjs(periodStart)
-            let timeFormat
-            if (backendPeriod === Period.hour) {
-              timeFormat = d.format('HH:mm')
-            } else {
-              timeFormat = d.format('MM/DD')
-            }
             const entry: any = {
-              time: timeFormat,
+              time: formatPeriodLabelForPeriod(periodStart, backendPeriod, i18n.language),
               _period_start: periodStart,
             }
 
@@ -544,56 +403,16 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
           if (!Array.isArray(flatStats)) flatStats = []
         }
       }
-      let filtered = flatStats
-      if (period.endsWith('h') && !showCustomRange) {
-        if (!start || !end)
-          return flatStats.map((point: any) => {
-            const dateObj = dateUtils.toSystemTimezoneDayjs(point.period_start)
-            let timeFormat
-            if (period.endsWith('h') || (showCustomRange && backendPeriod === Period.hour)) {
-              timeFormat = dateObj.format('HH:mm')
-            } else {
-              timeFormat = dateObj.format('MM/DD')
-            }
-            const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
-            return {
-              time: timeFormat,
-              usage: usageInGB,
-              _period_start: point.period_start,
-              local_period_start: dateUtils.toSystemTimezoneISO(dateObj.toDate()),
-            }
-          })
-        const from = dateUtils.toSystemTimezoneDayjs((start as Date) || new Date(0))
-        const to = dateUtils.toSystemTimezoneDayjs((end as Date) || new Date(0))
-        filtered = filtered.filter((point: any) => {
-          const pointTime = dateUtils.toSystemTimezoneDayjs(point.period_start)
-          return (pointTime.isSame(from) || pointTime.isAfter(from)) && (pointTime.isSame(to) || pointTime.isBefore(to))
-        })
-      } else if (showCustomRange && customRange?.from && customRange?.to) {
-        filtered = filtered.filter((point: any) => {
-          if (!customRange.from || !customRange.to) return false
-          const dateObj = dateUtils.toSystemTimezoneDayjs(point.period_start)
-          return dateObj.isAfter(dateUtils.toSystemTimezoneDayjs(customRange.from).subtract(1, 'minute')) && dateObj.isBefore(dateUtils.toSystemTimezoneDayjs(customRange.to).add(1, 'minute'))
-        })
-      }
-      return filtered.map((point: any) => {
-        const dateObj = dateUtils.toSystemTimezoneDayjs(point.period_start)
-        let timeFormat
-        if (period.endsWith('h') || (showCustomRange && backendPeriod === Period.hour)) {
-          timeFormat = dateObj.format('HH:mm')
-        } else {
-          timeFormat = dateObj.format('MM/DD')
-        }
+      return flatStats.map((point: any) => {
         const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
         return {
-          time: timeFormat,
+          time: formatPeriodLabelForPeriod(point.period_start, backendPeriod, i18n.language),
           usage: usageInGB,
           _period_start: point.period_start,
-          local_period_start: dateUtils.toSystemTimezoneISO(dateObj.toDate()),
         }
       })
     }
-  }, [data, period, showCustomRange, customRange, backendPeriod, start, end, selectedNodeId, nodeList])
+  }, [data, backendPeriod, selectedNodeId, nodeList, i18n.language, is_sudo])
 
   // Update chartData state when processedChartData changes
   useEffect(() => {
@@ -642,28 +461,36 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
     return percent
   }, [processedChartData, selectedNodeId])
 
+  const xAxisInterval = useMemo(() => {
+    if (showCustomRange && customRange?.from && customRange?.to) {
+      if (backendPeriod === Period.hour || backendPeriod === Period.minute) {
+        return Math.max(1, Math.floor(processedChartData.length / 8))
+      }
+
+      const daysDiff = Math.ceil(Math.abs(customRange.to.getTime() - customRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysDiff > 30) {
+        return Math.max(1, Math.floor(processedChartData.length / 5))
+      }
+
+      if (daysDiff > 7) {
+        return Math.max(1, Math.floor(processedChartData.length / 8))
+      }
+
+      return 0
+    }
+
+    return getXAxisIntervalForShortcut(period, processedChartData.length, { minuteForOneHour: true })
+  }, [showCustomRange, customRange, backendPeriod, processedChartData.length, period])
+
   // Handlers
   const handleCustomRangeChange = useCallback((range: DateRange | undefined) => {
     setCustomRange(range)
     if (range?.from && range?.to) {
       setShowCustomRange(true)
-      const diffHours = (range.to.getTime() - range.from.getTime()) / (1000 * 60 * 60)
-      if (diffHours <= 1) setPeriod('1h')
-      else if (diffHours <= 2) setPeriod('2h')
-      else if (diffHours <= 4) setPeriod('4h')
-      else if (diffHours <= 6) setPeriod('6h')
-      else if (diffHours <= 12) setPeriod('12h')
-      else if (diffHours <= 24) setPeriod('24h')
-      else if (diffHours <= 48) setPeriod('2d')
-      else if (diffHours <= 72) setPeriod('3d')
-      else if (diffHours <= 120) setPeriod('5d')
-      else if (diffHours <= 168) setPeriod('1w')
-      else if (diffHours <= 336) setPeriod('2w')
-      else setPeriod('1m')
     }
   }, [])
 
-  const handleTimeSelect = useCallback((newPeriod: PeriodKey) => {
+  const handleTimeSelect = useCallback((newPeriod: TrafficShortcutKey) => {
     setPeriod(newPeriod)
     setShowCustomRange(false)
     setCustomRange(undefined)
@@ -681,7 +508,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
               <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-center">
                 <TimeSelector
                   selectedTime={period}
-                  setSelectedTime={value => handleTimeSelect(value as PeriodKey)}
+                  setSelectedTime={value => handleTimeSelect(value as TrafficShortcutKey)}
                   shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS}
                   maxVisible={5}
                   className="w-full sm:w-auto"
@@ -798,7 +625,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                       }}
                     >
                       <CartesianGrid direction={'ltr'} vertical={false} />
-                      <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} />
+                      <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
                       <YAxis
                         direction={'ltr'}
                         tickLine={false}
@@ -812,7 +639,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                         width={32}
                         tickMargin={2}
                       />
-                      <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={currentPeriod} />} />
+                      <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
                       {selectedNodeId === undefined && is_sudo ? (
                         // All nodes selected for sudo admins - render stacked bars
                         nodeList.map((node, idx) => (
@@ -867,7 +694,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
         onClose={() => setModalOpen(false)}
         data={selectedData}
         chartConfig={chartConfig}
-        period={currentPeriod}
+        period={backendPeriod}
         allChartData={processedChartData || []}
         currentIndex={currentDataIndex}
         onNavigate={handleModalNavigate}

@@ -47,6 +47,8 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
   const { t } = useTranslation()
   const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false)
   const [isDesktopMoreOpen, setIsDesktopMoreOpen] = useState(false)
+  const moreLabelRaw = t('more', { defaultValue: 'More' })
+  const moreLabel = moreLabelRaw ? moreLabelRaw.charAt(0).toLocaleUpperCase() + moreLabelRaw.slice(1) : 'More'
 
   const getShortcutLabel = (shortcut: TimeSelectorShortcut) => {
     if (shortcut.value === 'all') {
@@ -108,7 +110,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
                   isMobileOverflowSelected && 'bg-background text-foreground shadow-sm',
                 )}
               >
-                {t('more', { defaultValue: 'More' })}
+                {moreLabel}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent dir="ltr" align="end" className="min-w-[7rem]" onInteractOutside={() => setIsMobileMoreOpen(false)}>
@@ -159,7 +161,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
                   isDesktopOverflowSelected && 'bg-background text-foreground shadow-sm',
                 )}
               >
-                {t('more', { defaultValue: 'More' })}
+                {moreLabel}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent dir="ltr" align="end" className="min-w-[7rem]" onInteractOutside={() => setIsDesktopMoreOpen(false)}>

@@ -1,18 +1,26 @@
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts'
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, TooltipProps } from 'recharts'
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartConfig, ChartContainer } from '@/components/ui/chart'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTranslation } from 'react-i18next'
-import { SystemStats, Period, getNodeStatsPeriodic, NodeStats, NodeRealtimeStats } from '@/service/api'
+import { SystemStats, Period, NodeStats, NodeRealtimeStats, useGetNodeStatsPeriodic } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
-import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { EmptyState } from './empty-state'
 import { Button } from '@/components/ui/button'
 import { Clock, History, Cpu, MemoryStick } from 'lucide-react'
 import { dateUtils } from '@/utils/dateFormatter'
 import { useTheme } from 'next-themes'
-import { getPeriodFromDateRange } from '@/utils/datePickerUtils'
+import {
+  buildPeriodOptions,
+  formatPeriodLabel,
+  formatTooltipDate,
+  getDateRangeForPeriodOption,
+  getDefaultPeriodOption,
+  getXAxisInterval,
+  PeriodOption,
+  toChartQueryEndDate,
+} from '@/utils/chart-period-utils'
 
 type DataPoint = {
   time: string
@@ -21,161 +29,38 @@ type DataPoint = {
   _period_start?: string
 }
 
-const CustomTooltip = ({ active, payload, period, viewMode }: any) => {
+const CustomTooltip = ({ active, payload, period }: TooltipProps<number, string> & { period: Period }) => {
   const { i18n } = useTranslation()
 
-  if (active && payload && payload.length) {
-    const data = payload[0].payload
-    let formattedDate = data.time
-
-    if (data._period_start) {
-      const d = dateUtils.toSystemTimezoneDayjs(data._period_start)
-      const today = dateUtils.toSystemTimezoneDayjs(new Date())
-      const isToday = d.isSame(today, 'day')
-
-      try {
-        if (i18n.language === 'fa') {
-          if (period === 'day' && isToday) {
-            formattedDate = new Date()
-              .toLocaleString('fa-IR', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })
-              .replace(',', '')
-          } else if (period === 'day') {
-            const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-            formattedDate = localDate
-              .toLocaleString('fa-IR', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })
-              .replace(',', '')
-          } else {
-            formattedDate = d
-              .toDate()
-              .toLocaleString('fa-IR', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })
-              .replace(',', '')
-          }
-        } else {
-          if (period === 'day' && isToday) {
-            const now = new Date()
-            formattedDate = now
-              .toLocaleString('en-US', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })
-              .replace(',', '')
-          } else if (period === 'day') {
-            const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-            formattedDate = localDate
-              .toLocaleString('en-US', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })
-              .replace(',', '')
-          } else {
-            formattedDate = d
-              .toDate()
-              .toLocaleString('en-US', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })
-              .replace(',', '')
-          }
-        }
-      } catch {
-        formattedDate = d.format('YYYY/MM/DD HH:mm')
-      }
-    } else if (viewMode === 'realtime') {
-      try {
-        const now = new Date()
-        const timeParts = data.time.split(':')
-        if (timeParts.length >= 2) {
-          const seconds = timeParts.length >= 3 ? parseInt(timeParts[2]) : 0
-          now.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), seconds)
-        }
-
-        if (i18n.language === 'fa') {
-          formattedDate = now
-            .toLocaleString('fa-IR', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-            })
-            .replace(',', '')
-        } else {
-          formattedDate = now
-            .toLocaleString('en-US', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-            })
-            .replace(',', '')
-        }
-      } catch {
-        formattedDate = data.time
-      }
-    }
-
-    return (
-      <div dir="ltr" className="rounded-lg border bg-background/95 p-3 shadow-lg backdrop-blur-sm">
-        <p className="text-sm font-medium text-muted-foreground">
-          <span dir="ltr">{formattedDate}</span>
-        </p>
-        <div className="mt-1 space-y-1">
-          {payload.map((entry: any, index: number) => (
-            <div key={index} className="flex items-center gap-2">
-              <div
-                className="h-3 w-3 rounded-full"
-                style={{
-                  backgroundColor: entry.color,
-                  boxShadow: `0 0 8px ${entry.color}`,
-                }}
-              />
-              <span className="text-sm font-medium capitalize">{entry.name}:</span>
-              <span className="text-sm font-bold">{entry.value.toFixed(1)}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+  if (!active || !payload || !payload.length) {
+    return null
   }
-  return null
+
+  const data = payload[0].payload as DataPoint
+  const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : data.time
+
+  return (
+    <div dir="ltr" className="rounded-lg border bg-background/95 p-3 shadow-lg backdrop-blur-sm">
+      <p className="text-sm font-medium text-muted-foreground">
+        <span dir="ltr">{formattedDate}</span>
+      </p>
+      <div className="mt-1 space-y-1">
+        {payload.map((entry, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <div
+              className="h-3 w-3 rounded-full"
+              style={{
+                backgroundColor: entry.color,
+                boxShadow: `0 0 8px ${entry.color}`,
+              }}
+            />
+            <span className="text-sm font-medium capitalize">{entry.name}:</span>
+            <span className="text-sm font-bold">{Number(entry.value || 0).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 interface AreaCostumeChartProps {
@@ -184,24 +69,26 @@ interface AreaCostumeChartProps {
   realtimeStats?: SystemStats | NodeRealtimeStats
 }
 
-const isSystemStats = (stats: SystemStats | NodeRealtimeStats): stats is SystemStats => {
-  return 'total_user' in stats
-}
+const isSystemStats = (stats: SystemStats | NodeRealtimeStats): stats is SystemStats => 'total_user' in stats
 
-const isNodeRealtimeStats = (stats: SystemStats | NodeRealtimeStats): stats is NodeRealtimeStats => {
-  return 'incoming_bandwidth_speed' in stats
-}
+const isNodeRealtimeStats = (stats: SystemStats | NodeRealtimeStats): stats is NodeRealtimeStats => 'incoming_bandwidth_speed' in stats
 
 export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCostumeChartProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { resolvedTheme } = useTheme()
-  const [statsHistory, setStatsHistory] = useState<DataPoint[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+
+  const [realtimeHistory, setRealtimeHistory] = useState<DataPoint[]>([])
+  const [realtimeError, setRealtimeError] = useState<Error | null>(null)
   const [viewMode, setViewMode] = useState<'realtime' | 'historical'>('realtime')
 
   const chartContainerRef = useRef<HTMLDivElement>(null)
+
+  const PERIOD_OPTIONS = useMemo(() => buildPeriodOptions(t), [t])
+  const [periodOption, setPeriodOption] = useState<PeriodOption>(() => getDefaultPeriodOption(PERIOD_OPTIONS))
+
+  useEffect(() => {
+    setPeriodOption(previous => PERIOD_OPTIONS.find(option => option.value === previous.value) ?? getDefaultPeriodOption(PERIOD_OPTIONS))
+  }, [PERIOD_OPTIONS])
 
   const chartConfig = useMemo<ChartConfig>(
     () => ({
@@ -216,6 +103,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
     }),
     [t],
   )
+
   const gradientDefs = useMemo(() => {
     const isDark = resolvedTheme === 'dark'
     return {
@@ -237,19 +125,19 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
   }, [resolvedTheme])
 
   useEffect(() => {
-    setStatsHistory([])
-    setDateRange(undefined)
+    setRealtimeHistory([])
+    setRealtimeError(null)
     setViewMode('realtime')
   }, [nodeId])
 
   const toggleViewMode = () => {
     if (viewMode === 'realtime') {
       setViewMode('historical')
-    } else {
-      setViewMode('realtime')
-      setDateRange(undefined)
-      setStatsHistory([])
+      return
     }
+
+    setViewMode('realtime')
+    setRealtimeHistory([])
   }
 
   useEffect(() => {
@@ -262,21 +150,16 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
       let cpuUsage = 0
       let ramUsage = 0
 
-      if (isSystemStats(realtimeStats)) {
-        cpuUsage = Number(realtimeStats.cpu_usage ?? 0)
-        const memUsed = Number(realtimeStats.mem_used ?? 0)
-        const memTotal = Number(realtimeStats.mem_total ?? 1)
-        ramUsage = parseFloat(((memUsed / memTotal) * 100).toFixed(1))
-      } else if (isNodeRealtimeStats(realtimeStats)) {
+      if (isSystemStats(realtimeStats) || isNodeRealtimeStats(realtimeStats)) {
         cpuUsage = Number(realtimeStats.cpu_usage ?? 0)
         const memUsed = Number(realtimeStats.mem_used ?? 0)
         const memTotal = Number(realtimeStats.mem_total ?? 1)
         ramUsage = parseFloat(((memUsed / memTotal) * 100).toFixed(1))
       }
 
-      setStatsHistory(prev => {
-        const newHistory = [
-          ...prev,
+      setRealtimeHistory(previous => {
+        const next = [
+          ...previous,
           {
             time: timeStr,
             cpu: cpuUsage,
@@ -284,96 +167,71 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
             _period_start: dateUtils.toSystemTimezoneISO(now),
           },
         ]
+
         const MAX_HISTORY = 120
         const CLEANUP_THRESHOLD = 150
 
-        if (newHistory.length > CLEANUP_THRESHOLD) {
-          const cleanedHistory = newHistory.filter((_, index) => {
-            if (index >= newHistory.length - 60) return true
+        if (next.length > CLEANUP_THRESHOLD) {
+          const cleaned = next.filter((_, index) => {
+            if (index >= next.length - 60) return true
             return index % 2 === 0
           })
 
-          if (cleanedHistory.length > MAX_HISTORY) {
-            return cleanedHistory.slice(-MAX_HISTORY)
+          if (cleaned.length > MAX_HISTORY) {
+            return cleaned.slice(-MAX_HISTORY)
           }
 
-          return cleanedHistory
+          return cleaned
         }
 
-        return newHistory
+        return next
       })
 
-      setIsLoading(false)
-    } catch (err) {
-      setError(err as Error)
-      setIsLoading(false)
-      console.error('Error processing real-time stats:', err)
+      setRealtimeError(null)
+    } catch (error) {
+      setRealtimeError(error as Error)
     }
   }, [realtimeStats, viewMode])
 
-  useEffect(() => {
-    if (nodeId === undefined || viewMode !== 'historical' || !dateRange?.from || !dateRange?.to) return
+  const { startDate, endDate } = useMemo(() => getDateRangeForPeriodOption(periodOption), [periodOption])
+  const historicalParams = useMemo(
+    () => ({
+      start: startDate,
+      end: toChartQueryEndDate(endDate),
+      period: periodOption.period,
+    }),
+    [startDate, endDate, periodOption.period],
+  )
 
-    const fetchNodeHistoricalStats = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const period = getPeriodFromDateRange(dateRange)
-        const data = await getNodeStatsPeriodic(nodeId, {
-          start: dateUtils.toSystemTimezoneISO(dateRange.from!),
-          end: dateUtils.toSystemTimezoneISO(dateRange.to!),
-          period: period,
-        })
+  const { data: historicalData, isLoading: isLoadingHistorical, error: historicalError } = useGetNodeStatsPeriodic(nodeId ?? 0, historicalParams, {
+    query: {
+      enabled: viewMode === 'historical' && nodeId !== undefined,
+      refetchInterval: 1000 * 60 * 5,
+    },
+  })
 
-        const statsArray = data?.stats
+  const historicalHistory = useMemo<DataPoint[]>(() => {
+    const statsArray = historicalData?.stats
+    if (!Array.isArray(statsArray)) return []
 
-        if (Array.isArray(statsArray)) {
-          const formattedData = statsArray.map((point: NodeStats) => {
-            const d = dateUtils.toSystemTimezoneDayjs(point.period_start)
-            let timeFormat
-            if (period === Period.hour) {
-              timeFormat = d.format('HH:mm')
-            } else {
-              timeFormat = d.format('MM/DD')
-            }
-            return {
-              time: timeFormat,
-              cpu: point.cpu_usage_percentage,
-              ram: point.mem_usage_percentage,
-              _period_start: point.period_start,
-            }
-          })
-          setStatsHistory(formattedData)
-        } else {
-          console.error('Invalid historical stats format received:', data)
-          setStatsHistory([])
-          setError(new Error('Invalid data format received'))
-        }
-      } catch (err) {
-        setError(err as Error)
-        console.error(`Error fetching historical stats for node ${nodeId}:`, err)
-        setStatsHistory([])
-      } finally {
-        setIsLoading(false)
-      }
-    }
+    return statsArray.map((point: NodeStats) => ({
+      time: formatPeriodLabel(point.period_start, periodOption, i18n.language),
+      cpu: point.cpu_usage_percentage,
+      ram: point.mem_usage_percentage,
+      _period_start: point.period_start,
+    }))
+  }, [historicalData?.stats, periodOption, i18n.language])
 
-    fetchNodeHistoricalStats()
-  }, [nodeId, dateRange, viewMode])
+  const chartData = viewMode === 'historical' ? historicalHistory : realtimeHistory
+  const isLoading = viewMode === 'historical' ? isLoadingHistorical : realtimeHistory.length === 0 && !realtimeError && !!realtimeStats
+  const error = viewMode === 'historical' ? historicalError : realtimeError
+  const historicalXAxisInterval = useMemo(() => getXAxisInterval(periodOption, historicalHistory.length), [periodOption, historicalHistory.length])
 
   let displayCpuUsage: string | JSX.Element = <Skeleton className="h-5 w-16" />
   let displayRamUsage: string | JSX.Element = <Skeleton className="h-5 w-16" />
 
   if (currentStats) {
-    if (isSystemStats(currentStats)) {
-      const cpuUsage = Number(currentStats.cpu_usage ?? 0)
-      const memUsed = Number(currentStats.mem_used ?? 0)
-      const memTotal = Number(currentStats.mem_total ?? 1)
-      const ramPercentage = (memUsed / memTotal) * 100
-
-      displayCpuUsage = `${cpuUsage.toFixed(1)}%`
-      displayRamUsage = `${ramPercentage.toFixed(1)}%`
-    } else if (isNodeRealtimeStats(currentStats)) {
+    if (isSystemStats(currentStats) || isNodeRealtimeStats(currentStats)) {
       const cpuUsage = Number(currentStats.cpu_usage ?? 0)
       const memUsed = Number(currentStats.mem_used ?? 0)
       const memTotal = Number(currentStats.mem_total ?? 1)
@@ -442,9 +300,26 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
               <h4 className="text-sm font-semibold text-foreground">{t('statistics.selectTimeRange')}</h4>
               <p className="text-xs text-muted-foreground">{t('statistics.selectTimeRangeDescription')}</p>
             </div>
-            <div className="flex-shrink-0">
-              <TimeRangeSelector onRangeChange={setDateRange} />
-            </div>
+            <Select
+              value={periodOption.value}
+              onValueChange={value => {
+                const nextOption = PERIOD_OPTIONS.find(option => option.value === value)
+                if (nextOption) {
+                  setPeriodOption(nextOption)
+                }
+              }}
+            >
+              <SelectTrigger className="h-9 w-full text-xs sm:w-32">
+                <SelectValue>{periodOption.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {PERIOD_OPTIONS.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       )}
@@ -456,7 +331,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
           </div>
         ) : error ? (
           <EmptyState type="error" className="h-[280px] sm:h-[320px] lg:h-[360px]" />
-        ) : statsHistory.length === 0 ? (
+        ) : chartData.length === 0 ? (
           <EmptyState
             type="no-data"
             title={viewMode === 'realtime' ? t('statistics.waitingForData') : t('statistics.noDataAvailable')}
@@ -466,7 +341,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
         ) : (
           <div ref={chartContainerRef} className="h-[280px] w-full transition-all duration-300 ease-in-out sm:h-[320px] lg:h-[360px]">
             <ChartContainer dir="ltr" config={chartConfig} className="h-full w-full">
-              <AreaChart data={statsHistory} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+              <AreaChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <defs>
                   <linearGradient id={gradientDefs.cpu.id} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={gradientDefs.cpu.color1} stopOpacity={0.9} />
@@ -494,8 +369,8 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
                     fontSize: 10,
                     fontWeight: 500,
                   }}
-                  interval="preserveStartEnd"
-                  minTickGap={30}
+                  interval={viewMode === 'historical' ? historicalXAxisInterval : 'preserveStartEnd'}
+                  minTickGap={viewMode === 'historical' ? 5 : 30}
                 />
 
                 <YAxis
@@ -513,7 +388,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
                 />
 
                 <Tooltip
-                  content={<CustomTooltip period={viewMode === 'historical' ? getPeriodFromDateRange(dateRange) : Period.hour} viewMode={viewMode} />}
+                  content={<CustomTooltip period={viewMode === 'historical' ? periodOption.period : Period.hour} />}
                   cursor={{
                     stroke: 'hsl(var(--border))',
                     strokeWidth: 1,
