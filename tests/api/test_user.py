@@ -480,6 +480,7 @@ def test_bulk_create_users_from_template_random_with_username_rejected(access_to
 
 # Tests for /api/users/simple endpoint
 
+
 def test_get_users_simple_basic(access_token):
     """Test that users/simple returns correct minimal data structure."""
     core, groups = setup_groups(access_token, 1)

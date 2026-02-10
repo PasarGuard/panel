@@ -20,7 +20,7 @@ from app.db.models import Admin as DBAdmin, CoreConfig, Group, Node, ProxyHost, 
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
-from app.utils.helpers import fix_datetime_timezone
+from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
 
 
@@ -54,16 +54,19 @@ class BaseOperation:
         await self.raise_error(message=str(exc), code=code)
 
     async def validate_dates(self, start: dt | None, end: dt | None, set_default_values: bool) -> tuple[dt, dt]:
-        """Validate if start and end dates are correct and if end is after start."""
+        """
+        Validate if start and end dates are correct and if end is after start.
+        Preserves timezone information instead of converting to UTC.
+        """
 
         start_date = None
         end_date = None
         try:
             if start:
-                start_date = fix_datetime_timezone(start)
+                start_date = ensure_datetime_timezone(start)
 
             if end:
-                end_date = fix_datetime_timezone(end)
+                end_date = ensure_datetime_timezone(end)
 
             if set_default_values:
                 if not start_date:
@@ -71,13 +74,18 @@ class BaseOperation:
                 if not end_date:
                     end_date = dt.now(tz.utc)
 
-            # Compare dates only after both are set
-            if (start_date and end_date) and end_date < start_date:
-                await self.raise_error(message="Start date must be before end date", code=400)
+            # Validate that start and end have the same timezone
+            if start_date and end_date:
+                if start_date.tzinfo != end_date.tzinfo:
+                    await self.raise_error(message="Start and end dates must have the same timezone", code=400)
+
+                # Compare dates (SQLAlchemy handles timezone conversion)
+                if end_date < start_date:
+                    await self.raise_error(message="Start date must be before end date", code=400)
 
             return start_date, end_date
-        except ValueError:
-            await self.raise_error(message="Invalid date range or format", code=400)
+        except ValueError as e:
+            await self.raise_error(message=f"Invalid date range or format: {str(e)}", code=400)
 
     async def get_validated_host(self, db: AsyncSession, host_id: int) -> ProxyHost:
         db_host = await get_host_by_id(db, host_id)

@@ -3,7 +3,7 @@ from datetime import datetime as dt
 
 from pydantic import BaseModel, field_validator
 
-from app.utils.helpers import fix_datetime_timezone
+from app.utils.helpers import ensure_datetime_timezone
 from .validators import NumericValidatorMixin
 
 
@@ -24,7 +24,7 @@ class StatList(BaseModel):
     def validator_date(cls, v):
         if not v:
             return v
-        return fix_datetime_timezone(v)
+        return ensure_datetime_timezone(v)
 
 
 class UserUsageStat(BaseModel):
@@ -40,7 +40,7 @@ class UserUsageStat(BaseModel):
     def validator_date(cls, v):
         if not v:
             return v
-        return fix_datetime_timezone(v)
+        return ensure_datetime_timezone(v)
 
 
 class UserUsageStatsList(StatList):
@@ -61,7 +61,7 @@ class NodeUsageStat(BaseModel):
     def validator_date(cls, v):
         if not v:
             return v
-        return fix_datetime_timezone(v)
+        return ensure_datetime_timezone(v)
 
 
 class NodeUsageStatsList(StatList):
@@ -99,7 +99,7 @@ class NodeStats(BaseModel):
     def validator_date(cls, v):
         if not v:
             return v
-        return fix_datetime_timezone(v)
+        return ensure_datetime_timezone(v)
 
 
 class NodeStatsList(StatList):

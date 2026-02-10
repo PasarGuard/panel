@@ -8,6 +8,7 @@ from app.db.crud.general import _build_trunc_expression, _convert_period_start_t
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_password
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
+from app.utils.helpers import get_timezone_offset_string
 
 
 async def load_admin_attrs(admin: Admin):
@@ -394,12 +395,13 @@ async def get_admin_usages(
     """
     Retrieves aggregated usage data for an admin's users within a specified time range,
     grouped by the specified time period.
+    Groups data by periods in the timezone of the start/end parameters.
 
     Args:
         db (AsyncSession): Database session for querying.
         admin_id (int | None): Admin ID to filter users by. If None, include all admins.
-        start (datetime): Start of the period.
-        end (datetime): End of the period.
+        start (datetime): Start of the period (with timezone).
+        end (datetime): End of the period (with timezone).
         period (Period): Time period to group by ('minute', 'hour', 'day', 'month').
         node_id (Optional[int]): Filter results by specific node ID if provided.
 

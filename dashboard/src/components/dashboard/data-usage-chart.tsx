@@ -32,19 +32,34 @@ const PERIOD_KEYS = [
   { key: 'all', period: 'day' as Period, allTime: true },
 ]
 
+const getIsoOffsetMinutes = (value: string): number => {
+  const match = value.match(/([+-])(\d{2}):(\d{2})$/)
+  if (!match) return 0
+  const sign = match[1] === '-' ? -1 : 1
+  const hours = Number(match[2])
+  const minutes = Number(match[3])
+  return sign * (hours * 60 + minutes)
+}
+
+const toChartPeriodStart = (periodStart: string | Date, shiftByOwnOffset: boolean) => {
+  const base = dateUtils.toSystemTimezoneDayjs(periodStart)
+  if (!shiftByOwnOffset || typeof periodStart !== 'string') return base
+  const offsetMinutes = getIsoOffsetMinutes(periodStart)
+  return offsetMinutes ? base.add(offsetMinutes, 'minute') : base
+}
+
 const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] }, periodOption: PeriodOption, isNodeUsage: boolean = false, locale: string = 'en') => {
   if (!apiData?.stats || !Array.isArray(apiData.stats)) {
     return []
   }
-  const today = dateUtils.toSystemTimezoneDayjs(new Date())
+  const now = dateUtils.toSystemTimezoneDayjs(new Date())
 
   return apiData.stats.map((stat: UserUsageStat | NodeUsageStat) => {
-    const d = dateUtils.toSystemTimezoneDayjs(stat.period_start)
-    const isToday = d.isSame(today, 'day')
+    const d = toChartPeriodStart(stat.period_start, Boolean(periodOption.hours))
+    const isToday = d.isSame(now, 'day')
 
     let displayLabel = ''
     if (periodOption.hours) {
-      // For hour periods, use period_start with format date function
       displayLabel = d.format('HH:mm')
     } else if (periodOption.period === 'day') {
       // For day periods, use same logic as CustomBarTooltip but with shorter format
@@ -118,7 +133,7 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
   if (!active || !payload || !payload.length) return null
   const data = payload[0].payload
   // Use period_start if available (from transformUsageData), otherwise parse the display label
-  const d = data.period_start ? dateUtils.toSystemTimezoneDayjs(data.period_start) : dateUtils.toDayjs(data.date)
+  const d = data.period_start ? toChartPeriodStart(data.period_start, period === 'hour') : dateUtils.toDayjs(data.date)
   const today = dateUtils.toSystemTimezoneDayjs(new Date())
   const isToday = d.isSame(today, 'day')
 
@@ -265,9 +280,9 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
       start = now.subtract(periodOption.hours, 'hour')
     } else if (periodOption.days) {
       const daysToSubtract = periodOption.days === 7 ? 6 : periodOption.days === 3 ? 2 : periodOption.days === 1 ? 0 : periodOption.days
-      start = now.subtract(daysToSubtract, 'day').utc().startOf('day')
+      start = now.subtract(daysToSubtract, 'day').startOf('day')
     } else if (periodOption.months) {
-      start = now.subtract(periodOption.months, 'month').utc().startOf('day')
+      start = now.subtract(periodOption.months, 'month').startOf('day')
     } else {
       start = now
     }
