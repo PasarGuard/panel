@@ -219,7 +219,7 @@ async def get_nodes_usage(
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
 
-        _convert_period_start_timezone(row_dict, target_tz)
+        _convert_period_start_timezone(row_dict, target_tz, db)
 
         if node_id_val not in stats:
             stats[node_id_val] = []
@@ -254,7 +254,7 @@ async def get_node_stats(
     stats = []
     for row in result.mappings():
         row_dict = dict(row)
-        _convert_period_start_timezone(row_dict, target_tz)
+        _convert_period_start_timezone(row_dict, target_tz, db)
         stats.append(NodeStats(**row_dict))
 
     return NodeStatsList(period=period, start=start, end=end, stats=stats)

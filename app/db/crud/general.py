@@ -71,19 +71,33 @@ def _build_trunc_expression(
     raise ValueError(f"Unsupported dialect: {dialect}")
 
 
-def _convert_period_start_timezone(row_dict: dict, target_tz) -> None:
+def _convert_period_start_timezone(row_dict: dict, target_tz, db: AsyncSession = None) -> None:
     """
     Convert period_start to target timezone if specified.
+
+    For MySQL/SQLite, the offset is already applied in SQL, so period_start
+    is already in the target timezone and should not be re-converted.
+    For PostgreSQL, the offset is applied via AT TIME ZONE in SQL.
 
     Args:
         row_dict: Dictionary containing 'period_start' key
         target_tz: Reference timezone
+        db: Database session to detect dialect (optional)
     """
     if "period_start" in row_dict:
-        period_start_utc = row_dict["period_start"]
-        if period_start_utc is not None and target_tz is not None:
-            # Convert to target timezone
-            row_dict["period_start"] = fix_datetime_timezone(period_start_utc).astimezone(target_tz)
+        period_start = row_dict["period_start"]
+        if period_start is not None and target_tz is not None:
+            dialect = db.bind.dialect.name if db else "postgresql"
+
+            if dialect in ("mysql", "sqlite"):
+                # Offset already applied in SQL; period_start is naive but in target timezone
+                # Just add the timezone info without converting
+                if isinstance(period_start, str):
+                    period_start = fix_datetime_timezone(period_start)
+                row_dict["period_start"] = period_start.replace(tzinfo=target_tz)
+            else:
+                # PostgreSQL: offset applied via AT TIME ZONE; convert from UTC to target
+                row_dict["period_start"] = fix_datetime_timezone(period_start).astimezone(target_tz)
 
 
 def get_datetime_add_expression(db: AsyncSession, datetime_column, seconds: int):
