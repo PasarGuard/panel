@@ -131,17 +131,40 @@ class TestGetNodesUsageTimezone:
             # Should have exactly 3 periods for hour-level grouping in 3-hour range
             assert len(stats) == 3, f"Expected 3 periods, got {len(stats)}"
 
-            # Validate all stats are within the requested range
-            for stat in stats:
+            # Expected values: 6 in-range records (idx 3-8) with uplinks 1000003-1000008, downlinks 10000003-10000008
+            # Hour 1: idx 3-4 (20:30, 20:45 UTC) → 00:00-00:59 Tehran
+            # Hour 2: idx 5-6 (21:00, 21:30 UTC) → 01:00-01:59 Tehran
+            # Hour 3: idx 7-8 (22:30, 23:15 UTC) → 02:00-02:59 Tehran
+            expected_hour1_uplink = 1000003 + 1000004  # 2000007
+            expected_hour1_downlink = 10000003 + 10000004  # 20000007
+            expected_hour2_uplink = 1000005 + 1000006  # 2000011
+            expected_hour2_downlink = 10000005 + 10000006  # 20000011
+            expected_hour3_uplink = 1000007 + 1000008  # 2000015
+            expected_hour3_downlink = 10000007 + 10000008  # 20000015
+
+            expected_values = [
+                (expected_hour1_uplink, expected_hour1_downlink),
+                (expected_hour2_uplink, expected_hour2_downlink),
+                (expected_hour3_uplink, expected_hour3_downlink),
+            ]
+
+            # Validate each period has exact expected values
+            for i, stat in enumerate(stats):
                 assert stat.period_start >= start, (
-                    f"Stat period_start {stat.period_start} is before requested start {start}"
+                    f"Period {i}: period_start {stat.period_start} is before start {start}"
                 )
                 assert stat.period_start < end, (
-                    f"Stat period_start {stat.period_start} is at or after requested end {end}"
+                    f"Period {i}: period_start {stat.period_start} is at or after end {end}"
                 )
 
-                # Period start should not have been affected by the wrong earlier data
-                assert stat.period_start.tzinfo is not None
+                # STRICT: Check exact values
+                expected_uplink, expected_downlink = expected_values[i]
+                assert stat.uplink == expected_uplink, (
+                    f"Period {i}: Expected uplink={expected_uplink}, got {stat.uplink}"
+                )
+                assert stat.downlink == expected_downlink, (
+                    f"Period {i}: Expected downlink={expected_downlink}, got {stat.downlink}"
+                )
 
             # Verify stats are in chronological order
             for i in range(len(stats) - 1):
@@ -191,13 +214,30 @@ class TestGetNodesUsageTimezone:
             assert node_id in result.stats
             stats = result.stats[node_id]
 
-            # Should have at least 3 periods
-            assert len(stats) >= 3, f"Expected at least 3 periods, got {len(stats)}"
+            # Should have exactly 3 periods for 3-hour range
+            assert len(stats) == 3, f"Expected 3 periods, got {len(stats)}"
 
-            # All periods should be >= start and within/on boundary
+            # Expected: 3 in-range records with uplinks 1000003, 1000004, 1000005
+            expected_uplink_sum = 1000003 + 1000004 + 1000005  # 3000012
+            expected_downlink_sum = 10000003 + 10000004 + 10000005  # 30000012
+
+            # All periods should be >= start
+            total_uplink = sum(s.uplink for s in stats)
+            total_downlink = sum(s.downlink for s in stats)
+
             for stat in stats:
                 assert stat.period_start >= start, f"Period {stat.period_start} is before start {start}"
-                # Note: period_start can equal end in boundary cases
+                # Validate non-zero traffic from in-range records
+                assert stat.uplink > 0, f"Uplink should be > 0, got {stat.uplink}"
+                assert stat.downlink > 0, f"Downlink should be > 0, got {stat.downlink}"
+
+            # STRICT: Total traffic must match expected sum from in-range records
+            assert total_uplink == expected_uplink_sum, (
+                f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
+            )
+            assert total_downlink == expected_downlink_sum, (
+                f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("period", [Period.hour, Period.day])
@@ -246,11 +286,40 @@ class TestGetNodesUsageTimezone:
             assert node_id in result.stats
             stats = result.stats[node_id]
 
+            # Expected: Only 3 in-range records (indices 2-4) with uplinks 1000002-1000004
+            in_range_uplinks = [1000002 + idx for idx in range(3)]  # 1000002, 1000003, 1000004
+            in_range_downlinks = [10000002 + idx for idx in range(3)]  # 10000002, 10000003, 10000004
+            expected_uplink_sum = sum(in_range_uplinks)  # 3000009
+            expected_downlink_sum = sum(in_range_downlinks)  # 30000009
+
+            total_uplink = 0
+            total_downlink = 0
+
             # Core validation: NO data from before start should be included
             for stat in stats:
                 assert stat.period_start >= start_utc, (
                     f"BUG: Got data from before start! period_start {stat.period_start} < start {start_utc}"
                 )
+
+                # Validate traffic values - should be from in-range only
+                assert stat.uplink > 0, f"Uplink should be > 0, got {stat.uplink}"
+                assert stat.downlink > 0, f"Downlink should be > 0, got {stat.downlink}"
+
+                # STRICT: Verify NOT from pre-range records (which would have specific values)
+                # Pre-range uplinks are 1000000, 1000001 (sum=2000001)
+                assert stat.uplink != 1000000, "ERROR: Got pre-range record with uplink=1000000"
+                assert stat.uplink != 1000001, "ERROR: Got pre-range record with uplink=1000001"
+
+                total_uplink += stat.uplink
+                total_downlink += stat.downlink
+
+            # STRICT: Total must match exactly in-range sum
+            assert total_uplink == expected_uplink_sum, (
+                f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
+            )
+            assert total_downlink == expected_downlink_sum, (
+                f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
+            )
 
 
 class TestGetUserUsagesTimezone:
@@ -308,10 +377,30 @@ class TestGetUserUsagesTimezone:
             # Should have exactly 3 periods (not 8, not more)
             assert len(stats) == 3, f"Expected 3 periods, got {len(stats)}"
 
+            # Expected: Only 3 in-range records with used_traffic=5000000 each
+            # Total from 3 in-range = 15000000
+            # Pre-range would be 2 * 5000000 = 10000000
+            expected_total_traffic = 3 * 5000000  # 15000000
+
+            total_traffic = 0
+
             # All periods should be within requested range
             for stat in stats:
                 assert stat.period_start >= start
                 assert stat.period_start < end
+
+                # STRICT: Validate traffic is positive and from in-range only
+                assert stat.total_traffic > 0, f"Total traffic should be > 0, got {stat.total_traffic}"
+                # Pre-range traffic per record is 5000000
+                assert stat.total_traffic != 10000000, (
+                    "ERROR: May have included pre-range traffic (2 records = 10000000)"
+                )
+                total_traffic += stat.total_traffic
+
+            # STRICT: Total must match exactly the 3 in-range records
+            assert total_traffic == expected_total_traffic, (
+                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("period", [Period.hour, Period.day, Period.month])
@@ -351,10 +440,28 @@ class TestGetUserUsagesTimezone:
             assert -1 in result.stats
             stats = result.stats[-1]
 
+            # Expected: Records added every 5 days starting from Feb 1
+            # In the Feb 1 - May 1 range, we should have multiple records
+            # Each record has 5000000 traffic
+            total_traffic = 0
+
             # All stats must be within range
             for stat in stats:
                 assert stat.period_start >= start_utc
                 assert stat.period_start < end_utc
+
+                # STRICT: Validate traffic is exactly from our records
+                assert stat.total_traffic > 0, "Total traffic should be > 0"
+                # Each record injected has 5000000, so totals must be multiples of that
+                assert stat.total_traffic % 5000000 == 0, (
+                    f"Traffic {stat.total_traffic} is not a multiple of 5000000"
+                )
+                total_traffic += stat.total_traffic
+
+            # STRICT: Total traffic should be sum of all records
+            # 73 days / 5 = ~14-15 records * 5000000
+            assert total_traffic > 0, "Should have non-zero total traffic"
+            assert total_traffic % 5000000 == 0, "Total traffic must be multiple of 5000000"
 
 
 class TestGetAllUsersUsagesTimezone:
@@ -405,6 +512,11 @@ class TestGetAllUsersUsagesTimezone:
 
             assert result.stats is not None
 
+            # Expected: 3 in-range records with 5000000 traffic each = 15000000 total
+            expected_total_traffic = 3 * 5000000  # 15000000
+
+            total_traffic = 0
+
             # Validate all stats are within range - no data before start
             # get_all_users_usages returns dict[user_id, list[UserUsageStat]] or dict[user_id, dict[node_id, list]]
             for user_stats in result.stats.values():
@@ -415,11 +527,22 @@ class TestGetAllUsersUsagesTimezone:
                             assert stat.period_start >= start, (
                                 f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
                             )
+                            # STRICT: Validate traffic
+                            assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
+                            total_traffic += stat.total_traffic
                 elif isinstance(user_stats, list):
                     for stat in user_stats:
                         assert stat.period_start >= start, (
                             f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
                         )
+                        # STRICT: Validate traffic
+                        assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
+                        total_traffic += stat.total_traffic
+
+            # STRICT: Total must match in-range records
+            assert total_traffic == expected_total_traffic, (
+                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            )
 
 
 class TestGetAdminUsagesTimezone:
@@ -491,10 +614,27 @@ class TestGetAdminUsagesTimezone:
             # Should have exactly 3 periods for hour-level grouping in 3-hour range
             assert len(stats) == 3, f"Expected 3 periods, got {len(stats)}"
 
+            # Expected: Only 3 in-range records with 5000000 traffic each = 15000000
+            expected_total_traffic = 3 * 5000000  # 15000000
+            total_traffic = 0
+
             # All periods should be within range
             for stat in stats:
                 assert stat.period_start >= start
                 assert stat.period_start < end
+
+                # STRICT: Validate traffic is from in-range records only
+                assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
+                # Pre-range would have 2 records * 5000000 = 10000000
+                assert stat.total_traffic != 10000000, (
+                    "ERROR: Got pre-range traffic (2 records = 10000000)"
+                )
+                total_traffic += stat.total_traffic
+
+            # STRICT: Total must match exactly the 3 in-range records
+            assert total_traffic == expected_total_traffic, (
+                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("period", [Period.hour, Period.day])
@@ -533,7 +673,24 @@ class TestGetAdminUsagesTimezone:
             assert -1 in result.stats
             stats = result.stats[-1]
 
+            # Expected: Records added every 6 hours from Feb 1 - Feb 15
+            # Feb 1-15 is 14 days = 336 hours / 6 hours = 56 records
+            # Each record has 5000000 traffic
+            total_traffic = 0
+
             # All periods must be within range
             for stat in stats:
                 assert stat.period_start >= start_utc
                 assert stat.period_start < end_utc
+
+                # STRICT: Validate traffic is from records
+                assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
+                # Each record is 5000000, so totals must be multiples
+                assert stat.total_traffic % 5000000 == 0, (
+                    f"Traffic {stat.total_traffic} is not a multiple of 5000000"
+                )
+                total_traffic += stat.total_traffic
+
+            # STRICT: Total traffic should be from all records
+            assert total_traffic > 0, "Should have non-zero total traffic"
+            assert total_traffic % 5000000 == 0, "Total traffic must be multiple of 5000000"
