@@ -135,10 +135,10 @@ class TestGetNodesUsageTimezone:
             # Hour 1: idx 3-4 (20:30, 20:45 UTC) → 00:00-00:59 Tehran
             # Hour 2: idx 5-6 (21:00, 21:30 UTC) → 01:00-01:59 Tehran
             # Hour 3: idx 7-8 (22:30, 23:15 UTC) → 02:00-02:59 Tehran
-            expected_hour1_uplink = 1000003 + 1000004  # 2000007
-            expected_hour1_downlink = 10000003 + 10000004  # 20000007
-            expected_hour2_uplink = 1000005 + 1000006  # 2000011
-            expected_hour2_downlink = 10000005 + 10000006  # 20000011
+            expected_hour1_uplink = 1000003 + 1000004 + 1000005  # 3000012
+            expected_hour1_downlink = 10000003 + 10000004 + 10000005  # 30000012
+            expected_hour2_uplink = 1000006  # 1000006
+            expected_hour2_downlink = 10000006  # 10000006
             expected_hour3_uplink = 1000007 + 1000008  # 2000015
             expected_hour3_downlink = 10000007 + 10000008  # 20000015
 
@@ -217,9 +217,11 @@ class TestGetNodesUsageTimezone:
             # Should have exactly 3 periods for 3-hour range
             assert len(stats) == 3, f"Expected 3 periods, got {len(stats)}"
 
-            # Expected: 3 in-range records with uplinks 1000003, 1000004, 1000005
-            expected_uplink_sum = 1000003 + 1000004 + 1000005  # 3000012
-            expected_downlink_sum = 10000003 + 10000004 + 10000005  # 30000012
+            # Expected: 3 in-range records (00:15, 01:15, 02:15 NY), each with
+            # uplink=1000000 and downlink=10000000. The 03:00 boundary row is
+            # excluded because end is exclusive.
+            expected_uplink_sum = 3 * 1000000  # 3000000
+            expected_downlink_sum = 3 * 10000000  # 30000000
 
             # All periods should be >= start
             total_uplink = sum(s.uplink for s in stats)
@@ -474,27 +476,25 @@ class TestGetUserUsagesTimezone:
             # Should have exactly 3 periods (not 8, not more)
             assert len(stats) == 3, f"Expected 3 periods, got {len(stats)}"
 
-            # Expected: Only 3 in-range records with used_traffic=5000000 each
-            # Total from 3 in-range = 15000000
-            # Pre-range would be 2 * 5000000 = 10000000
-            expected_total_traffic = 3 * 5000000  # 15000000
+            # Expected: 5 in-range records with used_traffic=5000000 each.
+            # Bucket totals in Tehran are [10000000, 10000000, 5000000].
+            expected_bucket_totals = [10000000, 10000000, 5000000]
+            expected_total_traffic = sum(expected_bucket_totals)  # 25000000
 
             total_traffic = 0
 
             # All periods should be within requested range
-            for stat in stats:
+            for i, stat in enumerate(stats):
                 assert stat.period_start >= start
                 assert stat.period_start < end
 
-                # STRICT: Validate traffic is positive and from in-range only
-                assert stat.total_traffic > 0, f"Total traffic should be > 0, got {stat.total_traffic}"
-                # Pre-range traffic per record is 5000000
-                assert stat.total_traffic != 10000000, (
-                    "ERROR: May have included pre-range traffic (2 records = 10000000)"
+                # STRICT: Validate exact per-bucket traffic
+                assert stat.total_traffic == expected_bucket_totals[i], (
+                    f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
                 )
                 total_traffic += stat.total_traffic
 
-            # STRICT: Total must match exactly the 3 in-range records
+            # STRICT: Total must match exactly all in-range records
             assert total_traffic == expected_total_traffic, (
                 f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
             )
@@ -601,7 +601,9 @@ class TestGetAllUsersUsagesTimezone:
 
             result = await get_all_users_usages(
                 session,
-                admins=None,
+                admins=[
+                    (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
+                ],
                 start=start,
                 end=end,
                 period=Period.hour,
@@ -609,8 +611,8 @@ class TestGetAllUsersUsagesTimezone:
 
             assert result.stats is not None
 
-            # Expected: 3 in-range records with 5000000 traffic each = 15000000 total
-            expected_total_traffic = 3 * 5000000  # 15000000
+            # Expected rows in [start, end): 20:30, 20:45, 21:30, 22:15 UTC.
+            expected_total_traffic = 4 * 5000000  # 20000000
 
             total_traffic = 0
 
@@ -711,24 +713,26 @@ class TestGetAdminUsagesTimezone:
             # Should have exactly 3 periods for hour-level grouping in 3-hour range
             assert len(stats) == 3, f"Expected 3 periods, got {len(stats)}"
 
-            # Expected: Only 3 in-range records with 5000000 traffic each = 15000000
-            expected_total_traffic = 3 * 5000000  # 15000000
+            # Expected: 5 in-range rows per user in [start, end), for two users:
+            # user1: 5 * 5000000 = 25000000
+            # user2: 5 * 3000000 = 15000000
+            # total: 40000000
+            expected_bucket_totals = [16000000, 16000000, 8000000]
+            expected_total_traffic = sum(expected_bucket_totals)  # 40000000
             total_traffic = 0
 
             # All periods should be within range
-            for stat in stats:
+            for i, stat in enumerate(stats):
                 assert stat.period_start >= start
                 assert stat.period_start < end
 
-                # STRICT: Validate traffic is from in-range records only
-                assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
-                # Pre-range would have 2 records * 5000000 = 10000000
-                assert stat.total_traffic != 10000000, (
-                    "ERROR: Got pre-range traffic (2 records = 10000000)"
+                # STRICT: Validate exact per-bucket traffic
+                assert stat.total_traffic == expected_bucket_totals[i], (
+                    f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
                 )
                 total_traffic += stat.total_traffic
 
-            # STRICT: Total must match exactly the 3 in-range records
+            # STRICT: Total must match exactly all in-range records
             assert total_traffic == expected_total_traffic, (
                 f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
             )
