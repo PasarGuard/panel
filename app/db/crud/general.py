@@ -202,15 +202,22 @@ def attach_timezone_to_period_start(row_dict: dict, target_tz, dialect: str = No
             # If parsing fails, leave as is
             return
 
-    # If period_start is already timezone-aware, convert to target timezone
+    # If period_start is already timezone-aware, we MUST replace the timezone, NOT convert it.
+    # Why? Because _build_trunc_expression returns a timestamp representing "Wall Clock Time"
+    # in the target timezone.
+    #
+    # Example: 00:00 Tehran time.
+    # Postgres SQL returns: 2026-02-10 00:00:00 (timestamp without time zone)
+    #
+    # However, some drivers/configurations might return this as a timezone-aware datetime (e.g. UTC).
+    # If the driver returns "2026-02-10 00:00:00+00:00" (claiming it's midnight UTC),
+    # using .astimezone(tehran_tz) would convert it to "03:30:00+03:30".
+    #
+    # But we KNOW the numerical value "00:00:00" is ALREADY the correct wall clock time.
+    # So we must discard the driver's timezone assumption and stamp it with the correct timezone.
     if isinstance(period_start, datetime):
-        if period_start.tzinfo is not None:
-            # Already timezone-aware - convert to target timezone
-            period_start = period_start.astimezone(target_tz)
-        else:
-            # Naive datetime - it represents wall-clock time in target timezone
-            # Just attach the timezone info
-            period_start = period_start.replace(tzinfo=target_tz)
+        # Always replace, never convert
+        period_start = period_start.replace(tzinfo=target_tz)
 
         row_dict["period_start"] = period_start
 
