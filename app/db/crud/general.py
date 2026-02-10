@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import JWT, System
 from app.models.stats import Period
-from app.utils.helpers import get_timezone_offset_string
+from app.utils.helpers import fix_datetime_timezone, get_timezone_offset_string
 
 MYSQL_FORMATS = {
     Period.minute: "%Y-%m-%d %H:%i:00",
@@ -83,7 +83,7 @@ def _convert_period_start_timezone(row_dict: dict, target_tz) -> None:
         period_start_utc = row_dict["period_start"]
         if period_start_utc is not None and target_tz is not None:
             # Convert to target timezone
-            row_dict["period_start"] = period_start_utc.astimezone(target_tz)
+            row_dict["period_start"] = fix_datetime_timezone(period_start_utc).astimezone(target_tz)
 
 
 def get_datetime_add_expression(db: AsyncSession, datetime_column, seconds: int):
