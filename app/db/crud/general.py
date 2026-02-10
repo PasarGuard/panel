@@ -1,24 +1,24 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from sqlalchemy import String, func, or_, select, text
+from sqlalchemy import DateTime, String, cast, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import JWT, System
 from app.models.stats import Period
-from app.utils.helpers import fix_datetime_timezone
 
 MYSQL_FORMATS = {
     Period.minute: "%Y-%m-%d %H:%i:00",
     Period.hour: "%Y-%m-%d %H:00:00",
-    Period.day: "%Y-%m-%d",
-    Period.month: "%Y-%m-01",
+    Period.day: "%Y-%m-%d 00:00:00",
+    Period.month: "%Y-%m-01 00:00:00",
 }
+
 SQLITE_FORMATS = {
     Period.minute: "%Y-%m-%d %H:%M:00",
     Period.hour: "%Y-%m-%d %H:00:00",
-    Period.day: "%Y-%m-%d",
-    Period.month: "%Y-%m-01",
+    Period.day: "%Y-%m-%d 00:00:00",
+    Period.month: "%Y-%m-01 00:00:00",
 }
 
 
@@ -31,96 +31,220 @@ def _build_trunc_expression(
     """
     Builds the appropriate truncation SQL expression based on dialect and period.
 
+    The correct approach for timezone-aware truncation is:
+    1. Convert UTC timestamp to target timezone
+    2. Truncate in the target timezone
+    3. Return result as naive timestamp representing wall-clock time in target timezone
+
     Args:
         db: Database session
         period: Time period for truncation (minute, hour, day, month)
-        column: Database column to truncate
+        column: Database column to truncate (assumed to be in UTC)
         start: Start datetime for timezone-aware grouping (uses its timezone if provided)
 
     Returns:
-        SQL expression for truncation
+        SQL expression for truncation that returns naive timestamps/strings
+        representing wall-clock time in the target timezone
     """
     dialect = db.bind.dialect.name
 
-    # Calculate timezone offset if start datetime has timezone info
-    offset_seconds = None
+    # Extract timezone offset from start parameter
+    tz_offset_str = None
+    tz_offset_minutes = None
+
     if start and start.tzinfo:
         offset = start.tzinfo.utcoffset(start)
         if offset:
-            offset_seconds = int(offset.total_seconds())
+            total_seconds = int(offset.total_seconds())
+            hours, remainder = divmod(abs(total_seconds), 3600)
+            minutes = remainder // 60
+            sign = "+" if total_seconds >= 0 else "-"
+            # Format as +HH:MM or -HH:MM for PostgreSQL/MySQL
+            tz_offset_str = f"{sign}{hours:02d}:{minutes:02d}"
+            # Format as minutes for SQLite
+            tz_offset_minutes = total_seconds // 60
 
     if dialect == "postgresql":
-        if offset_seconds is not None:
-            # Shift by requested offset before truncation. This avoids
-            # AT TIME ZONE string-offset edge cases across Postgres setups.
-            adjusted_column = column + func.make_interval(0, 0, 0, 0, 0, 0, offset_seconds)
-            return func.date_trunc(period.value, adjusted_column)
-        return func.date_trunc(period.value, column)
+        if tz_offset_str:
+            # Step 1: Treat column as UTC timestamp (converts timestamp -> timestamptz)
+            utc_column = func.timezone("UTC", column)
+            # Step 2: Convert to target timezone (converts timestamptz -> timestamp in target tz)
+            adjusted_column = func.timezone(tz_offset_str, utc_column)
+            # Step 3: Truncate in target timezone (stays as timestamp)
+            truncated = func.date_trunc(period.value, adjusted_column)
+            # Return the truncated timestamp (naive, representing wall-clock time in target tz)
+            return truncated
+        else:
+            # No timezone specified, truncate as UTC
+            return func.date_trunc(period.value, column)
+
     elif dialect == "mysql":
-        if offset_seconds is not None:
-            # Add offset before truncating
-            adjusted_column = func.date_add(column, text(f"INTERVAL {offset_seconds} SECOND"))
-            return func.date_format(adjusted_column, MYSQL_FORMATS[period.value])
-        return func.date_format(column, MYSQL_FORMATS[period.value])
+        if tz_offset_str:
+            # Convert from UTC (+00:00) to target timezone
+            adjusted_column = func.convert_tz(column, "+00:00", tz_offset_str)
+            # DATE_FORMAT returns string representing wall-clock time in target timezone
+            return func.date_format(adjusted_column, MYSQL_FORMATS[period])
+        else:
+            return func.date_format(column, MYSQL_FORMATS[period])
+
     elif dialect == "sqlite":
-        if offset_seconds is not None:
-            # Add offset before truncating
-            adjusted_column = func.datetime(func.strftime("%s", column) + offset_seconds, "unixepoch")
-            return func.strftime(SQLITE_FORMATS[period.value], adjusted_column)
-        return func.strftime(SQLITE_FORMATS[period.value], column)
+        if tz_offset_minutes is not None:
+            # Apply timezone offset modifier, then format
+            tz_modifier = f"{tz_offset_minutes:+d} minutes"
+            adjusted_column = func.datetime(column, tz_modifier)
+            # strftime returns string representing wall-clock time in target timezone
+            return func.strftime(SQLITE_FORMATS[period], adjusted_column)
+        else:
+            return func.strftime(SQLITE_FORMATS[period], column)
 
     raise ValueError(f"Unsupported dialect: {dialect}")
 
 
-def _convert_period_start_timezone(row_dict: dict, target_tz, db: AsyncSession = None) -> None:
+def _get_next_period_boundary(dt: datetime, period: Period) -> datetime:
     """
-    Convert period_start to target timezone if specified.
+    Get the next period boundary after (or at) the given datetime.
 
-    For MySQL/SQLite, the offset is already applied in SQL, so period_start
-    is already in the target timezone and should not be re-converted.
-    For PostgreSQL, timezone offset shifting is already applied in SQL.
+    This is used to find the first COMPLETE bucket to include when start time
+    is not aligned to a period boundary.
+
+    Args:
+        dt: Datetime to find next boundary for
+        period: Period to use for boundary calculation
+
+    Returns:
+        Datetime at the next period boundary (or same if already on boundary)
+
+    Examples:
+        >>> tehran_tz = timezone(timedelta(hours=3, minutes=30))
+        >>> _get_next_period_boundary(
+        ...     datetime(2026, 5, 9, 14, 2, 37, tzinfo=tehran_tz),
+        ...     Period.hour
+        ... )
+        datetime(2026, 5, 9, 15, 0, 0, tzinfo=tehran_tz)
+
+        >>> _get_next_period_boundary(
+        ...     datetime(2026, 5, 9, 14, 0, 0, tzinfo=tehran_tz),
+        ...     Period.hour
+        ... )
+        datetime(2026, 5, 9, 14, 0, 0, tzinfo=tehran_tz)
+    """
+    if period == Period.minute:
+        # If any seconds/microseconds, round up to next minute
+        if dt.second > 0 or dt.microsecond > 0:
+            return dt.replace(second=0, microsecond=0) + timedelta(minutes=1)
+        return dt.replace(second=0, microsecond=0)
+
+    elif period == Period.hour:
+        # If any minutes/seconds/microseconds, round up to next hour
+        if dt.minute > 0 or dt.second > 0 or dt.microsecond > 0:
+            return dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        return dt.replace(minute=0, second=0, microsecond=0)
+
+    elif period == Period.day:
+        # If any hours/minutes/seconds/microseconds, round up to next day
+        if dt.hour > 0 or dt.minute > 0 or dt.second > 0 or dt.microsecond > 0:
+            return dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    elif period == Period.month:
+        # If not on first day or any time component, round up to next month
+        if dt.day > 1 or dt.hour > 0 or dt.minute > 0 or dt.second > 0 or dt.microsecond > 0:
+            # Go to first of next month
+            if dt.month == 12:
+                return datetime(dt.year + 1, 1, 1, 0, 0, 0, tzinfo=dt.tzinfo)
+            else:
+                return datetime(dt.year, dt.month + 1, 1, 0, 0, 0, tzinfo=dt.tzinfo)
+        return dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    return dt
+
+
+def attach_timezone_to_period_start(row_dict: dict, target_tz, dialect: str = None) -> None:
+    """
+    Attach timezone info to period_start in the row dictionary.
+
+    Handles both string and datetime types. If period_start is a string,
+    it will be parsed to datetime first.
 
     Args:
         row_dict: Dictionary containing 'period_start' key
-        target_tz: Reference timezone
-        db: Database session to detect dialect (optional)
+        target_tz: Timezone to attach to the period_start
+        dialect: Database dialect name (for handling dialect-specific formats)
     """
-    if "period_start" in row_dict:
-        period_start = row_dict["period_start"]
-        if period_start is not None and target_tz is not None:
-            dialect = db.bind.dialect.name if db else "postgresql"
+    if "period_start" not in row_dict or row_dict["period_start"] is None or target_tz is None:
+        return
 
-            if dialect in ("mysql", "sqlite"):
-                # Offset already applied in SQL; period_start is naive but in target timezone
-                # Just add the timezone info without converting
-                if isinstance(period_start, str):
-                    period_start = fix_datetime_timezone(period_start)
-                row_dict["period_start"] = period_start.replace(tzinfo=target_tz)
+    period_start = row_dict["period_start"]
+
+    # If it's a string (SQLite or MySQL), parse it to datetime first
+    if isinstance(period_start, str):
+        # Remove any timezone suffix and parse
+        clean_str = period_start.replace("Z", "").replace("+00:00", "").strip()
+        try:
+            # Try parsing with various formats
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M:00",
+                "%Y-%m-%d %H:00:00",
+                "%Y-%m-%d 00:00:00",
+                "%Y-%m-01 00:00:00",
+                "%Y-01-01 00:00:00",
+            ]:
+                try:
+                    period_start = datetime.strptime(clean_str, fmt)
+                    break
+                except ValueError:
+                    continue
             else:
-                # PostgreSQL: offset is already applied in SQL; just attach tzinfo
-                if isinstance(period_start, str):
-                    period_start = fix_datetime_timezone(period_start)
-                row_dict["period_start"] = period_start.replace(tzinfo=target_tz)
+                # Fallback to fromisoformat
+                period_start = datetime.fromisoformat(clean_str)
+        except (ValueError, AttributeError):
+            # If parsing fails, leave as is
+            return
+
+    # If period_start is already timezone-aware, convert to target timezone
+    if isinstance(period_start, datetime):
+        if period_start.tzinfo is not None:
+            # Already timezone-aware - convert to target timezone
+            period_start = period_start.astimezone(target_tz)
+        else:
+            # Naive datetime - it represents wall-clock time in target timezone
+            # Just attach the timezone info
+            period_start = period_start.replace(tzinfo=target_tz)
+
+        row_dict["period_start"] = period_start
 
 
-def _is_period_start_within_range(
-    row_dict: dict,
-    start: Optional[datetime],
-    end: Optional[datetime],
-) -> bool:
+def to_utc_for_filter(dt: Optional[datetime]) -> Optional[datetime]:
     """
-    Validate that an aggregated bucket start is inside requested range.
+    Convert a timezone-aware datetime to UTC for database filtering.
 
-    Buckets are inclusive on start and exclusive on end: [start, end).
+    The database stores timestamps in UTC without timezone info. When filtering
+    with timezone-aware datetimes, we need to convert them to UTC first.
+
+    Args:
+        dt: Timezone-aware datetime to convert
+
+    Returns:
+        UTC datetime without timezone info (naive), or None if input is None
+
+    Example:
+        >>> tehran_tz = timezone(timedelta(hours=3, minutes=30))
+        >>> dt = datetime(2026, 2, 10, 0, 0, 0, tzinfo=tehran_tz)
+        >>> to_utc_for_filter(dt)
+        datetime(2026, 2, 9, 20, 30, 0)  # Naive UTC
     """
-    period_start = row_dict.get("period_start")
-    if period_start is None:
-        return False
-    if start is not None and period_start < start:
-        return False
-    if end is not None and period_start >= end:
-        return False
-    return True
+    if dt is None:
+        return None
+
+    # Convert to UTC
+    if dt.tzinfo is not None:
+        utc_dt = dt.astimezone(timezone.utc)
+        # Return as naive datetime (remove tzinfo) for database comparison
+        return utc_dt.replace(tzinfo=None)
+
+    # Already naive, assume it's UTC
+    return dt
 
 
 def get_datetime_add_expression(db: AsyncSession, datetime_column, seconds: int):
