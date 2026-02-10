@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
 from typing import List, Optional, Sequence
 
-from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
+from sqlalchemy import and_, case, delete, desc, func, literal, literal_column, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.functions import coalesce
@@ -499,11 +499,10 @@ async def get_user_usages(
             # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
             stmt = stmt.having(trunc_expr >= boundary_value)
         elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: trunc_expr returns string, compare to string
-            # Format the boundary value as a string in the same format
+            # MySQL/SQLite: Use the alias 'period_start' in HAVING
             format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))  # %i -> %M for Python
-            stmt = stmt.having(trunc_expr >= boundary_str)
+            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
+            stmt = stmt.having(literal_column("period_start") >= boundary_str)
 
     result = await db.execute(stmt)
 
@@ -1139,11 +1138,10 @@ async def get_all_users_usages(
             # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
             stmt = stmt.having(trunc_expr >= boundary_value)
         elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: trunc_expr returns string, compare to string
-            # Format the boundary value as a string in the same format
+            # MySQL/SQLite: Use the alias 'period_start' in HAVING
             format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))  # %i -> %M for Python
-            stmt = stmt.having(trunc_expr >= boundary_str)
+            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
+            stmt = stmt.having(literal_column("period_start") >= boundary_str)
 
     result = await db.execute(stmt)
 

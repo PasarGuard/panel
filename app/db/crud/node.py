@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional, Union
 
-from sqlalchemy import and_, bindparam, case, delete, func, or_, select, update
+from sqlalchemy import and_, bindparam, case, delete, func, literal_column, or_, select, update
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import coalesce
@@ -244,11 +244,11 @@ async def get_nodes_usage(
             # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
             stmt = stmt.having(trunc_expr >= boundary_value)
         elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: trunc_expr returns string, compare to string
-            # Format the boundary value as a string in the same format
+            # MySQL/SQLite: Use the alias 'period_start' in HAVING
+            # The column is already formatted as a string in the SELECT list
             format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))  # %i -> %M for Python
-            stmt = stmt.having(trunc_expr >= boundary_str)
+            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
+            stmt = stmt.having(literal_column("period_start") >= boundary_str)
 
     result = await db.execute(stmt)
 
