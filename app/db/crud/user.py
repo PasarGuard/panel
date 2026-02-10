@@ -26,7 +26,6 @@ from app.db.models import (
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
-from app.utils.helpers import get_timezone_offset_string
 from config import USERS_AUTODELETE_DAYS
 
 from .general import _build_trunc_expression, _convert_period_start_timezone, build_json_proxy_settings_search_condition
@@ -438,9 +437,6 @@ async def get_user_usages(
     Retrieves user usages within a specified date range.
     Groups data by periods in the timezone of the start/end parameters.
     """
-    # Extract timezone offset from start parameter for timezone-aware grouping
-    timezone_offset = get_timezone_offset_string(start)
-
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
@@ -1056,9 +1052,6 @@ async def get_all_users_usages(
     if admins_filter:
         users_subquery = users_subquery.join(Admin).where(Admin.username.in_(admins_filter))
     users_subquery = users_subquery.subquery()
-
-    # Extract timezone offset from start parameter for timezone-aware grouping
-    timezone_offset = get_timezone_offset_string(start)
 
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
