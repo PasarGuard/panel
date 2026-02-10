@@ -240,6 +240,103 @@ class TestGetNodesUsageTimezone:
             )
 
     @pytest.mark.asyncio
+    async def test_day_period_does_not_include_previous_day_tehran(self):
+        """
+        Regression test for extra first day bucket.
+
+        For a Tehran (+03:30) day range starting at 2026-02-04 00:00:00+03:30,
+        the response must start from 2026-02-04, not 2026-02-03.
+        """
+        async with TestSession() as session:
+            admin_id, user_id, node_id = await setup_test_data(session)
+
+            tehran_tz = timezone(timedelta(hours=3, minutes=30))
+            start = datetime(2026, 2, 4, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2026, 2, 10, 23, 59, 59, tzinfo=tehran_tz)
+
+            local_timestamps = [
+                datetime(2026, 2, 3, 12, 0, 0, tzinfo=tehran_tz),  # before range
+                datetime(2026, 2, 4, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 2, 5, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 2, 6, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 2, 7, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 2, 8, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 2, 9, 12, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 2, 10, 12, 0, 0, tzinfo=tehran_tz),
+            ]
+
+            for idx, ts_local in enumerate(local_timestamps):
+                session.add(
+                    NodeUsage(
+                        created_at=ts_local.astimezone(timezone.utc),
+                        node_id=node_id,
+                        uplink=1000 + idx,
+                        downlink=2000 + idx,
+                    )
+                )
+            await session.commit()
+
+            result = await get_nodes_usage(
+                session,
+                start=start,
+                end=end,
+                period=Period.day,
+                node_id=node_id,
+            )
+
+            stats = result.stats[node_id]
+            assert len(stats) == 7, f"Expected 7 day buckets, got {len(stats)}"
+            assert stats[0].period_start == datetime(2026, 2, 4, 0, 0, 0, tzinfo=tehran_tz)
+            for stat in stats:
+                assert stat.period_start >= start
+                assert stat.period_start < end
+
+    @pytest.mark.asyncio
+    async def test_hour_period_excludes_partial_first_bucket(self):
+        """
+        Regression test for extra first hour bucket when start is not hour-aligned.
+        """
+        async with TestSession() as session:
+            admin_id, user_id, node_id = await setup_test_data(session)
+
+            tehran_tz = timezone(timedelta(hours=3, minutes=30))
+            start = datetime(2026, 2, 9, 14, 2, 37, tzinfo=tehran_tz)
+            end = datetime(2026, 2, 9, 18, 0, 0, tzinfo=tehran_tz)
+
+            local_timestamps = [
+                datetime(2026, 2, 9, 14, 10, 0, tzinfo=tehran_tz),  # same hour as start (partial bucket)
+                datetime(2026, 2, 9, 15, 10, 0, tzinfo=tehran_tz),
+                datetime(2026, 2, 9, 16, 10, 0, tzinfo=tehran_tz),
+            ]
+
+            for idx, ts_local in enumerate(local_timestamps):
+                session.add(
+                    NodeUsage(
+                        created_at=ts_local.astimezone(timezone.utc),
+                        node_id=node_id,
+                        uplink=10000 + idx,
+                        downlink=20000 + idx,
+                    )
+                )
+            await session.commit()
+
+            result = await get_nodes_usage(
+                session,
+                start=start,
+                end=end,
+                period=Period.hour,
+                node_id=node_id,
+            )
+
+            stats = result.stats[node_id]
+            period_starts = [s.period_start for s in stats]
+
+            assert period_starts == [
+                datetime(2026, 2, 9, 15, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 2, 9, 16, 0, 0, tzinfo=tehran_tz),
+            ], f"Unexpected hour buckets: {period_starts}"
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("period", [Period.hour, Period.day])
     async def test_timezone_filtering_no_early_data(self, period):
         """

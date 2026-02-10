@@ -103,6 +103,26 @@ def _convert_period_start_timezone(row_dict: dict, target_tz, db: AsyncSession =
                 row_dict["period_start"] = period_start.replace(tzinfo=target_tz)
 
 
+def _is_period_start_within_range(
+    row_dict: dict,
+    start: Optional[datetime],
+    end: Optional[datetime],
+) -> bool:
+    """
+    Validate that an aggregated bucket start is inside requested range.
+
+    Buckets are inclusive on start and exclusive on end: [start, end).
+    """
+    period_start = row_dict.get("period_start")
+    if period_start is None:
+        return False
+    if start is not None and period_start < start:
+        return False
+    if end is not None and period_start >= end:
+        return False
+    return True
+
+
 def get_datetime_add_expression(db: AsyncSession, datetime_column, seconds: int):
     """
     Get database-specific datetime addition expression

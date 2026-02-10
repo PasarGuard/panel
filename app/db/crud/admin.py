@@ -4,7 +4,7 @@ from enum import Enum
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.crud.general import _build_trunc_expression, _convert_period_start_timezone
+from app.db.crud.general import _build_trunc_expression, _convert_period_start_timezone, _is_period_start_within_range
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_password
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
@@ -461,6 +461,8 @@ async def get_admin_usages(
         node_id_val = row_dict.pop("node_id", node_id)
 
         _convert_period_start_timezone(row_dict, target_tz, db)
+        if not _is_period_start_within_range(row_dict, start, end):
+            continue
 
         if node_id_val not in stats:
             stats[node_id_val] = []
