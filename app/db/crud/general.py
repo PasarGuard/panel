@@ -51,9 +51,9 @@ def _build_trunc_expression(
 
     if dialect == "postgresql":
         if start and start.tzinfo:
-            # Convert to target timezone, then truncate
+            # Convert timestamptz to target timezone, then truncate
             tz_str = get_timezone_offset_string(start)
-            return func.date_trunc(period.value, column.op("AT TIME ZONE")("UTC").op("AT TIME ZONE")(tz_str))
+            return func.date_trunc(period.value, column.op("AT TIME ZONE")(tz_str))
         return func.date_trunc(period.value, column)
     elif dialect == "mysql":
         if offset_seconds is not None:
@@ -96,8 +96,11 @@ def _convert_period_start_timezone(row_dict: dict, target_tz, db: AsyncSession =
                     period_start = fix_datetime_timezone(period_start)
                 row_dict["period_start"] = period_start.replace(tzinfo=target_tz)
             else:
-                # PostgreSQL: offset applied via AT TIME ZONE; convert from UTC to target
-                row_dict["period_start"] = fix_datetime_timezone(period_start).astimezone(target_tz)
+                # PostgreSQL: AT TIME ZONE returns naive timestamp already in target timezone
+                # Just attach timezone info without converting
+                if isinstance(period_start, str):
+                    period_start = fix_datetime_timezone(period_start)
+                row_dict["period_start"] = period_start.replace(tzinfo=target_tz)
 
 
 def get_datetime_add_expression(db: AsyncSession, datetime_column, seconds: int):
