@@ -26,6 +26,7 @@ from app.db.models import (
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
+from app.utils.helpers import convert_to_utc_for_filtering
 from config import USERS_AUTODELETE_DAYS
 
 from .general import _build_trunc_expression, _convert_period_start_timezone, build_json_proxy_settings_search_condition
@@ -440,9 +441,12 @@ async def get_user_usages(
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
+    # Convert to UTC for filtering while preserving original timezone for grouping
+    start_utc = convert_to_utc_for_filtering(start)
+    end_utc = convert_to_utc_for_filtering(end)
     conditions = [
-        NodeUserUsage.created_at >= start,
-        NodeUserUsage.created_at <= end,
+        NodeUserUsage.created_at >= start_utc,
+        NodeUserUsage.created_at <= end_utc,
         NodeUserUsage.user_id == user_id,
     ]
 
@@ -1056,9 +1060,12 @@ async def get_all_users_usages(
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
+    # Convert to UTC for filtering while preserving original timezone for grouping
+    start_utc = convert_to_utc_for_filtering(start)
+    end_utc = convert_to_utc_for_filtering(end)
     conditions = [
-        NodeUserUsage.created_at >= start,
-        NodeUserUsage.created_at <= end,
+        NodeUserUsage.created_at >= start_utc,
+        NodeUserUsage.created_at <= end_utc,
         NodeUserUsage.user_id.in_(select(users_subquery.c.id)),
     ]
 

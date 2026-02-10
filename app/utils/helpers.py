@@ -109,6 +109,46 @@ def get_timezone_offset_string(dt_value: dt) -> str | None:
     return f"{sign}{hours:02d}:{minutes:02d}"
 
 
+def convert_to_utc_for_filtering(dt_value: dt | None) -> dt | None:
+    """
+    Convert datetime to UTC for database filtering.
+
+    Database timestamps are stored in UTC. This function ensures filter
+    parameters are converted to UTC for correct WHERE clause comparisons.
+    Without this conversion, SQLAlchemy would compare timezone-aware datetimes
+    directly, causing incorrect results.
+
+    Args:
+        dt_value: Datetime object (timezone-aware or naive, or None)
+
+    Returns:
+        - UTC datetime if input had timezone
+        - Unchanged if naive (backward compatibility)
+        - None if input was None
+
+    Examples:
+        >>> # Tehran timezone +03:30
+        >>> tehran_tz = tz(timedelta(hours=3, minutes=30))
+        >>> dt = dt(2026, 2, 4, 0, 0, 0, tzinfo=tehran_tz)
+        >>> convert_to_utc_for_filtering(dt)
+        datetime(2026, 2, 3, 20, 30, 0, tzinfo=timezone.utc)
+
+        >>> # Naive datetime (no conversion)
+        >>> dt_naive = dt(2026, 2, 4, 0, 0, 0)
+        >>> convert_to_utc_for_filtering(dt_naive)
+        datetime(2026, 2, 4, 0, 0, 0)
+
+        >>> # None input
+        >>> convert_to_utc_for_filtering(None)
+        None
+    """
+    if dt_value is None:
+        return None
+    if dt_value.tzinfo is not None:
+        return dt_value.astimezone(tz.utc)
+    return dt_value
+
+
 class UUIDEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, UUID):

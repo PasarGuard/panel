@@ -8,6 +8,7 @@ from app.db.crud.general import _build_trunc_expression, _convert_period_start_t
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_password
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
+from app.utils.helpers import convert_to_utc_for_filtering
 
 
 async def load_admin_attrs(admin: Admin):
@@ -410,9 +411,12 @@ async def get_admin_usages(
     # Build truncation expression with timezone support
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start=start)
 
+    # Convert to UTC for filtering while preserving original timezone for grouping
+    start_utc = convert_to_utc_for_filtering(start)
+    end_utc = convert_to_utc_for_filtering(end)
     conditions = [
-        NodeUserUsage.created_at >= start,
-        NodeUserUsage.created_at <= end,
+        NodeUserUsage.created_at >= start_utc,
+        NodeUserUsage.created_at <= end_utc,
     ]
 
     if admin_id is not None:

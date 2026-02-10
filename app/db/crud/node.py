@@ -18,6 +18,7 @@ from app.db.models import (
 )
 from app.models.node import NodeCreate, NodeModify, UsageTable
 from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageStatsList, Period
+from app.utils.helpers import convert_to_utc_for_filtering
 
 from .general import _build_trunc_expression, _convert_period_start_timezone
 
@@ -180,7 +181,10 @@ async def get_nodes_usage(
     # Build truncation expression with timezone support
     trunc_expr = _build_trunc_expression(db, period, NodeUsage.created_at, start)
 
-    conditions = [NodeUsage.created_at >= start, NodeUsage.created_at <= end]
+    # Convert to UTC for filtering while preserving original timezone for grouping
+    start_utc = convert_to_utc_for_filtering(start)
+    end_utc = convert_to_utc_for_filtering(end)
+    conditions = [NodeUsage.created_at >= start_utc, NodeUsage.created_at <= end_utc]
 
     if node_id is not None:
         conditions.append(NodeUsage.node_id == node_id)
@@ -233,7 +237,11 @@ async def get_node_stats(
 ) -> NodeStatsList:
     # Build truncation expression with timezone support
     trunc_expr = _build_trunc_expression(db, period, NodeStat.created_at, start)
-    conditions = [NodeStat.created_at >= start, NodeStat.created_at <= end, NodeStat.node_id == node_id]
+
+    # Convert to UTC for filtering while preserving original timezone for grouping
+    start_utc = convert_to_utc_for_filtering(start)
+    end_utc = convert_to_utc_for_filtering(end)
+    conditions = [NodeStat.created_at >= start_utc, NodeStat.created_at <= end_utc, NodeStat.node_id == node_id]
 
     stmt = (
         select(
