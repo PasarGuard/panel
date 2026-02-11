@@ -143,7 +143,7 @@ class NodeOperation(BaseOperation):
             skip_pagination=all,
         )
 
-        nodes = [NodeSimple(id=row[0], name=row[1]) for row in rows]
+        nodes = [NodeSimple(id=row[0], name=row[1], status=row[2]) for row in rows]
 
         return NodesSimpleResponse(nodes=nodes, total=total)
 

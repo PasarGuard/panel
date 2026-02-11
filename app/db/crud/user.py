@@ -136,6 +136,8 @@ UsersSortingOptions = Enum(
 UsersSortingOptionsSimple = Enum(
     "UsersSortingOptionsSimple",
     {
+        "id": User.id.asc(),
+        "-id": User.id.desc(),
         "username": User.username.asc(),
         "-username": User.username.desc(),
     },

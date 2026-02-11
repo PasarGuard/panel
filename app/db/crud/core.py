@@ -10,6 +10,8 @@ from app.models.core import CoreCreate
 CoreSortingOptionsSimple = Enum(
     "CoreSortingOptionsSimple",
     {
+        "id": CoreConfig.id.asc(),
+        "-id": CoreConfig.id.desc(),
         "name": CoreConfig.name.asc(),
         "-name": CoreConfig.name.desc(),
     },

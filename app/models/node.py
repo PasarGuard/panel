@@ -217,6 +217,7 @@ class NodeSimple(BaseModel):
 
     id: int
     name: str
+    status: NodeStatus
     model_config = ConfigDict(from_attributes=True)
 
 

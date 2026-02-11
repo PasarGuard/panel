@@ -41,6 +41,8 @@ AdminsSortingOptions = Enum(
 AdminsSortingOptionsSimple = Enum(
     "AdminsSortingOptionsSimple",
     {
+        "id": Admin.id.asc(),
+        "-id": Admin.id.desc(),
         "username": Admin.username.asc(),
         "-username": Admin.username.desc(),
     },

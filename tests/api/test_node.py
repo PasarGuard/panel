@@ -427,7 +427,7 @@ async def test_get_nodes_simple_basic(access_token):
         assert "total" in data
 
         for node in data["nodes"]:
-            assert set(node.keys()) == {"id", "name"}
+            assert set(node.keys()) == {"id", "name", "status"}
 
         response_names = [n["name"] for n in data["nodes"]]
         for name in names:

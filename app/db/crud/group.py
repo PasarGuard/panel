@@ -11,6 +11,8 @@ from .host import upsert_inbounds
 GroupsSortingOptionsSimple = Enum(
     "GroupsSortingOptionsSimple",
     {
+        "id": Group.id.asc(),
+        "-id": Group.id.desc(),
         "name": Group.name.asc(),
         "-name": Group.name.desc(),
     },

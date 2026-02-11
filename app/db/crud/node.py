@@ -34,6 +34,8 @@ from .general import (
 NodeSortingOptionsSimple = Enum(
     "NodeSortingOptionsSimple",
     {
+        "id": Node.id.asc(),
+        "-id": Node.id.desc(),
         "name": Node.name.asc(),
         "-name": Node.name.desc(),
     },
@@ -171,7 +173,7 @@ async def get_nodes_simple(
     Returns:
         Tuple of (list of (id, name) tuples, total_count).
     """
-    stmt = select(Node.id, Node.name)
+    stmt = select(Node.id, Node.name, Node.status)
 
     if search:
         search_value = search.strip()
