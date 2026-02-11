@@ -190,7 +190,7 @@ class XRayConfig(dict):
         except (IndexError, TypeError):
             raise ValueError(f"You need to define at least one shortID in realitySettings of {inbound_tag}")
         try:
-            settings["spx"] = tls_settings.get("SpiderX")
+            settings["spx"] = tls_settings.get("spiderX")
         except Exception:
             settings["spx"] = ""
 
