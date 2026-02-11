@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 1.11.0
+ * OpenAPI spec version: 2.0.0-rc.1
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -21,6 +21,14 @@ import type {
 } from '@tanstack/react-query'
 import { orvalFetcher } from '../http'
 import type { ErrorType, BodyType } from '../http'
+export type GetUserTemplatesSimpleParams = {
+  offset?: number | null
+  limit?: number | null
+  search?: string | null
+  sort?: string | null
+  all?: boolean
+}
+
 export type GetUserTemplatesParams = {
   offset?: number
   limit?: number
@@ -145,6 +153,14 @@ export type GetUsageParams = {
   group_by_node?: boolean
 }
 
+export type GetHostsSimpleParams = {
+  offset?: number | null
+  limit?: number | null
+  search?: string | null
+  sort?: string | null
+  all?: boolean
+}
+
 export type GetHostsParams = {
   offset?: number
   limit?: number
@@ -231,16 +247,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
+
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -260,11 +276,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsOutput {
+export interface XrayMuxSettingsInput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -453,11 +469,6 @@ export const XHttpModes = {
 
 export type XHttpSettingsInputMode = XHttpModes | null
 
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
-}
-
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -466,6 +477,11 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
+}
+
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
 }
 
 export interface WebhookInfo {
@@ -531,20 +547,38 @@ export const UsernameGenerationStrategy = {
   sequence: 'sequence',
 } as const
 
-export type UserUsageStatsListPeriod = Period | null
-
-export interface UserUsageStat {
-  total_traffic: number
-  period_start: string
-}
-
 export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
+
+export type UserUsageStatsListPeriod = Period | null
 
 export interface UserUsageStatsList {
   period?: UserUsageStatsListPeriod
   start: string
   end: string
   stats: UserUsageStatsListStats
+}
+
+export interface UserUsageStat {
+  total_traffic: number
+  period_start: string
+}
+
+export type UserTemplateSimpleName = string | null
+
+/**
+ * Lightweight user template model with only id and name for performance.
+ */
+export interface UserTemplateSimple {
+  id: number
+  name?: UserTemplateSimpleName
+}
+
+/**
+ * Response model for lightweight user template list.
+ */
+export interface UserTemplatesSimpleResponse {
+  templates: UserTemplateSimple[]
+  total: number
 }
 
 export type UserTemplateResponseIsDisabled = boolean | null
@@ -837,6 +871,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -847,13 +888,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -1136,6 +1170,11 @@ export interface ShadowsocksSettings {
   method?: ShadowsocksMethods
 }
 
+export interface General {
+  default_flow?: XTLSFlows
+  default_method?: ShadowsocksMethods
+}
+
 export type SettingsSchemaOutputGeneral = General | null
 
 export type SettingsSchemaOutputSubscription = SubscriptionOutput | null
@@ -1367,14 +1406,6 @@ export interface NoiseSettings {
   xray?: NoiseSettingsXray
 }
 
-/**
- * Response model for lightweight node list.
- */
-export interface NodesSimpleResponse {
-  nodes: NodeSimple[]
-  total: number
-}
-
 export interface NodesResponse {
   nodes: NodeResponse[]
   total: number
@@ -1432,6 +1463,14 @@ export interface NodeSimple {
   id: number
   name: string
   status: NodeStatus
+}
+
+/**
+ * Response model for lightweight node list.
+ */
+export interface NodesSimpleResponse {
+  nodes: NodeSimple[]
+  total: number
 }
 
 export interface NodeSettings {
@@ -1687,6 +1726,30 @@ export interface KCPSettings {
   write_buffer_size?: KCPSettingsWriteBufferSize
 }
 
+export type HostSimpleInboundTag = string | null
+
+export type HostSimplePort = number | null
+
+/**
+ * Lightweight host model for list dropdowns.
+ */
+export interface HostSimple {
+  id: number
+  remark: string
+  address: string[]
+  port?: HostSimplePort
+  inbound_tag?: HostSimpleInboundTag
+  priority: number
+}
+
+/**
+ * Response model for lightweight host list.
+ */
+export interface HostsSimpleResponse {
+  hosts: HostSimple[]
+  total: number
+}
+
 export interface HostNotificationEnable {
   create?: boolean
   modify?: boolean
@@ -1728,6 +1791,11 @@ export interface HTTPException {
   detail: string
 }
 
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
+}
+
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -1756,11 +1824,6 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
-}
-
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -1793,11 +1856,6 @@ export const GeoFilseRegion = {
   china: 'china',
   russia: 'russia',
 } as const
-
-export interface General {
-  default_flow?: XTLSFlows
-  default_method?: ShadowsocksMethods
-}
 
 export type GRPCSettingsInitialWindowsSize = number | null
 
@@ -1885,26 +1943,6 @@ export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
 
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
-
 export interface CreateHost {
   id?: CreateHostId
   remark: string
@@ -1931,6 +1969,26 @@ export interface CreateHost {
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
 }
+
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
 
 /**
  * Lightweight core model with only id and name for performance.
@@ -4569,6 +4627,69 @@ export const useModifyHosts = <TData = Awaited<ReturnType<typeof modifyHosts>>, 
   const mutationOptions = getModifyHostsMutationOptions(options)
 
   return useMutation(mutationOptions)
+}
+
+/**
+ * Returns only id, remark, address, port, inbound_tag, and priority for hosts.
+ * @summary Get lightweight host list
+ */
+export const getHostsSimple = (params?: GetHostsSimpleParams, signal?: AbortSignal) => {
+  return orvalFetcher<HostsSimpleResponse>({ url: `/api/hosts/simple`, method: 'GET', params, signal })
+}
+
+export const getGetHostsSimpleQueryKey = (params?: GetHostsSimpleParams) => {
+  return [`/api/hosts/simple`, ...(params ? [params] : [])] as const
+}
+
+export const getGetHostsSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetHostsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetHostsSimpleQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHostsSimple>>> = ({ signal }) => getHostsSimple(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetHostsSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getHostsSimple>>>
+export type GetHostsSimpleQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetHostsSimple<TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetHostsSimpleParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHostsSimple<TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetHostsSimpleParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHostsSimple<TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetHostsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get lightweight host list
+ */
+
+export function useGetHostsSimple<TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetHostsSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetHostsSimpleQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
 }
 
 /**
@@ -7676,6 +7797,69 @@ export function useGetUserTemplates<TData = Awaited<ReturnType<typeof getUserTem
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserTemplates>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUserTemplatesQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns only id and name for user templates. Optimized for dropdowns and autocomplete.
+ * @summary Get lightweight user template list
+ */
+export const getUserTemplatesSimple = (params?: GetUserTemplatesSimpleParams, signal?: AbortSignal) => {
+  return orvalFetcher<UserTemplatesSimpleResponse>({ url: `/api/user_templates/simple`, method: 'GET', params, signal })
+}
+
+export const getGetUserTemplatesSimpleQueryKey = (params?: GetUserTemplatesSimpleParams) => {
+  return [`/api/user_templates/simple`, ...(params ? [params] : [])] as const
+}
+
+export const getGetUserTemplatesSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError = ErrorType<HTTPValidationError>>(
+  params?: GetUserTemplatesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetUserTemplatesSimpleQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserTemplatesSimple>>> = ({ signal }) => getUserTemplatesSimple(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUserTemplatesSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getUserTemplatesSimple>>>
+export type GetUserTemplatesSimpleQueryError = ErrorType<HTTPValidationError>
+
+export function useGetUserTemplatesSimple<TData = Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError = ErrorType<HTTPValidationError>>(
+  params: undefined | GetUserTemplatesSimpleParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserTemplatesSimple<TData = Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError = ErrorType<HTTPValidationError>>(
+  params?: GetUserTemplatesSimpleParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserTemplatesSimple<TData = Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError = ErrorType<HTTPValidationError>>(
+  params?: GetUserTemplatesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get lightweight user template list
+ */
+
+export function useGetUserTemplatesSimple<TData = Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError = ErrorType<HTTPValidationError>>(
+  params?: GetUserTemplatesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserTemplatesSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUserTemplatesSimpleQueryOptions(params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
