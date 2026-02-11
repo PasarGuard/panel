@@ -3,7 +3,12 @@ from fastapi import Depends, APIRouter, status
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from .authentication import check_sudo_admin, get_current
-from app.models.user_template import UserTemplateCreate, UserTemplateModify, UserTemplateResponse
+from app.models.user_template import (
+    UserTemplateCreate,
+    UserTemplateModify,
+    UserTemplateResponse,
+    UserTemplatesSimpleResponse,
+)
 from app.operation import OperatorType
 from app.operation.user_template import UserTemplateOperation
 from app.utils import responses
@@ -73,3 +78,29 @@ async def get_user_templates(
 ):
     """Get a list of User Templates with optional pagination"""
     return await template_operator.get_user_templates(db, offset, limit)
+
+
+@router.get(
+    "s/simple",
+    response_model=UserTemplatesSimpleResponse,
+    summary="Get lightweight user template list",
+    description="Returns only id and name for user templates. Optimized for dropdowns and autocomplete.",
+)
+async def get_user_templates_simple(
+    offset: int | None = None,
+    limit: int | None = None,
+    search: str | None = None,
+    sort: str | None = None,
+    all: bool = False,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(get_current),
+):
+    """Get lightweight user template list with only id and name"""
+    return await template_operator.get_user_templates_simple(
+        db=db,
+        offset=offset,
+        limit=limit,
+        search=search,
+        sort=sort,
+        all=all,
+    )

@@ -117,3 +117,246 @@ def test_user_template_delete(access_token):
         assert response.status_code == status.HTTP_204_NO_CONTENT
     finally:
         cleanup_groups(access_token, core, groups)
+
+
+# Tests for /api/user_templates/simple endpoint
+
+
+def test_get_user_templates_simple_basic(access_token):
+    """Test that user_templates/simple returns correct minimal data structure."""
+    core, groups = setup_groups(access_token, 1)
+    created_ids = []
+    created_names = []
+    try:
+        tmpl1 = create_user_template(access_token, group_ids=[groups[0]["id"]], name=unique_name("tmpl_1"))
+        tmpl2 = create_user_template(access_token, group_ids=[groups[0]["id"]], name=unique_name("tmpl_2"))
+        created_ids = [tmpl1["id"], tmpl2["id"]]
+        created_names = [tmpl1["name"], tmpl2["name"]]
+
+        response = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "templates" in data
+        assert "total" in data
+
+        for template in data["templates"]:
+            assert set(template.keys()) == {"id", "name"}
+
+        response_names = [t["name"] for t in data["templates"]]
+        for name in created_names:
+            assert name in response_names
+    finally:
+        for template_id in created_ids:
+            delete_user_template(access_token, template_id)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_user_templates_simple_search(access_token):
+    """Test case-insensitive search by template name."""
+    core, groups = setup_groups(access_token, 1)
+    created_ids = []
+    try:
+        tmpl1 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_alpha_search")
+        tmpl2 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_beta_search")
+        tmpl3 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_other_search")
+        created_ids = [tmpl1["id"], tmpl2["id"], tmpl3["id"]]
+
+        response = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"search": "alpha"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data["templates"]) >= 1
+        assert any(t["name"] == "tmpl_alpha_search" for t in data["templates"])
+    finally:
+        for template_id in created_ids:
+            delete_user_template(access_token, template_id)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_user_templates_simple_sort_ascending(access_token):
+    """Test ascending sort by name."""
+    core, groups = setup_groups(access_token, 1)
+    created_ids = []
+    created_names = []
+    try:
+        tmpl1 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_c_sort")
+        tmpl2 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_a_sort")
+        tmpl3 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_b_sort")
+        created_ids = [tmpl1["id"], tmpl2["id"], tmpl3["id"]]
+        created_names = [tmpl1["name"], tmpl2["name"], tmpl3["name"]]
+
+        response = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"sort": "name"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        our_templates = [t for t in data["templates"] if t["name"] in created_names]
+        our_names = [t["name"] for t in our_templates]
+        assert our_names == sorted(created_names)
+    finally:
+        for template_id in created_ids:
+            delete_user_template(access_token, template_id)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_user_templates_simple_sort_descending(access_token):
+    """Test descending sort by name."""
+    core, groups = setup_groups(access_token, 1)
+    created_ids = []
+    created_names = []
+    try:
+        tmpl1 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_a_desc")
+        tmpl2 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_b_desc")
+        tmpl3 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="tmpl_c_desc")
+        created_ids = [tmpl1["id"], tmpl2["id"], tmpl3["id"]]
+        created_names = [tmpl1["name"], tmpl2["name"], tmpl3["name"]]
+
+        response = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"sort": "-name"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        our_templates = [t for t in data["templates"] if t["name"] in created_names]
+        our_names = [t["name"] for t in our_templates]
+        assert our_names == sorted(created_names, reverse=True)
+    finally:
+        for template_id in created_ids:
+            delete_user_template(access_token, template_id)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_user_templates_simple_pagination(access_token):
+    """Test pagination with offset and limit."""
+    core, groups = setup_groups(access_token, 1)
+    created_ids = []
+    try:
+        for i in range(5):
+            tmpl = create_user_template(access_token, group_ids=[groups[0]["id"]], name=unique_name(f"tmpl_pag_{i}"))
+            created_ids.append(tmpl["id"])
+
+        response1 = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": 0, "limit": 2},
+        )
+        response2 = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"offset": 2, "limit": 2},
+        )
+
+        assert response1.status_code == status.HTTP_200_OK
+        assert response2.status_code == status.HTTP_200_OK
+        data1 = response1.json()
+        data2 = response2.json()
+        assert len(data1["templates"]) == 2
+        assert len(data2["templates"]) == 2
+
+        ids1 = {t["id"] for t in data1["templates"]}
+        ids2 = {t["id"] for t in data2["templates"]}
+        assert len(ids1 & ids2) == 0
+    finally:
+        for template_id in created_ids:
+            delete_user_template(access_token, template_id)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_user_templates_simple_skip_pagination(access_token):
+    """Test all=true parameter returns all records."""
+    core, groups = setup_groups(access_token, 1)
+    created_ids = []
+    try:
+        for i in range(10):
+            tmpl = create_user_template(access_token, group_ids=[groups[0]["id"]], name=unique_name(f"tmpl_all_{i}"))
+            created_ids.append(tmpl["id"])
+
+        response = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"all": "true"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "templates" in data
+        assert "total" in data
+        assert data["total"] >= 10
+    finally:
+        for template_id in created_ids:
+            delete_user_template(access_token, template_id)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_user_templates_simple_empty_search(access_token):
+    """Test search with no matching results."""
+    core, groups = setup_groups(access_token, 1)
+    created_ids = []
+    try:
+        tmpl1 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="known_tmpl_search_1")
+        tmpl2 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="known_tmpl_search_2")
+        created_ids = [tmpl1["id"], tmpl2["id"]]
+
+        response = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"search": "nonexistent_tmpl_xyz_12345"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["total"] == 0
+        assert len(data["templates"]) == 0
+    finally:
+        for template_id in created_ids:
+            delete_user_template(access_token, template_id)
+        cleanup_groups(access_token, core, groups)
+
+
+def test_get_user_templates_simple_invalid_sort(access_token):
+    """Test error handling for invalid sort parameter."""
+    response = client.get(
+        "/api/user_templates/simple",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"sort": "invalid_field_xyz"},
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_get_user_templates_simple_search_and_sort(access_token):
+    """Test combining search and sort parameters."""
+    core, groups = setup_groups(access_token, 1)
+    created_ids = []
+    created_names = []
+    try:
+        tmpl1 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="alpha_tmpl_combo")
+        tmpl2 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="beta_tmpl_combo")
+        tmpl3 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="gamma_tmpl_combo")
+        tmpl4 = create_user_template(access_token, group_ids=[groups[0]["id"]], name="other_tmpl_combo")
+        created_ids = [tmpl1["id"], tmpl2["id"], tmpl3["id"], tmpl4["id"]]
+        created_names = [tmpl1["name"], tmpl2["name"], tmpl3["name"], tmpl4["name"]]
+
+        response = client.get(
+            "/api/user_templates/simple",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"search": "_tmpl_combo", "sort": "-name"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        matching = [t for t in data["templates"] if t["name"] in created_names and "_tmpl_combo" in t["name"]]
+        matching_names = [t["name"] for t in matching]
+        assert len(matching_names) >= 3
+        assert matching_names == sorted(matching_names, reverse=True)
+    finally:
+        for template_id in created_ids:
+            delete_user_template(access_token, template_id)
+        cleanup_groups(access_token, core, groups)

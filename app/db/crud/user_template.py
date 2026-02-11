@@ -1,12 +1,24 @@
 from typing import Union, List
+from enum import Enum
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import UserTemplate
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 
 from .group import get_groups_by_ids
+
+
+UserTemplateSortingOptionsSimple = Enum(
+    "UserTemplateSortingOptionsSimple",
+    {
+        "id": UserTemplate.id.asc(),
+        "-id": UserTemplate.id.desc(),
+        "name": UserTemplate.name.asc(),
+        "-name": UserTemplate.name.desc(),
+    },
+)
 
 
 async def load_user_template_attrs(template: UserTemplate):
@@ -150,3 +162,60 @@ async def get_user_templates(
         await load_user_template_attrs(template)
 
     return user_templates
+
+
+async def get_user_templates_simple(
+    db: AsyncSession,
+    offset: int | None = None,
+    limit: int | None = None,
+    search: str | None = None,
+    sort: list[UserTemplateSortingOptionsSimple] | None = None,
+    skip_pagination: bool = False,
+) -> tuple[list[tuple[int, str]], int]:
+    """
+    Retrieves lightweight user template data with only id and name.
+
+    Args:
+        db: Database session.
+        offset: Number of records to skip.
+        limit: Number of records to retrieve.
+        search: Search term for template name.
+        sort: Sort options.
+        skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
+
+    Returns:
+        Tuple of (list of (id, name) tuples, total_count).
+    """
+    stmt = select(UserTemplate.id, UserTemplate.name)
+
+    if search:
+        search_value = search.strip()
+        if search_value:
+            stmt = stmt.where(UserTemplate.name.ilike(f"%{search_value}%"))
+
+    if sort:
+        sort_list = []
+        for s in sort:
+            if isinstance(s.value, tuple):
+                sort_list.extend(s.value)
+            else:
+                sort_list.append(s.value)
+        stmt = stmt.order_by(*sort_list)
+
+    # Get count BEFORE pagination (always)
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar()
+
+    # Apply pagination or safety limit
+    if not skip_pagination:
+        if offset:
+            stmt = stmt.offset(offset)
+        if limit:
+            stmt = stmt.limit(limit)
+    else:
+        stmt = stmt.limit(10000)  # Safety limit when all=true
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return rows, total

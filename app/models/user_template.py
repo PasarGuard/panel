@@ -80,3 +80,18 @@ class UserTemplateResponse(UserTemplate):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserTemplateSimple(BaseModel):
+    """Lightweight user template model with only id and name for performance."""
+
+    id: int
+    name: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserTemplatesSimpleResponse(BaseModel):
+    """Response model for lightweight user template list."""
+
+    templates: list[UserTemplateSimple]
+    total: int

@@ -2,10 +2,18 @@ import asyncio
 
 from app.db import AsyncSession
 from app.db.models import ProxyHost
-from app.models.host import CreateHost, BaseHost
+from app.models.host import CreateHost, BaseHost, HostSimple, HostsSimpleResponse
 from app.models.admin import AdminDetails
 from app.operation import BaseOperation
-from app.db.crud.host import create_host, get_host_by_id, remove_host, get_hosts, modify_host
+from app.db.crud.host import (
+    ProxyHostSortingOptionsSimple,
+    create_host,
+    get_host_by_id,
+    get_hosts,
+    get_hosts_simple,
+    modify_host,
+    remove_host,
+)
 from app.core.hosts import host_manager
 from app.utils.logger import get_logger
 
@@ -18,6 +26,49 @@ logger = get_logger("host-operation")
 class HostOperation(BaseOperation):
     async def get_hosts(self, db: AsyncSession, offset: int = 0, limit: int = 0) -> list[BaseHost]:
         return await get_hosts(db=db, offset=offset, limit=limit)
+
+    async def get_hosts_simple(
+        self,
+        db: AsyncSession,
+        offset: int | None = None,
+        limit: int | None = None,
+        search: str | None = None,
+        sort: str | None = None,
+        all: bool = False,
+    ) -> HostsSimpleResponse:
+        """Get lightweight host list"""
+        sort_list = []
+        if sort is not None:
+            opts = sort.strip(",").split(",")
+            for opt in opts:
+                try:
+                    enum_member = ProxyHostSortingOptionsSimple[opt]
+                    sort_list.append(enum_member)
+                except KeyError:
+                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
+
+        rows, total = await get_hosts_simple(
+            db=db,
+            offset=offset,
+            limit=limit,
+            search=search,
+            sort=sort_list if sort_list else None,
+            skip_pagination=all,
+        )
+
+        hosts = [
+            HostSimple(
+                id=row[0],
+                remark=row[1],
+                address=row[2],
+                port=row[3],
+                inbound_tag=row[4],
+                priority=row[5],
+            )
+            for row in rows
+        ]
+
+        return HostsSimpleResponse(hosts=hosts, total=total)
 
     async def validate_ds_host(self, db: AsyncSession, host: CreateHost, host_id: int | None = None) -> ProxyHost:
         if (

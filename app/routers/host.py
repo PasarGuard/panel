@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.host import BaseHost, CreateHost
+from app.models.host import BaseHost, CreateHost, HostsSimpleResponse
 from app.operation import OperatorType
 from app.operation.host import HostOperation
 from app.utils import responses
@@ -29,6 +29,32 @@ async def get_hosts(
     Get proxy hosts.
     """
     return await host_operator.get_hosts(db=db, offset=offset, limit=limit)
+
+
+@router.get(
+    "s/simple",
+    response_model=HostsSimpleResponse,
+    summary="Get lightweight host list",
+    description="Returns only id, remark, address, port, inbound_tag, and priority for hosts.",
+)
+async def get_hosts_simple(
+    offset: int | None = None,
+    limit: int | None = None,
+    search: str | None = None,
+    sort: str | None = None,
+    all: bool = False,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(check_sudo_admin),
+):
+    """Get lightweight host list"""
+    return await host_operator.get_hosts_simple(
+        db=db,
+        offset=offset,
+        limit=limit,
+        search=search,
+        sort=sort,
+        all=all,
+    )
 
 
 @router.post("/", response_model=BaseHost, status_code=status.HTTP_201_CREATED)
