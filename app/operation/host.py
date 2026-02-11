@@ -15,6 +15,7 @@ from app.db.crud.host import (
     remove_host,
 )
 from app.core.hosts import host_manager
+from app.core.manager import core_manager
 from app.utils.logger import get_logger
 
 from app import notification
@@ -24,8 +25,22 @@ logger = get_logger("host-operation")
 
 
 class HostOperation(BaseOperation):
+    async def _merge_inbound_config(self, host: BaseHost) -> BaseHost:
+        """Merge inbound config values into host model."""
+        if host.inbound_tag:
+            inbound_config = await core_manager.get_inbound_by_tag(host.inbound_tag)
+            if inbound_config:
+                host.reality_spx = inbound_config.get("spx") or None
+        return host
+
     async def get_hosts(self, db: AsyncSession, offset: int = 0, limit: int = 0) -> list[BaseHost]:
-        return await get_hosts(db=db, offset=offset, limit=limit)
+        hosts = await get_hosts(db=db, offset=offset, limit=limit)
+        merged_hosts = []
+        for host in hosts:
+            base_host = BaseHost.model_validate(host)
+            merged_host = await self._merge_inbound_config(base_host)
+            merged_hosts.append(merged_host)
+        return merged_hosts
 
     async def get_hosts_simple(
         self,
@@ -102,7 +117,7 @@ class HostOperation(BaseOperation):
 
         await host_manager.add_host(db, db_host)
 
-        return host
+        return await self._merge_inbound_config(host)
 
     async def modify_host(
         self, db: AsyncSession, host_id: int, modified_host: CreateHost, admin: AdminDetails
@@ -123,7 +138,7 @@ class HostOperation(BaseOperation):
 
         await host_manager.add_host(db, db_host)
 
-        return host
+        return await self._merge_inbound_config(host)
 
     async def remove_host(self, db: AsyncSession, host_id: int, admin: AdminDetails):
         db_host = await self.get_validated_host(db, host_id)

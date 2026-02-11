@@ -18,7 +18,9 @@ async def get_host(host_id: int, db: AsyncSession = Depends(get_db), _: AdminDet
     """
     get host by **id**
     """
-    return await host_operator.get_validated_host(db=db, host_id=host_id)
+    db_host = await host_operator.get_validated_host(db=db, host_id=host_id)
+    host = BaseHost.model_validate(db_host)
+    return await host_operator._merge_inbound_config(host)
 
 
 @router.get("s", response_model=list[BaseHost])
