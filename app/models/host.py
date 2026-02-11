@@ -238,6 +238,7 @@ class BaseHost(BaseModel):
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
     ech_config_list: str | None = Field(default=None)
+    pinnedPeerCertSha256:str| None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 

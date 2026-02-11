@@ -173,6 +173,7 @@ class StandardLinks(BaseSubscription):
         sni = tls_config.sni if isinstance(tls_config.sni, str) else ""
         payload["sni"] = sni
         payload["fp"] = tls_config.fingerprint
+        payload["pcs"] = tls_config.pinnedPeerCertSha256
 
         # Use pre-formatted alpn for links (comma-separated string)
         if tls_config.alpn_links:

@@ -450,6 +450,7 @@ class ProxyHost(Base):
     )
     ech_config_list: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     vless_route: Mapped[Optional[str]] = mapped_column(String(4), default=None)
+    pinnedPeerCertSha256: Mapped[Optional[str]] = mapped_column(String(128), default=None)
 
 
 class System(Base):

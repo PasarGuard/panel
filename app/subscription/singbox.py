@@ -136,15 +136,13 @@ class SingBoxConfiguration(BaseSubscription):
 
     def _transport_grpc(self, config: GRPCTransportConfig, path: str) -> dict:
         """Handle GRPC transport - only gets GRPC config"""
-        return self._normalize_and_remove_none_values(
-            {
-                "type": "grpc",
-                "service_name": path,
-                "idle_timeout": f"{config.idle_timeout}s" if config.idle_timeout else "15s",
-                "ping_timeout": f"{config.health_check_timeout}s" if config.health_check_timeout else "15s",
-                "permit_without_stream": config.permit_without_stream,
-            }
-        )
+        return self._normalize_and_remove_none_values({
+            "type": "grpc",
+            "service_name": path,
+            "idle_timeout": f"{config.idle_timeout}s" if config.idle_timeout else "15s",
+            "ping_timeout": f"{config.health_check_timeout}s" if config.health_check_timeout else "15s",
+            "permit_without_stream": config.permit_without_stream,
+        })
 
     def _transport_httpupgrade(self, config: WebSocketTransportConfig, path: str) -> dict:
         """Handle HTTPUpgrade transport - only gets WS config (similar to WS)"""
@@ -192,6 +190,9 @@ class SingBoxConfiguration(BaseSubscription):
             if isinstance(tls_config.sni, str)
             else (tls_config.sni[0] if tls_config.sni else None),
             "insecure": tls_config.allowinsecure,
+            "certificate_public_key_sha256": [tls_config.pinnedPeerCertSha256]
+            if tls_config.pinnedPeerCertSha256
+            else [],
             "utls": {
                 "enabled": bool(tls_config.fingerprint) or tls_config.tls == "reality",
                 "fingerprint": tls_config.fingerprint,
