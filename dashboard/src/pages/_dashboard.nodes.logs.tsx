@@ -2,7 +2,7 @@ import { Download as DownloadIcon, Loader2, Pause, Play } from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '@/components/ui/card'
-import { useGetNodes } from '@/service/api'
+import { useGetNodesSimple } from '@/service/api'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { getAuthToken } from '@/utils/authStorage'
@@ -57,7 +57,7 @@ export default function NodeLogs() {
 
   const eventSourceRef = useRef<EventSource | null>(null)
 
-  const { data: nodesResponse } = useGetNodes({})
+  const { data: nodesResponse } = useGetNodesSimple({ all: true })
   const nodes = nodesResponse?.nodes || []
 
   // Filter to only show connected nodes

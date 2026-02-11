@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTranslation } from 'react-i18next'
-import { useUserOnlineIpListAllNodes, useGetNodes } from '@/service/api'
+import { useUserOnlineIpListAllNodes, useGetNodesSimple } from '@/service/api'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useClipboard } from '@/hooks/use-clipboard'
@@ -168,7 +168,7 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username }: User
     }
   }, [isOpen])
 
-  const { data: nodesResponse } = useGetNodes(undefined, {
+  const { data: nodesResponse } = useGetNodesSimple({ all: true }, {
     query: {
       enabled: isOpen,
       staleTime: 5 * 60 * 1000,

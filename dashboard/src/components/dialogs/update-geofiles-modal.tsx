@@ -47,6 +47,7 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
       toast.success(message)
       onOpenChange(false)
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
       queryClient.invalidateQueries({ queryKey: [`/api/node/${node.id}`] })
     } catch (error: any) {
       toast.error(
@@ -119,4 +120,3 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
     </Dialog>
   )
 }
-

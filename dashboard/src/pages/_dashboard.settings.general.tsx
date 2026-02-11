@@ -87,6 +87,9 @@ export default function General() {
       queryClient.invalidateQueries({
         queryKey: ['/api/nodes'],
       })
+      queryClient.invalidateQueries({
+        queryKey: ['/api/nodes/simple'],
+      })
 
       setIsReconnectAllDialogOpen(false)
     } catch (error) {

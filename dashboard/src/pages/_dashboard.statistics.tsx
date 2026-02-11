@@ -2,7 +2,7 @@ import PageHeader from '@/components/layout/page-header'
 import MainContent from '@/components/statistics/statistics-charts'
 import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getGetSystemStatsQueryKey, getSystemStats, useGetNodes, NodeResponse } from '@/service/api'
+import { getGetSystemStatsQueryKey, getSystemStats, useGetNodesSimple, NodeSimple } from '@/service/api'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +14,7 @@ const Statistics = () => {
   const [selectedServer, setSelectedServer] = useState<string>('master')
 
   // Fetch nodes for the selector
-  const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodes(undefined, {
+  const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodesSimple({ all: true }, {
     query: {
       enabled: true,
     },
@@ -63,8 +63,8 @@ const Statistics = () => {
                           {t('master')}
                         </SelectItem>
                         {nodesData
-                          .filter((node: NodeResponse) => node.status === 'connected')
-                          .map((node: NodeResponse) => (
+                          .filter((node: NodeSimple) => node.status === 'connected')
+                          .map((node: NodeSimple) => (
                             <SelectItem key={node.id} value={String(node.id)} className="text-xs sm:text-sm">
                               {node.name}
                             </SelectItem>

@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useGetAllCores } from '@/service/api'
+import { useGetCoresSimple } from '@/service/api'
 import { Check, ChevronDown, Loader2 } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Control, FieldPath, FieldValues, useController } from 'react-hook-form'
@@ -47,7 +47,9 @@ export default function CoresSelector<T extends FieldValues>({ control, name, on
         setHasMore(true)
     }, [coreSearch])
 
-    const { data: coresData, isLoading: coresLoading } = useGetAllCores(undefined, {
+    const { data: coresData, isLoading: coresLoading } = useGetCoresSimple(
+        { all: true },
+        {
         query: {
             staleTime: 5 * 60 * 1000, // 5 minutes
             gcTime: 10 * 60 * 1000, // 10 minutes
@@ -55,7 +57,8 @@ export default function CoresSelector<T extends FieldValues>({ control, name, on
             refetchOnMount: true,
             refetchOnReconnect: true,
         },
-    })
+        },
+    )
 
     // Update cores when data is fetched
     useEffect(() => {

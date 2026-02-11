@@ -104,6 +104,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, classNam
       })
       setDeleteDialogOpen(false)
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
     } catch (error) {
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: t('nodes.deleteFailed', {
@@ -123,6 +124,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, classNam
       })
       toast.success(t('nodeModal.syncSuccess'))
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
     } catch (error: any) {
       toast.error(
         t('nodeModal.syncFailed', {
@@ -142,6 +144,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, classNam
       })
       toast.success(t('nodeModal.reconnectSuccess', { defaultValue: 'Node reconnected successfully' }))
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
     } catch (error: any) {
       toast.error(
         t('nodeModal.reconnectFailed', {
@@ -166,6 +169,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, classNam
       toast.success(t('nodeModal.resetUsageSuccess', { defaultValue: 'Node usage reset successfully' }))
       setResetUsageDialogOpen(false)
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
       queryClient.invalidateQueries({ queryKey: [`/api/node/${node.id}`] })
     } catch (error: any) {
       toast.error(
@@ -186,6 +190,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, classNam
       })
       toast.success(t('nodeModal.updateNodeSuccess', { defaultValue: 'Node updated successfully' }))
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
       queryClient.invalidateQueries({ queryKey: [`/api/node/${node.id}`] })
     } catch (error: any) {
       toast.error(

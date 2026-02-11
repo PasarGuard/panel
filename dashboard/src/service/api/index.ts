@@ -119,6 +119,14 @@ export type ReconnectAllNodeParams = {
   core_id?: number | null
 }
 
+export type GetNodesSimpleParams = {
+  offset?: number | null
+  limit?: number | null
+  search?: string | null
+  sort?: string | null
+  all?: boolean
+}
+
 export type GetNodesParams = {
   core_id?: number | null
   offset?: number | null
@@ -140,6 +148,14 @@ export type GetUsageParams = {
 export type GetHostsParams = {
   offset?: number
   limit?: number
+}
+
+export type GetCoresSimpleParams = {
+  offset?: number | null
+  limit?: number | null
+  search?: string | null
+  sort?: string | null
+  all?: boolean
 }
 
 export type GetAllCoresParams = {
@@ -215,16 +231,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -244,11 +260,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsInput {
+export interface XrayMuxSettingsOutput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -402,18 +418,6 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
-
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -437,6 +441,23 @@ export interface XHttpSettingsInput {
   download_settings?: XHttpSettingsInputDownloadSettings
 }
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
+
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -445,11 +466,6 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
-}
-
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
 }
 
 export interface WebhookInfo {
@@ -1351,6 +1367,14 @@ export interface NoiseSettings {
   xray?: NoiseSettingsXray
 }
 
+/**
+ * Response model for lightweight node list.
+ */
+export interface NodesSimpleResponse {
+  nodes: NodeSimple[]
+  total: number
+}
+
 export interface NodesResponse {
   nodes: NodeResponse[]
   total: number
@@ -1399,6 +1423,15 @@ export interface NodeStatsList {
   start: string
   end: string
   stats: NodeStats[]
+}
+
+/**
+ * Lightweight node model with only id and name for performance.
+ */
+export interface NodeSimple {
+  id: number
+  name: string
+  status: NodeStatus
 }
 
 export interface NodeSettings {
@@ -1695,11 +1728,6 @@ export interface HTTPException {
   detail: string
 }
 
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
-}
-
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -1728,6 +1756,11 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -1899,6 +1932,22 @@ export interface CreateHost {
   ech_config_list?: CreateHostEchConfigList
 }
 
+/**
+ * Lightweight core model with only id and name for performance.
+ */
+export interface CoreSimple {
+  id: number
+  name: string
+}
+
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
+}
+
 export type CoreResponseConfig = { [key: string]: unknown }
 
 export interface CoreResponse {
@@ -2063,6 +2112,26 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -2089,26 +2158,6 @@ export interface BaseHost {
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
 }
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 
@@ -4162,6 +4211,69 @@ export function useGetAllCores<TData = Awaited<ReturnType<typeof getAllCores>>, 
 }
 
 /**
+ * Returns only id and name for cores. Optimized for dropdowns and autocomplete.
+ * @summary Get lightweight core list
+ */
+export const getCoresSimple = (params?: GetCoresSimpleParams, signal?: AbortSignal) => {
+  return orvalFetcher<CoresSimpleResponse>({ url: `/api/cores/simple`, method: 'GET', params, signal })
+}
+
+export const getGetCoresSimpleQueryKey = (params?: GetCoresSimpleParams) => {
+  return [`/api/cores/simple`, ...(params ? [params] : [])] as const
+}
+
+export const getGetCoresSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getCoresSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetCoresSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoresSimple>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetCoresSimpleQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCoresSimple>>> = ({ signal }) => getCoresSimple(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getCoresSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCoresSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getCoresSimple>>>
+export type GetCoresSimpleQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetCoresSimple<TData = Awaited<ReturnType<typeof getCoresSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetCoresSimpleParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoresSimple>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getCoresSimple>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCoresSimple<TData = Awaited<ReturnType<typeof getCoresSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetCoresSimpleParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoresSimple>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getCoresSimple>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCoresSimple<TData = Awaited<ReturnType<typeof getCoresSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetCoresSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoresSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get lightweight core list
+ */
+
+export function useGetCoresSimple<TData = Awaited<ReturnType<typeof getCoresSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetCoresSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoresSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCoresSimpleQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * restart nodes related to the core config
  * @summary Restart Core
  */
@@ -4671,6 +4783,69 @@ export function useGetNodes<TData = Awaited<ReturnType<typeof getNodes>>, TError
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getNodes>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetNodesQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns only id and name for nodes. Optimized for dropdowns and autocomplete.
+ * @summary Get lightweight node list
+ */
+export const getNodesSimple = (params?: GetNodesSimpleParams, signal?: AbortSignal) => {
+  return orvalFetcher<NodesSimpleResponse>({ url: `/api/nodes/simple`, method: 'GET', params, signal })
+}
+
+export const getGetNodesSimpleQueryKey = (params?: GetNodesSimpleParams) => {
+  return [`/api/nodes/simple`, ...(params ? [params] : [])] as const
+}
+
+export const getGetNodesSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getNodesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetNodesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getNodesSimple>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetNodesSimpleQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getNodesSimple>>> = ({ signal }) => getNodesSimple(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getNodesSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetNodesSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getNodesSimple>>>
+export type GetNodesSimpleQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetNodesSimple<TData = Awaited<ReturnType<typeof getNodesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetNodesSimpleParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getNodesSimple>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getNodesSimple>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetNodesSimple<TData = Awaited<ReturnType<typeof getNodesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetNodesSimpleParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getNodesSimple>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getNodesSimple>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetNodesSimple<TData = Awaited<ReturnType<typeof getNodesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetNodesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getNodesSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get lightweight node list
+ */
+
+export function useGetNodesSimple<TData = Awaited<ReturnType<typeof getNodesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetNodesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getNodesSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetNodesSimpleQueryOptions(params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 

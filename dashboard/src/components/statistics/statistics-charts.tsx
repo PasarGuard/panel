@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { NodeRealtimeStats, SystemStats, useGetNodes, useRealtimeNodeStats } from '@/service/api'
+import { NodeRealtimeStats, SystemStats, useGetNodesSimple, useRealtimeNodeStats } from '@/service/api'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CostumeBarChart } from '../charts/costume-bar-chart'
@@ -25,7 +25,7 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
   const resizeTimeoutRef = useRef<NodeJS.Timeout>()
 
   // Only fetch nodes for sudo admins
-  const { isLoading: isLoadingNodes, error: nodesError } = useGetNodes(undefined, {
+  const { isLoading: isLoadingNodes, error: nodesError } = useGetNodesSimple({ all: true }, {
     query: {
       enabled: is_sudo, // Only fetch nodes for sudo admins
     },

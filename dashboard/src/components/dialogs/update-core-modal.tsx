@@ -105,6 +105,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
       toast.success(message)
       onOpenChange(false)
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
       queryClient.invalidateQueries({ queryKey: [`/api/node/${node.id}`] })
     } catch (error: any) {
       toast.error(
@@ -304,4 +305,3 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
     </Dialog>
   )
 }
-

@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { CoreResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetAllCores, useGetNode, useModifyNode } from '@/service/api'
+import { CoreSimple, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetCoresSimple, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client'
 import { Loader2, RefreshCw, Settings } from 'lucide-react'
@@ -36,7 +36,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   const addNodeMutation = useCreateNode()
   const modifyNodeMutation = useModifyNode()
   const handleError = useDynamicErrorHandler()
-  const { data: cores, isLoading: isLoadingCores } = useGetAllCores(undefined, {
+  const { data: cores, isLoading: isLoadingCores } = useGetCoresSimple({ all: true }, {
     query: {
       enabled: isDialogOpen,
     },
@@ -369,6 +369,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         lastSyncedNodeRef.current = null
       }
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
@@ -526,7 +527,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                 </span>
                               </SelectItem>
                             ) : (
-                              cores?.cores?.map((core: CoreResponse) => (
+                              cores?.cores?.map((core: CoreSimple) => (
                                 <SelectItem key={core.id} value={core.id.toString()}>
                                   {core.name}
                                 </SelectItem>
@@ -1208,4 +1209,3 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
     </Dialog>
   )
 }
-

@@ -98,6 +98,9 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
       queryClient.invalidateQueries({
         queryKey: ['/api/cores'],
       })
+      queryClient.invalidateQueries({
+        queryKey: ['/api/cores/simple'],
+      })
     } catch (error) {
       toast.error(
         t('core.toggleFailed', {
@@ -210,4 +213,3 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     </div>
   )
 }
-

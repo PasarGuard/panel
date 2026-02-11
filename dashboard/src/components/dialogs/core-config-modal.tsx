@@ -500,6 +500,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
       // Invalidate core config queries after successful action
       queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/cores/simple'] })
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
@@ -1675,4 +1676,3 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     </>
   )
 }
-

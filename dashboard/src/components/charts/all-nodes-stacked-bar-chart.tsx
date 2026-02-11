@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsage, useGetNodes, type NodeResponse, useGetUsage } from '@/service/api'
+import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsage, useGetNodesSimple, type NodeSimple, useGetUsage } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './empty-state'
@@ -156,7 +156,7 @@ export function AllNodesStackedBarChart() {
 
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
-  const { data: nodesResponse } = useGetNodes(undefined, { query: { enabled: true } })
+  const { data: nodesResponse } = useGetNodesSimple({ all: true }, { query: { enabled: true } })
   const { resolvedTheme } = useTheme()
 
   const handleModalNavigate = (index: number) => {
@@ -165,7 +165,7 @@ export function AllNodesStackedBarChart() {
     setSelectedData(chartData[index])
   }
 
-  const nodeList: NodeResponse[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
+  const nodeList: NodeSimple[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
 
   const generateDistinctColor = useCallback((index: number, isDark: boolean): string => {
     const distinctHues = [0, 30, 60, 120, 180, 210, 240, 270, 300, 330, 15, 45, 75, 150, 200, 225, 255, 285, 315, 345]

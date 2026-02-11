@@ -121,6 +121,7 @@ export default function CoreSettings() {
                 }),
               )
               queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
+              queryClient.invalidateQueries({ queryKey: ['/api/cores/simple'] })
             },
             onError: error => {
               toast.error(
@@ -167,6 +168,7 @@ export default function CoreSettings() {
           setDeleteDialogOpen(false)
           setCoreToDelete(null)
           queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
+          queryClient.invalidateQueries({ queryKey: ['/api/cores/simple'] })
         },
         onError: (error: any) => {
           // Extract backend error message
@@ -234,4 +236,3 @@ export default function CoreSettings() {
     </div>
   )
 }
-

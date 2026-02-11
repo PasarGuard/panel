@@ -5,7 +5,7 @@ import { ChartContainer, ChartTooltip, ChartConfig } from '../ui/chart'
 import { PieChart, TrendingUp, Calendar, Info } from 'lucide-react'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from '../charts/time-selector'
 import { useTranslation } from 'react-i18next'
-import { Period, useGetUserUsage, useGetNodes, useGetCurrentAdmin, NodeResponse, GetUserUsageParams } from '@/service/api'
+import { Period, useGetUserUsage, useGetNodesSimple, useGetCurrentAdmin, NodeSimple, GetUserUsageParams } from '@/service/api'
 import { DateRange } from 'react-day-picker'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { Button } from '../ui/button'
@@ -174,7 +174,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }, [is_sudo])
 
   // Fetch nodes list - only for sudo admins
-  const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodes(undefined, {
+  const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodesSimple({ all: true }, {
     query: {
       enabled: open && is_sudo, // Only fetch nodes for sudo admins when modal is open
     },
@@ -189,7 +189,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }
 
   // Build color palette for nodes
-  const nodeList: NodeResponse[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
+  const nodeList: NodeSimple[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
 
   // Function to generate distinct colors based on theme
   const generateDistinctColor = useCallback((index: number, _totalNodes: number, isDark: boolean): string => {
