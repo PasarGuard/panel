@@ -4,11 +4,11 @@ from uuid import UUID
 import yaml
 
 from app.models.subscription import (
-    SubscriptionInboundData,
-    TLSConfig,
     GRPCTransportConfig,
-    WebSocketTransportConfig,
+    SubscriptionInboundData,
     TCPTransportConfig,
+    TLSConfig,
+    WebSocketTransportConfig,
 )
 from app.templates import render_template
 from app.utils.helpers import yml_uuid_representer
@@ -315,6 +315,7 @@ class ClashMetaConfiguration(ClashConfiguration):
             node["reality-opts"] = {
                 "public-key": tls_config.reality_public_key,
                 "short-id": tls_config.reality_short_id or "",
+                "support-x25519mlkem768": bool(tls_config.mldsa65_verify),
             }
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
