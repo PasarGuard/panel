@@ -17,6 +17,7 @@ from app.models.node import (
     NodeResponse,
     NodeSettings,
     NodesResponse,
+    NodesSimpleResponse,
     UsageTable,
     UserIPList,
     UserIPListAll,
@@ -152,6 +153,32 @@ async def get_nodes(
         enabled=enabled,
         ids=ids,
         search=search,
+    )
+
+
+@router.get(
+    "s/simple",
+    response_model=NodesSimpleResponse,
+    summary="Get lightweight node list",
+    description="Returns only id and name for nodes. Optimized for dropdowns and autocomplete.",
+)
+async def get_nodes_simple(
+    offset: int | None = None,
+    limit: int | None = None,
+    search: str | None = None,
+    sort: str | None = None,
+    all: bool = False,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(check_sudo_admin),
+):
+    """Get lightweight node list with only id and name"""
+    return await node_operator.get_nodes_simple(
+        db=db,
+        offset=offset,
+        limit=limit,
+        search=search,
+        sort=sort,
+        all=all,
     )
 
 

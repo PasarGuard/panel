@@ -1,9 +1,19 @@
-from sqlalchemy import select
+from enum import Enum
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CoreConfig
 from app.models.core import CoreCreate
 
+
+CoreSortingOptionsSimple = Enum(
+    "CoreSortingOptionsSimple",
+    {
+        "name": CoreConfig.name.asc(),
+        "-name": CoreConfig.name.desc(),
+    },
+)
 
 async def get_core_config_by_id(db: AsyncSession, core_id: int) -> CoreConfig | None:
     """
@@ -100,3 +110,59 @@ async def get_core_configs(db: AsyncSession, offset: int = None, limit: int = No
 
     all_core_configs = (await db.execute(query)).scalars().all()
     return all_core_configs, len(all_core_configs)
+
+
+async def get_cores_simple(
+    db: AsyncSession,
+    offset: int | None = None,
+    limit: int | None = None,
+    search: str | None = None,
+    sort: list[CoreSortingOptionsSimple] | None = None,
+    skip_pagination: bool = False,
+) -> tuple[list[tuple[int, str]], int]:
+    """
+    Retrieves lightweight core data with only id and name.
+
+    Args:
+        db: Database session.
+        offset: Number of records to skip.
+        limit: Number of records to retrieve.
+        search: Search term for core name.
+        sort: Sort options.
+        skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
+
+    Returns:
+        Tuple of (list of (id, name) tuples, total_count).
+    """
+    stmt = select(CoreConfig.id, CoreConfig.name)
+
+    if search:
+        stmt = stmt.where(CoreConfig.name.ilike(f"%{search}%"))
+
+    if sort:
+        sort_list = []
+        for s in sort:
+            if isinstance(s.value, tuple):
+                sort_list.extend(s.value)
+            else:
+                sort_list.append(s.value)
+        stmt = stmt.order_by(*sort_list)
+
+    # Get count BEFORE pagination (always)
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar()
+
+    # Apply pagination or safety limit
+    if not skip_pagination:
+        if offset:
+            stmt = stmt.offset(offset)
+        if limit:
+            stmt = stmt.limit(limit)
+    else:
+        stmt = stmt.limit(10000)  # Safety limit when all=true
+
+    # Execute and return
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return rows, total

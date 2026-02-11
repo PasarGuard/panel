@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.core import CoreCreate, CoreResponse, CoreResponseList
+from app.models.core import CoreCreate, CoreResponse, CoreResponseList, CoresSimpleResponse
 from app.operation import OperatorType
 from app.operation.core import CoreOperation
 from app.operation.node import NodeOperation
@@ -73,6 +73,32 @@ async def get_all_cores(
 ):
     """Get a list of all core configurations."""
     return await core_operator.get_all_cores(db, offset, limit)
+
+
+@router.get(
+    "s/simple",
+    response_model=CoresSimpleResponse,
+    summary="Get lightweight core list",
+    description="Returns only id and name for cores. Optimized for dropdowns and autocomplete.",
+)
+async def get_cores_simple(
+    offset: int | None = None,
+    limit: int | None = None,
+    search: str | None = None,
+    sort: str | None = None,
+    all: bool = False,
+    _: AdminDetails = Depends(check_sudo_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get lightweight core list with only id and name"""
+    return await core_operator.get_cores_simple(
+        db=db,
+        offset=offset,
+        limit=limit,
+        search=search,
+        sort=sort,
+        all=all,
+    )
 
 
 @router.post("/{core_id}/restart", status_code=status.HTTP_204_NO_CONTENT)

@@ -212,6 +212,21 @@ class NodesResponse(BaseModel):
     total: int
 
 
+class NodeSimple(BaseModel):
+    """Lightweight node model with only id and name for performance."""
+
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NodesSimpleResponse(BaseModel):
+    """Response model for lightweight node list."""
+
+    nodes: list[NodeSimple]
+    total: int
+
+
 class NodeNotification(BaseModel):
     """Lightweight node model for sending notifications without database fetch."""
 

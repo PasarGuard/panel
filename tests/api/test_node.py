@@ -6,10 +6,12 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select
 
+from app.db.crud.core import create_core_config, remove_core_config
 from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import (
+    CoreConfig,
     DataLimitResetStrategy,
     Node,
     NodeConnectionType,
@@ -20,6 +22,7 @@ from app.db.models import (
     NodeUserUsage,
     User,
 )
+from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeResponse, NodeSettings, NodesResponse
 from app.models.stats import (
     NodeRealtimeStats,
@@ -31,6 +34,7 @@ from app.models.stats import (
 )
 from tests.api import TestSession, client
 from tests.api.helpers import auth_headers, unique_name
+from tests.api.sample_data import XRAY_CONFIG
 
 VALID_CERTIFICATE = """-----BEGIN CERTIFICATE-----
 MIIBvTCCAWOgAwIBAgIRAIY9Lzn0T3VFedUnT9idYkEwCgYIKoZIzj0EAwIwJjER
@@ -98,6 +102,38 @@ def node_create_payload(**overrides) -> dict:
     }
     payload.update(overrides)
     return payload
+
+
+def core_create_model(name: str) -> CoreCreate:
+    return CoreCreate(
+        name=name,
+        config=XRAY_CONFIG,
+        exclude_inbound_tags=set(),
+        fallbacks_inbound_tags=set(),
+    )
+
+
+async def setup_nodes_simple(names: list[str]) -> tuple[int, list[int]]:
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_nodes_simple")))
+        core_id = inspect(core).identity[0]
+        node_ids: list[int] = []
+        for name in names:
+            node_model = NodeCreate(**node_create_payload(name=name, core_config_id=core_id))
+            db_node = await db_create_node(session, node_model)
+            node_ids.append(inspect(db_node).identity[0])
+        return core_id, node_ids
+
+
+async def cleanup_nodes_simple(core_id: int, node_ids: list[int]) -> None:
+    async with TestSession() as session:
+        for node_id in node_ids:
+            db_node = await session.get(Node, node_id)
+            if db_node:
+                await db_remove_node(session, db_node)
+        db_core = await session.get(CoreConfig, core_id)
+        if db_core:
+            await remove_core_config(session, db_core)
 
 
 def usage_stats_payload() -> NodeUsageStatsList:
@@ -369,6 +405,217 @@ def test_realtime_node_stats(access_token, node_operator_mock):
     assert response.json() == realtime_stats.model_dump()
     awaited_kwargs = node_operator_mock.get_node_system_stats.await_args.kwargs
     assert awaited_kwargs["node_id"] == 12
+
+
+# Tests for /api/nodes/simple endpoint
+
+
+@pytest.mark.asyncio
+async def test_get_nodes_simple_basic(access_token):
+    """Test that nodes/simple returns correct minimal data structure."""
+    names = [unique_name("node_simple_1"), unique_name("node_simple_2"), unique_name("node_simple_3")]
+    core_id, node_ids = await setup_nodes_simple(names)
+    try:
+        response = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "nodes" in data
+        assert "total" in data
+
+        for node in data["nodes"]:
+            assert set(node.keys()) == {"id", "name"}
+
+        response_names = [n["name"] for n in data["nodes"]]
+        for name in names:
+            assert name in response_names
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_nodes_simple_search(access_token):
+    """Test case-insensitive search by node name."""
+    name_alpha = unique_name("node_alpha_search")
+    name_beta = unique_name("node_beta_search")
+    name_other = unique_name("node_other_search")
+    names = [name_alpha, name_beta, name_other]
+    core_id, node_ids = await setup_nodes_simple(names)
+    try:
+        response = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+            params={"search": "alpha_search"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data["nodes"]) >= 1
+        assert any(n["name"] == name_alpha for n in data["nodes"])
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_nodes_simple_sort_ascending(access_token):
+    """Test ascending sort by node name."""
+    names = [
+        unique_name("node_c_sort"),
+        unique_name("node_a_sort"),
+        unique_name("node_b_sort"),
+    ]
+    core_id, node_ids = await setup_nodes_simple(names)
+    try:
+        response = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+            params={"sort": "name"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        our_nodes = [n for n in data["nodes"] if n["name"] in names]
+        our_names = [n["name"] for n in our_nodes]
+        assert our_names == sorted(names)
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_nodes_simple_sort_descending(access_token):
+    """Test descending sort by node name."""
+    names = [
+        unique_name("node_a_desc"),
+        unique_name("node_b_desc"),
+        unique_name("node_c_desc"),
+    ]
+    core_id, node_ids = await setup_nodes_simple(names)
+    try:
+        response = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+            params={"sort": "-name"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        our_nodes = [n for n in data["nodes"] if n["name"] in names]
+        our_names = [n["name"] for n in our_nodes]
+        assert our_names == sorted(names, reverse=True)
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_nodes_simple_pagination(access_token):
+    """Test pagination with offset and limit."""
+    names = [unique_name(f"node_pag_{i}") for i in range(5)]
+    core_id, node_ids = await setup_nodes_simple(names)
+    try:
+        response1 = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+            params={"offset": 0, "limit": 2},
+        )
+        response2 = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+            params={"offset": 2, "limit": 2},
+        )
+
+        assert response1.status_code == status.HTTP_200_OK
+        assert response2.status_code == status.HTTP_200_OK
+        data1 = response1.json()
+        data2 = response2.json()
+        assert len(data1["nodes"]) == 2
+        assert len(data2["nodes"]) == 2
+
+        ids1 = {n["id"] for n in data1["nodes"]}
+        ids2 = {n["id"] for n in data2["nodes"]}
+        assert len(ids1 & ids2) == 0
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_nodes_simple_skip_pagination(access_token):
+    """Test all=true parameter returns all records."""
+    names = [unique_name(f"node_all_{i}") for i in range(10)]
+    core_id, node_ids = await setup_nodes_simple(names)
+    try:
+        response = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+            params={"all": "true"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "nodes" in data
+        assert "total" in data
+        assert data["total"] >= 10
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_nodes_simple_empty_search(access_token):
+    """Test search with no matching results."""
+    names = [unique_name("known_node_search_1"), unique_name("known_node_search_2")]
+    core_id, node_ids = await setup_nodes_simple(names)
+    try:
+        response = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+            params={"search": "nonexistent_node_xyz_12345"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["total"] == 0
+        assert len(data["nodes"]) == 0
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+def test_get_nodes_simple_invalid_sort(access_token):
+    """Test error handling for invalid sort parameter."""
+    response = client.get(
+        "/api/nodes/simple",
+        headers=auth_headers(access_token),
+        params={"sort": "invalid_field_xyz"},
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.asyncio
+async def test_get_nodes_simple_search_and_sort(access_token):
+    """Test combining search and sort parameters."""
+    names = [
+        unique_name("alpha_node_combo"),
+        unique_name("beta_node_combo"),
+        unique_name("gamma_node_combo"),
+        unique_name("other_node_combo"),
+    ]
+    core_id, node_ids = await setup_nodes_simple(names)
+    try:
+        response = client.get(
+            "/api/nodes/simple",
+            headers=auth_headers(access_token),
+            params={"search": "_node_combo", "sort": "-name"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        matching = [n for n in data["nodes"] if n["name"] in names and "_node_combo" in n["name"]]
+        matching_names = [n["name"] for n in matching]
+        assert len(matching_names) >= 3
+        assert matching_names == sorted(matching_names, reverse=True)
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
 
 
 @pytest.mark.asyncio

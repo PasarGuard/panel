@@ -60,3 +60,18 @@ class CoreResponseList(BaseModel):
     cores: list[CoreResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CoreSimple(BaseModel):
+    """Lightweight core model with only id and name for performance."""
+
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CoresSimpleResponse(BaseModel):
+    """Response model for lightweight core list."""
+
+    cores: list[CoreSimple]
+    total: int

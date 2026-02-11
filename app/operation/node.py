@@ -15,11 +15,13 @@ from app.db.crud.node import (
     get_node_by_id,
     get_node_stats,
     get_nodes,
+    get_nodes_simple,
     get_nodes_usage,
     modify_node,
     remove_node,
     reset_node_usage,
     update_node_status,
+    NodeSortingOptionsSimple,
 )
 from app.db.crud.user import get_user, get_users_count_by_status
 from app.db.models import Node, NodeStatus, UserStatus
@@ -32,6 +34,8 @@ from app.models.node import (
     NodeNotification,
     NodeResponse,
     NodesResponse,
+    NodeSimple,
+    NodesSimpleResponse,
     UsageTable,
     UserIPList,
     UserIPListAll,
@@ -109,6 +113,39 @@ class NodeOperation(BaseOperation):
         )
         node_responses = [NodeResponse.model_validate(node) for node in db_nodes]
         return NodesResponse(nodes=node_responses, total=count)
+
+    async def get_nodes_simple(
+        self,
+        db: AsyncSession,
+        offset: int | None = None,
+        limit: int | None = None,
+        search: str | None = None,
+        sort: str | None = None,
+        all: bool = False,
+    ) -> NodesSimpleResponse:
+        """Get lightweight node list with only id and name"""
+        sort_list = []
+        if sort is not None:
+            opts = sort.strip(",").split(",")
+            for opt in opts:
+                try:
+                    enum_member = NodeSortingOptionsSimple[opt]
+                    sort_list.append(enum_member)
+                except KeyError:
+                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
+
+        rows, total = await get_nodes_simple(
+            db=db,
+            offset=offset,
+            limit=limit,
+            search=search,
+            sort=sort_list if sort_list else None,
+            skip_pagination=all,
+        )
+
+        nodes = [NodeSimple(id=row[0], name=row[1]) for row in rows]
+
+        return NodesSimpleResponse(nodes=nodes, total=total)
 
     @staticmethod
     async def _update_single_node_status(

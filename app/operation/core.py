@@ -1,9 +1,16 @@
 import asyncio
 
 from app.db import AsyncSession
-from app.db.crud.core import create_core_config, modify_core_config, remove_core_config, get_core_configs
+from app.db.crud.core import (
+    CoreSortingOptionsSimple,
+    create_core_config,
+    get_core_configs,
+    get_cores_simple,
+    modify_core_config,
+    remove_core_config,
+)
 from app.models.admin import AdminDetails
-from app.models.core import CoreCreate, CoreResponseList, CoreResponse
+from app.models.core import CoreCreate, CoreResponse, CoreResponseList, CoreSimple, CoresSimpleResponse
 from app.core.manager import core_manager
 from app.operation import BaseOperation
 from app import notification
@@ -35,6 +42,39 @@ class CoreOperation(BaseOperation):
     async def get_all_cores(self, db: AsyncSession, offset: int, limit: int) -> CoreResponseList:
         db_cores, count = await get_core_configs(db, offset, limit)
         return CoreResponseList(cores=db_cores, count=count)
+
+    async def get_cores_simple(
+        self,
+        db: AsyncSession,
+        offset: int | None = None,
+        limit: int | None = None,
+        search: str | None = None,
+        sort: str | None = None,
+        all: bool = False,
+    ) -> CoresSimpleResponse:
+        """Get lightweight core list with only id and name"""
+        sort_list = []
+        if sort is not None:
+            opts = sort.strip(",").split(",")
+            for opt in opts:
+                try:
+                    enum_member = CoreSortingOptionsSimple[opt]
+                    sort_list.append(enum_member)
+                except KeyError:
+                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
+
+        rows, total = await get_cores_simple(
+            db=db,
+            offset=offset,
+            limit=limit,
+            search=search,
+            sort=sort_list if sort_list else None,
+            skip_pagination=all,
+        )
+
+        cores = [CoreSimple(id=row[0], name=row[1]) for row in rows]
+
+        return CoresSimpleResponse(cores=cores, total=total)
 
     async def modify_core(
         self, db: AsyncSession, core_id: int, modified_core: CoreCreate, admin: AdminDetails
