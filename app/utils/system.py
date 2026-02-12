@@ -27,9 +27,9 @@ def cpu_usage() -> CPUStat:
 
 def memory_usage() -> MemoryStat:
     mem = psutil.virtual_memory()
-    # Estimate application-used memory by excluding buffers and cache when available.
-    if hasattr(mem, "free") and hasattr(mem, "buffers") and hasattr(mem, "cached"):
-        used = mem.total - mem.free - mem.buffers - mem.cached
+    # Estimate active memory by excluding file cache when available.
+    if hasattr(mem, "free") and hasattr(mem, "cached"):
+        used = mem.total - mem.free - mem.cached
         # Guard against unexpected platform-specific values.
         if used < 0 or used > mem.total:
             used = mem.used
