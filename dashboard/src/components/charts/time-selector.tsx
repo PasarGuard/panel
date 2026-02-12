@@ -79,7 +79,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
   const isDesktopOverflowSelected = desktopOverflowShortcuts.some(shortcut => shortcut.value === selectedTime)
 
   return (
-    <div dir="ltr" className={cn('w-full min-w-0 max-w-full overflow-hidden rounded-md border border-border/60 bg-muted/20 p-1', className)}>
+    <div dir="ltr" className={cn('w-full min-w-0 max-w-fit overflow-hidden rounded-md border border-border/60 bg-muted/20 p-1', className)}>
       <div className="flex w-full min-w-0 items-center gap-1 lg:hidden">
         <ToggleGroup
           type="single"
@@ -113,7 +113,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
                 {moreLabel}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent dir="ltr" align="end" className="min-w-[7rem]" onInteractOutside={() => setIsMobileMoreOpen(false)}>
+            <DropdownMenuContent align="end" className="min-w-[7rem]" onInteractOutside={() => setIsMobileMoreOpen(false)}>
               <DropdownMenuRadioGroup
                 value={selectedTime}
                 onValueChange={value => {
@@ -164,7 +164,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
                 {moreLabel}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent dir="ltr" align="end" className="min-w-[7rem]" onInteractOutside={() => setIsDesktopMoreOpen(false)}>
+            <DropdownMenuContent align="end" className="min-w-[7rem]" onInteractOutside={() => setIsDesktopMoreOpen(false)}>
               <DropdownMenuRadioGroup
                 value={selectedTime}
                 onValueChange={value => {

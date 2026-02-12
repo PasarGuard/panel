@@ -149,6 +149,7 @@ export function AllNodesStackedBarChart() {
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedData, setSelectedData] = useState<NodeChartDataPoint | null>(null)
   const [currentDataIndex, setCurrentDataIndex] = useState(0)
@@ -158,6 +159,7 @@ export function AllNodesStackedBarChart() {
   const dir = useDirDetection()
   const { data: nodesResponse } = useGetNodesSimple({ all: true }, { query: { enabled: true } })
   const { resolvedTheme } = useTheme()
+  const shouldUseNodeUsage = selectedAdmin === 'all'
 
   const handleModalNavigate = (index: number) => {
     if (!chartData[index]) return
@@ -201,11 +203,10 @@ export function AllNodesStackedBarChart() {
       return getChartQueryRangeFromDateRange(customRange, selectedTime)
     }
 
-    return getChartQueryRangeFromShortcut(selectedTime)
-  }, [showCustomRange, customRange, selectedTime])
+    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: shouldUseNodeUsage })
+  }, [showCustomRange, customRange, selectedTime, shouldUseNodeUsage])
 
   const activePeriod = activeQueryRange.period
-  const shouldUseNodeUsage = selectedAdmin === 'all'
 
   const usageParams = useMemo(
     () => ({
@@ -335,8 +336,22 @@ export function AllNodesStackedBarChart() {
       return 0
     }
 
-    return getXAxisIntervalForShortcut(selectedTime, chartData.length)
-  }, [showCustomRange, customRange, activePeriod, selectedTime, chartData.length])
+    if (windowWidth < 500 && selectedTime === '1w') {
+      return chartData.length <= 4 ? 0 : Math.max(1, Math.floor(chartData.length / 4))
+    }
+
+    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: shouldUseNodeUsage })
+  }, [showCustomRange, customRange, activePeriod, selectedTime, chartData.length, shouldUseNodeUsage, windowWidth])
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth)
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const handleTimeSelect = useCallback((value: string) => {
     setSelectedTime(value as TrafficShortcutKey)
