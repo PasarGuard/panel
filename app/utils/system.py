@@ -27,7 +27,16 @@ def cpu_usage() -> CPUStat:
 
 def memory_usage() -> MemoryStat:
     mem = psutil.virtual_memory()
-    return MemoryStat(total=mem.total, used=mem.used, free=mem.available)
+    # Estimate application-used memory by excluding buffers and cache when available.
+    if hasattr(mem, "free") and hasattr(mem, "buffers") and hasattr(mem, "cached"):
+        used = mem.total - mem.free - mem.buffers - mem.cached
+        # Guard against unexpected platform-specific values.
+        if used < 0 or used > mem.total:
+            used = mem.used
+    else:
+        used = mem.used
+
+    return MemoryStat(total=mem.total, used=used, free=mem.available)
 
 
 def random_password() -> str:
