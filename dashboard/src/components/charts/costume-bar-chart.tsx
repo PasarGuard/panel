@@ -112,22 +112,23 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
 
   const chartContainerRef = useRef<HTMLDivElement>(null)
 
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
+  const shouldUseNodeUsage = selectedAdmin === 'all'
 
   const activeQueryRange = useMemo(() => {
     if (showCustomRange && customRange?.from && customRange?.to) {
       return getChartQueryRangeFromDateRange(customRange, selectedTime)
     }
 
-    return getChartQueryRangeFromShortcut(selectedTime)
-  }, [showCustomRange, customRange, selectedTime])
+    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: shouldUseNodeUsage })
+  }, [showCustomRange, customRange, selectedTime, shouldUseNodeUsage])
 
   const activePeriod = activeQueryRange.period
-  const shouldUseNodeUsage = selectedAdmin === 'all'
 
   const nodeUsageParams = useMemo(
     () => ({
@@ -213,8 +214,12 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
       return 0
     }
 
-    return getXAxisIntervalForShortcut(selectedTime, chartData.length)
-  }, [showCustomRange, customRange, activePeriod, chartData.length, selectedTime])
+    if (windowWidth < 500 && selectedTime === '1w') {
+      return chartData.length <= 4 ? 0 : Math.max(1, Math.floor(chartData.length / 4))
+    }
+
+    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: shouldUseNodeUsage })
+  }, [showCustomRange, customRange, activePeriod, chartData.length, selectedTime, shouldUseNodeUsage, windowWidth])
 
   const refreshChartInstant = useCallback(() => {
     if (chartData.length > 0) {
@@ -248,6 +253,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
     let resizeTimeout: NodeJS.Timeout
 
     const handleResize = () => {
+      setWindowWidth(window.innerWidth)
       clearTimeout(resizeTimeout)
       resizeTimeout = setTimeout(() => {
         refreshChartThrottled()

@@ -23,9 +23,17 @@ type PeriodOption = {
 }
 
 const PERIOD_KEYS = [
+  { key: '1h', period: 'minute' as Period, amount: 1, unit: 'hour' },
+  { key: '2h', period: 'hour' as Period, amount: 2, unit: 'hour' },
+  { key: '4h', period: 'hour' as Period, amount: 4, unit: 'hour' },
+  { key: '6h', period: 'hour' as Period, amount: 6, unit: 'hour' },
+  { key: '12h', period: 'hour' as Period, amount: 12, unit: 'hour' },
   { key: '24h', period: 'hour' as Period, amount: 24, unit: 'hour' },
+  { key: '2d', period: 'day' as Period, amount: 2, unit: 'day' },
   { key: '3d', period: 'day' as Period, amount: 3, unit: 'day' },
+  { key: '5d', period: 'day' as Period, amount: 5, unit: 'day' },
   { key: '7d', period: 'day' as Period, amount: 7, unit: 'day' },
+  { key: '14d', period: 'day' as Period, amount: 14, unit: 'day' },
   { key: '30d', period: 'day' as Period, amount: 30, unit: 'day' },
   { key: '1m', period: 'day' as Period, amount: 1, unit: 'month' },
   { key: '3m', period: 'day' as Period, amount: 3, unit: 'month' },
@@ -38,49 +46,27 @@ const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] 
   if (!apiData?.stats || !Array.isArray(apiData.stats)) {
     return []
   }
-  const now = dateUtils.toSystemTimezoneDayjs(new Date())
 
   return apiData.stats.map((stat: UserUsageStat | NodeUsageStat) => {
     const d = toChartPeriodStart(stat.period_start)
-    const isToday = d.isSame(now, 'day')
 
     let displayLabel = ''
     if (periodOption.hours) {
       displayLabel = d.format('HH:mm')
     } else if (periodOption.period === 'day') {
-      // For day periods, use same logic as CustomBarTooltip but with shorter format
+      // Always format day labels from period_start to keep bucket labels stable.
       if (locale === 'fa') {
-        if (isToday) {
-          // For today, show current time
-          displayLabel = new Date().toLocaleString('fa-IR', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-        } else {
-          // For other days, show date
-          const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-          displayLabel = localDate.toLocaleString('fa-IR', {
-            month: '2-digit',
-            day: '2-digit',
-          })
-        }
+        const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
+        displayLabel = localDate.toLocaleString('fa-IR', {
+          month: '2-digit',
+          day: '2-digit',
+        })
       } else {
-        if (isToday) {
-          // For today, show current time
-          displayLabel = new Date().toLocaleString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-        } else {
-          // For other days, show date
-          const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-          displayLabel = localDate.toLocaleString('en-US', {
-            month: '2-digit',
-            day: '2-digit',
-          })
-        }
+        const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
+        displayLabel = localDate.toLocaleString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+        })
       }
     } else {
       // For other periods (month, etc.), show date format
@@ -120,24 +106,11 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
   const data = payload[0].payload
   // Use period_start if available (from transformUsageData), otherwise parse the display label
   const d = data.period_start ? toChartPeriodStart(data.period_start) : dateUtils.toDayjs(data.date)
-  const today = dateUtils.toSystemTimezoneDayjs(new Date())
-  const isToday = d.isSame(today, 'day')
 
   let formattedDate
   if (i18n.language === 'fa') {
     try {
-      if (period === 'day' && isToday) {
-        formattedDate = new Date()
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      } else if (period === 'day') {
+      if (period === 'day') {
         const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
         formattedDate = localDate
           .toLocaleString('fa-IR', {
@@ -166,19 +139,7 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
       formattedDate = d.format('YYYY/MM/DD HH:mm')
     }
   } else {
-    if (period === 'day' && isToday) {
-      const now = new Date()
-      formattedDate = now
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    } else if (period === 'day') {
+    if (period === 'day') {
       const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
       formattedDate = localDate
         .toLocaleString('en-US', {
@@ -235,7 +196,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const PERIOD_OPTIONS: PeriodOption[] = useMemo(
     () => [
-      ...PERIOD_KEYS.slice(0, 6).map(opt => ({
+      ...PERIOD_KEYS.filter(opt => !opt.allTime).map(opt => ({
         label: typeof opt.amount === 'number' ? `${opt.amount} ${t(`time.${opt.unit}${opt.amount > 1 ? 's' : ''}`)}` : '',
         value: opt.key,
         period: opt.period,
@@ -247,7 +208,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     ],
     [t],
   )
-  const [periodOption, setPeriodOption] = useState<PeriodOption>(() => PERIOD_OPTIONS[2])
+  const [periodOption, setPeriodOption] = useState<PeriodOption>(() => PERIOD_OPTIONS.find(opt => opt.value === '7d') ?? PERIOD_OPTIONS[0])
 
   // Update periodOption when PERIOD_OPTIONS changes (e.g., language change)
   useEffect(() => {
@@ -445,27 +406,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                 interval={xAxisInterval}
                 minTickGap={5}
                 tick={{ fontSize: 10 }}
-                tickFormatter={(value: string): string => {
-                  // Use the value directly as it's already formatted in transformUsageData
-                  // For the last data point when it's today, check if we need to show "Today"
-                  if (periodOption.days && chartData.length > 0) {
-                    const lastDataPoint = chartData[chartData.length - 1] as { date: string; period_start?: string }
-                    // Check if this tick value matches the last data point's date
-                    if (lastDataPoint && value === lastDataPoint.date) {
-                      const today = dateUtils.toSystemTimezoneDayjs(new Date())
-                      // Try to get period_start from the data point
-                      const dataPoint = chartData.find(d => typeof d === 'object' && d !== null && 'date' in d && (d as { date: string }).date === value) as { period_start?: string } | undefined
-                      if (dataPoint?.period_start) {
-                        const pointDate = dateUtils.toSystemTimezoneDayjs(dataPoint.period_start)
-                        if (pointDate.isSame(today, 'day')) {
-                          return t('today', { defaultValue: 'Today' })
-                        }
-                      }
-                    }
-                  }
-
-                  return value || ''
-                }}
+                tickFormatter={(value: string): string => value || ''}
               />
               <YAxis dataKey={'traffic'} tickLine={false} tickMargin={4} axisLine={false} width={40} tickFormatter={val => formatBytes(val, 0, true).toString()} tick={{ fontSize: 10 }} />
               <ChartTooltip cursor={false} content={<CustomBarTooltip period={periodOption.period} />} />

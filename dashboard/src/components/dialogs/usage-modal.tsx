@@ -479,8 +479,12 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
       return 0
     }
 
+    if (width < 500 && period === '1w') {
+      return processedChartData.length <= 4 ? 0 : Math.max(1, Math.floor(processedChartData.length / 4))
+    }
+
     return getXAxisIntervalForShortcut(period, processedChartData.length, { minuteForOneHour: true })
-  }, [showCustomRange, customRange, backendPeriod, processedChartData.length, period])
+  }, [showCustomRange, customRange, backendPeriod, processedChartData.length, period, width])
 
   // Handlers
   const handleCustomRangeChange = useCallback((range: DateRange | undefined) => {

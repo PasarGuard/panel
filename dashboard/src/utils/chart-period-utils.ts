@@ -81,22 +81,12 @@ export const toChartPeriodStart = (periodStart: string | Date) => dateUtils.toSy
 export const formatPeriodLabel = (periodStart: string, periodOption: PeriodOption, language: string): string => {
   const locale = getLocale(language)
   const d = toChartPeriodStart(periodStart)
-  const now = dateUtils.toSystemTimezoneDayjs(new Date())
-  const isToday = d.isSame(now, 'day')
 
   if (periodOption.hours) {
     return d.format('HH:mm')
   }
 
   if (periodOption.period === Period.day) {
-    if (isToday) {
-      return new Date().toLocaleString(locale, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-    }
-
     const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
     return localDate.toLocaleString(locale, {
       month: '2-digit',
@@ -113,21 +103,6 @@ export const formatPeriodLabel = (periodStart: string, periodOption: PeriodOptio
 export const formatTooltipDate = (periodStart: string | Date, period: Period, language: string): string => {
   const locale = getLocale(language)
   const d = toChartPeriodStart(periodStart)
-  const today = dateUtils.toSystemTimezoneDayjs(new Date())
-  const isToday = d.isSame(today, 'day')
-
-  if (period === Period.day && isToday) {
-    return new Date()
-      .toLocaleString(locale, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-      .replace(',', '')
-  }
 
   if (period === Period.day) {
     const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
