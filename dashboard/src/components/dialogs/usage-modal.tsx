@@ -2,17 +2,15 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card'
 import { ChartContainer, ChartTooltip, ChartConfig } from '../ui/chart'
-import { PieChart, TrendingUp, Calendar, Info } from 'lucide-react'
+import { BarChart3, PieChart as PieChartIcon, TrendingUp, Calendar, Info } from 'lucide-react'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from '../charts/time-selector'
 import { useTranslation } from 'react-i18next'
 import { Period, useGetUserUsage, useGetNodesSimple, useGetCurrentAdmin, NodeSimple, GetUserUsageParams } from '@/service/api'
 import { DateRange } from 'react-day-picker'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { Button } from '../ui/button'
-import { ResponsiveContainer } from 'recharts'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
-import { TooltipProps } from 'recharts'
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts'
+import { ResponsiveContainer, TooltipProps, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart as RechartsPieChart } from 'recharts'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useTheme } from '@/components/common/theme-provider'
 import NodeStatsModal from './node-stats-modal'
@@ -29,6 +27,13 @@ interface UsageModalProps {
   open: boolean
   onClose: () => void
   username: string
+}
+
+type NodePieChartDataPoint = {
+  name: string
+  usage: number
+  percentage: number
+  fill: string
 }
 
 // Move this hook to a separate file if reused elsewhere
@@ -142,6 +147,33 @@ function CustomBarTooltip({ active, payload, chartConfig, dir, period }: Tooltip
   )
 }
 
+function NodePieTooltip({ active, payload }: TooltipProps<number, string>) {
+  const { t } = useTranslation()
+
+  if (!active || !payload || !payload.length) return null
+
+  const data = payload[0].payload as NodePieChartDataPoint
+
+  return (
+    <div className="rounded-lg border border-border bg-background/95 p-2 text-xs shadow-sm backdrop-blur-sm">
+      <div className="mb-1 flex items-center gap-1.5">
+        <div className="h-2.5 w-2.5 rounded-full border border-border/20" style={{ backgroundColor: data.fill }} />
+        <span className="font-medium text-foreground">{data.name}</span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted-foreground">{t('statistics.totalUsage', { defaultValue: 'Total Usage' })}</span>
+        <span dir="ltr" className="font-mono font-semibold text-foreground">
+          {data.usage.toFixed(2)} GB
+        </span>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <span className="text-muted-foreground">{t('statistics.percentage', { defaultValue: 'Percentage' })}</span>
+        <span dir="ltr" className="font-mono text-foreground">{`${data.percentage.toFixed(1)}%`}</span>
+      </div>
+    </div>
+  )
+}
+
 const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   // Memoize now only once per modal open
   const nowRef = useRef<number>(Date.now())
@@ -159,10 +191,12 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   const [selectedData, setSelectedData] = useState<any>(null)
   const [currentDataIndex, setCurrentDataIndex] = useState(0)
   const [chartData, setChartData] = useState<any[] | null>(null)
+  const [chartView, setChartView] = useState<'bar' | 'pie'>('bar')
 
   // Get current admin to check permissions
   const { data: currentAdmin } = useGetCurrentAdmin()
   const is_sudo = currentAdmin?.is_sudo || false
+  const allNodesSelected = selectedNodeId === undefined && is_sudo
   const dir = useDirDetection()
   const { resolvedTheme } = useTheme()
 
@@ -172,6 +206,12 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
       setSelectedNodeId(undefined) // Non-sudo admins see all nodes (master server data)
     }
   }, [is_sudo])
+
+  useEffect(() => {
+    if (!allNodesSelected && chartView !== 'bar') {
+      setChartView('bar')
+    }
+  }, [allNodesSelected, chartView])
 
   // Fetch nodes list - only for sudo admins
   const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodesSimple({ all: true }, {
@@ -486,6 +526,41 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
     return getXAxisIntervalForShortcut(period, processedChartData.length, { minuteForOneHour: true })
   }, [showCustomRange, customRange, backendPeriod, processedChartData.length, period, width])
 
+  const pieData = useMemo<NodePieChartDataPoint[]>(() => {
+    if (!allNodesSelected || processedChartData.length === 0 || nodeList.length === 0) return []
+
+    const nodesWithUsage = nodeList
+      .map((node, index) => {
+        const usage = processedChartData.reduce((sum, row) => sum + Number(row[node.name] || 0), 0)
+        return {
+          name: node.name,
+          usage,
+          fill: chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`,
+        }
+      })
+      .filter(node => node.usage > 0)
+
+    const totalUsage = nodesWithUsage.reduce((sum, node) => sum + node.usage, 0)
+
+    return nodesWithUsage
+      .map(node => ({
+        ...node,
+        percentage: totalUsage > 0 ? (node.usage * 100) / totalUsage : 0,
+      }))
+      .sort((a, b) => b.usage - a.usage)
+  }, [allNodesSelected, processedChartData, nodeList, chartConfig])
+
+  const pieChartConfig = useMemo<ChartConfig>(
+    () =>
+      pieData.reduce<ChartConfig>((config, point) => {
+        config[point.name] = { label: point.name, color: point.fill }
+        return config
+      }, {}),
+    [pieData],
+  )
+
+  const piePaddingAngle = pieData.length > 1 ? 1 : 0
+
   // Handlers
   const handleCustomRangeChange = useCallback((range: DateRange | undefined) => {
     setCustomRange(range)
@@ -531,6 +606,26 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                 >
                   <Calendar className="h-4 w-4" />
                 </Button>
+                {allNodesSelected && (
+                  <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
+                    <button
+                      type="button"
+                      aria-label={t('statistics.barChart', { defaultValue: 'Bar chart' })}
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                      onClick={() => setChartView('bar')}
+                    >
+                      <BarChart3 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={t('statistics.pieChart', { defaultValue: 'Pie chart' })}
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'pie' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                      onClick={() => setChartView('pie')}
+                    >
+                      <PieChartIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
               {/* Node selector - only show for sudo admins */}
               {is_sudo && (
@@ -596,76 +691,87 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                 </div>
               ) : processedChartData.length === 0 ? (
                 <div className="flex h-60 flex-col items-center justify-center gap-2 text-muted-foreground">
-                  <PieChart className="h-12 w-12 opacity-30" />
+                  <PieChartIcon className="h-12 w-12 opacity-30" />
                   <div className="text-lg font-medium">{t('usersTable.noUsageData', { defaultValue: 'No usage data available for this period.' })}</div>
                   <div className="text-sm">{t('usersTable.tryDifferentRange', { defaultValue: 'Try a different time range.' })}</div>
                 </div>
               ) : (
-                <ChartContainer config={chartConfig} dir={'ltr'}>
+                <ChartContainer config={allNodesSelected && chartView === 'pie' ? pieChartConfig : chartConfig} dir={'ltr'}>
                   <ResponsiveContainer width="100%" height={width < 500 ? 200 : 320}>
-                    <BarChart
-                      data={processedChartData}
-                      margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
-                      onClick={data => {
-                        if (!processedChartData || processedChartData.length === 0) return
-
-                        const clickedIndex = typeof data?.activeTooltipIndex === 'number' ? data.activeTooltipIndex : -1
-                        const clickedData = data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? processedChartData[clickedIndex] : undefined)
-                        if (!clickedData) return
-
-                        if (selectedNodeId === undefined && is_sudo) {
-                          const activeNodesCount = Object.keys(clickedData).filter(
-                            key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && key !== 'usage' && Number(clickedData[key] || 0) > 0,
-                          ).length
-                          if (activeNodesCount === 0) return
-                        } else {
-                          if (Number(clickedData.usage || 0) <= 0) return
-                        }
-
-                        const resolvedIndex = clickedIndex >= 0 ? clickedIndex : processedChartData.findIndex(item => item._period_start === clickedData._period_start)
-                        setCurrentDataIndex(resolvedIndex >= 0 ? resolvedIndex : 0)
-                        setSelectedData(clickedData)
-                        setModalOpen(true)
-                      }}
-                    >
-                      <CartesianGrid direction={'ltr'} vertical={false} />
-                      <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
-                      <YAxis
-                        direction={'ltr'}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={value => `${value.toFixed(2)} GB`}
-                        tick={{
-                          fill: 'hsl(var(--muted-foreground))',
-                          fontSize: 9,
-                          fontWeight: 500,
-                        }}
-                        width={32}
-                        tickMargin={2}
-                      />
-                      <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
-                      {selectedNodeId === undefined && is_sudo ? (
-                        // All nodes selected for sudo admins - render stacked bars
-                        nodeList.map((node, idx) => (
-                          <Bar
-                            key={node.id}
-                            dataKey={node.name}
-                            stackId="a"
-                            minPointSize={1}
-                            fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
-                            radius={nodeList.length === 1 ? [4, 4, 4, 4] : idx === 0 ? [0, 0, 4, 4] : idx === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                            cursor="pointer"
-                          />
-                        ))
-                      ) : (
-                        // Single node selected OR non-sudo admin aggregated data - render single bar
-                        <Bar dataKey="usage" radius={6} cursor="pointer" minPointSize={2}>
-                          {processedChartData.map((_: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill={'hsl(var(--primary))'} />
+                    {allNodesSelected && chartView === 'pie' ? (
+                      <RechartsPieChart>
+                        <ChartTooltip cursor={false} content={<NodePieTooltip />} />
+                        <Pie data={pieData} dataKey="usage" nameKey="name" innerRadius="45%" outerRadius="88%" paddingAngle={piePaddingAngle} strokeWidth={1.5}>
+                          {pieData.map(point => (
+                            <Cell key={point.name} fill={point.fill} />
                           ))}
-                        </Bar>
-                      )}
-                    </BarChart>
+                        </Pie>
+                      </RechartsPieChart>
+                    ) : (
+                      <BarChart
+                        data={processedChartData}
+                        margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                        onClick={data => {
+                          if (!processedChartData || processedChartData.length === 0) return
+
+                          const clickedIndex = typeof data?.activeTooltipIndex === 'number' ? data.activeTooltipIndex : -1
+                          const clickedData = data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? processedChartData[clickedIndex] : undefined)
+                          if (!clickedData) return
+
+                          if (allNodesSelected) {
+                            const activeNodesCount = Object.keys(clickedData).filter(
+                              key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && key !== 'usage' && Number(clickedData[key] || 0) > 0,
+                            ).length
+                            if (activeNodesCount === 0) return
+                          } else {
+                            if (Number(clickedData.usage || 0) <= 0) return
+                          }
+
+                          const resolvedIndex = clickedIndex >= 0 ? clickedIndex : processedChartData.findIndex(item => item._period_start === clickedData._period_start)
+                          setCurrentDataIndex(resolvedIndex >= 0 ? resolvedIndex : 0)
+                          setSelectedData(clickedData)
+                          setModalOpen(true)
+                        }}
+                      >
+                        <CartesianGrid direction={'ltr'} vertical={false} />
+                        <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                        <YAxis
+                          direction={'ltr'}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={value => `${value.toFixed(2)} GB`}
+                          tick={{
+                            fill: 'hsl(var(--muted-foreground))',
+                            fontSize: 9,
+                            fontWeight: 500,
+                          }}
+                          width={32}
+                          tickMargin={2}
+                        />
+                        <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
+                        {allNodesSelected ? (
+                          // All nodes selected for sudo admins - render stacked bars
+                          nodeList.map((node, idx) => (
+                            <Bar
+                              key={node.id}
+                              dataKey={node.name}
+                              stackId="a"
+                              minPointSize={1}
+                              fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
+                              radius={nodeList.length === 1 ? [4, 4, 4, 4] : idx === 0 ? [0, 0, 4, 4] : idx === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                              cursor="pointer"
+                            />
+                          ))
+                        ) : (
+                          // Single node selected OR non-sudo admin aggregated data - render single bar
+                          <Bar dataKey="usage" radius={6} cursor="pointer" minPointSize={2}>
+                            {processedChartData.map((_: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={'hsl(var(--primary))'} />
+                            ))}
+                          </Bar>
+                        )}
+                      </BarChart>
+                    )}
                   </ResponsiveContainer>
                 </ChartContainer>
               )}

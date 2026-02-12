@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, TooltipProps } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis, TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
@@ -9,7 +9,7 @@ import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsage, useGe
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './empty-state'
-import { Calendar, Upload, Download, Info } from 'lucide-react'
+import { BarChart3, Calendar, Download, Info, PieChart as PieChartIcon, Upload } from 'lucide-react'
 import { useTheme } from '@/components/common/theme-provider'
 import NodeStatsModal from '@/components/dialogs/node-stats-modal'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
@@ -29,6 +29,14 @@ type NodeChartDataPoint = {
   time: string
   _period_start: string
   [key: string]: string | number
+}
+
+type NodePieChartDataPoint = {
+  name: string
+  usage: number
+  bytes: number
+  percentage: number
+  fill: string
 }
 
 const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsageStat => 'uplink' in point && 'downlink' in point
@@ -144,7 +152,35 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
   )
 }
 
+function NodePieTooltip({ active, payload }: TooltipProps<number, string>) {
+  const { t } = useTranslation()
+
+  if (!active || !payload || !payload.length) return null
+
+  const data = payload[0].payload as NodePieChartDataPoint
+
+  return (
+    <div className="rounded-lg border border-border bg-background/95 p-2 text-xs shadow-sm backdrop-blur-sm">
+      <div className="mb-1 flex items-center gap-1.5">
+        <div className="h-2.5 w-2.5 rounded-full border border-border/20" style={{ backgroundColor: data.fill }} />
+        <span className="font-medium text-foreground">{data.name}</span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted-foreground">{t('statistics.totalUsage', { defaultValue: 'Total Usage' })}</span>
+        <span dir="ltr" className="font-mono font-semibold text-foreground">
+          {formatBytes(data.bytes)}
+        </span>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <span className="text-muted-foreground">{t('statistics.percentage', { defaultValue: 'Percentage' })}</span>
+        <span dir="ltr" className="font-mono text-foreground">{`${data.percentage.toFixed(1)}%`}</span>
+      </div>
+    </div>
+  )
+}
+
 export function AllNodesStackedBarChart() {
+  const [chartView, setChartView] = useState<'bar' | 'pie'>('bar')
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
   const [showCustomRange, setShowCustomRange] = useState(false)
@@ -203,8 +239,8 @@ export function AllNodesStackedBarChart() {
       return getChartQueryRangeFromDateRange(customRange, selectedTime)
     }
 
-    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: shouldUseNodeUsage })
-  }, [showCustomRange, customRange, selectedTime, shouldUseNodeUsage])
+    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: true })
+  }, [showCustomRange, customRange, selectedTime])
 
   const activePeriod = activeQueryRange.period
 
@@ -340,8 +376,45 @@ export function AllNodesStackedBarChart() {
       return chartData.length <= 4 ? 0 : Math.max(1, Math.floor(chartData.length / 4))
     }
 
-    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: shouldUseNodeUsage })
-  }, [showCustomRange, customRange, activePeriod, selectedTime, chartData.length, shouldUseNodeUsage, windowWidth])
+    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: true })
+  }, [showCustomRange, customRange, activePeriod, selectedTime, chartData.length, windowWidth])
+
+  const pieData = useMemo<NodePieChartDataPoint[]>(() => {
+    if (chartData.length === 0 || nodeList.length === 0) return []
+
+    const nodesWithUsage = nodeList
+      .map((node, index) => {
+        const usageInGb = chartData.reduce((sum, row) => sum + Number(row[node.name] || 0), 0)
+        const bytes = usageInGb * 1024 * 1024 * 1024
+        return {
+          name: node.name,
+          usage: usageInGb,
+          bytes,
+          fill: chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`,
+        }
+      })
+      .filter(node => node.bytes > 0)
+
+    const totalBytes = nodesWithUsage.reduce((sum, node) => sum + node.bytes, 0)
+
+    return nodesWithUsage
+      .map(node => ({
+        ...node,
+        percentage: totalBytes > 0 ? (node.bytes * 100) / totalBytes : 0,
+      }))
+      .sort((a, b) => b.bytes - a.bytes)
+  }, [chartData, nodeList, chartConfig])
+
+  const pieChartConfig = useMemo<ChartConfig>(
+    () =>
+      pieData.reduce<ChartConfig>((config, point) => {
+        config[point.name] = { label: point.name, color: point.fill }
+        return config
+      }, {}),
+    [pieData],
+  )
+
+  const piePaddingAngle = pieData.length > 1 ? 1 : 0
 
   useEffect(() => {
     const handleResize = () => {
@@ -394,6 +467,24 @@ export function AllNodesStackedBarChart() {
                 </button>
               </div>
               <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="w-full sm:w-[220px] sm:shrink-0" />
+              <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
+                <button
+                  type="button"
+                  aria-label={t('statistics.barChart', { defaultValue: 'Bar chart' })}
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  onClick={() => setChartView('bar')}
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={t('statistics.pieChart', { defaultValue: 'Pie chart' })}
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'pie' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  onClick={() => setChartView('pie')}
+                >
+                  <PieChartIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
             {showCustomRange && (
               <div className="flex w-full">
@@ -421,13 +512,13 @@ export function AllNodesStackedBarChart() {
             <div className="mx-auto w-full">
               <ChartContainer
                 dir="ltr"
-                config={chartConfig}
+                config={chartView === 'pie' ? pieChartConfig : chartConfig}
                 className="max-h-[400px] min-h-[200px] w-full"
                 style={{
                   marginBottom: navigator.userAgent.includes('Safari') && navigator.platform.includes('Mac') ? `${0.18 * window.innerWidth}px` : '0',
                 }}
               >
-                {chartData.length > 0 ? (
+                {chartData.length > 0 && chartView === 'bar' ? (
                   <BarChart
                     accessibilityLayer
                     data={chartData}
@@ -482,6 +573,19 @@ export function AllNodesStackedBarChart() {
                       />
                     ))}
                   </BarChart>
+                ) : chartData.length > 0 && chartView === 'pie' ? (
+                  pieData.length > 0 ? (
+                    <PieChart>
+                      <ChartTooltip cursor={false} content={<NodePieTooltip />} />
+                      <Pie data={pieData} dataKey="bytes" nameKey="name" innerRadius="45%" outerRadius="88%" paddingAngle={piePaddingAngle} strokeWidth={1.5}>
+                        {pieData.map(point => (
+                          <Cell key={point.name} fill={point.fill} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  ) : (
+                    <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
+                  )
                 ) : (
                   <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
                 )}
@@ -489,17 +593,22 @@ export function AllNodesStackedBarChart() {
               {chartData.length > 0 && (
                 <div className="overflow-x-auto pt-3">
                   <div className="flex min-w-max items-center justify-center gap-4">
-                    {nodeList.map(node => {
-                      const itemConfig = chartConfig[node.name]
+                    {(chartView === 'pie' ? pieData : nodeList).map(item => {
+                      const nodeName = typeof item === 'object' && 'name' in item ? item.name : ''
+                      const itemConfig = chartConfig[nodeName]
+                      const percentage = typeof item === 'object' && 'percentage' in item ? item.percentage : undefined
                       return (
-                        <div dir="ltr" key={node.id} className="flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground">
+                        <div dir="ltr" key={nodeName} className="flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground">
                           <div
                             className="h-2 w-2 shrink-0 rounded-[2px]"
                             style={{
-                              backgroundColor: itemConfig?.color || 'hsl(var(--chart-1))',
+                              backgroundColor: itemConfig?.color || (typeof item === 'object' && 'fill' in item ? item.fill : 'hsl(var(--chart-1))'),
                             }}
                           />
-                          <span className="whitespace-nowrap text-xs">{node.name}</span>
+                          <span className="whitespace-nowrap text-xs">
+                            {nodeName}
+                            {typeof percentage === 'number' ? ` (${percentage.toFixed(1)}%)` : ''}
+                          </span>
                         </div>
                       )
                     })}

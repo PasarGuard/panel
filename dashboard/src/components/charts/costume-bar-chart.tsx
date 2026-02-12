@@ -125,8 +125,8 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
       return getChartQueryRangeFromDateRange(customRange, selectedTime)
     }
 
-    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: shouldUseNodeUsage })
-  }, [showCustomRange, customRange, selectedTime, shouldUseNodeUsage])
+    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: true })
+  }, [showCustomRange, customRange, selectedTime])
 
   const activePeriod = activeQueryRange.period
 
@@ -218,8 +218,8 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
       return chartData.length <= 4 ? 0 : Math.max(1, Math.floor(chartData.length / 4))
     }
 
-    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: shouldUseNodeUsage })
-  }, [showCustomRange, customRange, activePeriod, chartData.length, selectedTime, shouldUseNodeUsage, windowWidth])
+    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: true })
+  }, [showCustomRange, customRange, activePeriod, chartData.length, selectedTime, windowWidth])
 
   const refreshChartInstant = useCallback(() => {
     if (chartData.length > 0) {
