@@ -21,7 +21,7 @@ import {
   useCreateUserFromTemplate,
   useGetGroupsSimple,
   useGetUsers,
-  useGetUserTemplates,
+  useGetUserTemplatesSimple,
   useModifyUser,
   useModifyUserWithTemplate,
   type UserResponse,
@@ -500,16 +500,20 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     },
   )
 
-  // Fetch data for tabs without caching
-  const { data: templatesData, isLoading: templatesLoading } = useGetUserTemplates(undefined, {
-    query: {
-      staleTime: 0,
-      gcTime: 0,
-      refetchOnMount: true,
-      refetchOnReconnect: false,
-      enabled: isDialogOpen,
+  // Fetch lightweight templates for selector tabs without caching
+  const { data: templatesData, isLoading: templatesLoading } = useGetUserTemplatesSimple(
+    { all: true },
+    {
+      query: {
+        staleTime: 0,
+        gcTime: 0,
+        refetchOnMount: true,
+        refetchOnReconnect: false,
+        enabled: isDialogOpen,
+      },
     },
-  })
+  )
+  const templateOptions = templatesData?.templates || []
 
   // Prefetch lightweight groups while modal is open so the Groups tab can render immediately.
   useGetGroupsSimple(
@@ -2007,7 +2011,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="none">---</SelectItem>
-                                      {(templatesData || []).map((tpl: any) => (
+                                      {templateOptions.map((tpl: any) => (
                                         <SelectItem key={tpl.id} value={String(tpl.id)}>
                                           {tpl.name}
                                         </SelectItem>
@@ -2234,7 +2238,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">---</SelectItem>
-                                {(templatesData || []).map((template: any) => (
+                                {templateOptions.map((template: any) => (
                                   <SelectItem key={template.id} value={String(template.id)}>
                                     {template.name}
                                   </SelectItem>

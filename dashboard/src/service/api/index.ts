@@ -153,14 +153,6 @@ export type GetUsageParams = {
   group_by_node?: boolean
 }
 
-export type GetHostsSimpleParams = {
-  offset?: number | null
-  limit?: number | null
-  search?: string | null
-  sort?: string | null
-  all?: boolean
-}
-
 export type GetHostsParams = {
   offset?: number
   limit?: number
@@ -258,6 +250,13 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
+
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -275,13 +274,6 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -514,12 +506,16 @@ export interface VlessSettings {
   flow?: XTLSFlows
 }
 
+export type ValidationErrorCtx = { [key: string]: unknown }
+
 export type ValidationErrorLocItem = string | number
 
 export interface ValidationError {
   loc: ValidationErrorLocItem[]
   msg: string
   type: string
+  input?: unknown
+  ctx?: ValidationErrorCtx
 }
 
 export interface VMessSettings {
@@ -547,8 +543,6 @@ export const UsernameGenerationStrategy = {
   sequence: 'sequence',
 } as const
 
-export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
-
 export type UserUsageStatsListPeriod = Period | null
 
 export interface UserUsageStatsList {
@@ -562,6 +556,8 @@ export interface UserUsageStat {
   total_traffic: number
   period_start: string
 }
+
+export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
 
 export type UserTemplateSimpleName = string | null
 
@@ -1170,11 +1166,6 @@ export interface ShadowsocksSettings {
   method?: ShadowsocksMethods
 }
 
-export interface General {
-  default_flow?: XTLSFlows
-  default_method?: ShadowsocksMethods
-}
-
 export type SettingsSchemaOutputGeneral = General | null
 
 export type SettingsSchemaOutputSubscription = SubscriptionOutput | null
@@ -1320,19 +1311,6 @@ export type NotificationSettingsOutputTelegramChatId = number | null
 
 export type NotificationSettingsOutputTelegramApiToken = string | null
 
-export interface NotificationSettingsOutput {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
-  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
-  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
-  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsOutputProxyUrl
-  /** */
-  max_retries: number
-}
-
 export type NotificationSettingsInputProxyUrl = string | null
 
 export type NotificationSettingsInputDiscordWebhookUrl = string | null
@@ -1368,6 +1346,32 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
+export interface NotificationSettingsOutput {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
+  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
+  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
+  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsOutputProxyUrl
+  /** */
+  max_retries: number
+}
+
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1383,19 +1387,6 @@ export interface NotificationChannel {
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
 }
 
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
 export interface NotFound {
   detail?: string
 }
@@ -1406,12 +1397,27 @@ export interface NoiseSettings {
   xray?: NoiseSettingsXray
 }
 
+/**
+ * Response model for lightweight node list.
+ */
+export interface NodesSimpleResponse {
+  nodes: NodeSimple[]
+  total: number
+}
+
 export interface NodesResponse {
   nodes: NodeResponse[]
   total: number
 }
 
 export type NodeUsageStatsListPeriod = Period | null
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export interface NodeUsageStat {
   uplink: number
@@ -1420,13 +1426,6 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1463,14 +1462,6 @@ export interface NodeSimple {
   id: number
   name: string
   status: NodeStatus
-}
-
-/**
- * Response model for lightweight node list.
- */
-export interface NodesSimpleResponse {
-  nodes: NodeSimple[]
-  total: number
 }
 
 export interface NodeSettings {
@@ -1726,30 +1717,6 @@ export interface KCPSettings {
   write_buffer_size?: KCPSettingsWriteBufferSize
 }
 
-export type HostSimpleInboundTag = string | null
-
-export type HostSimplePort = number | null
-
-/**
- * Lightweight host model for list dropdowns.
- */
-export interface HostSimple {
-  id: number
-  remark: string
-  address: string[]
-  port?: HostSimplePort
-  inbound_tag?: HostSimpleInboundTag
-  priority: number
-}
-
-/**
- * Response model for lightweight host list.
- */
-export interface HostsSimpleResponse {
-  hosts: HostSimple[]
-  total: number
-}
-
 export interface HostNotificationEnable {
   create?: boolean
   modify?: boolean
@@ -1791,11 +1758,6 @@ export interface HTTPException {
   detail: string
 }
 
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
-}
-
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -1824,6 +1786,11 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -1856,6 +1823,11 @@ export const GeoFilseRegion = {
   china: 'china',
   russia: 'russia',
 } as const
+
+export interface General {
+  default_flow?: XTLSFlows
+  default_method?: ShadowsocksMethods
+}
 
 export type GRPCSettingsInitialWindowsSize = number | null
 
@@ -1929,6 +1901,8 @@ export interface CreateUserFromTemplate {
   username: string
 }
 
+export type CreateHostPinnedPeerCertSha256 = string | null
+
 export type CreateHostEchConfigList = string | null
 
 export type CreateHostStatus = UserStatus[] | null
@@ -1942,6 +1916,26 @@ export type CreateHostFragmentSettings = FragmentSettings | null
 export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
+
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
 
 export interface CreateHost {
   id?: CreateHostId
@@ -1968,27 +1962,8 @@ export interface CreateHost {
   priority: number
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
+  pinnedPeerCertSha256?: CreateHostPinnedPeerCertSha256
 }
-
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
 
 /**
  * Lightweight core model with only id and name for performance.
@@ -2156,6 +2131,8 @@ export interface BaseNotificationEnable {
   delete?: boolean
 }
 
+export type BaseHostPinnedPeerCertSha256 = string | null
+
 export type BaseHostEchConfigList = string | null
 
 export type BaseHostStatus = UserStatus[] | null
@@ -2169,26 +2146,6 @@ export type BaseHostFragmentSettings = FragmentSettings | null
 export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export interface BaseHost {
   id?: BaseHostId
@@ -2215,7 +2172,28 @@ export interface BaseHost {
   priority: number
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
+  pinnedPeerCertSha256?: BaseHostPinnedPeerCertSha256
 }
+
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 
@@ -4627,69 +4605,6 @@ export const useModifyHosts = <TData = Awaited<ReturnType<typeof modifyHosts>>, 
   const mutationOptions = getModifyHostsMutationOptions(options)
 
   return useMutation(mutationOptions)
-}
-
-/**
- * Returns only id, remark, address, port, inbound_tag, and priority for hosts.
- * @summary Get lightweight host list
- */
-export const getHostsSimple = (params?: GetHostsSimpleParams, signal?: AbortSignal) => {
-  return orvalFetcher<HostsSimpleResponse>({ url: `/api/hosts/simple`, method: 'GET', params, signal })
-}
-
-export const getGetHostsSimpleQueryKey = (params?: GetHostsSimpleParams) => {
-  return [`/api/hosts/simple`, ...(params ? [params] : [])] as const
-}
-
-export const getGetHostsSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  params?: GetHostsSimpleParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> },
-) => {
-  const { query: queryOptions } = options ?? {}
-
-  const queryKey = queryOptions?.queryKey ?? getGetHostsSimpleQueryKey(params)
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHostsSimple>>> = ({ signal }) => getHostsSimple(params, signal)
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetHostsSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getHostsSimple>>>
-export type GetHostsSimpleQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
-
-export function useGetHostsSimple<TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  params: undefined | GetHostsSimpleParams,
-  options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> &
-      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>, 'initialData'>
-  },
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHostsSimple<TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  params?: GetHostsSimpleParams,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> &
-      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>, 'initialData'>
-  },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHostsSimple<TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  params?: GetHostsSimpleParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Get lightweight host list
- */
-
-export function useGetHostsSimple<TData = Awaited<ReturnType<typeof getHostsSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  params?: GetHostsSimpleParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostsSimple>>, TError, TData>> },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetHostsSimpleQueryOptions(params, options)
-
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-  query.queryKey = queryOptions.queryKey
-
-  return query
 }
 
 /**
