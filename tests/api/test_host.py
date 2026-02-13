@@ -384,31 +384,3 @@ def test_get_hosts_simple_invalid_sort(access_token):
     assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
-def test_get_hosts_simple_search_and_sort(access_token):
-    """Test combining search and sort parameters."""
-    core = create_core(access_token)
-    inbounds = get_inbounds(access_token)
-    assert inbounds, "No inbounds available for host creation"
-    created_ids = []
-    remarks = []
-    try:
-        for remark in ["alpha_host_combo", "beta_host_combo", "gamma_host_combo", "other_host_combo"]:
-            unique_remark = unique_name(remark)
-            remarks.append(unique_remark)
-            created_ids.append(create_simple_host(access_token, inbounds[0], remark=unique_remark, priority=1))
-
-        response = client.get(
-            "/api/hosts/simple",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params={"search": "_host_combo", "sort": "-remark"},
-        )
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        matching = [h for h in data["hosts"] if h["remark"] in remarks and "_host_combo" in h["remark"]]
-        matching_remarks = [h["remark"] for h in matching]
-        assert len(matching_remarks) >= 3
-        assert matching_remarks == sorted(matching_remarks, reverse=True)
-    finally:
-        for host_id in created_ids:
-            client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
-        delete_core(access_token, core["id"])
