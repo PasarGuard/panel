@@ -249,25 +249,6 @@ class BaseHost(BaseModel):
         return ""
 
 
-class HostSimple(BaseModel):
-    """Lightweight host model for list dropdowns."""
-
-    id: int
-    remark: str
-    address: set[str]
-    port: int | None = None
-    inbound_tag: str | None = None
-    priority: int
-    model_config = ConfigDict(from_attributes=True)
-
-
-class HostsSimpleResponse(BaseModel):
-    """Response model for lightweight host list."""
-
-    hosts: list[HostSimple]
-    total: int
-
-
 class CreateHost(BaseHost):
     @field_validator("remark", mode="after")
     def validate_remark(cls, v):
