@@ -9,7 +9,16 @@ import { Switch } from '@/components/ui/switch.tsx'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils.ts'
-import { DataLimitResetStrategy, ShadowsocksMethods, useCreateUserTemplate, useModifyUserTemplate, UserStatusCreate, XTLSFlows } from '@/service/api'
+import {
+  DataLimitResetStrategy,
+  getGetUserTemplatesQueryKey,
+  getGetUserTemplatesSimpleQueryKey,
+  ShadowsocksMethods,
+  useCreateUserTemplate,
+  useModifyUserTemplate,
+  UserStatusCreate,
+  XTLSFlows,
+} from '@/service/api'
 import { queryClient } from '@/utils/query-client.ts'
 import { useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -81,8 +90,9 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
           }),
         )
       }
-      // Invalidate nodes queries after successful operation
-      queryClient.invalidateQueries({ queryKey: ['/api/user_templates'] })
+      // Invalidate both template list variants used across pages/modals.
+      queryClient.invalidateQueries({ queryKey: getGetUserTemplatesQueryKey() })
+      queryClient.invalidateQueries({ queryKey: getGetUserTemplatesSimpleQueryKey() })
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
