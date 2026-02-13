@@ -2,7 +2,7 @@ import asyncio
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import bindparam, func, or_, select
+from sqlalchemy import bindparam, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy import insert
@@ -119,19 +119,6 @@ ProxyHostSortingOptions = Enum(
 )
 
 
-ProxyHostSortingOptionsSimple = Enum(
-    "ProxyHostSortingOptionsSimple",
-    {
-        "id": ProxyHost.id.asc(),
-        "-id": ProxyHost.id.desc(),
-        "remark": ProxyHost.remark.asc(),
-        "-remark": ProxyHost.remark.desc(),
-        "priority": ProxyHost.priority.asc(),
-        "-priority": ProxyHost.priority.desc(),
-    },
-)
-
-
 async def get_hosts(
     db: AsyncSession,
     offset: Optional[int] = 0,
@@ -159,74 +146,6 @@ async def get_hosts(
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
-
-
-async def get_hosts_simple(
-    db: AsyncSession,
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: list[ProxyHostSortingOptionsSimple] | None = None,
-    skip_pagination: bool = False,
-) -> tuple[list[tuple[int, str, set[str], int | None, str | None, int]], int]:
-    """
-    Retrieves lightweight host data with only id, remark, address, port, inbound_tag, priority.
-
-    Args:
-        db: Database session.
-        offset: Number of records to skip.
-        limit: Number of records to retrieve.
-        search: Search term for remark or inbound tag.
-        sort: Sort options.
-        skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
-
-    Returns:
-        Tuple of (list of tuples, total_count).
-    """
-    stmt = select(
-        ProxyHost.id,
-        ProxyHost.remark,
-        ProxyHost.address,
-        ProxyHost.port,
-        ProxyHost.inbound_tag,
-        ProxyHost.priority,
-    )
-
-    if search:
-        search_value = search.strip()
-        if search_value:
-            stmt = stmt.where(
-                or_(
-                    ProxyHost.remark.ilike(f"%{search_value}%"),
-                    ProxyHost.inbound_tag.ilike(f"%{search_value}%"),
-                )
-            )
-
-    if sort:
-        sort_list = []
-        for s in sort:
-            if isinstance(s.value, tuple):
-                sort_list.extend(s.value)
-            else:
-                sort_list.append(s.value)
-        stmt = stmt.order_by(*sort_list)
-
-    # Get count BEFORE pagination (always)
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total = (await db.execute(count_stmt)).scalar()
-
-    if not skip_pagination:
-        if offset:
-            stmt = stmt.offset(offset)
-        if limit:
-            stmt = stmt.limit(limit)
-    else:
-        stmt = stmt.limit(10000)  # Safety limit when all=true
-
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    return rows, total
 
 
 async def get_host_by_id(db: AsyncSession, id: int) -> ProxyHost:
