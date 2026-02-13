@@ -607,23 +607,25 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                   <Calendar className="h-4 w-4" />
                 </Button>
                 {allNodesSelected && (
-                  <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
-                    <button
-                      type="button"
-                      aria-label={t('statistics.barChart', { defaultValue: 'Bar chart' })}
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                      onClick={() => setChartView('bar')}
-                    >
-                      <BarChart3 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={t('statistics.pieChart', { defaultValue: 'Pie chart' })}
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'pie' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                      onClick={() => setChartView('pie')}
-                    >
-                      <PieChartIcon className="h-3.5 w-3.5" />
-                    </button>
+                  <div className='w-full flex items-center justify-center sm:w-fit'>
+                    <div className="inline-flex w-fit h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
+                      <button
+                        type="button"
+                        aria-label={t('statistics.barChart', { defaultValue: 'Bar chart' })}
+                        className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                        onClick={() => setChartView('bar')}
+                      >
+                        <BarChart3 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t('statistics.pieChart', { defaultValue: 'Pie chart' })}
+                        className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'pie' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                        onClick={() => setChartView('pie')}
+                      >
+                        <PieChartIcon className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
