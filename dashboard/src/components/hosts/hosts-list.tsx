@@ -1006,7 +1006,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     onDataChanged: refreshHostsData,
   })
 
-  const isCurrentlyLoading = !data || (isRefreshing && sortedHosts.length === 0)
+  const isCurrentlyLoading = hosts === undefined || (isRefreshing && sortedHosts.length === 0)
   const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !searchQuery.trim() && sortedHosts.length === 0
   const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && searchQuery.trim() !== ''
 
