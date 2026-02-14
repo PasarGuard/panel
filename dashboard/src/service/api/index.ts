@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 2.0.0-rc.1
+ * OpenAPI spec version: 2.0.0
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -250,13 +250,6 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
-
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -274,6 +267,13 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -461,6 +461,11 @@ export const XHttpModes = {
 
 export type XHttpSettingsInputMode = XHttpModes | null
 
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
+
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -469,11 +474,6 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
-}
-
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
 }
 
 export interface WebhookInfo {
@@ -867,13 +867,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
-
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -884,6 +877,13 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
+
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -1194,6 +1194,18 @@ export type SettingsSchemaInputGeneral = General | null
 
 export type SettingsSchemaInputSubscription = SubscriptionInput | null
 
+export interface NotificationEnable {
+  admin?: AdminNotificationEnable
+  core?: BaseNotificationEnable
+  group?: BaseNotificationEnable
+  host?: HostNotificationEnable
+  node?: NodeNotificationEnable
+  user?: UserNotificationEnable
+  user_template?: BaseNotificationEnable
+  days_left?: boolean
+  percentage_reached?: boolean
+}
+
 export type SettingsSchemaInputNotificationEnable = NotificationEnable | null
 
 export type SettingsSchemaInputNotificationSettings = NotificationSettingsInput | null
@@ -1311,6 +1323,19 @@ export type NotificationSettingsOutputTelegramChatId = number | null
 
 export type NotificationSettingsOutputTelegramApiToken = string | null
 
+export interface NotificationSettingsOutput {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
+  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
+  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
+  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsOutputProxyUrl
+  /** */
+  max_retries: number
+}
+
 export type NotificationSettingsInputProxyUrl = string | null
 
 export type NotificationSettingsInputDiscordWebhookUrl = string | null
@@ -1334,44 +1359,6 @@ export interface NotificationSettingsInput {
   max_retries: number
 }
 
-export interface NotificationEnable {
-  admin?: AdminNotificationEnable
-  core?: BaseNotificationEnable
-  group?: BaseNotificationEnable
-  host?: HostNotificationEnable
-  node?: NodeNotificationEnable
-  user?: UserNotificationEnable
-  user_template?: BaseNotificationEnable
-  days_left?: boolean
-  percentage_reached?: boolean
-}
-
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
-export interface NotificationSettingsOutput {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
-  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
-  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
-  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsOutputProxyUrl
-  /** */
-  max_retries: number
-}
-
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1385,6 +1372,19 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1412,13 +1412,6 @@ export interface NodesResponse {
 
 export type NodeUsageStatsListPeriod = Period | null
 
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
-
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -1426,6 +1419,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1758,6 +1758,11 @@ export interface HTTPException {
   detail: string
 }
 
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
+}
+
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -1786,11 +1791,6 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
-}
-
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
