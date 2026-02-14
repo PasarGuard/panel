@@ -112,16 +112,11 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
     try {
       if (period === 'day') {
         const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-        formattedDate = localDate
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
+        formattedDate = localDate.toLocaleDateString('fa-IR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        })
       } else {
         formattedDate = d
           .toDate()
@@ -136,21 +131,16 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
           .replace(',', '')
       }
     } catch {
-      formattedDate = d.format('YYYY/MM/DD HH:mm')
+      formattedDate = period === 'day' ? d.format('YYYY/MM/DD') : d.format('YYYY/MM/DD HH:mm')
     }
   } else {
     if (period === 'day') {
       const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-      formattedDate = localDate
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
+      formattedDate = localDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
     } else {
       formattedDate = d
         .toDate()
@@ -170,7 +160,7 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
 
   return (
     <div className={`min-w-[160px] rounded border border-border bg-gradient-to-br from-background to-muted/80 p-2 text-xs shadow ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
-      <div className={`mb-1 text-xs font-semibold text-primary ${isRTL ? 'text-right' : 'text-center'}`}>
+      <div className={`mb-1 text-xs font-semibold ${isRTL ? 'text-right' : 'text-left'}`}>
         {t('statistics.date', { defaultValue: 'Date' })}:{' '}
         <span dir="ltr" className="inline-block">
           {formattedDate}

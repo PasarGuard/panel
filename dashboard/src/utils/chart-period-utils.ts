@@ -106,16 +106,11 @@ export const formatTooltipDate = (periodStart: string | Date, period: Period, la
 
   if (period === Period.day) {
     const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-    return localDate
-      .toLocaleString(locale, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-      .replace(',', '')
+    return localDate.toLocaleDateString(locale, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
   }
 
   return d
