@@ -20,6 +20,7 @@ from sqlalchemy import (
     func,
     or_,
 )
+from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
@@ -195,15 +196,28 @@ class User(Base):
         return self.usage_logs[-1].reset_at if self.usage_logs else self.created_at
 
     async def inbounds(self) -> list[str]:
-        """Returns a flat list of all included inbound tags across all proxies"""
+        """Returns a flat list of all included inbound tags for enabled groups."""
+        session = async_object_session(self)
+        if session is not None:
+            stmt = (
+                select(ProxyInbound.tag)
+                .select_from(users_groups_association)
+                .join(Group, users_groups_association.c.groups_id == Group.id)
+                .join(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
+                .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+                .where(users_groups_association.c.user_id == self.id, Group.is_disabled.is_(False))
+                .distinct()
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+        # Fallback for detached instances: use already-loaded attrs only.
         included_tags = set()
-        for group in self.groups:
+        for group in self.__dict__.get("groups") or []:
             if group.is_disabled:
                 continue
-
-            await group.awaitable_attrs.inbounds
-            for inbound in group.inbound_tags:
-                included_tags.add(inbound)
+            for inbound in group.__dict__.get("inbounds") or []:
+                included_tags.add(inbound.tag)
         return list(included_tags)
 
     @property
