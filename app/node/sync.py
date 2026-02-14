@@ -1,5 +1,7 @@
 import asyncio
 
+from app.db import GetDB
+from app.db.crud.user import get_user_by_id
 from app.db.models import User
 from app.lifecycle import on_shutdown
 from app.models.user import UserNotificationResponse
@@ -105,6 +107,26 @@ else:
 async def sync_users(users: list[User]) -> None:
     proto_users = await serialize_users_for_node(users)
     await _dispatch_users_update(proto_users)
+
+
+async def sync_user_by_id(user_id: int) -> None:
+    if not user_id:
+        return
+
+    async with GetDB() as db:
+        db_user = await get_user_by_id(
+            db,
+            user_id,
+            load_admin=False,
+            load_next_plan=False,
+            load_usage_logs=False,
+            load_groups=False,
+        )
+        if not db_user:
+            return
+        proto_user = await serialize_user(db_user)
+
+    await _dispatch_user_update(proto_user)
 
 
 async def sync_proto_user(proto_user) -> None:
