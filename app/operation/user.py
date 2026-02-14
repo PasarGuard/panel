@@ -62,7 +62,7 @@ from app.models.user import (
     UserSubscriptionUpdateList,
 )
 from app.node.sync import remove_user as sync_remove_user
-from app.node.sync import sync_user, sync_users
+from app.node.sync import sync_user, sync_user_by_id, sync_users
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
@@ -76,6 +76,10 @@ _VERSION_TOKEN_RE = re.compile(r"v?\d+(?:\.\d+)*", re.IGNORECASE)
 
 
 class UserOperation(BaseOperation):
+    @staticmethod
+    def _is_non_blocking_sync_operator(operator_type: OperatorType) -> bool:
+        return operator_type in (OperatorType.API, OperatorType.WEB)
+
     @staticmethod
     def _format_validation_errors(error: ValidationError) -> str:
         return "; ".join(
@@ -206,7 +210,11 @@ class UserOperation(BaseOperation):
         return user
 
     async def update_user(self, db_user: User) -> UserNotificationResponse:
-        await sync_user(db_user)
+        if self._is_non_blocking_sync_operator(self.operator_type):
+            asyncio.create_task(sync_user_by_id(db_user.id))
+        else:
+            await sync_user(db_user)
+
         user = await self.validate_user(db_user)
         return user
 
@@ -267,7 +275,10 @@ class UserOperation(BaseOperation):
 
         user = await self.validate_user(db_user)
         await remove_user(db, db_user)
-        await sync_remove_user(user)
+        if self._is_non_blocking_sync_operator(self.operator_type):
+            asyncio.create_task(sync_remove_user(user))
+        else:
+            await sync_remove_user(user)
 
         asyncio.create_task(notification.remove_user(user, admin))
 
@@ -703,7 +714,10 @@ class UserOperation(BaseOperation):
 
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
         users, users_count = await update_users_expire(db, bulk_model)
-        await sync_users(users)
+        if self._is_non_blocking_sync_operator(self.operator_type):
+            asyncio.create_task(sync_users(users))
+        else:
+            await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
@@ -711,7 +725,10 @@ class UserOperation(BaseOperation):
 
     async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
         users, users_count = await update_users_datalimit(db, bulk_model)
-        await sync_users(users)
+        if self._is_non_blocking_sync_operator(self.operator_type):
+            asyncio.create_task(sync_users(users))
+        else:
+            await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
@@ -719,7 +736,10 @@ class UserOperation(BaseOperation):
 
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
         users, users_count = await update_users_proxy_settings(db, bulk_model)
-        await sync_users(users)
+        if self._is_non_blocking_sync_operator(self.operator_type):
+            asyncio.create_task(sync_users(users))
+        else:
+            await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
