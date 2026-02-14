@@ -130,7 +130,7 @@ class BaseOperation:
         if not db_user:
             await self.raise_error(message="User not found", code=404)
 
-        if not (admin.is_sudo or (db_user.admin and db_user.admin.username == admin.username)):
+        if not (admin.is_sudo or db_user.admin_id == admin.id):
             await self.raise_error(message="You're not allowed", code=403)
 
         return db_user
@@ -157,7 +157,7 @@ class BaseOperation:
         if not db_user:
             await self.raise_error(message="User not found", code=404)
 
-        if not (admin.is_sudo or (db_user.admin and db_user.admin.username == admin.username)):
+        if not (admin.is_sudo or db_user.admin_id == admin.id):
             await self.raise_error(message="You're not allowed", code=403)
 
         return db_user
