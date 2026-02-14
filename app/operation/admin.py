@@ -20,8 +20,7 @@ from app.db.crud.admin import (
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminSimple, AdminsResponse, AdminsSimpleResponse
-from app.node.sync import schedule_sync_task, sync_remove_users, sync_users, sync_proto_users, remove_user as sync_remove_user
-from app.node.user import serialize_users_for_node
+from app.node.sync import schedule_sync_task, sync_remove_users, sync_users, remove_user as sync_remove_user
 from app.models.stats import Period, UserUsageStatsList
 from app.operation import BaseOperation, OperatorType
 from app.operation.user import UserOperation
@@ -172,8 +171,7 @@ class AdminOperation(BaseOperation):
 
         users = await get_users(db, admin=db_admin)
         if self._is_non_blocking_sync_operator(self.operator_type):
-            proto_users = await serialize_users_for_node(users)
-            schedule_sync_task(sync_proto_users(proto_users))
+            schedule_sync_task(sync_users(users))
         else:
             await sync_users(users)
 
@@ -190,8 +188,7 @@ class AdminOperation(BaseOperation):
 
         users = await get_users(db, admin=db_admin)
         if self._is_non_blocking_sync_operator(self.operator_type):
-            proto_users = await serialize_users_for_node(users)
-            schedule_sync_task(sync_proto_users(proto_users))
+            schedule_sync_task(sync_users(users))
         else:
             await sync_users(users)
 
@@ -210,7 +207,9 @@ class AdminOperation(BaseOperation):
             return 0
 
         user_operation = UserOperation(self.operator_type)
-        serialized_users = [await user_operation.validate_user(user) for user in users]
+        serialized_users = [
+            await user_operation.validate_user(db, user, include_subscription_url=False) for user in users
+        ]
 
         await remove_users(db, users)
 

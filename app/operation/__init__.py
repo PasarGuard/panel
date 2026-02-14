@@ -15,6 +15,7 @@ from app.db.crud import (
     get_user_template,
 )
 from app.db.crud.admin import get_admin_by_id
+from app.db.crud.group import get_groups_by_ids
 from app.db.crud.user import get_user_by_id
 from app.db.models import Admin as DBAdmin, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
 from app.models.admin import AdminDetails
@@ -98,7 +99,7 @@ class BaseOperation:
         if not sub:
             await self.raise_error(message="Not Found", code=404)
 
-        db_user = await get_user(db, sub["username"])
+        db_user = await get_user(db, sub["username"], load_usage_logs=False)
         if not db_user or db_user.created_at.astimezone(tz.utc) > sub["created_at"]:
             await self.raise_error(message="Not Found", code=404)
 
@@ -108,7 +109,7 @@ class BaseOperation:
         return db_user
 
     async def get_validated_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> User:
-        db_user = await get_user(db, username)
+        db_user = await get_user(db, username, load_usage_logs=False)
         if not db_user:
             await self.raise_error(message="User not found", code=404)
 
@@ -118,7 +119,7 @@ class BaseOperation:
         return db_user
 
     async def get_validated_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> User:
-        db_user = await get_user_by_id(db, user_id)
+        db_user = await get_user_by_id(db, user_id, load_usage_logs=False)
         if not db_user:
             await self.raise_error(message="User not found", code=404)
 
@@ -140,22 +141,31 @@ class BaseOperation:
         return db_admin
 
     async def get_validated_group(self, db: AsyncSession, group_id: int) -> Group:
-        db_group = await get_group_by_id(db, group_id)
+        db_group = await get_group_by_id(db, group_id, load_users=False, load_inbounds=True)
         if not db_group:
             await self.raise_error("Group not found", 404)
         return db_group
 
     async def validate_all_groups(self, db, model: UserCreate | UserModify | UserTemplate | BulkGroup) -> list[Group]:
-        all_groups: list[Group] = []
+        requested_group_ids: list[int] = []
         if model.group_ids:
-            for group_id in model.group_ids:
-                db_group = await self.get_validated_group(db, group_id)
-                all_groups.append(db_group)
+            requested_group_ids.extend(model.group_ids)
         if hasattr(model, "has_group_ids") and model.has_group_ids:
-            for group_id in model.has_group_ids:
-                db_group = await self.get_validated_group(db, group_id)
-                all_groups.append(db_group)
-        return all_groups
+            requested_group_ids.extend(model.has_group_ids)
+
+        if not requested_group_ids:
+            return []
+
+        unique_ids = list(dict.fromkeys(requested_group_ids))
+        groups = await get_groups_by_ids(db, unique_ids, load_users=False, load_inbounds=True)
+        groups_by_id = {group.id: group for group in groups}
+
+        missing_ids = [group_id for group_id in unique_ids if group_id not in groups_by_id]
+        if missing_ids:
+            await self.raise_error("Group not found", 404)
+
+        # Preserve the requested order and duplicate semantics.
+        return [groups_by_id[group_id] for group_id in requested_group_ids]
 
     async def get_validated_user_template(self, db: AsyncSession, template_id: int) -> UserTemplate:
         dbuser_template = await get_user_template(db, template_id)
