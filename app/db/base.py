@@ -26,7 +26,7 @@ else:
         echo=ECHO_SQL_QUERIES,
     )
 
-SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 
 class Base(DeclarativeBase, MappedAsDataclass, AsyncAttrs):

@@ -32,7 +32,7 @@ else:
         poolclass=NullPool,  # Important for tests
         # echo=True,  # For debugging
     )
-TestSession = async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
+TestSession = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 
 async def create_tables():
