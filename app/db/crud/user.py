@@ -1,4 +1,3 @@
-import asyncio
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
@@ -9,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import coalesce
 
-from app.db.base import GetDB, IS_SQLITE
 from app.db.compiles_types import DateDiff
 from app.db.models import (
     Admin,
@@ -698,32 +696,12 @@ async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     if not user_ids:
         return
 
-    statements = [
-        delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)),
-        delete(NotificationReminder).where(NotificationReminder.user_id.in_(user_ids)),
-        delete(UserSubscriptionUpdate).where(UserSubscriptionUpdate.user_id.in_(user_ids)),
-        delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)),
-        delete(NextPlan).where(NextPlan.user_id.in_(user_ids)),
-        users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)),
-    ]
-
-    if IS_SQLITE:
-        for stmt in statements:
-            await db.execute(stmt)
-        return
-
-    async def execute_in_isolated_session(statement):
-        async with GetDB() as isolated_db:
-            await isolated_db.execute(statement)
-            await isolated_db.commit()
-
-    results = await asyncio.gather(
-        *(execute_in_isolated_session(stmt) for stmt in statements),
-        return_exceptions=True,
-    )
-    for result in results:
-        if isinstance(result, Exception):
-            raise result
+    await db.execute(delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)))
+    await db.execute(delete(NotificationReminder).where(NotificationReminder.user_id.in_(user_ids)))
+    await db.execute(delete(UserSubscriptionUpdate).where(UserSubscriptionUpdate.user_id.in_(user_ids)))
+    await db.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)))
+    await db.execute(delete(NextPlan).where(NextPlan.user_id.in_(user_ids)))
+    await db.execute(users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)))
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
@@ -858,16 +836,12 @@ async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> Us
     return db_user
 
 
-async def _reset_user_traffic_and_log(db: AsyncSession, db_user: User, *, reset_at: datetime | None = None) -> datetime:
+async def _reset_user_traffic_and_log(db: AsyncSession, db_user: User):
     """Helper to reset user traffic and log the action."""
-    if reset_at is None:
-        reset_at = datetime.now(timezone.utc)
-
     await db_user.awaitable_attrs.next_plan
     usage_log = UserUsageResetLogs(
         user_id=db_user.id,
         used_traffic_at_reset=db_user.used_traffic,
-        reset_at=reset_at,
     )
     db.add(usage_log)
 
@@ -885,13 +859,7 @@ async def clear_user_node_usages(db: AsyncSession, user_id: int, *, before: date
     await db.execute(stmt)
 
 
-async def reset_user_data_usage(
-    db: AsyncSession,
-    db_user: User,
-    *,
-    skip_node_usage_cleanup: bool = False,
-    node_usage_cleanup_before: datetime | None = None,
-) -> User:
+async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
     """
     Resets the data usage of a user and logs the reset.
 
@@ -902,9 +870,8 @@ async def reset_user_data_usage(
     Returns:
         User: The updated user object.
     """
-    reset_at = await _reset_user_traffic_and_log(db, db_user, reset_at=node_usage_cleanup_before)
-    if not skip_node_usage_cleanup:
-        await clear_user_node_usages(db, db_user.id, before=reset_at)
+    await _reset_user_traffic_and_log(db, db_user)
+    await clear_user_node_usages(db, db_user.id)
 
     if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
         db_user.status = UserStatus.active.value
@@ -927,8 +894,8 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
         list[User]: The updated list of user objects.
     """
     for db_user in users:
-        reset_at = await _reset_user_traffic_and_log(db, db_user)
-        await clear_user_node_usages(db, db_user.id, before=reset_at)
+        await _reset_user_traffic_and_log(db, db_user)
+        await clear_user_node_usages(db, db_user.id)
         if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
             db_user.status = UserStatus.active.value
     await db.commit()
@@ -991,8 +958,8 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
             db_user.proxy_settings = proxy_settings
         db_user.data_limit_reset_strategy = db_user.next_plan.user_template.data_limit_reset_strategy
 
-    reset_at = await _reset_user_traffic_and_log(db, db_user)
-    await clear_user_node_usages(db, db_user.id, before=reset_at)
+    await _reset_user_traffic_and_log(db, db_user)
+    await clear_user_node_usages(db, db_user.id)
     db_user.status = UserStatus.active
 
     await db.commit()
