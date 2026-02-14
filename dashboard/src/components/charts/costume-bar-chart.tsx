@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -107,14 +107,11 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
 }
 
 export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
-  const [chartKey, setChartKey] = useState(0)
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
-
-  const chartContainerRef = useRef<HTMLDivElement>(null)
 
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
@@ -221,94 +218,18 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
     return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: true })
   }, [showCustomRange, customRange, activePeriod, chartData.length, selectedTime, windowWidth])
 
-  const refreshChartInstant = useCallback(() => {
-    if (chartData.length > 0) {
-      setChartKey(previous => previous + 1)
-    }
-  }, [chartData.length])
-
-  const lastRerenderTime = useRef<number>(0)
-  const rerenderTimeout = useRef<NodeJS.Timeout>()
-
-  const refreshChartThrottled = useCallback(() => {
-    const now = Date.now()
-
-    if (now - lastRerenderTime.current < 100) {
-      if (rerenderTimeout.current) {
-        clearTimeout(rerenderTimeout.current)
-      }
-      rerenderTimeout.current = setTimeout(() => {
-        refreshChartThrottled()
-      }, 100)
-      return
-    }
-
-    if (chartData.length > 0) {
-      lastRerenderTime.current = now
-      setChartKey(previous => previous + 1)
-    }
-  }, [chartData.length])
-
   useEffect(() => {
-    let resizeTimeout: NodeJS.Timeout
-
     const handleResize = () => {
       setWindowWidth(window.innerWidth)
-      clearTimeout(resizeTimeout)
-      resizeTimeout = setTimeout(() => {
-        refreshChartThrottled()
-      }, 150)
     }
 
+    handleResize()
     window.addEventListener('resize', handleResize)
 
-    const resizeObserver = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        if (entry.target === chartContainerRef.current) {
-          const { width, height } = entry.contentRect
-          if (width > 0 && height > 0) {
-            handleResize()
-          }
-        }
-      }
-    })
-
-    if (chartContainerRef.current) {
-      resizeObserver.observe(chartContainerRef.current)
-    }
-
-    const mutationObserver = new MutationObserver(mutations => {
-      const hasSidebarChange = mutations.some(mutation => mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'data-state'))
-      if (hasSidebarChange) {
-        refreshChartInstant()
-      }
-    })
-
-    mutationObserver.observe(document.body, {
-      attributes: true,
-      attributeFilter: ['class', 'data-sidebar-state', 'data-state'],
-      childList: false,
-      subtree: false,
-    })
-
-    const sidebar = document.querySelector('[data-sidebar]') || document.querySelector('aside')
-    if (sidebar) {
-      mutationObserver.observe(sidebar, {
-        attributes: true,
-        attributeFilter: ['class', 'data-state'],
-      })
-    }
-
     return () => {
-      clearTimeout(resizeTimeout)
-      if (rerenderTimeout.current) {
-        clearTimeout(rerenderTimeout.current)
-      }
       window.removeEventListener('resize', handleResize)
-      resizeObserver.disconnect()
-      mutationObserver.disconnect()
     }
-  }, [refreshChartThrottled, refreshChartInstant])
+  }, [])
 
   const handleTimeSelect = useCallback((value: string) => {
     setSelectedTime(value as TrafficShortcutKey)
@@ -364,7 +285,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
           </span>
         </div>
       </CardHeader>
-      <CardContent ref={chartContainerRef} dir={dir} className="px-4 pt-4 sm:px-6 sm:pt-8">
+      <CardContent dir={dir} className="px-4 pt-4 sm:px-6 sm:pt-8">
         {isLoading ? (
           <div className="flex max-h-[300px] min-h-[150px] w-full items-center justify-center sm:max-h-[400px] sm:min-h-[200px]">
             <Skeleton className="h-[250px] w-full sm:h-[300px]" />
@@ -374,7 +295,6 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
         ) : (
           <div className="mx-auto w-full max-w-7xl">
             <ChartContainer
-              key={chartKey}
               dir="ltr"
               config={chartConfig}
               className="max-h-[300px] min-h-[150px] w-full overflow-x-auto sm:max-h-[400px] sm:min-h-[200px]"
