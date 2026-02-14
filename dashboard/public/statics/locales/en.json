@@ -986,6 +986,7 @@
     "sni.info": "SNI (Server Name Indication) is used to specify which hostname the client is trying to connect to. This is particularly useful when you have multiple domains pointing to the same IP address.",
     "useSniAsHost": "Use SNI as Host",
     "echConfigList": "ECH Config List",
+    "pinnedPeerCertSha256": "Pinned Peer Cert SHA256",
     "echConfigList.info": "Encrypted Client Hello (ECH) configuration list. This is a base64 encoded string.",
     "echConfigListPlaceholder": "Enter ECH Config List",
     "httpVersions": {

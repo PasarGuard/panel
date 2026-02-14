@@ -959,6 +959,7 @@
     "sni.info": "SNI (Server Name Indication) 用于指定客户端尝试连接的主机名。当您有多个域名指向同一个 IP 地址时，这特别有用。",
     "useSniAsHost": "使用 SNI 作为主机",
     "echConfigList": "ECH 配置列表",
+    "pinnedPeerCertSha256": "固定对端证书 SHA256",
     "echConfigList.info": "Encrypted Client Hello (ECH) 配置列表。这是一个 base64 编码的字符串。",
     "echConfigListPlaceholder": "输入 ECH 配置列表",
     "httpVersions": {

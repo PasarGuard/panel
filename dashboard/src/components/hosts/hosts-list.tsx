@@ -83,6 +83,7 @@ export interface HostFormValues {
   vless_route?: string
   priority: number
   ech_config_list?: string
+  pinnedPeerCertSha256?: string
   fragment_settings?: {
     xray?: {
       packets?: string
@@ -339,12 +340,11 @@ export const HostFormSchema = z.object({
   allowinsecure: z.boolean().default(false),
   random_user_agent: z.boolean().default(false),
   use_sni_as_host: z.boolean().default(false),
-  vless_route: z
-    .union([z.literal(''), z.string().regex(/^[0-9a-fA-F]{4}$/, 'VLESS route must be exactly 4 hex characters')])
-    .optional(),
+  vless_route: z.union([z.literal(''), z.string().regex(/^[0-9a-fA-F]{4}$/, 'VLESS route must be exactly 4 hex characters')]).optional(),
   priority: z.number().default(0),
   is_disabled: z.boolean().default(false),
   ech_config_list: z.string().optional(),
+  pinnedPeerCertSha256: z.string().max(128, 'Pinned peer cert SHA256 must be at most 128 characters').optional(),
   fragment_settings: z
     .object({
       xray: z
@@ -459,6 +459,7 @@ const initialDefaultValues: HostFormValues = {
   vless_route: '',
   priority: 0,
   ech_config_list: undefined,
+  pinnedPeerCertSha256: undefined,
   fragment_settings: undefined,
 }
 
@@ -538,6 +539,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
       priority: host.priority || 0,
       is_disabled: host.is_disabled || false,
       ech_config_list: host.ech_config_list || undefined,
+      pinnedPeerCertSha256: host.pinnedPeerCertSha256 || undefined,
       fragment_settings: host.fragment_settings
         ? {
             xray: host.fragment_settings.xray ?? undefined,
@@ -598,8 +600,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                   mode: host.transport_settings.xhttp_settings.mode ?? undefined,
                   no_grpc_header: host.transport_settings.xhttp_settings.no_grpc_header === null ? undefined : !!host.transport_settings.xhttp_settings.no_grpc_header,
                   x_padding_bytes: host.transport_settings.xhttp_settings.x_padding_bytes ?? undefined,
-                  x_padding_obfs_mode:
-                    host.transport_settings.xhttp_settings.x_padding_obfs_mode === null ? undefined : !!host.transport_settings.xhttp_settings.x_padding_obfs_mode,
+                  x_padding_obfs_mode: host.transport_settings.xhttp_settings.x_padding_obfs_mode === null ? undefined : !!host.transport_settings.xhttp_settings.x_padding_obfs_mode,
                   x_padding_key: host.transport_settings.xhttp_settings.x_padding_key ?? undefined,
                   x_padding_header: host.transport_settings.xhttp_settings.x_padding_header ?? undefined,
                   x_padding_placement: host.transport_settings.xhttp_settings.x_padding_placement ?? undefined,
@@ -642,10 +643,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                   tti: host.transport_settings.kcp_settings.tti ?? undefined,
                   uplink_capacity: host.transport_settings.kcp_settings.uplink_capacity ?? undefined,
                   downlink_capacity: host.transport_settings.kcp_settings.downlink_capacity ?? undefined,
-                  congestion:
-                    host.transport_settings.kcp_settings.congestion === null
-                      ? undefined
-                      : !!host.transport_settings.kcp_settings.congestion,
+                  congestion: host.transport_settings.kcp_settings.congestion === null ? undefined : !!host.transport_settings.kcp_settings.congestion,
                   read_buffer_size: host.transport_settings.kcp_settings.read_buffer_size ?? undefined,
                   write_buffer_size: host.transport_settings.kcp_settings.write_buffer_size ?? undefined,
                 }
@@ -708,6 +706,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         vless_route: host.vless_route || undefined,
         priority: host.priority ?? 0, // Use the same priority as the original host
         ech_config_list: host.ech_config_list,
+        pinnedPeerCertSha256: host.pinnedPeerCertSha256 || undefined,
         fragment_settings: host.fragment_settings,
         noise_settings: host.noise_settings,
         mux_settings: host.mux_settings,
@@ -815,6 +814,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         vless_route: host.vless_route || undefined,
         priority: index, // New priority based on position
         ech_config_list: host.ech_config_list,
+        pinnedPeerCertSha256: host.pinnedPeerCertSha256 || undefined,
         fragment_settings: host.fragment_settings,
         noise_settings: host.noise_settings,
         mux_settings: host.mux_settings
@@ -860,8 +860,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                     mode: host.transport_settings.xhttp_settings.mode ?? undefined,
                     no_grpc_header: host.transport_settings.xhttp_settings.no_grpc_header === null ? undefined : !!host.transport_settings.xhttp_settings.no_grpc_header,
                     x_padding_bytes: host.transport_settings.xhttp_settings.x_padding_bytes ?? undefined,
-                    x_padding_obfs_mode:
-                      host.transport_settings.xhttp_settings.x_padding_obfs_mode === null ? undefined : !!host.transport_settings.xhttp_settings.x_padding_obfs_mode,
+                    x_padding_obfs_mode: host.transport_settings.xhttp_settings.x_padding_obfs_mode === null ? undefined : !!host.transport_settings.xhttp_settings.x_padding_obfs_mode,
                     x_padding_key: host.transport_settings.xhttp_settings.x_padding_key ?? undefined,
                     x_padding_header: host.transport_settings.xhttp_settings.x_padding_header ?? undefined,
                     x_padding_placement: host.transport_settings.xhttp_settings.x_padding_placement ?? undefined,
@@ -904,10 +903,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                     tti: host.transport_settings.kcp_settings.tti ?? undefined,
                     uplink_capacity: host.transport_settings.kcp_settings.uplink_capacity ?? undefined,
                     downlink_capacity: host.transport_settings.kcp_settings.downlink_capacity ?? undefined,
-                    congestion:
-                      host.transport_settings.kcp_settings.congestion === null
-                        ? undefined
-                        : !!host.transport_settings.kcp_settings.congestion,
+                    congestion: host.transport_settings.kcp_settings.congestion === null ? undefined : !!host.transport_settings.kcp_settings.congestion,
                     read_buffer_size: host.transport_settings.kcp_settings.read_buffer_size ?? undefined,
                     write_buffer_size: host.transport_settings.kcp_settings.write_buffer_size ?? undefined,
                   }
@@ -1046,18 +1042,11 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               getRowId={host => host.id ?? host.remark ?? 'host'}
               isLoading={isCurrentlyLoading}
               loadingRows={6}
-              className="gap-3 max-w-screen-[2000px] min-h-screen overflow-hidden"
+              className="max-w-screen-[2000px] min-h-screen gap-3 overflow-hidden"
               mode="grid"
               showEmptyState={false}
               renderGridItem={host => (
-                <SortableHost
-                  key={host.id ?? 'new'}
-                  host={host}
-                  onEdit={handleEdit}
-                  onDuplicate={handleDuplicate}
-                  onDataChanged={refreshHostsData}
-                  disabled={isUpdatingPriorities}
-                />
+                <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
               )}
               renderGridSkeleton={index => (
                 <Card key={index} className="animate-pulse">
@@ -1087,7 +1076,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               getRowId={host => host.id ?? host.remark ?? 'host'}
               isLoading={isCurrentlyLoading}
               loadingRows={6}
-              className="gap-3 max-w-screen-[2000px] min-h-screen overflow-hidden"
+              className="max-w-screen-[2000px] min-h-screen gap-3 overflow-hidden"
               mode="list"
               showEmptyState={false}
               onRowClick={handleEdit}
