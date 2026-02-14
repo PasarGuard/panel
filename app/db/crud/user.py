@@ -1,4 +1,3 @@
-import asyncio
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
@@ -9,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import coalesce
 
-from app.db.base import GetDB, IS_SQLITE
 from app.db.compiles_types import DateDiff
 from app.db.models import (
     Admin,
@@ -41,6 +39,8 @@ from .general import (
 from .group import get_groups_by_ids
 
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
+
+
 async def load_user_attrs(
     user: User,
     *,
@@ -696,32 +696,12 @@ async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     if not user_ids:
         return
 
-    statements = [
-        delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)),
-        delete(NotificationReminder).where(NotificationReminder.user_id.in_(user_ids)),
-        delete(UserSubscriptionUpdate).where(UserSubscriptionUpdate.user_id.in_(user_ids)),
-        delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)),
-        delete(NextPlan).where(NextPlan.user_id.in_(user_ids)),
-        users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)),
-    ]
-
-    if IS_SQLITE:
-        for stmt in statements:
-            await db.execute(stmt)
-        return
-
-    async def execute_in_isolated_session(statement):
-        async with GetDB() as isolated_db:
-            await isolated_db.execute(statement)
-            await isolated_db.commit()
-
-    results = await asyncio.gather(
-        *(execute_in_isolated_session(stmt) for stmt in statements),
-        return_exceptions=True,
-    )
-    for result in results:
-        if isinstance(result, Exception):
-            raise result
+    await db.execute(delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)))
+    await db.execute(delete(NotificationReminder).where(NotificationReminder.user_id.in_(user_ids)))
+    await db.execute(delete(UserSubscriptionUpdate).where(UserSubscriptionUpdate.user_id.in_(user_ids)))
+    await db.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)))
+    await db.execute(delete(NextPlan).where(NextPlan.user_id.in_(user_ids)))
+    await db.execute(users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)))
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
