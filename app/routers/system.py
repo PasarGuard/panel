@@ -60,8 +60,8 @@ async def _measure_worker_health(request_coro) -> WorkerHealth:
 @router.get("/workers/health", response_model=WorkersHealth)
 async def get_workers_health(_: AdminDetails = Depends(get_current)):
     if not is_nats_enabled():
-        unavailable = WorkerHealth(status="unavailable", error="NATS is disabled")
-        return WorkersHealth(scheduler=unavailable, node=unavailable)
+        disabled = WorkerHealth(status="disabled")
+        return WorkersHealth(scheduler=disabled, node=disabled)
 
     timeout = 5.0
     scheduler_task = _measure_worker_health(scheduler_nats_client.request("health_check", {}, timeout))
