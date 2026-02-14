@@ -124,9 +124,11 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
             {actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}
           </div>
         )}
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '200ms', animationFillMode: 'both' }}>
-          <UserSubUpdatePieChart />
-        </div>
+        {actualSelectedServer === 'master' && (
+          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '200ms', animationFillMode: 'both' }}>
+            <UserSubUpdatePieChart />
+          </div>
+        )}
         <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '320ms', animationFillMode: 'both' }}>
           <AreaCostumeChart key={chartRefreshKey} nodeId={selectedNodeId} currentStats={currentStats} realtimeStats={actualSelectedServer === 'master' ? data : nodeStats || undefined} />
         </div>
