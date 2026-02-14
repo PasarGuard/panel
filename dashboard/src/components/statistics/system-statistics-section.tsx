@@ -232,7 +232,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
             </div>
 
             <div className="flex items-end justify-between gap-2">
-              <div className="min-w-0 flex-1" dir="ltr">
+              <div className={cn(dir === "rtl" && "text-right", "min-w-0 flex-1")} dir="ltr">
                 {currentStats && isNodeStats(currentStats) ? (
                   <SpeedValueHint
                     primary={`${totalSpeed.mbPerSecText} MB/s`}
