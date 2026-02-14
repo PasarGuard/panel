@@ -1,5 +1,6 @@
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from enum import IntEnum
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 
@@ -23,6 +24,9 @@ from app.models.user import UserCreate, UserModify
 from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
 
+if TYPE_CHECKING:
+    from app.core.permissions import PermissionCheckResult
+
 
 class OperatorType(IntEnum):
     SYSTEM = 0
@@ -36,6 +40,11 @@ class OperatorType(IntEnum):
 class BaseOperation:
     def __init__(self, operator_type: OperatorType):
         self.operator_type = operator_type
+
+    async def ensure_allowed(self, check: "PermissionCheckResult"):
+        """Raise an error if a permission check failed."""
+        if not check.allowed:
+            await self.raise_error(message=check.reason or "You're not allowed", code=403)
 
     async def raise_error(self, message: str, code: int, db: AsyncSession | None = None):
         """Raise an error based on the operator type."""
