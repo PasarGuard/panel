@@ -11,3 +11,11 @@ export const coreConfigFormSchema = z.object({
 })
 
 export type CoreConfigFormValues = z.infer<typeof coreConfigFormSchema>
+
+export const coreConfigFormDefaultValues: Partial<CoreConfigFormValues> = {
+  name: '',
+  config: JSON.stringify({}, null, 2),
+  fallback_id: [],
+  excluded_inbound_ids: [],
+  restart_nodes: true,
+}

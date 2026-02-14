@@ -29,3 +29,17 @@ export const userTemplateFormSchema = z.object({
 
 export type UserTemplatesFromValueInput = z.input<typeof userTemplateFormSchema>
 export type UserTemplatesFromValue = z.infer<typeof userTemplateFormSchema>
+
+export const userTemplateFormDefaultValues: Partial<UserTemplatesFromValueInput> = {
+  name: '',
+  status: UserStatusCreate.active,
+  username_prefix: '',
+  username_suffix: '',
+  data_limit: 0,
+  expire_duration: 0,
+  method: ShadowsocksMethods['chacha20-ietf-poly1305'],
+  flow: XTLSFlows[''],
+  on_hold_timeout: 0,
+  groups: [],
+  reset_usages: false,
+}
