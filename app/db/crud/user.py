@@ -638,15 +638,11 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
 
     db.add(db_user)
     await db.commit()
-    await db.refresh(db_user)
 
     if new_user.next_plan:
         db_user.next_plan = NextPlan(user_id=db_user.id, **new_user.next_plan.model_dump())
         db.add(db_user.next_plan)
         await db.commit()
-        await db.refresh(db_user)
-
-    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -831,8 +827,6 @@ async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> Us
         await delete_user_passed_notification_reminders(db, id, ReminderType.expiration_date, days_left)
 
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -877,8 +871,6 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
         db_user.status = UserStatus.active.value
 
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -963,8 +955,6 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     db_user.status = UserStatus.active
 
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -979,15 +969,9 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
     Returns:
         User: The updated user object.
     """
-    stmt = (
-        update(User)
-        .where(User.id == db_user.id)
-        .values(sub_revoked_at=datetime.now(timezone.utc), proxy_settings=ProxyTable().dict())
-    )
-    await db.execute(stmt)
+    db_user.sub_revoked_at = datetime.now(timezone.utc)
+    db_user.proxy_settings = ProxyTable().dict()
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -1221,11 +1205,8 @@ async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     Returns:
         User: The updated user object.
     """
-    stmt = update(User).where(User.id == db_user.id).values(admin_id=admin.id)
-    await db.execute(stmt)
+    db_user.admin = admin
     await db.commit()
-    await db.refresh(db_user)
-    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
