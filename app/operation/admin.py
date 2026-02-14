@@ -211,7 +211,13 @@ class AdminOperation(BaseOperation):
 
         user_operation = UserOperation(self.operator_type)
         serialized_users = [
-            await user_operation.validate_user(db, user, include_subscription_url=False) for user in users
+            await user_operation.validate_user(
+                db,
+                user,
+                include_subscription_url=False,
+                include_lifetime_used_traffic=False,
+            )
+            for user in users
         ]
 
         await remove_users(db, users)

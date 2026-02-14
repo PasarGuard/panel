@@ -108,8 +108,25 @@ class BaseOperation:
 
         return db_user
 
-    async def get_validated_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> User:
-        db_user = await get_user(db, username, load_usage_logs=False)
+    async def get_validated_user(
+        self,
+        db: AsyncSession,
+        username: str,
+        admin: AdminDetails,
+        *,
+        load_admin: bool = True,
+        load_next_plan: bool = True,
+        load_usage_logs: bool = False,
+        load_groups: bool = True,
+    ) -> User:
+        db_user = await get_user(
+            db,
+            username,
+            load_admin=load_admin,
+            load_next_plan=load_next_plan,
+            load_usage_logs=load_usage_logs,
+            load_groups=load_groups,
+        )
         if not db_user:
             await self.raise_error(message="User not found", code=404)
 
@@ -118,8 +135,25 @@ class BaseOperation:
 
         return db_user
 
-    async def get_validated_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> User:
-        db_user = await get_user_by_id(db, user_id, load_usage_logs=False)
+    async def get_validated_user_by_id(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        admin: AdminDetails,
+        *,
+        load_admin: bool = True,
+        load_next_plan: bool = True,
+        load_usage_logs: bool = False,
+        load_groups: bool = True,
+    ) -> User:
+        db_user = await get_user_by_id(
+            db,
+            user_id,
+            load_admin=load_admin,
+            load_next_plan=load_next_plan,
+            load_usage_logs=load_usage_logs,
+            load_groups=load_groups,
+        )
         if not db_user:
             await self.raise_error(message="User not found", code=404)
 
