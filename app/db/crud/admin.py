@@ -1,15 +1,13 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import and_, case, func, literal_column, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.general import (
-    MYSQL_FORMATS,
-    SQLITE_FORMATS,
     _build_trunc_expression,
-    _get_next_period_boundary,
     attach_timezone_to_period_start,
+    get_complete_period_start_for_filter,
     to_utc_for_filter,
 )
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
@@ -445,8 +443,8 @@ async def get_admin_usages(
     # Build truncation expression with timezone support
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start=start)
 
-    # Filter using UTC timestamps (DB stores naive UTC)
-    start_utc = to_utc_for_filter(start)
+    # Filter using UTC timestamps (DB stores naive UTC) from first complete bucket
+    start_utc = get_complete_period_start_for_filter(start, period)
     end_utc = to_utc_for_filter(end)
     conditions = [
         NodeUserUsage.created_at >= start_utc,
@@ -488,26 +486,6 @@ async def get_admin_usages(
             .group_by(trunc_expr)
             .order_by(trunc_expr)
         )
-
-    # HAVING clause to exclude partial first bucket
-    # Only needed if start has timezone (which means we did timezone-aware grouping)
-    if start.tzinfo:
-        # Get the first COMPLETE bucket boundary
-        # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
-        first_complete_bucket = _get_next_period_boundary(start, period)
-
-        # Convert to naive for comparison (represents wall-clock time in target timezone)
-        boundary_value = first_complete_bucket.replace(tzinfo=None)
-
-        # Add HAVING clause with appropriate comparison based on dialect
-        if dialect == "postgresql":
-            # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
-            stmt = stmt.having(trunc_expr >= boundary_value)
-        elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: Use the alias 'period_start' in HAVING
-            format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
-            stmt = stmt.having(literal_column("period_start") >= boundary_str)
 
     result = await db.execute(stmt)
     stats = {}

@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
 from typing import List, Optional, Sequence
 
-from sqlalchemy import and_, case, delete, desc, func, literal, literal_column, not_, or_, select, update
+from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import coalesce
@@ -30,12 +30,10 @@ from app.models.user import UserCreate, UserModify, UserNotificationResponse
 from config import USERS_AUTODELETE_DAYS
 
 from .general import (
-    MYSQL_FORMATS,
-    SQLITE_FORMATS,
     _build_trunc_expression,
-    _get_next_period_boundary,
     attach_timezone_to_period_start,
     build_json_proxy_settings_search_condition,
+    get_complete_period_start_for_filter,
     to_utc_for_filter,
 )
 from .group import get_groups_by_ids
@@ -453,8 +451,8 @@ async def get_user_usages(
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
-    # Filter using UTC timestamps (DB stores naive UTC)
-    start_utc = to_utc_for_filter(start)
+    # Filter using UTC timestamps (DB stores naive UTC) from first complete bucket
+    start_utc = get_complete_period_start_for_filter(start, period)
     end_utc = to_utc_for_filter(end)
     conditions = [
         NodeUserUsage.created_at >= start_utc,
@@ -487,26 +485,6 @@ async def get_user_usages(
             .group_by(trunc_expr)
             .order_by(trunc_expr)
         )
-
-    # HAVING clause to exclude partial first bucket
-    # Only needed if start has timezone (which means we did timezone-aware grouping)
-    if start.tzinfo:
-        # Get the first COMPLETE bucket boundary
-        # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
-        first_complete_bucket = _get_next_period_boundary(start, period)
-
-        # Convert to naive for comparison (represents wall-clock time in target timezone)
-        boundary_value = first_complete_bucket.replace(tzinfo=None)
-
-        # Add HAVING clause with appropriate comparison based on dialect
-        if dialect == "postgresql":
-            # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
-            stmt = stmt.having(trunc_expr >= boundary_value)
-        elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: Use the alias 'period_start' in HAVING
-            format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
-            stmt = stmt.having(literal_column("period_start") >= boundary_str)
 
     result = await db.execute(stmt)
 
@@ -1085,22 +1063,18 @@ async def get_all_users_usages(
     """
     admins_filter = admins or None
 
-    users_subquery = select(User.id)
-    if admins_filter:
-        users_subquery = users_subquery.join(Admin).where(Admin.username.in_(admins_filter))
-    users_subquery = users_subquery.subquery()
-
     # Build the appropriate truncation expression
     trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
 
-    # Filter using UTC timestamps (DB stores naive UTC)
-    start_utc = to_utc_for_filter(start)
+    # Filter using UTC timestamps (DB stores naive UTC) from first complete bucket
+    start_utc = get_complete_period_start_for_filter(start, period)
     end_utc = to_utc_for_filter(end)
     conditions = [
         NodeUserUsage.created_at >= start_utc,
         NodeUserUsage.created_at < end_utc,
-        NodeUserUsage.user_id.in_(select(users_subquery.c.id)),
     ]
+    if admins_filter:
+        conditions.append(Admin.username.in_(admins_filter))
 
     if node_id is not None:
         conditions.append(NodeUserUsage.node_id == node_id)
@@ -1108,6 +1082,10 @@ async def get_all_users_usages(
         node_id = -1
 
     dialect = db.bind.dialect.name
+    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    if admins_filter:
+        from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
+
     if group_by_node:
         stmt = (
             select(
@@ -1115,6 +1093,7 @@ async def get_all_users_usages(
                 func.coalesce(NodeUserUsage.node_id, 0).label("node_id"),
                 func.sum(NodeUserUsage.used_traffic).label("total_traffic"),
             )
+            .select_from(from_clause)
             .where(and_(*conditions))
             .group_by(trunc_expr, NodeUserUsage.node_id)
             .order_by(trunc_expr)
@@ -1122,30 +1101,11 @@ async def get_all_users_usages(
     else:
         stmt = (
             select(trunc_expr.label("period_start"), func.sum(NodeUserUsage.used_traffic).label("total_traffic"))
+            .select_from(from_clause)
             .where(and_(*conditions))
             .group_by(trunc_expr)
             .order_by(trunc_expr)
         )
-
-    # HAVING clause to exclude partial first bucket
-    # Only needed if start has timezone (which means we did timezone-aware grouping)
-    if start.tzinfo:
-        # Get the first COMPLETE bucket boundary
-        # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
-        first_complete_bucket = _get_next_period_boundary(start, period)
-
-        # Convert to naive for comparison (represents wall-clock time in target timezone)
-        boundary_value = first_complete_bucket.replace(tzinfo=None)
-
-        # Add HAVING clause with appropriate comparison based on dialect
-        if dialect == "postgresql":
-            # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
-            stmt = stmt.having(trunc_expr >= boundary_value)
-        elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: Use the alias 'period_start' in HAVING
-            format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
-            stmt = stmt.having(literal_column("period_start") >= boundary_str)
 
     result = await db.execute(stmt)
 

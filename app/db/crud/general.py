@@ -159,6 +159,22 @@ def _get_next_period_boundary(dt: datetime, period: Period) -> datetime:
     return dt
 
 
+def get_complete_period_start_for_filter(start: Optional[datetime], period: Period) -> Optional[datetime]:
+    """
+    Convert start datetime to the first complete period boundary in UTC for DB filtering.
+
+    If `start` is timezone-aware, this rounds up to the next complete boundary and converts
+    it to naive UTC. If `start` is naive, it is treated as UTC and returned unchanged.
+    """
+    if start is None:
+        return None
+
+    if start.tzinfo:
+        return to_utc_for_filter(_get_next_period_boundary(start, period))
+
+    return to_utc_for_filter(start)
+
+
 def attach_timezone_to_period_start(row_dict: dict, target_tz, dialect: str = None) -> None:
     """
     Attach timezone info to period_start in the row dictionary.
