@@ -7,35 +7,13 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import AdminsTable from '@/components/admins/admins-table'
 import AdminModal from '@/components/dialogs/admin-modal'
-import { adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
+import { adminFormDefaultValues, adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
 import { useActivateAllDisabledUsers, useDisableAllActiveUsers, useModifyAdmin, useRemoveAdmin, useResetAdminUsage } from '@/service/api'
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/components/admins/admin-statistics'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { queryClient } from '@/utils/query-client.ts'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
-
-const initialDefaultValues: Partial<AdminFormValuesInput> = {
-  username: '',
-  is_sudo: false,
-  password: '',
-  is_disabled: false,
-  discord_webhook: '',
-  sub_domain: '',
-  sub_template: '',
-  support_url: '',
-  telegram_id: undefined,
-  discord_id: undefined,
-  notification_enable: {
-    create: true,
-    modify: true,
-    delete: true,
-    status_change: true,
-    reset_data_usage: true,
-    data_reset_by_next: true,
-    subscription_revoked: true,
-  },
-}
 
 export default function AdminsPage() {
   const { t } = useTranslation()
@@ -44,7 +22,7 @@ export default function AdminsPage() {
   const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number } | null>(null)
   const form = useForm<AdminFormValuesInput>({
     resolver: zodResolver(adminFormSchema),
-    defaultValues: initialDefaultValues,
+    defaultValues: adminFormDefaultValues,
   })
 
   const removeAdminMutation = useRemoveAdmin()
@@ -189,7 +167,7 @@ export default function AdminsPage() {
           buttonText="admins.createAdmin"
           onButtonClick={() => {
             setEditingAdmin(null)
-            form.reset(initialDefaultValues)
+            form.reset(adminFormDefaultValues)
             setIsDialogOpen(true)
           }}
         />
@@ -210,7 +188,7 @@ export default function AdminsPage() {
           onOpenChange={open => {
             if (!open) {
               setEditingAdmin(null)
-              form.reset(initialDefaultValues)
+              form.reset(adminFormDefaultValues)
             }
             setIsDialogOpen(open)
           }}

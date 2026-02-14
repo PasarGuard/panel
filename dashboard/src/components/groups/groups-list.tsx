@@ -3,7 +3,7 @@ import { GroupResponse } from '@/service/api'
 import Group from './group'
 import { useState, useMemo } from 'react'
 import GroupModal from '@/components/dialogs/group-modal'
-import { groupFormSchema, type GroupFormValues } from '@/components/forms/group-form'
+import { groupFormDefaultValues, groupFormSchema, type GroupFormValues } from '@/components/forms/group-form'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -22,12 +22,6 @@ import { ListGenerator } from '@/components/common/list-generator'
 import { useGroupsListColumns } from '@/components/groups/use-groups-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 
-const initialDefaultValues: Partial<GroupFormValues> = {
-  name: '',
-  inbound_tags: [],
-  is_disabled: false,
-}
-
 interface GroupsListProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
@@ -44,7 +38,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
 
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
-    defaultValues: initialDefaultValues,
+    defaultValues: groupFormDefaultValues,
   })
 
   const handleEdit = (group: GroupResponse) => {
@@ -189,7 +183,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
         onOpenChange={(open: boolean) => {
           if (!open) {
             setEditingGroup(null)
-            form.reset(initialDefaultValues)
+            form.reset(groupFormDefaultValues)
           }
           onOpenChange(open)
         }}

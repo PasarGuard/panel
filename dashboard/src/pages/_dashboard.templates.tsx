@@ -1,5 +1,5 @@
 import UserTemplate from '../components/templates/user-template'
-import { useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse, ShadowsocksMethods, XTLSFlows } from '@/service/api'
+import { useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from '@/service/api'
 import PageHeader from '@/components/layout/page-header'
 import { Plus, RefreshCw } from 'lucide-react'
 import { Separator } from '@/components/ui/separator.tsx'
@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 
 import UserTemplateModal from '@/components/dialogs/user-template-modal.tsx'
-import { userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
+import { userTemplateFormDefaultValues, userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,20 +24,6 @@ import { ListGenerator } from '@/components/common/list-generator'
 import { useUserTemplatesListColumns } from '@/components/templates/use-user-templates-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 
-const initialDefaultValues: Partial<UserTemplatesFromValueInput> = {
-  name: '',
-  status: 'active',
-  username_prefix: '',
-  username_suffix: '',
-  data_limit: 0,
-  expire_duration: 0,
-  method: ShadowsocksMethods['chacha20-ietf-poly1305'],
-  flow: XTLSFlows[''],
-  on_hold_timeout: 0,
-  groups: [],
-  reset_usages: false,
-}
-
 export default function UserTemplates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUserTemplate, setEditingUserTemplate] = useState<UserTemplateResponse | null>(null)
@@ -46,6 +32,7 @@ export default function UserTemplates() {
   const { data: userTemplates, isLoading, isFetching, refetch } = useGetUserTemplates()
   const form = useForm<UserTemplatesFromValueInput>({
     resolver: zodResolver(userTemplateFormSchema),
+    defaultValues: userTemplateFormDefaultValues,
   })
   const { t } = useTranslation()
   const modifyUserTemplateMutation = useModifyUserTemplate()
@@ -231,7 +218,7 @@ export default function UserTemplates() {
         onOpenChange={open => {
           if (!open) {
             setEditingUserTemplate(null)
-            form.reset(initialDefaultValues)
+            form.reset(userTemplateFormDefaultValues)
           }
           setIsDialogOpen(open)
         }}

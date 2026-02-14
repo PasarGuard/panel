@@ -21,3 +21,15 @@ export const nodeFormSchema = z.object({
 })
 
 export type NodeFormValues = z.input<typeof nodeFormSchema>
+
+export const nodeFormDefaultValues: Partial<NodeFormValues> = {
+  name: '',
+  address: '',
+  port: 62050,
+  usage_coefficient: 1,
+  connection_type: NodeConnectionType.grpc,
+  server_ca: '',
+  keep_alive: 20000,
+  keep_alive_unit: 'seconds',
+  api_key: '',
+}

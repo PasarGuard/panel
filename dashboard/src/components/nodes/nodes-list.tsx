@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
-import { useGetNodes, useModifyNode, NodeResponse, NodeConnectionType, NodeStatus, NodeModify } from '@/service/api'
+import { useGetNodes, useModifyNode, NodeResponse, NodeStatus, NodeModify } from '@/service/api'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { nodeFormSchema, type NodeFormValues } from '@/components/forms/node-form'
+import { nodeFormDefaultValues, nodeFormSchema, type NodeFormValues } from '@/components/forms/node-form'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NodeFilters, NodePaginationControls } from '@/components/nodes/node-filters'
@@ -18,18 +18,6 @@ import { useNodeListColumns } from '@/components/nodes/use-node-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 
 const NODES_PER_PAGE = 15
-
-const initialDefaultValues: Partial<NodeFormValues> = {
-  name: '',
-  address: '',
-  port: 62050,
-  usage_coefficient: 1,
-  connection_type: NodeConnectionType.grpc,
-  server_ca: '',
-  keep_alive: 20000,
-  keep_alive_unit: 'seconds',
-  api_key: '',
-}
 
 export default function NodesList() {
   const { t } = useTranslation()
@@ -63,7 +51,7 @@ export default function NodesList() {
 
   const form = useForm<NodeFormValues>({
     resolver: zodResolver(nodeFormSchema),
-    defaultValues: initialDefaultValues,
+    defaultValues: nodeFormDefaultValues,
   })
 
   const advanceSearchForm = useForm<NodeAdvanceSearchFormValue>({
@@ -404,7 +392,7 @@ export default function NodesList() {
           onOpenChange={open => {
             if (!open) {
               setEditingNode(null)
-              form.reset(initialDefaultValues)
+              form.reset(nodeFormDefaultValues)
             }
             setIsDialogOpen(open)
           }}

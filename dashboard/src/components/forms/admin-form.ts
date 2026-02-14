@@ -105,3 +105,27 @@ export const adminFormSchema = z
 
 export type AdminFormValuesInput = z.input<typeof adminFormSchema>
 export type AdminFormValues = z.infer<typeof adminFormSchema>
+
+export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
+  username: '',
+  is_sudo: false,
+  password: '',
+  passwordConfirm: '',
+  is_disabled: false,
+  discord_webhook: '',
+  sub_domain: '',
+  sub_template: '',
+  support_url: '',
+  telegram_id: undefined,
+  profile_title: '',
+  discord_id: undefined,
+  notification_enable: {
+    create: true,
+    modify: true,
+    delete: true,
+    status_change: true,
+    reset_data_usage: true,
+    data_reset_by_next: true,
+    subscription_revoked: true,
+  },
+}

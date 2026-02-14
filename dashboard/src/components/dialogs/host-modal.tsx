@@ -20,7 +20,7 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { HostFormValues } from '../hosts/hosts-list'
+import { type HostFormValues } from '@/components/forms/host-form'
 import { LoaderButton } from '../ui/loader-button'
 
 interface HostModalProps {

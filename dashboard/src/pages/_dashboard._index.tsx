@@ -3,18 +3,18 @@ import DashboardStatistics from '@/components/dashboard/dashboard-statistics'
 import WorkersHealthCard from '@/components/dashboard/workers-health-card'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import AdminModal from '@/components/dialogs/admin-modal'
-import { adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
-import { coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
+import { adminFormDefaultValues, adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
+import { coreConfigFormDefaultValues, coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
 import GroupModal from '@/components/dialogs/group-modal'
-import { groupFormSchema, type GroupFormValues } from '@/components/forms/group-form'
+import { groupFormDefaultValues, groupFormSchema, type GroupFormValues } from '@/components/forms/group-form'
 import HostModal from '@/components/dialogs/host-modal'
 import NodeModal from '@/components/dialogs/node-modal'
-import { nodeFormSchema, type NodeFormValues } from '@/components/forms/node-form'
+import { nodeFormDefaultValues, nodeFormSchema, type NodeFormValues } from '@/components/forms/node-form'
 import QuickActionsModal from '@/components/dialogs/shortcuts-modal'
 import UserModal from '@/components/dialogs/user-modal'
 import UserTemplateModal from '@/components/dialogs/user-template-modal'
-import { userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
-import { HostFormValues } from '@/components/hosts/hosts-list'
+import { userTemplateFormDefaultValues, userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
+import { HostFormSchema, hostFormDefaultValues, type HostFormValues } from '@/components/forms/host-form'
 import { Separator } from '@/components/ui/separator'
 import { useAdmin } from '@/hooks/use-admin'
 import { useClipboard } from '@/hooks/use-clipboard'
@@ -24,7 +24,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bookmark } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { type Resolver, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import PageHeader from '@/components/layout/page-header'
@@ -57,108 +57,32 @@ const Dashboard = () => {
 
   const groupForm = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
-    defaultValues: {
-      name: '',
-      inbound_tags: [],
-      is_disabled: false,
-    },
+    defaultValues: groupFormDefaultValues,
   })
 
   const nodeForm = useForm<NodeFormValues>({
     resolver: zodResolver(nodeFormSchema),
-    defaultValues: {
-      name: '',
-      address: '',
-      port: 62050,
-      usage_coefficient: 1,
-      connection_type: 'grpc' as any,
-      server_ca: '',
-      keep_alive: 60,
-      keep_alive_unit: 'seconds',
-      api_key: '',
-      core_config_id: 1,
-    },
+    defaultValues: nodeFormDefaultValues,
   })
 
   const adminForm = useForm<AdminFormValuesInput>({
     resolver: zodResolver(adminFormSchema),
-    defaultValues: {
-      username: '',
-      password: '',
-      passwordConfirm: '',
-      is_sudo: false,
-      is_disabled: false,
-      discord_webhook: '',
-      sub_domain: '',
-      sub_template: '',
-      support_url: '',
-      telegram_id: undefined,
-      profile_title: '',
-      discord_id: undefined,
-      notification_enable: {
-        create: true,
-        modify: true,
-        delete: true,
-        status_change: true,
-        reset_data_usage: true,
-        data_reset_by_next: true,
-        subscription_revoked: true,
-      },
-    },
+    defaultValues: adminFormDefaultValues,
   })
 
   const templateForm = useForm<UserTemplatesFromValueInput>({
     resolver: zodResolver(userTemplateFormSchema),
-    defaultValues: {
-      name: '',
-      status: 'active' as any,
-      username_prefix: '',
-      username_suffix: '',
-      data_limit: undefined,
-      expire_duration: undefined,
-      on_hold_timeout: undefined,
-      method: undefined,
-      flow: undefined,
-      groups: [],
-      data_limit_reset_strategy: undefined,
-    },
+    defaultValues: userTemplateFormDefaultValues,
   })
 
   const coreForm = useForm<CoreConfigFormValues>({
     resolver: zodResolver(coreConfigFormSchema),
-    defaultValues: {
-      name: '',
-      config: '',
-      fallback_id: [],
-      excluded_inbound_ids: [],
-      public_key: '',
-      private_key: '',
-      restart_nodes: true,
-    },
+    defaultValues: coreConfigFormDefaultValues,
   })
 
-  const hostForm = useForm<HostFormValues, any, HostFormValues>({
-    defaultValues: {
-      inbound_tag: '',
-      status: [],
-      remark: '',
-      address: [],
-      port: 443,
-      sni: [],
-      host: [],
-      path: '',
-      priority: 1,
-      alpn: undefined,
-      fingerprint: undefined,
-      security: 'none',
-      allowinsecure: false,
-      is_disabled: false,
-      random_user_agent: false,
-      use_sni_as_host: false,
-      pinnedPeerCertSha256: undefined,
-      mux_settings: undefined,
-      fragment_settings: undefined,
-    },
+  const hostForm = useForm<HostFormValues>({
+    resolver: zodResolver(HostFormSchema) as Resolver<HostFormValues>,
+    defaultValues: hostFormDefaultValues,
   })
 
   const queryClient = useQueryClient()

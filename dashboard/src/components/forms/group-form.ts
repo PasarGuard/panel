@@ -7,3 +7,9 @@ export const groupFormSchema = z.object({
 })
 
 export type GroupFormValues = z.infer<typeof groupFormSchema>
+
+export const groupFormDefaultValues: Partial<GroupFormValues> = {
+  name: '',
+  inbound_tags: [],
+  is_disabled: false,
+}

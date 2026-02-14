@@ -3,7 +3,7 @@ import { CoreResponse } from '@/service/api'
 import Core from './core'
 import { useState, useEffect, useMemo } from 'react'
 import CoreConfigModal from '@/components/dialogs/core-config-modal'
-import { coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
+import { coreConfigFormDefaultValues, coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -21,13 +21,6 @@ import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useCoresListColumns } from '@/components/cores/use-cores-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-
-const initialDefaultValues: Partial<CoreConfigFormValues> = {
-  name: '',
-  config: JSON.stringify({}, null, 2),
-  excluded_inbound_ids: [],
-  restart_nodes: true,
-}
 
 interface CoresProps {
   isDialogOpen?: boolean
@@ -56,7 +49,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
 
   const form = useForm<CoreConfigFormValues>({
     resolver: zodResolver(coreConfigFormSchema),
-    defaultValues: initialDefaultValues,
+    defaultValues: coreConfigFormDefaultValues,
   })
 
   const handleEdit = (core: CoreResponse) => {
@@ -113,7 +106,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
   const handleModalClose = (open: boolean) => {
     if (!open) {
       setEditingCore(null)
-      form.reset(initialDefaultValues)
+      form.reset(coreConfigFormDefaultValues)
       // Refresh cores data when modal closes
       refetch()
     }
