@@ -63,13 +63,13 @@ from app.models.user import (
     UserSubscriptionUpdateList,
 )
 from app.node.sync import remove_user as sync_remove_user
-from app.node.sync import schedule_sync_task, sync_proto_users, sync_user, sync_user_by_id, sync_users
-from app.node.user import serialize_users_for_node
+from app.node.sync import schedule_sync_task, sync_proto_user, sync_proto_users, sync_user, sync_user_by_id, sync_users
+from app.node.user import serialize_user, serialize_users_for_node
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from config import SUBSCRIPTION_PATH
+from config import ROLE, SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
 
@@ -242,7 +242,11 @@ class UserOperation(BaseOperation):
         include_lifetime_used_traffic: bool = True,
     ) -> UserNotificationResponse:
         if self._is_non_blocking_sync_operator(self.operator_type):
-            schedule_sync_task(sync_user_by_id(db_user.id))
+            if ROLE.runs_node:
+                proto_user = await serialize_user(db_user)
+                schedule_sync_task(sync_proto_user(proto_user))
+            else:
+                schedule_sync_task(sync_user_by_id(db_user.id))
         else:
             await sync_user(db_user)
 
