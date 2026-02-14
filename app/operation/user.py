@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import notification
 from app.db import AsyncSession
+from app.db.base import GetDB, IS_SQLITE
 from app.db.crud.admin import get_admin
 from app.db.crud.bulk import (
     reset_all_users_data_usage,
@@ -20,11 +21,13 @@ from app.db.crud.bulk import (
 from app.db.crud.user import (
     UsersSortingOptions,
     UsersSortingOptionsSimple,
+    clear_user_node_usages,
     create_user,
     create_users_bulk,
     get_all_users_usages,
     get_existing_usernames,
     get_expired_users,
+    get_user_by_id,
     get_user_lifetime_used_traffic,
     get_user_usages,
     get_users,
@@ -81,6 +84,28 @@ class UserOperation(BaseOperation):
     @staticmethod
     def _is_non_blocking_sync_operator(operator_type: OperatorType) -> bool:
         return operator_type in (OperatorType.API, OperatorType.WEB)
+
+    @staticmethod
+    async def _sync_user_by_id(user_id: int) -> None:
+        async with GetDB() as sync_db:
+            db_user = await get_user_by_id(
+                sync_db,
+                user_id,
+                load_admin=False,
+                load_next_plan=False,
+                load_usage_logs=False,
+                load_groups=True,
+            )
+            if not db_user:
+                return
+            proto_user = await serialize_user(db_user)
+            await sync_proto_user(proto_user)
+
+    @staticmethod
+    async def _clear_user_node_usages_by_id(user_id: int, cleanup_before: dt) -> None:
+        async with GetDB() as cleanup_db:
+            await clear_user_node_usages(cleanup_db, user_id, before=cleanup_before)
+            await cleanup_db.commit()
 
     @staticmethod
     def _format_validation_errors(error: ValidationError) -> str:
@@ -237,8 +262,11 @@ class UserOperation(BaseOperation):
         self, db: AsyncSession, db_user: User, *, include_lifetime_used_traffic: bool = True
     ) -> UserNotificationResponse:
         if self._is_non_blocking_sync_operator(self.operator_type):
-            proto_user = await serialize_user(db_user)
-            schedule_sync_task(sync_proto_user(proto_user))
+            if IS_SQLITE:
+                proto_user = await serialize_user(db_user)
+                schedule_sync_task(sync_proto_user(proto_user))
+            else:
+                schedule_sync_task(self._sync_user_by_id(db_user.id))
         else:
             await sync_user(db_user)
 
@@ -317,7 +345,17 @@ class UserOperation(BaseOperation):
     async def _reset_user_data_usage(self, db: AsyncSession, db_user: User, admin: AdminDetails):
         old_status = db_user.status
 
-        db_user = await reset_user_data_usage(db=db, db_user=db_user)
+        skip_node_usage_cleanup = self._is_non_blocking_sync_operator(self.operator_type) and not IS_SQLITE
+        cleanup_before = dt.now(tz.utc)
+        db_user = await reset_user_data_usage(
+            db=db,
+            db_user=db_user,
+            skip_node_usage_cleanup=skip_node_usage_cleanup,
+            node_usage_cleanup_before=cleanup_before,
+        )
+        if skip_node_usage_cleanup:
+            schedule_sync_task(self._clear_user_node_usages_by_id(db_user.id, cleanup_before))
+
         user = await self.update_user(db, db_user, include_lifetime_used_traffic=False)
 
         if user.status != old_status:
