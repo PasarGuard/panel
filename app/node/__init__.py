@@ -106,18 +106,32 @@ class NodeManager:
             ]
             return nodes
 
-    async def _update_users(self, users: list):
+    async def _snapshot_nodes(self) -> list[PasarGuardNode]:
         async with self._lock.reader_lock:
-            for node in self._nodes.values():
-                await node.update_users(users)
+            return list(self._nodes.values())
+
+    async def _update_users(self, users: list[ProtoUser]):
+        nodes = await self._snapshot_nodes()
+        if not nodes:
+            return
+
+        results = await asyncio.gather(*(node.update_users(users) for node in nodes), return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
+                self.logger.error("Failed to sync users to one of the nodes: %s", result)
 
     async def update_users(self, users: list[ProtoUser]) -> None:
         asyncio.create_task(self._update_users(users))
 
-    async def update_user(self, user: ProtoUser):
-        async with self._lock.reader_lock:
-            for node in self._nodes.values():
-                await node.update_user(user)
+    async def update_user(self, user: ProtoUser) -> None:
+        nodes = await self._snapshot_nodes()
+        if not nodes:
+            return
+
+        results = await asyncio.gather(*(node.update_user(user) for node in nodes), return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
+                raise result
 
 
 node_manager: NodeManager = NodeManager()
