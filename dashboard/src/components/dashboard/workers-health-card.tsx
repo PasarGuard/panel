@@ -78,12 +78,15 @@ const WorkersHealthCard = () => {
   }, [node, nodeStatus, scheduler, schedulerStatus, t])
 
   const isUnavailable = schedulerStatus === 'unavailable' || nodeStatus === 'unavailable'
+  const workersDisabled = schedulerStatus === 'disabled' && nodeStatus === 'disabled'
 
   useEffect(() => {
     if (!pauseRefetch && isUnavailable) {
       setPauseRefetch(true)
     }
   }, [isUnavailable, pauseRefetch])
+
+  if (!isLoading && !isError && workersDisabled) return null
 
   return (
     <Card className="border bg-card/80" dir={dir}>
