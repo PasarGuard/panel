@@ -1156,6 +1156,36 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           </FormItem>
                         )}
                       />
+
+                      <FormField
+                        control={form.control}
+                        name="pinnedPeerCertSha256"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center gap-2">
+                              <FormLabel>{t('hostsDialog.pinnedPeerCertSha256', { defaultValue: 'Pinned Peer Cert SHA256' })}</FormLabel>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                    <Info className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {t('hostsDialog.pinnedPeerCertSha256.info', {
+                                      defaultValue: 'Optional certificate public key pin (SHA-256) used for TLS peer pinning.',
+                                    })}
+                                  </p>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                            <FormControl>
+                              <Input maxLength={128} placeholder={t('hostsDialog.pinnedPeerCertSha256Placeholder', { defaultValue: 'Enter SHA-256 pin' })} {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   </AccordionContent>
                 </AccordionItem>
@@ -1248,10 +1278,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel>{t('hostsDialog.xhttp.mode')}</FormLabel>
-                                  <Select
-                                    onValueChange={value => field.onChange(value === '__default' ? undefined : value)}
-                                    value={field.value ?? '__default'}
-                                  >
+                                  <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
                                     <FormControl>
                                       <SelectTrigger>
                                         <SelectValue />
@@ -1349,7 +1376,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 </FormItem>
                               )}
                             />
-
                           </div>
 
                           {xPaddingObfsEnabled ? (
@@ -1946,10 +1972,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               render={({ field }) => (
                                 <FormItem className="col-span-2">
                                   <FormLabel>{t('hostsDialog.tcp.header')}</FormLabel>
-                                  <Select
-                                    onValueChange={value => field.onChange(value === '__default' ? '' : value)}
-                                    value={field.value === '' || field.value == null ? '__default' : field.value}
-                                  >
+                                  <Select onValueChange={value => field.onChange(value === '__default' ? '' : value)} value={field.value === '' || field.value == null ? '__default' : field.value}>
                                     <FormControl>
                                       <SelectTrigger>
                                         <SelectValue />

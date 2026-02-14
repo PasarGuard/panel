@@ -155,6 +155,7 @@ const Dashboard = () => {
       is_disabled: false,
       random_user_agent: false,
       use_sni_as_host: false,
+      pinnedPeerCertSha256: undefined,
       mux_settings: undefined,
       fragment_settings: undefined,
     },
@@ -376,5 +377,3 @@ const Dashboard = () => {
 }
 
 export default Dashboard
-
-

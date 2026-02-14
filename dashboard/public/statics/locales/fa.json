@@ -858,6 +858,7 @@
     "security.info": "اگر سرور واسط این هاست از لایه امنیتی متفاوتی نسبت به پیش‌فرض ورودی شما استفاده می‌کند، می‌توانید لایه امنیتی سفارشی را اینجا تنظیم کنید.",
     "useSniAsHost": "استفاده از SNI به عنوان هاست",
     "echConfigList": "لیست پیکربندی ECH",
+    "pinnedPeerCertSha256": "SHA256 گواهی همتای پین‌شده",
     "echConfigList.info": "لیست پیکربندی Encrypted Client Hello (ECH). این یک رشته کدگذاری شده با base64 است.",
     "echConfigListPlaceholder": "لیست پیکربندی ECH را وارد کنید",
     "httpVersions": {

@@ -970,6 +970,7 @@
     "randomUserAgent": "Использовать случайный User-Agent",
     "useSniAsHost": "Использовать SNI как хост",
     "echConfigList": "Список конфигураций ECH",
+    "pinnedPeerCertSha256": "SHA256 закреплённого сертификата узла",
     "echConfigList.info": "Список конфигураций Encrypted Client Hello (ECH). Это строка, закодированная в base64.",
     "echConfigListPlaceholder": "Введите список конфигураций ECH",
     "inboundDefault": "По умолчанию",
