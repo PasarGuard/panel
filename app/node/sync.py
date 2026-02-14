@@ -1,10 +1,71 @@
+import asyncio
+
 from app.db.models import User
+from app.lifecycle import on_shutdown
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
 from app.node.user import serialize_users_for_node, serialize_user, _serialize_user_for_node
+from app.utils.logger import get_logger
 from config import ROLE
+
+logger = get_logger("node-sync")
+
+_PENDING_SYNC_TASKS: set[asyncio.Task] = set()
+_SYNC_SHUTDOWN_TIMEOUT_SECONDS = 8.0
+
+
+def _on_sync_task_done(task: asyncio.Task) -> None:
+    _PENDING_SYNC_TASKS.discard(task)
+    if task.cancelled():
+        return
+    try:
+        exc = task.exception()
+    except Exception as error:
+        logger.warning(f"Failed to inspect sync task result: {error}")
+        return
+    if exc:
+        logger.warning(f"Background node sync task failed: {exc}", exc_info=True)
+
+
+def schedule_sync_task(coro) -> None:
+    task = asyncio.create_task(coro)
+    _PENDING_SYNC_TASKS.add(task)
+    task.add_done_callback(_on_sync_task_done)
+
+
+async def flush_pending_sync_tasks(timeout_seconds: float = _SYNC_SHUTDOWN_TIMEOUT_SECONDS) -> None:
+    if not _PENDING_SYNC_TASKS:
+        return
+
+    tasks = list(_PENDING_SYNC_TASKS)
+    done, pending = await asyncio.wait(tasks, timeout=timeout_seconds)
+
+    if pending:
+        logger.warning(
+            f"Timed out waiting for {len(pending)} background node sync task(s); cancelling unfinished tasks."
+        )
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+    for task in done:
+        if task.cancelled():
+            continue
+        try:
+            exc = task.exception()
+        except Exception as error:
+            logger.warning(f"Failed to inspect completed sync task: {error}")
+            continue
+        if exc:
+            logger.warning(f"Background node sync task completed with error: {exc}", exc_info=True)
+
+
+@on_shutdown
+async def _flush_sync_tasks_on_shutdown():
+    await flush_pending_sync_tasks()
+
 
 if ROLE.runs_node:
 

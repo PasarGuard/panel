@@ -62,7 +62,7 @@ from app.models.user import (
     UserSubscriptionUpdateList,
 )
 from app.node.sync import remove_user as sync_remove_user
-from app.node.sync import sync_proto_user, sync_proto_users, sync_user, sync_users
+from app.node.sync import schedule_sync_task, sync_proto_user, sync_proto_users, sync_user, sync_users
 from app.node.user import serialize_user, serialize_users_for_node
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
@@ -213,7 +213,7 @@ class UserOperation(BaseOperation):
     async def update_user(self, db_user: User) -> UserNotificationResponse:
         if self._is_non_blocking_sync_operator(self.operator_type):
             proto_user = await serialize_user(db_user)
-            asyncio.create_task(sync_proto_user(proto_user))
+            schedule_sync_task(sync_proto_user(proto_user))
         else:
             await sync_user(db_user)
 
@@ -278,7 +278,7 @@ class UserOperation(BaseOperation):
         user = await self.validate_user(db_user)
         await remove_user(db, db_user)
         if self._is_non_blocking_sync_operator(self.operator_type):
-            asyncio.create_task(sync_remove_user(user))
+            schedule_sync_task(sync_remove_user(user))
         else:
             await sync_remove_user(user)
 
@@ -718,7 +718,7 @@ class UserOperation(BaseOperation):
         users, users_count = await update_users_expire(db, bulk_model)
         if self._is_non_blocking_sync_operator(self.operator_type):
             proto_users = await serialize_users_for_node(users)
-            asyncio.create_task(sync_proto_users(proto_users))
+            schedule_sync_task(sync_proto_users(proto_users))
         else:
             await sync_users(users)
 
@@ -730,7 +730,7 @@ class UserOperation(BaseOperation):
         users, users_count = await update_users_datalimit(db, bulk_model)
         if self._is_non_blocking_sync_operator(self.operator_type):
             proto_users = await serialize_users_for_node(users)
-            asyncio.create_task(sync_proto_users(proto_users))
+            schedule_sync_task(sync_proto_users(proto_users))
         else:
             await sync_users(users)
 
@@ -742,7 +742,7 @@ class UserOperation(BaseOperation):
         users, users_count = await update_users_proxy_settings(db, bulk_model)
         if self._is_non_blocking_sync_operator(self.operator_type):
             proto_users = await serialize_users_for_node(users)
-            asyncio.create_task(sync_proto_users(proto_users))
+            schedule_sync_task(sync_proto_users(proto_users))
         else:
             await sync_users(users)
 
