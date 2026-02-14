@@ -215,7 +215,7 @@ class UserOperation(BaseOperation):
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
 
         all_groups = await self.validate_all_groups(db, new_user)
-        db_admin = await get_admin(db, admin.username)
+        db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
 
         try:
             db_user = await create_user(db, new_user, all_groups, db_admin)
@@ -451,7 +451,9 @@ class UserOperation(BaseOperation):
                     await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
 
         # Authorization: non-sudo admins see only their users
-        admin_filter = None if admin.is_sudo else await get_admin(db, admin.username)
+        admin_filter = (
+            None if admin.is_sudo else await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
+        )
 
         # Call CRUD function
         rows, total = await get_users_simple(
@@ -694,7 +696,7 @@ class UserOperation(BaseOperation):
         if users_to_create:
             groups = await self.validate_all_groups(db, users_to_create[0])
 
-        db_admin = await get_admin(db, admin.username)
+        db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
         subscription_urls = await self._persist_bulk_users(db, admin, db_admin, users_to_create, groups)
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))

@@ -20,7 +20,7 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     if not payload:
         return
 
-    db_admin = await get_admin_by_username(db, payload["username"])
+    db_admin = await get_admin_by_username(db, payload["username"], load_users=False, load_usage_logs=False)
     if db_admin:
         if db_admin.password_reset_at:
             if not payload.get("created_at"):
@@ -28,7 +28,21 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
             if db_admin.password_reset_at.astimezone(tz.utc) > payload.get("created_at"):
                 return
 
-        return AdminDetails.model_validate(db_admin)
+        return AdminDetails(
+            id=db_admin.id,
+            username=db_admin.username,
+            is_sudo=db_admin.is_sudo,
+            used_traffic=db_admin.used_traffic,
+            is_disabled=db_admin.is_disabled,
+            telegram_id=db_admin.telegram_id,
+            discord_webhook=db_admin.discord_webhook,
+            sub_domain=db_admin.sub_domain,
+            profile_title=db_admin.profile_title,
+            support_url=db_admin.support_url,
+            notification_enable=db_admin.notification_enable,
+            discord_id=db_admin.discord_id,
+            sub_template=db_admin.sub_template,
+        )
 
     elif payload["username"] in SUDOERS and payload["is_sudo"] is True:
         return AdminDetails(username=payload["username"], is_sudo=True)
@@ -61,7 +75,7 @@ async def check_sudo_admin(admin: AdminDetails = Depends(get_current)):
 async def validate_admin(db: AsyncSession, username: str, password: str) -> AdminValidationResult | None:
     """Validate admin credentials with environment variables or database."""
 
-    db_admin = await get_admin_by_username(db, username)
+    db_admin = await get_admin_by_username(db, username, load_users=False, load_usage_logs=False)
     if db_admin and await verify_password(password, db_admin.hashed_password):
         return AdminValidationResult(
             username=db_admin.username, is_sudo=db_admin.is_sudo, is_disabled=db_admin.is_disabled
@@ -93,7 +107,7 @@ async def validate_mini_app_admin(db: AsyncSession, token: str) -> AdminValidati
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    db_admin = await get_admin_by_telegram_id(db, data.user.id)
+    db_admin = await get_admin_by_telegram_id(db, data.user.id, load_users=False, load_usage_logs=False)
     if db_admin:
         return AdminValidationResult(
             username=db_admin.username, is_sudo=db_admin.is_sudo, is_disabled=db_admin.is_disabled
