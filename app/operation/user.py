@@ -234,7 +234,12 @@ class UserOperation(BaseOperation):
         return user
 
     async def update_user(
-        self, db: AsyncSession, db_user: User, *, include_lifetime_used_traffic: bool = True
+        self,
+        db: AsyncSession,
+        db_user: User,
+        *,
+        include_subscription_url: bool = True,
+        include_lifetime_used_traffic: bool = True,
     ) -> UserNotificationResponse:
         if self._is_non_blocking_sync_operator(self.operator_type):
             proto_user = await serialize_user(db_user)
@@ -242,7 +247,12 @@ class UserOperation(BaseOperation):
         else:
             await sync_user(db_user)
 
-        user = await self.validate_user(db, db_user, include_lifetime_used_traffic=include_lifetime_used_traffic)
+        user = await self.validate_user(
+            db,
+            db_user,
+            include_subscription_url=include_subscription_url,
+            include_lifetime_used_traffic=include_lifetime_used_traffic,
+        )
         return user
 
     async def create_user(self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails) -> UserResponse:
@@ -300,9 +310,7 @@ class UserOperation(BaseOperation):
     async def remove_user(self, db: AsyncSession, username: str, admin: AdminDetails):
         db_user = await self.get_validated_user(db, username, admin, load_next_plan=False, load_groups=False)
 
-        user = await self.validate_user(
-            db, db_user, include_subscription_url=False, include_lifetime_used_traffic=False
-        )
+        user = await self.validate_user(db, db_user, include_lifetime_used_traffic=False)
         await remove_user(db, db_user)
         if self._is_non_blocking_sync_operator(self.operator_type):
             schedule_sync_task(sync_remove_user(user))

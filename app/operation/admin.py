@@ -214,7 +214,6 @@ class AdminOperation(BaseOperation):
             await user_operation.validate_user(
                 db,
                 user,
-                include_subscription_url=False,
                 include_lifetime_used_traffic=False,
             )
             for user in users
