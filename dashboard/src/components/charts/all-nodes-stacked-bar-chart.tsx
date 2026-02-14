@@ -466,24 +466,26 @@ export function AllNodesStackedBarChart() {
                   <Calendar className="h-4 w-4" />
                 </button>
               </div>
-              <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="w-full sm:w-[220px] sm:shrink-0" />
-              <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
-                <button
-                  type="button"
-                  aria-label={t('statistics.barChart', { defaultValue: 'Bar chart' })}
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                  onClick={() => setChartView('bar')}
-                >
-                  <BarChart3 className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={t('statistics.pieChart', { defaultValue: 'Pie chart' })}
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'pie' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                  onClick={() => setChartView('pie')}
-                >
-                  <PieChartIcon className="h-3.5 w-3.5" />
-                </button>
+              <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+                <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="min-w-0 flex-1 sm:w-[220px] sm:flex-none" />
+                <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
+                  <button
+                    type="button"
+                    aria-label={t('statistics.barChart', { defaultValue: 'Bar chart' })}
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                    onClick={() => setChartView('bar')}
+                  >
+                    <BarChart3 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t('statistics.pieChart', { defaultValue: 'Pie chart' })}
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'pie' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                    onClick={() => setChartView('pie')}
+                  >
+                    <PieChartIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
             {showCustomRange && (
