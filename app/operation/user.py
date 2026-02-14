@@ -62,7 +62,7 @@ from app.models.user import (
     UserSubscriptionUpdateList,
 )
 from app.node.sync import remove_user as sync_remove_user
-from app.node.sync import sync_user, sync_user_by_id, sync_users
+from app.node.sync import sync_user, sync_user_by_id, sync_users, sync_users_by_ids
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
@@ -715,7 +715,7 @@ class UserOperation(BaseOperation):
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
         users, users_count = await update_users_expire(db, bulk_model)
         if self._is_non_blocking_sync_operator(self.operator_type):
-            asyncio.create_task(sync_users(users))
+            asyncio.create_task(sync_users_by_ids([user.id for user in users]))
         else:
             await sync_users(users)
 
@@ -726,7 +726,7 @@ class UserOperation(BaseOperation):
     async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
         users, users_count = await update_users_datalimit(db, bulk_model)
         if self._is_non_blocking_sync_operator(self.operator_type):
-            asyncio.create_task(sync_users(users))
+            asyncio.create_task(sync_users_by_ids([user.id for user in users]))
         else:
             await sync_users(users)
 
@@ -737,7 +737,7 @@ class UserOperation(BaseOperation):
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
         users, users_count = await update_users_proxy_settings(db, bulk_model)
         if self._is_non_blocking_sync_operator(self.operator_type):
-            asyncio.create_task(sync_users(users))
+            asyncio.create_task(sync_users_by_ids([user.id for user in users]))
         else:
             await sync_users(users)
 

@@ -71,3 +71,28 @@ async def sync_user_by_id(user_id: int) -> None:
         proto_user = await serialize_user(db_user)
 
     await _dispatch_user_update(proto_user)
+
+
+async def sync_users_by_ids(user_ids: list[int]) -> None:
+    """
+    Background-safe bulk user sync using a fresh DB session.
+    """
+    if not user_ids:
+        return
+
+    unique_user_ids = list(dict.fromkeys(user_ids))
+
+    async with GetDB() as db:
+        stmt = (
+            select(User)
+            .options(selectinload(User.groups).selectinload(Group.inbounds))
+            .where(User.id.in_(unique_user_ids))
+        )
+        db_users = list((await db.execute(stmt)).unique().scalars().all())
+
+        if not db_users:
+            return
+
+        proto_users = await serialize_users_for_node(db_users)
+
+    await _dispatch_users_update(proto_users)
