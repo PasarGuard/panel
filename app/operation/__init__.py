@@ -99,7 +99,7 @@ class BaseOperation:
         if not sub:
             await self.raise_error(message="Not Found", code=404)
 
-        db_user = await get_user(db, sub["username"], load_usage_logs=False)
+        db_user = await get_user(db, sub["username"])
         if not db_user or db_user.created_at.astimezone(tz.utc) > sub["created_at"]:
             await self.raise_error(message="Not Found", code=404)
 
@@ -141,7 +141,7 @@ class BaseOperation:
         return db_admin
 
     async def get_validated_group(self, db: AsyncSession, group_id: int) -> Group:
-        db_group = await get_group_by_id(db, group_id, load_users=False, load_inbounds=True)
+        db_group = await get_group_by_id(db, group_id)
         if not db_group:
             await self.raise_error("Group not found", 404)
         return db_group
