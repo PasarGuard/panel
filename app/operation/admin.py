@@ -20,7 +20,8 @@ from app.db.crud.admin import (
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminSimple, AdminsResponse, AdminsSimpleResponse
-from app.node.sync import sync_users, remove_user as sync_remove_user
+from app.node.sync import sync_remove_users, sync_users, sync_proto_users, remove_user as sync_remove_user
+from app.node.user import serialize_users_for_node
 from app.models.stats import Period, UserUsageStatsList
 from app.operation import BaseOperation, OperatorType
 from app.operation.user import UserOperation
@@ -30,6 +31,10 @@ logger = get_logger("admin-operation")
 
 
 class AdminOperation(BaseOperation):
+    @staticmethod
+    def _is_non_blocking_sync_operator(operator_type: OperatorType) -> bool:
+        return operator_type in (OperatorType.API, OperatorType.WEB)
+
     async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails) -> AdminDetails:
         """Create a new admin if the current admin has sudo privileges."""
         try:
@@ -166,7 +171,11 @@ class AdminOperation(BaseOperation):
         await disable_all_active_users(db=db, admin=db_admin)
 
         users = await get_users(db, admin=db_admin)
-        await sync_users(users)
+        if self._is_non_blocking_sync_operator(self.operator_type):
+            proto_users = await serialize_users_for_node(users)
+            asyncio.create_task(sync_proto_users(proto_users))
+        else:
+            await sync_users(users)
 
         logger.info(f'Admin "{username}" users has been disabled by admin "{admin.username}"')
 
@@ -180,7 +189,11 @@ class AdminOperation(BaseOperation):
         await activate_all_disabled_users(db=db, admin=db_admin)
 
         users = await get_users(db, admin=db_admin)
-        await sync_users(users)
+        if self._is_non_blocking_sync_operator(self.operator_type):
+            proto_users = await serialize_users_for_node(users)
+            asyncio.create_task(sync_proto_users(proto_users))
+        else:
+            await sync_users(users)
 
         logger.info(f'Admin "{username}" users has been activated by admin "{admin.username}"')
 
@@ -201,8 +214,13 @@ class AdminOperation(BaseOperation):
 
         await remove_users(db, users)
 
+        if self._is_non_blocking_sync_operator(self.operator_type):
+            asyncio.create_task(sync_remove_users(serialized_users))
+        else:
+            for user in serialized_users:
+                await sync_remove_user(user)
+
         for user in serialized_users:
-            await sync_remove_user(user)
             asyncio.create_task(notification.remove_user(user, admin))
 
         logger.info(

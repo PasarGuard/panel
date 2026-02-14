@@ -52,3 +52,11 @@ async def sync_proto_user(proto_user) -> None:
 
 async def sync_proto_users(proto_users) -> None:
     await _dispatch_users_update(proto_users)
+
+
+async def sync_remove_users(users: list[UserNotificationResponse]) -> None:
+    if not users:
+        return
+
+    proto_users = [_serialize_user_for_node(user.id, user.username, user.proxy_settings.dict()) for user in users]
+    await _dispatch_users_update(proto_users)
