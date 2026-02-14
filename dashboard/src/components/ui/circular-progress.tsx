@@ -31,9 +31,7 @@ const CircularProgress = React.forwardRef<HTMLDivElement, CircularProgressProps>
     const normalizedValue = clamp(value)
     const radius = (size - strokeWidth) / 2
     const circumference = 2 * Math.PI * radius
-    const visibleArc = circumference * 0.75
-    const hiddenArc = circumference - visibleArc
-    const progressArc = visibleArc * (normalizedValue / 100)
+    const progressArc = circumference * (normalizedValue / 100)
     const valueText = valueFormatter ? valueFormatter(normalizedValue) : `${normalizedValue.toFixed(2)}%`
 
     return (
@@ -47,7 +45,7 @@ const CircularProgress = React.forwardRef<HTMLDivElement, CircularProgressProps>
           width={size}
           height={size}
           viewBox={`0 0 ${size} ${size}`}
-          className="-rotate-[135deg]"
+          className="-rotate-90"
           role="img"
           aria-label={`Progress ${valueText}`}
         >
@@ -57,7 +55,7 @@ const CircularProgress = React.forwardRef<HTMLDivElement, CircularProgressProps>
             r={radius}
             fill="none"
             strokeWidth={strokeWidth}
-            strokeDasharray={`${visibleArc} ${hiddenArc}`}
+            strokeDasharray={`${circumference} ${circumference}`}
             className={cn('stroke-muted/40', trackClassName)}
             strokeLinecap="round"
           />
