@@ -223,6 +223,7 @@ class UserOperation(BaseOperation):
         group_names = [group.name for group in loaded_groups]
         group_ids = [group.id for group in loaded_groups]
         user_data = dict(db_user.__dict__)
+        user_data["expire"] = db_user.expire
         user_data["lifetime_used_traffic"] = lifetime_used_traffic
         user_data["group_names"] = group_names
         user_data["group_ids"] = group_ids
