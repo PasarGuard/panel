@@ -25,7 +25,7 @@ class SystemOperation(BaseOperation):
 
         admin_param = None
         if admin.is_sudo and admin_username:
-            admin_param = await get_admin(db, admin_username)
+            admin_param = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
         elif not admin.is_sudo:
             admin_param = admin
 

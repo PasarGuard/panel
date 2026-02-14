@@ -17,10 +17,12 @@ from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_passwo
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 
 
-async def load_admin_attrs(admin: Admin):
+async def load_admin_attrs(admin: Admin, load_users: bool = True, load_usage_logs: bool = True):
     try:
-        await admin.awaitable_attrs.users
-        await admin.awaitable_attrs.usage_logs
+        if load_users:
+            await admin.awaitable_attrs.users
+        if load_usage_logs:
+            await admin.awaitable_attrs.usage_logs
     except AttributeError:
         pass
 
@@ -49,7 +51,13 @@ AdminsSortingOptionsSimple = Enum(
 )
 
 
-async def get_admin(db: AsyncSession, username: str) -> Admin:
+async def get_admin(
+    db: AsyncSession,
+    username: str,
+    *,
+    load_users: bool = True,
+    load_usage_logs: bool = True,
+) -> Admin:
     """
     Retrieves an admin by username.
 
@@ -62,7 +70,7 @@ async def get_admin(db: AsyncSession, username: str) -> Admin:
     """
     admin = (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
     if admin:
-        await load_admin_attrs(admin)
+        await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
 
 
@@ -138,7 +146,13 @@ async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
     await db.commit()
 
 
-async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
+async def get_admin_by_id(
+    db: AsyncSession,
+    id: int,
+    *,
+    load_users: bool = True,
+    load_usage_logs: bool = True,
+) -> Admin:
     """
     Retrieves an admin by their ID.
 
@@ -151,11 +165,17 @@ async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
     """
     admin = (await db.execute(select(Admin).where(Admin.id == id))).first()
     if admin:
-        await load_admin_attrs(admin)
+        await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
 
 
-async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
+async def get_admin_by_telegram_id(
+    db: AsyncSession,
+    telegram_id: int,
+    *,
+    load_users: bool = True,
+    load_usage_logs: bool = True,
+) -> Admin:
     """
     Retrieves an admin by their Telegram ID.
 
@@ -168,11 +188,17 @@ async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
     """
     admin = (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id))).scalar_one_or_none()
     if admin:
-        await load_admin_attrs(admin)
+        await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
 
 
-async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
+async def get_admin_by_discord_id(
+    db: AsyncSession,
+    discord_id: int,
+    *,
+    load_users: bool = True,
+    load_usage_logs: bool = True,
+) -> Admin:
     """
     Retrieves an admin by their Discord ID.
 
@@ -185,7 +211,7 @@ async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
     """
     admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).first()
     if admin:
-        await load_admin_attrs(admin)
+        await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
 
 
