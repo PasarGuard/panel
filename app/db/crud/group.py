@@ -28,12 +28,20 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
     return [inbounds_map[tag] for tag in tags]
 
 
-async def load_group_attrs(group: Group):
-    await group.awaitable_attrs.users
-    await group.awaitable_attrs.inbounds
+async def load_group_attrs(group: Group, *, load_users: bool = True, load_inbounds: bool = True):
+    if load_users:
+        await group.awaitable_attrs.users
+    if load_inbounds:
+        await group.awaitable_attrs.inbounds
 
 
-async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
+async def get_group_by_id(
+    db: AsyncSession,
+    group_id: int,
+    *,
+    load_users: bool = True,
+    load_inbounds: bool = True,
+) -> Group | None:
     """
     Retrieves a group by its ID.
 
@@ -46,7 +54,7 @@ async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
     """
     group = (await db.execute(select(Group).where(Group.id == group_id))).unique().scalar_one_or_none()
     if group:
-        await load_group_attrs(group)
+        await load_group_attrs(group, load_users=load_users, load_inbounds=load_inbounds)
     return group
 
 
@@ -162,7 +170,13 @@ async def get_groups_simple(
     return rows, total
 
 
-async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Group]:
+async def get_groups_by_ids(
+    db: AsyncSession,
+    group_ids: list[int],
+    *,
+    load_users: bool = True,
+    load_inbounds: bool = True,
+) -> list[Group]:
     """
     Retrieves a list of groups by their IDs.
 
@@ -176,7 +190,7 @@ async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Grou
     groups = (await db.execute(select(Group).where(Group.id.in_(group_ids)))).scalars().all()
 
     for group in groups:
-        await load_group_attrs(group)
+        await load_group_attrs(group, load_users=load_users, load_inbounds=load_inbounds)
 
     return groups
 

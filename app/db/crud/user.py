@@ -41,14 +41,33 @@ from .group import get_groups_by_ids
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
 
 
-async def load_user_attrs(user: User):
-    await user.awaitable_attrs.admin
-    await user.awaitable_attrs.next_plan
-    await user.awaitable_attrs.usage_logs
-    await user.awaitable_attrs.groups
+async def load_user_attrs(
+    user: User,
+    *,
+    load_admin: bool = True,
+    load_next_plan: bool = True,
+    load_usage_logs: bool = True,
+    load_groups: bool = True,
+):
+    if load_admin:
+        await user.awaitable_attrs.admin
+    if load_next_plan:
+        await user.awaitable_attrs.next_plan
+    if load_usage_logs:
+        await user.awaitable_attrs.usage_logs
+    if load_groups:
+        await user.awaitable_attrs.groups
 
 
-async def get_user(db: AsyncSession, username: str) -> Optional[User]:
+async def get_user(
+    db: AsyncSession,
+    username: str,
+    *,
+    load_admin: bool = True,
+    load_next_plan: bool = True,
+    load_usage_logs: bool = True,
+    load_groups: bool = True,
+) -> Optional[User]:
     """
     Retrieves a user by username.
 
@@ -63,11 +82,25 @@ async def get_user(db: AsyncSession, username: str) -> Optional[User]:
 
     user = (await db.execute(stmt)).unique().scalar_one_or_none()
     if user:
-        await load_user_attrs(user)
+        await load_user_attrs(
+            user,
+            load_admin=load_admin,
+            load_next_plan=load_next_plan,
+            load_usage_logs=load_usage_logs,
+            load_groups=load_groups,
+        )
     return user
 
 
-async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
+async def get_user_by_id(
+    db: AsyncSession,
+    user_id: int,
+    *,
+    load_admin: bool = True,
+    load_next_plan: bool = True,
+    load_usage_logs: bool = True,
+    load_groups: bool = True,
+) -> User | None:
     """
     Retrieves a user by user ID.
 
@@ -82,8 +115,27 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
 
     user = (await db.execute(stmt)).unique().scalar_one_or_none()
     if user:
-        await load_user_attrs(user)
+        await load_user_attrs(
+            user,
+            load_admin=load_admin,
+            load_next_plan=load_next_plan,
+            load_usage_logs=load_usage_logs,
+            load_groups=load_groups,
+        )
     return user
+
+
+async def get_user_lifetime_used_traffic(db: AsyncSession, user_id: int) -> int:
+    stmt = (
+        select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0) + func.coalesce(User.used_traffic, 0))
+        .select_from(User)
+        .outerjoin(UserUsageResetLogs, UserUsageResetLogs.user_id == User.id)
+        .where(User.id == user_id)
+        .group_by(User.id)
+    )
+    result = await db.execute(stmt)
+    value = result.scalar_one_or_none()
+    return int(value or 0)
 
 
 async def get_existing_usernames(db: AsyncSession, usernames: Sequence[str]) -> set[str]:
@@ -594,7 +646,7 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
         await db.commit()
         await db.refresh(db_user)
 
-    await load_user_attrs(db_user)
+    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -634,7 +686,7 @@ async def create_users_bulk(
     await db.commit()
 
     for user in db_users:
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_usage_logs=False)
 
     return db_users
 
@@ -780,7 +832,7 @@ async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> Us
 
     await db.commit()
     await db.refresh(db_user)
-    await load_user_attrs(db_user)
+    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -819,7 +871,7 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
 
     await db.commit()
     await db.refresh(db_user)
-    await load_user_attrs(db_user)
+    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -841,7 +893,7 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
     await db.commit()
     for user in users:
         await db.refresh(user)
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_usage_logs=False)
     return users
 
 
@@ -903,7 +955,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
 
     await db.commit()
     await db.refresh(db_user)
-    await load_user_attrs(db_user)
+    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -926,7 +978,7 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
     await db.execute(stmt)
     await db.commit()
     await db.refresh(db_user)
-    await load_user_attrs(db_user)
+    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -1144,7 +1196,7 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
     await db.commit()
     for user in users:
         await db.refresh(user)
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_usage_logs=False)
     return users
 
 
@@ -1164,7 +1216,7 @@ async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     await db.execute(stmt)
     await db.commit()
     await db.refresh(db_user)
-    await load_user_attrs(db_user)
+    await load_user_attrs(db_user, load_usage_logs=False)
     return db_user
 
 
@@ -1192,7 +1244,7 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
     await db.commit()
     for user in users:
         await db.refresh(user)
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_usage_logs=False)
     return users
 
 
