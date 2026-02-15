@@ -960,6 +960,11 @@
     "useSniAsHost": "使用 SNI 作为主机",
     "echConfigList": "ECH 配置列表",
     "pinnedPeerCertSha256": "固定对端证书 SHA256",
+    "pinnedPeerCertSha256.info": "用于 TLS 对端证书固定的可选证书公钥指纹 (SHA-256)。",
+    "pinnedPeerCertSha256Placeholder": "输入 SHA-256 指纹",
+    "verifyPeerCertByName": "按名称验证对端证书",
+    "verifyPeerCertByName.info": "TLS 验证期间必须与对端证书匹配的可选名称。",
+    "verifyPeerCertByNamePlaceholder": "example.com",
     "echConfigList.info": "Encrypted Client Hello (ECH) 配置列表。这是一个 base64 编码的字符串。",
     "echConfigListPlaceholder": "输入 ECH 配置列表",
     "httpVersions": {

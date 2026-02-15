@@ -60,7 +60,9 @@ export default function HostsPage() {
         alpn: formData.alpn as ProxyHostALPN[] | undefined,
         fingerprint: formData.fingerprint as ProxyHostFingerprint | undefined,
         ech_config_list: formData.ech_config_list || undefined,
-        pinnedPeerCertSha256: formData.pinnedPeerCertSha256 || undefined,
+        pinned_peer_cert_sha256: formData.pinned_peer_cert_sha256 || undefined,
+        verify_peer_cert_by_name:
+          formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
         vless_route: formData.vless_route || undefined,
         transport_settings: formData.transport_settings
           ? {

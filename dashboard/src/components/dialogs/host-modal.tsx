@@ -1159,7 +1159,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
                       <FormField
                         control={form.control}
-                        name="pinnedPeerCertSha256"
+                        name="pinned_peer_cert_sha256"
                         render={({ field }) => (
                           <FormItem>
                             <div className="flex items-center gap-2">
@@ -1185,6 +1185,31 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             <FormMessage />
                           </FormItem>
                         )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="verify_peer_cert_by_name"
+                        render={({ field }) => {
+                          const infoContent = (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] text-muted-foreground">
+                                {t('hostsDialog.verifyPeerCertByName.info', {
+                                  defaultValue: 'Optional names that must match the peer certificate during TLS verification.',
+                                })}
+                              </p>
+                            </div>
+                          )
+
+                          return (
+                            <ArrayInput
+                              field={field}
+                              placeholder={t('hostsDialog.verifyPeerCertByNamePlaceholder', { defaultValue: 'example.com' })}
+                              label={t('hostsDialog.verifyPeerCertByName', { defaultValue: 'Verify Peer Cert By Name' })}
+                              infoContent={infoContent}
+                            />
+                          )
+                        }}
                       />
                     </div>
                   </AccordionContent>

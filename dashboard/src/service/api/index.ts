@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 2.0.0
+ * OpenAPI spec version: 2.0.2
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -250,6 +250,13 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
+
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -267,13 +274,6 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -461,11 +461,6 @@ export const XHttpModes = {
 
 export type XHttpSettingsInputMode = XHttpModes | null
 
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
-}
-
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -474,6 +469,11 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
+}
+
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
 }
 
 export interface WebhookInfo {
@@ -1194,18 +1194,6 @@ export type SettingsSchemaInputGeneral = General | null
 
 export type SettingsSchemaInputSubscription = SubscriptionInput | null
 
-export interface NotificationEnable {
-  admin?: AdminNotificationEnable
-  core?: BaseNotificationEnable
-  group?: BaseNotificationEnable
-  host?: HostNotificationEnable
-  node?: NodeNotificationEnable
-  user?: UserNotificationEnable
-  user_template?: BaseNotificationEnable
-  days_left?: boolean
-  percentage_reached?: boolean
-}
-
 export type SettingsSchemaInputNotificationEnable = NotificationEnable | null
 
 export type SettingsSchemaInputNotificationSettings = NotificationSettingsInput | null
@@ -1359,19 +1347,16 @@ export interface NotificationSettingsInput {
   max_retries: number
 }
 
-export type NotificationChannelDiscordWebhookUrl = string | null
-
-export type NotificationChannelTelegramTopicId = number | null
-
-export type NotificationChannelTelegramChatId = number | null
-
-/**
- * Channel configuration for sending notifications to a specific entity
- */
-export interface NotificationChannel {
-  telegram_chat_id?: NotificationChannelTelegramChatId
-  telegram_topic_id?: NotificationChannelTelegramTopicId
-  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+export interface NotificationEnable {
+  admin?: AdminNotificationEnable
+  core?: BaseNotificationEnable
+  group?: BaseNotificationEnable
+  host?: HostNotificationEnable
+  node?: NodeNotificationEnable
+  user?: UserNotificationEnable
+  user_template?: BaseNotificationEnable
+  days_left?: boolean
+  percentage_reached?: boolean
 }
 
 /**
@@ -1385,6 +1370,21 @@ export interface NotificationChannels {
   node?: NotificationChannel
   user?: NotificationChannel
   user_template?: NotificationChannel
+}
+
+export type NotificationChannelDiscordWebhookUrl = string | null
+
+export type NotificationChannelTelegramTopicId = number | null
+
+export type NotificationChannelTelegramChatId = number | null
+
+/**
+ * Channel configuration for sending notifications to a specific entity
+ */
+export interface NotificationChannel {
+  telegram_chat_id?: NotificationChannelTelegramChatId
+  telegram_topic_id?: NotificationChannelTelegramTopicId
+  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
 }
 
 export interface NotFound {
@@ -1412,6 +1412,13 @@ export interface NodesResponse {
 
 export type NodeUsageStatsListPeriod = Period | null
 
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
+
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -1419,13 +1426,6 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1758,11 +1758,6 @@ export interface HTTPException {
   detail: string
 }
 
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
-}
-
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -1791,6 +1786,11 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -1901,6 +1901,8 @@ export interface CreateUserFromTemplate {
   username: string
 }
 
+export type CreateHostVerifyPeerCertByName = string[] | null
+
 export type CreateHostPinnedPeerCertSha256 = string | null
 
 export type CreateHostEchConfigList = string | null
@@ -1962,7 +1964,8 @@ export interface CreateHost {
   priority: number
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
-  pinnedPeerCertSha256?: CreateHostPinnedPeerCertSha256
+  pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
+  verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
 }
 
 /**
@@ -2131,6 +2134,8 @@ export interface BaseNotificationEnable {
   delete?: boolean
 }
 
+export type BaseHostVerifyPeerCertByName = string[] | null
+
 export type BaseHostPinnedPeerCertSha256 = string | null
 
 export type BaseHostEchConfigList = string | null
@@ -2172,7 +2177,8 @@ export interface BaseHost {
   priority: number
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
-  pinnedPeerCertSha256?: BaseHostPinnedPeerCertSha256
+  pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
+  verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
 }
 
 export type BaseHostHttpHeadersAnyOf = { [key: string]: string }

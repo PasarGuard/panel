@@ -987,6 +987,11 @@
     "useSniAsHost": "Use SNI as Host",
     "echConfigList": "ECH Config List",
     "pinnedPeerCertSha256": "Pinned Peer Cert SHA256",
+    "pinnedPeerCertSha256.info": "Optional certificate public key pin (SHA-256) used for TLS peer pinning.",
+    "pinnedPeerCertSha256Placeholder": "Enter SHA-256 pin",
+    "verifyPeerCertByName": "Verify Peer Cert By Name",
+    "verifyPeerCertByName.info": "Optional names that must match the peer certificate during TLS verification.",
+    "verifyPeerCertByNamePlaceholder": "example.com",
     "echConfigList.info": "Encrypted Client Hello (ECH) configuration list. This is a base64 encoded string.",
     "echConfigListPlaceholder": "Enter ECH Config List",
     "httpVersions": {

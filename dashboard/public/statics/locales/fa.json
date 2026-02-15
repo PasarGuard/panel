@@ -859,6 +859,11 @@
     "useSniAsHost": "استفاده از SNI به عنوان هاست",
     "echConfigList": "لیست پیکربندی ECH",
     "pinnedPeerCertSha256": "SHA256 گواهی همتای پین‌شده",
+    "pinnedPeerCertSha256.info": "پین اختیاری کلید عمومی گواهی (SHA-256) برای TLS peer pinning.",
+    "pinnedPeerCertSha256Placeholder": "SHA-256 را وارد کنید",
+    "verifyPeerCertByName": "تایید نام گواهی همتا",
+    "verifyPeerCertByName.info": "نام‌های اختیاری که باید هنگام تایید TLS با گواهی همتا تطبیق داشته باشند.",
+    "verifyPeerCertByNamePlaceholder": "example.com",
     "echConfigList.info": "لیست پیکربندی Encrypted Client Hello (ECH). این یک رشته کدگذاری شده با base64 است.",
     "echConfigListPlaceholder": "لیست پیکربندی ECH را وارد کنید",
     "httpVersions": {

@@ -62,7 +62,8 @@ export interface HostFormValues {
   vless_route?: string
   priority: number
   ech_config_list?: string
-  pinnedPeerCertSha256?: string
+  pinned_peer_cert_sha256?: string
+  verify_peer_cert_by_name?: string[]
   fragment_settings?: {
     xray?: {
       packets?: string
@@ -322,7 +323,8 @@ export const HostFormSchema = z.object({
   priority: z.number().default(0),
   is_disabled: z.boolean().default(false),
   ech_config_list: z.string().optional(),
-  pinnedPeerCertSha256: z.string().max(128, 'Pinned peer cert SHA256 must be at most 128 characters').optional(),
+  pinned_peer_cert_sha256: z.string().max(128, 'Pinned peer cert SHA256 must be at most 128 characters').optional(),
+  verify_peer_cert_by_name: z.array(z.string()).default([]),
   fragment_settings: z
     .object({
       xray: z
@@ -436,6 +438,7 @@ export const hostFormDefaultValues: HostFormValues = {
   vless_route: '',
   priority: 0,
   ech_config_list: undefined,
-  pinnedPeerCertSha256: undefined,
+  pinned_peer_cert_sha256: undefined,
+  verify_peer_cert_by_name: [],
   fragment_settings: undefined,
 }
