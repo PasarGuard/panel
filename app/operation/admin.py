@@ -20,7 +20,13 @@ from app.db.crud.admin import (
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminSimple, AdminsResponse, AdminsSimpleResponse
-from app.node.sync import schedule_sync_task, sync_remove_users, sync_users, sync_proto_users, remove_user as sync_remove_user
+from app.node.sync import (
+    schedule_sync_task,
+    sync_remove_users,
+    sync_users,
+    sync_proto_users,
+    remove_user as sync_remove_user,
+)
 from app.node.user import serialize_users_for_node
 from app.models.stats import Period, UserUsageStatsList
 from app.operation import BaseOperation, OperatorType

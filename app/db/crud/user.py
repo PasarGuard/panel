@@ -145,7 +145,9 @@ async def get_user_by_id(
 
 async def get_user_lifetime_used_traffic(db: AsyncSession, user_id: int) -> int:
     stmt = (
-        select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0) + func.coalesce(User.used_traffic, 0))
+        select(
+            func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0) + func.coalesce(User.used_traffic, 0)
+        )
         .select_from(User)
         .outerjoin(UserUsageResetLogs, UserUsageResetLogs.user_id == User.id)
         .where(User.id == user_id)

@@ -17,6 +17,7 @@ CoreSortingOptionsSimple = Enum(
     },
 )
 
+
 async def get_core_config_by_id(db: AsyncSession, core_id: int) -> CoreConfig | None:
     """
     Retrieves a core configuration by its ID.
