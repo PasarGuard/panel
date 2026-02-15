@@ -712,11 +712,6 @@ async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     if not user_ids:
         return
 
-    await db.execute(delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)))
-    await db.execute(delete(NotificationReminder).where(NotificationReminder.user_id.in_(user_ids)))
-    await db.execute(delete(UserSubscriptionUpdate).where(UserSubscriptionUpdate.user_id.in_(user_ids)))
-    await db.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)))
-    await db.execute(delete(NextPlan).where(NextPlan.user_id.in_(user_ids)))
     await db.execute(users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)))
 
 
