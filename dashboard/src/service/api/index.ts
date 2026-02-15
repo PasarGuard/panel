@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 2.0.2
+ * OpenAPI spec version: 2.1.1
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -250,13 +250,6 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
-
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -274,6 +267,13 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -426,6 +426,18 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -448,18 +460,6 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
-
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
 
 export type WorkerHealthError = string | null
 
@@ -543,6 +543,8 @@ export const UsernameGenerationStrategy = {
   sequence: 'sequence',
 } as const
 
+export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
+
 export type UserUsageStatsListPeriod = Period | null
 
 export interface UserUsageStatsList {
@@ -556,8 +558,6 @@ export interface UserUsageStat {
   total_traffic: number
   period_start: string
 }
-
-export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
 
 export type UserTemplateSimpleName = string | null
 
@@ -867,6 +867,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -877,13 +884,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -1359,19 +1359,6 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1387,6 +1374,19 @@ export interface NotificationChannel {
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
 }
 
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
 export interface NotFound {
   detail?: string
 }
@@ -1397,27 +1397,12 @@ export interface NoiseSettings {
   xray?: NoiseSettingsXray
 }
 
-/**
- * Response model for lightweight node list.
- */
-export interface NodesSimpleResponse {
-  nodes: NodeSimple[]
-  total: number
-}
-
 export interface NodesResponse {
   nodes: NodeResponse[]
   total: number
 }
 
 export type NodeUsageStatsListPeriod = Period | null
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export interface NodeUsageStat {
   uplink: number
@@ -1426,6 +1411,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1462,6 +1454,14 @@ export interface NodeSimple {
   id: number
   name: string
   status: NodeStatus
+}
+
+/**
+ * Response model for lightweight node list.
+ */
+export interface NodesSimpleResponse {
+  nodes: NodeSimple[]
+  total: number
 }
 
 export interface NodeSettings {
@@ -1919,26 +1919,6 @@ export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
 
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
-
 export interface CreateHost {
   id?: CreateHostId
   remark: string
@@ -1967,6 +1947,26 @@ export interface CreateHost {
   pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
 }
+
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
 
 /**
  * Lightweight core model with only id and name for performance.
@@ -2152,6 +2152,26 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -2180,26 +2200,6 @@ export interface BaseHost {
   pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
 }
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 
