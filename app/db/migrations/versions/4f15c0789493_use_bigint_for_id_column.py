@@ -72,7 +72,7 @@ def _upgrade_mysql() -> None:
                 op.drop_constraint(fk['name'], table_name, type_='foreignkey')
 
     # Step 2: Alter columns to BIGINT
-    _alter_columns_to_bigint()
+    _alter_columns_to_bigint_mysql()
 
     # Step 3: Recreate FKs
     for table_name, fks in fk_info.items():
@@ -88,6 +88,65 @@ def _upgrade_mysql() -> None:
 def _upgrade_postgresql() -> None:
     """PostgreSQL: Direct column alteration (automatically cascades to FKs)"""
     _alter_columns_to_bigint()
+
+
+def _is_bigint_type(sqlalchemy_type) -> bool:
+    """Check if a reflected SQLAlchemy type is BIGINT."""
+    return "BIGINT" in str(sqlalchemy_type).upper()
+
+
+def _alter_columns_to_bigint_mysql():
+    """MySQL-optimized BIGINT conversion.
+
+    Combine changes per table to reduce table rebuilds and skip columns
+    that are already BIGINT (resume-friendly after interrupted runs).
+    """
+    bind = op.get_bind()
+    inspector = inspect(bind)
+
+    # Avoid waiting for a very long default metadata-lock timeout.
+    op.execute(sa.text("SET SESSION lock_wait_timeout = 120"))
+
+    table_specs = [
+        ('admins', [('id', False, True)]),
+        ('core_configs', [('id', False, True)]),
+        ('groups', [('id', False, True)]),
+        ('hosts', [('id', False, True)]),
+        ('inbounds', [('id', False, True)]),
+        ('user_templates', [('id', False, True)]),
+        ('settings', [('id', False, True)]),
+        ('system', [('id', False, True)]),
+        ('nodes', [('id', False, True), ('core_config_id', True, False)]),
+        ('users', [('id', False, True), ('admin_id', True, False)]),
+        ('admin_usage_logs', [('id', False, True), ('admin_id', False, False)]),
+        ('node_stats', [('id', False, True), ('node_id', False, False)]),
+        ('node_usages', [('id', False, True), ('node_id', True, False)]),
+        ('node_user_usages', [('id', False, True), ('user_id', False, False), ('node_id', True, False)]),
+        ('node_usage_reset_logs', [('id', False, True), ('node_id', False, False)]),
+        ('notification_reminders', [('id', False, True), ('user_id', False, False)]),
+        ('user_usage_logs', [('id', False, True), ('user_id', True, False)]),
+        ('user_subscription_updates', [('id', False, True), ('user_id', False, False)]),
+        ('next_plans', [('id', False, True), ('user_id', False, False), ('user_template_id', True, False)]),
+        ('inbounds_groups_association', [('inbound_id', False, False), ('group_id', False, False)]),
+        ('users_groups_association', [('user_id', False, False), ('groups_id', False, False)]),
+        ('template_group_association', [('user_template_id', True, False), ('group_id', True, False)]),
+    ]
+
+    for table_name, columns in table_specs:
+        reflected_columns = {column['name']: column for column in inspector.get_columns(table_name)}
+        alter_clauses = []
+        for column_name, nullable, autoincrement in columns:
+            reflected = reflected_columns.get(column_name)
+            if reflected and _is_bigint_type(reflected['type']):
+                continue
+
+            clause = f"MODIFY COLUMN `{column_name}` BIGINT {'NULL' if nullable else 'NOT NULL'}"
+            if autoincrement:
+                clause += " AUTO_INCREMENT"
+            alter_clauses.append(clause)
+
+        if alter_clauses:
+            op.execute(sa.text(f"ALTER TABLE `{table_name}` {', '.join(alter_clauses)}"))
 
 
 def _alter_columns_to_bigint():
