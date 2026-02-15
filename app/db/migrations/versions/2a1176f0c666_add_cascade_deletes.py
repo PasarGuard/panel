@@ -36,9 +36,61 @@ def index_exists(table_name, index_name):
     return any(idx["name"] == index_name for idx in indexes)
 
 
+def _delete_orphan_rows(child_table, child_column, parent_table, parent_column="id"):
+    """Delete child rows that reference missing parent rows."""
+    child = sa.table(child_table, sa.column(child_column))
+    parent = sa.table(parent_table, sa.column(parent_column))
+    op.execute(
+        sa.delete(child).where(
+            child.c[child_column].is_not(None),
+            ~sa.exists(
+                sa.select(1)
+                .select_from(parent)
+                .where(parent.c[parent_column] == child.c[child_column])
+            ),
+        )
+    )
+
+
+def _null_orphan_refs(child_table, child_column, parent_table, parent_column="id"):
+    """Set orphaned FK-like references to NULL for SET NULL relationships."""
+    child = sa.table(child_table, sa.column(child_column))
+    parent = sa.table(parent_table, sa.column(parent_column))
+    op.execute(
+        sa.update(child)
+        .where(
+            child.c[child_column].is_not(None),
+            ~sa.exists(
+                sa.select(1)
+                .select_from(parent)
+                .where(parent.c[parent_column] == child.c[child_column])
+            ),
+        )
+        .values({child_column: None})
+    )
+
+
+def _cleanup_orphan_references() -> None:
+    """Normalize legacy rows so FK creation does not fail on dirty datasets."""
+    _null_orphan_refs("hosts", "inbound_tag", "inbounds", parent_column="tag")
+
+    _delete_orphan_rows("next_plans", "user_id", "users")
+    _null_orphan_refs("next_plans", "user_template_id", "user_templates")
+
+    _delete_orphan_rows("node_usage_reset_logs", "node_id", "nodes")
+    _delete_orphan_rows("node_usages", "node_id", "nodes")
+    _delete_orphan_rows("node_user_usages", "node_id", "nodes")
+    _delete_orphan_rows("node_user_usages", "user_id", "users")
+
+    _delete_orphan_rows("notification_reminders", "user_id", "users")
+    _delete_orphan_rows("user_subscription_updates", "user_id", "users")
+    _delete_orphan_rows("user_usage_logs", "user_id", "users")
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name
+    _cleanup_orphan_references()
     
     # SQLite needs batch operations, MySQL/PostgreSQL use direct operations
     if dialect_name == 'sqlite':
