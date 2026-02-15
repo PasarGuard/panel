@@ -192,8 +192,8 @@ class SingBoxConfiguration(BaseSubscription):
             if isinstance(tls_config.sni, str)
             else (tls_config.sni[0] if tls_config.sni else None),
             "insecure": tls_config.allowinsecure,
-            "certificate_public_key_sha256": [tls_config.pinnedPeerCertSha256]
-            if tls_config.pinnedPeerCertSha256
+            "certificate_public_key_sha256": [tls_config.pinned_peer_cert_sha256]
+            if tls_config.pinned_peer_cert_sha256
             else [],
             "utls": {
                 "enabled": bool(tls_config.fingerprint) or tls_config.tls == "reality",
