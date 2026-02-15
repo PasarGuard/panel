@@ -33,7 +33,7 @@ user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
 
 async def reset_user_by_next_report(db: AsyncSession, db_user: User):
     db_user = await reset_user_by_next(db, db_user)
-    user = await user_operator.update_user(db_user)
+    user = await user_operator.update_user(db, db_user)
 
     asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
 
@@ -41,7 +41,7 @@ async def reset_user_by_next_report(db: AsyncSession, db_user: User):
 
 
 async def change_status(db: AsyncSession, db_user: User, status: UserStatus):
-    user = await user_operator.update_user(db_user)
+    user = await user_operator.update_user(db, db_user)
     asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
 
     logger.info(f'User "{user.username}" status changed to {status.value}')
