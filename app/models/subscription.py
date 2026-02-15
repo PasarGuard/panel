@@ -19,7 +19,8 @@ class TLSConfig(BaseModel):
     allowinsecure: bool = Field(False)
     alpn_list: list[str] = Field(default_factory=list)
     ech_config_list: str | None = Field(None)
-    pinnedPeerCertSha256: str | None = Field(default=None)
+    pinned_peer_cert_sha256: str | None = Field(default=None)
+    verify_peer_cert_by_name: list[str] | None = Field(default_factory=list)
 
     # Reality specific
     reality_public_key: str = Field("")

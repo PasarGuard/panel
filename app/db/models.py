@@ -11,10 +11,10 @@ from sqlalchemy import (
     Enum as SQLEnum,
     Float,
     ForeignKey,
+    Index,
     String,
     Table,
     UniqueConstraint,
-    Index,
     and_,
     case,
     event,
@@ -322,7 +322,7 @@ class NextPlan(Base):
         # Add if you frequently query by template
         Index("ix_next_plans_user_template_id", "user_template_id"),
     )
-    
+
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     user_template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_templates.id", ondelete="SET NULL"))
@@ -373,7 +373,7 @@ class UserUsageResetLogs(Base):
         # Index for user-specific queries sorted by time
         Index("ix_user_usage_logs_user_id_reset_at", "user_id", "reset_at"),
     )
-    
+
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     user: Mapped["User"] = relationship(back_populates="usage_logs", init=False)
@@ -474,7 +474,10 @@ class ProxyHost(Base):
     )
     ech_config_list: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     vless_route: Mapped[Optional[str]] = mapped_column(String(4), default=None)
-    pinnedPeerCertSha256: Mapped[Optional[str]] = mapped_column(String(128), default=None)
+    pinned_peer_cert_sha256: Mapped[Optional[str]] = mapped_column(String(128), default=None)
+    verify_peer_cert_by_name: Mapped[Optional[set[str]]] = mapped_column(
+        StringArray(1000), default_factory=set, unique=False, nullable=True
+    )
 
 
 class System(Base):
@@ -610,13 +613,17 @@ class NodeUserUsage(Base):
     __table_args__ = (
         UniqueConstraint("created_at", "user_id", "node_id"),
         # Indexes for common queries
-        Index("ix_node_user_usages_user_id_created_at", "user_id", "created_at"),  # User-specific queries with time range
-        Index("ix_node_user_usages_node_id_created_at", "node_id", "created_at"),  # Node-specific queries with time range
+        Index(
+            "ix_node_user_usages_user_id_created_at", "user_id", "created_at"
+        ),  # User-specific queries with time range
+        Index(
+            "ix_node_user_usages_node_id_created_at", "node_id", "created_at"
+        ),  # Node-specific queries with time range
         Index("ix_node_user_usages_created_at", "created_at"),  # Time-based cleanup/aggregation
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False) # 10 minute per record
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     user: Mapped["User"] = relationship(back_populates="node_usages", init=False)
     node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
@@ -634,7 +641,7 @@ class NodeUsage(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False) # 10 minute per record
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
     node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
     node: Mapped["Node"] = relationship(back_populates="usages", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)

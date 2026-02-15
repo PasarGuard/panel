@@ -69,7 +69,8 @@ async def _prepare_subscription_inbound_data(
     if tls_value is None:
         tls_value = inbound_config.get("tls", "none")
 
-    pinnedPeerCertSha256 = host.pinnedPeerCertSha256
+    pinned_peer_cert_sha256 = host.pinned_peer_cert_sha256
+    verify_peer_cert_by_name = host.verify_peer_cert_by_name
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
     fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
     fp = fp or ("chrome" if tls_value == "reality" else "")
@@ -82,7 +83,8 @@ async def _prepare_subscription_inbound_data(
         sni=sni_list,
         fingerprint=fp,
         allowinsecure=ais,
-        pinnedPeerCertSha256=pinnedPeerCertSha256,
+        pinned_peer_cert_sha256=pinned_peer_cert_sha256,
+        verify_peer_cert_by_name=verify_peer_cert_by_name,
         alpn_list=alpn_list,
         ech_config_list=host.ech_config_list,
         reality_public_key=reality_pbk,

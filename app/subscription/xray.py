@@ -261,27 +261,23 @@ class XrayConfiguration(BaseSubscription):
         """Handle QUIC transport - only gets QUIC config"""
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
-        return self._normalize_and_remove_none_values(
-            {
-                "security": host,
-                "header": {"type": config.header_type},
-                "key": path,
-            }
-        )
+        return self._normalize_and_remove_none_values({
+            "security": host,
+            "header": {"type": config.header_type},
+            "key": path,
+        })
 
     def _transport_kcp(self, config: KCPTransportConfig, path: str) -> dict:
         """Handle KCP transport - only gets KCP config"""
-        return self._normalize_and_remove_none_values(
-            {
-                "mtu": config.mtu if config.mtu is not None else 1350,
-                "tti": config.tti if config.tti is not None else 50,
-                "uplinkCapacity": config.uplink_capacity if config.uplink_capacity is not None else 5,
-                "downlinkCapacity": config.downlink_capacity if config.downlink_capacity is not None else 20,
-                "congestion": config.congestion,
-                "readBufferSize": config.read_buffer_size if config.read_buffer_size is not None else 2,
-                "writeBufferSize": config.write_buffer_size if config.write_buffer_size is not None else 2,
-            }
-        )
+        return self._normalize_and_remove_none_values({
+            "mtu": config.mtu if config.mtu is not None else 1350,
+            "tti": config.tti if config.tti is not None else 50,
+            "uplinkCapacity": config.uplink_capacity if config.uplink_capacity is not None else 5,
+            "downlinkCapacity": config.downlink_capacity if config.downlink_capacity is not None else 20,
+            "congestion": config.congestion,
+            "readBufferSize": config.read_buffer_size if config.read_buffer_size is not None else 2,
+            "writeBufferSize": config.write_buffer_size if config.write_buffer_size is not None else 2,
+        })
 
     def _apply_transport(self, network: str, inbound: SubscriptionInboundData, path: str) -> dict | None:
         """Apply transport settings using registry pattern"""
@@ -297,17 +293,15 @@ class XrayConfiguration(BaseSubscription):
         sni = tls_config.sni if isinstance(tls_config.sni, str) else (tls_config.sni[0] if tls_config.sni else None)
 
         if security == "reality":
-            return self._normalize_and_remove_none_values(
-                {
-                    "serverName": sni,
-                    "fingerprint": tls_config.fingerprint,
-                    "show": False,
-                    "publicKey": tls_config.reality_public_key,
-                    "shortId": tls_config.reality_short_id,
-                    "spiderX": tls_config.reality_spx,
-                    "mldsa65Verify": tls_config.mldsa65_verify,
-                }
-            )
+            return self._normalize_and_remove_none_values({
+                "serverName": sni,
+                "fingerprint": tls_config.fingerprint,
+                "show": False,
+                "publicKey": tls_config.reality_public_key,
+                "shortId": tls_config.reality_short_id,
+                "spiderX": tls_config.reality_spx,
+                "mldsa65Verify": tls_config.mldsa65_verify,
+            })
         else:  # tls
             config = {
                 "serverName": sni,
@@ -315,7 +309,10 @@ class XrayConfiguration(BaseSubscription):
                 "show": False,
                 "fingerprint": tls_config.fingerprint,
                 "echConfigList": tls_config.ech_config_list,
-                "pinnedPeerCertSha256": tls_config.pinnedPeerCertSha256,
+                "pinnedPeerCertSha256": tls_config.pinned_peer_cert_sha256,
+                "verifyPeerCertByName": tls_config.verify_peer_cert_by_name.join(",")
+                if tls_config.verify_peer_cert_by_name
+                else "",
             }
             if tls_config.alpn_list:
                 config["alpn"] = tls_config.alpn_list  # Use list for xray
@@ -372,13 +369,11 @@ class XrayConfiguration(BaseSubscription):
             sockopt=sockopt,
         )
 
-        return self._normalize_and_remove_none_values(
-            {
-                "address": download_settings.address,
-                "port": self._select_port(download_settings.port),
-                **stream_settings,
-            }
-        )
+        return self._normalize_and_remove_none_values({
+            "address": download_settings.address,
+            "port": self._select_port(download_settings.port),
+            **stream_settings,
+        })
 
     # ========== Protocol Builders (Registry Methods) ==========
 

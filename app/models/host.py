@@ -238,7 +238,8 @@ class BaseHost(BaseModel):
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
     ech_config_list: str | None = Field(default=None)
-    pinnedPeerCertSha256: str | None = Field(default=None)
+    pinned_peer_cert_sha256: str | None = Field(default=None)
+    verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
 
     model_config = ConfigDict(from_attributes=True)
 
