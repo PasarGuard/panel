@@ -28,18 +28,28 @@ def get_fk_name(table_name, column_names):
     return None
 
 
-def get_index_name(table_name, column_names):
-    """Dynamically find the index name for a given table and column(s)"""
+def index_exists(table_name, index_name):
+    """Check if an index exists"""
     bind = op.get_bind()
     inspector = inspect(bind)
     indexes = inspector.get_indexes(table_name)
-    for idx in indexes:
-        if set(idx["column_names"]) == set(column_names):
-            return idx["name"]
-    return None
+    return any(idx["name"] == index_name for idx in indexes)
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name
+    
+    # SQLite needs batch operations, MySQL/PostgreSQL use direct operations
+    if dialect_name == 'sqlite':
+        _upgrade_sqlite()
+    else:
+        _upgrade_mysql_postgres()
+
+
+def _upgrade_sqlite() -> None:
+    """SQLite-specific upgrade using batch_alter_table"""
+    
     # --- hosts ---
     fk_hosts = get_fk_name("hosts", ["inbound_tag"])
     with op.batch_alter_table("hosts", schema=None) as batch_op:
@@ -57,11 +67,9 @@ def upgrade() -> None:
     # --- next_plans ---
     fk_np_temp = get_fk_name("next_plans", ["user_template_id"])
     fk_np_user = get_fk_name("next_plans", ["user_id"])
-    idx_np_temp = get_index_name("next_plans", ["user_template_id"])
     with op.batch_alter_table("next_plans", schema=None) as batch_op:
-        if idx_np_temp:
-            batch_op.drop_index(idx_np_temp, if_exists=True)
-        batch_op.create_index("ix_next_plans_user_template_id", ["user_template_id"], unique=False)
+        if not index_exists("next_plans", "ix_next_plans_user_template_id"):
+            batch_op.create_index("ix_next_plans_user_template_id", ["user_template_id"], unique=False)
         if fk_np_temp:
             batch_op.drop_constraint(fk_np_temp, type_="foreignkey")
         if fk_np_user:
@@ -77,11 +85,9 @@ def upgrade() -> None:
 
     # --- node_usage_reset_logs ---
     fk_nurl = get_fk_name("node_usage_reset_logs", ["node_id"])
-    idx_nurl = get_index_name("node_usage_reset_logs", ["node_id", "created_at"])
     with op.batch_alter_table("node_usage_reset_logs", schema=None) as batch_op:
-        if idx_nurl:
-            batch_op.drop_index(idx_nurl, if_exists=True)
-        batch_op.create_index("ix_node_usage_reset_logs_node_id_created_at", ["node_id", "created_at"], unique=False)
+        if not index_exists("node_usage_reset_logs", "ix_node_usage_reset_logs_node_id_created_at"):
+            batch_op.create_index("ix_node_usage_reset_logs_node_id_created_at", ["node_id", "created_at"], unique=False)
         if fk_nurl:
             batch_op.drop_constraint(fk_nurl, type_="foreignkey")
         batch_op.create_foreign_key(
@@ -90,11 +96,9 @@ def upgrade() -> None:
 
     # --- node_usages ---
     fk_nu = get_fk_name("node_usages", ["node_id"])
-    idx_nu = get_index_name("node_usages", ["created_at"])
     with op.batch_alter_table("node_usages", schema=None) as batch_op:
-        if idx_nu:
-            batch_op.drop_index(idx_nu, if_exists=True)
-        batch_op.create_index("ix_node_usages_created_at", ["created_at"], unique=False)
+        if not index_exists("node_usages", "ix_node_usages_created_at"):
+            batch_op.create_index("ix_node_usages_created_at", ["created_at"], unique=False)
         if fk_nu:
             batch_op.drop_constraint(fk_nu, type_="foreignkey")
         batch_op.create_foreign_key("fk_node_usages_node_id_nodes", "nodes", ["node_id"], ["id"], ondelete="CASCADE")
@@ -102,19 +106,13 @@ def upgrade() -> None:
     # --- node_user_usages ---
     fk_nuu_node = get_fk_name("node_user_usages", ["node_id"])
     fk_nuu_user = get_fk_name("node_user_usages", ["user_id"])
-    idx_nuu_1 = get_index_name("node_user_usages", ["created_at"])
-    idx_nuu_2 = get_index_name("node_user_usages", ["node_id", "created_at"])
-    idx_nuu_3 = get_index_name("node_user_usages", ["user_id", "created_at"])
     with op.batch_alter_table("node_user_usages", schema=None) as batch_op:
-        if idx_nuu_1:
-            batch_op.drop_index(idx_nuu_1, if_exists=True)
-        if idx_nuu_2:
-            batch_op.drop_index(idx_nuu_2, if_exists=True)
-        if idx_nuu_3:
-            batch_op.drop_index(idx_nuu_3, if_exists=True)
-        batch_op.create_index("ix_node_user_usages_created_at", ["created_at"], unique=False)
-        batch_op.create_index("ix_node_user_usages_node_id_created_at", ["node_id", "created_at"], unique=False)
-        batch_op.create_index("ix_node_user_usages_user_id_created_at", ["user_id", "created_at"], unique=False)
+        if not index_exists("node_user_usages", "ix_node_user_usages_created_at"):
+            batch_op.create_index("ix_node_user_usages_created_at", ["created_at"], unique=False)
+        if not index_exists("node_user_usages", "ix_node_user_usages_node_id_created_at"):
+            batch_op.create_index("ix_node_user_usages_node_id_created_at", ["node_id", "created_at"], unique=False)
+        if not index_exists("node_user_usages", "ix_node_user_usages_user_id_created_at"):
+            batch_op.create_index("ix_node_user_usages_user_id_created_at", ["user_id", "created_at"], unique=False)
         if fk_nuu_node:
             batch_op.drop_constraint(fk_nuu_node, type_="foreignkey")
         if fk_nuu_user:
@@ -146,11 +144,9 @@ def upgrade() -> None:
 
     # --- user_usage_logs ---
     fk_uul = get_fk_name("user_usage_logs", ["user_id"])
-    idx_uul = get_index_name("user_usage_logs", ["user_id", "reset_at"])
     with op.batch_alter_table("user_usage_logs", schema=None) as batch_op:
-        if idx_uul:
-            batch_op.drop_index(idx_uul, if_exists=True)
-        batch_op.create_index("ix_user_usage_logs_user_id_reset_at", ["user_id", "reset_at"], unique=False)
+        if not index_exists("user_usage_logs", "ix_user_usage_logs_user_id_reset_at"):
+            batch_op.create_index("ix_user_usage_logs_user_id_reset_at", ["user_id", "reset_at"], unique=False)
         if fk_uul:
             batch_op.drop_constraint(fk_uul, type_="foreignkey")
         batch_op.create_foreign_key(
@@ -158,12 +154,130 @@ def upgrade() -> None:
         )
 
 
+def _upgrade_mysql_postgres() -> None:
+    """MySQL/PostgreSQL upgrade using direct operations"""
+    
+    # --- hosts ---
+    fk_hosts = get_fk_name("hosts", ["inbound_tag"])
+    if fk_hosts:
+        op.drop_constraint(fk_hosts, "hosts", type_="foreignkey")
+    op.create_foreign_key(
+        "fk_hosts_inbound_tag_inbounds",
+        "hosts",
+        "inbounds",
+        ["inbound_tag"],
+        ["tag"],
+        onupdate="CASCADE",
+        ondelete="SET NULL",
+    )
+
+    # --- next_plans ---
+    if not index_exists("next_plans", "ix_next_plans_user_template_id"):
+        op.create_index("ix_next_plans_user_template_id", "next_plans", ["user_template_id"], unique=False)
+    
+    fk_np_temp = get_fk_name("next_plans", ["user_template_id"])
+    fk_np_user = get_fk_name("next_plans", ["user_id"])
+    if fk_np_temp:
+        op.drop_constraint(fk_np_temp, "next_plans", type_="foreignkey")
+    if fk_np_user:
+        op.drop_constraint(fk_np_user, "next_plans", type_="foreignkey")
+    op.create_foreign_key("fk_next_plans_user_id_users", "next_plans", "users", ["user_id"], ["id"], ondelete="CASCADE")
+    op.create_foreign_key(
+        "fk_next_plans_user_template_id_user_templates",
+        "next_plans",
+        "user_templates",
+        ["user_template_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+
+    # --- node_usage_reset_logs ---
+    if not index_exists("node_usage_reset_logs", "ix_node_usage_reset_logs_node_id_created_at"):
+        op.create_index("ix_node_usage_reset_logs_node_id_created_at", "node_usage_reset_logs", ["node_id", "created_at"], unique=False)
+    
+    fk_nurl = get_fk_name("node_usage_reset_logs", ["node_id"])
+    if fk_nurl:
+        op.drop_constraint(fk_nurl, "node_usage_reset_logs", type_="foreignkey")
+    op.create_foreign_key(
+        "fk_node_usage_reset_logs_node_id_nodes", "node_usage_reset_logs", "nodes", ["node_id"], ["id"], ondelete="CASCADE"
+    )
+
+    # --- node_usages ---
+    if not index_exists("node_usages", "ix_node_usages_created_at"):
+        op.create_index("ix_node_usages_created_at", "node_usages", ["created_at"], unique=False)
+    
+    fk_nu = get_fk_name("node_usages", ["node_id"])
+    if fk_nu:
+        op.drop_constraint(fk_nu, "node_usages", type_="foreignkey")
+    op.create_foreign_key("fk_node_usages_node_id_nodes", "node_usages", "nodes", ["node_id"], ["id"], ondelete="CASCADE")
+
+    # --- node_user_usages ---
+    if not index_exists("node_user_usages", "ix_node_user_usages_created_at"):
+        op.create_index("ix_node_user_usages_created_at", "node_user_usages", ["created_at"], unique=False)
+    if not index_exists("node_user_usages", "ix_node_user_usages_node_id_created_at"):
+        op.create_index("ix_node_user_usages_node_id_created_at", "node_user_usages", ["node_id", "created_at"], unique=False)
+    if not index_exists("node_user_usages", "ix_node_user_usages_user_id_created_at"):
+        op.create_index("ix_node_user_usages_user_id_created_at", "node_user_usages", ["user_id", "created_at"], unique=False)
+    
+    fk_nuu_node = get_fk_name("node_user_usages", ["node_id"])
+    fk_nuu_user = get_fk_name("node_user_usages", ["user_id"])
+    if fk_nuu_node:
+        op.drop_constraint(fk_nuu_node, "node_user_usages", type_="foreignkey")
+    if fk_nuu_user:
+        op.drop_constraint(fk_nuu_user, "node_user_usages", type_="foreignkey")
+    op.create_foreign_key(
+        "fk_node_user_usages_node_id_nodes", "node_user_usages", "nodes", ["node_id"], ["id"], ondelete="CASCADE"
+    )
+    op.create_foreign_key(
+        "fk_node_user_usages_user_id_users", "node_user_usages", "users", ["user_id"], ["id"], ondelete="CASCADE"
+    )
+
+    # --- notification_reminders ---
+    fk_nr = get_fk_name("notification_reminders", ["user_id"])
+    if fk_nr:
+        op.drop_constraint(fk_nr, "notification_reminders", type_="foreignkey")
+    op.create_foreign_key(
+        "fk_notification_reminders_user_id_users", "notification_reminders", "users", ["user_id"], ["id"], ondelete="CASCADE"
+    )
+
+    # --- user_subscription_updates ---
+    fk_usu = get_fk_name("user_subscription_updates", ["user_id"])
+    if fk_usu:
+        op.drop_constraint(fk_usu, "user_subscription_updates", type_="foreignkey")
+    op.create_foreign_key(
+        "fk_user_subscription_updates_user_id_users", "user_subscription_updates", "users", ["user_id"], ["id"], ondelete="CASCADE"
+    )
+
+    # --- user_usage_logs ---
+    if not index_exists("user_usage_logs", "ix_user_usage_logs_user_id_reset_at"):
+        op.create_index("ix_user_usage_logs_user_id_reset_at", "user_usage_logs", ["user_id", "reset_at"], unique=False)
+    
+    fk_uul = get_fk_name("user_usage_logs", ["user_id"])
+    if fk_uul:
+        op.drop_constraint(fk_uul, "user_usage_logs", type_="foreignkey")
+    op.create_foreign_key(
+        "fk_user_usage_logs_user_id_users", "user_usage_logs", "users", ["user_id"], ["id"], ondelete="CASCADE"
+    )
+
+
 def downgrade() -> None:
-    # During downgrade, we drop the names WE created in upgrade and restore standard FKs
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name
+    
+    if dialect_name == 'sqlite':
+        _downgrade_sqlite()
+    else:
+        _downgrade_mysql_postgres()
+
+
+def _downgrade_sqlite() -> None:
+    """SQLite-specific downgrade"""
+    
     with op.batch_alter_table("user_usage_logs", schema=None) as batch_op:
         batch_op.drop_constraint("fk_user_usage_logs_user_id_users", type_="foreignkey")
         batch_op.create_foreign_key(None, "users", ["user_id"], ["id"])
-        batch_op.drop_index("ix_user_usage_logs_user_id_reset_at")
+        if index_exists("user_usage_logs", "ix_user_usage_logs_user_id_reset_at"):
+            batch_op.drop_index("ix_user_usage_logs_user_id_reset_at")
 
     with op.batch_alter_table("user_subscription_updates", schema=None) as batch_op:
         batch_op.drop_constraint("fk_user_subscription_updates_user_id_users", type_="foreignkey")
@@ -178,27 +292,79 @@ def downgrade() -> None:
         batch_op.drop_constraint("fk_node_user_usages_node_id_nodes", type_="foreignkey")
         batch_op.create_foreign_key(None, "users", ["user_id"], ["id"])
         batch_op.create_foreign_key(None, "nodes", ["node_id"], ["id"])
-        batch_op.drop_index("ix_node_user_usages_user_id_created_at")
-        batch_op.drop_index("ix_node_user_usages_node_id_created_at")
-        batch_op.drop_index("ix_node_user_usages_created_at")
+        if index_exists("node_user_usages", "ix_node_user_usages_user_id_created_at"):
+            batch_op.drop_index("ix_node_user_usages_user_id_created_at")
+        if index_exists("node_user_usages", "ix_node_user_usages_node_id_created_at"):
+            batch_op.drop_index("ix_node_user_usages_node_id_created_at")
+        if index_exists("node_user_usages", "ix_node_user_usages_created_at"):
+            batch_op.drop_index("ix_node_user_usages_created_at")
 
     with op.batch_alter_table("node_usages", schema=None) as batch_op:
         batch_op.drop_constraint("fk_node_usages_node_id_nodes", type_="foreignkey")
         batch_op.create_foreign_key(None, "nodes", ["node_id"], ["id"])
-        batch_op.drop_index("ix_node_usages_created_at")
+        if index_exists("node_usages", "ix_node_usages_created_at"):
+            batch_op.drop_index("ix_node_usages_created_at")
 
     with op.batch_alter_table("node_usage_reset_logs", schema=None) as batch_op:
         batch_op.drop_constraint("fk_node_usage_reset_logs_node_id_nodes", type_="foreignkey")
         batch_op.create_foreign_key(None, "nodes", ["node_id"], ["id"])
-        batch_op.drop_index("ix_node_usage_reset_logs_node_id_created_at")
+        if index_exists("node_usage_reset_logs", "ix_node_usage_reset_logs_node_id_created_at"):
+            batch_op.drop_index("ix_node_usage_reset_logs_node_id_created_at")
 
     with op.batch_alter_table("next_plans", schema=None) as batch_op:
         batch_op.drop_constraint("fk_next_plans_user_template_id_user_templates", type_="foreignkey")
         batch_op.drop_constraint("fk_next_plans_user_id_users", type_="foreignkey")
         batch_op.create_foreign_key(None, "users", ["user_id"], ["id"])
         batch_op.create_foreign_key(None, "user_templates", ["user_template_id"], ["id"])
-        batch_op.drop_index("ix_next_plans_user_template_id")
+        if index_exists("next_plans", "ix_next_plans_user_template_id"):
+            batch_op.drop_index("ix_next_plans_user_template_id")
 
     with op.batch_alter_table("hosts", schema=None) as batch_op:
         batch_op.drop_constraint("fk_hosts_inbound_tag_inbounds", type_="foreignkey")
         batch_op.create_foreign_key(None, "inbounds", ["inbound_tag"], ["tag"])
+
+
+def _downgrade_mysql_postgres() -> None:
+    """MySQL/PostgreSQL downgrade"""
+    
+    op.drop_constraint("fk_user_usage_logs_user_id_users", "user_usage_logs", type_="foreignkey")
+    op.create_foreign_key(None, "user_usage_logs", "users", ["user_id"], ["id"])
+    if index_exists("user_usage_logs", "ix_user_usage_logs_user_id_reset_at"):
+        op.drop_index("ix_user_usage_logs_user_id_reset_at", "user_usage_logs")
+
+    op.drop_constraint("fk_user_subscription_updates_user_id_users", "user_subscription_updates", type_="foreignkey")
+    op.create_foreign_key(None, "user_subscription_updates", "users", ["user_id"], ["id"])
+
+    op.drop_constraint("fk_notification_reminders_user_id_users", "notification_reminders", type_="foreignkey")
+    op.create_foreign_key(None, "notification_reminders", "users", ["user_id"], ["id"])
+
+    op.drop_constraint("fk_node_user_usages_user_id_users", "node_user_usages", type_="foreignkey")
+    op.drop_constraint("fk_node_user_usages_node_id_nodes", "node_user_usages", type_="foreignkey")
+    op.create_foreign_key(None, "node_user_usages", "users", ["user_id"], ["id"])
+    op.create_foreign_key(None, "node_user_usages", "nodes", ["node_id"], ["id"])
+    if index_exists("node_user_usages", "ix_node_user_usages_user_id_created_at"):
+        op.drop_index("ix_node_user_usages_user_id_created_at", "node_user_usages")
+    if index_exists("node_user_usages", "ix_node_user_usages_node_id_created_at"):
+        op.drop_index("ix_node_user_usages_node_id_created_at", "node_user_usages")
+    if index_exists("node_user_usages", "ix_node_user_usages_created_at"):
+        op.drop_index("ix_node_user_usages_created_at", "node_user_usages")
+
+    op.drop_constraint("fk_node_usages_node_id_nodes", "node_usages", type_="foreignkey")
+    op.create_foreign_key(None, "node_usages", "nodes", ["node_id"], ["id"])
+    if index_exists("node_usages", "ix_node_usages_created_at"):
+        op.drop_index("ix_node_usages_created_at", "node_usages")
+
+    op.drop_constraint("fk_node_usage_reset_logs_node_id_nodes", "node_usage_reset_logs", type_="foreignkey")
+    op.create_foreign_key(None, "node_usage_reset_logs", "nodes", ["node_id"], ["id"])
+    if index_exists("node_usage_reset_logs", "ix_node_usage_reset_logs_node_id_created_at"):
+        op.drop_index("ix_node_usage_reset_logs_node_id_created_at", "node_usage_reset_logs")
+
+    op.drop_constraint("fk_next_plans_user_template_id_user_templates", "next_plans", type_="foreignkey")
+    op.drop_constraint("fk_next_plans_user_id_users", "next_plans", type_="foreignkey")
+    op.create_foreign_key(None, "next_plans", "users", ["user_id"], ["id"])
+    op.create_foreign_key(None, "next_plans", "user_templates", ["user_template_id"], ["id"])
+    if index_exists("next_plans", "ix_next_plans_user_template_id"):
+        op.drop_index("ix_next_plans_user_template_id", "next_plans")
+
+    op.drop_constraint("fk_hosts_inbound_tag_inbounds", "hosts", type_="foreignkey")
+    op.create_foreign_key(None, "hosts", "inbounds", ["inbound_tag"], ["tag"])
