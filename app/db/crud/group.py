@@ -1,6 +1,7 @@
 from enum import Enum
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import ProxyInbound, Group
 from app.models.group import GroupCreate, GroupModify
@@ -187,12 +188,23 @@ async def get_groups_by_ids(
     Returns:
         list[Group]: A list of Group objects.
     """
-    groups = (await db.execute(select(Group).where(Group.id.in_(group_ids)))).scalars().all()
+    if not group_ids:
+        return []
 
-    for group in groups:
-        await load_group_attrs(group, load_users=load_users, load_inbounds=load_inbounds)
+    stmt = select(Group).where(Group.id.in_(group_ids))
+    options = []
+    if load_users:
+        options.append(selectinload(Group.users))
+    if load_inbounds:
+        options.append(selectinload(Group.inbounds))
+    if options:
+        stmt = stmt.options(*options)
 
-    return groups
+    groups = (await db.execute(stmt)).unique().scalars().all()
+    groups_by_id = {group.id: group for group in groups}
+
+    # Preserve input order and duplicate semantics.
+    return [groups_by_id[group_id] for group_id in group_ids if group_id in groups_by_id]
 
 
 async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupModify) -> Group:

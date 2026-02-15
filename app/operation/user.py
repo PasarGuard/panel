@@ -278,15 +278,16 @@ class UserOperation(BaseOperation):
     async def _modify_user(
         self, db: AsyncSession, db_user: User, modified_user: UserModify, admin: AdminDetails
     ) -> UserResponse:
+        validated_groups = None
         if modified_user.group_ids:
-            await self.validate_all_groups(db, modified_user)
+            validated_groups = await self.validate_all_groups(db, modified_user)
 
         if modified_user.next_plan is not None and modified_user.next_plan.user_template_id is not None:
             await self.get_validated_user_template(db, modified_user.next_plan.user_template_id)
 
         old_status = db_user.status
 
-        db_user = await modify_user(db, db_user, modified_user)
+        db_user = await modify_user(db, db_user, modified_user, groups=validated_groups)
         user = await self.update_user(db, db_user, include_lifetime_used_traffic=False)
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
@@ -310,7 +311,7 @@ class UserOperation(BaseOperation):
     async def remove_user(self, db: AsyncSession, username: str, admin: AdminDetails):
         db_user = await self.get_validated_user(db, username, admin, load_next_plan=False, load_groups=False)
 
-        user = await self.validate_user(db, db_user, include_lifetime_used_traffic=False)
+        user = await self.validate_user(db, db_user, include_subscription_url=False, include_lifetime_used_traffic=False)
         await remove_user(db, db_user)
         if self._is_non_blocking_sync_operator(self.operator_type):
             schedule_sync_task(sync_remove_user(user))

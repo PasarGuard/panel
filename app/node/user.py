@@ -6,11 +6,33 @@ from app.db import AsyncSession
 from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
 
 
+def _inbounds_from_loaded_groups(user: User) -> list[str] | None:
+    loaded_groups = user.__dict__.get("groups")
+    if loaded_groups is None:
+        return None
+
+    tags: set[str] = set()
+    for group in loaded_groups:
+        if group.is_disabled:
+            continue
+
+        loaded_inbounds = group.__dict__.get("inbounds")
+        if loaded_inbounds is None:
+            return None
+
+        for inbound in loaded_inbounds:
+            tags.add(inbound.tag)
+
+    return list(tags)
+
+
 async def serialize_user(user: User) -> ProtoUser:
     user_settings = user.proxy_settings
     inbounds = None
     if user.status in (UserStatus.active, UserStatus.on_hold):
-        inbounds = await user.inbounds()
+        inbounds = _inbounds_from_loaded_groups(user)
+        if inbounds is None:
+            inbounds = await user.inbounds()
 
     return _serialize_user_for_node(user.id, user.username, user_settings, inbounds)
 
@@ -82,7 +104,11 @@ async def serialize_users_for_node(users: list[User]) -> list[ProtoUser]:
     for user in users:
         inbounds_list = []
         if user.status in [UserStatus.active, UserStatus.on_hold]:
-            inbounds_list = await user.inbounds()
+            loaded_inbounds = _inbounds_from_loaded_groups(user)
+            if loaded_inbounds is None:
+                inbounds_list = await user.inbounds()
+            else:
+                inbounds_list = loaded_inbounds
 
         bridge_users.append(_serialize_user_for_node(user.id, user.username, user.proxy_settings, inbounds_list))
 

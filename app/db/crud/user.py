@@ -750,7 +750,13 @@ async def remove_users(db: AsyncSession, db_users: list[User]):
     await db.commit()
 
 
-async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> User:
+async def modify_user(
+    db: AsyncSession,
+    db_user: User,
+    modify: UserModify,
+    *,
+    groups: list[Group] | None = None,
+) -> User:
     """
     Modify a user's information.
 
@@ -768,7 +774,7 @@ async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> Us
     if modify.proxy_settings is not None:
         db_user.proxy_settings = modify.proxy_settings.dict()
     if modify.group_ids:
-        db_user.groups = await get_groups_by_ids(db, modify.group_ids)
+        db_user.groups = groups or await get_groups_by_ids(db, modify.group_ids, load_users=False, load_inbounds=True)
 
     if modify.status is not None:
         db_user.status = modify.status
