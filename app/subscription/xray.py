@@ -310,7 +310,7 @@ class XrayConfiguration(BaseSubscription):
                 "fingerprint": tls_config.fingerprint,
                 "echConfigList": tls_config.ech_config_list,
                 "pinnedPeerCertSha256": tls_config.pinned_peer_cert_sha256,
-                "verifyPeerCertByName": tls_config.verify_peer_cert_by_name.join(",")
+                "verifyPeerCertByName": ",".join(tls_config.verify_peer_cert_by_name)
                 if tls_config.verify_peer_cert_by_name
                 else "",
             }

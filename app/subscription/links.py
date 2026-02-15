@@ -174,7 +174,7 @@ class StandardLinks(BaseSubscription):
         payload["sni"] = sni
         payload["fp"] = tls_config.fingerprint
         payload["pcs"] = tls_config.pinned_peer_cert_sha256
-        payload["vcn"] = tls_config.verify_peer_cert_by_name.join(",") if tls_config.verify_peer_cert_by_name else ""
+        payload["vcn"] = ",".join(tls_config.verify_peer_cert_by_name) if tls_config.verify_peer_cert_by_name else ""
 
         # Use pre-formatted alpn for links (comma-separated string)
         if tls_config.alpn_links:
