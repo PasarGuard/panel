@@ -113,7 +113,7 @@ async def shutdown_queue(queue: NotificationQueue):
 
 
 async def shutdown_webhook_queue():
-    await shutdown_queues(webhook_queue_instance)
+    await shutdown_queue(webhook_queue_instance)
 
 
 async def shutdown_queues():
