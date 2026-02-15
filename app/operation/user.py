@@ -63,13 +63,13 @@ from app.models.user import (
     UserSubscriptionUpdateList,
 )
 from app.node.sync import remove_user as sync_remove_user
-from app.node.sync import schedule_sync_task, sync_proto_user, sync_proto_users, sync_user, sync_user_by_id, sync_users
+from app.node.sync import schedule_sync_task, sync_proto_user, sync_proto_users, sync_user, sync_users
 from app.node.user import serialize_user, serialize_users_for_node
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from config import ROLE, SUBSCRIPTION_PATH
+from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
 
@@ -242,11 +242,8 @@ class UserOperation(BaseOperation):
         include_lifetime_used_traffic: bool = True,
     ) -> UserNotificationResponse:
         if self._is_non_blocking_sync_operator(self.operator_type):
-            if ROLE.runs_node:
-                proto_user = await serialize_user(db_user)
-                schedule_sync_task(sync_proto_user(proto_user))
-            else:
-                schedule_sync_task(sync_user_by_id(db_user.id))
+            proto_user = await serialize_user(db_user)
+            schedule_sync_task(sync_proto_user(proto_user))
         else:
             await sync_user(db_user)
 
@@ -313,12 +310,7 @@ class UserOperation(BaseOperation):
     async def remove_user(self, db: AsyncSession, username: str, admin: AdminDetails):
         db_user = await self.get_validated_user(db, username, admin, load_next_plan=False, load_groups=False)
 
-        user = await self.validate_user(
-            db,
-            db_user,
-            include_subscription_url=False,
-            include_lifetime_used_traffic=False,
-        )
+        user = await self.validate_user(db, db_user, include_lifetime_used_traffic=False)
         await remove_user(db, db_user)
         if self._is_non_blocking_sync_operator(self.operator_type):
             schedule_sync_task(sync_remove_user(user))
