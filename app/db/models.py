@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Table,
     UniqueConstraint,
+    Index,
     and_,
     case,
     event,
@@ -300,7 +301,7 @@ class UserSubscriptionUpdate(Base):
     __tablename__ = "user_subscription_updates"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
@@ -316,10 +317,15 @@ template_group_association = Table(
 
 class NextPlan(Base):
     __tablename__ = "next_plans"
-
+    __table_args__ = (
+        # user_id will already have an index from the FK
+        # Add if you frequently query by template
+        Index("ix_next_plans_user_template_id", "user_template_id"),
+    )
+    
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    user_template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_templates.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user_template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_templates.id", ondelete="SET NULL"))
     user: Mapped["User"] = relationship(back_populates="next_plan", init=False)
     user_template: Mapped[Optional["UserTemplate"]] = relationship(back_populates="next_plans", init=False)
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -363,9 +369,13 @@ class UserTemplate(Base):
 
 class UserUsageResetLogs(Base):
     __tablename__ = "user_usage_logs"
-
+    __table_args__ = (
+        # Index for user-specific queries sorted by time
+        Index("ix_user_usage_logs_user_id_reset_at", "user_id", "reset_at"),
+    )
+    
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     user: Mapped["User"] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
@@ -597,24 +607,35 @@ class Node(Base):
 
 class NodeUserUsage(Base):
     __tablename__ = "node_user_usages"
-    __table_args__ = (UniqueConstraint("created_at", "user_id", "node_id"),)
+    __table_args__ = (
+        UniqueConstraint("created_at", "user_id", "node_id"),
+        # Indexes for common queries
+        Index("ix_node_user_usages_user_id_created_at", "user_id", "created_at"),  # User-specific queries with time range
+        Index("ix_node_user_usages_node_id_created_at", "node_id", "created_at"),  # Node-specific queries with time range
+        Index("ix_node_user_usages_created_at", "created_at"),  # Time-based cleanup/aggregation
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # one hour per record
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False) # 10 minute per record
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     user: Mapped["User"] = relationship(back_populates="node_usages", init=False)
-    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"))
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
     node: Mapped["Node"] = relationship(back_populates="user_usages", init=False)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
 class NodeUsage(Base):
     __tablename__ = "node_usages"
-    __table_args__ = (UniqueConstraint("created_at", "node_id"),)
+    __table_args__ = (
+        UniqueConstraint("created_at", "node_id"),
+        # Index for time-based queries and cleanup
+        Index("ix_node_usages_created_at", "created_at"),
+        # The unique constraint already creates an index on (created_at, node_id)
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # one hour per record
-    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"))
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False) # 10 minute per record
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
     node: Mapped["Node"] = relationship(back_populates="usages", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -622,10 +643,14 @@ class NodeUsage(Base):
 
 class NodeUsageResetLogs(Base):
     __tablename__ = "node_usage_reset_logs"
+    __table_args__ = (
+        # Index for node-specific queries sorted by time
+        Index("ix_node_usage_reset_logs_node_id_created_at", "node_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
-    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
     node: Mapped["Node"] = relationship(back_populates="usage_logs", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, nullable=False)
     downlink: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -636,7 +661,7 @@ class NotificationReminder(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
     threshold: Mapped[Optional[int]] = mapped_column(default=None)
