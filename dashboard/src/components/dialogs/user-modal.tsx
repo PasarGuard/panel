@@ -20,7 +20,6 @@ import {
   useCreateUser,
   useCreateUserFromTemplate,
   useGetGroupsSimple,
-  useGetUsers,
   useGetUserTemplatesSimple,
   useModifyUser,
   useModifyUserWithTemplate,
@@ -492,14 +491,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   // Query client for data refetching
   const queryClient = useQueryClient()
 
-  // Get refetch function for users
-  const { refetch: refetchUsers } = useGetUsers(
-    {},
-    {
-      query: { enabled: false },
-    },
-  )
-
   // Fetch lightweight templates for selector tabs without caching
   const { data: templatesData, isLoading: templatesLoading } = useGetUserTemplatesSimple(
     { all: true },
@@ -576,9 +567,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
       queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
       queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
-
-      // Force immediate refetch
-      refetchUsers()
     }
 
     // Call the success callback if provided
