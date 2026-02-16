@@ -8,6 +8,7 @@ from PasarGuardNodeBridge import NodeAPIError
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app import on_shutdown, on_startup
+from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate
@@ -170,12 +171,16 @@ class NodeWorkerService(BaseRpcService):
         node_id = data.get("node_id")
         if not node_id:
             return
+        # Refresh from KV before connecting to avoid stale core cache races.
+        await core_manager._reload_from_cache()
         async with GetDB() as db:
             await self._node_operator.connect_single_node(db, node_id)
 
     async def _connect_nodes_bulk(self, data: dict):
         node_ids = data.get("node_ids")
         core_id = data.get("core_id")
+        # Refresh from KV before bulk reconnect to avoid stale core cache races.
+        await core_manager._reload_from_cache()
         async with GetDB() as db:
             if node_ids:
                 nodes, _ = await get_nodes(db, ids=node_ids)
