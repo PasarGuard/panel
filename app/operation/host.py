@@ -13,6 +13,7 @@ from app.db.crud.host import (
     remove_host,
 )
 from app.core.hosts import host_manager
+from app.templates import get_subscription_templates
 from app.utils.logger import get_logger
 
 from app import notification
@@ -24,6 +25,28 @@ logger = get_logger("host-operation")
 class HostOperation(BaseOperation):
     async def get_hosts(self, db: AsyncSession, offset: int = 0, limit: int = 0) -> list[BaseHost]:
         return await get_hosts(db=db, offset=offset, limit=limit)
+
+    async def validate_subscription_templates(self, host: CreateHost, db: AsyncSession):
+        """
+        Validate per-host subscription template overrides.
+
+        Checks that provided template paths are among the available templates
+        returned by get_subscription_templates().
+        """
+        st = getattr(host, "subscription_templates", None)
+        if not st or not getattr(st, "xray", None):
+            return
+
+        template_path = (st.xray or "").strip()
+        if not template_path:
+            return await self.raise_error("subscription_templates.xray cannot be empty", 400, db=db)
+
+        available = get_subscription_templates()
+        valid_xray = available.get("xray", [])
+        if template_path not in valid_xray:
+            return await self.raise_error(
+                f'Xray template "{template_path}" is not available. Valid options: {valid_xray}', 400, db=db
+            )
 
     async def validate_ds_host(self, db: AsyncSession, host: CreateHost, host_id: int | None = None) -> ProxyHost:
         if (
@@ -45,6 +68,7 @@ class HostOperation(BaseOperation):
 
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
         await self.validate_ds_host(db, new_host)
+        await self.validate_subscription_templates(new_host, db)
 
         await self.check_inbound_tags([new_host.inbound_tag])
 
@@ -63,6 +87,7 @@ class HostOperation(BaseOperation):
         self, db: AsyncSession, host_id: int, modified_host: CreateHost, admin: AdminDetails
     ) -> BaseHost:
         await self.validate_ds_host(db, modified_host, host_id)
+        await self.validate_subscription_templates(modified_host, db)
 
         if modified_host.inbound_tag:
             await self.check_inbound_tags([modified_host.inbound_tag])
@@ -96,6 +121,7 @@ class HostOperation(BaseOperation):
     ) -> list[BaseHost]:
         for host in modified_hosts:
             await self.validate_ds_host(db, host, host.id)
+            await self.validate_subscription_templates(host, db)
 
             old_host: ProxyHost | None = None
             if host.id is not None:

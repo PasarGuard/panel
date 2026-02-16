@@ -5,12 +5,22 @@ from app.models.admin import AdminDetails
 from app.models.host import BaseHost, CreateHost
 from app.operation import OperatorType
 from app.operation.host import HostOperation
+from app.templates import get_subscription_templates
 from app.utils import responses
 
 from .authentication import check_sudo_admin
 
 host_operator = HostOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Host"], prefix="/api/host", responses={401: responses._401, 403: responses._403})
+
+
+@router.get("/subscription-templates", response_model=dict[str, list[str]])
+async def list_subscription_templates(_: AdminDetails = Depends(check_sudo_admin)):
+    """
+    List available subscription template files grouped by format (xray, clash, singbox).
+    Scans both CUSTOM_TEMPLATES_DIRECTORY and built-in templates.
+    """
+    return get_subscription_templates()
 
 
 @router.get("/{host_id}", response_model=BaseHost)

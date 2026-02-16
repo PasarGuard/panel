@@ -22,7 +22,7 @@ class XrayConfiguration(BaseSubscription):
     def __init__(self):
         super().__init__()
         self.config = []
-        self.template = render_template(XRAY_SUBSCRIPTION_TEMPLATE)
+        self._template_cache: dict[str, str] = {}
 
         # Registry for transport handlers
         self.transport_handlers = {
@@ -47,8 +47,14 @@ class XrayConfiguration(BaseSubscription):
             "shadowsocks": self._build_shadowsocks,
         }
 
-    def add_config(self, remarks, outbounds):
-        json_template = json.loads(self.template)
+    def _get_template(self, template_path: str) -> str:
+        if template_path not in self._template_cache:
+            self._template_cache[template_path] = render_template(template_path)
+        return self._template_cache[template_path]
+
+    def add_config(self, remarks, outbounds, template_path: str | None = None):
+        template_path = template_path or XRAY_SUBSCRIPTION_TEMPLATE
+        json_template = json.loads(self._get_template(template_path))
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
         self.config.append(json_template)
@@ -80,7 +86,10 @@ class XrayConfiguration(BaseSubscription):
             # Shadowsocks returns just a dict
             all_outbounds = [result]
 
-        self.add_config(remarks=remark, outbounds=all_outbounds)
+        template_path = None
+        if inbound.subscription_templates and isinstance(inbound.subscription_templates, dict):
+            template_path = inbound.subscription_templates.get("xray")
+        self.add_config(remarks=remark, outbounds=all_outbounds, template_path=template_path)
 
     # ========== Transport Handlers (Registry Methods) ==========
 

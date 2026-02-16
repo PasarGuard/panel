@@ -87,6 +87,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
       sni: Array.isArray(host.sni) ? host.sni : host.sni ? [host.sni] : [],
       path: host.path || '',
       http_headers: host.http_headers || {},
+      subscription_templates: (host as any).subscription_templates || undefined,
       security: host.security || 'inbound_default',
       alpn: Array.isArray(host.alpn) ? host.alpn : host.alpn ? [host.alpn] : [],
       fingerprint: host.fingerprint || '',
@@ -272,6 +273,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         mux_settings: host.mux_settings,
         transport_settings: host.transport_settings as any, // Type cast needed due to Output/Input mismatch
         http_headers: host.http_headers || {},
+        subscription_templates: (host as any).subscription_templates,
       }
 
       await createHost(newHost)

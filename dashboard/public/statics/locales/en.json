@@ -1074,7 +1074,10 @@
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "subscriptionTemplates": "Subscription Templates",
+    "subscriptionTemplates.xray": "Xray Template",
+    "subscriptionTemplates.xray.info": "Override the Xray subscription template for this host. Select \"None\" to use the global default."
   },
   "inbound": "Inbound",
   "inbounds": "Inbounds",
