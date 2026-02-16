@@ -1956,6 +1956,11 @@ export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
 
+export type CreateHostSubscriptionTemplates = {
+  xray: string | null
+  [key: string]: string | null
+} | null
+
 export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
 
 export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
@@ -1995,6 +2000,7 @@ export interface CreateHost {
   mux_settings?: CreateHostMuxSettings
   fragment_settings?: CreateHostFragmentSettings
   noise_settings?: CreateHostNoiseSettings
+  subscription_templates?: CreateHostSubscriptionTemplates
   random_user_agent?: boolean
   use_sni_as_host?: boolean
   vless_route?: CreateHostVlessRoute
@@ -2200,6 +2206,11 @@ export type BaseHostAllowinsecure = boolean | null
 
 export type BaseHostAlpn = ProxyHostALPN[] | null
 
+export type BaseHostSubscriptionTemplates = {
+  xray?: string | null
+  [key: string]: any
+} | null
+
 export type BaseHostPath = string | null
 
 export type BaseHostHost = string[] | null
@@ -2231,6 +2242,7 @@ export interface BaseHost {
   mux_settings?: BaseHostMuxSettings
   fragment_settings?: BaseHostFragmentSettings
   noise_settings?: BaseHostNoiseSettings
+  subscription_templates?: BaseHostSubscriptionTemplates
   random_user_agent?: boolean
   use_sni_as_host?: boolean
   vless_route?: BaseHostVlessRoute
@@ -4669,6 +4681,38 @@ export const useModifyHosts = <TData = Awaited<ReturnType<typeof modifyHosts>>, 
   const mutationOptions = getModifyHostsMutationOptions(options)
 
   return useMutation(mutationOptions)
+}
+
+/**
+ * List available subscription template files grouped by format (xray, clash, singbox).
+ * @summary Get Subscription Templates
+ */
+export type SubscriptionTemplatesResponse = Record<string, string[]>
+
+export const getSubscriptionTemplates = (signal?: AbortSignal) => {
+  return orvalFetcher<SubscriptionTemplatesResponse>({ url: `/api/host/subscription-templates`, method: 'GET', signal })
+}
+
+export const getGetSubscriptionTemplatesQueryKey = () => {
+  return [`/api/host/subscription-templates`] as const
+}
+
+export const getGetSubscriptionTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof getSubscriptionTemplates>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSubscriptionTemplates>>, TError, TData>>
+}) => {
+  const { query: queryOptions } = options ?? {}
+  const queryKey = queryOptions?.queryKey ?? getGetSubscriptionTemplatesQueryKey()
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSubscriptionTemplates>>> = ({ signal }) => getSubscriptionTemplates(signal)
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getSubscriptionTemplates>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export function useGetSubscriptionTemplates<TData = Awaited<ReturnType<typeof getSubscriptionTemplates>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSubscriptionTemplates>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetSubscriptionTemplatesQueryOptions(options)
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+  query.queryKey = queryOptions.queryKey
+  return query
 }
 
 /**
