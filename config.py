@@ -134,10 +134,4 @@ JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL = config("JOB_CLEANUP_SUBSCRIPTION_UPD
 
 
 ## Experimental featueres
-# Canonical key is STOP_NODES_ON_SHUTDOWN. Keep SHUTDOWN_NODES_ON_SHUTDOWN
-# as a fallback for backward compatibility.
-STOP_NODES_ON_SHUTDOWN = config(
-    "STOP_NODES_ON_SHUTDOWN",
-    cast=bool,
-    default=config("SHUTDOWN_NODES_ON_SHUTDOWN", cast=bool, default=True),
-)
+STOP_NODES_ON_SHUTDOWN = config("STOP_NODES_ON_SHUTDOWN", cast=bool, default=True)
