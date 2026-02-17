@@ -516,9 +516,6 @@ export function AllNodesStackedBarChart() {
                 dir="ltr"
                 config={chartView === 'pie' ? pieChartConfig : chartConfig}
                 className="max-h-[400px] min-h-[200px] w-full"
-                style={{
-                  marginBottom: navigator.userAgent.includes('Safari') && navigator.platform.includes('Mac') ? `${0.18 * window.innerWidth}px` : '0',
-                }}
               >
                 {chartData.length > 0 && chartView === 'bar' ? (
                   <BarChart
