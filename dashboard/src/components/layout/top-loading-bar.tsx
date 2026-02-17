@@ -29,7 +29,7 @@ interface TopLoadingBarProps {
   className?: string
 }
 
-function TopLoadingBar({ height = 3, color, shadow = true, className = '' }: TopLoadingBarProps) {
+function TopLoadingBar({ height = 3, color, shadow = false, className = '' }: TopLoadingBarProps) {
   const ref = useRef<any>(null)
   const maxTimeoutRef = useRef<NodeJS.Timeout>()
   const { resolvedTheme } = useTheme()
@@ -182,7 +182,7 @@ function TopLoadingBar({ height = 3, color, shadow = true, className = '' }: Top
       color: primaryColor,
       height,
       shadow,
-      className: `${className} [direction:ltr]`,
+      className: `${className} pointer-events-none [direction:ltr] !top-[env(safe-area-inset-top)]`,
       waitingTime: 0,
       transitionTime: 200,
     }),

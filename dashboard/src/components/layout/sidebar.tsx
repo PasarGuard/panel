@@ -319,18 +319,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-sidebar-border bg-neutral-200/75 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur dark:bg-neutral-900/75 lg:hidden">
-        <Link to="/" className="flex items-center gap-2">
-          <img
-            src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
-            alt="PasarGuard Logo"
-            className="h-8 w-8 object-contain"
-          />
-          <span dir={isRTL ? 'rtl' : 'ltr'} className="text-sm font-bold">
-            {t('pasarguard')}
-          </span>
-        </Link>
-        <SidebarTriggerWithBadge />
+      <div className="sticky top-0 z-30 lg:hidden">
+        <div className="h-[env(safe-area-inset-top)] bg-sidebar" />
+        <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar/80 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-sidebar/65">
+          <Link to="/" className="flex items-center gap-2">
+            <img
+              src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
+              alt="PasarGuard Logo"
+              className="h-8 w-8 object-contain"
+            />
+            <span dir={isRTL ? 'rtl' : 'ltr'} className="text-sm font-bold">
+              {t('pasarguard')}
+            </span>
+          </Link>
+          <SidebarTriggerWithBadge />
+        </div>
       </div>
       <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
         <Snowfall className="snowfall--sidebar" />
