@@ -19,7 +19,7 @@ import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
 
 export interface HostsListProps {
-  data: BaseHost[]
+  data?: BaseHost[]
   isDialogOpen: boolean
   onDialogOpenChange: (open: boolean) => void
   onAddHost: (open: boolean) => void
@@ -31,7 +31,7 @@ export interface HostsListProps {
 }
 
 export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost, onRefresh, isRefreshing: isRefreshingProp }: HostsListProps) {
-  const [hosts, setHosts] = useState<BaseHost[] | undefined>()
+  const [hosts, setHosts] = useState<BaseHost[] | undefined>(data)
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
   const [filters, setFilters] = useState<HostListFilters>({})
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
@@ -41,7 +41,9 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
 
   // Set up hosts data from props
   useEffect(() => {
-    setHosts(data ?? [])
+    if (data !== undefined) {
+      setHosts(data)
+    }
   }, [data])
 
   const form = useForm<HostFormValues>({
@@ -691,18 +693,19 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                 <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} />
               )}
               renderGridSkeleton={index => (
-                <Card key={index} className="animate-pulse">
-                  <CardContent className="p-4">
-                    <div className="flex flex-col gap-2">
-                      <div className="h-5 w-2/3 rounded-md bg-muted"></div>
-                      <div className="h-3 w-full rounded-md bg-muted"></div>
-                      <div className="h-3 w-4/5 rounded-md bg-muted"></div>
-                      <div className="mt-2 flex justify-between">
-                        <div className="h-6 w-1/4 rounded-md bg-muted"></div>
-                        <div className="h-6 w-1/4 rounded-md bg-muted"></div>
+                <Card key={index} className="p-4">
+                  <div className="flex animate-pulse items-center gap-3">
+                    <div className="h-5 w-5 shrink-0 rounded-sm bg-muted" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-muted" />
+                        <div className="h-4 w-2/5 rounded-md bg-muted" />
                       </div>
+                      <div className="h-3 w-4/5 rounded-md bg-muted" />
+                      <div className="h-3 w-2/5 rounded-md bg-muted" />
                     </div>
-                  </CardContent>
+                    <div className="h-8 w-8 shrink-0 rounded-md bg-muted" />
+                  </div>
                 </Card>
               )}
             />

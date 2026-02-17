@@ -1,7 +1,6 @@
 import MainSection from '@/components/hosts/hosts-list'
 import { type HostFormValues } from '@/components/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
-import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,7 +12,7 @@ import { toast } from 'sonner'
 export default function HostsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<BaseHost | null>(null)
-  const { data, isLoading, refetch, isFetching } = useQuery({
+  const { data, refetch, isFetching } = useQuery({
     queryKey: ['getGetHostsQueryKey'],
     queryFn: () => getHosts(),
   })
@@ -225,37 +224,17 @@ export default function HostsPage() {
       </div>
 
       <div className="w-full p-4">
-        {isLoading ? (
-          <div className="grid w-full grid-cols-1 gap-4 py-6 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <Card key={index} className="animate-pulse">
-                <CardContent className="p-4">
-                  <div className="flex flex-col gap-2">
-                    <div className="h-5 w-2/3 rounded-md bg-muted"></div>
-                    <div className="h-3 w-full rounded-md bg-muted"></div>
-                    <div className="h-3 w-4/5 rounded-md bg-muted"></div>
-                    <div className="mt-2 flex justify-between">
-                      <div className="h-6 w-1/4 rounded-md bg-muted"></div>
-                      <div className="h-6 w-1/4 rounded-md bg-muted"></div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <MainSection
-            data={data || []}
-            isDialogOpen={isDialogOpen}
-            onDialogOpenChange={handleDialogOpen}
-            onAddHost={onAddHost}
-            onSubmit={handleSubmit}
-            editingHost={editingHost}
-            setEditingHost={setEditingHost}
-            onRefresh={refetch}
-            isRefreshing={isFetching}
-          />
-        )}
+        <MainSection
+          data={data}
+          isDialogOpen={isDialogOpen}
+          onDialogOpenChange={handleDialogOpen}
+          onAddHost={onAddHost}
+          onSubmit={handleSubmit}
+          editingHost={editingHost}
+          setEditingHost={setEditingHost}
+          onRefresh={refetch}
+          isRefreshing={isFetching}
+        />
       </div>
     </div>
   )
