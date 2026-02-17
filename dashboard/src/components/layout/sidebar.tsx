@@ -57,14 +57,15 @@ import { Link } from 'react-router'
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isRTL = useDirDetection() === 'rtl'
   const { t } = useTranslation()
-  const { currentVersion: systemVersion } = useSystemVersion()
   const { admin } = useAdmin()
+  const isSudo = admin?.is_sudo ?? false
+  const { currentVersion: systemVersion } = useSystemVersion({ enabled: isSudo })
   const { setOpenMobile, openMobile, state, isMobile, toggleSidebar } = useSidebar()
   const { resolvedTheme } = useTheme()
   const [showCollapseButton, setShowCollapseButton] = useState(false)
-  const normalizedVersion = systemVersion ? systemVersion.replace(/[^0-9.]/g, '') : null
-  const displayVersion = systemVersion ? ` (v${systemVersion})` : ''
-  const { hasUpdate } = useVersionCheck(normalizedVersion)
+  const normalizedVersion = isSudo && systemVersion ? systemVersion.replace(/[^0-9.]/g, '') : null
+  const displayVersion = isSudo && systemVersion ? `(v${systemVersion})` : ''
+  const { hasUpdate } = useVersionCheck(normalizedVersion, { enabled: isSudo })
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
   const minSwipeDistance = 50
@@ -332,7 +333,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {t('pasarguard')}
             </span>
           </Link>
-          <SidebarTriggerWithBadge />
+          <SidebarTriggerWithBadge showUpdateBadge={isSudo} />
         </div>
       </div>
       <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
@@ -344,11 +345,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {state === 'collapsed' && !isMobile ? (
                 <div className="group relative" onMouseEnter={() => setShowCollapseButton(true)} onMouseLeave={() => setShowCollapseButton(false)}>
                   {/* Badge - always visible, positioned on top layer */}
-                  <div className="pointer-events-none absolute inset-0 z-30">
-                    <div className="relative h-full w-full">
-                      <VersionBadge currentVersion={normalizedVersion} />
+                  {isSudo && (
+                    <div className="pointer-events-none absolute inset-0 z-30">
+                      <div className="relative h-full w-full">
+                        <VersionBadge currentVersion={normalizedVersion} />
+                      </div>
                     </div>
-                  </div>
+                  )}
                   {/* Logo - fades out on hover */}
                   <SidebarMenuButton
                     size="lg"
@@ -361,7 +364,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         alt="PasarGuard Logo"
                         className="h-6 w-6 flex-shrink-0 object-contain"
                       />
-                      {hasUpdate && (
+                      {isSudo && hasUpdate && (
                         <TooltipProvider>
                           <VersionBadge currentVersion={normalizedVersion} />
                         </TooltipProvider>
@@ -382,7 +385,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         >
                           <PanelLeftOpen className={cn('h-6 w-6 flex-shrink-0', isRTL && 'scale-x-[-1]')} />
                           <span className="sr-only">Expand Sidebar</span>
-                          {hasUpdate && <VersionBadge currentVersion={normalizedVersion} />}
+                          {isSudo && hasUpdate && <VersionBadge currentVersion={normalizedVersion} />}
                         </SidebarMenuButton>
                       </TooltipTrigger>
                       <TooltipContent side={isRTL ? 'left' : 'right'}>
@@ -402,14 +405,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       />
                       <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
                         <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <span className="shrink-0 text-xs opacity-45">{displayVersion}</span>
-                          <div className="min-w-0 flex-1">
-                            <TooltipProvider>
-                              <VersionBadge currentVersion={normalizedVersion} />
-                            </TooltipProvider>
+                        {isSudo && (
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <span className="shrink-0 text-xs opacity-45">{displayVersion}</span>
+                            <div className="min-w-0 flex-1">
+                              <TooltipProvider>
+                                <VersionBadge currentVersion={normalizedVersion} />
+                              </TooltipProvider>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </a>
                   </SidebarMenuButton>
@@ -446,12 +451,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     />
                     <div className="flex flex-col overflow-hidden">
                       <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs opacity-45">{displayVersion}</span>
-                        <TooltipProvider>
-                          <VersionBadge currentVersion={normalizedVersion} />
-                        </TooltipProvider>
-                      </div>
+                      {isSudo && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs opacity-45">{displayVersion}</span>
+                          <TooltipProvider>
+                            <VersionBadge currentVersion={normalizedVersion} />
+                          </TooltipProvider>
+                        </div>
+                      )}
                     </div>
                   </a>
                 </SidebarMenuButton>

@@ -10,6 +10,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useClipboard } from '@/hooks/use-clipboard'
 import { toast } from 'sonner'
 import { useSystemVersion } from '@/hooks/use-system-version'
+import { useAdmin } from '@/hooks/use-admin'
 
 const VERSION_BANNER_STORAGE_KEY = 'version_update_banner_closed'
 const HOURS_TO_HIDE = 24
@@ -25,18 +26,20 @@ export function VersionUpdateBanner() {
     const { resolvedTheme, colorTheme } = useTheme()
     const isDark = resolvedTheme === 'dark'
     const { copy } = useClipboard()
-    const { currentVersion } = useSystemVersion()
+    const { admin } = useAdmin()
+    const isSudo = admin?.is_sudo ?? false
+    const { currentVersion } = useSystemVersion({ enabled: isSudo })
     const [isVisible, setIsVisible] = useState(false)
     const [isClosing, setIsClosing] = useState(false)
     const [isAnimating, setIsAnimating] = useState(false)
     const normalizedVersion = currentVersion ? currentVersion.replace(/[^0-9.]/g, '') : null
-    const { hasUpdate, latestVersion, releaseUrl, isLoading } = useVersionCheck(normalizedVersion)
+    const { hasUpdate, latestVersion, releaseUrl, isLoading } = useVersionCheck(normalizedVersion, { enabled: isSudo })
 
     const gradientBg = getGradientByColorTheme(colorTheme, isDark, 'banner')
     const indicatorColor = getIndicatorColorByTheme(colorTheme, isDark)
 
     useEffect(() => {
-        if (isLoading || !hasUpdate || !normalizedVersion) {
+        if (!isSudo || isLoading || !hasUpdate || !normalizedVersion) {
             setIsVisible(false)
             setIsAnimating(false)
             return
@@ -87,7 +90,7 @@ export function VersionUpdateBanner() {
         }
 
         checkShouldShow()
-    }, [hasUpdate, latestVersion, normalizedVersion, isLoading])
+    }, [hasUpdate, isSudo, latestVersion, normalizedVersion, isLoading])
 
     const handleClose = (e: React.MouseEvent) => {
         e.preventDefault()
@@ -114,7 +117,7 @@ export function VersionUpdateBanner() {
         toast.success(t('usersTable.copied'))
     }
 
-    if (isLoading || !hasUpdate || !isVisible || !latestVersion || !normalizedVersion) return null
+    if (!isSudo || isLoading || !hasUpdate || !isVisible || !latestVersion || !normalizedVersion) return null
 
     const releaseLink = releaseUrl || 'https://github.com/PasarGuard/panel/releases/latest'
 

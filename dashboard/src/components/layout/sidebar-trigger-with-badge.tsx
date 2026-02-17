@@ -3,14 +3,18 @@ import { useVersionCheck } from '@/hooks/use-version-check'
 import { useSystemVersion } from '@/hooks/use-system-version'
 import { cn } from '@/lib/utils'
 
-export function SidebarTriggerWithBadge() {
-  const { currentVersion } = useSystemVersion()
+interface SidebarTriggerWithBadgeProps {
+  showUpdateBadge?: boolean
+}
+
+export function SidebarTriggerWithBadge({ showUpdateBadge = true }: SidebarTriggerWithBadgeProps) {
+  const { currentVersion } = useSystemVersion({ enabled: showUpdateBadge })
   const normalizedVersion = currentVersion ? currentVersion.replace(/[^0-9.]/g, '') : null
-  const { hasUpdate, isLoading } = useVersionCheck(normalizedVersion)
+  const { hasUpdate, isLoading } = useVersionCheck(normalizedVersion, { enabled: showUpdateBadge })
 
   // Show badge when there's an update available
   // The badge is especially important when sidebar is closed/collapsed, but we show it always for visibility
-  const showBadge = !isLoading && hasUpdate
+  const showBadge = showUpdateBadge && !isLoading && hasUpdate
 
   return (
     <div className="relative inline-block">

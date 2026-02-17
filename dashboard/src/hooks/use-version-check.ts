@@ -14,6 +14,10 @@ interface VersionCheckResult {
   isLoading: boolean
 }
 
+interface UseVersionCheckOptions {
+  enabled?: boolean
+}
+
 const GITHUB_API_URL = 'https://api.github.com/repos/PasarGuard/panel/releases/latest'
 const CACHE_KEY = 'pg_release'
 const CACHE_DURATION = 10 * 60 * 1000
@@ -78,10 +82,12 @@ async function fetchLatestRelease(): Promise<{ version: string; url: string } | 
   }
 }
 
-export function useVersionCheck(currentVersion: string | null): VersionCheckResult {
+export function useVersionCheck(currentVersion: string | null, options: UseVersionCheckOptions = {}): VersionCheckResult {
+  const enabled = options.enabled ?? true
   const { data, isLoading } = useQuery({
     queryKey: ['github-release-check'],
     queryFn: fetchLatestRelease,
+    enabled,
     staleTime: CACHE_DURATION,
     gcTime: CACHE_DURATION * 2,
     refetchOnWindowFocus: false,
@@ -93,13 +99,13 @@ export function useVersionCheck(currentVersion: string | null): VersionCheckResu
   const latestVersion = data?.version || null
   const cleanCurrentVersion = currentVersion?.replace(/^v/, '') || null
 
-  const hasUpdate = !!(cleanCurrentVersion && latestVersion && compareVersions(cleanCurrentVersion, latestVersion) < 0)
+  const hasUpdate = enabled && !!(cleanCurrentVersion && latestVersion && compareVersions(cleanCurrentVersion, latestVersion) < 0)
 
   return {
     hasUpdate,
-    latestVersion,
+    latestVersion: enabled ? latestVersion : null,
     currentVersion: cleanCurrentVersion,
-    releaseUrl: data?.url || null,
-    isLoading,
+    releaseUrl: enabled ? (data?.url || null) : null,
+    isLoading: enabled ? isLoading : false,
   }
 }
