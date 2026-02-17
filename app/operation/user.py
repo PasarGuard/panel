@@ -298,7 +298,11 @@ class UserOperation(BaseOperation):
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
 
-            logger.info(f'User "{db_user.username}" status changed from "{old_status.value}" to "{user.status.value}"')
+            old_status_value = getattr(old_status, "value", old_status)
+            new_status_value = getattr(user.status, "value", user.status)
+            logger.info(
+                f'User "{db_user.username}" status changed from "{old_status_value}" to "{new_status_value}"'
+            )
 
         return user
 

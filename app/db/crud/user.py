@@ -822,7 +822,7 @@ async def modify_user(
         db_user.note = modify.note or None
 
     if modify.data_limit_reset_strategy is not None:
-        db_user.data_limit_reset_strategy = modify.data_limit_reset_strategy.value
+        db_user.data_limit_reset_strategy = modify.data_limit_reset_strategy
 
     if modify.on_hold_timeout == 0:
         db_user.on_hold_timeout = None
@@ -897,7 +897,7 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
     await clear_user_node_usages(db, db_user.id)
 
     if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
-        db_user.status = UserStatus.active.value
+        db_user.status = UserStatus.active
 
     await db.commit()
     return db_user
@@ -918,7 +918,7 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
         await _reset_user_traffic_and_log(db, db_user)
         await clear_user_node_usages(db, db_user.id)
         if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
-            db_user.status = UserStatus.active.value
+            db_user.status = UserStatus.active
     await db.commit()
     for user in users:
         await load_user_attrs(user, load_usage_logs=False)
