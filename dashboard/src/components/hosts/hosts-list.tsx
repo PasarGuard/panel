@@ -1,25 +1,22 @@
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import useDirDetection from '@/hooks/use-dir-detection'
-import { cn } from '@/lib/utils'
-import { BaseHost, CreateHost, createHost, modifyHosts } from '@/service/api'
+import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/components/forms/host-advance-search-form'
+import { HostFormSchema, hostFormDefaultValues, type HostFormValues } from '@/components/forms/host-form'
+import HostAdvanceSearchModal from '@/components/dialogs/host-advance-search-modal'
+import { type HostListFilters, HostFilters } from '@/components/hosts/host-filters'
+import { ListGenerator } from '@/components/common/list-generator'
+import { useHostsListColumns } from '@/components/hosts/use-hosts-list-columns'
+import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { BaseHost, CreateHost, createHost, modifyHosts, useGetInbounds } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { RefreshCw, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Resolver, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
-import ViewToggle from '@/components/common/view-toggle'
-import { ListGenerator } from '@/components/common/list-generator'
-import { useHostsListColumns } from '@/components/hosts/use-hosts-list-columns'
-import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { HostFormSchema, hostFormDefaultValues, type HostFormValues } from '@/components/forms/host-form'
 
 export interface HostsListProps {
   data: BaseHost[]
@@ -36,11 +33,11 @@ export interface HostsListProps {
 export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost, onRefresh, isRefreshing: isRefreshingProp }: HostsListProps) {
   const [hosts, setHosts] = useState<BaseHost[] | undefined>()
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [filters, setFilters] = useState<HostListFilters>({})
+  const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:hosts')
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const { t } = useTranslation()
-  const dir = useDirDetection()
 
   // Set up hosts data from props
   useEffect(() => {
@@ -51,6 +48,16 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     resolver: zodResolver(HostFormSchema) as Resolver<HostFormValues>,
     defaultValues: hostFormDefaultValues,
   })
+  const advanceSearchForm = useForm<HostAdvanceSearchFormValues>({
+    resolver: zodResolver(hostAdvanceSearchFormSchema),
+    defaultValues: {
+      status: filters.status || [],
+      inbound_tags: filters.inbound_tags || [],
+      security: filters.security,
+      is_disabled: filters.is_disabled,
+    },
+  })
+  const { data: inbounds = [], isLoading: isLoadingInbounds } = useGetInbounds()
 
   const refreshHostsData = () => {
     // Just invalidate the main query key used in the dashboard
@@ -75,6 +82,52 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const isRefreshing = isRefreshingProp ?? isManualRefreshing
+
+  const handleFilterChange = (newFilters: Partial<HostListFilters>) => {
+    setFilters(prev => ({
+      ...prev,
+      ...newFilters,
+    }))
+  }
+
+  const handleAdvanceSearchSubmit = (values: HostAdvanceSearchFormValues) => {
+    setFilters(prev => ({
+      ...prev,
+      status: values.status && values.status.length > 0 ? values.status : undefined,
+      inbound_tags: values.inbound_tags && values.inbound_tags.length > 0 ? values.inbound_tags : undefined,
+      security: values.security || undefined,
+      is_disabled: values.is_disabled ?? undefined,
+    }))
+    setIsAdvanceSearchOpen(false)
+  }
+
+  const handleClearAdvanceSearch = () => {
+    advanceSearchForm.reset({
+      status: [],
+      inbound_tags: [],
+      security: undefined,
+      is_disabled: undefined,
+    })
+    setFilters(prev => ({
+      ...prev,
+      status: undefined,
+      inbound_tags: undefined,
+      security: undefined,
+      is_disabled: undefined,
+    }))
+  }
+
+  const handleAdvanceSearchOpen = (open: boolean) => {
+    if (open) {
+      advanceSearchForm.reset({
+        status: filters.status || [],
+        inbound_tags: filters.inbound_tags || [],
+        security: filters.security,
+        is_disabled: filters.is_disabled,
+      })
+    }
+    setIsAdvanceSearchOpen(open)
+  }
 
   const handleEdit = (host: BaseHost) => {
     const formData: HostFormValues = {
@@ -335,6 +388,10 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
 
+    const hasSearchQuery = Boolean(filters.search?.trim())
+    const hasActiveFilters = Boolean((filters.status && filters.status.length > 0) || (filters.inbound_tags && filters.inbound_tags.length > 0) || filters.security || typeof filters.is_disabled === 'boolean')
+    if (hasSearchQuery || hasActiveFilters) return
+
     if (!over || active.id === over.id || !hosts) return
 
     const oldIndex = hosts.findIndex(item => item.id === active.id)
@@ -544,18 +601,52 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     return idA - idB
   })
 
-  // Filter hosts by search query
+  // Filter hosts by search query and advanced filters
   const filteredHosts = useMemo(() => {
-    if (!searchQuery.trim()) return sortedHosts
-    const query = searchQuery.toLowerCase().trim()
+    const query = filters.search?.toLowerCase().trim()
+    const statusFilters = filters.status
+    const inboundFilters = filters.inbound_tags
+    const securityFilter = filters.security
+    const disabledFilter = filters.is_disabled
+
     return sortedHosts.filter(host => {
-      const remarkMatch = host.remark?.toLowerCase().includes(query)
-      const addressMatch = Array.isArray(host.address) ? host.address.some(addr => addr.toLowerCase().includes(query)) : false
-      const inboundTagMatch = host.inbound_tag?.toLowerCase().includes(query)
-      const hostMatch = Array.isArray(host.host) ? host.host.some(h => h.toLowerCase().includes(query)) : false
-      return remarkMatch || addressMatch || inboundTagMatch || hostMatch
+      if (query) {
+        const remarkMatch = host.remark?.toLowerCase().includes(query)
+        const addressMatch = Array.isArray(host.address) ? host.address.some(addr => addr.toLowerCase().includes(query)) : false
+        const inboundTagMatch = host.inbound_tag?.toLowerCase().includes(query)
+        const hostMatch = Array.isArray(host.host) ? host.host.some(h => h.toLowerCase().includes(query)) : false
+        const sniMatch = Array.isArray(host.sni) ? host.sni.some(sni => sni.toLowerCase().includes(query)) : false
+        const portMatch = host.port?.toString().includes(query)
+        if (!remarkMatch && !addressMatch && !inboundTagMatch && !hostMatch && !sniMatch && !portMatch) {
+          return false
+        }
+      }
+
+      if (statusFilters && statusFilters.length > 0) {
+        if (!host.status || host.status.length === 0) {
+          return false
+        }
+        if (!statusFilters.some(status => host.status?.includes(status))) {
+          return false
+        }
+      }
+
+      if (inboundFilters && inboundFilters.length > 0 && (!host.inbound_tag || !inboundFilters.includes(host.inbound_tag))) {
+        return false
+      }
+
+      const hostSecurity = host.security || 'inbound_default'
+      if (securityFilter && hostSecurity !== securityFilter) {
+        return false
+      }
+
+      if (typeof disabledFilter === 'boolean' && Boolean(host.is_disabled) !== disabledFilter) {
+        return false
+      }
+
+      return true
     })
-  }, [sortedHosts, searchQuery])
+  }, [sortedHosts, filters])
 
   const listColumns = useHostsListColumns({
     onEdit: handleEdit,
@@ -563,39 +654,29 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     onDataChanged: refreshHostsData,
   })
 
+  const hasActiveAdvanceFilters = Boolean((filters.status && filters.status.length > 0) || (filters.inbound_tags && filters.inbound_tags.length > 0) || filters.security || typeof filters.is_disabled === 'boolean')
+  const hasSearch = Boolean(filters.search?.trim())
+  const isSortingDisabled = isUpdatingPriorities || hasSearch || hasActiveAdvanceFilters
   const isCurrentlyLoading = hosts === undefined || (isRefreshing && sortedHosts.length === 0)
-  const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !searchQuery.trim() && sortedHosts.length === 0
-  const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && searchQuery.trim() !== ''
+  const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !hasSearch && !hasActiveAdvanceFilters && sortedHosts.length === 0
+  const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && (hasSearch || hasActiveAdvanceFilters)
 
   return (
     <div>
-      {/* Search Input */}
-      <div className="mb-4 flex items-center gap-2 md:gap-3">
-        <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none" dir={dir}>
-          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
-          <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          <Button
-            size="icon-md"
-            variant="ghost"
-            onClick={handleRefreshClick}
-            className={cn('h-9 w-9 rounded-lg border', isRefreshing && 'opacity-70')}
-            aria-label={t('autoRefresh.refreshNow')}
-            title={t('autoRefresh.refreshNow')}
-          >
-            <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
-          </Button>
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-        </div>
+      <div className="mb-4">
+        <HostFilters
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onRefresh={handleRefreshClick}
+          isRefreshing={isRefreshing}
+          advanceSearchOnOpen={handleAdvanceSearchOpen}
+          onClearAdvanceSearch={handleClearAdvanceSearch}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
       </div>
       {(isCurrentlyLoading || filteredHosts.length > 0) && viewMode === 'grid' && (
-        <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext sensors={isSortingDisabled ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
             <ListGenerator
               data={filteredHosts}
@@ -607,7 +688,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               mode="grid"
               showEmptyState={false}
               renderGridItem={host => (
-                <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isUpdatingPriorities} />
+                <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} />
               )}
               renderGridSkeleton={index => (
                 <Card key={index} className="animate-pulse">
@@ -629,7 +710,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         </DndContext>
       )}
       {(isCurrentlyLoading || filteredHosts.length > 0) && viewMode === 'list' && (
-        <DndContext sensors={isUpdatingPriorities ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext sensors={isSortingDisabled ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
             <ListGenerator
               data={filteredHosts}
@@ -642,7 +723,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               showEmptyState={false}
               onRowClick={handleEdit}
               enableSorting
-              sortingDisabled={isUpdatingPriorities}
+              sortingDisabled={isSortingDisabled}
             />
           </SortableContext>
         </DndContext>
@@ -667,6 +748,15 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           </CardContent>
         </Card>
       )}
+
+      <HostAdvanceSearchModal
+        isDialogOpen={isAdvanceSearchOpen}
+        onOpenChange={handleAdvanceSearchOpen}
+        form={advanceSearchForm}
+        onSubmit={handleAdvanceSearchSubmit}
+        inbounds={inbounds}
+        isLoadingInbounds={isLoadingInbounds}
+      />
 
       <HostModal
         isDialogOpen={isDialogOpen}
