@@ -443,7 +443,7 @@
         "confirmDeleteMessage": "Are you sure you want to delete all expired accounts in the selected date range? This action cannot be undone.",
         "confirmDeleteLimitedMessage": "Are you sure you want to delete all usage-limited accounts? This action cannot be undone.",
         "noDateSelected": "Please select at least one date",
-        "selectDateRange": "Select the date range for expired accounts to delete (only past dates are selectable)",
+        "selectDateRange": "Select the date range for expired accounts to delete (only past dates are selectable). If both dates are empty, all expired accounts will be deleted.",
         "selectLimitedInfo": "Delete all usage-limited accounts for the selected admin scope."
       },
       "resetUsage": {

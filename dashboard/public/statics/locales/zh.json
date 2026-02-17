@@ -424,7 +424,7 @@
         "confirmDeleteMessage": "您确定要删除所选日期范围内的所有过期账户吗？此操作无法撤销。",
         "confirmDeleteLimitedMessage": "您确定要删除所有按流量受限的账户吗？此操作无法撤销。",
         "noDateSelected": "请至少选择一个日期",
-        "selectDateRange": "选择要删除过期账户的日期范围（只能选择过去的日期）",
+        "selectDateRange": "选择要删除过期账户的日期范围（只能选择过去的日期）。如果开始和结束日期都为空，将删除所有过期账户。",
         "selectLimitedInfo": "将删除所选管理员范围内的所有按流量受限账户。"
       },
       "resetUsage": {

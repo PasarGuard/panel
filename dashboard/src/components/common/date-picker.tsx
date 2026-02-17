@@ -16,6 +16,7 @@ import { formatOffsetDateTime, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useTheme } from '@/components/common/theme-provider'
 import { DATE_PICKER_PREFERENCE_KEY, getDatePickerPreference, type DatePickerPreference } from '@/utils/userPreferenceStorage'
+import useDirDetection from '@/hooks/use-dir-detection'
 
 export type DatePickerMode = 'single' | 'range'
 
@@ -141,6 +142,8 @@ export function DatePicker({
   side,
 }: DatePickerProps) {
   const { t, i18n } = useTranslation()
+  const dir = useDirDetection()
+  const isRTL = dir === 'rtl'
   const [datePreference, setDatePreference] = useState<DatePickerPreference>('locale')
   const isPersianCalendar = datePreference === 'persian' || (datePreference === 'locale' && i18n.language === 'fa')
   const isMobile = useIsMobile()
@@ -324,9 +327,14 @@ export function DatePicker({
         {label && <label className="text-sm font-medium">{label}</label>}
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
-            <Button dir="ltr" variant="outline" className={cn('w-full justify-start text-left font-normal', !displayDate && 'text-muted-foreground')} type="button">
+            <Button
+              dir={dir}
+              variant="outline"
+              className={cn('w-full justify-start font-normal', isRTL ? 'text-right' : 'text-left', !displayDate && 'text-muted-foreground')}
+              type="button"
+            >
               {displayDate ? formatDate(displayDate) : <span>{placeholder || label || t('timeSelector.pickDate')}</span>}
-              <div className="ml-auto flex items-center gap-1">
+              <div className={cn('flex items-center gap-1', isRTL ? 'mr-auto' : 'ml-auto')}>
                 {displayDate && (
                   <button
                     type="button"
