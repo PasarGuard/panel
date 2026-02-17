@@ -297,7 +297,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
             <ChartContainer
               dir="ltr"
               config={chartConfig}
-              className="max-h-[300px] min-h-[150px] w-full overflow-x-auto sm:max-h-[400px] sm:min-h-[200px]"
+              className="h-[200px] w-full overflow-x-auto sm:h-[320px] lg:h-[400px]"
             >
               {chartData.length > 0 ? (
                 <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>

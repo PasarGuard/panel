@@ -515,7 +515,7 @@ export function AllNodesStackedBarChart() {
               <ChartContainer
                 dir="ltr"
                 config={chartView === 'pie' ? pieChartConfig : chartConfig}
-                className="max-h-[400px] min-h-[200px] w-full"
+                className="h-[200px] w-full sm:h-[320px] lg:h-[400px]"
               >
                 {chartData.length > 0 && chartView === 'bar' ? (
                   <BarChart

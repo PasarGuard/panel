@@ -698,7 +698,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                   <div className="text-sm">{t('usersTable.tryDifferentRange', { defaultValue: 'Try a different time range.' })}</div>
                 </div>
               ) : (
-                <ChartContainer config={allNodesSelected && chartView === 'pie' ? pieChartConfig : chartConfig} dir={'ltr'}>
+                <ChartContainer config={allNodesSelected && chartView === 'pie' ? pieChartConfig : chartConfig} dir={'ltr'} className="h-[200px] w-full sm:h-[320px]">
                   <ResponsiveContainer width="100%" height={width < 500 ? 200 : 320}>
                     {allNodesSelected && chartView === 'pie' ? (
                       <RechartsPieChart>

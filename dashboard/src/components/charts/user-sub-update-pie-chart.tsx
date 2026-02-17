@@ -300,7 +300,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         ) : (
           <div className="flex flex-col items-center gap-6 lg:flex-row">
             <div className="w-full lg:w-1/2">
-              <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[320px] max-w-[320px] [&_.recharts-text]:fill-transparent">
+              <ChartContainer config={chartConfig} className="mx-auto h-[220px] w-[220px] max-h-[320px] max-w-[320px] sm:h-[280px] sm:w-[280px] lg:h-[320px] lg:w-[320px] [&_.recharts-text]:fill-transparent">
                 <PieChart>
                   <ChartTooltip content={<CustomTooltip />} />
                   <Pie data={chartData} dataKey="updates" nameKey="agent" innerRadius="55%" outerRadius="95%" paddingAngle={piePaddingAngle} strokeWidth={pieStrokeWidth} isAnimationActive>
