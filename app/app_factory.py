@@ -103,7 +103,7 @@ def create_app() -> FastAPI:
         on_startup(start_scheduler_rpc)
         on_shutdown(stop_scheduler_rpc)
 
-    enable_router = ROLE.runs_panel or ROLE.runs_node
+    enable_router = ROLE.runs_panel or ROLE.runs_node or ROLE.runs_scheduler
     enable_settings = ROLE.runs_panel or ROLE.runs_scheduler
     _register_nats_handlers(enable_router, enable_settings)
     _register_scheduler_hooks()

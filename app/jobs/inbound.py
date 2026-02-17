@@ -10,6 +10,7 @@ logger = get_logger("jobs")
 
 
 async def remove_old_inbounds():
+    await core_manager._reload_from_cache()
     in_use_inbounds = await core_manager.get_inbounds()
 
     async with GetDB() as db:
