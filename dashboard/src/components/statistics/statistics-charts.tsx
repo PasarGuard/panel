@@ -23,6 +23,7 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
   // Add state for chart refresh
   const [chartRefreshKey, setChartRefreshKey] = useState(0)
   const resizeTimeoutRef = useRef<NodeJS.Timeout>()
+  const lastWindowWidthRef = useRef<number>(typeof window !== 'undefined' ? window.innerWidth : 0)
 
   // Only fetch nodes for sudo admins
   const { isLoading: isLoadingNodes, error: nodesError } = useGetNodesSimple({ all: true }, {
@@ -46,6 +47,13 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
 
   // Handle resize events to refresh charts
   const handleResize = useCallback(() => {
+    const currentWidth = window.innerWidth
+    if (currentWidth === lastWindowWidthRef.current) {
+      return
+    }
+
+    lastWindowWidthRef.current = currentWidth
+
     if (resizeTimeoutRef.current) {
       clearTimeout(resizeTimeoutRef.current)
     }
