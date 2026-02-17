@@ -242,7 +242,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
 
   return (
     <FormItem>
-      <div dir="ltr" className="flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <FormLabel>{label}</FormLabel>
         {infoContent && (
           <Popover>
