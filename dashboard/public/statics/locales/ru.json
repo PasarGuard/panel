@@ -1232,7 +1232,7 @@
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "vlessRoute.info": "Необязательное значение маршрута для хостов VLESS. Должно быть ровно 4 шестнадцатеричных символа (0-9, a-f, A-F). Оставьте пустым, чтобы использовать маршрут по умолчанию.",
     "subscriptionTemplates": "Шаблоны подписок",
     "subscriptionTemplates.xray": "Шаблон Xray",
     "subscriptionTemplates.xray.info": "Переопределить шаблон подписки Xray для этого хоста. Выберите «По умолчанию» для использования глобального шаблона."

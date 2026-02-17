@@ -1920,8 +1920,8 @@ export type CreateHostMuxSettings = MuxSettingsInput | null
 export type CreateHostTransportSettings = TransportSettingsInput | null
 
 export type CreateHostSubscriptionTemplates = {
-  xray?: string | null
-  [key: string]: any
+  xray: string | null
+  [key: string]: string | null
 } | null
 
 
@@ -2168,8 +2168,8 @@ export type BaseHostAllowinsecure = boolean | null
 export type BaseHostAlpn = ProxyHostALPN[] | null
 
 export type BaseHostSubscriptionTemplates = {
-  xray?: string | null
-  [key: string]: any
+  xray: string | null
+  [key: string]: string | null
 } | null
 
 export type BaseHostPath = string | null

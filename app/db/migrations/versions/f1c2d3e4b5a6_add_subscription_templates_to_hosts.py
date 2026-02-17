@@ -1,7 +1,7 @@
 """add subscription_templates to hosts
 
 Revision ID: f1c2d3e4b5a6
-Revises: ee97c01bfbaf
+Revises: 20e2a5cf1e40
 Create Date: 2026-02-08 00:00:00.000000
 
 """

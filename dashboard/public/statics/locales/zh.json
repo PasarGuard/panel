@@ -1047,7 +1047,7 @@
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "vlessRoute.info": "VLESS 主机的可选路由值。必须恰好为 4 个十六进制字符（0-9、a-f、A-F）。留空以使用默认路由。",
     "subscriptionTemplates": "订阅模板",
     "subscriptionTemplates.xray": "Xray 模板",
     "subscriptionTemplates.xray.info": "覆盖此主机的 Xray 订阅模板。选择「默认」以使用全局模板。"
