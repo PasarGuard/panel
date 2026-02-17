@@ -1,5 +1,5 @@
 import { DateRange } from 'react-day-picker'
-import { dateUtils } from '@/utils/dateFormatter'
+import { parseDateInput } from './dateTimeParsing'
 
 const SHORTCUT_PATTERN = /^(\d+)([hdwm])$/
 const HOUR_IN_MS = 60 * 60 * 1000
@@ -12,9 +12,9 @@ const getTotalDays = (amount: number, unit: 'd' | 'w' | 'm') => {
 
 export const getDateRangeFromShortcut = (shortcut: string, now = new Date()): DateRange | undefined => {
   if (shortcut.trim().toLowerCase() === 'all') {
-    const endOfDay = dateUtils.toSystemTimezoneDayjs(now).endOf('day')
+    const endOfDay = parseDateInput(now).endOf('day')
     return {
-      from: dateUtils.toSystemTimezoneDayjs('2000-01-01T00:00:00Z').toDate(),
+      from: new Date(2000, 0, 1, 0, 0, 0, 0),
       to: endOfDay.toDate(),
     }
   }
@@ -35,7 +35,7 @@ export const getDateRangeFromShortcut = (shortcut: string, now = new Date()): Da
   }
 
   const totalDays = getTotalDays(amount, unit)
-  const endOfDay = dateUtils.toSystemTimezoneDayjs(now).endOf('day')
+  const endOfDay = parseDateInput(now).endOf('day')
   const startOfRange = endOfDay.subtract(Math.max(totalDays - 1, 0), 'day').startOf('day')
 
   return {

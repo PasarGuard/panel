@@ -7,10 +7,9 @@ import { useGetUsersUsage, useGetUsage, Period, UserUsageStatsList, NodeUsageSta
 import { useMemo, useState, useEffect } from 'react'
 import { SearchXIcon, TrendingUp, TrendingDown } from 'lucide-react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
-import { dateUtils } from '@/utils/dateFormatter'
-import dayjs from '@/lib/dayjs'
 import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { formatPeriodLabelForPeriod, formatTooltipDate, getChartQueryRangeFromShortcut, getXAxisIntervalForShortcut } from '@/utils/chart-period-utils'
 
 type PeriodOption = {
   label: string
@@ -40,48 +39,13 @@ const PERIOD_KEYS = [
   { key: 'all', period: 'day' as Period, allTime: true },
 ]
 
-const toChartPeriodStart = (periodStart: string | Date) => dateUtils.toSystemTimezoneDayjs(periodStart)
-
-const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] }, periodOption: PeriodOption, isNodeUsage: boolean = false, locale: string = 'en') => {
+const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] }, period: Period, isNodeUsage: boolean = false, locale: string = 'en') => {
   if (!apiData?.stats || !Array.isArray(apiData.stats)) {
     return []
   }
 
   return apiData.stats.map((stat: UserUsageStat | NodeUsageStat) => {
-    const d = toChartPeriodStart(stat.period_start)
-
-    let displayLabel = ''
-    if (periodOption.hours) {
-      displayLabel = d.format('HH:mm')
-    } else if (periodOption.period === 'day') {
-      // Always format day labels from period_start to keep bucket labels stable.
-      if (locale === 'fa') {
-        const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-        displayLabel = localDate.toLocaleString('fa-IR', {
-          month: '2-digit',
-          day: '2-digit',
-        })
-      } else {
-        const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-        displayLabel = localDate.toLocaleString('en-US', {
-          month: '2-digit',
-          day: '2-digit',
-        })
-      }
-    } else {
-      // For other periods (month, etc.), show date format
-      if (locale === 'fa') {
-        displayLabel = d.toDate().toLocaleString('fa-IR', {
-          month: '2-digit',
-          day: '2-digit',
-        })
-      } else {
-        displayLabel = d.toDate().toLocaleString('en-US', {
-          month: '2-digit',
-          day: '2-digit',
-        })
-      }
-    }
+    const displayLabel = formatPeriodLabelForPeriod(stat.period_start, period, locale)
 
     const traffic = isNodeUsage ? ((stat as NodeUsageStat).uplink || 0) + ((stat as NodeUsageStat).downlink || 0) : (stat as UserUsageStat).total_traffic || 0
 
@@ -104,57 +68,7 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
   const { t, i18n } = useTranslation()
   if (!active || !payload || !payload.length) return null
   const data = payload[0].payload
-  // Use period_start if available (from transformUsageData), otherwise parse the display label
-  const d = data.period_start ? toChartPeriodStart(data.period_start) : dateUtils.toDayjs(data.date)
-
-  let formattedDate
-  if (i18n.language === 'fa') {
-    try {
-      if (period === 'day') {
-        const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-        formattedDate = localDate.toLocaleDateString('fa-IR', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        })
-      } else {
-        formattedDate = d
-          .toDate()
-          .toLocaleString('fa-IR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-          .replace(',', '')
-      }
-    } catch {
-      formattedDate = period === 'day' ? d.format('YYYY/MM/DD') : d.format('YYYY/MM/DD HH:mm')
-    }
-  } else {
-    if (period === 'day') {
-      const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
-      formattedDate = localDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      })
-    } else {
-      formattedDate = d
-        .toDate()
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        .replace(',', '')
-    }
-  }
+  const formattedDate = data.period_start ? formatTooltipDate(data.period_start, period ?? Period.hour, i18n.language) : String(data.date ?? '')
 
   const isRTL = i18n.language === 'fa'
 
@@ -208,43 +122,28 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     })
   }, [PERIOD_OPTIONS])
 
-  const { startDate, endDate } = useMemo(() => {
-    const now = dayjs()
-    let start: dayjs.Dayjs
-    if (periodOption.allTime) {
-      start = dayjs('2000-01-01T00:00:00Z')
-    } else if (periodOption.hours) {
-      start = now.subtract(periodOption.hours, 'hour')
-    } else if (periodOption.days) {
-      const daysToSubtract = periodOption.days === 7 ? 6 : periodOption.days === 3 ? 2 : periodOption.days === 1 ? 0 : periodOption.days
-      start = now.subtract(daysToSubtract, 'day').startOf('day')
-    } else if (periodOption.months) {
-      start = now.subtract(periodOption.months, 'month').startOf('day')
-    } else {
-      start = now
-    }
-    return { startDate: dateUtils.toSystemTimezoneISO(start.toDate()), endDate: dateUtils.toSystemTimezoneISO(now.toDate()) }
-  }, [periodOption])
+  const queryRange = useMemo(() => getChartQueryRangeFromShortcut(periodOption.value, new Date(), { minuteForOneHour: true }), [periodOption.value])
+  const activePeriod = queryRange.period
 
   const shouldUseNodeUsage = is_sudo && !admin_username
 
   const nodeUsageParams = useMemo(
     () => ({
-      period: periodOption.period,
-      start: startDate,
-      end: dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(endDate).endOf('day').toDate()),
+      period: activePeriod,
+      start: queryRange.startDate,
+      end: queryRange.endDate,
     }),
-    [periodOption.period, startDate, endDate],
+    [activePeriod, queryRange.startDate, queryRange.endDate],
   )
 
   const userUsageParams = useMemo(
     () => ({
       ...(admin_username ? { admin: [admin_username] } : {}),
-      period: periodOption.period,
-      start: startDate,
-      end: dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(endDate).endOf('day').toDate()),
+      period: activePeriod,
+      start: queryRange.startDate,
+      end: queryRange.endDate,
     }),
-    [admin_username, periodOption.period, startDate, endDate],
+    [admin_username, activePeriod, queryRange.startDate, queryRange.endDate],
   )
 
   const { data: nodeData, isLoading: isLoadingNodes } = useGetUsage(nodeUsageParams, {
@@ -274,7 +173,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     }
   }
 
-  const chartData = useMemo(() => transformUsageData({ stats: statsArr }, periodOption, shouldUseNodeUsage, i18n.language), [statsArr, periodOption, shouldUseNodeUsage, i18n.language])
+  const chartData = useMemo(() => transformUsageData({ stats: statsArr }, activePeriod, shouldUseNodeUsage, i18n.language), [statsArr, activePeriod, shouldUseNodeUsage, i18n.language])
 
   const trend = useMemo(() => {
     if (!chartData || chartData.length < 2) return null
@@ -295,25 +194,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
     return formatBytes(totalBytes, 2)
   }, [chartData])
 
-  const xAxisInterval = useMemo(() => {
-    // For hours (24h), show approximately 8 labels
-    if (periodOption.hours) {
-      const targetLabels = 8
-      return Math.max(1, Math.floor(chartData.length / targetLabels))
-    }
-
-    if (periodOption.months || periodOption.allTime) {
-      const targetLabels = 5
-      return Math.max(1, Math.floor(chartData.length / targetLabels))
-    }
-
-    if (periodOption.days && periodOption.days > 7) {
-      const targetLabels = periodOption.days === 30 ? 10 : 8
-      return Math.max(1, Math.floor(chartData.length / targetLabels))
-    }
-
-    return 0
-  }, [periodOption.hours, periodOption.months, periodOption.allTime, periodOption.days, chartData.length])
+  const xAxisInterval = useMemo(() => getXAxisIntervalForShortcut(periodOption.value, chartData.length, { minuteForOneHour: true }), [periodOption.value, chartData.length])
 
   return (
     <Card className="flex h-full flex-col justify-between overflow-hidden">
@@ -399,7 +280,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                 tickFormatter={(value: string): string => value || ''}
               />
               <YAxis dataKey={'traffic'} tickLine={false} tickMargin={4} axisLine={false} width={40} tickFormatter={val => formatBytes(val, 0, true).toString()} tick={{ fontSize: 10 }} />
-              <ChartTooltip cursor={false} content={<CustomBarTooltip period={periodOption.period} />} />
+              <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
               <Bar dataKey="traffic" radius={6} maxBarSize={48}>
                 {chartData.map((_, index: number) => (
                   <Cell key={`cell-${index}`} fill={index === activeIndex ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))'} />

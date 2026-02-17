@@ -26,6 +26,7 @@ import {
   type UserResponse,
   type UsersResponse,
 } from '@/service/api'
+import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -61,29 +62,6 @@ const templateModifySchema = z.object({
   user_template_id: z.number(),
 })
 
-
-// Helper function to get local ISO time string with timezone offset
-// This is kept for backward compatibility with normalizeExpire function
-function getLocalISOTime(date: Date): string {
-  // Create a properly formatted ISO string with timezone offset
-  const tzOffset = -date.getTimezoneOffset()
-  const offsetSign = tzOffset >= 0 ? '+' : '-'
-  const pad = (num: number) => Math.abs(num).toString().padStart(2, '0')
-
-  const offsetHours = pad(Math.floor(Math.abs(tzOffset) / 60))
-  const offsetMinutes = pad(Math.abs(tzOffset) % 60)
-
-  // Get the local date/time components without timezone conversion
-  const year = date.getFullYear()
-  const month = pad(date.getMonth() + 1)
-  const day = pad(date.getDate())
-  const hours = pad(date.getHours())
-  const minutes = pad(date.getMinutes())
-  const seconds = pad(date.getSeconds())
-
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`
-}
-
 // Add this new component before the UserModal component
 const ExpiryDateField = ({
   field,
@@ -112,7 +90,7 @@ const ExpiryDateField = ({
     (date: Date | undefined) => {
       if (date) {
         // Use the same logic as centralized DatePicker
-        const value = useUtcTimestamp ? Math.floor(date.getTime() / 1000) : getLocalISOTime(date)
+        const value = useUtcTimestamp ? toUnixSeconds(date) : formatOffsetDateTime(date)
         field.onChange(value)
         handleFieldChange(fieldName, value)
       } else {
@@ -462,24 +440,24 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       if (value === '') {
         return null
       } else {
-        // Use the same dateUtils.toDayjs logic as other components
         try {
-          const dayjsDate = dateUtils.toDayjs(value.trim())
+          const trimmedValue = value.trim()
+          const dayjsDate = parseDateInput(trimmedValue)
           if (dayjsDate.isValid()) {
-            return dayjsDate.toDate()
+            return toDisplayDate(trimmedValue)
           }
         } catch (error) {
-          // If dayjs parsing fails, return null
+          // Ignore invalid values and return null.
         }
       }
     } else if (typeof value === 'number') {
       try {
-        const dayjsDate = dateUtils.toDayjs(value)
+        const dayjsDate = parseDateInput(value)
         if (dayjsDate.isValid()) {
-          return dayjsDate.toDate()
+          return toDisplayDate(value)
         }
       } catch (error) {
-        // If dayjs parsing fails, return null
+        // Ignore invalid values and return null.
       }
     }
     return null
@@ -730,14 +708,14 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
     // For Date objects, convert to appropriate format
     if (expire instanceof Date) {
-      return useUtcTimestamp ? Math.floor(expire.getTime() / 1000) : getLocalISOTime(expire)
+      return useUtcTimestamp ? toUnixSeconds(expire) : formatOffsetDateTime(expire)
     }
 
-    // For strings and numbers, use the same dateUtils logic as other components
+    // For strings and numbers, normalize via centralized parser.
     try {
-      const dayjsDate = dateUtils.toDayjs(expire)
+      const dayjsDate = parseDateInput(expire)
       if (dayjsDate.isValid()) {
-        return useUtcTimestamp ? Math.floor(dayjsDate.toDate().getTime() / 1000) : getLocalISOTime(dayjsDate.toDate())
+        return useUtcTimestamp ? toUnixSeconds(expire) : formatOffsetDateTime(expire)
       }
     } catch (error) {
       // If dayjs parsing fails, return undefined

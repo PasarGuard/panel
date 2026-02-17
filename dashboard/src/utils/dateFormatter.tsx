@@ -1,5 +1,6 @@
 import dayjs from '@/lib/dayjs'
 import { useTranslation } from 'react-i18next'
+import { formatUtcStartOfDay } from './utcDateTime'
 
 // Helper function to convert timestamp to ISO string
 function timestampToISO(timestamp: number): string {
@@ -90,10 +91,9 @@ export const dateUtils = {
     return dateUtils.toSystemTimezoneDayjs(date).format('YYYY-MM-DDTHH:mm:ssZ')
   },
 
-  // Serialize the selected calendar day as UTC 00:00 while preserving system-tz output format.
+  // UTC conversions are kept in utcDateTime helpers to avoid mixing conversion concerns.
   toUTCDayStartISO: (date: string | number | Date) => {
-    const systemDate = dateUtils.toSystemTimezoneDayjs(date).format('YYYY-MM-DD')
-    return dayjs.utc(`${systemDate}T00:00:00Z`).tz(dateUtils.getSystemTimeZone()).format('YYYY-MM-DDTHH:mm:ssZ')
+    return formatUtcStartOfDay(date)
   },
 
   formatDate: (date: string | number | Date) => {

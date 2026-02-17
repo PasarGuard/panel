@@ -12,6 +12,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CopyButton } from '@/components/common/copy-button'
+import { normalizeExpireForEditForm } from '@/utils/userEditDateUtils'
 import SubscriptionModal from '@/components/dialogs/subscription-modal'
 import SetOwnerModal from '@/components/dialogs/set-owner-modal'
 import UsageModal from '@/components/dialogs/usage-modal'
@@ -117,7 +118,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       username: user.username,
       status: user.status === 'expired' || user.status === 'limited' ? 'active' : user.status,
       data_limit: user.data_limit ? Math.round((Number(user.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : undefined, // Convert bytes to GB
-      expire: user.expire,
+      expire: normalizeExpireForEditForm(user.expire),
       note: user.note || '',
       data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
       group_ids: user.group_ids || [], // Add group_ids
@@ -141,7 +142,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       username: user.username,
       status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as any) : 'active',
       data_limit: user.data_limit ? Math.round((Number(user.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
-      expire: user.expire, // Pass raw expire value (timestamp)
+      expire: normalizeExpireForEditForm(user.expire),
       note: user.note || '',
       data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
       group_ids: user.group_ids || [],
@@ -219,7 +220,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
       username: latestUser.username,
       status: latestUser.status === 'active' || latestUser.status === 'on_hold' || latestUser.status === 'disabled' ? (latestUser.status as any) : 'active',
       data_limit: latestUser.data_limit ? Math.round((Number(latestUser.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
-      expire: latestUser.expire,
+      expire: normalizeExpireForEditForm(latestUser.expire),
       note: latestUser.note || '',
       data_limit_reset_strategy: latestUser.data_limit_reset_strategy || undefined,
       group_ids: latestUser.group_ids || [],

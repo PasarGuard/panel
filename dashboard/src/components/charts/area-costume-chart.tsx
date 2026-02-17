@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './empty-state'
 import { Button } from '@/components/ui/button'
 import { Clock, History, Cpu, MemoryStick } from 'lucide-react'
-import { dateUtils } from '@/utils/dateFormatter'
+import { formatOffsetDateTime } from '@/utils/dateTimeParsing'
 import { useTheme } from 'next-themes'
 import {
   buildPeriodOptions,
@@ -164,7 +164,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
             time: timeStr,
             cpu: cpuUsage,
             ram: ramUsage,
-            _period_start: dateUtils.toSystemTimezoneISO(now),
+            _period_start: formatOffsetDateTime(now),
           },
         ]
 

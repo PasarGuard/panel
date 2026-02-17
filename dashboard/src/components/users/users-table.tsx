@@ -6,6 +6,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useGetUsers, UserResponse, UserStatus, UsersResponse } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
 import { getUsersPerPageLimitSize, setUsersPerPageLimitSize } from '@/utils/userPreferenceStorage'
+import { normalizeExpireForEditForm } from '@/utils/userEditDateUtils'
 import { useQueryClient } from '@tanstack/react-query'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -185,7 +186,7 @@ const UsersTable = memo(() => {
       username: selectedUser?.username,
       status: selectedUser?.status === 'active' || selectedUser?.status === 'on_hold' || selectedUser?.status === 'disabled' ? selectedUser?.status : 'active',
       data_limit: selectedUser?.data_limit ? Math.round((Number(selectedUser?.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : undefined,
-      expire: selectedUser?.expire,
+      expire: normalizeExpireForEditForm(selectedUser?.expire),
       note: selectedUser?.note || '',
       data_limit_reset_strategy: selectedUser?.data_limit_reset_strategy || undefined,
       group_ids: selectedUser?.group_ids || [],
@@ -209,7 +210,7 @@ const UsersTable = memo(() => {
         username: selectedUser.username,
         status: selectedUser.status === 'active' || selectedUser.status === 'on_hold' || selectedUser.status === 'disabled' ? selectedUser.status : 'active',
         data_limit: selectedUser.data_limit ? Math.round((Number(selectedUser.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
-        expire: selectedUser.expire,
+        expire: normalizeExpireForEditForm(selectedUser.expire),
         note: selectedUser.note || '',
         data_limit_reset_strategy: selectedUser.data_limit_reset_strategy || undefined,
         group_ids: selectedUser.group_ids || [],

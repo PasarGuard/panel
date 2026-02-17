@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { useTranslation } from 'react-i18next'
 import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
 import { formatDateByLocale, formatDateShort, isDateDisabled } from '@/utils/datePickerUtils'
+import { formatOffsetDateTime, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useTheme } from '@/components/common/theme-provider'
 import { DATE_PICKER_PREFERENCE_KEY, getDatePickerPreference, type DatePickerPreference } from '@/utils/userPreferenceStorage'
@@ -108,29 +109,6 @@ export interface DatePickerProps {
    * Side of the popover
    */
   side?: DatePickerSide
-}
-
-/**
- * Helper function to get local ISO time string with timezone offset
- */
-const getLocalISOTime = (date: Date): string => {
-  // Create a properly formatted ISO string with timezone offset
-  const tzOffset = -date.getTimezoneOffset()
-  const offsetSign = tzOffset >= 0 ? '+' : '-'
-  const pad = (num: number) => Math.abs(num).toString().padStart(2, '0')
-
-  const offsetHours = pad(Math.floor(Math.abs(tzOffset) / 60))
-  const offsetMinutes = pad(Math.abs(tzOffset) % 60)
-
-  // Get the local date/time components without timezone conversion
-  const year = date.getFullYear()
-  const month = pad(date.getMonth() + 1)
-  const day = pad(date.getDate())
-  const hours = pad(date.getHours())
-  const minutes = pad(date.getMinutes())
-  const seconds = pad(date.getSeconds())
-
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`
 }
 
 /**
@@ -243,7 +221,7 @@ export function DatePicker({
       }
 
       setInternalDate(selectedDate)
-      const value = useUtcTimestamp ? Math.floor(selectedDate.getTime() / 1000) : getLocalISOTime(selectedDate)
+      const value = useUtcTimestamp ? toUnixSeconds(selectedDate) : formatOffsetDateTime(selectedDate)
       onDateChange(selectedDate)
       onFieldChange?.(fieldName, value)
       setTimeout(() => {
@@ -274,7 +252,7 @@ export function DatePicker({
           newDate.setTime(now.getTime())
         }
 
-        const value = useUtcTimestamp ? Math.floor(newDate.getTime() / 1000) : getLocalISOTime(newDate)
+        const value = useUtcTimestamp ? toUnixSeconds(newDate) : formatOffsetDateTime(newDate)
         setInternalDate(newDate)
         onDateChange(newDate)
         onFieldChange?.(fieldName, value)

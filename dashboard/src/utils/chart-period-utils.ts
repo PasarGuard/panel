@@ -1,9 +1,9 @@
 import dayjs from '@/lib/dayjs'
 import { Period } from '@/service/api'
-import { dateUtils } from '@/utils/dateFormatter'
 import type { TFunction } from 'i18next'
 import { DateRange } from 'react-day-picker'
 import { getPeriodFromDateRange } from './datePickerUtils'
+import { formatOffsetDateTime, formatOffsetEndOfDay, formatOffsetStartOfDay, parseDateInput } from './dateTimeParsing'
 import { getDateRangeFromShortcut } from './timeShortcutUtils'
 
 export type PeriodOption = {
@@ -56,7 +56,7 @@ export const getDateRangeForPeriodOption = (periodOption: PeriodOption) => {
   let start: dayjs.Dayjs
 
   if (periodOption.allTime) {
-    start = dayjs('2000-01-01T00:00:00Z')
+    start = dayjs(new Date(2000, 0, 1, 0, 0, 0, 0))
   } else if (periodOption.hours) {
     start = now.subtract(periodOption.hours, 'hour')
   } else if (periodOption.days) {
@@ -69,14 +69,28 @@ export const getDateRangeForPeriodOption = (periodOption: PeriodOption) => {
   }
 
   return {
-    startDate: dateUtils.toSystemTimezoneISO(start.toDate()),
-    endDate: dateUtils.toSystemTimezoneISO(now.toDate()),
+    startDate: formatOffsetDateTime(start.toDate()),
+    endDate: formatOffsetDateTime(now.toDate()),
   }
 }
 
-export const toChartQueryEndDate = (endDate: string) => dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(endDate).endOf('day').toDate())
+export const toChartQueryEndDate = (endDate: string) => formatOffsetEndOfDay(endDate)
 
-export const toChartPeriodStart = (periodStart: string | Date) => dateUtils.toSystemTimezoneDayjs(periodStart)
+export const toChartPeriodStart = (periodStart: string | Date) => parseDateInput(periodStart)
+
+const toChartDisplayDate = (periodStart: string | Date, includeTime: boolean) => {
+  const parsed = toChartPeriodStart(periodStart)
+
+  return new Date(
+    parsed.year(),
+    parsed.month(),
+    parsed.date(),
+    includeTime ? parsed.hour() : 0,
+    includeTime ? parsed.minute() : 0,
+    includeTime ? parsed.second() : 0,
+    includeTime ? parsed.millisecond() : 0,
+  )
+}
 
 export const formatPeriodLabel = (periodStart: string, periodOption: PeriodOption, language: string): string => {
   const locale = getLocale(language)
@@ -87,14 +101,14 @@ export const formatPeriodLabel = (periodStart: string, periodOption: PeriodOptio
   }
 
   if (periodOption.period === Period.day) {
-    const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
+    const localDate = toChartDisplayDate(periodStart, false)
     return localDate.toLocaleString(locale, {
       month: '2-digit',
       day: '2-digit',
     })
   }
 
-  return d.toDate().toLocaleString(locale, {
+  return toChartDisplayDate(periodStart, true).toLocaleString(locale, {
     month: '2-digit',
     day: '2-digit',
   })
@@ -102,10 +116,9 @@ export const formatPeriodLabel = (periodStart: string, periodOption: PeriodOptio
 
 export const formatTooltipDate = (periodStart: string | Date, period: Period, language: string): string => {
   const locale = getLocale(language)
-  const d = toChartPeriodStart(periodStart)
 
   if (period === Period.day) {
-    const localDate = new Date(d.year(), d.month(), d.date(), 0, 0, 0)
+    const localDate = toChartDisplayDate(periodStart, false)
     return localDate.toLocaleDateString(locale, {
       year: 'numeric',
       month: '2-digit',
@@ -113,8 +126,7 @@ export const formatTooltipDate = (periodStart: string | Date, period: Period, la
     })
   }
 
-  return d
-    .toDate()
+  return toChartDisplayDate(periodStart, true)
     .toLocaleString(locale, {
       year: 'numeric',
       month: '2-digit',
@@ -219,19 +231,20 @@ type ChartQueryRange = {
   endDate: string
 }
 
+const buildChartQueryRange = (period: Period, from: Date, to: Date): ChartQueryRange => {
+  const startDate = period === Period.day ? formatOffsetStartOfDay(from) : formatOffsetDateTime(from)
+  const endDate = period === Period.day ? formatOffsetEndOfDay(to) : formatOffsetDateTime(to)
+
+  return { period, startDate, endDate }
+}
+
 export const getChartQueryRangeFromShortcut = (shortcut: string, now = new Date(), options?: ShortcutPeriodOptions): ChartQueryRange => {
   const safeRange = getDateRangeFromShortcut(shortcut, now)
   const from = safeRange?.from ?? now
   const to = safeRange?.to ?? now
   const period = getShortcutPeriod(shortcut, options)
 
-  const startDate =
-    period === Period.day
-      ? dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(from).startOf('day').toDate())
-      : dateUtils.toSystemTimezoneISO(from)
-  const endDate = period === Period.day ? dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(to).endOf('day').toDate()) : dateUtils.toSystemTimezoneISO(to)
-
-  return { period, startDate, endDate }
+  return buildChartQueryRange(period, from, to)
 }
 
 export const getChartQueryRangeFromDateRange = (range: DateRange, fallbackShortcut: string = '1w'): ChartQueryRange => {
@@ -240,13 +253,7 @@ export const getChartQueryRangeFromDateRange = (range: DateRange, fallbackShortc
   }
 
   const period = getPeriodFromDateRange(range)
-  const startDate =
-    period === Period.day
-      ? dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(range.from).startOf('day').toDate())
-      : dateUtils.toSystemTimezoneISO(range.from)
-  const endDate = period === Period.day ? dateUtils.toSystemTimezoneISO(dateUtils.toSystemTimezoneDayjs(range.to).endOf('day').toDate()) : dateUtils.toSystemTimezoneISO(range.to)
-
-  return { period, startDate, endDate }
+  return buildChartQueryRange(period, range.from, range.to)
 }
 
 export const formatPeriodLabelForPeriod = (periodStart: string, period: Period, language: string) => {
