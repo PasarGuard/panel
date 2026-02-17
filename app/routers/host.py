@@ -17,8 +17,8 @@ router = APIRouter(tags=["Host"], prefix="/api/host", responses={401: responses.
 @router.get("/subscription-templates", response_model=dict[str, list[str]])
 async def list_subscription_templates(_: AdminDetails = Depends(check_sudo_admin)):
     """
-    List available subscription template files grouped by format (xray, clash, singbox).
-    Scans both CUSTOM_TEMPLATES_DIRECTORY and built-in templates.
+    List available custom subscription template files grouped by format (xray, clash, singbox).
+    Scans CUSTOM_TEMPLATES_DIRECTORY only; built-in defaults are excluded.
     """
     return get_subscription_templates()
 

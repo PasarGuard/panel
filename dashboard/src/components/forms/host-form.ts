@@ -53,8 +53,8 @@ export interface HostFormValues {
   path?: string
   http_headers?: Record<string, string>
   subscription_templates?: {
-    xray?: string | null
-    [key: string]: any
+    xray: string | null
+    [key: string]: string | null
   }
   security: 'none' | 'tls' | 'inbound_default'
   alpn?: string[]

@@ -35,10 +35,12 @@ def custom_templates_dir(monkeypatch):
 
         import app.templates
 
-        app.templates.env = app.templates.jinja2.Environment(
+        new_env = app.templates.jinja2.Environment(
             loader=app.templates.jinja2.FileSystemLoader([tmpdir, "app/templates"])
         )
-        app.templates.env.filters.update(app.templates.CUSTOM_FILTERS)
+        new_env.filters.update(app.templates.CUSTOM_FILTERS)
+        new_env.globals["now"] = app.templates.env.globals["now"]
+        monkeypatch.setattr("app.templates.env", new_env)
 
         yield tmpdir
 
@@ -55,7 +57,7 @@ def no_custom_templates_dir(monkeypatch):
 
 
 def test_subscription_templates_list(access_token, custom_templates_dir):
-    """List endpoint returns custom templates grouped by format."""
+    """List endpoint returns custom templates grouped by format, excluding defaults."""
     response = client.get("/api/host/subscription-templates", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_200_OK
 
@@ -66,14 +68,6 @@ def test_subscription_templates_list(access_token, custom_templates_dir):
 
     assert "xray/custom.json" in data["xray"]
     assert "xray/another.json" in data["xray"]
-
-
-def test_subscription_templates_list_excludes_defaults(access_token, custom_templates_dir):
-    """List endpoint only returns custom templates, not built-in defaults."""
-    response = client.get("/api/host/subscription-templates", headers=auth_headers(access_token))
-    assert response.status_code == status.HTTP_200_OK
-
-    data = response.json()
     assert "xray/default.json" not in data["xray"]
 
 
@@ -94,6 +88,40 @@ def test_subscription_templates_list_requires_auth():
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
+# --- Scenario 1: CUSTOM_TEMPLATES_DIRECTORY not set ---
+
+
+def test_host_crud_without_custom_dir(access_token, no_custom_templates_dir):
+    """Without custom dir: null template succeeds, custom template is rejected."""
+    core = create_core(access_token)
+    inbounds = get_inbounds(access_token)
+    assert inbounds
+
+    host_id = None
+    try:
+        payload = {
+            "remark": unique_name("host_no_dir"),
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "inbound_tag": inbounds[0],
+            "priority": 1,
+            "subscription_templates": None,
+        }
+        response = client.post("/api/host", headers=auth_headers(access_token), json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        host_id = response.json()["id"]
+        assert response.json()["subscription_templates"] is None
+
+        payload["subscription_templates"] = {"xray": "xray/custom.json"}
+        response = client.post("/api/host", headers=auth_headers(access_token), json=payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "not available" in response.json()["detail"]
+    finally:
+        if host_id:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
 # --- Host CRUD with subscription_templates ---
 
 
@@ -103,6 +131,7 @@ def test_host_create_with_subscription_template(access_token, custom_templates_d
     inbounds = get_inbounds(access_token)
     assert inbounds
 
+    host_id = None
     try:
         payload = {
             "remark": unique_name("host_tpl"),
@@ -116,36 +145,11 @@ def test_host_create_with_subscription_template(access_token, custom_templates_d
         assert response.status_code == status.HTTP_201_CREATED
 
         data = response.json()
+        host_id = data["id"]
         assert data["subscription_templates"] == {"xray": "xray/custom.json"}
-
-        client.delete(f"/api/host/{data['id']}", headers=auth_headers(access_token))
     finally:
-        delete_core(access_token, core["id"])
-
-
-def test_host_create_with_null_subscription_template(access_token):
-    """Host creation accepts null subscription_templates (uses global default)."""
-    core = create_core(access_token)
-    inbounds = get_inbounds(access_token)
-    assert inbounds
-
-    try:
-        payload = {
-            "remark": unique_name("host_null_tpl"),
-            "address": ["127.0.0.1"],
-            "port": 443,
-            "inbound_tag": inbounds[0],
-            "priority": 1,
-            "subscription_templates": None,
-        }
-        response = client.post("/api/host", headers=auth_headers(access_token), json=payload)
-        assert response.status_code == status.HTTP_201_CREATED
-
-        data = response.json()
-        assert data["subscription_templates"] is None
-
-        client.delete(f"/api/host/{data['id']}", headers=auth_headers(access_token))
-    finally:
+        if host_id:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])
 
 
@@ -171,12 +175,13 @@ def test_host_create_with_invalid_subscription_template(access_token, custom_tem
         delete_core(access_token, core["id"])
 
 
-def test_host_update_subscription_template(access_token, custom_templates_dir):
-    """Host update can change the subscription template."""
+def test_host_update_and_clear_subscription_template(access_token, custom_templates_dir):
+    """Host update can set a custom template and then clear it back to null."""
     core = create_core(access_token)
     inbounds = get_inbounds(access_token)
     assert inbounds
 
+    host_id = None
     try:
         create_payload = {
             "remark": unique_name("host_update_tpl"),
@@ -202,43 +207,11 @@ def test_host_update_subscription_template(access_token, custom_templates_dir):
         assert update_resp.status_code == status.HTTP_200_OK
         assert update_resp.json()["subscription_templates"] == {"xray": "xray/another.json"}
 
-        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        update_payload["subscription_templates"] = None
+        clear_resp = client.put(f"/api/host/{host_id}", headers=auth_headers(access_token), json=update_payload)
+        assert clear_resp.status_code == status.HTTP_200_OK
+        assert clear_resp.json()["subscription_templates"] is None
     finally:
-        delete_core(access_token, core["id"])
-
-
-def test_host_update_clear_subscription_template(access_token, custom_templates_dir):
-    """Host update can clear subscription template back to null."""
-    core = create_core(access_token)
-    inbounds = get_inbounds(access_token)
-    assert inbounds
-
-    try:
-        create_payload = {
-            "remark": unique_name("host_clear_tpl"),
-            "address": ["127.0.0.1"],
-            "port": 443,
-            "inbound_tag": inbounds[0],
-            "priority": 1,
-            "subscription_templates": {"xray": "xray/custom.json"},
-        }
-        create_resp = client.post("/api/host", headers=auth_headers(access_token), json=create_payload)
-        assert create_resp.status_code == status.HTTP_201_CREATED
-        host_id = create_resp.json()["id"]
-        assert create_resp.json()["subscription_templates"] == {"xray": "xray/custom.json"}
-
-        update_payload = {
-            "remark": create_payload["remark"],
-            "address": ["127.0.0.1"],
-            "port": 443,
-            "inbound_tag": inbounds[0],
-            "priority": 1,
-            "subscription_templates": None,
-        }
-        update_resp = client.put(f"/api/host/{host_id}", headers=auth_headers(access_token), json=update_payload)
-        assert update_resp.status_code == status.HTTP_200_OK
-        assert update_resp.json()["subscription_templates"] is None
-
-        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
-    finally:
+        if host_id:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])
