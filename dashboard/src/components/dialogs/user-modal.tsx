@@ -1061,9 +1061,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           const nextPlan = values.next_plan || form.getValues('next_plan') || {}
           
           if (nextPlan.user_template_id) {
-            // Template selected - only send template_id and add_remaining_traffic
+            // Template selected - include numeric fields to avoid backend nulls in next_plan.
             sendValues.next_plan = {
               user_template_id: nextPlan.user_template_id,
+              expire: 0,
+              data_limit: 0,
               add_remaining_traffic: nextPlan.add_remaining_traffic ?? false,
             }
           } else {
