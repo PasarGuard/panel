@@ -28,11 +28,13 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 const PAGE_SIZE = 20
+type CleanupDeleteTarget = 'expired' | 'limited'
 
 export default function CleanupSettings() {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const isPersianLocale = i18n.language === 'fa'
+  const [deleteTarget, setDeleteTarget] = useState<CleanupDeleteTarget>('expired')
   const [expiredAfter, setExpiredAfter] = useState<Date | undefined>()
   const [expiredBefore, setExpiredBefore] = useState<Date | undefined>()
   const [selectedTable, setSelectedTable] = useState<string>('')
@@ -113,9 +115,12 @@ export default function CleanupSettings() {
   ]
 
   const handleDeleteExpired = async () => {
-    const params: any = {}
-    if (expiredAfter) params.expired_after = expiredAfter.toISOString()
-    if (expiredBefore) params.expired_before = expiredBefore.toISOString()
+    const target = deleteTarget
+    const params: any = { target }
+    if (target === 'expired') {
+      if (expiredAfter) params.expired_after = expiredAfter.toISOString()
+      if (expiredBefore) params.expired_before = expiredBefore.toISOString()
+    }
     if (selectedAdmin) params.admin_username = selectedAdmin.username
 
     deleteExpiredUsersMutation.mutate(
@@ -123,11 +128,18 @@ export default function CleanupSettings() {
       {
         onSuccess: response => {
           const count = response?.count || 0
-          toast.success(t('settings.cleanup.expiredUsers.deleteSuccess', { count }))
+          toast.success(
+            target === 'limited'
+              ? t('settings.cleanup.expiredUsers.deleteLimitedSuccess', { count })
+              : t('settings.cleanup.expiredUsers.deleteSuccess', { count }),
+          )
         },
         onError: (error: any) => {
+          const failureMessageKey =
+            target === 'limited' ? 'settings.cleanup.expiredUsers.deleteLimitedFailed' : 'settings.cleanup.expiredUsers.deleteFailed'
+
           // Extract detailed error message
-          let errorMessage = t('settings.cleanup.expiredUsers.deleteFailed')
+          let errorMessage = t(failureMessageKey)
 
           if (error?.data?.detail) {
             const detail = error.data.detail
@@ -153,7 +165,7 @@ export default function CleanupSettings() {
             errorMessage = error.message
           }
 
-          toast.error(t('settings.cleanup.expiredUsers.deleteFailed'), {
+          toast.error(t(failureMessageKey), {
             description: errorMessage,
           })
         },
@@ -341,59 +353,90 @@ export default function CleanupSettings() {
             </Popover>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <DatePicker
-                mode="single"
-                date={expiredAfter}
-                onDateChange={setExpiredAfter}
-                label={t('settings.cleanup.expiredUsers.expiredAfter')}
-                placeholder={t('settings.cleanup.expiredUsers.expiredAfterPlaceholder')}
-                minDate={new Date('1900-01-01')}
-                maxDate={new Date()}
-                formatDate={formatDate}
-                side={"bottom"}
-                align={"center"}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <DatePicker
-                mode="single"
-                date={expiredBefore}
-                onDateChange={setExpiredBefore}
-                label={t('settings.cleanup.expiredUsers.expiredBefore')}
-                placeholder={t('settings.cleanup.expiredUsers.expiredBeforePlaceholder')}
-                minDate={new Date('1900-01-01')}
-                maxDate={new Date()}
-                formatDate={formatDate}
-                side={"bottom"}
-                align={"center"}
-              />
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">{t('settings.cleanup.expiredUsers.target')}</label>
+            <Select value={deleteTarget} onValueChange={value => setDeleteTarget(value as CleanupDeleteTarget)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t('settings.cleanup.expiredUsers.targetPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expired">{t('settings.cleanup.expiredUsers.targets.expired')}</SelectItem>
+                <SelectItem value="limited">{t('settings.cleanup.expiredUsers.targets.limited')}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="text-sm text-muted-foreground">{t('settings.cleanup.expiredUsers.selectDateRange')}</div>
+          {deleteTarget === 'expired' ? (
+            <>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <DatePicker
+                    mode="single"
+                    date={expiredAfter}
+                    onDateChange={setExpiredAfter}
+                    label={t('settings.cleanup.expiredUsers.expiredAfter')}
+                    placeholder={t('settings.cleanup.expiredUsers.expiredAfterPlaceholder')}
+                    minDate={new Date('1900-01-01')}
+                    maxDate={new Date()}
+                    formatDate={formatDate}
+                    side={"bottom"}
+                    align={"center"}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <DatePicker
+                    mode="single"
+                    date={expiredBefore}
+                    onDateChange={setExpiredBefore}
+                    label={t('settings.cleanup.expiredUsers.expiredBefore')}
+                    placeholder={t('settings.cleanup.expiredUsers.expiredBeforePlaceholder')}
+                    minDate={new Date('1900-01-01')}
+                    maxDate={new Date()}
+                    formatDate={formatDate}
+                    side={"bottom"}
+                    align={"center"}
+                  />
+                </div>
+              </div>
+
+              <div className="text-sm text-muted-foreground">{t('settings.cleanup.expiredUsers.selectDateRange')}</div>
+            </>
+          ) : (
+            <div className="text-sm text-muted-foreground">{t('settings.cleanup.expiredUsers.selectLimitedInfo')}</div>
+          )}
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" disabled={deleteExpiredUsersMutation.isPending} className="w-full">
                 <Trash2 className="mr-2 h-4 w-4" />
-                {deleteExpiredUsersMutation.isPending ? t('settings.cleanup.expiredUsers.deleting') : t('settings.cleanup.expiredUsers.deleteExpired')}
+                {deleteExpiredUsersMutation.isPending
+                  ? t('settings.cleanup.expiredUsers.deleting')
+                  : deleteTarget === 'limited'
+                    ? t('settings.cleanup.expiredUsers.deleteLimited')
+                    : t('settings.cleanup.expiredUsers.deleteExpired')}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-destructive" />
-                  {t('settings.cleanup.expiredUsers.confirmDelete')}
+                  {deleteTarget === 'limited'
+                    ? t('settings.cleanup.expiredUsers.confirmDeleteLimited')
+                    : t('settings.cleanup.expiredUsers.confirmDelete')}
                 </AlertDialogTitle>
-                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-sm')}>{t('settings.cleanup.expiredUsers.confirmDeleteMessage')}</AlertDialogDescription>
+                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-sm')}>
+                  {deleteTarget === 'limited'
+                    ? t('settings.cleanup.expiredUsers.confirmDeleteLimitedMessage')
+                    : t('settings.cleanup.expiredUsers.confirmDeleteMessage')}
+                </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="gap-2">
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeleteExpired} disabled={deleteExpiredUsersMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  {t('settings.cleanup.expiredUsers.deleteExpired')}
+                  {deleteTarget === 'limited'
+                    ? t('settings.cleanup.expiredUsers.deleteLimited')
+                    : t('settings.cleanup.expiredUsers.deleteExpired')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

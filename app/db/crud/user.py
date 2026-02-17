@@ -1,7 +1,7 @@
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
-from typing import List, Optional, Sequence
+from typing import List, Literal, Optional, Sequence
 
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -376,12 +376,20 @@ async def get_expired_users(
     expired_after: datetime | None = None,
     expired_before: datetime | None = None,
     admin_id: int | None = None,
+    target: Literal["expired", "limited"] = "expired",
 ):
-    query = select(User).where(User.status.in_([UserStatus.limited, UserStatus.expired])).where(User.is_expired)
-    if expired_after:
-        query = query.where(User.expire >= expired_after)
-    if expired_before:
-        query = query.where(User.expire <= expired_before)
+    query = select(User)
+
+    if target == "limited":
+        query = query.where(User.status == UserStatus.limited).where(User.is_limited)
+    else:
+        # Time-expired users support expiration date range filtering.
+        query = query.where(User.status == UserStatus.expired).where(User.is_expired)
+        if expired_after:
+            query = query.where(User.expire >= expired_after)
+        if expired_before:
+            query = query.where(User.expire <= expired_before)
+
     if admin_id:
         query = query.where(User.admin_id == admin_id)
 

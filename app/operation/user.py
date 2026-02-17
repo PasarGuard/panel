@@ -3,6 +3,7 @@ import re
 import secrets
 from collections import Counter
 from datetime import datetime as dt, timedelta as td, timezone as tz
+from typing import Literal
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -559,14 +560,16 @@ class UserOperation(BaseOperation):
         expired_after: dt = None,
         expired_before: dt = None,
         admin_username: str = None,
+        target: Literal["expired", "limited"] = "expired",
     ) -> list[str]:
         """
         Get users who have expired within the specified date range.
 
+        - **target**: `expired` (time-based) or `limited` (usage-based).
         - **expired_after** UTC datetime (optional)
         - **expired_before** UTC datetime (optional)
-        - At least one of expired_after or expired_before must be provided for filtering
-        - If both are omitted, returns all expired users
+        - Date range filters are applied only when target is `expired`.
+        - If both dates are omitted, returns all users matching target.
         """
 
         expired_after, expired_before = await self.validate_dates(expired_after, expired_before, False)
@@ -574,7 +577,7 @@ class UserOperation(BaseOperation):
             admin_id = (await self.get_validated_admin(db, admin_username)).id
         else:
             admin_id = None
-        users = await get_expired_users(db, expired_after, expired_before, admin_id)
+        users = await get_expired_users(db, expired_after, expired_before, admin_id, target=target)
         return [row.username for row in users]
 
     async def delete_expired_users(
@@ -584,13 +587,15 @@ class UserOperation(BaseOperation):
         expired_after: dt | None = None,
         expired_before: dt | None = None,
         admin_username: str = None,
+        target: Literal["expired", "limited"] = "expired",
     ) -> RemoveUsersResponse:
         """
         Delete users who have expired within the specified date range.
 
+        - **target**: `expired` (time-based) or `limited` (usage-based).
         - **expired_after** UTC datetime (optional)
         - **expired_before** UTC datetime (optional)
-        - At least one of expired_after or expired_before must be provided
+        - Date range filters are applied only when target is `expired`.
         """
 
         expired_after, expired_before = await self.validate_dates(expired_after, expired_before, False)
@@ -599,7 +604,7 @@ class UserOperation(BaseOperation):
             admin_id = (await self.get_validated_admin(db, admin_username)).id
         else:
             admin_id = None
-        users = await get_expired_users(db, expired_after, expired_before, admin_id)
+        users = await get_expired_users(db, expired_after, expired_before, admin_id, target=target)
         await remove_users(db, users)
 
         username_list = [row.username for row in users]

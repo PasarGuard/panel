@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -302,19 +303,26 @@ async def get_expired_users(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(check_sudo_admin),
     admin_username: str | None = None,
+    target: Literal["expired", "limited"] = Query("expired"),
     expired_after: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
     expired_before: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
 ):
     """
-    Get users who have expired within the specified date range.
+    Get cleanup-target users in the specified scope.
 
+    - **target**: `expired` (time-based) or `limited` (usage-based)
     - **expired_after** UTC datetime (optional)
     - **expired_before** UTC datetime (optional)
-    - At least one of expired_after or expired_before must be provided for filtering
-    - If both are omitted, returns all expired users
+    - Date range filters are applied only when target is `expired`
     """
 
-    return await user_operator.get_expired_users(db, expired_after, expired_before, admin_username)
+    return await user_operator.get_expired_users(
+        db,
+        expired_after,
+        expired_before,
+        admin_username,
+        target=target,
+    )
 
 
 @router.delete("s/expired", response_model=RemoveUsersResponse)
@@ -322,18 +330,20 @@ async def delete_expired_users(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(check_sudo_admin),
     admin_username: str | None = None,
+    target: Literal["expired", "limited"] = Query("expired"),
     expired_after: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
     expired_before: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
 ):
     """
-    Delete users who have expired within the specified date range.
+    Delete cleanup-target users in the specified scope.
 
+    - **target**: `expired` (time-based) or `limited` (usage-based)
     - **expired_after** UTC datetime (optional)
     - **expired_before** UTC datetime (optional)
-    - At least one of expired_after or expired_before must be provided
+    - Date range filters are applied only when target is `expired`
     """
     return await user_operator.delete_expired_users(
-        db, admin, expired_after, expired_before, admin_username=admin_username
+        db, admin, expired_after, expired_before, admin_username=admin_username, target=target
     )
 
 

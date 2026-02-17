@@ -420,19 +420,31 @@
       "expiredUsers": {
         "title": "Delete Expired Accounts",
         "description": "Remove accounts that have expired within a specific date range",
+        "target": "Delete Target",
+        "targetPlaceholder": "Select target",
+        "targets": {
+          "expired": "Time Expired",
+          "limited": "Usage Limited"
+        },
         "expiredAfter": "Expired After",
         "expiredBefore": "Expired Before",
         "expiredAfterPlaceholder": "Select start date",
         "expiredBeforePlaceholder": "Select end date",
         "dateRange": "Date Range",
         "deleteExpired": "Delete Expired",
+        "deleteLimited": "Delete Limited",
         "deleting": "Deleting...",
         "deleteSuccess": "{{count}} expired accounts deleted successfully",
+        "deleteLimitedSuccess": "{{count}} limited accounts deleted successfully",
         "deleteFailed": "Failed to delete expired accounts",
+        "deleteLimitedFailed": "Failed to delete limited accounts",
         "confirmDelete": "Delete Expired Accounts",
+        "confirmDeleteLimited": "Delete Limited Accounts",
         "confirmDeleteMessage": "Are you sure you want to delete all expired accounts in the selected date range? This action cannot be undone.",
+        "confirmDeleteLimitedMessage": "Are you sure you want to delete all usage-limited accounts? This action cannot be undone.",
         "noDateSelected": "Please select at least one date",
-        "selectDateRange": "Select the date range for expired accounts to delete (only past dates are selectable)"
+        "selectDateRange": "Select the date range for expired accounts to delete (only past dates are selectable)",
+        "selectLimitedInfo": "Delete all usage-limited accounts for the selected admin scope."
       },
       "resetUsage": {
         "title": "Reset All Data Usage",

@@ -40,14 +40,18 @@ export type GetSubUserUsageParams = {
   period?: Period
 }
 
+export type CleanupDeleteTarget = 'expired' | 'limited'
+
 export type DeleteExpiredUsersParams = {
   admin_username?: string | null
+  target?: CleanupDeleteTarget
   expired_after?: string | null
   expired_before?: string | null
 }
 
 export type GetExpiredUsersParams = {
   admin_username?: string | null
+  target?: CleanupDeleteTarget
   expired_after?: string | null
   expired_before?: string | null
 }

@@ -401,19 +401,31 @@
       "expiredUsers": {
         "title": "删除过期账户",
         "description": "删除在特定日期范围内过期的账户",
+        "target": "删除目标",
+        "targetPlaceholder": "选择目标",
+        "targets": {
+          "expired": "按时间过期",
+          "limited": "按流量受限"
+        },
         "expiredAfter": "过期时间晚于",
         "expiredBefore": "过期时间早于",
         "expiredAfterPlaceholder": "选择开始日期",
         "expiredBeforePlaceholder": "选择结束日期",
         "dateRange": "日期范围",
         "deleteExpired": "删除过期账户",
+        "deleteLimited": "删除受限账户",
         "deleting": "删除中...",
         "deleteSuccess": "成功删除 {{count}} 个过期账户",
+        "deleteLimitedSuccess": "成功删除 {{count}} 个受限账户",
         "deleteFailed": "删除过期账户失败",
+        "deleteLimitedFailed": "删除受限账户失败",
         "confirmDelete": "删除过期账户",
+        "confirmDeleteLimited": "删除受限账户",
         "confirmDeleteMessage": "您确定要删除所选日期范围内的所有过期账户吗？此操作无法撤销。",
+        "confirmDeleteLimitedMessage": "您确定要删除所有按流量受限的账户吗？此操作无法撤销。",
         "noDateSelected": "请至少选择一个日期",
-        "selectDateRange": "选择要删除过期账户的日期范围（只能选择过去的日期）"
+        "selectDateRange": "选择要删除过期账户的日期范围（只能选择过去的日期）",
+        "selectLimitedInfo": "将删除所选管理员范围内的所有按流量受限账户。"
       },
       "resetUsage": {
         "title": "重置所有数据使用量",
