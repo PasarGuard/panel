@@ -18,6 +18,7 @@ system_operator = SystemOperation(OperatorType.TELEGRAM)
 router = Router(name="base")
 
 
+@router.callback_query(F.data == CancelAction.cancel.value)
 @router.callback_query(CancelKeyboard.Callback.filter(CancelAction.cancel == F.action))
 @router.message(CommandStart())
 async def command_start_handler(
