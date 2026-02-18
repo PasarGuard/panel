@@ -13,6 +13,7 @@ logger = get_logger("node-sync")
 
 
 if ROLE.runs_node:
+
     async def _dispatch_user_update(proto_user):
         await node_manager.update_user(proto_user)
 
@@ -20,6 +21,7 @@ if ROLE.runs_node:
         await node_manager.update_users(proto_users)
 
 else:
+
     async def _dispatch_user_update(proto_user):
         user_dict = serialize_proto_message(proto_user)
         await node_nats_client.publish("update_user", {"user": user_dict})
@@ -27,7 +29,6 @@ else:
     async def _dispatch_users_update(proto_users):
         users_dicts = serialize_proto_messages(proto_users)
         await node_nats_client.publish("update_users", {"users": users_dicts})
-
 
 
 async def sync_user(db_user: User) -> None:

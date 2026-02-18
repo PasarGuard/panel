@@ -83,6 +83,25 @@ async def load_user_attrs(
         await user.awaitable_attrs.groups
 
 
+async def refresh_and_load_user(
+    db: AsyncSession,
+    user: User,
+    *,
+    load_admin: bool = True,
+    load_next_plan: bool = True,
+    load_usage_logs: bool = True,
+    load_groups: bool = True,
+):
+    await db.refresh(user)
+    await load_user_attrs(
+        user,
+        load_admin=load_admin,
+        load_next_plan=load_next_plan,
+        load_usage_logs=load_usage_logs,
+        load_groups=load_groups,
+    )
+
+
 async def get_user(
     db: AsyncSession,
     username: str,
@@ -669,6 +688,7 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
         db_user.next_plan = NextPlan(user_id=db_user.id, **new_user.next_plan.model_dump())
         db.add(db_user.next_plan)
     await db.commit()
+    await refresh_and_load_user(db, db_user)
     return db_user
 
 
@@ -708,7 +728,7 @@ async def create_users_bulk(
     await db.commit()
 
     for user in db_users:
-        await load_user_attrs(user, load_usage_logs=False)
+        await refresh_and_load_user(db, user)
 
     return db_users
 
@@ -854,6 +874,7 @@ async def modify_user(
         await delete_user_passed_notification_reminders(db, id, ReminderType.expiration_date, days_left)
 
     await db.commit()
+    await refresh_and_load_user(db, db_user)
     return db_user
 
 
@@ -898,6 +919,7 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
         db_user.status = UserStatus.active
 
     await db.commit()
+    await refresh_and_load_user(db, db_user)
     return db_user
 
 
@@ -919,7 +941,7 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
             db_user.status = UserStatus.active
     await db.commit()
     for user in users:
-        await load_user_attrs(user, load_usage_logs=False)
+        await refresh_and_load_user(db, user)
     return users
 
 
@@ -981,6 +1003,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     db_user.status = UserStatus.active
 
     await db.commit()
+    await refresh_and_load_user(db, db_user)
     return db_user
 
 
@@ -998,6 +1021,7 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
     db_user.sub_revoked_at = datetime.now(timezone.utc)
     db_user.proxy_settings = ProxyTable().dict()
     await db.commit()
+    await refresh_and_load_user(db, db_user)
     return db_user
 
 
@@ -1213,10 +1237,9 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
     await db.execute(stmt)
     await db.commit()
     for user in users:
-        await db.refresh(user)
         user.status = status
         user.last_status_change = changed_at
-        await load_user_attrs(user)
+        await refresh_and_load_user(db, user)
     return users
 
 
@@ -1234,6 +1257,7 @@ async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     """
     db_user.admin = admin
     await db.commit()
+    await refresh_and_load_user(db, db_user)
     return db_user
 
 
@@ -1264,8 +1288,7 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
 
     await db.commit()
     for user in users:
-        await db.refresh(user)
-        await load_user_attrs(user)
+        await refresh_and_load_user(db, user)
     return users
 
 
