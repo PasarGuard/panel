@@ -31,23 +31,20 @@ logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
 
 
-async def reset_user_by_next_report(db: AsyncSession, db_user: User):
-    db_user = await reset_user_by_next(db, db_user)
-    user = await user_operator.update_user(db_user)
-
-    asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
-
-    logger.info(f'User "{db_user.username}" next plan activated')
-
-
 async def change_status(db: AsyncSession, db_user: User, status: UserStatus):
+    next_plan_activated = bool(db_user.next_plan) and status != UserStatus.active
+    if next_plan_activated:
+        db_user = await reset_user_by_next(db, db_user)
+
     user = await user_operator.update_user(db_user)
+
+    if next_plan_activated:
+        asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
+        logger.info(f'User "{db_user.username}" next plan activated')
+        return
+
     asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
-
     logger.info(f'User "{user.username}" status changed to {status.value}')
-
-    if db_user.next_plan and db_user.status != UserStatus.active:
-        await reset_user_by_next_report(db, db_user)
 
 
 async def expire_users_job():
