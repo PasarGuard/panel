@@ -29,7 +29,11 @@ def _inbounds_from_loaded_groups(user: User) -> list[str] | None:
 async def serialize_user(user: User) -> ProtoUser:
     user_settings = user.proxy_settings
     inbounds = None
-    if user.status in (UserStatus.active, UserStatus.on_hold):
+    status = user.__dict__.get("status")
+    if status is None:
+        status = await user.awaitable_attrs.status
+
+    if status in (UserStatus.active, UserStatus.on_hold):
         inbounds = _inbounds_from_loaded_groups(user)
         if inbounds is None:
             inbounds = await user.inbounds()

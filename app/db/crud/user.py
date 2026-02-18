@@ -6,6 +6,7 @@ from typing import List, Literal, Optional, Sequence
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
@@ -41,14 +42,15 @@ from .group import get_groups_by_ids
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
 
 
-def _build_user_load_options(
+def _build_user_select_stmt(
     *,
-    load_admin: bool,
-    load_next_plan: bool,
-    load_usage_logs: bool,
-    load_groups: bool,
-) -> list:
-    """Build eager-load options for requested user relationships."""
+    load_admin: bool = True,
+    load_next_plan: bool = True,
+    load_usage_logs: bool = True,
+    load_groups: bool = True,
+) -> Select:
+    """Build a user select statement with eager-load options."""
+    stmt = select(User)
     options = []
     if load_admin:
         options.append(joinedload(User.admin))
@@ -58,7 +60,9 @@ def _build_user_load_options(
         options.append(selectinload(User.usage_logs))
     if load_groups:
         options.append(selectinload(User.groups))
-    return options
+    if options:
+        stmt = stmt.options(*options)
+    return stmt
 
 
 async def load_user_attrs(
@@ -98,15 +102,12 @@ async def get_user(
     Returns:
         Optional[User]: The user object if found, else None.
     """
-    stmt = select(User).where(User.username == username)
-    options = _build_user_load_options(
+    stmt = _build_user_select_stmt(
         load_admin=load_admin,
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
-    )
-    if options:
-        stmt = stmt.options(*options)
+    ).where(User.username == username)
 
     return (await db.execute(stmt)).unique().scalar_one_or_none()
 
@@ -130,15 +131,12 @@ async def get_user_by_id(
     Returns:
         Optional[User]: The user object if found, else None.
     """
-    stmt = select(User).where(User.id == user_id)
-    options = _build_user_load_options(
+    stmt = _build_user_select_stmt(
         load_admin=load_admin,
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
-    )
-    if options:
-        stmt = stmt.options(*options)
+    ).where(User.id == user_id)
 
     return (await db.execute(stmt)).unique().scalar_one_or_none()
 
@@ -397,19 +395,19 @@ async def get_expired_users(
 
 
 async def get_active_to_expire_users(db: AsyncSession) -> list[User]:
-    stmt = select(User).where(User.status == UserStatus.active).where(User.is_expired)
+    stmt = _build_user_select_stmt().where(User.status == UserStatus.active).where(User.is_expired)
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_active_to_limited_users(db: AsyncSession) -> list[User]:
-    stmt = select(User).where(User.status == UserStatus.active).where(User.is_limited)
+    stmt = _build_user_select_stmt().where(User.status == UserStatus.active).where(User.is_limited)
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_on_hold_to_active_users(db: AsyncSession) -> list[User]:
-    stmt = select(User).where(User.status == UserStatus.on_hold).where(User.become_online)
+    stmt = _build_user_select_stmt().where(User.status == UserStatus.on_hold).where(User.become_online)
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
@@ -442,7 +440,7 @@ async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
     )
 
     stmt = (
-        select(User)
+        _build_user_select_stmt()
         .outerjoin(last_reset_subq, User.id == last_reset_subq.c.user_id)
         .where(
             User.status.in_([UserStatus.active, UserStatus.limited]),
@@ -1213,12 +1211,12 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
     changed_at = datetime.now(timezone.utc)
     stmt = update(User).where(User.id.in_(user_ids)).values(status=status, last_status_change=changed_at)
     await db.execute(stmt)
-    for user in users:
-        user.status = status
-        user.last_status_change = changed_at
     await db.commit()
     for user in users:
-        await load_user_attrs(user, load_usage_logs=False)
+        await db.refresh(user)
+        user.status = status
+        user.last_status_change = changed_at
+        await load_user_attrs(user)
     return users
 
 
@@ -1266,7 +1264,8 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
 
     await db.commit()
     for user in users:
-        await load_user_attrs(user, load_usage_logs=False)
+        await db.refresh(user)
+        await load_user_attrs(user)
     return users
 
 
