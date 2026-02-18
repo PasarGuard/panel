@@ -26,7 +26,6 @@ from app.db.crud.user import (
     get_all_users_usages,
     get_existing_usernames,
     get_expired_users,
-    get_user_lifetime_used_traffic,
     get_user_usages,
     get_users,
     get_users_simple,
@@ -65,7 +64,6 @@ from app.models.user import (
 )
 from app.node.sync import remove_user as sync_remove_user
 from app.node.sync import sync_user, sync_users
-from app.node.user import serialize_user
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
@@ -200,55 +198,25 @@ class UserOperation(BaseOperation):
 
         subscription_urls: list[str] = []
         for db_user in db_users:
-            user = await self.update_user(db, db_user)
+            user: UserNotificationResponse = await self.update_user(db_user)
             asyncio.create_task(notification.create_user(user, admin))
             logger.info(f'New user "{db_user.username}" with id "{db_user.id}" added by admin "{admin.username}"')
             subscription_urls.append(user.subscription_url)
 
         return subscription_urls
 
-    async def validate_user(
-        self,
-        db: AsyncSession,
-        db_user: User,
-        *,
-        include_subscription_url: bool = True,
-        include_lifetime_used_traffic: bool = True,
-    ) -> UserNotificationResponse:
-        lifetime_used_traffic = (
-            await get_user_lifetime_used_traffic(db, db_user.id)
-            if include_lifetime_used_traffic
-            else int(db_user.used_traffic or 0)
-        )
-        loaded_groups = db_user.__dict__.get("groups") or []
-        group_names = [group.name for group in loaded_groups]
-        group_ids = [group.id for group in loaded_groups]
-        user_data = dict(db_user.__dict__)
-        user_data["expire"] = db_user.expire
-        user_data["lifetime_used_traffic"] = lifetime_used_traffic
-        user_data["group_names"] = group_names
-        user_data["group_ids"] = group_ids
-
-        user = UserNotificationResponse.model_validate(user_data)
+    async def validate_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
+        user = UserNotificationResponse.model_validate(db_user)
         if include_subscription_url:
             user.subscription_url = await self.generate_subscription_url(user)
         return user
 
-    async def update_user(
-        self,
-        db: AsyncSession,
-        db_user: User,
-        *,
-        include_subscription_url: bool = True,
-        include_lifetime_used_traffic: bool = True,
-    ) -> UserNotificationResponse:
+    async def update_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
         await sync_user(db_user)
 
         user = await self.validate_user(
-            db,
             db_user,
             include_subscription_url=include_subscription_url,
-            include_lifetime_used_traffic=include_lifetime_used_traffic,
         )
         return user
 
@@ -264,7 +232,7 @@ class UserOperation(BaseOperation):
         except IntegrityError:
             await self.raise_error(message="User already exists", code=409, db=db)
 
-        user = await self.update_user(db, db_user, include_lifetime_used_traffic=False)
+        user = await self.update_user(db_user)
 
         logger.info(f'New user "{db_user.username}" with id "{db_user.id}" added by admin "{admin.username}"')
 
@@ -285,7 +253,7 @@ class UserOperation(BaseOperation):
         old_status = db_user.status
 
         db_user = await modify_user(db, db_user, modified_user, groups=validated_groups)
-        user = await self.update_user(db, db_user, include_lifetime_used_traffic=False)
+        user = await self.update_user(db_user)
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
 
@@ -296,9 +264,7 @@ class UserOperation(BaseOperation):
 
             old_status_value = getattr(old_status, "value", old_status)
             new_status_value = getattr(user.status, "value", user.status)
-            logger.info(
-                f'User "{db_user.username}" status changed from "{old_status_value}" to "{new_status_value}"'
-            )
+            logger.info(f'User "{db_user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
 
         return user
 
@@ -310,9 +276,9 @@ class UserOperation(BaseOperation):
         return await self._modify_user(db, db_user, modified_user, admin)
 
     async def remove_user(self, db: AsyncSession, username: str, admin: AdminDetails):
-        db_user = await self.get_validated_user(db, username, admin, load_next_plan=False, load_groups=False)
+        db_user = await self.get_validated_user(db, username, admin)
 
-        user = await self.validate_user(db, db_user, include_subscription_url=False, include_lifetime_used_traffic=False)
+        user = await self.validate_user(db_user, include_subscription_url=False)
         await remove_user(db, db_user)
         await sync_remove_user(user)
 
@@ -325,7 +291,7 @@ class UserOperation(BaseOperation):
         old_status = db_user.status
 
         db_user = await reset_user_data_usage(db=db, db_user=db_user)
-        user = await self.update_user(db, db_user, include_lifetime_used_traffic=False)
+        user = await self.update_user(db_user)
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -345,7 +311,7 @@ class UserOperation(BaseOperation):
         db_user = await self.get_validated_user(db, username, admin)
 
         db_user = await revoke_user_sub(db=db, db_user=db_user)
-        user = await self.update_user(db, db_user, include_lifetime_used_traffic=False)
+        user = await self.update_user(db_user)
 
         asyncio.create_task(notification.user_subscription_revoked(user, admin))
 
@@ -369,7 +335,7 @@ class UserOperation(BaseOperation):
 
         db_user = await reset_user_by_next(db=db, db_user=db_user)
 
-        user = await self.update_user(db, db_user, include_lifetime_used_traffic=False)
+        user = await self.update_user(db_user)
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -388,7 +354,7 @@ class UserOperation(BaseOperation):
         db_user = await self.get_validated_user(db, username, admin)
 
         db_user = await set_owner(db, db_user, new_admin)
-        user = await self.validate_user(db, db_user, include_lifetime_used_traffic=False)
+        user = await self.validate_user(db_user)
         logger.info(f'{user.username}"owner successfully set to{new_admin.username} by admin "{admin.username}"')
 
         return user
@@ -415,11 +381,11 @@ class UserOperation(BaseOperation):
 
     async def get_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserNotificationResponse:
         db_user = await self.get_validated_user(db, username, admin)
-        return await self.validate_user(db, db_user)
+        return await self.validate_user(db_user)
 
     async def get_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserNotificationResponse:
         db_user = await self.get_validated_user_by_id(db, user_id, admin)
-        return await self.validate_user(db, db_user)
+        return await self.validate_user(db_user)
 
     async def get_users(
         self,

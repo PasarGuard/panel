@@ -23,7 +23,7 @@ async def reset_data_usage():
         updated_users = await bulk_reset_user_data_usage(db, users)
 
         for db_user in updated_users:
-            user = await user_operator.update_user(db, db_user)
+            user = await user_operator.update_user(db_user)
             asyncio.create_task(notification.reset_user_data_usage(user, SYSTEM_ADMIN))
 
             if old_statuses.get(user.id) != user.status:
