@@ -116,7 +116,7 @@ class BaseOperation:
         *,
         load_admin: bool = True,
         load_next_plan: bool = True,
-        load_usage_logs: bool = False,
+        load_usage_logs: bool = True,
         load_groups: bool = True,
     ) -> User:
         db_user = await get_user(

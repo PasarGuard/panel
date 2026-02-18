@@ -287,13 +287,20 @@ class UserOperation(BaseOperation):
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
         return {}
 
-    async def _reset_user_data_usage(self, db: AsyncSession, db_user: User, admin: AdminDetails):
+    async def _reset_user_data_usage(
+        self,
+        db: AsyncSession,
+        db_user: User,
+        admin: AdminDetails,
+        *,
+        emit_status_change_notification: bool = True,
+    ):
         old_status = db_user.status
 
         db_user = await reset_user_data_usage(db=db, db_user=db_user)
         user = await self.update_user(db_user)
 
-        if user.status != old_status:
+        if emit_status_change_notification and user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
 
         asyncio.create_task(notification.reset_user_data_usage(user, admin))
@@ -651,6 +658,7 @@ class UserOperation(BaseOperation):
         self, db: AsyncSession, username: str, modified_template: ModifyUserByTemplate, admin: AdminDetails
     ) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
+        original_status = db_user.status
         user_template = await self.get_validated_user_template(db, modified_template.user_template_id)
 
         if user_template.is_disabled:
@@ -668,7 +676,15 @@ class UserOperation(BaseOperation):
         modify_user = self.apply_settings(modify_user, user_template)
 
         if user_template.reset_usages:
-            await self._reset_user_data_usage(db, db_user, admin)
+            suppress_reset_status_change = (
+                user_template.status == UserStatus.on_hold and original_status != UserStatus.active
+            )
+            await self._reset_user_data_usage(
+                db,
+                db_user,
+                admin,
+                emit_status_change_notification=not suppress_reset_status_change,
+            )
 
         return await self._modify_user(db, db_user, modify_user, admin)
 
