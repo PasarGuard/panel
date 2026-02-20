@@ -4,20 +4,30 @@ import json
 import re
 from enum import Enum
 
-from app.templates import render_template
-from config import GRPC_USER_AGENT_TEMPLATE, USER_AGENT_TEMPLATE
+from app.templates import render_template_string
+
+from .default_templates import DEFAULT_GRPC_USER_AGENT_TEMPLATE, DEFAULT_USER_AGENT_TEMPLATE
 
 
 class BaseSubscription:
-    def __init__(self):
+    def __init__(
+        self,
+        user_agent_template_content: str | None = None,
+        grpc_user_agent_template_content: str | None = None,
+    ):
+        if user_agent_template_content is None:
+            user_agent_template_content = DEFAULT_USER_AGENT_TEMPLATE
+        if grpc_user_agent_template_content is None:
+            grpc_user_agent_template_content = DEFAULT_GRPC_USER_AGENT_TEMPLATE
+
         self.proxy_remarks = []
-        user_agent_data = json.loads(render_template(USER_AGENT_TEMPLATE))
+        user_agent_data = json.loads(render_template_string(user_agent_template_content))
         if "list" in user_agent_data and isinstance(user_agent_data["list"], list):
             self.user_agent_list = user_agent_data["list"]
         else:
             self.user_agent_list = []
 
-        grpc_user_agent_data = json.loads(render_template(GRPC_USER_AGENT_TEMPLATE))
+        grpc_user_agent_data = json.loads(render_template_string(grpc_user_agent_template_content))
 
         if "list" in grpc_user_agent_data and isinstance(grpc_user_agent_data["list"], list):
             self.grpc_user_agent_data = grpc_user_agent_data["list"]

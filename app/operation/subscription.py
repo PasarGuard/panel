@@ -115,7 +115,9 @@ class SubscriptionOperation(BaseOperation):
         # Only include headers that have values
         return {k: v for k, v in headers.items() if v}
 
-    async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str, str]:
+    async def fetch_config(
+        self, db: AsyncSession, user: UsersResponseWithInbounds, client_type: ConfigFormat
+    ) -> tuple[str, str]:
         # Get client configuration
         config = client_config.get(client_type)
         sub_settings = await subscription_settings()
@@ -124,6 +126,7 @@ class SubscriptionOperation(BaseOperation):
         # Generate subscription content
         return (
             await generate_subscription(
+                db=db,
                 user=user,
                 config_format=config["config_format"],
                 as_base64=config["as_base64"],
@@ -159,6 +162,7 @@ class SubscriptionOperation(BaseOperation):
             links = []
             if sub_settings.allow_browser_config:
                 conf, media_type = await self.fetch_config(
+                    db,
                     user,
                     ConfigFormat.links,
                 )
@@ -183,7 +187,7 @@ class SubscriptionOperation(BaseOperation):
 
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent)
-            conf, media_type = await self.fetch_config(user, client_type)
+            conf, media_type = await self.fetch_config(db, user, client_type)
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
             inline_view = sub_settings.disable_sub_template and is_browser_request
@@ -216,7 +220,7 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
 
         response_headers = self.create_response_headers(user, request_url, sub_settings)
-        conf, media_type = await self.fetch_config(user, client_type)
+        conf, media_type = await self.fetch_config(db, user, client_type)
 
         # Create response headers
         return Response(content=conf, media_type=media_type, headers=response_headers)

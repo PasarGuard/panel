@@ -20,8 +20,15 @@ from . import BaseSubscription
 
 
 class StandardLinks(BaseSubscription):
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        user_agent_template_content: str | None = None,
+        grpc_user_agent_template_content: str | None = None,
+    ):
+        super().__init__(
+            user_agent_template_content=user_agent_template_content,
+            grpc_user_agent_template_content=grpc_user_agent_template_content,
+        )
         self.links = []
 
         # Registry pattern for transport handlers

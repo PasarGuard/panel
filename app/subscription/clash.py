@@ -10,18 +10,25 @@ from app.models.subscription import (
     TLSConfig,
     WebSocketTransportConfig,
 )
-from app.templates import render_template
+from app.templates import render_template_string
 from app.utils.helpers import yml_uuid_representer
-from config import (
-    CLASH_SUBSCRIPTION_TEMPLATE,
-)
 
 from . import BaseSubscription
+from .default_templates import DEFAULT_CLASH_SUBSCRIPTION_TEMPLATE
 
 
 class ClashConfiguration(BaseSubscription):
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        clash_template_content: str | None = None,
+        user_agent_template_content: str | None = None,
+        grpc_user_agent_template_content: str | None = None,
+    ):
+        super().__init__(
+            user_agent_template_content=user_agent_template_content,
+            grpc_user_agent_template_content=grpc_user_agent_template_content,
+        )
+        self.clash_template_content = clash_template_content or DEFAULT_CLASH_SUBSCRIPTION_TEMPLATE
         self.data = {
             "proxies": [],
             "proxy-groups": [],
@@ -55,7 +62,10 @@ class ClashConfiguration(BaseSubscription):
         yaml.add_representer(UUID, yml_uuid_representer)
         return yaml.dump(
             yaml.safe_load(
-                render_template(CLASH_SUBSCRIPTION_TEMPLATE, {"conf": self.data, "proxy_remarks": self.proxy_remarks}),
+                render_template_string(
+                    self.clash_template_content,
+                    {"conf": self.data, "proxy_remarks": self.proxy_remarks},
+                ),
             ),
             sort_keys=False,
             allow_unicode=True,
@@ -288,8 +298,17 @@ class ClashConfiguration(BaseSubscription):
 
 
 class ClashMetaConfiguration(ClashConfiguration):
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        clash_template_content: str | None = None,
+        user_agent_template_content: str | None = None,
+        grpc_user_agent_template_content: str | None = None,
+    ):
+        super().__init__(
+            clash_template_content=clash_template_content,
+            user_agent_template_content=user_agent_template_content,
+            grpc_user_agent_template_content=grpc_user_agent_template_content,
+        )
         # Override protocol handlers to include vless
         self.protocol_handlers = {
             "vmess": self._build_vmess,

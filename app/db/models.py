@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
+    Text,
     Table,
     UniqueConstraint,
     and_,
@@ -711,6 +712,21 @@ class CoreConfig(Base):
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
     exclude_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
     fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
+
+
+class CoreTemplate(Base):
+    __tablename__ = "core_templates"
+    __table_args__ = (
+        UniqueConstraint("template_type", "name"),
+        Index("ix_core_templates_template_type", "template_type"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    template_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    is_default: Mapped[bool] = mapped_column(default=False, server_default="0")
+    is_system: Mapped[bool] = mapped_column(default=False, server_default="0")
 
 
 class NodeStat(Base):

@@ -8,6 +8,7 @@ from app.db import AsyncSession
 from app.db.crud import (
     get_admin,
     get_core_config_by_id,
+    get_core_template_by_id,
     get_group_by_id,
     get_host_by_id,
     get_node_by_id,
@@ -17,7 +18,7 @@ from app.db.crud import (
 from app.db.crud.admin import get_admin_by_id
 from app.db.crud.group import get_groups_by_ids
 from app.db.crud.user import get_user_by_id
-from app.db.models import Admin as DBAdmin, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
+from app.db.models import Admin as DBAdmin, CoreConfig, CoreTemplate, Group, Node, ProxyHost, User, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
@@ -225,3 +226,9 @@ class BaseOperation:
         if not db_core_config:
             await self.raise_error(message="Core config not found", code=404)
         return db_core_config
+
+    async def get_validated_core_template(self, db: AsyncSession, template_id: int) -> CoreTemplate:
+        db_core_template = await get_core_template_by_id(db, template_id)
+        if not db_core_template:
+            await self.raise_error(message="Core template not found", code=404)
+        return db_core_template

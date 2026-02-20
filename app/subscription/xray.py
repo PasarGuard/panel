@@ -11,18 +11,28 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
-from app.templates import render_template
+from app.templates import render_template_string
 from app.utils.helpers import UUIDEncoder
-from config import XRAY_SUBSCRIPTION_TEMPLATE
 
 from . import BaseSubscription
+from .default_templates import DEFAULT_XRAY_SUBSCRIPTION_TEMPLATE
 
 
 class XrayConfiguration(BaseSubscription):
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        xray_template_content: str | None = None,
+        user_agent_template_content: str | None = None,
+        grpc_user_agent_template_content: str | None = None,
+    ):
+        super().__init__(
+            user_agent_template_content=user_agent_template_content,
+            grpc_user_agent_template_content=grpc_user_agent_template_content,
+        )
         self.config = []
-        self.template = render_template(XRAY_SUBSCRIPTION_TEMPLATE)
+        if xray_template_content is None:
+            xray_template_content = DEFAULT_XRAY_SUBSCRIPTION_TEMPLATE
+        self.template = render_template_string(xray_template_content)
 
         # Registry for transport handlers
         self.transport_handlers = {

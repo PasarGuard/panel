@@ -19,3 +19,7 @@ env.globals["now"] = lambda: dt.now(tz.utc)
 
 def render_template(template: str, context: Union[dict, None] = None) -> str:
     return env.get_template(template).render(context or {})
+
+
+def render_template_string(template_content: str, context: Union[dict, None] = None) -> str:
+    return env.from_string(template_content).render(context or {})

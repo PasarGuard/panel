@@ -8,17 +8,27 @@ from app.models.subscription import (
     TLSConfig,
     WebSocketTransportConfig,
 )
-from app.templates import render_template
+from app.templates import render_template_string
 from app.utils.helpers import UUIDEncoder
-from config import SINGBOX_SUBSCRIPTION_TEMPLATE
 
 from . import BaseSubscription
+from .default_templates import DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE
 
 
 class SingBoxConfiguration(BaseSubscription):
-    def __init__(self):
-        super().__init__()
-        self.config = json.loads(render_template(SINGBOX_SUBSCRIPTION_TEMPLATE))
+    def __init__(
+        self,
+        singbox_template_content: str | None = None,
+        user_agent_template_content: str | None = None,
+        grpc_user_agent_template_content: str | None = None,
+    ):
+        super().__init__(
+            user_agent_template_content=user_agent_template_content,
+            grpc_user_agent_template_content=grpc_user_agent_template_content,
+        )
+        if singbox_template_content is None:
+            singbox_template_content = DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE
+        self.config = json.loads(render_template_string(singbox_template_content))
 
         # Registry for transport handlers
         self.transport_handlers = {
