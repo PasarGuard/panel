@@ -43,12 +43,6 @@ config_format_handler = {
     "xray": XrayConfiguration,
 }
 
-_last_randomized_order_by_user: dict[int, tuple[str, ...]] = {}
-
-
-def _hosts_order_signature(hosts: list[SubscriptionInboundData]) -> tuple[str, ...]:
-    return tuple(f"{host.inbound_tag}|{host.protocol}|{host.network}|{host.remark}|{host.priority}" for host in hosts)
-
 
 async def generate_subscription(
     user: UsersResponseWithInbounds,
@@ -297,13 +291,6 @@ async def process_inbounds_and_tags(
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
-        current_order_signature = _hosts_order_signature(hosts)
-        previous_order_signature = _last_randomized_order_by_user.get(user.id)
-        if previous_order_signature == current_order_signature:
-            hosts = hosts[1:] + hosts[:1]
-            current_order_signature = _hosts_order_signature(hosts)
-        _last_randomized_order_by_user[user.id] = current_order_signature
-
     for host_data in hosts:
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
         if not result:
