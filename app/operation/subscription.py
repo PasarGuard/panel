@@ -159,7 +159,8 @@ class SubscriptionOperation(BaseOperation):
             links = []
             if sub_settings.allow_browser_config:
                 conf, media_type = await self.fetch_config(
-                    user, ConfigFormat.links, randomize_order=sub_settings.randomize_order
+                    user,
+                    ConfigFormat.links,
                 )
                 links = conf.splitlines()
 
