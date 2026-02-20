@@ -216,7 +216,7 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
 
         response_headers = self.create_response_headers(user, request_url, sub_settings)
-        conf, media_type = await self.fetch_config(user, client_type, randomize_order=sub_settings.randomize_order)
+        conf, media_type = await self.fetch_config(user, client_type)
 
         # Create response headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
