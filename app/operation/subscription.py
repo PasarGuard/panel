@@ -118,6 +118,8 @@ class SubscriptionOperation(BaseOperation):
     async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str, str]:
         # Get client configuration
         config = client_config.get(client_type)
+        sub_settings = await subscription_settings()
+        randomize_order = sub_settings.randomize_order
 
         # Generate subscription content
         return (
@@ -125,6 +127,7 @@ class SubscriptionOperation(BaseOperation):
                 user=user,
                 config_format=config["config_format"],
                 as_base64=config["as_base64"],
+                randomize_order=randomize_order,
             ),
             config["media_type"],
         )
@@ -155,7 +158,9 @@ class SubscriptionOperation(BaseOperation):
             )
             links = []
             if sub_settings.allow_browser_config:
-                conf, media_type = await self.fetch_config(user, ConfigFormat.links)
+                conf, media_type = await self.fetch_config(
+                    user, ConfigFormat.links, randomize_order=sub_settings.randomize_order
+                )
                 links = conf.splitlines()
 
             format_variables = await self.get_format_variables(user)
@@ -210,7 +215,7 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
 
         response_headers = self.create_response_headers(user, request_url, sub_settings)
-        conf, media_type = await self.fetch_config(user, client_type)
+        conf, media_type = await self.fetch_config(user, client_type, randomize_order=sub_settings.randomize_order)
 
         # Create response headers
         return Response(content=conf, media_type=media_type, headers=response_headers)

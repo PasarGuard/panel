@@ -15,7 +15,7 @@ import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor,
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Sword, Trash2, User } from 'lucide-react'
+import { Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +33,7 @@ const subscriptionSchema = z.object({
   announce_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
+  randomize_order: z.boolean().optional(),
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),
@@ -452,6 +453,7 @@ export default function SubscriptionSettings() {
       announce_url: '',
       allow_browser_config: true,
       disable_sub_template: false,
+      randomize_order: false,
       rules: [],
       applications: [],
       manual_sub_request: {
@@ -540,6 +542,7 @@ export default function SubscriptionSettings() {
         announce_url: subscriptionData.announce_url || '',
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
+        randomize_order: subscriptionData.randomize_order ?? false,
         rules: subscriptionData.rules || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
@@ -675,6 +678,7 @@ export default function SubscriptionSettings() {
         announce_url: subscriptionData.announce_url || '',
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
+        randomize_order: subscriptionData.randomize_order ?? false,
         rules: subscriptionData.rules || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
@@ -1008,6 +1012,27 @@ export default function SubscriptionSettings() {
                       </FormLabel>
                       <FormDescription className="text-xs leading-relaxed text-muted-foreground sm:leading-normal">
                         {t('settings.subscriptions.general.disableSubTemplateDescription')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="randomize_order"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
+                    <div className="flex-1 space-y-0.5 pr-4">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                        <Shuffle className="h-4 w-4 shrink-0" />
+                        <span className="break-words">{t('settings.subscriptions.general.randomizeOrder')}</span>
+                      </FormLabel>
+                      <FormDescription className="text-xs leading-relaxed text-muted-foreground sm:leading-normal">
+                        {t('settings.subscriptions.general.randomizeOrderDescription')}
                       </FormDescription>
                     </div>
                     <FormControl>

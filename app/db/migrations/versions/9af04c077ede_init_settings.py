@@ -198,6 +198,7 @@ subscription = {
     "profile_title": SUB_PROFILE_TITLE,
 
     "host_status_filter": HOST_STATUS_FILTER,
+    "randomize_order": False,
 
     "rules": rules,
     "manual_sub_request": manual_sub_request

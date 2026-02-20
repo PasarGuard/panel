@@ -43,9 +43,19 @@ config_format_handler = {
     "xray": XrayConfiguration,
 }
 
+_last_randomized_order_by_user: dict[int, tuple[str, ...]] = {}
+
+
+def _hosts_order_signature(hosts: list[SubscriptionInboundData]) -> tuple[str, ...]:
+    return tuple(f"{host.inbound_tag}|{host.protocol}|{host.network}|{host.remark}|{host.priority}" for host in hosts)
+
 
 async def generate_subscription(
-    user: UsersResponseWithInbounds, config_format: str, as_base64: bool, reverse: bool = False
+    user: UsersResponseWithInbounds,
+    config_format: str,
+    as_base64: bool,
+    reverse: bool = False,
+    randomize_order: bool = False,
 ) -> str:
     conf = config_format_handler.get(config_format, None)
     if conf is None:
@@ -53,7 +63,7 @@ async def generate_subscription(
 
     format_variables = setup_format_variables(user)
 
-    config = await process_inbounds_and_tags(user, format_variables, conf(), reverse)
+    config = await process_inbounds_and_tags(user, format_variables, conf(), reverse, randomize_order=randomize_order)
 
     if as_base64:
         config = base64.b64encode(config.encode()).decode()
@@ -281,9 +291,20 @@ async def process_inbounds_and_tags(
     | ClashMetaConfiguration
     | OutlineConfiguration,
     reverse=False,
+    randomize_order: bool = False,
 ) -> list | str:
     proxy_settings = user.proxy_settings.dict()
-    for host_data in await filter_hosts((await host_manager.get_hosts()).values(), user.status):
+    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    if randomize_order and len(hosts) > 1:
+        random.shuffle(hosts)
+        current_order_signature = _hosts_order_signature(hosts)
+        previous_order_signature = _last_randomized_order_by_user.get(user.id)
+        if previous_order_signature == current_order_signature:
+            hosts = hosts[1:] + hosts[:1]
+            current_order_signature = _hosts_order_signature(hosts)
+        _last_randomized_order_by_user[user.id] = current_order_signature
+
+    for host_data in hosts:
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
         if not result:
             continue

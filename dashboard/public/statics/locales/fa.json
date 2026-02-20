@@ -121,7 +121,9 @@
         "allowBrowserConfig": "نمایش لینک‌ها در صفحه اشتراک",
         "allowBrowserConfigDescription": "نمایش لینک‌های اشتراک در قالب صفحه اشتراک هنگام دسترسی از طریق مرورگر",
         "disableSubTemplate": "غیرفعال کردن قالب اشتراک",
-        "disableSubTemplateDescription": "هنگام غیرفعال بودن، درخواست‌های مرورگر به جای صفحات HTML اشتراک، پاسخ‌های API برمی‌گردانند"
+        "disableSubTemplateDescription": "هنگام غیرفعال بودن، درخواست‌های مرورگر به جای صفحات HTML اشتراک، پاسخ‌های API برمی‌گردانند",
+        "randomizeOrder": "تصادفی‌سازی ترتیب اشتراک",
+        "randomizeOrderDescription": "در هر درخواست اشتراک، ترتیب کانفیگ‌ها به‌صورت تصادفی جابه‌جا می‌شود"
       },
       "rules": {
         "title": "قوانین اشتراک",
