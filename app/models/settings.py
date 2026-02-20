@@ -264,6 +264,7 @@ class Subscription(BaseModel):
     applications: list[Application] = Field(default_factory=list)
     allow_browser_config: bool = Field(default=True)
     disable_sub_template: bool = Field(default=False)
+    randomize_order: bool = Field(default=False)
 
     @field_validator("applications")
     @classmethod

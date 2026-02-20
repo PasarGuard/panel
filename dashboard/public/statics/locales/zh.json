@@ -194,7 +194,9 @@
         "allowBrowserConfig": "在订阅页面显示链接",
         "allowBrowserConfigDescription": "当通过浏览器访问时，在订阅页面模板中显示订阅链接",
         "disableSubTemplate": "禁用订阅模板",
-        "disableSubTemplateDescription": "禁用后，浏览器请求将返回 API 响应而不是 HTML 订阅页面"
+        "disableSubTemplateDescription": "禁用后，浏览器请求将返回 API 响应而不是 HTML 订阅页面",
+        "randomizeOrder": "随机化订阅顺序",
+        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序"
       },
       "rules": {
         "title": "订阅规则",

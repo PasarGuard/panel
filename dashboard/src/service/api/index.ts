@@ -40,18 +40,32 @@ export type GetSubUserUsageParams = {
   period?: Period
 }
 
-export type CleanupDeleteTarget = 'expired' | 'limited'
+export type DeleteExpiredUsersTarget = (typeof DeleteExpiredUsersTarget)[keyof typeof DeleteExpiredUsersTarget]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const DeleteExpiredUsersTarget = {
+  expired: 'expired',
+  limited: 'limited',
+} as const
 
 export type DeleteExpiredUsersParams = {
   admin_username?: string | null
-  target?: CleanupDeleteTarget
+  target?: DeleteExpiredUsersTarget
   expired_after?: string | null
   expired_before?: string | null
 }
 
+export type GetExpiredUsersTarget = (typeof GetExpiredUsersTarget)[keyof typeof GetExpiredUsersTarget]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const GetExpiredUsersTarget = {
+  expired: 'expired',
+  limited: 'limited',
+} as const
+
 export type GetExpiredUsersParams = {
   admin_username?: string | null
-  target?: CleanupDeleteTarget
+  target?: GetExpiredUsersTarget
   expired_after?: string | null
   expired_before?: string | null
 }
@@ -1112,6 +1126,7 @@ export interface SubscriptionOutput {
   applications?: ApplicationOutput[]
   allow_browser_config?: boolean
   disable_sub_template?: boolean
+  randomize_order?: boolean
 }
 
 export interface SubscriptionInput {
@@ -1127,6 +1142,7 @@ export interface SubscriptionInput {
   applications?: ApplicationInput[]
   allow_browser_config?: boolean
   disable_sub_template?: boolean
+  randomize_order?: boolean
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null
@@ -6729,12 +6745,12 @@ export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage
 }
 
 /**
- * Get users who have expired within the specified date range.
+ * Get cleanup-target users in the specified scope.
 
+- **target**: `expired` (time-based) or `limited` (usage-based)
 - **expired_after** UTC datetime (optional)
 - **expired_before** UTC datetime (optional)
-- At least one of expired_after or expired_before must be provided for filtering
-- If both are omitted, returns all expired users
+- Date range filters are applied only when target is `expired`
  * @summary Get Expired Users
  */
 export const getExpiredUsers = (params?: GetExpiredUsersParams, signal?: AbortSignal) => {
@@ -6797,11 +6813,12 @@ export function useGetExpiredUsers<TData = Awaited<ReturnType<typeof getExpiredU
 }
 
 /**
- * Delete users who have expired within the specified date range.
+ * Delete cleanup-target users in the specified scope.
 
+- **target**: `expired` (time-based) or `limited` (usage-based)
 - **expired_after** UTC datetime (optional)
 - **expired_before** UTC datetime (optional)
-- At least one of expired_after or expired_before must be provided
+- Date range filters are applied only when target is `expired`
  * @summary Delete Expired Users
  */
 export const deleteExpiredUsers = (params?: DeleteExpiredUsersParams) => {

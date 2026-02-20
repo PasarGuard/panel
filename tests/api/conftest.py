@@ -100,6 +100,7 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
             "support_url": "https://t.me/",
             "profile_title": "Subscription",
             "host_status_filter": False,
+            "randomize_order": False,
             "rules": [
                 {
                     "pattern": "^([Cc]lash[\\-\\.]?[Vv]erge|[Cc]lash[\\-\\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)",
