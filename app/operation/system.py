@@ -19,7 +19,7 @@ class SystemOperation(BaseOperation):
     @staticmethod
     async def get_system_stats(db: AsyncSession, admin: AdminDetails, admin_username: str | None = None) -> SystemStats:
         """Fetch system stats including memory, CPU, and user metrics."""
-        # Run sync functions off the event loop
+        # Run sync system probes off the event loop in parallel.
         mem_task = asyncio.to_thread(memory_usage)
         cpu_task = asyncio.to_thread(cpu_usage)
 
@@ -29,35 +29,25 @@ class SystemOperation(BaseOperation):
         elif not admin.is_sudo:
             admin_param = admin
 
-        system_task = None
+        system = None
         if not admin_param:
-            system_task = get_system_usage(db)
+            system = await get_system_usage(db)
 
         admin_id = admin_param.id if admin_param else None
 
-        # Get user counts by status in a single query and online users count
+        # Use sequential DB operations on a single session to avoid concurrent-session errors.
         statuses = [UserStatus.active, UserStatus.disabled, UserStatus.on_hold, UserStatus.expired, UserStatus.limited]
-        user_counts_task = get_users_count_by_status(db, statuses, admin_id)
-        online_users_task = count_online_users(db, timedelta(minutes=2), admin_id)
+        user_counts = await get_users_count_by_status(db, statuses, admin_id)
+        online_users = await count_online_users(db, timedelta(minutes=2), admin_id)
 
-        tasks = [mem_task, cpu_task, user_counts_task, online_users_task]
-        if system_task is not None:
-            tasks.append(system_task)
+        mem, cpu = await asyncio.gather(mem_task, cpu_task)
 
-        results = await asyncio.gather(*tasks)
-
-        mem = results[0]
-        cpu = results[1]
-        user_counts = results[2]
-        online_users = results[3]
-
-        if system_task is not None:
-            system = results[4]
-            uplink = system.uplink
-            downlink = system.downlink
-        else:
+        if system is None:
             uplink = 0
             downlink = admin_param.used_traffic
+        else:
+            uplink = system.uplink
+            downlink = system.downlink
 
         return SystemStats(
             version=__version__,

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import timezone as tz
 
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
@@ -19,6 +20,7 @@ from app.utils.jwt import get_admin_payload
 from config import DEBUG, SUDOERS
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
+_ADMIN_AUTH_KV_READ_TIMEOUT_SECONDS = 1.0
 
 
 def _to_utc(value):
@@ -76,7 +78,9 @@ async def get_admin_nats(token: str) -> AdminDetails | None:
     if payload["username"] in SUDOERS and payload["is_sudo"] is True:
         return AdminDetails(username=payload["username"], is_sudo=True)
 
-    cache_entry = await admin_auth_cache_service.get_admin(payload["username"])
+    cache_entry = await asyncio.wait_for(
+        admin_auth_cache_service.get_admin(payload["username"]), timeout=_ADMIN_AUTH_KV_READ_TIMEOUT_SECONDS
+    )
 
     if cache_entry.password_reset_at:
         if not payload.get("created_at"):
@@ -118,7 +122,7 @@ async def get_current_nats_enabled(
 
     try:
         admin: AdminDetails | None = await get_admin_nats(token)
-    except (AdminAuthCacheUnavailableError, AdminAuthCacheCorruptedError):
+    except (asyncio.TimeoutError, AdminAuthCacheUnavailableError, AdminAuthCacheCorruptedError):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="admin auth cache unavailable",

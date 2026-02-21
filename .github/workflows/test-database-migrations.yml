@@ -89,18 +89,6 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
-            nats:
-                image: nats:2.10-alpine
-                ports:
-                    - 4222:4222
-                    - 8222:8222
-                volumes:
-                    - ${{ github.workspace }}/.github/nats/nats-server.conf:/etc/nats/nats-server.conf
-                options: >-
-                    --health-cmd="wget -q -O- http://127.0.0.1:8222/healthz || exit 1"
-                    --health-interval=5s
-                    --health-timeout=5s
-                    --health-retries=20
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -141,6 +129,32 @@ jobs:
                   else:
                       raise SystemExit("TimescaleDB did not become ready in time.")
                   PY
+
+            - name: Start NATS (JetStream)
+              run: |
+                  docker run -d --name nats --restart unless-stopped \
+                    -p 4222:4222 -p 8222:8222 \
+                    --health-cmd "nc -z localhost 4222 || exit 1" \
+                    --health-interval 2s \
+                    --health-timeout 2s \
+                    --health-retries 10 \
+                    --health-start-period 30s \
+                    nats:2.10-alpine -js
+
+            - name: Wait for NATS container health
+              run: |
+                  for i in $(seq 1 30); do
+                    status=$(docker inspect -f '{{.State.Health.Status}}' nats 2>/dev/null || echo "starting")
+                    if [ "$status" = "healthy" ]; then
+                      echo "NATS container is healthy."
+                      exit 0
+                    fi
+                    echo "Waiting for NATS container health: $status"
+                    sleep 1
+                  done
+                  docker logs nats || true
+                  echo "NATS container did not become healthy in time."
+                  exit 1
 
             - name: Wait for NATS JetStream + KV
               run: |
@@ -241,18 +255,6 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
-            nats:
-                image: nats:2.10-alpine
-                ports:
-                    - 4222:4222
-                    - 8222:8222
-                volumes:
-                    - ${{ github.workspace }}/.github/nats/nats-server.conf:/etc/nats/nats-server.conf
-                options: >-
-                    --health-cmd="wget -q -O- http://127.0.0.1:8222/healthz || exit 1"
-                    --health-interval=5s
-                    --health-timeout=5s
-                    --health-retries=20
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -338,6 +340,32 @@ jobs:
                       print("Grants:", cur.fetchall())
                   conn.close()
                   PY
+
+            - name: Start NATS (JetStream)
+              run: |
+                  docker run -d --name nats --restart unless-stopped \
+                    -p 4222:4222 -p 8222:8222 \
+                    --health-cmd "nc -z localhost 4222 || exit 1" \
+                    --health-interval 2s \
+                    --health-timeout 2s \
+                    --health-retries 10 \
+                    --health-start-period 30s \
+                    nats:2.10-alpine -js
+
+            - name: Wait for NATS container health
+              run: |
+                  for i in $(seq 1 30); do
+                    status=$(docker inspect -f '{{.State.Health.Status}}' nats 2>/dev/null || echo "starting")
+                    if [ "$status" = "healthy" ]; then
+                      echo "NATS container is healthy."
+                      exit 0
+                    fi
+                    echo "Waiting for NATS container health: $status"
+                    sleep 1
+                  done
+                  docker logs nats || true
+                  echo "NATS container did not become healthy in time."
+                  exit 1
 
             - name: Wait for NATS JetStream + KV
               run: |

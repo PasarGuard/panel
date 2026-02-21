@@ -237,20 +237,36 @@ class AdminAuthCacheService:
 
 
 admin_auth_cache_service = AdminAuthCacheService()
+_admin_auth_cache_logger = get_logger("admin-auth-cache")
+_ADMIN_AUTH_KV_WRITE_TIMEOUT_SECONDS = 1.0
 
 
 async def upsert_admin_auth_entry(db_admin):
-    await admin_auth_cache_service.upsert_admin_entry(
-        admin_id=db_admin.id,
-        username=db_admin.username,
-        is_sudo=db_admin.is_sudo,
-        is_disabled=db_admin.is_disabled,
-        password_reset_at=db_admin.password_reset_at,
-    )
+    try:
+        await asyncio.wait_for(
+            admin_auth_cache_service.upsert_admin_entry(
+                admin_id=db_admin.id,
+                username=db_admin.username,
+                is_sudo=db_admin.is_sudo,
+                is_disabled=db_admin.is_disabled,
+                password_reset_at=db_admin.password_reset_at,
+            ),
+            timeout=_ADMIN_AUTH_KV_WRITE_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        # Authorization cache is an optimization path; do not fail admin mutations.
+        _admin_auth_cache_logger.warning(f'Failed to upsert admin auth cache entry for "{db_admin.username}": {exc}')
 
 
 async def delete_admin_auth_entry(username: str):
-    await admin_auth_cache_service.delete_admin_entry(username)
+    try:
+        await asyncio.wait_for(
+            admin_auth_cache_service.delete_admin_entry(username),
+            timeout=_ADMIN_AUTH_KV_WRITE_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        # Authorization cache is an optimization path; do not fail admin mutations.
+        _admin_auth_cache_logger.warning(f'Failed to delete admin auth cache entry for "{username}": {exc}')
 
 
 @on_startup

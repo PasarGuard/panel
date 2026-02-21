@@ -8,6 +8,10 @@ from starlette.requests import Request
 from app.nats.admin_auth_cache import AdminAuthCacheUnavailableError
 from app.models.admin import AdminAuthKVEntry, AdminDetails
 from app.routers import authentication
+from config import NATS_ENABLED
+
+
+pytestmark = pytest.mark.skipif(not NATS_ENABLED, reason="NATS auth tests require NATS_ENABLED=1")
 
 
 def _build_request(method: str) -> Request:
