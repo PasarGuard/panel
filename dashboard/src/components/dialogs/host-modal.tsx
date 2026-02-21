@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { UserStatus, getHosts, getInbounds } from '@/service/api'
+import { UserStatus, getHosts, getInbounds, useGetSubscriptionTemplates } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
@@ -428,6 +428,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const dir = useDirDetection()
   const [_isSubmitting, setIsSubmitting] = useState(false)
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
+  const { data: subscriptionTemplates } = useGetSubscriptionTemplates()
+  const hasCustomTemplates = subscriptionTemplates && Object.values(subscriptionTemplates).some((list: string[]) => list.length > 0)
 
   // Optimized noise settings handlers with useCallback for performance
   const addNoiseSetting = useCallback(() => {
@@ -647,6 +649,49 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   </FormItem>
                 )}
               />
+
+              {hasCustomTemplates && (
+                <FormField
+                  control={form.control}
+                  name="subscription_templates.xray"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center gap-2">
+                        <FormLabel>{t('hostsDialog.subscriptionTemplates.xray')}</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                            <p className="text-[11px] text-muted-foreground">{t('hostsDialog.subscriptionTemplates.xray.info')}</p>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <Select
+                        onValueChange={v => field.onChange(v === '_default' ? null : v)}
+                        value={field.value || '_default'}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="_default">{t('hostsDialog.inboundDefault')}</SelectItem>
+                          {subscriptionTemplates?.xray?.map(tpl => (
+                            <SelectItem key={tpl} value={tpl}>
+                              {tpl}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}

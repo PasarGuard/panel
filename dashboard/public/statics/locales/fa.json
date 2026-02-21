@@ -955,7 +955,10 @@
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "vlessRoute.info": "مقدار مسیر اختیاری برای هاست‌های VLESS. باید دقیقاً ۴ کاراکتر شانزده‌شانزدهی (0-9، a-f، A-F) باشد. برای استفاده از مسیریابی پیش‌فرض خالی بگذارید.",
+    "subscriptionTemplates": "قالب‌های اشتراک",
+    "subscriptionTemplates.xray": "قالب Xray",
+    "subscriptionTemplates.xray.info": "قالب اشتراک Xray را برای این هاست تغییر دهید. برای استفاده از قالب پیش‌فرض «پیش‌فرض» را انتخاب کنید."
   },
   "inbound": "ورودی",
   "inbounds": "ورودی‌ها",

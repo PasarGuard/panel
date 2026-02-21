@@ -52,6 +52,10 @@ export interface HostFormValues {
   sni?: string[]
   path?: string
   http_headers?: Record<string, string>
+  subscription_templates?: {
+    xray: string | null
+    [key: string]: string | null
+  }
   security: 'none' | 'tls' | 'inbound_default'
   alpn?: string[]
   fingerprint?: string
@@ -313,6 +317,12 @@ export const HostFormSchema = z.object({
   sni: z.array(z.string()).default([]),
   path: z.string().default(''),
   http_headers: z.record(z.string()).default({}),
+  subscription_templates: z
+    .object({
+      xray: z.string().nullish(),
+    })
+    .passthrough()
+    .nullish(),
   security: z.enum(['inbound_default', 'tls', 'none']).default('inbound_default'),
   alpn: z.array(z.string()).default([]),
   fingerprint: z.string().default(''),
@@ -428,6 +438,7 @@ export const hostFormDefaultValues: HostFormValues = {
   sni: [],
   path: '',
   http_headers: {},
+  subscription_templates: undefined,
   security: 'inbound_default',
   alpn: [],
   fingerprint: '',

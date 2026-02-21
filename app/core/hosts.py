@@ -286,6 +286,9 @@ async def _prepare_subscription_inbound_data(
         fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
         noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
         finalmask=finalmask,
+        subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
+        if host.subscription_templates
+        else None,
         priority=host.priority,
         status=list(host.status) if host.status else None,
     )

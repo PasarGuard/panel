@@ -249,6 +249,9 @@ class SubscriptionInboundData(BaseModel):
     noise_settings: dict[str, Any] | None = Field(None)
     finalmask: dict[str, Any] | None = Field(None)
 
+    # Per-host subscription template overrides (extensible; e.g. {"xray": "xray/custom.json"})
+    subscription_templates: dict[str, Any] | None = Field(None)
+
     # Priority and status
     priority: int = Field(0)
     status: list[str] | None = Field(None)

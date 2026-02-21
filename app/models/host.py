@@ -208,6 +208,20 @@ class TransportSettings(BaseModel):
     websocket_settings: WebSocketSettings | None = Field(default=None)
 
 
+class SubscriptionTemplates(BaseModel):
+    """
+    Per-host subscription template overrides.
+
+    Keys are subscription formats (e.g. xray). Values are template paths resolved via the
+    existing template loader (`CUSTOM_TEMPLATES_DIRECTORY` first, then `app/templates`).
+    """
+
+    xray: str | None = Field(default=None)
+
+    # Allow future keys without requiring immediate backend changes
+    model_config = ConfigDict(extra="allow")
+
+
 class FormatVariables(dict):
     def __missing__(self, key):
         return key.join("{}")
@@ -232,6 +246,7 @@ class BaseHost(BaseModel):
     mux_settings: MuxSettings | None = Field(default=None)
     fragment_settings: FragmentSettings | None = Field(default=None)
     noise_settings: NoiseSettings | None = Field(default=None)
+    subscription_templates: SubscriptionTemplates | None = Field(default=None)
     random_user_agent: bool = Field(default=False)
     use_sni_as_host: bool = Field(default=False)
     vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")
