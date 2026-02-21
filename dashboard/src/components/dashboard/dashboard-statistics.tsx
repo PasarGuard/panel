@@ -264,13 +264,13 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
               {/* Incoming/Outgoing Details */}
               <div className="flex shrink-0 items-center gap-2 text-xs">
                 <div className="flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-green-600 dark:text-green-400">
-                  <Download className="h-3 w-3 text-primary" />
+                  <Download className="h-3 w-3" />
                   <span dir="ltr" className="font-medium">
                     {formatBytes(getIncomingBandwidth() || 0, 1)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 rounded-md bg-muted/50 px-1.5 py-1 text-blue-600 dark:text-blue-400">
-                  <Upload className="h-3 w-3 text-primary" />
+                  <Upload className="h-3 w-3" />
                   <span dir="ltr" className="font-medium">
                     {formatBytes(getOutgoingBandwidth() || 0, 1)}
                   </span>
