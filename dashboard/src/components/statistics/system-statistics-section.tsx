@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { SystemStats, NodeRealtimeStats } from '@/service/api'
 import { useTranslation } from 'react-i18next'
-import { Cpu, MemoryStick, Database, Upload, Download, Activity, HardDrive } from 'lucide-react'
+import { Cpu, MemoryStick, Database, Upload, Download, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { formatBytes } from '@/utils/formatByte'
@@ -95,18 +95,6 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
     return { used: memUsed, total: memTotal, percentage }
   }
 
-  const getDiskUsage = () => {
-    if (!currentStats || isNodeStats(currentStats)) {
-      return { used: 0, total: 0, percentage: 0 }
-    }
-
-    const diskUsed = Number(currentStats.disk_used) || 0
-    const diskTotal = Number(currentStats.disk_total) || 0
-    const percentage = diskTotal > 0 ? (diskUsed / diskTotal) * 100 : 0
-
-    return { used: diskUsed, total: diskTotal, percentage }
-  }
-
   const getCpuInfo = () => {
     if (!currentStats) return { usage: 0, cores: 0 }
 
@@ -121,11 +109,8 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
   }
 
   const memory = getMemoryUsage()
-  const disk = getDiskUsage()
   const cpu = getCpuInfo()
-  const shouldShowDisk = Boolean(currentStats && !isNodeStats(currentStats))
   const memoryPercent = Math.min(Math.max(memory.percentage, 0), 100)
-  const diskPercent = Math.min(Math.max(disk.percentage, 0), 100)
   const totalSpeed = formatMbpsPair(getTotalTrafficValue() || 0)
   const incomingSpeed = formatMbpsPair(getIncomingBandwidth() || 0)
   const outgoingSpeed = formatMbpsPair(getOutgoingBandwidth() || 0)
@@ -135,8 +120,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
       className={cn(
         'grid h-full w-full gap-3 sm:gap-4 lg:gap-6',
         // Responsive grid: 1 column on mobile, 2 on small tablet, 3 on large tablet and desktop
-        'grid-cols-1 sm:grid-cols-2',
-        shouldShowDisk ? 'xl:grid-cols-4' : 'xl:grid-cols-3',
+        'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3',
         // Ensure equal height for all cards
         'auto-rows-fr',
       )}
@@ -223,49 +207,8 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
         </Card>
       </div>
 
-      {shouldShowDisk && (
-        <div className="h-full w-full animate-fade-in" style={{ animationDuration: '600ms', animationDelay: '250ms' }}>
-          <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-            <div
-              className={cn(
-                'absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 transition-opacity duration-500',
-                'dark:from-primary/5 dark:to-transparent',
-                'group-hover:opacity-100',
-              )}
-            />
-            <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
-              <div className="mb-2 flex items-start justify-between sm:mb-3">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="rounded-lg bg-primary/10 p-1.5 sm:p-2">
-                    <HardDrive className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium leading-tight text-muted-foreground sm:truncate sm:text-sm">
-                      {t('statistics.diskUsage', { defaultValue: 'Disk Usage' })}
-                    </p>
-                  </div>
-                </div>
-                <CircularProgress value={diskPercent} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
-              </div>
-
-              <div className="flex items-center gap-1 sm:gap-2">
-                <span dir="ltr" className="text-base font-bold leading-tight transition-all duration-300 sm:text-xl lg:text-2xl">
-                  <span className="whitespace-normal sm:whitespace-nowrap">
-                    {formatBytes(disk.used, 1, false, false, 'GB')}/{formatBytes(disk.total, 1, true, false, 'GB')}
-                    <span className="ml-1 text-sm font-medium text-muted-foreground">({diskPercent.toFixed(1)}%)</span>
-                  </span>
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Total Traffic / Network Speed (depends on whether it's master or node stats) */}
-      <div
-        className={cn('h-full w-full animate-fade-in', !shouldShowDisk && 'sm:col-span-2 lg:col-span-1')}
-        style={{ animationDuration: '600ms', animationDelay: shouldShowDisk ? '350ms' : '250ms' }}
-      >
+      <div className="h-full w-full animate-fade-in sm:col-span-2 lg:col-span-1" style={{ animationDuration: '600ms', animationDelay: '250ms' }}>
         <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
           <div
             className={cn(
