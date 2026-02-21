@@ -89,6 +89,18 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
+            nats:
+                image: nats:2.10-alpine
+                ports:
+                    - 4222:4222
+                    - 8222:8222
+                volumes:
+                    - ${{ github.workspace }}/.github/nats/nats-server.conf:/etc/nats/nats-server.conf
+                options: >-
+                    --health-cmd="wget -q -O- http://127.0.0.1:8222/healthz || exit 1"
+                    --health-interval=5s
+                    --health-timeout=5s
+                    --health-retries=20
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -130,15 +142,40 @@ jobs:
                       raise SystemExit("TimescaleDB did not become ready in time.")
                   PY
 
-            - name: Start NATS (JetStream)
+            - name: Wait for NATS JetStream + KV
               run: |
-                  docker run -d --name nats -p 4222:4222 nats:2.10-alpine -js
-                  for i in {1..20}; do
-                    nc -z 127.0.0.1 4222 && exit 0
-                    sleep 0.5
-                  done
-                  echo "NATS did not start in time" >&2
-                  exit 1
+                  uv run python - <<'PY'
+                  import asyncio
+                  import os
+                  import time
+                  import nats
+
+                  url = os.environ["NATS_URL"]
+
+                  async def probe():
+                      nc = await nats.connect(url)
+                      js = nc.jetstream()
+                      try:
+                          kv = await js.create_key_value(bucket="ci_probe_admin_auth")
+                      except Exception:
+                          kv = await js.key_value(bucket="ci_probe_admin_auth")
+                      await kv.put("health", b"ok")
+                      entry = await kv.get("health")
+                      assert entry and entry.value == b"ok"
+                      await kv.delete("health")
+                      await nc.close()
+
+                  for _ in range(40):
+                      try:
+                          asyncio.run(probe())
+                          print("NATS JetStream KV is ready.")
+                          break
+                      except Exception as exc:
+                          print(f"Waiting for NATS JetStream KV: {exc}")
+                          time.sleep(1)
+                  else:
+                      raise SystemExit("NATS JetStream KV did not become ready in time.")
+                  PY
 
             - name: Run Alembic Migrations
               run: make run-migration
@@ -204,6 +241,18 @@ jobs:
                     --health-interval=10s
                     --health-timeout=5s
                     --health-retries=5
+            nats:
+                image: nats:2.10-alpine
+                ports:
+                    - 4222:4222
+                    - 8222:8222
+                volumes:
+                    - ${{ github.workspace }}/.github/nats/nats-server.conf:/etc/nats/nats-server.conf
+                options: >-
+                    --health-cmd="wget -q -O- http://127.0.0.1:8222/healthz || exit 1"
+                    --health-interval=5s
+                    --health-timeout=5s
+                    --health-retries=20
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -290,15 +339,40 @@ jobs:
                   conn.close()
                   PY
 
-            - name: Start NATS (JetStream)
+            - name: Wait for NATS JetStream + KV
               run: |
-                  docker run -d --name nats -p 4222:4222 nats:2.10-alpine -js
-                  for i in {1..20}; do
-                    nc -z 127.0.0.1 4222 && exit 0
-                    sleep 0.5
-                  done
-                  echo "NATS did not start in time" >&2
-                  exit 1
+                  uv run python - <<'PY'
+                  import asyncio
+                  import os
+                  import time
+                  import nats
+
+                  url = os.environ["NATS_URL"]
+
+                  async def probe():
+                      nc = await nats.connect(url)
+                      js = nc.jetstream()
+                      try:
+                          kv = await js.create_key_value(bucket="ci_probe_admin_auth")
+                      except Exception:
+                          kv = await js.key_value(bucket="ci_probe_admin_auth")
+                      await kv.put("health", b"ok")
+                      entry = await kv.get("health")
+                      assert entry and entry.value == b"ok"
+                      await kv.delete("health")
+                      await nc.close()
+
+                  for _ in range(40):
+                      try:
+                          asyncio.run(probe())
+                          print("NATS JetStream KV is ready.")
+                          break
+                      except Exception as exc:
+                          print(f"Waiting for NATS JetStream KV: {exc}")
+                          time.sleep(1)
+                  else:
+                      raise SystemExit("NATS JetStream KV did not become ready in time.")
+                  PY
 
             - name: Run Alembic Migrations
               run: make run-migration
