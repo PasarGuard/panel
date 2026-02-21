@@ -10,6 +10,7 @@ from app.middlewares import setup_middleware
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.settings import handle_settings_message
+from app.subscription.core_templates import handle_core_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
 from config import DOCS, ROLE, SUBSCRIPTION_PATH
@@ -24,12 +25,14 @@ def _use_route_names_as_operation_ids(app: FastAPI) -> None:
             route.operation_id = route.name
 
 
-def _register_nats_handlers(enable_router: bool, enable_settings: bool):
+def _register_nats_handlers(enable_router: bool, enable_settings: bool, enable_core_templates: bool):
     if enable_router:
         on_startup(router.start)
         on_shutdown(router.stop)
     if enable_settings:
         router.register_handler(MessageTopic.SETTING, handle_settings_message)
+    if enable_core_templates:
+        router.register_handler(MessageTopic.CORE_TEMPLATE, handle_core_template_message)
 
 
 def _register_scheduler_hooks():
@@ -105,7 +108,8 @@ def create_app() -> FastAPI:
 
     enable_router = ROLE.runs_panel or ROLE.runs_node or ROLE.runs_scheduler
     enable_settings = ROLE.runs_panel or ROLE.runs_scheduler
-    _register_nats_handlers(enable_router, enable_settings)
+    enable_core_templates = ROLE.runs_panel or ROLE.runs_scheduler
+    _register_nats_handlers(enable_router, enable_settings, enable_core_templates)
     _register_scheduler_hooks()
     _register_jobs()
 

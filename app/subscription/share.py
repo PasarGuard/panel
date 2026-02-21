@@ -8,12 +8,11 @@ from datetime import datetime as dt, timedelta, timezone
 from jdatetime import date as jd
 
 from app.core.hosts import host_manager
-from app.db import AsyncSession
-from app.db.crud.core_template import get_core_template_values
 from app.db.models import UserStatus
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
+from app.subscription.core_templates import subscription_core_templates
 
 from . import (
     ClashConfiguration,
@@ -67,14 +66,13 @@ def _build_subscription_config(
 
 
 async def generate_subscription(
-    db: AsyncSession,
     user: UsersResponseWithInbounds,
     config_format: str,
     as_base64: bool,
     reverse: bool = False,
     randomize_order: bool = False,
 ) -> str:
-    core_templates = await get_core_template_values(db)
+    core_templates = await subscription_core_templates()
     conf = _build_subscription_config(config_format, core_templates)
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')

@@ -25,6 +25,9 @@ from app.models.core_template import (
     CoreTemplatesSimpleResponse,
     CoreTemplateType,
 )
+from app.nats.message import MessageTopic
+from app.nats.router import router
+from app.subscription.core_templates import refresh_core_templates_cache
 from app.templates import render_template_string
 from app.utils.logger import get_logger
 
@@ -35,6 +38,11 @@ logger = get_logger("core-template-operation")
 
 
 class CoreTemplateOperation(BaseOperation):
+    @staticmethod
+    async def _sync_core_template_cache() -> None:
+        await refresh_core_templates_cache()
+        await router.publish(MessageTopic.CORE_TEMPLATE, {"action": "refresh"})
+
     async def _validate_template_content(self, template_type: CoreTemplateType, content: str) -> None:
         try:
             if template_type == CoreTemplateType.clash_subscription:
@@ -73,6 +81,7 @@ class CoreTemplateOperation(BaseOperation):
         logger.info(
             f'Core template "{db_template.name}" ({db_template.template_type}) created by admin "{admin.username}"'
         )
+        await self._sync_core_template_cache()
         return CoreTemplateResponse.model_validate(db_template)
 
     async def get_core_templates(
@@ -146,6 +155,7 @@ class CoreTemplateOperation(BaseOperation):
         logger.info(
             f'Core template "{db_template.name}" ({db_template.template_type}) modified by admin "{admin.username}"'
         )
+        await self._sync_core_template_cache()
         return CoreTemplateResponse.model_validate(db_template)
 
     async def remove_core_template(self, db: AsyncSession, template_id: int, admin: AdminDetails) -> None:
@@ -169,3 +179,4 @@ class CoreTemplateOperation(BaseOperation):
             await set_default_template(db, replacement)
 
         logger.info(f'Core template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"')
+        await self._sync_core_template_cache()
