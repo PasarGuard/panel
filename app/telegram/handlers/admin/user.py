@@ -39,6 +39,7 @@ group_operations = GroupOperation(OperatorType.TELEGRAM)
 user_templates = UserTemplateOperation(OperatorType.TELEGRAM)
 
 router = Router(name="user")
+MAX_CALLBACK_ALERT_LENGTH = 200
 
 
 @router.callback_query(
@@ -589,7 +590,10 @@ async def get_v2ray_links(
         user_with_inbounds = await subscription_operations.validated_user(db_user)
         links, _ = await subscription_operations.fetch_config(user_with_inbounds, ConfigFormat.links)
     except ValueError as exc:
-        return await event.answer(str(exc), show_alert=True)
+        error = str(exc)
+        if len(error) > MAX_CALLBACK_ALERT_LENGTH:
+            error = f"{error[:MAX_CALLBACK_ALERT_LENGTH - 3]}..."
+        return await event.answer(error, show_alert=True)
 
     if not links or not links.strip():
         return await event.answer(Texts.v2ray_links_unavailable, show_alert=True)
