@@ -10,7 +10,7 @@ class CancelAction(StrEnum):
 
 
 class CancelKeyboard(InlineKeyboardBuilder):
-    def __init__(self, action: CallbackData = CancelAction.cancel, *args, **kwargs):
+    def __init__(self, action: CallbackData = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.button(text=Texts.cancel, callback_data=action or self.Callback())
         self.adjust(1, 1)
