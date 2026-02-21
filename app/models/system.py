@@ -5,6 +5,8 @@ class SystemStats(BaseModel):
     version: str
     mem_total: int | None = None
     mem_used: int | None = None
+    disk_total: int | None = None
+    disk_used: int | None = None
     cpu_cores: int | None = None
     cpu_usage: float | None = None
     total_user: int

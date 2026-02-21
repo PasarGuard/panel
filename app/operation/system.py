@@ -10,7 +10,7 @@ from app.db.crud.user import count_online_users, get_users_count_by_status
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.system import SystemStats
-from app.utils.system import cpu_usage, memory_usage
+from app.utils.system import cpu_usage, disk_usage, memory_usage
 
 from . import BaseOperation
 
@@ -18,10 +18,11 @@ from . import BaseOperation
 class SystemOperation(BaseOperation):
     @staticmethod
     async def get_system_stats(db: AsyncSession, admin: AdminDetails, admin_username: str | None = None) -> SystemStats:
-        """Fetch system stats including memory, CPU, and user metrics."""
+        """Fetch system stats including memory, CPU, disk, and user metrics."""
         # Run sync functions off the event loop
         mem_task = asyncio.to_thread(memory_usage)
         cpu_task = asyncio.to_thread(cpu_usage)
+        disk_task = asyncio.to_thread(disk_usage)
 
         admin_param = None
         if admin.is_sudo and admin_username:
@@ -40,7 +41,7 @@ class SystemOperation(BaseOperation):
         user_counts_task = get_users_count_by_status(db, statuses, admin_id)
         online_users_task = count_online_users(db, timedelta(minutes=2), admin_id)
 
-        tasks = [mem_task, cpu_task, user_counts_task, online_users_task]
+        tasks = [mem_task, cpu_task, disk_task, user_counts_task, online_users_task]
         if system_task is not None:
             tasks.append(system_task)
 
@@ -48,11 +49,12 @@ class SystemOperation(BaseOperation):
 
         mem = results[0]
         cpu = results[1]
-        user_counts = results[2]
-        online_users = results[3]
+        disk = results[2]
+        user_counts = results[3]
+        online_users = results[4]
 
         if system_task is not None:
-            system = results[4]
+            system = results[5]
             uplink = system.uplink
             downlink = system.downlink
         else:
@@ -63,6 +65,8 @@ class SystemOperation(BaseOperation):
             version=__version__,
             mem_total=mem.total,
             mem_used=mem.used,
+            disk_total=disk.total,
+            disk_used=disk.used,
             cpu_cores=cpu.cores,
             cpu_usage=cpu.percent,
             total_user=user_counts["total"],

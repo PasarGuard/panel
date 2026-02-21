@@ -1040,10 +1040,16 @@ export type SystemStatsMemUsed = number | null
 
 export type SystemStatsMemTotal = number | null
 
+export type SystemStatsDiskUsed = number | null
+
+export type SystemStatsDiskTotal = number | null
+
 export interface SystemStats {
   version: string
   mem_total?: SystemStatsMemTotal
   mem_used?: SystemStatsMemUsed
+  disk_total?: SystemStatsDiskTotal
+  disk_used?: SystemStatsDiskUsed
   cpu_cores?: SystemStatsCpuCores
   cpu_usage?: SystemStatsCpuUsage
   total_user: number
