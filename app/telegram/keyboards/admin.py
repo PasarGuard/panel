@@ -8,6 +8,7 @@ from app.telegram.utils.texts import Button as Texts
 
 class AdminPanelAction(str, Enum):
     sync_users = "sync_users"
+    reconnect_all_nodes = "reconnect_all_nodes"
     refresh = "refresh"
     create_user = "create_user"
     create_user_from_template = "create_user_from_template"
@@ -28,9 +29,13 @@ class AdminPanel(InlineKeyboardBuilder):
         self.button(text=Texts.refresh_data, callback_data=self.Callback(action=AdminPanelAction.refresh))
         if is_sudo:
             self.button(text=Texts.sync_users, callback_data=self.Callback(action=AdminPanelAction.sync_users))
+            self.button(
+                text=Texts.reconnect_all_nodes,
+                callback_data=self.Callback(action=AdminPanelAction.reconnect_all_nodes),
+            )
             self.button(text=Texts.users, switch_inline_query_current_chat="")
             self.button(text=Texts.bulk_actions, callback_data=self.Callback(action=AdminPanelAction.bulk_actions))
-            adjust = adjust + [2] * 2
+            adjust = adjust + [2] * 2 + [1]
         else:
             self.button(text=Texts.users, switch_inline_query_current_chat="")
             adjust = adjust + [1] * 2
