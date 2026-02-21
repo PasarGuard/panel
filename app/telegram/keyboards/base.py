@@ -10,14 +10,9 @@ class CancelAction(StrEnum):
 
 
 class CancelKeyboard(InlineKeyboardBuilder):
-    def __init__(self, action: CallbackData | CancelAction | str | None = None, *args, **kwargs):
+    def __init__(self, action: CallbackData = CancelAction.cancel, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if action is None or action == CancelAction.cancel.value:
-            action = self.Callback(action=CancelAction.cancel)
-        elif isinstance(action, CancelAction):
-            action = self.Callback(action=action)
-
-        self.button(text=Texts.cancel, callback_data=action)
+        self.button(text=Texts.cancel, callback_data=action or self.Callback())
         self.adjust(1, 1)
 
     class Callback(CallbackData, prefix=""):
