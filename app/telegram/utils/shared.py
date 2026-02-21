@@ -32,17 +32,8 @@ async def delete_messages(event: Message | CallbackQuery, state: FSMContext = No
     if state:
         message_ids += await state.get_value("messages_to_delete", [])
 
-    # Remove duplicates/invalid ids and avoid empty deletes.
-    message_ids = [message_id for message_id in dict.fromkeys(message_ids) if message_id]
-    if not message_ids:
-        return
-
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     try:
         await event.bot.delete_messages(chat_id, message_ids)
     except TelegramAPIError:
-        for message_id in message_ids:
-            try:
-                await event.bot.delete_message(chat_id, message_id)
-            except TelegramAPIError:
-                continue
+        pass
