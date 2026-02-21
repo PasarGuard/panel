@@ -3,6 +3,7 @@ from datetime import datetime as dt
 
 from sqlalchemy.exc import IntegrityError
 
+from app.nats.admin_auth_cache import delete_admin_auth_entry, upsert_admin_auth_entry
 from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import (
@@ -48,6 +49,7 @@ class AdminOperation(BaseOperation):
             logger.info(f'New admin "{db_admin.username}" with id "{db_admin.id}" added by admin "{admin.username}"')
         new_admin = AdminDetails.model_validate(db_admin)
         asyncio.create_task(notification.create_admin(new_admin, admin.username))
+        await upsert_admin_auth_entry(db_admin)
 
         return db_admin
 
@@ -70,6 +72,7 @@ class AdminOperation(BaseOperation):
 
         modified_admin = AdminDetails.model_validate(db_admin)
         asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
+        await upsert_admin_auth_entry(db_admin)
         return modified_admin
 
     async def remove_admin(self, db: AsyncSession, username: str, current_admin: AdminDetails | None = None):
@@ -86,6 +89,7 @@ class AdminOperation(BaseOperation):
                 f'Admin "{db_admin.username}" with id "{db_admin.id}" deleted by admin "{current_admin.username}"'
             )
             asyncio.create_task(notification.remove_admin(username, current_admin.username))
+        await delete_admin_auth_entry(db_admin.username)
 
     async def get_admins(
         self,

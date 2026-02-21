@@ -11,7 +11,7 @@ from app.db.crud.general import (
     to_utc_for_filter,
 )
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_password
+from app.models.admin import AdminAuthDBEntry, AdminCreate, AdminDetails, AdminModify, hash_password
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 
 
@@ -211,6 +211,21 @@ async def get_admin_by_discord_id(
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
+
+
+async def get_admins_for_auth_cache(db: AsyncSession) -> list[AdminAuthDBEntry]:
+    stmt = select(Admin.id, Admin.username, Admin.is_sudo, Admin.is_disabled, Admin.password_reset_at)
+    rows = (await db.execute(stmt)).all()
+    return [
+        AdminAuthDBEntry(
+            id=row.id,
+            username=row.username,
+            is_sudo=row.is_sudo,
+            is_disabled=row.is_disabled,
+            password_reset_at=row.password_reset_at,
+        )
+        for row in rows
+    ]
 
 
 async def get_admins(

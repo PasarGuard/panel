@@ -1,6 +1,7 @@
 import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 import bcrypt
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -140,6 +141,23 @@ class AdminValidationResult(BaseModel):
     username: str
     is_sudo: bool
     is_disabled: bool
+
+
+class AdminAuthDBEntry(BaseModel):
+    id: int
+    username: str
+    is_sudo: bool
+    is_disabled: bool
+    password_reset_at: datetime | None = None
+
+
+class AdminAuthKVEntry(AdminAuthDBEntry):
+    updated_at: datetime
+
+
+class AdminAuthKVIndex(BaseModel):
+    usernames: list[str]
+    generated_at: datetime
 
 
 class AdminsResponse(BaseModel):
