@@ -87,6 +87,7 @@ class AdminDetails(AdminContactInfo):
     discord_id: int | None = None
     sub_template: str | None = None
     lifetime_used_traffic: int | None = None
+    note: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -106,6 +107,7 @@ class AdminModify(BaseModel):
     sub_domain: str | None = None
     profile_title: str | None = None
     support_url: str | None = None
+    note: str | None = None
     notification_enable: UserNotificationEnable | None = None
 
     @field_validator("discord_webhook")

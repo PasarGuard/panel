@@ -261,6 +261,7 @@ export function DataTable<TData extends AdminDetails>({
                     index === 2 && 'min-w-[70px] md:w-auto',
                     index === 3 && 'min-w-[70px] md:w-auto',
                     index === 4 && 'min-w-[70px] md:w-[120px]',
+                    header.id === 'actions' && 'hidden md:table-cell md:w-[85px]',
                     index >= 3 && 'hidden md:table-cell',
                     header.id === 'chevron' && 'table-cell md:hidden',
                   )}
@@ -292,7 +293,7 @@ export function DataTable<TData extends AdminDetails>({
                           }}
                           className={cn(
                             'py-2 text-sm',
-                            index === 5 && 'hidden md:w-[85px]',
+                            cell.column.id === 'actions' && 'hidden md:w-[85px]',
                             index >= 3 && 'hidden md:table-cell',
                             cell.column.id === 'chevron' && 'table-cell md:hidden',
                             dir === 'rtl' ? 'pl-3' : 'pr-3',

@@ -39,6 +39,7 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
             sub_domain=db_admin.sub_domain,
             profile_title=db_admin.profile_title,
             support_url=db_admin.support_url,
+            note=db_admin.note,
             notification_enable=db_admin.notification_enable,
             discord_id=db_admin.discord_id,
             sub_template=db_admin.sub_template,

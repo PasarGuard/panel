@@ -124,6 +124,8 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.support_url = modified_admin.support_url
     if modified_admin.profile_title is not None:
         db_admin.profile_title = modified_admin.profile_title
+    if modified_admin.note is not None:
+        db_admin.note = modified_admin.note
     if modified_admin.notification_enable is not None:
         db_admin.notification_enable = modified_admin.notification_enable.model_dump()
 
@@ -317,6 +319,7 @@ async def get_admins(
                     sub_domain=admin.sub_domain,
                     profile_title=admin.profile_title,
                     support_url=admin.support_url,
+                    note=admin.note,
                     notification_enable=admin.notification_enable,
                     discord_id=admin.discord_id,
                     sub_template=admin.sub_template,

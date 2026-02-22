@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.coordinate import Coordinate
-from textual.widgets import Button, DataTable, Input, Static, Switch
+from textual.widgets import Button, DataTable, Input, Static, Switch, TextArea
 
 from app.db import AsyncSession
 from app.db.base import get_db
@@ -198,6 +198,7 @@ class AdminCreateModale(BaseModal):
                 Input(placeholder="Sub Domain", id="sub_domain"),
                 Input(placeholder="Profile Title", id="profile_title"),
                 Input(placeholder="Support URL", id="support_url"),
+                TextArea(placeholder="Note", id="note"),
                 Horizontal(
                     Static("Is sudo:     ", classes="label"),
                     Switch(animate=False, id="is_sudo"),
@@ -302,6 +303,7 @@ class AdminCreateModale(BaseModal):
         ]
         if (
             not any(self.query_one(f"#{switch_id}").has_focus for switch_id in switch_ids)
+            and not self.query_one("#note", TextArea).has_focus
             and not self.query_one("#cancel").has_focus
         ):
             await self.on_button_pressed(Button.Pressed(self.query_one("#create")))
@@ -319,6 +321,7 @@ class AdminCreateModale(BaseModal):
             sub_domain = self.query_one("#sub_domain").value.strip() or None
             profile_title = self.query_one("#profile_title").value.strip() or None
             support_url = self.query_one("#support_url").value.strip() or None
+            note = self.query_one("#note", TextArea).text.strip() or None
 
             # Build notification_enable object (always create, never None for new admins)
             notification_enable = UserNotificationEnable(
@@ -348,6 +351,7 @@ class AdminCreateModale(BaseModal):
                         sub_domain=sub_domain,
                         profile_title=profile_title,
                         support_url=support_url,
+                        note=note,
                         notification_enable=notification_enable,
                     ),
                     SYSTEM_ADMIN,
@@ -395,6 +399,7 @@ class AdminModifyModale(BaseModal):
                 Input(placeholder="Sub Domain", id="sub_domain"),
                 Input(placeholder="Profile Title", id="profile_title"),
                 Input(placeholder="Support URL", id="support_url"),
+                TextArea(placeholder="Note", id="note"),
                 Horizontal(
                     Static("Is sudo: ", classes="label"),
                     Switch(animate=False, id="is_sudo"),
@@ -465,22 +470,22 @@ class AdminModifyModale(BaseModal):
             self.query_one("#profile_title").value = self.admin.profile_title
         if self.admin.support_url:
             self.query_one("#support_url").value = self.admin.support_url
+        if self.admin.note:
+            self.query_one("#note", TextArea).text = self.admin.note
         self.query_one("#is_sudo").value = self.admin.is_sudo
         self.query_one("#is_disabled").value = self.admin.is_disabled
 
         # Load existing notification preferences (notification_enable is a dict from SQLAlchemy)
         notif = self.admin.notification_enable or {}
-        master_on = any(
-            [
-                notif.get("create", False),
-                notif.get("modify", False),
-                notif.get("delete", False),
-                notif.get("status_change", False),
-                notif.get("reset_data_usage", False),
-                notif.get("data_reset_by_next", False),
-                notif.get("subscription_revoked", False),
-            ]
-        )
+        master_on = any([
+            notif.get("create", False),
+            notif.get("modify", False),
+            notif.get("delete", False),
+            notif.get("status_change", False),
+            notif.get("reset_data_usage", False),
+            notif.get("data_reset_by_next", False),
+            notif.get("subscription_revoked", False),
+        ])
 
         self.query_one("#notif_master").value = master_on
         self.query_one("#notif_create").value = notif.get("create", False)
@@ -542,6 +547,7 @@ class AdminModifyModale(BaseModal):
         ]
         if (
             not any(self.query_one(f"#{switch_id}").has_focus for switch_id in switch_ids)
+            and not self.query_one("#note", TextArea).has_focus
             and not self.query_one("#cancel").has_focus
         ):
             await self.on_button_pressed(Button.Pressed(self.query_one("#save")))
@@ -559,6 +565,7 @@ class AdminModifyModale(BaseModal):
             sub_domain = self.query_one("#sub_domain").value.strip() or None
             profile_title = self.query_one("#profile_title").value.strip() or None
             support_url = self.query_one("#support_url").value.strip() or None
+            note = self.query_one("#note", TextArea).text.strip() or None
 
             # Build notification_enable object (keep None for legacy admins, otherwise build)
             if self.admin.notification_enable is None:
@@ -592,6 +599,7 @@ class AdminModifyModale(BaseModal):
                         sub_domain=sub_domain,
                         profile_title=profile_title,
                         support_url=support_url,
+                        note=note,
                         notification_enable=notification_enable,
                     ),
                     SYSTEM_ADMIN,

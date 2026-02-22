@@ -56,6 +56,7 @@ export const adminFormSchema = z
     support_url: z.string().optional(),
     telegram_id: z.number().optional(),
     profile_title: z.string().optional(),
+    note: z.string().optional(),
     discord_id: z.number().optional(),
     notification_enable: z
       .object({
@@ -118,6 +119,7 @@ export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
   support_url: '',
   telegram_id: undefined,
   profile_title: '',
+  note: '',
   discord_id: undefined,
   notification_enable: {
     create: true,

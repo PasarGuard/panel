@@ -52,6 +52,26 @@ def test_admin_create(access_token):
     delete_admin(access_token, username)
 
 
+def test_admin_create_with_note(access_token):
+    """Test that admin note can be set during creation."""
+
+    username = unique_name("testadminnote")
+    password = strong_password("TestAdminNote")
+    note = "created via api"
+
+    response = client.post(
+        url="/api/admin",
+        json={"username": username, "password": password, "is_sudo": False, "note": note},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()["username"] == username
+    assert response.json()["note"] == note
+
+    delete_admin(access_token, username)
+
+
 def test_admin_db_login(access_token):
     """Test that the admin db login route is accessible."""
 
@@ -86,6 +106,25 @@ def test_update_admin(access_token):
     delete_admin(access_token, admin["username"])
 
 
+def test_update_admin_note(access_token):
+    """Test updating admin note via modify route."""
+
+    admin = create_admin(access_token)
+    note = "updated admin note"
+
+    response = client.put(
+        url=f"/api/admin/{admin['username']}",
+        json={"is_sudo": False, "note": note},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["username"] == admin["username"]
+    assert response.json()["note"] == note
+
+    delete_admin(access_token, admin["username"])
+
+
 def test_get_admins(access_token):
     """Test that the admins get route is accessible."""
 
@@ -103,6 +142,35 @@ def test_get_admins(access_token):
     assert "disabled" in response_data
     assert admin["username"] in [record["username"] for record in response_data["admins"]]
     delete_admin(access_token, admin["username"])
+
+
+def test_get_admins_returns_admin_note(access_token):
+    """Test that /api/admins compact response includes admin note."""
+
+    username = unique_name("adminnote")
+    password = strong_password("TestAdminNote")
+    note = "visible in admins list"
+
+    create_response = client.post(
+        url="/api/admin",
+        json={"username": username, "password": password, "is_sudo": False, "note": note},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+
+    try:
+        response = client.get(
+            url="/api/admins",
+            params={"username": username},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        rows = response.json()["admins"]
+        created_admin_row = next((row for row in rows if row["username"] == username), None)
+        assert created_admin_row is not None
+        assert created_admin_row["note"] == note
+    finally:
+        delete_admin(access_token, username)
 
 
 def test_disable_admin(access_token):

@@ -78,6 +78,7 @@ export default function AdminsPage() {
           support_url: admin.support_url,
           profile_title: admin.profile_title,
           sub_domain: admin.sub_domain,
+          note: admin.note,
           discord_id: admin.discord_id,
         },
       })
@@ -115,6 +116,7 @@ export default function AdminsPage() {
       support_url: admin.support_url || '',
       profile_title: admin.profile_title || '',
       sub_domain: admin.sub_domain || '',
+      note: admin.note || '',
       discord_id: admin.discord_id || undefined,
       password: undefined,
       notification_enable: admin.notification_enable || {
@@ -200,4 +202,3 @@ export default function AdminsPage() {
     </div>
   )
 }
-

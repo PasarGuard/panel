@@ -129,6 +129,18 @@ export const setupColumns = ({
     ),
   },
   {
+    accessorKey: 'note',
+    header: () => <div className="flex items-center text-xs capitalize">{t('fields.note')}</div>,
+    cell: ({ row }) => {
+      const note = row.getValue('note') as string | null | undefined
+      return (
+        <div className="max-w-[220px] truncate text-xs" title={note || ''}>
+          {note || '✖️'}
+        </div>
+      )
+    },
+  },
+  {
     id: 'actions',
     cell: ({ row }) => (
       <div className="flex items-center justify-end gap-2">

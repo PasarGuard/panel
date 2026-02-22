@@ -54,6 +54,10 @@ Button {
   height: auto;
   width: auto;
 }
+TextArea {
+  min-height: 6;
+  height: 8;
+}
 .box {
   margin: 9 5;
   padding: 1;
