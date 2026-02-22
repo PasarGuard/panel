@@ -5,13 +5,14 @@ from aiorwlock import RWLock
 
 from app.db.models import Settings
 
-from . import TestSession, client
+from . import GetTestDB, TestSession, client
 
 
 @pytest.fixture(autouse=True)
 def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     db_session = MagicMock(spec=TestSession)
     monkeypatch.setattr("app.settings.GetDB", db_session)
+    monkeypatch.setattr("app.subscription.core_templates.GetDB", GetTestDB)
     return db_session
 
 

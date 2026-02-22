@@ -37,7 +37,7 @@ def test_core_template_can_switch_default(access_token):
         access_token,
         name=unique_name("tmpl_sb_second"),
         template_type="singbox_subscription",
-        content='{"outbounds": [{"tag": "a"}]}',
+        content='{"outbounds": [{"type": "direct", "tag": "a"}]}',
         is_default=True,
     )
 
