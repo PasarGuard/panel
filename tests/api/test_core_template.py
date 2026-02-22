@@ -54,19 +54,48 @@ def test_core_template_can_switch_default(access_token):
     assert second_after["is_default"] is True
 
 
-def test_core_template_last_and_system_delete_guards(access_token):
-    first = create_core_template(
-        access_token,
-        name=unique_name("tmpl_grpc_first"),
-        template_type="grpc_user_agent",
-        content='{"list": ["grpc-agent"]}',
+def test_core_template_cannot_delete_first_template(access_token):
+    response = client.get(
+        "/api/core_templates",
+        params={"template_type": "grpc_user_agent"},
+        headers={"Authorization": f"Bearer {access_token}"},
     )
+    assert response.status_code == status.HTTP_200_OK
+    templates = response.json()["templates"]
+
+    if templates:
+        first = min(templates, key=lambda template: template["id"])
+    else:
+        first = create_core_template(
+            access_token,
+            name=unique_name("tmpl_grpc_first"),
+            template_type="grpc_user_agent",
+            content='{"list": ["grpc-agent"]}',
+        )
 
     response = client.delete(
         f"/api/core_template/{first['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+def test_core_template_can_delete_non_first_template(access_token):
+    response = client.get(
+        "/api/core_templates",
+        params={"template_type": "grpc_user_agent"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    templates = response.json()["templates"]
+
+    if not templates:
+        create_core_template(
+            access_token,
+            name=unique_name("tmpl_grpc_seed_first"),
+            template_type="grpc_user_agent",
+            content='{"list": ["grpc-agent-seed"]}',
+        )
 
     second = create_core_template(
         access_token,
@@ -80,9 +109,3 @@ def test_core_template_last_and_system_delete_guards(access_token):
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
-
-    response = client.delete(
-        f"/api/core_template/{first['id']}",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-    assert response.status_code == status.HTTP_403_FORBIDDEN
