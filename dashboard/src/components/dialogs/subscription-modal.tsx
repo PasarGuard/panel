@@ -187,14 +187,11 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-center">
             {/* Subscription QR Code Section */}
             <div className="flex flex-col items-center gap-3">
-              <div className="flex w-full items-center justify-center">
-                <span className="text-sm font-medium">{t('subscriptionModal.subscriptionLink', { defaultValue: 'Subscription Link' })}</span>
-              </div>
-              <div dir="ltr" className="flex max-w-[240px] items-center justify-center overflow-hidden">
-                <QRCodeCanvas value={subscribeQrLink} size={240} className="rounded-sm bg-white p-1.5" />
+              <div dir="ltr" className="flex max-w-[280px] items-center justify-center overflow-hidden">
+                <QRCodeCanvas value={subscribeQrLink} size={260} className="rounded-sm bg-white p-1.5" />
               </div>
             </div>
 
@@ -227,7 +224,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
               ) : (
                 <>
                   {/* Configs List */}
-                  <div className="flex flex-col gap-2">
+                  <div dir='ltr' className="flex flex-col gap-2">
                     {currentConfigs.map((item, index) => (
                       <div key={startIndex + index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
                         <div className="flex flex-1 flex-col gap-1 overflow-hidden">
