@@ -875,6 +875,8 @@
     "security.info": "اگر سرور واسط این هاست از لایه امنیتی متفاوتی نسبت به پیش‌فرض ورودی شما استفاده می‌کند، می‌توانید لایه امنیتی سفارشی را اینجا تنظیم کنید.",
     "useSniAsHost": "استفاده از SNI به عنوان هاست",
     "echConfigList": "لیست پیکربندی ECH",
+    "echQueryStrategy": "راهبرد پرس‌وجوی ECH",
+    "echQueryStrategy.info": "راهبرد پرس‌وجوی ECH. مقادیر مجاز: none، half، full.",
     "pinnedPeerCertSha256": "SHA256 گواهی همتای پین‌شده",
     "pinnedPeerCertSha256.info": "پین اختیاری کلید عمومی گواهی (SHA-256) برای TLS peer pinning.",
     "pinnedPeerCertSha256Placeholder": "SHA-256 را وارد کنید",

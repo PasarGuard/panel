@@ -480,6 +480,7 @@ class ProxyHost(Base):
         EnumArray(UserStatus, 60), default=list, server_default=""
     )
     ech_config_list: Mapped[Optional[str]] = mapped_column(String(512), default=None)
+    ech_query_strategy: Mapped[Optional[str]] = mapped_column(String(8), default=None)
     vless_route: Mapped[Optional[str]] = mapped_column(String(4), default=None)
     pinned_peer_cert_sha256: Mapped[Optional[str]] = mapped_column(String(128), default=None)
     verify_peer_cert_by_name: Mapped[Optional[set[str]]] = mapped_column(

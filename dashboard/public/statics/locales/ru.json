@@ -989,6 +989,8 @@
     "randomUserAgent": "Использовать случайный User-Agent",
     "useSniAsHost": "Использовать SNI как хост",
     "echConfigList": "Список конфигураций ECH",
+    "echQueryStrategy": "Стратегия ECH-запроса",
+    "echQueryStrategy.info": "Стратегия ECH-запроса. Доступные значения: none, half, full.",
     "pinnedPeerCertSha256": "SHA256 закреплённого сертификата узла",
     "pinnedPeerCertSha256.info": "Необязательный пин публичного ключа сертификата (SHA-256) для TLS pinning.",
     "pinnedPeerCertSha256Placeholder": "Введите SHA-256 пин",

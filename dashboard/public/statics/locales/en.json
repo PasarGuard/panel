@@ -1004,6 +1004,8 @@
     "sni.info": "SNI (Server Name Indication) is used to specify which hostname the client is trying to connect to. This is particularly useful when you have multiple domains pointing to the same IP address.",
     "useSniAsHost": "Use SNI as Host",
     "echConfigList": "ECH Config List",
+    "echQueryStrategy": "ECH Query Strategy",
+    "echQueryStrategy.info": "ECH query strategy. Available values: none, half, full.",
     "pinnedPeerCertSha256": "Pinned Peer Cert SHA256",
     "pinnedPeerCertSha256.info": "Optional certificate public key pin (SHA-256) used for TLS peer pinning.",
     "pinnedPeerCertSha256Placeholder": "Enter SHA-256 pin",

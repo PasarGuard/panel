@@ -189,6 +189,8 @@ class StandardLinks(BaseSubscription):
 
         if tls_config.ech_config_list:
             payload["ech"] = tls_config.ech_config_list
+        if tls_config.ech_query_strategy:
+            payload["echForceQuery"] = tls_config.ech_query_strategy
 
         if tls_config.tls == "reality":
             payload["pbk"] = tls_config.reality_public_key

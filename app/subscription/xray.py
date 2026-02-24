@@ -315,6 +315,7 @@ class XrayConfiguration(BaseSubscription):
                 "show": False,
                 "fingerprint": tls_config.fingerprint,
                 "echConfigList": tls_config.ech_config_list,
+                "echForceQuery": tls_config.ech_query_strategy,
                 "pinnedPeerCertSha256": tls_config.pinned_peer_cert_sha256,
                 "verifyPeerCertByName": ",".join(tls_config.verify_peer_cert_by_name)
                 if tls_config.verify_peer_cert_by_name

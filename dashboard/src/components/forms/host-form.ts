@@ -62,6 +62,7 @@ export interface HostFormValues {
   vless_route?: string
   priority: number
   ech_config_list?: string
+  ech_query_strategy?: 'none' | 'half' | 'full'
   pinned_peer_cert_sha256?: string
   verify_peer_cert_by_name?: string[]
   fragment_settings?: {
@@ -323,6 +324,7 @@ export const HostFormSchema = z.object({
   priority: z.number().default(0),
   is_disabled: z.boolean().default(false),
   ech_config_list: z.string().optional(),
+  ech_query_strategy: z.enum(['none', 'half', 'full']).optional(),
   pinned_peer_cert_sha256: z.string().max(128, 'Pinned peer cert SHA256 must be at most 128 characters').optional(),
   verify_peer_cert_by_name: z.array(z.string()).default([]),
   fragment_settings: z
@@ -438,6 +440,7 @@ export const hostFormDefaultValues: HostFormValues = {
   vless_route: '',
   priority: 0,
   ech_config_list: undefined,
+  ech_query_strategy: undefined,
   pinned_peer_cert_sha256: undefined,
   verify_peer_cert_by_name: [],
   fragment_settings: undefined,

@@ -978,6 +978,8 @@
     "sni.info": "SNI (Server Name Indication) 用于指定客户端尝试连接的主机名。当您有多个域名指向同一个 IP 地址时，这特别有用。",
     "useSniAsHost": "使用 SNI 作为主机",
     "echConfigList": "ECH 配置列表",
+    "echQueryStrategy": "ECH 查询策略",
+    "echQueryStrategy.info": "ECH 查询策略。可用值：none、half、full。",
     "pinnedPeerCertSha256": "固定对端证书 SHA256",
     "pinnedPeerCertSha256.info": "用于 TLS 对端证书固定的可选证书公钥指纹 (SHA-256)。",
     "pinnedPeerCertSha256Placeholder": "输入 SHA-256 指纹",

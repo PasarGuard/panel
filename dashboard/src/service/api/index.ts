@@ -1304,6 +1304,15 @@ export const ProxyHostALPN = {
   h3: 'h3',
 } as const
 
+export type ECHQueryStrategy = (typeof ECHQueryStrategy)[keyof typeof ECHQueryStrategy]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ECHQueryStrategy = {
+  none: 'none',
+  half: 'half',
+  full: 'full',
+} as const
+
 export type Platform = (typeof Platform)[keyof typeof Platform]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -1933,6 +1942,8 @@ export type CreateHostPinnedPeerCertSha256 = string | null
 
 export type CreateHostEchConfigList = string | null
 
+export type CreateHostEchQueryStrategy = ECHQueryStrategy | null
+
 export type CreateHostStatus = UserStatus[] | null
 
 export type CreateHostVlessRoute = string | null
@@ -1990,6 +2001,7 @@ export interface CreateHost {
   priority: number
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
+  ech_query_strategy?: CreateHostEchQueryStrategy
   pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
 }
@@ -2166,6 +2178,8 @@ export type BaseHostPinnedPeerCertSha256 = string | null
 
 export type BaseHostEchConfigList = string | null
 
+export type BaseHostEchQueryStrategy = ECHQueryStrategy | null
+
 export type BaseHostStatus = UserStatus[] | null
 
 export type BaseHostVlessRoute = string | null
@@ -2223,6 +2237,7 @@ export interface BaseHost {
   priority: number
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
+  ech_query_strategy?: BaseHostEchQueryStrategy
   pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
 }
