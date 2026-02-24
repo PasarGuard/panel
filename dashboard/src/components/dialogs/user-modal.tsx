@@ -104,9 +104,7 @@ const ExpiryDateField = ({
   const handleShortcut = React.useCallback(
     (days: number) => {
       const baseDate = displayDate || new Date()
-      const targetDate = new Date(baseDate)
-      targetDate.setDate(baseDate.getDate() + days)
-      // Preserve time from base date
+      const targetDate = parseDateInput(baseDate).add(days, 'day').toDate()
       handleDateChange(targetDate)
     },
     [handleDateChange, displayDate],

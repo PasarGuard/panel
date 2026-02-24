@@ -399,9 +399,7 @@ export function DatePicker({
                   ].map(({ label, days }) => {
                     const handleShortcut = () => {
                       const baseDate = displayDate || now
-                      const targetDate = new Date(baseDate)
-                      targetDate.setDate(baseDate.getDate() + days)
-                      // Preserve time from base date
+                      const targetDate = new Date(parseDateInput(baseDate).add(days, 'day').valueOf())
                       handleDateSelect(targetDate)
                     }
                     return (
