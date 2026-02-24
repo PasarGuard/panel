@@ -19,7 +19,7 @@ from app.settings import telegram_settings
 from app.utils.logger import get_logger
 from config import NATS_TELEGRAM_KV_BUCKET
 
-from .fsm_storage import NatsBackedMemoryStorage
+from .fsm_storage import NatsFSMStorage
 from .handlers import include_routers
 from .middlewares import setup_middlewares
 
@@ -31,7 +31,7 @@ class TelegramBotManager:
         self._bot: Bot | None = None
         self._polling_task: asyncio.Task | None = None
         self._lock = Lock()
-        self._dp = Dispatcher(storage=self._create_fsm_storage())
+        self._dp = self._create_dispatcher()
         self._handlers_registered = False
         self._shutdown_in_progress = False
         self._stop_requested = False
@@ -40,10 +40,11 @@ class TelegramBotManager:
         self._nats_conn = None
 
     @staticmethod
-    def _create_fsm_storage():
+    def _create_dispatcher() -> Dispatcher:
         if is_nats_enabled():
-            return NatsBackedMemoryStorage(NATS_TELEGRAM_KV_BUCKET)
-        return MemoryStorage()
+            storage = NatsFSMStorage(NATS_TELEGRAM_KV_BUCKET)
+            return Dispatcher(storage=storage, events_isolation=storage.create_isolation())
+        return Dispatcher(storage=MemoryStorage())
 
     def get_bot(self) -> Bot | None:
         return self._bot
@@ -141,7 +142,7 @@ class TelegramBotManager:
             self._stop_requested = True
             await self._shutdown_locked()
             try:
-                await self._dp.storage.close()
+                await self._dp.fsm.close()
             except Exception:
                 pass
             # Close NATS KV connection if one was opened
