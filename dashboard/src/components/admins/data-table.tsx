@@ -34,6 +34,7 @@ import {
 interface DataTableProps<TData extends AdminDetails> {
   columns: ColumnDef<TData, any>[]
   data: TData[]
+  currentAdminUsername?: string
   onEdit: (admin: AdminDetails) => void
   onDelete: (admin: AdminDetails) => void
   onToggleStatus: (admin: AdminDetails) => void
@@ -56,6 +57,7 @@ const ExpandedRowContent = memo(
     onDisableAllActiveUsers,
     onActivateAllDisabledUsers,
     onRemoveAllUsers,
+    currentAdminUsername,
   }: {
     row: AdminDetails
     onEdit: (admin: AdminDetails) => void
@@ -65,10 +67,12 @@ const ExpandedRowContent = memo(
     onDisableAllActiveUsers?: (adminUsername: string) => void
     onActivateAllDisabledUsers?: (adminUsername: string) => void
     onRemoveAllUsers?: (adminUsername: string) => void
+    currentAdminUsername?: string
   }) => {
     const { t } = useTranslation()
     const isMobile = useIsMobile()
     const isSudo = row.is_sudo
+    const isSudoTarget = row.is_sudo
 
     return (
       <div className="flex items-center justify-between px-2 py-4">
@@ -101,16 +105,18 @@ const ExpandedRowContent = memo(
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                        onSelect={e => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onToggleStatus(row)
-                        }}
-                    >
-                        {row.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
-                        {row.is_disabled ? t('enable') : t('disable')}
-                    </DropdownMenuItem>
+                    {!isSudoTarget && row.username !== currentAdminUsername && (
+                      <DropdownMenuItem
+                          onSelect={e => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              onToggleStatus(row)
+                          }}
+                      >
+                          {row.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
+                          {row.is_disabled ? t('enable') : t('disable')}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                         onSelect={e => {
                             e.preventDefault()
@@ -121,7 +127,7 @@ const ExpandedRowContent = memo(
                         <RefreshCw className="mr-2 h-4 w-4" />
                         {t('admins.reset')}
                     </DropdownMenuItem>
-                    {onDisableAllActiveUsers &&
+                    {!isSudoTarget && onDisableAllActiveUsers &&
                     <DropdownMenuItem
                         onSelect={e => {
                             e.preventDefault()
@@ -133,7 +139,7 @@ const ExpandedRowContent = memo(
                         {t('admins.disableAllActiveUsers')}
                     </DropdownMenuItem>
                     }
-                    {onActivateAllDisabledUsers &&
+                    {!isSudoTarget && onActivateAllDisabledUsers &&
                     <DropdownMenuItem
                         onSelect={e => {
                             e.preventDefault()
@@ -145,7 +151,7 @@ const ExpandedRowContent = memo(
                         {t('admins.activateAllDisabledUsers')}
                     </DropdownMenuItem>
                     }
-                    {onRemoveAllUsers &&
+                    {!isSudoTarget && onRemoveAllUsers &&
                     <DropdownMenuItem
                         className="text-destructive"
                         onSelect={e => {
@@ -158,17 +164,19 @@ const ExpandedRowContent = memo(
                         {t('admins.removeAllUsers')}
                     </DropdownMenuItem>
                     }
-                    <DropdownMenuItem
-                        className="text-destructive"
-                        onSelect={e => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onDelete(row)
-                        }}
-                    >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {t('delete')}
-                    </DropdownMenuItem>
+                    {!isSudoTarget && row.username !== currentAdminUsername && (
+                      <DropdownMenuItem
+                          className="text-destructive"
+                          onSelect={e => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              onDelete(row)
+                          }}
+                      >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {t('delete')}
+                      </DropdownMenuItem>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>
@@ -180,6 +188,7 @@ const ExpandedRowContent = memo(
 export function DataTable<TData extends AdminDetails>({
   columns,
   data,
+  currentAdminUsername,
   onEdit,
   onDelete,
   onToggleStatus,
@@ -321,6 +330,7 @@ export function DataTable<TData extends AdminDetails>({
                             onDisableAllActiveUsers={onDisableAllActiveUsers}
                             onActivateAllDisabledUsers={onActivateAllDisabledUsers}
                             onRemoveAllUsers={onRemoveAllUsers}
+                            currentAdminUsername={currentAdminUsername}
                           />
                         </TableCell>
                       </TableRow>

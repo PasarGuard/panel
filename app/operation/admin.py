@@ -79,6 +79,9 @@ class AdminOperation(BaseOperation):
                 message="You're not allowed to modify sudoer's account. Use pasarguard cli  / tui instead.", code=403
             )
 
+        if db_admin.username == current_admin.username and modified_admin.is_disabled is True:
+            await self.raise_error(message="You're not allowed to disable your own account.", code=403)
+
         if modified_admin.telegram_id is not None:
             existing_admins = await find_admins_by_telegram_id(
                 db, modified_admin.telegram_id, exclude_admin_id=db_admin.id, limit=1

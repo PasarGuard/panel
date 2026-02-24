@@ -273,6 +273,38 @@ def test_sudo_admin_can_modify_self(access_token):
         delete_admin(access_token, sudo_admin["username"])
 
 
+def test_sudo_admin_cannot_disable_self(access_token):
+    """A sudo admin cannot disable their own account."""
+    sudo_admin = create_admin(access_token)
+    set_admin_sudo(sudo_admin["username"], True)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": sudo_admin["username"],
+                "password": sudo_admin["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        sudo_token = login_response.json()["access_token"]
+
+        response = client.put(
+            url=f"/api/admin/{sudo_admin['username']}",
+            json={
+                "is_sudo": True,
+                "is_disabled": True,
+            },
+            headers={"Authorization": f"Bearer {sudo_token}"},
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json()["detail"] == "You're not allowed to disable your own account."
+    finally:
+        set_admin_sudo(sudo_admin["username"], False)
+        delete_admin(access_token, sudo_admin["username"])
+
+
 def test_sudo_admin_cannot_modify_other_sudo_admin(access_token):
     """A sudo admin cannot edit another sudo admin account."""
     sudo_admin_a = create_admin(access_token)
