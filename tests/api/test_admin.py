@@ -125,6 +125,70 @@ def test_update_admin_note(access_token):
     delete_admin(access_token, admin["username"])
 
 
+def test_sudo_admin_can_modify_self(access_token):
+    """A sudo admin can edit their own account."""
+    sudo_admin = create_admin(access_token, is_sudo=True)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": sudo_admin["username"],
+                "password": sudo_admin["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        sudo_token = login_response.json()["access_token"]
+
+        response = client.put(
+            url=f"/api/admin/{sudo_admin['username']}",
+            json={
+                "is_sudo": True,
+                "is_disabled": False,
+                "note": "self-updated",
+            },
+            headers={"Authorization": f"Bearer {sudo_token}"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["username"] == sudo_admin["username"]
+        assert response.json()["note"] == "self-updated"
+    finally:
+        delete_admin(access_token, sudo_admin["username"])
+
+
+def test_sudo_admin_cannot_modify_other_sudo_admin(access_token):
+    """A sudo admin cannot edit another sudo admin account."""
+    sudo_admin_a = create_admin(access_token, is_sudo=True)
+    sudo_admin_b = create_admin(access_token, is_sudo=True)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": sudo_admin_a["username"],
+                "password": sudo_admin_a["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        sudo_a_token = login_response.json()["access_token"]
+
+        response = client.put(
+            url=f"/api/admin/{sudo_admin_b['username']}",
+            json={
+                "is_sudo": True,
+                "is_disabled": False,
+                "note": "should-fail",
+            },
+            headers={"Authorization": f"Bearer {sudo_a_token}"},
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, sudo_admin_a["username"])
+        delete_admin(access_token, sudo_admin_b["username"])
+
+
 def test_get_admins(access_token):
     """Test that the admins get route is accessible."""
 
