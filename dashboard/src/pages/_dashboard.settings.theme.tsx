@@ -344,7 +344,7 @@ export default function ThemeSettings() {
         </div>
         <RadioGroup value={chartViewType} onValueChange={value => handleChartViewTypeChange(value as ChartViewType)} className="grid gap-2 sm:grid-cols-2">
           {chartViewOptions.map(option => (
-            <div key={option} className="relative">
+            <div dir={dir} key={option} className="relative">
               <RadioGroupItem value={option} id={`chart-view-${option}`} className="peer sr-only" />
               <Label
                 htmlFor={`chart-view-${option}`}
