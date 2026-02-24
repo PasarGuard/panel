@@ -13,6 +13,9 @@ from app.db.crud.general import (
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
 from app.models.admin import AdminCreate, AdminDetails, AdminModify, hash_password
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
+from app.utils.logger import get_logger
+
+logger = get_logger("admin-crud")
 
 
 async def load_admin_attrs(admin: Admin, load_users: bool = True, load_usage_logs: bool = True):
@@ -186,10 +189,33 @@ async def get_admin_by_telegram_id(
     Returns:
         Admin: The admin object.
     """
-    admin = (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id))).scalar_one_or_none()
+    admins = (
+        await db.execute(select(Admin).where(Admin.telegram_id == telegram_id).order_by(Admin.id.asc()).limit(2))
+    ).scalars().all()
+    if len(admins) > 1:
+        logger.error(
+            "Duplicate telegram_id found for admins; using earliest record",
+            extra={"telegram_id": telegram_id, "admin_ids": [admin.id for admin in admins]},
+        )
+    admin = admins[0] if admins else None
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
+
+
+async def find_admins_by_telegram_id(
+    db: AsyncSession,
+    telegram_id: int,
+    *,
+    exclude_admin_id: int | None = None,
+    limit: int | None = None,
+) -> list[Admin]:
+    stmt = select(Admin).where(Admin.telegram_id == telegram_id).order_by(Admin.id.asc())
+    if exclude_admin_id is not None:
+        stmt = stmt.where(Admin.id != exclude_admin_id)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return (await db.execute(stmt)).scalars().all()
 
 
 async def get_admin_by_discord_id(

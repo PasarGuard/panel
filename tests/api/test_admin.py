@@ -1,11 +1,16 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 from fastapi import status
 from sqlalchemy import select
 
+from app.db.crud.admin import get_admin_by_telegram_id
 from app.db.models import Admin, NodeUserUsage
+from app.models.settings import RunMethod, Telegram
+from app.routers.authentication import validate_mini_app_admin
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
@@ -110,6 +115,35 @@ def test_admin_create_with_note(access_token):
     delete_admin(access_token, username)
 
 
+def test_admin_create_duplicate_telegram_id_conflict(access_token):
+    telegram_id = 9988776655
+    admin_a = create_admin(access_token)
+    admin_b_username = unique_name("tgdup")
+    admin_b_password = strong_password("TestAdminDup")
+    try:
+        response_a = client.put(
+            url=f"/api/admin/{admin_a['username']}",
+            json={"is_sudo": False, "telegram_id": telegram_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response_a.status_code == status.HTTP_200_OK
+
+        response_b = client.post(
+            url="/api/admin",
+            json={
+                "username": admin_b_username,
+                "password": admin_b_password,
+                "is_sudo": False,
+                "telegram_id": telegram_id,
+            },
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response_b.status_code == status.HTTP_409_CONFLICT
+        assert response_b.json()["detail"] == "Telegram ID is already assigned to another admin."
+    finally:
+        delete_admin(access_token, admin_a["username"])
+
+
 def test_admin_db_login(access_token):
     """Test that the admin db login route is accessible."""
 
@@ -161,6 +195,30 @@ def test_update_admin_note(access_token):
     assert response.json()["note"] == note
 
     delete_admin(access_token, admin["username"])
+
+
+def test_update_admin_duplicate_telegram_id_conflict(access_token):
+    telegram_id = 8877665544
+    admin_a = create_admin(access_token)
+    admin_b = create_admin(access_token)
+    try:
+        first_update = client.put(
+            url=f"/api/admin/{admin_a['username']}",
+            json={"is_sudo": False, "telegram_id": telegram_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert first_update.status_code == status.HTTP_200_OK
+
+        second_update = client.put(
+            url=f"/api/admin/{admin_b['username']}",
+            json={"is_sudo": False, "telegram_id": telegram_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert second_update.status_code == status.HTTP_409_CONFLICT
+        assert second_update.json()["detail"] == "Telegram ID is already assigned to another admin."
+    finally:
+        delete_admin(access_token, admin_a["username"])
+        delete_admin(access_token, admin_b["username"])
 
 
 def test_promote_admin_to_sudo_forbidden_via_api(access_token):
@@ -472,6 +530,54 @@ async def test_admin_usage_forbidden_for_other_admin(access_token):
 
     delete_admin(access_token, admin_a["username"])
     delete_admin(access_token, admin_b["username"])
+
+
+@pytest.mark.asyncio
+async def test_get_admin_by_telegram_id_handles_duplicate_rows():
+    telegram_id = 7766554433
+    async with TestSession() as session:
+        admin_a = Admin(username=unique_name("tg_read_a"), hashed_password="secret", telegram_id=telegram_id)
+        admin_b = Admin(username=unique_name("tg_read_b"), hashed_password="secret", telegram_id=telegram_id)
+        session.add_all([admin_a, admin_b])
+        await session.commit()
+
+        loaded = await get_admin_by_telegram_id(session, telegram_id, load_users=False, load_usage_logs=False)
+        assert loaded is not None
+        assert loaded.telegram_id == telegram_id
+        assert loaded.username == admin_a.username
+
+
+@pytest.mark.asyncio
+async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(monkeypatch: pytest.MonkeyPatch):
+    telegram_id = 6655443322
+    async with TestSession() as session:
+        session.add_all(
+            [
+                Admin(username=unique_name("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id),
+                Admin(username=unique_name("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id),
+            ]
+        )
+        await session.commit()
+
+        async def fake_telegram_settings():
+            return Telegram(
+                enable=True,
+                mini_app_login=True,
+                method=RunMethod.LONGPOLLING,
+                token="12345678:" + ("A" * 35),
+            )
+
+        monkeypatch.setattr("app.routers.authentication.telegram_settings", fake_telegram_settings)
+        monkeypatch.setattr(
+            "app.routers.authentication.safe_parse_webapp_init_data",
+            lambda token, init_data: SimpleNamespace(user=SimpleNamespace(id=telegram_id)),
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await validate_mini_app_admin(session, "signed-init-data")
+
+        assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+        assert exc_info.value.detail == "Telegram ID is assigned to multiple admins. Please contact support."
 
 
 # Tests for /api/admins/simple endpoint

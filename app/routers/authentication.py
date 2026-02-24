@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.db import AsyncSession, get_db
-from app.db.crud.admin import get_admin as get_admin_by_username, get_admin_by_telegram_id
+from app.db.crud.admin import find_admins_by_telegram_id, get_admin as get_admin_by_username, get_admin_by_telegram_id
 from app.models.admin import AdminDetails, AdminValidationResult, verify_password
 from app.models.settings import Telegram
 from app.settings import telegram_settings
@@ -106,6 +106,13 @@ async def validate_mini_app_admin(db: AsyncSession, token: str) -> AdminValidati
             status_code=status.HTTP_403_FORBIDDEN,
             detail="invalid token",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    duplicate_admins = await find_admins_by_telegram_id(db, data.user.id, limit=2)
+    if len(duplicate_admins) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Telegram ID is assigned to multiple admins. Please contact support.",
         )
 
     db_admin = await get_admin_by_telegram_id(db, data.user.id, load_users=False, load_usage_logs=False)
