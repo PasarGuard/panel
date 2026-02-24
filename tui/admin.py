@@ -188,6 +188,11 @@ class AdminCreateModale(BaseModal):
         with Container(classes="modal-box-form"):
             yield Static("Create a new admin", classes="title")
             yield Vertical(
+                Horizontal(
+                    Static("Is sudo:     ", classes="label"),
+                    Switch(animate=False, id="is_sudo", value=True),
+                    classes="switch-container",
+                ),
                 Input(placeholder="Username", id="username"),
                 Input(placeholder="Password", password=True, id="password"),
                 Input(placeholder="Confirm Password", password=True, id="confirm_password"),
@@ -199,11 +204,6 @@ class AdminCreateModale(BaseModal):
                 Input(placeholder="Profile Title", id="profile_title"),
                 Input(placeholder="Support URL", id="support_url"),
                 TextArea(placeholder="Note", id="note"),
-                Horizontal(
-                    Static("Is sudo:     ", classes="label"),
-                    Switch(animate=False, id="is_sudo"),
-                    classes="switch-container",
-                ),
                 Horizontal(
                     Static("Enable Notifications: ", classes="label"),
                     Switch(animate=False, id="notif_master", value=False),
@@ -389,6 +389,13 @@ class AdminModifyModale(BaseModal):
         with Container(classes="modal-box-form"):
             yield Static("Modify admin", classes="title")
             yield Vertical(
+                Horizontal(
+                    Static("Is sudo: ", classes="label"),
+                    Switch(animate=False, id="is_sudo"),
+                    Static("Is disabled: ", classes="label"),
+                    Switch(animate=False, id="is_disabled"),
+                    classes="switch-container",
+                ),
                 Input(placeholder="Username", id="username", disabled=True),
                 Input(placeholder="Password", password=True, id="password"),
                 Input(placeholder="Confirm Password", password=True, id="confirm_password"),
@@ -400,13 +407,6 @@ class AdminModifyModale(BaseModal):
                 Input(placeholder="Profile Title", id="profile_title"),
                 Input(placeholder="Support URL", id="support_url"),
                 TextArea(placeholder="Note", id="note"),
-                Horizontal(
-                    Static("Is sudo: ", classes="label"),
-                    Switch(animate=False, id="is_sudo"),
-                    Static("Is disabled: ", classes="label"),
-                    Switch(animate=False, id="is_disabled"),
-                    classes="switch-container",
-                ),
                 Static("", id="legacy_notif_warning", classes="label"),
                 Horizontal(
                     Static("Enable Notifications: ", classes="label"),
