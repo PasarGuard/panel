@@ -1984,6 +1984,7 @@
     "title": "高级搜索",
     "byUsername": "用户名和备注",
     "byProtocol": "协议数据",
+    "showCreatedBy": "显示创建者",
     "byStatus": "状态",
     "byAdmin": "管理员",
     "byGroup": "分组",

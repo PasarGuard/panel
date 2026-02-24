@@ -600,11 +600,6 @@ const UsersTable = memo(() => {
           form={advanceSearchForm}
           onSubmit={handleAdvanceSearchSubmit}
           isSudo={isSudo}
-          onShowCreatedByChange={value => {
-            if (!isSudo) return
-            setShowCreatedBy(value)
-            setUsersShowCreatedBy(value)
-          }}
         />
       )}
     </div>

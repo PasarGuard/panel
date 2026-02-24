@@ -1987,6 +1987,7 @@
     "title": "Advanced Search",
     "byUsername": "Username and Notes",
     "byProtocol": "Protocol Data",
+    "showCreatedBy": "Show created by",
     "byStatus": "Status",
     "byAdmin": "Admin",
     "byGroup": "Group",
