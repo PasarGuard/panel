@@ -310,6 +310,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const [isUserAllIPsModalOpen, setUserAllIPsModalOpen] = useState(false)
   const [isUsageModalOpen, setUsageModalOpen] = useState(false)
   const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
+  const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
 
   // Watch next plan values directly for reactivity
   const nextPlanUserTemplateId = form.watch('next_plan.user_template_id')
@@ -342,6 +343,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       setOnHoldCalendarOpen(false)
       setNextPlanEnabled(false)
       setNextPlanManuallyDisabled(false)
+      setActionsMenuOpen(false)
     } else {
       setNextPlanManuallyDisabled(false)
       if (editingUser) {
@@ -2414,40 +2416,60 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               {renderUserMetaPanel('mt-4 lg:hidden')}
             </div>
             {/* Cancel/Create buttons - always visible */}
-            <div className="mt-4 flex flex-row items-center justify-between gap-3 overflow-x-auto pb-1">
+            <div className="mt-4 flex flex-row items-center justify-end gap-3 overflow-x-auto">
               {editingUser && (
-                <DropdownMenu>
+                <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
+                      size="icon"
                       aria-label={t('actions', { defaultValue: 'Actions' })}
-                      className="group h-9 border-border/70 bg-background/80 px-3 shadow-sm backdrop-blur transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=open]:border-primary/50 data-[state=open]:bg-primary/10"
+                      className="group h-10 w-10 border-border/70 bg-background/80 shadow-sm backdrop-blur transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=open]:border-primary/50 data-[state=open]:bg-primary/10"
                     >
-                      <span className="text-xs font-medium">{t('actions', { defaultValue: 'Actions' })}</span>
-                      <EllipsisVertical className="ml-1 h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground group-data-[state=open]:rotate-90 group-data-[state=open]:text-foreground" />
+                      <EllipsisVertical className="h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground group-data-[state=open]:rotate-90 group-data-[state=open]:text-foreground" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent
+                    align="start"
+                    onEscapeKeyDown={() => setActionsMenuOpen(false)}
+                    onPointerDownOutside={() => setActionsMenuOpen(false)}
+                    onInteractOutside={() => setActionsMenuOpen(false)}
+                  >
                     {isSudo && (
-                      <DropdownMenuItem onClick={() => setUserAllIPsModalOpen(true)}>
+                      <DropdownMenuItem onSelect={() => {
+                        setActionsMenuOpen(false)
+                        setUserAllIPsModalOpen(true)
+                      }}>
                         <Network className="mr-2 h-4 w-4" />
                         <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => setUsageModalOpen(true)}>
+                    <DropdownMenuItem onSelect={() => {
+                      setActionsMenuOpen(false)
+                      setUsageModalOpen(true)
+                    }}>
                       <PieChart className="mr-2 h-4 w-4" />
                       <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSubscriptionClientsModalOpen(true)}>
+                    <DropdownMenuItem onSelect={() => {
+                      setActionsMenuOpen(false)
+                      setSubscriptionClientsModalOpen(true)
+                    }}>
                       <Users className="mr-2 h-4 w-4" />
                       <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setRevokeSubDialogOpen(true)}>
+                    <DropdownMenuItem onSelect={() => {
+                      setActionsMenuOpen(false)
+                      setRevokeSubDialogOpen(true)
+                    }}>
                       <Link2Off className="mr-2 h-4 w-4" />
                       <span>{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setResetUsageDialogOpen(true)}>
+                    <DropdownMenuItem onSelect={() => {
+                      setActionsMenuOpen(false)
+                      setResetUsageDialogOpen(true)
+                    }}>
                       <RefreshCcw className="mr-2 h-4 w-4" />
                       <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
                     </DropdownMenuItem>
