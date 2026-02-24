@@ -1589,7 +1589,14 @@
     "datePickerPreferenceSaved": "Date picker preference saved",
     "datePickerModeLocale": "Locale default",
     "datePickerModeGregorian": "Gregorian",
-    "datePickerModePersian": "Jalali"
+    "datePickerModePersian": "Jalali",
+    "chartViewType": "Chart view",
+    "chartViewDescription": "Choose the default chart style for traffic charts.",
+    "chartViewBar": "Bars",
+    "chartViewArea": "Area",
+    "chartViewBarDescription": "Display traffic as bars.",
+    "chartViewAreaDescription": "Display traffic as area charts.",
+    "chartViewSaved": "Chart view preference saved"
   },
   "coreConfigModal": {
     "addConfig": "Create Core Configuration",

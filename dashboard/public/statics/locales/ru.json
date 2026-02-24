@@ -1487,7 +1487,14 @@
     "datePickerPreferenceSaved": "Предпочтение календаря сохранено",
     "datePickerModeLocale": "По языку",
     "datePickerModeGregorian": "Григорианский",
-    "datePickerModePersian": "Джалали"
+    "datePickerModePersian": "Джалали",
+    "chartViewType": "Вид диаграммы",
+    "chartViewDescription": "Выберите стиль диаграмм по умолчанию для графиков трафика.",
+    "chartViewBar": "Столбцы",
+    "chartViewArea": "Область",
+    "chartViewBarDescription": "Показывать трафик в виде столбцов.",
+    "chartViewAreaDescription": "Показывать трафик в виде диаграммы с областью.",
+    "chartViewSaved": "Предпочтение вида диаграммы сохранено"
   },
   "coreConfigModal": {
     "addConfig": "Добавить конфигурацию ядра",

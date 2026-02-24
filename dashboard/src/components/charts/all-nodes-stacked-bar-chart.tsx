@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis, TooltipProps } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis, TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsage, useGetNodesSimple, type NodeSimple, useGetUsage } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -193,6 +194,7 @@ export function AllNodesStackedBarChart() {
 
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
+  const chartViewType = useChartViewType()
   const { data: nodesResponse } = useGetNodesSimple({ all: true }, { query: { enabled: true } })
   const { resolvedTheme } = useTheme()
   const shouldUseNodeUsage = selectedAdmin === 'all'
@@ -439,6 +441,30 @@ export function AllNodesStackedBarChart() {
     }
   }, [])
 
+  const handleChartPointClick = useCallback(
+    (data: any) => {
+      const clickedIndex = typeof data?.activeTooltipIndex === 'number' ? data.activeTooltipIndex : -1
+      const clickedData = (data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? chartData[clickedIndex] : undefined)) as NodeChartDataPoint | undefined
+      if (!clickedData) return
+
+      const activeNodesCount = Object.keys(clickedData).filter(key => {
+        if (key.startsWith('_') || key === 'time' || key === '_period_start') return false
+        const usageValue = Number(clickedData[key] || 0)
+        const uplinkValue = Number(clickedData[`_uplink_${key}`] || 0)
+        const downlinkValue = Number(clickedData[`_downlink_${key}`] || 0)
+        return usageValue > 0 || uplinkValue > 0 || downlinkValue > 0
+      }).length
+
+      if (activeNodesCount > 0) {
+        const resolvedIndex = clickedIndex >= 0 ? clickedIndex : chartData.findIndex(item => item._period_start === clickedData._period_start)
+        setCurrentDataIndex(resolvedIndex >= 0 ? resolvedIndex : 0)
+        setSelectedData(clickedData)
+        setModalOpen(true)
+      }
+    },
+    [chartData],
+  )
+
   return (
     <>
       <Card>
@@ -471,7 +497,7 @@ export function AllNodesStackedBarChart() {
                 <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
                   <button
                     type="button"
-                    aria-label={t('statistics.barChart', { defaultValue: 'Bar chart' })}
+                    aria-label={chartViewType === 'area' ? t('theme.chartViewArea', { defaultValue: 'Area chart' }) : t('statistics.barChart', { defaultValue: 'Bar chart' })}
                     className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
                     onClick={() => setChartView('bar')}
                   >
@@ -518,60 +544,83 @@ export function AllNodesStackedBarChart() {
                 className="h-[200px] w-full sm:h-[320px] lg:h-[400px]"
               >
                 {chartData.length > 0 && chartView === 'bar' ? (
-                  <BarChart
-                    accessibilityLayer
-                    data={chartData}
-                    margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
-                    onClick={data => {
-                      const clickedIndex = typeof data?.activeTooltipIndex === 'number' ? data.activeTooltipIndex : -1
-                      const clickedData = (data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? chartData[clickedIndex] : undefined)) as NodeChartDataPoint | undefined
-                      if (!clickedData) return
-
-                      const activeNodesCount = Object.keys(clickedData).filter(key => {
-                        if (key.startsWith('_') || key === 'time' || key === '_period_start') return false
-                        const usageValue = Number(clickedData[key] || 0)
-                        const uplinkValue = Number(clickedData[`_uplink_${key}`] || 0)
-                        const downlinkValue = Number(clickedData[`_downlink_${key}`] || 0)
-                        return usageValue > 0 || uplinkValue > 0 || downlinkValue > 0
-                      }).length
-
-                      if (activeNodesCount > 0) {
-                        const resolvedIndex = clickedIndex >= 0 ? clickedIndex : chartData.findIndex(item => item._period_start === clickedData._period_start)
-                        setCurrentDataIndex(resolvedIndex >= 0 ? resolvedIndex : 0)
-                        setSelectedData(clickedData)
-                        setModalOpen(true)
-                      }
-                    }}
-                  >
-                    <CartesianGrid direction="ltr" vertical={false} />
-                    <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
-                    <YAxis
-                      direction="ltr"
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={value => formatGigabytes(Number(value || 0))}
-                      tick={{
-                        fill: 'hsl(var(--muted-foreground))',
-                        fontSize: 9,
-                        fontWeight: 500,
-                      }}
-                      width={32}
-                      tickMargin={2}
-                    />
-                    <ChartTooltip cursor={false} content={<CustomTooltip chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
-                    {nodeList.map((node, index) => (
-                      <Bar
-                        key={node.id}
-                        dataKey={node.name}
-                        stackId="a"
-                        minPointSize={1}
-                        fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
-                        radius={nodeList.length === 1 ? [4, 4, 4, 4] : index === 0 ? [0, 0, 4, 4] : index === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                        cursor="pointer"
-                        className="overflow-hidden rounded-t-xl"
+                  chartViewType === 'area' ? (
+                    <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
+                      <defs>
+                        {nodeList.map((node, index) => {
+                          const color = chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`
+                          return (
+                            <linearGradient key={node.id} id={`node-area-gradient-${node.id}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={color} stopOpacity={0.45} />
+                              <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+                            </linearGradient>
+                          )
+                        })}
+                      </defs>
+                      <CartesianGrid direction="ltr" vertical={false} />
+                      <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                      <YAxis
+                        direction="ltr"
+                        tickLine={false}
+                        axisLine={false}
+                        domain={[0, 'auto']}
+                        tickFormatter={value => formatGigabytes(Number(value || 0))}
+                        tick={{
+                          fill: 'hsl(var(--muted-foreground))',
+                          fontSize: 9,
+                          fontWeight: 500,
+                        }}
+                        width={32}
+                        tickMargin={2}
                       />
-                    ))}
-                  </BarChart>
+                      <ChartTooltip cursor={false} content={<CustomTooltip chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
+                      {nodeList.map((node, index) => (
+                        <Area
+                          key={node.id}
+                          type="monotone"
+                          dataKey={node.name}
+                          stackId="a"
+                          fill={`url(#node-area-gradient-${node.id})`}
+                          stroke={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
+                          strokeWidth={1.5}
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                          cursor="pointer"
+                        />
+                      ))}
+                    </AreaChart>
+                  ) : (
+                    <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
+                      <CartesianGrid direction="ltr" vertical={false} />
+                      <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                      <YAxis
+                        direction="ltr"
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={value => formatGigabytes(Number(value || 0))}
+                        tick={{
+                          fill: 'hsl(var(--muted-foreground))',
+                          fontSize: 9,
+                          fontWeight: 500,
+                        }}
+                        width={32}
+                        tickMargin={2}
+                      />
+                      <ChartTooltip cursor={false} content={<CustomTooltip chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
+                      {nodeList.map((node, index) => (
+                        <Bar
+                          key={node.id}
+                          dataKey={node.name}
+                          stackId="a"
+                          minPointSize={1}
+                          fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
+                          radius={nodeList.length === 1 ? [4, 4, 4, 4] : index === 0 ? [0, 0, 4, 4] : index === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                          cursor="pointer"
+                          className="overflow-hidden rounded-t-xl"
+                        />
+                      ))}
+                    </BarChart>
+                  )
                 ) : chartData.length > 0 && chartView === 'pie' ? (
                   pieData.length > 0 ? (
                     <PieChart>

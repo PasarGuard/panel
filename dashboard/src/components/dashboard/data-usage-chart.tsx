@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, TooltipProps } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, TooltipProps } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/card'
 import { ChartConfig, ChartContainer, ChartTooltip } from '../ui/chart'
 import { formatBytes } from '@/utils/formatByte'
@@ -9,6 +9,7 @@ import { SearchXIcon, TrendingUp, TrendingDown } from 'lucide-react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
 import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { formatPeriodLabelForPeriod, formatTooltipDate, getChartQueryRangeFromShortcut, getXAxisIntervalForShortcut } from '@/utils/chart-period-utils'
 
 type PeriodOption = {
@@ -96,6 +97,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
   const { t, i18n } = useTranslation()
   const { admin } = useAdmin()
   const dir = useDirDetection()
+  const chartViewType = useChartViewType()
   const is_sudo = admin?.is_sudo || false
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const PERIOD_OPTIONS: PeriodOption[] = useMemo(
@@ -252,41 +254,89 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
           </div>
         ) : (
           <ChartContainer config={chartConfig} dir="ltr" className="h-[240px] w-full overflow-x-auto sm:h-[320px]">
-            <BarChart
-              data={chartData}
-              margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
-              barCategoryGap="10%"
-              onMouseMove={state => {
-                if (state.activeTooltipIndex !== activeIndex) {
-                  setActiveIndex(state.activeTooltipIndex !== undefined ? state.activeTooltipIndex : null)
-                }
-              }}
-              onMouseLeave={() => {
-                setActiveIndex(null)
-              }}
-            >
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                tickMargin={10}
-                axisLine={false}
-                angle={0}
-                textAnchor="middle"
-                height={30}
-                interval={xAxisInterval}
-                minTickGap={5}
-                tick={{ fontSize: 10 }}
-                tickFormatter={(value: string): string => value || ''}
-              />
-              <YAxis dataKey={'traffic'} tickLine={false} tickMargin={4} axisLine={false} width={40} tickFormatter={val => formatBytes(val, 0, true).toString()} tick={{ fontSize: 10 }} />
-              <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
-              <Bar dataKey="traffic" radius={6} maxBarSize={48}>
-                {chartData.map((_, index: number) => (
-                  <Cell key={`cell-${index}`} fill={index === activeIndex ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))'} />
-                ))}
-              </Bar>
-            </BarChart>
+            {chartViewType === 'area' ? (
+              <AreaChart
+                data={chartData}
+                margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
+                onMouseMove={state => {
+                  if (state.activeTooltipIndex !== activeIndex) {
+                    setActiveIndex(state.activeTooltipIndex !== undefined ? state.activeTooltipIndex : null)
+                  }
+                }}
+                onMouseLeave={() => {
+                  setActiveIndex(null)
+                }}
+              >
+                <defs>
+                  <linearGradient id="trafficAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  angle={0}
+                  textAnchor="middle"
+                  height={30}
+                  interval={xAxisInterval}
+                  minTickGap={5}
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(value: string): string => value || ''}
+                />
+                <YAxis
+                  dataKey={'traffic'}
+                  tickLine={false}
+                  tickMargin={4}
+                  axisLine={false}
+                  width={40}
+                  domain={[0, 'auto']}
+                  tickFormatter={val => formatBytes(val, 0, true).toString()}
+                  tick={{ fontSize: 10 }}
+                />
+                <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
+                <Area dataKey="traffic" type="monotone" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#trafficAreaGradient)" dot={false} />
+              </AreaChart>
+            ) : (
+              <BarChart
+                data={chartData}
+                margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
+                barCategoryGap="10%"
+                onMouseMove={state => {
+                  if (state.activeTooltipIndex !== activeIndex) {
+                    setActiveIndex(state.activeTooltipIndex !== undefined ? state.activeTooltipIndex : null)
+                  }
+                }}
+                onMouseLeave={() => {
+                  setActiveIndex(null)
+                }}
+              >
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  angle={0}
+                  textAnchor="middle"
+                  height={30}
+                  interval={xAxisInterval}
+                  minTickGap={5}
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(value: string): string => value || ''}
+                />
+                <YAxis dataKey={'traffic'} tickLine={false} tickMargin={4} axisLine={false} width={40} tickFormatter={val => formatBytes(val, 0, true).toString()} tick={{ fontSize: 10 }} />
+                <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
+                <Bar dataKey="traffic" radius={6} maxBarSize={48}>
+                  {chartData.map((_, index: number) => (
+                    <Cell key={`cell-${index}`} fill={index === activeIndex ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            )}
           </ChartContainer>
         )}
       </CardContent>

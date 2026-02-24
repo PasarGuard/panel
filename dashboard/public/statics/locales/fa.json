@@ -1508,7 +1508,14 @@
     "datePickerPreferenceSaved": "ترجیحات تقویم ذخیره شد",
     "datePickerModeLocale": "پیش‌فرض بر اساس زبان",
     "datePickerModeGregorian": "میلادی",
-    "datePickerModePersian": "جلالی"
+    "datePickerModePersian": "جلالی",
+    "chartViewType": "نوع نمایش نمودار",
+    "chartViewDescription": "سبک پیش‌فرض نمودار برای نمودارهای ترافیک را انتخاب کنید.",
+    "chartViewBar": "میله‌ای",
+    "chartViewArea": "ناحیه‌ای",
+    "chartViewBarDescription": "نمایش ترافیک به‌صورت نمودار میله‌ای.",
+    "chartViewAreaDescription": "نمایش ترافیک به‌صورت نمودار ناحیه‌ای.",
+    "chartViewSaved": "ترجیح نمایش نمودار ذخیره شد"
   },
   "coreConfigModal": {
     "addConfig": "افزودن پیکربندی هسته",

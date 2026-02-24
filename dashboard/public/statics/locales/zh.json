@@ -1550,7 +1550,14 @@
     "datePickerPreferenceSaved": "日期选择器偏好已保存",
     "datePickerModeLocale": "语言默认",
     "datePickerModeGregorian": "公历",
-    "datePickerModePersian": "贾拉里历"
+    "datePickerModePersian": "贾拉里历",
+    "chartViewType": "图表视图",
+    "chartViewDescription": "选择流量图表的默认显示样式。",
+    "chartViewBar": "柱状图",
+    "chartViewArea": "面积图",
+    "chartViewBarDescription": "以柱状图显示流量。",
+    "chartViewAreaDescription": "以面积图显示流量。",
+    "chartViewSaved": "图表视图偏好已保存"
   },
   "coreConfigModal": {
     "addConfig": "添加核心配置",

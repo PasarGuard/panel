@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, TooltipProps } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsage, useGetUsage } from '@/service/api'
 import { formatBytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -115,6 +116,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
 
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
+  const chartViewType = useChartViewType()
   const shouldUseNodeUsage = selectedAdmin === 'all'
 
   const activeQueryRange = useMemo(() => {
@@ -300,38 +302,80 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
               className="h-[200px] w-full overflow-x-auto sm:h-[320px] lg:h-[400px]"
             >
               {chartData.length > 0 ? (
-                <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                  <CartesianGrid direction="ltr" vertical={false} />
-                  <XAxis
-                    direction="ltr"
-                    dataKey="time"
-                    tickLine={false}
-                    tickMargin={8}
-                    axisLine={false}
-                    interval={xAxisInterval}
-                    tick={{
-                      fill: 'hsl(var(--muted-foreground))',
-                      fontSize: 8,
-                      fontWeight: 500,
-                    }}
-                    minTickGap={5}
-                  />
-                  <YAxis
-                    direction="ltr"
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={value => formatBytes(Number(value || 0) * 1024 * 1024 * 1024, 0, true).toString()}
-                    tick={{
-                      fill: 'hsl(var(--muted-foreground))',
-                      fontSize: 8,
-                      fontWeight: 500,
-                    }}
-                    width={28}
-                    tickMargin={2}
-                  />
-                  <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
-                  <Bar dataKey="usage" fill="var(--color-usage)" radius={6} />
-                </BarChart>
+                chartViewType === 'area' ? (
+                  <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="usageGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--color-usage)" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="var(--color-usage)" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid direction="ltr" vertical={false} />
+                    <XAxis
+                      direction="ltr"
+                      dataKey="time"
+                      tickLine={false}
+                      tickMargin={8}
+                      axisLine={false}
+                      interval={xAxisInterval}
+                      tick={{
+                        fill: 'hsl(var(--muted-foreground))',
+                        fontSize: 8,
+                        fontWeight: 500,
+                      }}
+                      minTickGap={5}
+                    />
+                    <YAxis
+                      direction="ltr"
+                      tickLine={false}
+                      axisLine={false}
+                      domain={[0, 'auto']}
+                      tickFormatter={value => formatBytes(Number(value || 0) * 1024 * 1024 * 1024, 0, true).toString()}
+                      tick={{
+                        fill: 'hsl(var(--muted-foreground))',
+                        fontSize: 8,
+                        fontWeight: 500,
+                      }}
+                      width={28}
+                      tickMargin={2}
+                    />
+                    <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
+                    <Area dataKey="usage" type="monotone" fill="url(#usageGradient)" stroke="var(--color-usage)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                ) : (
+                  <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                    <CartesianGrid direction="ltr" vertical={false} />
+                    <XAxis
+                      direction="ltr"
+                      dataKey="time"
+                      tickLine={false}
+                      tickMargin={8}
+                      axisLine={false}
+                      interval={xAxisInterval}
+                      tick={{
+                        fill: 'hsl(var(--muted-foreground))',
+                        fontSize: 8,
+                        fontWeight: 500,
+                      }}
+                      minTickGap={5}
+                    />
+                    <YAxis
+                      direction="ltr"
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={value => formatBytes(Number(value || 0) * 1024 * 1024 * 1024, 0, true).toString()}
+                      tick={{
+                        fill: 'hsl(var(--muted-foreground))',
+                        fontSize: 8,
+                        fontWeight: 500,
+                      }}
+                      width={28}
+                      tickMargin={2}
+                    />
+                    <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
+                    <Bar dataKey="usage" fill="var(--color-usage)" radius={6} />
+                  </BarChart>
+                )
               ) : (
                 <EmptyState
                   type="no-data"
