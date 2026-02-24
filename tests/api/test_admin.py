@@ -163,6 +163,24 @@ def test_update_admin_note(access_token):
     delete_admin(access_token, admin["username"])
 
 
+def test_promote_admin_to_sudo_forbidden_via_api(access_token):
+    """Promoting non-sudo admin to sudo via API should be forbidden."""
+    admin = create_admin(access_token, is_sudo=False)
+    try:
+        response = client.put(
+            url=f"/api/admin/{admin['username']}",
+            json={
+                "is_sudo": True,
+                "is_disabled": False,
+            },
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
 def test_sudo_admin_can_modify_self(access_token):
     """A sudo admin can edit their own account."""
     sudo_admin = create_admin(access_token)

@@ -59,6 +59,11 @@ class AdminOperation(BaseOperation):
     ) -> AdminDetails:
         """Modify an existing admin's details."""
         db_admin = await self.get_validated_admin(db, username=username)
+        if self.operator_type != OperatorType.CLI and not db_admin.is_sudo and modified_admin.is_sudo:
+            await self.raise_error(
+                message="Promoting admin to sudo via API is not allowed. Use pasarguard cli / tui instead.", code=403
+            )
+
         if (
             self.operator_type != OperatorType.CLI
             and db_admin.is_sudo
