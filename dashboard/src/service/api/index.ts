@@ -1133,6 +1133,7 @@ export interface SubscriptionOutput {
   allow_browser_config?: boolean
   disable_sub_template?: boolean
   randomize_order?: boolean
+  host_address_strategy?: 'random' | 'per_address'
 }
 
 export interface SubscriptionInput {
@@ -1149,6 +1150,7 @@ export interface SubscriptionInput {
   allow_browser_config?: boolean
   disable_sub_template?: boolean
   randomize_order?: boolean
+  host_address_strategy?: 'random' | 'per_address'
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null

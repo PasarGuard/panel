@@ -120,6 +120,7 @@ class SubscriptionOperation(BaseOperation):
         config = client_config.get(client_type)
         sub_settings = await subscription_settings()
         randomize_order = sub_settings.randomize_order
+        host_address_strategy = sub_settings.host_address_strategy
 
         # Generate subscription content
         return (
@@ -128,6 +129,7 @@ class SubscriptionOperation(BaseOperation):
                 config_format=config["config_format"],
                 as_base64=config["as_base64"],
                 randomize_order=randomize_order,
+                host_address_strategy=host_address_strategy,
             ),
             config["media_type"],
         )

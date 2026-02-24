@@ -34,6 +34,7 @@ const subscriptionSchema = z.object({
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
   randomize_order: z.boolean().optional(),
+  host_address_strategy: z.enum(['random', 'per_address']).optional(),
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),
@@ -454,6 +455,7 @@ export default function SubscriptionSettings() {
       allow_browser_config: true,
       disable_sub_template: false,
       randomize_order: false,
+      host_address_strategy: 'random',
       rules: [],
       applications: [],
       manual_sub_request: {
@@ -543,6 +545,7 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
+        host_address_strategy: subscriptionData.host_address_strategy ?? 'random',
         rules: subscriptionData.rules || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
@@ -679,6 +682,7 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
+        host_address_strategy: subscriptionData.host_address_strategy ?? 'random',
         rules: subscriptionData.rules || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
@@ -1037,6 +1041,35 @@ export default function SubscriptionSettings() {
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="host_address_strategy"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
+                    <div className="flex-1 space-y-0.5 pr-4">
+                      <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                        <Code className="h-4 w-4 shrink-0" />
+                        <span className="break-words">{t('settings.subscriptions.general.hostAddressStrategy')}</span>
+                      </FormLabel>
+                      <FormDescription className="text-xs leading-relaxed text-muted-foreground sm:leading-normal">
+                        {t('settings.subscriptions.general.hostAddressStrategyDescription')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="w-[220px] shrink-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="random">{t('settings.subscriptions.general.hostAddressStrategyRandom')}</SelectItem>
+                          <SelectItem value="per_address">{t('settings.subscriptions.general.hostAddressStrategyPerAddress')}</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                   </FormItem>
                 )}

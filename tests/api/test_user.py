@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import status
 
+from app.models.settings import HostAddressStrategy, Subscription as SubscriptionSettings
 from tests.api import client
 from tests.api.helpers import (
     create_core,
@@ -154,8 +155,18 @@ def test_user_subscriptions(access_token):
         cleanup_groups(access_token, core, groups)
 
 
-def test_user_subscriptions_generates_connection_per_address(access_token):
+def test_subscription_settings_host_address_strategy_defaults_to_random():
+    """Default host address strategy should use random selection."""
+    assert SubscriptionSettings(rules=[]).host_address_strategy == HostAddressStrategy.random
+
+
+def test_user_subscriptions_generates_connection_per_address(access_token, monkeypatch):
     """Each host address should generate a dedicated subscription connection."""
+    async def mock_subscription_settings():
+        return SubscriptionSettings(rules=[], host_address_strategy=HostAddressStrategy.per_address)
+
+    monkeypatch.setattr("app.operation.subscription.subscription_settings", mock_subscription_settings)
+
     core, groups = setup_groups(access_token, 1)
     user = create_user(
         access_token,
@@ -188,6 +199,54 @@ def test_user_subscriptions_generates_connection_per_address(access_token):
         assert response.status_code == status.HTTP_200_OK
         assert address_one in response.text
         assert address_two in response.text
+    finally:
+        delete_user(access_token, user["username"])
+        client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        cleanup_groups(access_token, core, groups)
+
+
+def test_user_subscriptions_random_strategy_selects_single_address(access_token, monkeypatch):
+    """Random strategy should keep one randomly selected address per host."""
+
+    async def mock_subscription_settings():
+        return SubscriptionSettings(rules=[], host_address_strategy=HostAddressStrategy.random)
+
+    monkeypatch.setattr("app.operation.subscription.subscription_settings", mock_subscription_settings)
+
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(
+        access_token,
+        group_ids=[group["id"] for group in groups],
+        payload={"username": unique_name("test_user_sub_random")},
+    )
+    inbounds = get_inbounds(access_token)
+    assert inbounds, "No inbounds available for host creation"
+
+    address_one = "legacy-random-a.example.com"
+    address_two = "legacy-random-b.example.com"
+    host_payload = {
+        "remark": unique_name("host_random"),
+        "address": [address_one, address_two],
+        "port": 443,
+        "sni": ["subscription-test.example.com"],
+        "inbound_tag": inbounds[0],
+        "priority": 1,
+    }
+    host_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json=host_payload,
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host = host_response.json()
+
+    try:
+        response = client.get(f"{user['subscription_url']}/links")
+        assert response.status_code == status.HTTP_200_OK
+        has_one = address_one in response.text
+        has_two = address_two in response.text
+        assert has_one or has_two
+        assert not (has_one and has_two)
     finally:
         delete_user(access_token, user["username"])
         client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})

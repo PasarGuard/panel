@@ -194,6 +194,11 @@ class ConfigFormat(str, Enum):
     block = "block"
 
 
+class HostAddressStrategy(StrEnum):
+    random = "random"
+    per_address = "per_address"
+
+
 class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
@@ -265,6 +270,7 @@ class Subscription(BaseModel):
     allow_browser_config: bool = Field(default=True)
     disable_sub_template: bool = Field(default=False)
     randomize_order: bool = Field(default=False)
+    host_address_strategy: HostAddressStrategy = Field(default=HostAddressStrategy.random)
 
     @field_validator("applications")
     @classmethod

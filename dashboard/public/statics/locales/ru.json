@@ -230,7 +230,11 @@
         "disableSubTemplate": "Отключить шаблон подписки",
         "disableSubTemplateDescription": "При отключении запросы браузера будут возвращать ответы API вместо HTML-страниц подписки",
         "randomizeOrder": "Случайный порядок конфигов",
-        "randomizeOrderDescription": "Перемешивать порядок конфигураций при каждом запросе подписки"
+        "randomizeOrderDescription": "Перемешивать порядок конфигураций при каждом запросе подписки",
+        "hostAddressStrategy": "Стратегия адресов хоста",
+        "hostAddressStrategyDescription": "Определяет, как адреса хоста включаются в подписки.",
+        "hostAddressStrategyRandom": "Случайный выбор",
+        "hostAddressStrategyPerAddress": "Для каждого адреса (чистый список)"
       },
       "rules": {
         "title": "Правила подписки",

@@ -196,7 +196,11 @@
         "disableSubTemplate": "禁用订阅模板",
         "disableSubTemplateDescription": "禁用后，浏览器请求将返回 API 响应而不是 HTML 订阅页面",
         "randomizeOrder": "随机化订阅顺序",
-        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序"
+        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序",
+        "hostAddressStrategy": "主机地址策略",
+        "hostAddressStrategyDescription": "选择订阅中主机地址的生成方式。",
+        "hostAddressStrategyRandom": "随机选择",
+        "hostAddressStrategyPerAddress": "按地址生成（更整洁）"
       },
       "rules": {
         "title": "订阅规则",

@@ -9,6 +9,7 @@ from jdatetime import date as jd
 
 from app.core.hosts import host_manager
 from app.db.models import UserStatus
+from app.models.settings import HostAddressStrategy
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
@@ -50,6 +51,7 @@ async def generate_subscription(
     as_base64: bool,
     reverse: bool = False,
     randomize_order: bool = False,
+    host_address_strategy: HostAddressStrategy = HostAddressStrategy.random,
 ) -> str:
     conf = config_format_handler.get(config_format, None)
     if conf is None:
@@ -57,7 +59,14 @@ async def generate_subscription(
 
     format_variables = setup_format_variables(user)
 
-    config = await process_inbounds_and_tags(user, format_variables, conf(), reverse, randomize_order=randomize_order)
+    config = await process_inbounds_and_tags(
+        user,
+        format_variables,
+        conf(),
+        reverse,
+        randomize_order=randomize_order,
+        host_address_strategy=host_address_strategy,
+    )
 
     if as_base64:
         config = base64.b64encode(config.encode()).decode()
@@ -294,6 +303,7 @@ async def process_inbounds_and_tags(
     | OutlineConfiguration,
     reverse=False,
     randomize_order: bool = False,
+    host_address_strategy: HostAddressStrategy = HostAddressStrategy.random,
 ) -> list | str:
     def _address_candidates(addresses: list[str] | str) -> list[str | None]:
         if isinstance(addresses, str):
@@ -308,7 +318,18 @@ async def process_inbounds_and_tags(
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
     for host_data in hosts:
-        for selected_address in _address_candidates(host_data.address):
+        if host_address_strategy == HostAddressStrategy.random:
+            # Random strategy: exactly one randomly selected address per host.
+            if isinstance(host_data.address, list) and host_data.address:
+                address_candidates = [random.choice(host_data.address)]
+            elif isinstance(host_data.address, str) and host_data.address:
+                address_candidates = [host_data.address]
+            else:
+                address_candidates = [None]
+        else:
+            address_candidates = _address_candidates(host_data.address)
+
+        for selected_address in address_candidates:
             result = await process_host(
                 host_data,
                 format_variables,

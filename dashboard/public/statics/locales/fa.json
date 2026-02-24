@@ -123,7 +123,11 @@
         "disableSubTemplate": "غیرفعال کردن قالب اشتراک",
         "disableSubTemplateDescription": "هنگام غیرفعال بودن، درخواست‌های مرورگر به جای صفحات HTML اشتراک، پاسخ‌های API برمی‌گردانند",
         "randomizeOrder": "تصادفی‌سازی ترتیب اشتراک",
-        "randomizeOrderDescription": "در هر درخواست اشتراک، ترتیب کانفیگ‌ها به‌صورت تصادفی جابه‌جا می‌شود"
+        "randomizeOrderDescription": "در هر درخواست اشتراک، ترتیب کانفیگ‌ها به‌صورت تصادفی جابه‌جا می‌شود",
+        "hostAddressStrategy": "استراتژی آدرس هاست",
+        "hostAddressStrategyDescription": "مشخص می‌کند آدرس‌های هاست چگونه در اشتراک قرار بگیرند.",
+        "hostAddressStrategyRandom": "انتخاب تصادفی",
+        "hostAddressStrategyPerAddress": "به‌ازای هر آدرس (لیست تمیز)"
       },
       "rules": {
         "title": "قوانین اشتراک",
