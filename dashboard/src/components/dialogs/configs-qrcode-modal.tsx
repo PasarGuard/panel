@@ -65,11 +65,12 @@ const ConfigsQRCodeModal: FC<ConfigsQRCodeModalProps> = memo(({ subscribeUrl, on
       setIsLoading(true)
       setError(null)
       try {
-        const response = await fetch(`${sublink}/links`)
+        const response = await fetch(`${sublink}/links_base64`)
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
-        const text = await response.text()
+        const base64Text = await response.text()
+        const text = atob(base64Text)
         const configLines = text.split('\n').filter(line => line.trim() !== '')
         setConfigs(configLines.map((config, index) => ({ config, index })))
         setCurrentIndex(0)
