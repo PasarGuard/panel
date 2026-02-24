@@ -234,6 +234,7 @@
         "method": "روش اتصال",
         "methodPlaceholder": "روش اتصال را انتخاب کنید",
         "methodDescription": "انتخاب کنید که ربات چگونه به‌روزرسانی‌ها را از تلگرام دریافت کند",
+        "longPollingDisabledInMultiWorker": "لانگ پولینگ در حالت چند-ورکر غیرفعال است.",
         "webhook": "Webhook",
         "longPolling": "Long Polling",
         "proxyUrl": "آدرس پروکسی",

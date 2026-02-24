@@ -342,6 +342,7 @@
         "method": "Метод подключения",
         "methodPlaceholder": "Выберите метод подключения",
         "methodDescription": "Выберите, как бот получает обновления от Telegram",
+        "longPollingDisabledInMultiWorker": "Длинный опрос отключен в режиме multi-worker.",
         "webhook": "Webhook",
         "longPolling": "Long Polling",
         "proxyUrl": "URL прокси",

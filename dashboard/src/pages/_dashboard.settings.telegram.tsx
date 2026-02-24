@@ -15,6 +15,7 @@ import { useSettingsContext } from './_dashboard.settings'
 import { toast } from 'sonner'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useState } from 'react'
+import { useGetWorkersHealth } from '@/service/api'
 
 // Telegram settings validation schema
 const telegramSettingsSchema = z.object({
@@ -89,6 +90,13 @@ export default function TelegramSettings() {
   const { t } = useTranslation()
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const { data: workersHealth } = useGetWorkersHealth({
+    query: {
+      retry: false,
+      refetchInterval: 30000,
+      staleTime: 30000,
+    },
+  })
 
   const form = useForm<TelegramSettingsFormInput>({
     resolver: zodResolver(telegramSettingsSchema),
@@ -108,6 +116,9 @@ export default function TelegramSettings() {
   // Watch the enable, method, and mini_app_login fields for conditional rendering
   const enableTelegram = form.watch('enable')
   const method = form.watch('method')
+  const schedulerStatus = workersHealth?.scheduler?.status?.toLowerCase().trim()
+  const nodeStatus = workersHealth?.node?.status?.toLowerCase().trim()
+  const isMultiWorkerMode = !!workersHealth && !(schedulerStatus === 'disabled' && nodeStatus === 'disabled')
 
   // Update form when settings are loaded
   useEffect(() => {
@@ -261,7 +272,7 @@ export default function TelegramSettings() {
                               {t('settings.telegram.general.webhook')}
                             </div>
                           </SelectItem>
-                          <SelectItem value="long-polling">
+                          <SelectItem value="long-polling" disabled={isMultiWorkerMode}>
                             <div className="flex items-center gap-2">
                               <Send className="h-4 w-4" />
                               {t('settings.telegram.general.longPolling')}
@@ -269,7 +280,10 @@ export default function TelegramSettings() {
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormDescription className="text-sm text-muted-foreground">{t('settings.telegram.general.methodDescription')}</FormDescription>
+                      <FormDescription className="text-sm text-muted-foreground">
+                        {t('settings.telegram.general.methodDescription')}
+                        {isMultiWorkerMode ? ` ${t('settings.telegram.general.longPollingDisabledInMultiWorker', { defaultValue: 'Long polling is disabled in multi-worker mode.' })}` : ''}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

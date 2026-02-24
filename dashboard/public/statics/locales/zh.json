@@ -307,6 +307,7 @@
         "method": "连接方式",
         "methodPlaceholder": "选择连接方式",
         "methodDescription": "选择机器人如何从 Telegram 接收更新",
+        "longPollingDisabledInMultiWorker": "在多工作进程模式下，长轮询已被禁用。",
         "webhook": "Webhook",
         "longPolling": "长轮询",
         "proxyUrl": "代理 URL",

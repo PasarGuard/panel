@@ -329,6 +329,7 @@
         "method": "Connection Method",
         "methodPlaceholder": "Select connection method",
         "methodDescription": "Choose how the bot receives updates from Telegram",
+        "longPollingDisabledInMultiWorker": "Long polling is disabled in multi-worker mode.",
         "webhook": "Webhook",
         "longPolling": "Long Polling",
         "proxyUrl": "Proxy URL",
