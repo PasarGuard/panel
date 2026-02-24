@@ -1352,25 +1352,38 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               <div className="grid grid-cols-2 gap-2">
                 {isSudo && (
                   <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setUserAllIPsModalOpen(true)}>
-                    <Network className="h-3.5 w-3.5" />
-                    <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
+                    <Network className="h-3 w-3" />
+                    <>
+                      <span className="sm:hidden">{t('userAllIPs.ips', { defaultValue: 'IPs' })}</span>
+                      <span className="hidden sm:inline">{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
+                    </>
                   </Button>
                 )}
                 <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setUsageModalOpen(true)}>
-                  <PieChart className="h-3.5 w-3.5" />
+                  <PieChart className="h-3 w-3" />
                   <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setSubscriptionClientsModalOpen(true)}>
-                  <Users className="h-3.5 w-3.5" />
+                  <Users className="h-3 w-3" />
                   <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setRevokeSubDialogOpen(true)}>
-                  <Link2Off className="h-3.5 w-3.5" />
-                  <span>{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
+                  <Link2Off className="h-3 w-3" />
+                  <>
+                    <span className="sm:hidden">{t('revoke', { defaultValue: 'Revoke' })}</span>
+                    <span className="hidden sm:inline">{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
+                  </>
                 </Button>
                 <Button type="button" variant="outline" size="sm" className={cn("justify-start gap-2", isSudo ? 'col-span-2' : '')} onClick={() => setResetUsageDialogOpen(true)}>
-                  <RefreshCcw className="h-3.5 w-3.5" />
-                  <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
+                  <RefreshCcw className="h-3 w-3" />
+                  {!isSudo ? (
+                    <>
+                      <span className="sm:hidden">{t('reset', { defaultValue: 'Reset' })}</span>
+                      <span className="hidden sm:inline">{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
+                    </>
+                  ) : (
+                    <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
+                  )}
                 </Button>
               </div>
             </AccordionContent>
