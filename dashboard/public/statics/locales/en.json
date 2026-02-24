@@ -61,6 +61,7 @@
     "noNodesDescription": "Master Panel doesn't have any cores configured. You need to add and configure a node from",
     "noNodesDescription2": "connect and configure it to the panel.",
     "noSearchResults": "No nodes match your search criteria. Try adjusting your search terms.",
+    "noFilteredResults": "No nodes found",
     "logs": {
       "title": "Logs",
       "description": "View and monitor node logs",
@@ -1355,6 +1356,7 @@
     "noHosts": "No hosts configured",
     "noHostsDescription": "Get started by creating your first host configuration.",
     "noSearchResults": "No hosts match your search criteria. Try adjusting your search terms.",
+    "noFilteredResults": "No nodes found",
     "xudp_proxy_443": "XUDP Proxy 443",
     "reject": "Reject",
     "allow": "Allow",

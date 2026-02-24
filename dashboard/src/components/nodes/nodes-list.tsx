@@ -224,6 +224,13 @@ export default function NodesList() {
     return nodesResponse?.nodes || []
   }, [shouldUseLocalSearch, localSearchTerm, allNodes, nodesResponse?.nodes])
 
+  const hasActiveFilters = !!(
+    filters.search ||
+    localSearchTerm ||
+    (filters.status && filters.status.length > 0) ||
+    filters.core_id
+  )
+
   const paginatedNodes = useMemo(() => {
     if (shouldUseLocalSearch && localSearchTerm) {
       const start = currentPage * NODES_PER_PAGE
@@ -357,7 +364,7 @@ export default function NodesList() {
             />
           )}
 
-                  {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !filters.search && !localSearchTerm && totalNodes === 0 && (
+                  {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !hasActiveFilters && totalNodes === 0 && (
             <Card className="mb-12">
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">
@@ -374,12 +381,14 @@ export default function NodesList() {
             </Card>
           )}
 
-          {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && (filters.search || localSearchTerm) && (
+          {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && hasActiveFilters && (
             <Card className="mb-12">
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">{t('noResults')}</h3>
-                  <p className="mx-auto max-w-2xl text-muted-foreground">{t('nodes.noSearchResults', { defaultValue: 'No nodes match your search criteria. Try adjusting your search terms.' })}</p>
+                  <h3 className="text-lg font-semibold">{t('nodes.noFilteredResults')}</h3>
+                  <p className="mx-auto max-w-2xl text-muted-foreground">
+                    {t('nodes.noSearchResults')}
+                  </p>
                 </div>
               </CardContent>
             </Card>
