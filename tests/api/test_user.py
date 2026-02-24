@@ -60,6 +60,30 @@ def test_user_create_active(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_create_expire_timezone_offset_normalized_to_utc(access_token):
+    """Expire with non-UTC offset should be persisted as the same UTC instant."""
+    core, groups = setup_groups(access_token, 1)
+    tehran_tz = timezone(timedelta(hours=3, minutes=30))
+    expire_utc = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    expire_tehran = expire_utc.astimezone(tehran_tz)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("test_user_tz_expire"),
+            "proxy_settings": {},
+            "expire": expire_tehran.isoformat(),
+            "status": "active",
+        },
+    )
+    try:
+        response_expire = datetime.fromisoformat(user["expire"])
+        assert response_expire.astimezone(timezone.utc).replace(microsecond=0) == expire_utc
+    finally:
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_user_create_on_hold(access_token):
     """Test that the user create on hold route is accessible."""
     core, groups = setup_groups(access_token, 2)

@@ -175,7 +175,13 @@ class User(Base):
 
     @expire.setter
     def expire(self, value: Optional[dt]):
-        self._expire = value
+        if value is None:
+            self._expire = None
+            return
+        if value.tzinfo is None:
+            self._expire = value.replace(tzinfo=tz.utc)
+            return
+        self._expire = value.astimezone(tz.utc)
 
     @hybrid_property
     def reseted_usage(self) -> int:
