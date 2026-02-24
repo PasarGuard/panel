@@ -545,6 +545,10 @@
   "test": "测试",
   "testing": "测试中",
   "confirm": "确认",
+  "actions": "操作",
+  "details": "详情",
+  "createdAt": "创建时间",
+  "editedAt": "修改时间",
   "admins": {
     "title": "管理员",
     "description": "管理系统管理员",
@@ -1659,6 +1663,8 @@
   "copyFailed": "复制失败",
   "more": "更多",
   "userDialog": {
+    "revokeSubscription": "吊销订阅",
+    "usage": "用量",
     "deleteSuccess": "用户「{{name}}」已成功删除。",
     "resetUsageSuccess": "用户「{{name}}」的用量已重置。",
     "revokeSubSuccess": "用户「{{name}}」的订阅已撤销。",

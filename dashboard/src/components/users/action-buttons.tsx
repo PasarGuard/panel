@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Cpu, EllipsisVertical, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users, Copy, Check } from 'lucide-react'
+import { Check, Copy, Cpu, EllipsisVertical, Link2Off, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -426,6 +426,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             copiedMessage="usersTable.copied"
             defaultMessage="usersTable.copyLink"
             icon="link"
+            showToast={true}
+            toastSuccessMessage="userSettings.subscriptionUrlCopied"
           />
           <Tooltip open={copied ? true : undefined}>
             <DropdownMenu>
@@ -436,9 +438,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
                   </Button>
                 </TooltipTrigger>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
+              <DropdownMenuContent>
                 {subscribeLinks.map((item, index) => (
-                  <DropdownMenuItem key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
+                  <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
                     <span className="mr-2">{item.icon}</span>
                     {item.protocol}
                   </DropdownMenuItem>
@@ -487,7 +489,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
             {/* Revoke Sub */}
             <DropdownMenuItem onClick={handleRevokeSubscription}>
-              <RefreshCcw className="mr-2 h-4 w-4" />
+              <Link2Off className="mr-2 h-4 w-4" />
               <span>{t('userDialog.revokeSubscription')}</span>
             </DropdownMenuItem>
 

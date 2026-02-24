@@ -435,6 +435,9 @@
   "test": "تست",
   "testing": "در حال تست",
   "confirm": "تایید",
+  "actions": "اقدامات",
+  "details": "جزئیات",
+  "editedAt": "زمان ویرایش",
   "admins": {
     "title": "مدیران",
     "description": "مدیریت مدیران سیستم",
@@ -1647,6 +1650,8 @@
     "group_ids": "گروه‌ها"
   },
   "userDialog": {
+    "revokeSubscription": "لغو اشتراک",
+    "usage": "مصرف",
     "deleteSuccess": "کاربر «{{name}}» با موفقیت حذف شد.",
     "resetUsageSuccess": "مصرف کاربر «{{name}}» بازنشانی شد.",
     "revokeSubSuccess": "اشتراک کاربر «{{name}}» بازنشانی شد.",

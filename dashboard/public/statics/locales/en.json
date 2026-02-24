@@ -546,6 +546,9 @@
   "test": "Test",
   "testing": "Testing",
   "confirm": "Confirm",
+  "actions": "Actions",
+  "details": "Details",
+  "editedAt": "Edited at",
   "admins": {
     "title": "Admins",
     "description": "Manage system administrators",
