@@ -1,9 +1,11 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import status
+from sqlalchemy import select
 
-from app.db.models import NodeUserUsage
+from app.db.models import Admin, NodeUserUsage
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
@@ -14,6 +16,17 @@ from tests.api.helpers import (
     unique_name,
     strong_password,
 )
+
+
+def set_admin_sudo(username: str, is_sudo: bool) -> None:
+    async def _set_flag():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one()
+            db_admin.is_sudo = is_sudo
+            await session.commit()
+
+    asyncio.run(_set_flag())
 
 
 def test_admin_login():
@@ -141,7 +154,8 @@ def test_update_admin_note(access_token):
 
 def test_sudo_admin_can_modify_self(access_token):
     """A sudo admin can edit their own account."""
-    sudo_admin = create_admin(access_token, is_sudo=True)
+    sudo_admin = create_admin(access_token)
+    set_admin_sudo(sudo_admin["username"], True)
     try:
         login_response = client.post(
             url="/api/admin/token",
@@ -168,13 +182,16 @@ def test_sudo_admin_can_modify_self(access_token):
         assert response.json()["username"] == sudo_admin["username"]
         assert response.json()["note"] == "self-updated"
     finally:
+        set_admin_sudo(sudo_admin["username"], False)
         delete_admin(access_token, sudo_admin["username"])
 
 
 def test_sudo_admin_cannot_modify_other_sudo_admin(access_token):
     """A sudo admin cannot edit another sudo admin account."""
-    sudo_admin_a = create_admin(access_token, is_sudo=True)
-    sudo_admin_b = create_admin(access_token, is_sudo=True)
+    sudo_admin_a = create_admin(access_token)
+    sudo_admin_b = create_admin(access_token)
+    set_admin_sudo(sudo_admin_a["username"], True)
+    set_admin_sudo(sudo_admin_b["username"], True)
     try:
         login_response = client.post(
             url="/api/admin/token",
@@ -199,6 +216,8 @@ def test_sudo_admin_cannot_modify_other_sudo_admin(access_token):
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
     finally:
+        set_admin_sudo(sudo_admin_a["username"], False)
+        set_admin_sudo(sudo_admin_b["username"], False)
         delete_admin(access_token, sudo_admin_a["username"])
         delete_admin(access_token, sudo_admin_b["username"])
 
