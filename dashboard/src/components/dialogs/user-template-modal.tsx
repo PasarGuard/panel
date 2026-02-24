@@ -427,8 +427,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>
-              <LoaderButton type="submit" isLoading={loading} loadingText={editingUserTemplate ? t('modifying') : t('creating')}>
-                {editingUserTemplate ? t('save') : t('create')}
+              <LoaderButton type="submit" isLoading={loading} loadingText={editingUserTemplate ? t('modifying', { defaultValue: 'Modifying...' }) : t('creating')}>
+                {editingUserTemplate ? t('modify', { defaultValue: 'Modify' }) : t('create')}
               </LoaderButton>
             </div>
           </form>
