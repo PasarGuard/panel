@@ -1349,7 +1349,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               </span>
             </AccordionTrigger>
             <AccordionContent className="pb-2">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-2">
                 {isSudo && (
                   <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setUserAllIPsModalOpen(true)}>
                     <Network className="h-3.5 w-3.5" />
@@ -1367,6 +1367,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                 <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setRevokeSubDialogOpen(true)}>
                   <Link2Off className="h-3.5 w-3.5" />
                   <span>{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
+                </Button>
+                <Button type="button" variant="outline" size="sm" className={cn("justify-start gap-2", isSudo ? 'col-span-2' : '')} onClick={() => setResetUsageDialogOpen(true)}>
+                  <RefreshCcw className="h-3.5 w-3.5" />
+                  <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
                 </Button>
               </div>
             </AccordionContent>
@@ -2364,7 +2368,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                   {renderUserMetaPanel('hidden lg:block')}
                 </div>
                 <div className="h-full w-full flex-1 space-y-6">
-                  {renderUserMetaPanel('mb-3 mt-0 lg:hidden')}
                   <div className="w-full">
                     <div className="flex items-center border-b">
                       {tabs.map(tab => (
@@ -2442,20 +2445,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                   </div>
                 </div>
               </div>
+              {renderUserMetaPanel('mt-4 lg:hidden')}
             </div>
             {/* Cancel/Create buttons - always visible */}
-            <div className="mt-4 flex flex-row items-center justify-between gap-2 overflow-x-auto pb-1">
-              <div className="flex shrink-0 items-center gap-2">
-                {editingUser && (
-                  <>
-                    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setResetUsageDialogOpen(true)}>
-                      <RefreshCcw className="h-4 w-4" />
-                      <span className="sm:hidden">{t('reset', { defaultValue: 'Reset' })}</span>
-                      <span className="hidden sm:inline">{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
-                    </Button>
-                  </>
-                )}
-              </div>
+            <div className="mt-4 flex flex-row items-center justify-end gap-2 overflow-x-auto pb-1">
               <div className="flex shrink-0 items-center gap-2">
                 <Button
                   type="button"
