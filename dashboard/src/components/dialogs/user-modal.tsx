@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
@@ -287,6 +288,8 @@ const StatusSelectItem = ({ value, children, onSelect }: { value: string; childr
 
 export default function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserId, editingUserData, onSuccessCallback }: UserModalProps) {
   const { t, i18n } = useTranslation()
+  const { admin } = useAdmin()
+  const isSudo = admin?.is_sudo ?? false
   const dir = useDirDetection()
   const handleError = useDynamicErrorHandler()
   const [loading, setLoading] = useState(false)
@@ -1347,10 +1350,12 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
             </AccordionTrigger>
             <AccordionContent className="pb-2">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setUserAllIPsModalOpen(true)}>
-                  <Network className="h-3.5 w-3.5" />
-                  <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
-                </Button>
+                {isSudo && (
+                  <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setUserAllIPsModalOpen(true)}>
+                    <Network className="h-3.5 w-3.5" />
+                    <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
+                  </Button>
+                )}
                 <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setUsageModalOpen(true)}>
                   <PieChart className="h-3.5 w-3.5" />
                   <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
@@ -2552,7 +2557,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         </AlertDialogContent>
       </AlertDialog>
 
-      {currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
+      {isSudo && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
       {currentUsername && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={currentUsername} />}
       {currentUsername && <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={currentUsername} />}
     </Dialog>

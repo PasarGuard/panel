@@ -261,19 +261,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
           ]
         : [
-            // For non-sudo admins, show only theme settings
-            {
-              title: 'settings.title',
-              url: '/settings',
-              icon: Settings2,
-              items: [
-                {
-                  title: 'theme.title',
-                  url: '/settings/theme',
-                  icon: Palette,
-                },
-              ],
-            },
             {
               title: 'bulk.title',
               url: '/bulk',
@@ -283,6 +270,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   title: 'bulk.createUsers',
                   url: '/bulk',
                   icon: UserPlus,
+                },
+              ],
+            },
+            // For non-sudo admins, show only theme settings and keep settings at the end
+            {
+              title: 'settings.title',
+              url: '/settings',
+              icon: Settings2,
+              items: [
+                {
+                  title: 'theme.title',
+                  url: '/settings/theme',
+                  icon: Palette,
                 },
               ],
             },
