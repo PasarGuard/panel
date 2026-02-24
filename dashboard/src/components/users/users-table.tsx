@@ -5,7 +5,7 @@ import { type UseEditFormValues } from '@/components/forms/user-form'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useGetUsers, UserResponse, UserStatus, UsersResponse } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
-import { getUsersPerPageLimitSize, setUsersPerPageLimitSize } from '@/utils/userPreferenceStorage'
+import { getUsersPerPageLimitSize, getUsersShowCreatedBy, setUsersPerPageLimitSize, setUsersShowCreatedBy } from '@/utils/userPreferenceStorage'
 import { normalizeExpireForEditForm } from '@/utils/userEditDateUtils'
 import { useQueryClient } from '@tanstack/react-query'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -104,6 +104,7 @@ const UsersTable = memo(() => {
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [isSorting, setIsSorting] = useState(false)
+  const [showCreatedBy, setShowCreatedBy] = useState(getUsersShowCreatedBy())
   
   const [filters, setFilters] = useState<{
     limit: number
@@ -171,6 +172,7 @@ const UsersTable = memo(() => {
     return {
       is_username: !urlParams.isProtocol,
       is_protocol: urlParams.isProtocol,
+      show_created_by: getUsersShowCreatedBy(),
       admin: urlParams.admin || [],
       group: urlParams.group || [],
       status: urlParams.status || '0',
@@ -244,8 +246,9 @@ const UsersTable = memo(() => {
       advanceSearchForm.setValue('status', filters.status || '0')
       advanceSearchForm.setValue('admin', filters.admin || [])
       advanceSearchForm.setValue('group', filters.group || [])
+      advanceSearchForm.setValue('show_created_by', showCreatedBy)
     }
-  }, [isAdvanceSearchOpen, filters.status, filters.admin, filters.group, advanceSearchForm])
+  }, [isAdvanceSearchOpen, filters.status, filters.admin, filters.group, showCreatedBy, advanceSearchForm])
 
   const {
     data: usersData,
@@ -468,12 +471,17 @@ const UsersTable = memo(() => {
   const columns = setupColumns({
     t,
     dir,
+    showCreatedBy: isSudo && showCreatedBy,
     handleSort,
     filters: filters as { sort: string; status?: UserStatus | null; [key: string]: unknown },
     handleStatusFilter,
   })
 
   const handleAdvanceSearchSubmit = (values: AdvanceSearchFormValue) => {
+    if (isSudo) {
+      setShowCreatedBy(values.show_created_by)
+      setUsersShowCreatedBy(values.show_created_by)
+    }
     setFilters(prev => ({
       ...prev,
       admin: values.admin && values.admin.length > 0 ? values.admin : undefined,
@@ -509,6 +517,7 @@ const UsersTable = memo(() => {
           advanceSearchForm.reset({
             is_username: true,
             is_protocol: false,
+            show_created_by: showCreatedBy,
             admin: [],
             group: [],
             status: '0',
@@ -591,6 +600,11 @@ const UsersTable = memo(() => {
           form={advanceSearchForm}
           onSubmit={handleAdvanceSearchSubmit}
           isSudo={isSudo}
+          onShowCreatedByChange={value => {
+            if (!isSudo) return
+            setShowCreatedBy(value)
+            setUsersShowCreatedBy(value)
+          }}
         />
       )}
     </div>
