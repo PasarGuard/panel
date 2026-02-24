@@ -22,6 +22,23 @@ interface ConfigItem {
 }
 
 const CONFIGS_PER_PAGE = 5
+const LINKS_FETCH_TIMEOUT_MS = 8000
+
+const buildPanelFallbackUrl = (url: string): string | null => {
+  try {
+    const parsedUrl = new URL(url, window.location.origin)
+    if (parsedUrl.origin === window.location.origin) return null
+
+    return `${window.location.origin}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
+  } catch (error) {
+    console.error('Failed to build panel fallback url:', error)
+    return null
+  }
+}
+
+const isTimeoutError = (error: unknown): boolean => {
+  return error instanceof Error && error.name === 'AbortError'
+}
 
 const extractNameFromConfigURL = (url: string): string | null => {
   const namePattern = /#([^#]*)/
@@ -94,17 +111,47 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
 
   const subscribeQrLink = sublink
 
+  const fetchLinksWithTimeoutFallback = useCallback(async () => {
+    const linksUrl = `${sublink}/links`
+
+    const fetchWithTimeout = async (url: string) => {
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), LINKS_FETCH_TIMEOUT_MS)
+
+      try {
+        const response = await fetch(url, { signal: controller.signal })
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        return response.text()
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
+    }
+
+    try {
+      return await fetchWithTimeout(linksUrl)
+    } catch (error) {
+      if (!isTimeoutError(error)) {
+        throw error
+      }
+
+      const fallbackUrl = buildPanelFallbackUrl(linksUrl)
+      if (!fallbackUrl) {
+        throw error
+      }
+
+      return fetchWithTimeout(fallbackUrl)
+    }
+  }, [sublink])
+
   const fetchConfigs = useCallback(async () => {
     if (!subscribeUrl) return
 
     setIsLoading(true)
     setError(null)
     try {
-      const response = await fetch(`${sublink}/links`)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const text = await response.text()
+      const text = await fetchLinksWithTimeoutFallback()
       const configLines = text.split('\n').filter(line => line.trim() !== '')
       setConfigs(
         configLines.map(config => ({
@@ -120,7 +167,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
     } finally {
       setIsLoading(false)
     }
-  }, [subscribeUrl, sublink, t])
+  }, [fetchLinksWithTimeoutFallback, subscribeUrl, t])
 
   useEffect(() => {
     fetchConfigs()
@@ -152,11 +199,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
 
   const handleCopyAllConfigs = useCallback(async () => {
     try {
-      const response = await fetch(`${sublink}/links`)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const content = await response.text()
+      const content = await fetchLinksWithTimeoutFallback()
       await navigator.clipboard.writeText(content)
       setAllConfigsCopied(true)
       toast.success(t('usersTable.copied', { defaultValue: 'Copied' }))
@@ -164,7 +207,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
     } catch (error) {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy' }))
     }
-  }, [sublink, t])
+  }, [fetchLinksWithTimeoutFallback, t])
 
   const handleShowConfigQR = (config: ConfigItem) => {
     setSelectedConfigQR(config)
