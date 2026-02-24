@@ -29,6 +29,17 @@ def set_admin_sudo(username: str, is_sudo: bool) -> None:
     asyncio.run(_set_flag())
 
 
+def set_admin_used_traffic(username: str, used_traffic: int) -> None:
+    async def _set_usage():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one()
+            db_admin.used_traffic = used_traffic
+            await session.commit()
+
+    asyncio.run(_set_usage())
+
+
 def test_admin_login():
     """Test that the admin login route is accessible."""
 
@@ -354,6 +365,36 @@ def test_admin_delete(access_token):
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+def test_reset_admin_usage_keeps_lifetime_traffic(access_token):
+    admin = create_admin(access_token)
+    try:
+        set_admin_used_traffic(admin["username"], 12345)
+
+        reset_response = client.post(
+            url=f"/api/admin/{admin['username']}/reset",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert reset_response.status_code == status.HTTP_200_OK
+        reset_data = reset_response.json()
+        assert reset_data["used_traffic"] == 0
+        assert reset_data["lifetime_used_traffic"] == 12345
+
+        admins_response = client.get(
+            url="/api/admins",
+            params={"username": admin["username"]},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert admins_response.status_code == status.HTTP_200_OK
+        rows = admins_response.json()["admins"]
+        target = next((row for row in rows if row["username"] == admin["username"]), None)
+        assert target is not None
+        assert target["used_traffic"] == 0
+        assert target["lifetime_used_traffic"] == 12345
+    finally:
+        delete_admin(access_token, admin["username"])
 
 
 @pytest.mark.asyncio
