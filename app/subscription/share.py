@@ -170,11 +170,15 @@ async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserSt
 
 
 async def process_host(
-    inbound: SubscriptionInboundData, format_variables: dict, inbounds: list[str], proxies: dict
+    inbound: SubscriptionInboundData,
+    format_variables: dict,
+    inbounds: list[str],
+    proxies: dict,
+    selected_address: str | None = None,
 ) -> None | tuple[SubscriptionInboundData, dict]:
     """
     Process host data for subscription generation.
-    Now only does random selection and user-specific formatting!
+    Does per-request value selection and user-specific formatting.
     All merging and data preparation is done in hosts.py.
     """
 
@@ -209,8 +213,12 @@ async def process_host(
     req_host = req_host.replace("*", salt)
 
     address = ""
-    if inbound.address:
+    if selected_address is not None:
+        address = selected_address.replace("*", salt)
+    elif isinstance(inbound.address, list) and inbound.address:
         address = random.choice(inbound.address).replace("*", salt)
+    elif isinstance(inbound.address, str):
+        address = inbound.address.replace("*", salt)
 
     # Select random port from list
     port = random.choice(inbound.port) if inbound.port else 0
@@ -287,40 +295,55 @@ async def process_inbounds_and_tags(
     reverse=False,
     randomize_order: bool = False,
 ) -> list | str:
+    def _address_candidates(addresses: list[str] | str) -> list[str | None]:
+        if isinstance(addresses, str):
+            return [addresses] if addresses else [None]
+        if not addresses:
+            return [None]
+        # Keep list deterministic and avoid duplicate connection rows.
+        return sorted(set(addresses))
+
     proxy_settings = user.proxy_settings.dict()
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
     for host_data in hosts:
-        result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
-        if not result:
-            continue
-
-        inbound_copy: SubscriptionInboundData
-        inbound_copy, settings = result
-
-        # Format remark and address with user variables
-        remark = inbound_copy.remark.format_map(format_variables)
-        formatted_address = inbound_copy.address.format_map(format_variables)
-
-        download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
-        if download_settings:
-            processed_download_settings = await _prepare_download_settings(
-                download_settings,
+        for selected_address in _address_candidates(host_data.address):
+            result = await process_host(
+                host_data,
                 format_variables,
                 user.inbounds,
                 proxy_settings,
-                conf,
+                selected_address=selected_address,
             )
-            if hasattr(inbound_copy.transport_config, "download_settings"):
-                inbound_copy.transport_config.download_settings = processed_download_settings
+            if not result:
+                continue
 
-        conf.add(
-            remark=remark,
-            address=formatted_address,
-            inbound=inbound_copy,
-            settings=settings,
-        )
+            inbound_copy: SubscriptionInboundData
+            inbound_copy, settings = result
+
+            # Format remark and address with user variables
+            remark = inbound_copy.remark.format_map(format_variables)
+            formatted_address = inbound_copy.address.format_map(format_variables)
+
+            download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
+            if download_settings:
+                processed_download_settings = await _prepare_download_settings(
+                    download_settings,
+                    format_variables,
+                    user.inbounds,
+                    proxy_settings,
+                    conf,
+                )
+                if hasattr(inbound_copy.transport_config, "download_settings"):
+                    inbound_copy.transport_config.download_settings = processed_download_settings
+
+            conf.add(
+                remark=remark,
+                address=formatted_address,
+                inbound=inbound_copy,
+                settings=settings,
+            )
 
     return conf.render(reverse=reverse)
 

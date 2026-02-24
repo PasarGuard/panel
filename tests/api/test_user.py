@@ -13,6 +13,7 @@ from tests.api.helpers import (
     delete_group,
     delete_user,
     delete_user_template,
+    get_inbounds,
     unique_name,
 )
 
@@ -150,6 +151,46 @@ def test_user_subscriptions(access_token):
         delete_user(access_token, user["username"])
         for host in hosts:
             client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        cleanup_groups(access_token, core, groups)
+
+
+def test_user_subscriptions_generates_connection_per_address(access_token):
+    """Each host address should generate a dedicated subscription connection."""
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(
+        access_token,
+        group_ids=[group["id"] for group in groups],
+        payload={"username": unique_name("test_user_sub_addresses")},
+    )
+    inbounds = get_inbounds(access_token)
+    assert inbounds, "No inbounds available for host creation"
+
+    address_one = "multi-address-a.example.com"
+    address_two = "multi-address-b.example.com"
+    host_payload = {
+        "remark": unique_name("host_multi_address"),
+        "address": [address_one, address_two],
+        "port": 443,
+        "sni": ["subscription-test.example.com"],
+        "inbound_tag": inbounds[0],
+        "priority": 1,
+    }
+    host_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json=host_payload,
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host = host_response.json()
+
+    try:
+        response = client.get(f"{user['subscription_url']}/links")
+        assert response.status_code == status.HTTP_200_OK
+        assert address_one in response.text
+        assert address_two in response.text
+    finally:
+        delete_user(access_token, user["username"])
+        client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
         cleanup_groups(access_token, core, groups)
 
 

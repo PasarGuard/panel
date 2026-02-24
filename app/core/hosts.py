@@ -40,7 +40,7 @@ async def _prepare_subscription_inbound_data(
     """
     Prepare host data - creates small config instances ONCE.
     Merges inbound config with host config.
-    Random selection happens in share.py on every request!
+    Final per-request selection and address expansion happens in share.py.
     """
     # Get inbound configuration
     inbound_config = await core_manager.get_inbound_by_tag(host.inbound_tag)
