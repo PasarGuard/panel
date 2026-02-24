@@ -183,12 +183,14 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
               <CircularProgress value={memoryPercent} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-end justify-between gap-2">
               <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
                 <span className="whitespace-nowrap">
                   {formatBytes(memory.used, 1, false, false, 'GB')}/{formatBytes(memory.total, 1, true, false, 'GB')}
-                  <span className="ml-1 text-sm font-medium text-muted-foreground">({memoryPercent.toFixed(1)}%)</span>
                 </span>
+              </span>
+              <span dir="ltr" className="whitespace-nowrap rounded-md bg-muted/60 px-1.5 py-1 text-xs font-medium text-muted-foreground sm:px-2">
+                {memoryPercent.toFixed(1)}%
               </span>
             </div>
           </CardContent>
@@ -218,12 +220,14 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
               <CircularProgress value={diskPercent} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-end justify-between gap-2">
               <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
                 <span className="whitespace-nowrap">
                   {formatBytes(disk.used, 1, false, false, 'GB')}/{formatBytes(disk.total, 1, true, false, 'GB')}
-                  <span className="ml-1 text-sm font-medium text-muted-foreground">({diskPercent.toFixed(1)}%)</span>
                 </span>
+              </span>
+              <span dir="ltr" className="whitespace-nowrap rounded-md bg-muted/60 px-1.5 py-1 text-xs font-medium text-muted-foreground sm:px-2">
+                {diskPercent.toFixed(1)}%
               </span>
             </div>
           </CardContent>
