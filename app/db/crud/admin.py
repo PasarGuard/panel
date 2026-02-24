@@ -408,13 +408,13 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     if db_admin.used_traffic == 0:
         return db_admin
 
-    # Attach via relationship so in-memory usage_logs stays consistent for response serialization.
-    usage_log = AdminUsageLogs(admin=db_admin, used_traffic_at_reset=db_admin.used_traffic)
+    usage_log = AdminUsageLogs(admin_id=db_admin.id, used_traffic_at_reset=db_admin.used_traffic)
     db.add(usage_log)
     db_admin.used_traffic = 0
 
     await db.commit()
     await db.refresh(db_admin)
+    await db.refresh(db_admin, attribute_names=["usage_logs"])
     await load_admin_attrs(db_admin)
     return db_admin
 
