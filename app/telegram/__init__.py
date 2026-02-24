@@ -7,17 +7,19 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter, TelegramUnauthorizedError
+from aiogram.fsm.storage.memory import MemoryStorage
 from nats.js.kv import KeyValue
 from python_socks._errors import ProxyConnectionError
 
 from app import on_shutdown, on_startup
 from app.models.settings import RunMethod, Telegram
-from app.settings import telegram_settings
-from app.utils.logger import get_logger
 from app.nats import is_nats_enabled
 from app.nats.client import setup_nats_kv
+from app.settings import telegram_settings
+from app.utils.logger import get_logger
 from config import NATS_TELEGRAM_KV_BUCKET
 
+from .fsm_storage import NatsBackedMemoryStorage
 from .handlers import include_routers
 from .middlewares import setup_middlewares
 
@@ -29,13 +31,19 @@ class TelegramBotManager:
         self._bot: Bot | None = None
         self._polling_task: asyncio.Task | None = None
         self._lock = Lock()
-        self._dp = Dispatcher()
+        self._dp = Dispatcher(storage=self._create_fsm_storage())
         self._handlers_registered = False
         self._shutdown_in_progress = False
         self._stop_requested = False
         self._settings_key: tuple | None = None
         self._kv: KeyValue | None = None
         self._nats_conn = None
+
+    @staticmethod
+    def _create_fsm_storage():
+        if is_nats_enabled():
+            return NatsBackedMemoryStorage(NATS_TELEGRAM_KV_BUCKET)
+        return MemoryStorage()
 
     def get_bot(self) -> Bot | None:
         return self._bot
@@ -132,6 +140,10 @@ class TelegramBotManager:
         async with self._lock:
             self._stop_requested = True
             await self._shutdown_locked()
+            try:
+                await self._dp.storage.close()
+            except Exception:
+                pass
             # Close NATS KV connection if one was opened
             if self._nats_conn:
                 try:
