@@ -94,12 +94,16 @@ export default function AdminsPage() {
       queryClient.invalidateQueries({
         queryKey: ['/api/admins'],
       })
-    } catch (error) {
+    } catch (error: any) {
+      const status = error?.status ?? error?.response?.status
+      const backendDetail = error?.data?.detail ?? error?.response?._data?.detail ?? error?.response?.data?.detail
+      const defaultDescription = t(admin.is_disabled ? 'admins.enableFailed' : 'admins.disableFailed', {
+        name: admin.username,
+        defaultValue: `Failed to ${admin.is_disabled ? 'enable' : 'disable'} admin "{name}"`,
+      })
+
       toast.error(t('error', { defaultValue: 'Error' }), {
-        description: t(admin.is_disabled ? 'admins.enableFailed' : 'admins.disableFailed', {
-          name: admin.username,
-          defaultValue: `Failed to ${admin.is_disabled ? 'enable' : 'disable'} admin "{name}"`,
-        }),
+        description: status === 403 && typeof backendDetail === 'string' && backendDetail.trim().length > 0 ? backendDetail : defaultDescription,
       })
     }
   }

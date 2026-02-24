@@ -76,7 +76,7 @@ const ToggleAdminStatusModal = ({ admin, isOpen, onClose, onConfirm }: { admin: 
             <span dir={dir} dangerouslySetInnerHTML={{ __html: t(admin.is_disabled ? 'activeUsers.prompt' : 'disableUsers.prompt', { name: admin.username }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className={cn(dir === 'rtl' && 'sm:flex-row-reverse sm:gap-x-2')}>
+        <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>{t('cancel')}</AlertDialogCancel>
           <AlertDialogAction onClick={() => onConfirm(adminUsersToggle)}>{t('confirm')}</AlertDialogAction>
         </AlertDialogFooter>
