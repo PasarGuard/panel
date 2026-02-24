@@ -7,6 +7,7 @@ import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
 import UsageModal from '@/components/dialogs/usage-modal'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -38,7 +39,7 @@ import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } fr
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, CalendarPlus, ChevronDown, Info, Layers, Link2Off, ListStart, Lock, Menu, Network, PieChart, RefreshCcw, Users } from 'lucide-react'
+import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Users } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -1341,54 +1342,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     return (
       <div className={cn('mt-3 space-y-3', extraClassName)}>
         <Accordion type="multiple" className="w-full">
-          <AccordionItem value="meta-actions" className="rounded-sm border bg-background px-2">
-            <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
-              <span className="flex items-center gap-1.5">
-                <Menu className="h-3.5 w-3.5" />
-                {t('actions', { defaultValue: 'Actions' })}
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-2">
-              <div className="grid grid-cols-2 gap-2">
-                {isSudo && (
-                  <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setUserAllIPsModalOpen(true)}>
-                    <Network className="h-3 w-3" />
-                    <>
-                      <span className="sm:hidden">{t('userAllIPs.ips', { defaultValue: 'IPs' })}</span>
-                      <span className="hidden sm:inline">{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
-                    </>
-                  </Button>
-                )}
-                <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setUsageModalOpen(true)}>
-                  <PieChart className="h-3 w-3" />
-                  <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setSubscriptionClientsModalOpen(true)}>
-                  <Users className="h-3 w-3" />
-                  <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="justify-start gap-2" onClick={() => setRevokeSubDialogOpen(true)}>
-                  <Link2Off className="h-3 w-3" />
-                  <>
-                    <span className="sm:hidden">{t('revoke', { defaultValue: 'Revoke' })}</span>
-                    <span className="hidden sm:inline">{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
-                  </>
-                </Button>
-                <Button type="button" variant="outline" size="sm" className={cn("justify-start gap-2", isSudo ? 'col-span-2' : '')} onClick={() => setResetUsageDialogOpen(true)}>
-                  <RefreshCcw className="h-3 w-3" />
-                  {!isSudo ? (
-                    <>
-                      <span className="sm:hidden">{t('reset', { defaultValue: 'Reset' })}</span>
-                      <span className="hidden sm:inline">{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
-                    </>
-                  ) : (
-                    <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
-                  )}
-                </Button>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
           <AccordionItem value="meta-details" className="mt-2 rounded-sm border bg-background px-2">
             <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
               <span className="flex items-center gap-1.5">
@@ -2461,8 +2414,47 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               {renderUserMetaPanel('mt-4 lg:hidden')}
             </div>
             {/* Cancel/Create buttons - always visible */}
-            <div className="mt-4 flex flex-row items-center justify-end gap-2 overflow-x-auto pb-1">
-              <div className="flex shrink-0 items-center gap-2">
+            <div className="mt-4 flex flex-row items-center justify-between gap-3 overflow-x-auto pb-1">
+              {editingUser && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      aria-label={t('actions', { defaultValue: 'Actions' })}
+                      className="group h-9 border-border/70 bg-background/80 px-3 shadow-sm backdrop-blur transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=open]:border-primary/50 data-[state=open]:bg-primary/10"
+                    >
+                      <span className="text-xs font-medium">{t('actions', { defaultValue: 'Actions' })}</span>
+                      <EllipsisVertical className="ml-1 h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground group-data-[state=open]:rotate-90 group-data-[state=open]:text-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {isSudo && (
+                      <DropdownMenuItem onClick={() => setUserAllIPsModalOpen(true)}>
+                        <Network className="mr-2 h-4 w-4" />
+                        <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => setUsageModalOpen(true)}>
+                      <PieChart className="mr-2 h-4 w-4" />
+                      <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSubscriptionClientsModalOpen(true)}>
+                      <Users className="mr-2 h-4 w-4" />
+                      <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setRevokeSubDialogOpen(true)}>
+                      <Link2Off className="mr-2 h-4 w-4" />
+                      <span>{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setResetUsageDialogOpen(true)}>
+                      <RefreshCcw className="mr-2 h-4 w-4" />
+                      <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              <div className="flex shrink-0 items-center gap-3">
                 <Button
                   type="button"
                   variant="outline"
