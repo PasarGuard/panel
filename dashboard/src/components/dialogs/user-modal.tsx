@@ -1112,10 +1112,14 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           }
           : undefined
 
+        const normalizedDataLimitGb = Number(preparedValues.data_limit ?? 0)
+        const hasDataLimit = Number.isFinite(normalizedDataLimitGb) && normalizedDataLimitGb > 0
+
         // Prepare next plan data
         const sendValues: any = {
           ...preparedValues,
-          data_limit: gbToBytes(preparedValues.data_limit as any),
+          data_limit: gbToBytes(normalizedDataLimitGb as any),
+          data_limit_reset_strategy: hasDataLimit ? preparedValues.data_limit_reset_strategy : 'no_reset',
           expire: preparedValues.expire,
           ...(hasProxySettings ? { proxy_settings: cleanedProxySettings } : {}),
         }
