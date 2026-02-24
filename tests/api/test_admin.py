@@ -52,6 +52,20 @@ def test_admin_create(access_token):
     delete_admin(access_token, username)
 
 
+def test_admin_create_sudo_forbidden_via_api(access_token):
+    """Creating sudo admin via API should be forbidden."""
+    username = unique_name("forbiddensudo")
+    password = strong_password("ForbiddenSudo")
+
+    response = client.post(
+        url="/api/admin",
+        json={"username": username, "password": password, "is_sudo": True},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
 def test_admin_create_with_note(access_token):
     """Test that admin note can be set during creation."""
 

@@ -39,6 +39,9 @@ class AdminOperation(BaseOperation):
 
     async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails) -> AdminDetails:
         """Create a new admin if the current admin has sudo privileges."""
+        if self.operator_type != OperatorType.CLI and new_admin.is_sudo:
+            await self.raise_error(message="Creating sudo admin via API is not allowed. Use pasarguard cli / tui.", code=403)
+
         try:
             db_admin = await create_admin(db, new_admin)
         except IntegrityError:
