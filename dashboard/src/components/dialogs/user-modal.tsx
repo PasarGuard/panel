@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 import { type UseEditFormValues, type UseFormValues, userCreateSchema, userEditSchema } from '@/components/forms/user-form'
 import {
   getGeneralSettings,
+  getGetGroupsSimpleQueryKey,
   getGetGeneralSettingsQueryKey,
   useCreateUser,
   useCreateUserFromTemplate,
@@ -633,6 +634,13 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       form.clearErrors()
     }
   }, [isDialogOpen, form])
+
+  useEffect(() => {
+    if (!isDialogOpen) return
+    queryClient.invalidateQueries({
+      queryKey: getGetGroupsSimpleQueryKey({ all: true }),
+    })
+  }, [isDialogOpen, queryClient])
 
   useEffect(() => {
     // Set form validation schema
