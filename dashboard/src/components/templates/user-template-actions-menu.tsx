@@ -116,7 +116,7 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
               onToggleStatus(template)
             }}
           >
-            <Power className="mr-2 h-4 w-4" />
+            <Power className="h-4 w-4" />
             {template.is_disabled ? t('enable') : t('disable')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
