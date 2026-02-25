@@ -235,10 +235,10 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
                   <SpeedValueHint
                     primary={`${totalSpeed.mbPerSecText} MB/s`}
                     secondary={`${totalSpeed.mbpsText} Mb/s`}
-                    className="inline-block whitespace-nowrap text-xl font-bold leading-tight sm:text-2xl lg:text-3xl"
+                    className="inline-block whitespace-nowrap text-lg font-bold leading-tight sm:text-xl lg:text-2xl"
                   />
                 ) : (
-                  <span className="text-xl font-bold leading-tight sm:text-2xl lg:text-3xl">{formatBytes(getTotalTrafficValue() || 0, 1)}</span>
+                  <span className="text-lg font-bold leading-tight sm:text-xl lg:text-2xl">{formatBytes(getTotalTrafficValue() || 0, 1)}</span>
                 )}
               </div>
 
