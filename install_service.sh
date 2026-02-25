@@ -14,7 +14,7 @@ Documentation=$SERVICE_DOCUMENTATION
 After=network.target nss-lookup.target
 
 [Service]
-ExecStart=/usr/bin/env python3 $MAIN_PY_PATH
+ExecStart=$PWD/.venv/bin/python3 $MAIN_PY_PATH
 Restart=on-failure
 WorkingDirectory=$PWD
 
