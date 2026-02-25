@@ -191,16 +191,14 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
               <CircularProgress value={memoryPercent} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-2">
-              <span dir="ltr" className="text-base font-bold leading-tight transition-all duration-300 sm:text-xl lg:text-2xl">
-                {currentStats ? (
-                  <span className="whitespace-normal sm:whitespace-nowrap">
-                    {formatBytes(memory.used, 1, false, false, 'GB')}/{formatBytes(memory.total, 1, true, false, 'GB')}
-                    <span className="ml-1 text-sm font-medium text-muted-foreground">({memoryPercent.toFixed(1)}%)</span>
-                  </span>
-                ) : (
-                  0
-                )}
+            <div className="flex items-end justify-between gap-2">
+              <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
+                <span className="whitespace-nowrap">
+                  {formatBytes(memory.used, 1, false, false, 'GB')}/{formatBytes(memory.total, 1, true, false, 'GB')}
+                </span>
+              </span>
+              <span dir="ltr" className="whitespace-nowrap rounded-md bg-muted/60 px-1.5 py-1 text-xs font-medium text-muted-foreground sm:px-2">
+                {memoryPercent.toFixed(1)}%
               </span>
             </div>
           </CardContent>
@@ -208,7 +206,7 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
       </div>
 
       {/* Total Traffic / Network Speed (depends on whether it's master or node stats) */}
-      <div className="h-full w-full animate-fade-in sm:col-span-2 lg:col-span-1" style={{ animationDuration: '600ms', animationDelay: '250ms' }}>
+      <div className="h-full w-full animate-fade-in sm:col-span-2 xl:col-span-1" style={{ animationDuration: '600ms', animationDelay: '250ms' }}>
         <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
           <div
             className={cn(
