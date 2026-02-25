@@ -65,8 +65,8 @@ class NodeManager:
 
             self._nodes[node.id] = new_node
 
-        # Stop the old node in the background so we don't block callers.
-        asyncio.create_task(self._shutdown_node(old_node))
+        # Stop the old node after releasing the lock.
+        await self._shutdown_node(old_node)
 
         return new_node
 
