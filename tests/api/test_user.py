@@ -439,6 +439,52 @@ def test_bulk_create_users_from_template_sequence(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_bulk_create_users_from_template_sequence_with_template_affixes(access_token):
+    core, groups = setup_groups(access_token, 1)
+    prefix = "pre_"
+    suffix = "_suf"
+    template = create_user_template(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        username_prefix=prefix,
+        username_suffix=suffix,
+    )
+    base_username = unique_name("bulk_template_affix_seq")
+    count = 2
+    start_number = 7
+    expected_usernames: list[str] = []
+
+    try:
+        response = client.post(
+            "/api/users/bulk/from_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "user_template_id": template["id"],
+                "strategy": "sequence",
+                "username": base_username,
+                "count": count,
+                "start_number": start_number,
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["created"] == count
+        assert len(response.json()["subscription_urls"]) == count
+
+        expected_usernames = [f"{prefix}{base_username}{suffix}{start_number + idx}" for idx in range(count)]
+
+        for username in expected_usernames:
+            user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["data_limit"] == template["data_limit"]
+            assert user_response.json()["status"] == template["status"]
+    finally:
+        for username in expected_usernames:
+            delete_user(access_token, username)
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_bulk_create_users_from_template_random(access_token):
     core, groups = setup_groups(access_token, 1)
     template = create_user_template(access_token, group_ids=[groups[0]["id"]])

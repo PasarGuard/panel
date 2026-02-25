@@ -257,13 +257,6 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
@@ -292,6 +285,13 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
+
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -444,6 +444,18 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -466,18 +478,6 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
-
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
 
 export interface WorkersHealth {
   scheduler: WorkerHealth
@@ -885,15 +885,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
-
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -901,6 +892,15 @@ export type UserIPListIps = { [key: string]: number }
  */
 export interface UserIPList {
   ips: UserIPListIps
+}
+
+export type UserIPListAllNodes = { [key: string]: UserIPList | null }
+
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
 }
 
 export type UserCreateStatus = UserStatusCreate | null
@@ -1304,15 +1304,6 @@ export const ProxyHostALPN = {
   h3: 'h3',
 } as const
 
-export type ECHQueryStrategy = (typeof ECHQueryStrategy)[keyof typeof ECHQueryStrategy]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const ECHQueryStrategy = {
-  none: 'none',
-  half: 'half',
-  full: 'full',
-} as const
-
 export type Platform = (typeof Platform)[keyof typeof Platform]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -1394,6 +1385,19 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1407,19 +1411,6 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
-}
-
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1592,8 +1583,6 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
-export type NodeModifyConnectionType = NodeConnectionType | null
-
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1637,6 +1626,8 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
+
+export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -1793,11 +1784,6 @@ export interface HTTPException {
   detail: string
 }
 
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
-}
-
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -1826,6 +1812,11 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -1900,6 +1891,15 @@ export interface ExtraSettings {
   method?: ExtraSettingsMethod
 }
 
+export type ECHQueryStrategy = (typeof ECHQueryStrategy)[keyof typeof ECHQueryStrategy]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ECHQueryStrategy = {
+  none: 'none',
+  half: 'half',
+  full: 'full',
+} as const
+
 export interface DownloadLink {
   /** @maxLength 64 */
   name: string
@@ -1940,9 +1940,9 @@ export type CreateHostVerifyPeerCertByName = string[] | null
 
 export type CreateHostPinnedPeerCertSha256 = string | null
 
-export type CreateHostEchConfigList = string | null
-
 export type CreateHostEchQueryStrategy = ECHQueryStrategy | null
+
+export type CreateHostEchConfigList = string | null
 
 export type CreateHostStatus = UserStatus[] | null
 
@@ -2022,6 +2022,11 @@ export interface CoresSimpleResponse {
   total: number
 }
 
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
+}
+
 export type CoreResponseConfig = { [key: string]: unknown }
 
 export interface CoreResponse {
@@ -2031,11 +2036,6 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2176,9 +2176,9 @@ export type BaseHostVerifyPeerCertByName = string[] | null
 
 export type BaseHostPinnedPeerCertSha256 = string | null
 
-export type BaseHostEchConfigList = string | null
-
 export type BaseHostEchQueryStrategy = ECHQueryStrategy | null
+
+export type BaseHostEchConfigList = string | null
 
 export type BaseHostStatus = UserStatus[] | null
 
@@ -2689,7 +2689,7 @@ export const adminMiniAppToken = (signal?: AbortSignal) => {
 
 export const getAdminMiniAppTokenMutationOptions = <
   TData = Awaited<ReturnType<typeof adminMiniAppToken>>,
-  TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+  TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<TData, TError, void, TContext>
@@ -2710,12 +2710,16 @@ export const getAdminMiniAppTokenMutationOptions = <
 
 export type AdminMiniAppTokenMutationResult = NonNullable<Awaited<ReturnType<typeof adminMiniAppToken>>>
 
-export type AdminMiniAppTokenMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+export type AdminMiniAppTokenMutationError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>
 
 /**
  * @summary Admin Mini App Token
  */
-export const useAdminMiniAppToken = <TData = Awaited<ReturnType<typeof adminMiniAppToken>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+export const useAdminMiniAppToken = <
+  TData = Awaited<ReturnType<typeof adminMiniAppToken>>,
+  TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
   mutation?: UseMutationOptions<TData, TError, void, TContext>
 }): UseMutationResult<TData, TError, void, TContext> => {
   const mutationOptions = getAdminMiniAppTokenMutationOptions(options)
@@ -2833,7 +2837,7 @@ export const modifyAdmin = (username: string, adminModify: BodyType<AdminModify>
 
 export const getModifyAdminMutationOptions = <
   TData = Awaited<ReturnType<typeof modifyAdmin>>,
-  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<AdminModify> }, TContext>
@@ -2856,12 +2860,16 @@ export const getModifyAdminMutationOptions = <
 
 export type ModifyAdminMutationResult = NonNullable<Awaited<ReturnType<typeof modifyAdmin>>>
 export type ModifyAdminMutationBody = BodyType<AdminModify>
-export type ModifyAdminMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+export type ModifyAdminMutationError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
 /**
  * @summary Modify Admin
  */
-export const useModifyAdmin = <TData = Awaited<ReturnType<typeof modifyAdmin>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>, TContext = unknown>(options?: {
+export const useModifyAdmin = <
+  TData = Awaited<ReturnType<typeof modifyAdmin>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
   mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<AdminModify> }, TContext>
 }): UseMutationResult<TData, TError, { username: string; data: BodyType<AdminModify> }, TContext> => {
   const mutationOptions = getModifyAdminMutationOptions(options)
