@@ -204,6 +204,7 @@ export function DataTable<TData extends AdminDetails>({
   const table = useReactTable({
     data,
     columns,
+    getRowId: row => String(row.id ?? row.username),
     getCoreRowModel: getCoreRowModel(),
   })
   const dir = useDirDetection()

@@ -11,8 +11,9 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
 import { getAdminsPerPageLimitSize, setAdminsPerPageLimitSize } from '@/utils/userPreferenceStorage'
 import { toast } from 'sonner'
-import { queryClient } from '@/utils/query-client'
 import { useAdmin } from '@/hooks/use-admin'
+import { patchAdminInAdminsCache } from '@/utils/adminsCache'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface AdminFilters {
   sort?: string
@@ -170,12 +171,12 @@ const BulkUsersStatusConfirmationDialog = ({
 
 export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetUsage, onTotalAdminsChange }: AdminsTableProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { admin: currentAdmin } = useAdmin()
   const [currentPage, setCurrentPage] = useState(0)
   const [itemsPerPage, setItemsPerPage] = useState(getAdminsPerPageLimitSize())
   const [isChangingPage, setIsChangingPage] = useState(false)
   const isFirstLoadRef = useRef(true)
-  const isAutoRefreshingRef = useRef(false)
   const [filters, setFilters] = useState<AdminFilters>({
     sort: '-created_at',
     limit: itemsPerPage,
@@ -196,6 +197,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     data: adminsResponse,
     isLoading,
     isFetching,
+    refetch,
   } = useGetAdmins(filters, {
     query: {
       staleTime: 0,
@@ -240,9 +242,6 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }, [adminsData])
 
   useEffect(() => {
-    if (!isFetching && isAutoRefreshingRef.current) {
-      isAutoRefreshingRef.current = false
-    }
     if (!isFetching && isChangingPage) {
       setIsChangingPage(false)
     }
@@ -267,6 +266,10 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     if (newFilters.username !== undefined && newFilters.username !== filters.username) {
       setCurrentPage(0)
     }
+  }
+
+  const handleManualRefresh = async () => {
+    return refetch()
   }
 
   const handleDeleteClick = (admin: AdminDetails) => {
@@ -329,8 +332,6 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
           defaultValue: actionType === 'disable' ? `All active users under admin "${username}" have been disabled successfully` : `All disabled users under admin "${username}" have been activated successfully`,
         }),
       })
-
-      queryClient.invalidateQueries({ queryKey: ['/api/admins'] })
       closeBulkUsersStatusDialog()
     } catch (error) {
       toast.error(t('error', { defaultValue: 'Error' }), {
@@ -354,7 +355,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
             defaultValue: `All users under admin "{name}" have been removed successfully`,
           }),
         })
-        queryClient.invalidateQueries({ queryKey: ['/api/admins'] })
+        patchAdminInAdminsCache(queryClient, adminToRemoveAllUsers, { total_users: 0 })
         setRemoveAllUsersDialogOpen(false)
         setAdminToRemoveAllUsers(null)
       } catch (error) {
@@ -445,11 +446,11 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   })
 
   const isCurrentlyLoading = isLoading || (isFetching && !adminsResponse)
-  const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current)
+  const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current)
 
   return (
     <div>
-      <Filters filters={filters} onFilterChange={handleFilterChange} handleSort={handleSort} />
+      <Filters filters={filters} onFilterChange={handleFilterChange} handleSort={handleSort} refetch={handleManualRefresh} />
       <DataTable
         columns={columns}
         data={adminsData || []}
@@ -463,7 +464,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         currentAdminUsername={currentAdmin?.username}
         setStatusToggleDialogOpen={setStatusToggleDialogOpen}
         isLoading={isCurrentlyLoading && isFirstLoadRef.current}
-        isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}
+        isFetching={isFetching && !isFirstLoadRef.current}
       />
       <PaginationControls
         currentPage={currentPage}

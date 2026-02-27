@@ -12,11 +12,13 @@ import { useActivateAllDisabledUsers, useDisableAllActiveUsers, useModifyAdmin, 
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/components/admins/admin-statistics'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { queryClient } from '@/utils/query-client.ts'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
+import { removeAdminFromAdminsCache, upsertAdminInAdminsCache } from '@/utils/adminsCache'
+import { useQueryClient } from '@tanstack/react-query'
 
 export default function AdminsPage() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminDetails> | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number } | null>(null)
@@ -42,8 +44,7 @@ export default function AdminsPage() {
           defaultValue: 'Admin «{{name}}» has been deleted successfully',
         }),
       })
-      // Invalidate nodes queries
-      queryClient.invalidateQueries({ queryKey: ['/api/admins'] })
+      removeAdminFromAdminsCache(queryClient, admin.username)
     } catch (error) {
       handleError({
         error,
@@ -67,7 +68,7 @@ export default function AdminsPage() {
           username: admin.username,
         })
       }
-      await modifyAdminMutation.mutateAsync({
+      const updatedAdmin = await modifyAdminMutation.mutateAsync({
         username: admin.username,
         data: {
           is_sudo: admin.is_sudo,
@@ -82,6 +83,7 @@ export default function AdminsPage() {
           discord_id: admin.discord_id,
         },
       })
+      upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
 
       toast.success(t('success', { defaultValue: 'Success' }), {
         description: t(admin.is_disabled ? 'admins.enableSuccess' : 'admins.disableSuccess', {
@@ -90,10 +92,6 @@ export default function AdminsPage() {
         }),
       })
 
-      // Invalidate nodes queries
-      queryClient.invalidateQueries({
-        queryKey: ['/api/admins'],
-      })
     } catch (error: any) {
       const status = error?.status ?? error?.response?.status
       const backendDetail = error?.data?.detail ?? error?.response?._data?.detail ?? error?.response?.data?.detail
@@ -138,9 +136,10 @@ export default function AdminsPage() {
 
   const resetUsage = async (adminUsername: string) => {
     try {
-      await resetUsageMutation.mutateAsync({
+      const updatedAdmin = await resetUsageMutation.mutateAsync({
         username: adminUsername,
       })
+      upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
 
       toast.success(t('success', { defaultValue: 'Success' }), {
         description: t('admins.resetUsageSuccess', {
@@ -149,10 +148,6 @@ export default function AdminsPage() {
         }),
       })
 
-      // Invalidate nodes queries
-      queryClient.invalidateQueries({
-        queryKey: ['/api/admins'],
-      })
     } catch (error) {
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: t('admins.resetUsageFailed', {

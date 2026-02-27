@@ -9,7 +9,6 @@ import { debounce } from 'es-toolkit'
 import { ArrowUpDown, Calendar, ChartPie, ChevronDown, RefreshCw, SearchIcon, User, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useGetAdmins } from '@/service/api'
 import { LoaderCircle } from 'lucide-react'
 
 const sortSections = [
@@ -53,14 +52,13 @@ interface FiltersProps<T extends BaseFilters> {
   filters: T
   onFilterChange: (filters: Partial<T>) => void
   handleSort?: (column: string, fromDropdown?: boolean) => void
-  onRefresh?: () => void
+  refetch?: () => Promise<unknown>
   totalItems?: number
 }
 
-export function Filters<T extends BaseFilters>({ filters, onFilterChange, handleSort }: FiltersProps<T>) {
+export function Filters<T extends BaseFilters>({ filters, onFilterChange, handleSort, refetch }: FiltersProps<T>) {
   const { t } = useTranslation()
   const dir = useDirDetection()
-  const { refetch } = useGetAdmins(filters)
   const [search, setSearch] = useState(filters.username || '')
   const onFilterChangeRef = useRef(onFilterChange)
 
@@ -113,6 +111,12 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
     const state = getSortState(section)
     const nextSort = state === 'none' ? section.desc : section.asc
     handleSort(nextSort, true)
+  }
+
+  const handleRefreshClick = async () => {
+    if (refetch) {
+      await refetch()
+    }
   }
 
   return (
@@ -175,7 +179,7 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
 
       {/* Refresh Button */}
       <div className="flex h-full flex-shrink-0 items-center gap-0">
-        <Button size="icon-md" onClick={() => refetch()} variant="ghost" className="flex items-center gap-2 border">
+        <Button size="icon-md" onClick={handleRefreshClick} variant="ghost" className="flex items-center gap-2 border">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
