@@ -1578,27 +1578,27 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
                           <LoaderButton
                             type="button"
-                            onClick={viewMldsa65}
-                            className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                            isLoading={isGeneratingMldsa65}
-                            loadingText={t('coreConfigModal.generatingMldsa65')}
-                          >
-                            <span className="flex items-center gap-2 truncate">
-                              {generatedMldsa65 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                              {t('coreConfigModal.generateMldsa65')}
-                            </span>
-                          </LoaderButton>
-
-                          <LoaderButton
-                            type="button"
                             onClick={viewShortId}
-                            className="col-span-2 h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                            className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
                             isLoading={isGeneratingShortId}
                             loadingText={t('coreConfigModal.generatingShortId')}
                           >
                             <span className="flex items-center gap-2 truncate">
                               {generatedShortId && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
                               {t('coreConfigModal.generateShortId')}
+                            </span>
+                          </LoaderButton>
+
+                          <LoaderButton
+                            type="button"
+                            onClick={viewMldsa65}
+                            className="col-span-2 h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                            isLoading={isGeneratingMldsa65}
+                            loadingText={t('coreConfigModal.generatingMldsa65')}
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              {generatedMldsa65 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                              {t('coreConfigModal.generateMldsa65')}
                             </span>
                           </LoaderButton>
                         </div>
