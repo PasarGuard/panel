@@ -6,10 +6,9 @@ from uuid import uuid4
 
 from fastapi import status
 
+from config import NATS_ENABLED, ROLE
 from tests.api import client
 from tests.api.sample_data import XRAY_CONFIG
-from config import ROLE, NATS_ENABLED
-
 
 _WAIT_FOR_INBOUNDS = ROLE.requires_nats and NATS_ENABLED
 _INBOUNDS_RETRIES = 10
@@ -82,7 +81,7 @@ def create_core_template(
     *,
     name: str | None = None,
     template_type: str = "xray_subscription",
-    content: str = '{"outbounds": []}',
+    content: str = '{"outbounds": [{"tag":"direct","protocol":"freedom","settings":{}}],"inbounds":[{"tag":"proxy","protocol":"vmess","settings":{"clients":[{"id":"uuid","alterId":0,"email":"}',
     is_default: bool = False,
 ) -> dict:
     payload = {
