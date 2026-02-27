@@ -27,7 +27,6 @@ from app.db.models import (
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
-
 from config import USERS_AUTODELETE_DAYS
 
 from .general import (
@@ -1019,7 +1018,12 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
         User: The updated user object.
     """
     db_user.sub_revoked_at = datetime.now(timezone.utc)
-    db_user.proxy_settings = ProxyTable().dict()
+    proxy_settings = ProxyTable()
+    proxy_settings.vless.flow = db_user.proxy_settings.get("vless", {}).get("flow", "")
+    proxy_settings.shadowsocks.method = db_user.proxy_settings.get("shadowsocks", {}).get(
+        "method", "chacha20-ietf-poly1305"
+    )
+    db_user.proxy_settings = proxy_settings.dict()
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user

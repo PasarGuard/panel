@@ -444,47 +444,6 @@ export default function CleanupSettings() {
         </CardContent>
       </Card>
 
-      {/* Reset Usage Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RotateCcw className="h-5 w-5" />
-            {t('settings.cleanup.resetUsage.title')}
-          </CardTitle>
-          <CardDescription>{t('settings.cleanup.resetUsage.description')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{t('settings.cleanup.resetUsage.warning')}</AlertDescription>
-          </Alert>
-
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={resetUsersDataUsageMutation.isPending} className="w-full">
-                <RotateCcw className="mr-2 h-4 w-4" />
-                {resetUsersDataUsageMutation.isPending ? t('settings.cleanup.resetUsage.resetting') : t('settings.cleanup.resetUsage.resetAll')}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent dir={dir}>
-              <AlertDialogHeader>
-                <AlertDialogTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-destructive" />
-                  {t('settings.cleanup.resetUsage.confirmReset')}
-                </AlertDialogTitle>
-                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left')}>{t('settings.cleanup.resetUsage.confirmResetMessage')}</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="gap-2">
-                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                <AlertDialogAction onClick={handleResetUsage} disabled={resetUsersDataUsageMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  {t('settings.cleanup.resetUsage.resetAll')}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
-
       {/* Clear Usage Data Section */}
       <Card>
         <CardHeader>
@@ -567,6 +526,47 @@ export default function CleanupSettings() {
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleClearUsageData} disabled={clearUsageDataMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
                   {t('settings.cleanup.clearUsageData.clearData')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
+
+      {/* Reset Usage Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RotateCcw className="h-5 w-5" />
+            {t('settings.cleanup.resetUsage.title')}
+          </CardTitle>
+          <CardDescription>{t('settings.cleanup.resetUsage.description')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{t('settings.cleanup.resetUsage.warning')}</AlertDescription>
+          </Alert>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={resetUsersDataUsageMutation.isPending} className="w-full">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                {resetUsersDataUsageMutation.isPending ? t('settings.cleanup.resetUsage.resetting') : t('settings.cleanup.resetUsage.resetAll')}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent dir={dir}>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  {t('settings.cleanup.resetUsage.confirmReset')}
+                </AlertDialogTitle>
+                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left')}>{t('settings.cleanup.resetUsage.confirmResetMessage')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2">
+                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={handleResetUsage} disabled={resetUsersDataUsageMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {t('settings.cleanup.resetUsage.resetAll')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

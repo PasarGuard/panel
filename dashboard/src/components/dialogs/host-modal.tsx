@@ -1159,6 +1159,46 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
                       <FormField
                         control={form.control}
+                        name="ech_query_strategy"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center gap-2">
+                              <FormLabel>{t('hostsDialog.echQueryStrategy', { defaultValue: 'ECH Query Strategy' })}</FormLabel>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                    <Info className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {t('hostsDialog.echQueryStrategy.info', {
+                                      defaultValue: 'ECH query strategy. Available values: none, half, full.',
+                                    })}
+                                  </p>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                            <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="__default">{t('default')}</SelectItem>
+                                <SelectItem value="none">none</SelectItem>
+                                <SelectItem value="half">half</SelectItem>
+                                <SelectItem value="full">full</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
                         name="pinned_peer_cert_sha256"
                         render={({ field }) => (
                           <FormItem>

@@ -71,6 +71,7 @@ async def _prepare_subscription_inbound_data(
 
     pinned_peer_cert_sha256 = host.pinned_peer_cert_sha256
     verify_peer_cert_by_name = host.verify_peer_cert_by_name
+    ech_query_strategy = host.ech_query_strategy or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
     fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
     fp = fp or ("chrome" if tls_value == "reality" else "")
@@ -87,6 +88,7 @@ async def _prepare_subscription_inbound_data(
         verify_peer_cert_by_name=verify_peer_cert_by_name,
         alpn_list=alpn_list,
         ech_config_list=host.ech_config_list,
+        ech_query_strategy=ech_query_strategy,
         reality_public_key=reality_pbk,
         reality_short_id=reality_sid,
         reality_short_ids=reality_sids,

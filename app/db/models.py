@@ -68,6 +68,7 @@ class Admin(Base):
     profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     support_url: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     notification_enable: Mapped[Optional[Dict]] = mapped_column(JSON, default=None)
+    note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
 
     @hybrid_property
     def reseted_usage(self) -> int:
@@ -175,7 +176,13 @@ class User(Base):
 
     @expire.setter
     def expire(self, value: Optional[dt]):
-        self._expire = value
+        if value is None:
+            self._expire = None
+            return
+        if value.tzinfo is None:
+            self._expire = value.replace(tzinfo=tz.utc)
+            return
+        self._expire = value.astimezone(tz.utc)
 
     @hybrid_property
     def reseted_usage(self) -> int:
@@ -474,6 +481,7 @@ class ProxyHost(Base):
         EnumArray(UserStatus, 60), default=list, server_default=""
     )
     ech_config_list: Mapped[Optional[str]] = mapped_column(String(512), default=None)
+    ech_query_strategy: Mapped[Optional[str]] = mapped_column(String(8), default=None)
     vless_route: Mapped[Optional[str]] = mapped_column(String(4), default=None)
     pinned_peer_cert_sha256: Mapped[Optional[str]] = mapped_column(String(128), default=None)
     verify_peer_cert_by_name: Mapped[Optional[set[str]]] = mapped_column(

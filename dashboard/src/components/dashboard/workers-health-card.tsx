@@ -92,7 +92,7 @@ const WorkersHealthCard = () => {
     <Card className="border bg-card/80" dir={dir}>
       <CardHeader className="p-2">
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-2 text-left sm:items-center">
+          <div className="flex min-w-0 items-start gap-2 text-left sm:items-center p-2">
             <div className="rounded-md bg-primary/10 p-1.5">
               <ServerCog className="h-4 w-4 text-primary" />
             </div>

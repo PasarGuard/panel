@@ -21,48 +21,53 @@ export const useRelativeExpiryDate = (expiryDate: string | number | null | undef
   const target = dateUtils.toDayjs(expiryDate)
   const now = dayjs()
 
-  const isAfter = target.isAfter(now) // This is now a dayjs object
+  const isAfter = target.isAfter(now)
   dateInfo.status = isAfter ? t('expires') : t('expired')
 
-  // Use calendar-aware diff methods for accurate month and day calculations
-  // Calculate from the earlier date to the later date
-  const earlier = target.isBefore(now) ? target : now
-  const later = target.isAfter(now) ? target : now
-  
-  const years = Math.abs(later.diff(earlier, 'year'))
-  const months = Math.abs(later.diff(earlier.add(years, 'year'), 'month'))
-  const days = Math.abs(later.diff(earlier.add(years, 'year').add(months, 'month'), 'day'))
-  const hours = Math.abs(later.diff(earlier.add(years, 'year').add(months, 'month').add(days, 'day'), 'hour'))
-  const minutes = Math.abs(later.diff(earlier.add(years, 'year').add(months, 'month').add(days, 'day').add(hours, 'hour'), 'minute'))
+  // Nearest-unit duration for concise "time left" text.
+  const diffSeconds = Math.abs(target.diff(now, 'second'))
+  const daySeconds = 24 * 60 * 60
+  const hourSeconds = 60 * 60
+  const minuteSeconds = 60
 
-  const durationSlots: string[] = []
-
-  if (years > 0) {
-    durationSlots.push(`${years} ${t(`time.${years !== 1 ? 'years' : 'year'}`)}`)
-  }
-
-  if (months > 0) {
-    durationSlots.push(`${months} ${t(`time.${months !== 1 ? 'months' : 'month'}`)}`)
-  }
-
-  if (days > 0) {
-    durationSlots.push(`${days} ${t(`time.${days !== 1 ? 'days' : 'day'}`)}`)
-  }
-
-  if (durationSlots.length === 0) {
-    if (hours > 0) {
-      durationSlots.push(`${hours} ${t(`time.${hours !== 1 ? 'hours' : 'hour'}`)}`)
-    }
-
-    if (minutes > 0) {
-      durationSlots.push(`${minutes} ${t(`time.${minutes !== 1 ? 'mins' : 'min'}`)}`)
-    }
-  }
-
-  if (!isAfter && durationSlots.length === 0 && minutes < 1) {
+  if (diffSeconds < 1) {
     dateInfo.time = t('time.justNow')
   } else {
-    dateInfo.time = durationSlots.join(', ') + (isAfter ? '' : ` ${t('time.ago')}`)
+    let value = 0
+    let unitKey: 'day' | 'days' | 'hour' | 'hours' | 'min' | 'mins' | 'second' | 'seconds' = 'seconds'
+    let text = ''
+
+    if (diffSeconds >= daySeconds) {
+      value = Math.round(diffSeconds / daySeconds)
+      unitKey = value === 1 ? 'day' : 'days'
+      text = `${value} ${t(`time.${unitKey}`)}`
+    } else if (diffSeconds >= hourSeconds) {
+      const totalSeconds = Math.max(1, Math.round(diffSeconds))
+      const hours = Math.floor(totalSeconds / hourSeconds)
+      const minutes = Math.floor((totalSeconds % hourSeconds) / minuteSeconds)
+      const hourKey = hours === 1 ? 'hour' : 'hours'
+      text = `${hours} ${t(`time.${hourKey}`)}`
+      if (minutes > 0) {
+        const minuteKey = minutes === 1 ? 'min' : 'mins'
+        text += `, ${minutes} ${t(`time.${minuteKey}`)}`
+      }
+    } else if (diffSeconds >= minuteSeconds) {
+      const totalSeconds = Math.max(1, Math.round(diffSeconds))
+      const minutes = Math.floor(totalSeconds / minuteSeconds)
+      const seconds = totalSeconds % minuteSeconds
+      unitKey = minutes === 1 ? 'min' : 'mins'
+      text = `${minutes} ${t(`time.${unitKey}`)}`
+      if (seconds > 0) {
+        const secondKey = seconds === 1 ? 'second' : 'seconds'
+        text += `, ${seconds} ${t(`time.${secondKey}`)}`
+      }
+    } else {
+      value = Math.round(diffSeconds)
+      unitKey = value === 1 ? 'second' : 'seconds'
+      text = `${value} ${t(`time.${unitKey}`)}`
+    }
+
+    dateInfo.time = `${text}${isAfter ? '' : ` ${t('time.ago')}`}`
   }
   return dateInfo
 }

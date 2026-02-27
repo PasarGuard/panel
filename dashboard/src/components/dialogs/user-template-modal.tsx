@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { LoaderButton } from '@/components/ui/loader-button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.tsx'
 import { Switch } from '@/components/ui/switch.tsx'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -11,6 +12,7 @@ import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils.ts'
 import {
   DataLimitResetStrategy,
+  getGetGroupsSimpleQueryKey,
   getGetUserTemplatesQueryKey,
   getGetUserTemplatesSimpleQueryKey,
   ShadowsocksMethods,
@@ -20,10 +22,11 @@ import {
   XTLSFlows,
 } from '@/service/api'
 import { queryClient } from '@/utils/query-client.ts'
-import { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ChevronDown } from 'lucide-react'
 import type { UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 
 interface UserTemplatesModalprops {
@@ -34,6 +37,85 @@ interface UserTemplatesModalprops {
   editingUserTemplateId?: number
 }
 
+const StatusSelect = ({
+  value,
+  onValueChange,
+  placeholder,
+  children,
+}: {
+  value?: string
+  onValueChange?: (value: string) => void
+  placeholder?: string
+  children: React.ReactNode
+}) => {
+  const [open, setOpen] = useState(false)
+  const { t } = useTranslation()
+
+  const handleSelect = (selectedValue: string) => {
+    onValueChange?.(selectedValue)
+    setOpen(false)
+  }
+
+  const getStatusText = (statusValue?: string) => {
+    if (!statusValue) return placeholder || t('status.active', { defaultValue: 'Active' })
+
+    switch (statusValue) {
+      case UserStatusCreate.active:
+        return t('status.active', { defaultValue: 'Active' })
+      case UserStatusCreate.on_hold:
+        return t('status.on_hold', { defaultValue: 'On Hold' })
+      default:
+        return placeholder || t('status.active', { defaultValue: 'Active' })
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="h-9 w-full justify-between px-3 py-2 text-sm">
+          <span className="truncate">{getStatusText(value)}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
+        {React.Children.map(children, child => {
+          if (React.isValidElement(child) && child.props.value) {
+            return React.cloneElement(child, {
+              onSelect: handleSelect,
+            })
+          }
+          return child
+        })}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+const StatusSelectItem = ({ value, children, onSelect }: { value: string; children: React.ReactNode; onSelect?: (value: string) => void }) => {
+  const getDotColor = () => {
+    switch (value) {
+      case UserStatusCreate.active:
+        return 'bg-green-500'
+      case UserStatusCreate.on_hold:
+        return 'bg-violet-500'
+      default:
+        return 'bg-gray-500'
+    }
+  }
+
+  return (
+    <div
+      className="relative flex w-full min-w-0 cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+      onClick={() => onSelect?.(value)}
+    >
+      <span className="min-w-0 flex-1 truncate pr-2">{children}</span>
+      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+        <div className={`h-2 w-2 rounded-full ${getDotColor()}`} />
+      </span>
+    </div>
+  )
+}
+
 export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, editingUserTemplate, editingUserTemplateId }: UserTemplatesModalprops) {
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -42,6 +124,13 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const modifyUserTemplateMutation = useModifyUserTemplate()
   const [timeType, setTimeType] = useState<'seconds' | 'hours' | 'days'>('seconds')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isDialogOpen) return
+    queryClient.invalidateQueries({
+      queryKey: getGetGroupsSimpleQueryKey({ all: true }),
+    })
+  }, [isDialogOpen])
 
   const onSubmit = async (values: UserTemplatesFromValueInput) => {
     setLoading(true)
@@ -150,17 +239,16 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                     render={({ field }) => (
                       <FormItem className="w-full">
                         <FormLabel>{t('templates.status')}</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={t('status.active', { defaultValue: 'Active' })} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value={UserStatusCreate.active}>{t('status.active')}</SelectItem>
-                            <SelectItem value={UserStatusCreate.on_hold}>{t('status.on_hold')}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <StatusSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder={t('status.active', { defaultValue: 'Active' })}
+                          >
+                            <StatusSelectItem value={UserStatusCreate.active}>{t('status.active', { defaultValue: 'Active' })}</StatusSelectItem>
+                            <StatusSelectItem value={UserStatusCreate.on_hold}>{t('status.on_hold', { defaultValue: 'On Hold' })}</StatusSelectItem>
+                          </StatusSelect>
+                        </FormControl>
                       </FormItem>
                     )}
                   />
@@ -427,8 +515,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>
-              <LoaderButton type="submit" isLoading={loading} loadingText={editingUserTemplate ? t('modifying') : t('creating')}>
-                {editingUserTemplate ? t('save') : t('create')}
+              <LoaderButton type="submit" isLoading={loading} loadingText={editingUserTemplate ? t('modifying', { defaultValue: 'Modifying...' }) : t('creating')}>
+                {editingUserTemplate ? t('modify', { defaultValue: 'Modify' }) : t('create')}
               </LoaderButton>
             </div>
           </form>

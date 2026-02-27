@@ -17,12 +17,14 @@ export const setupColumns = ({
   filters,
   handleStatusFilter,
   dir,
+  showCreatedBy,
 }: {
   t: (key: string) => string
   handleSort: (column: string, fromDropdown?: boolean) => void
   filters: { sort: string; status?: UserStatus | null; [key: string]: unknown }
   handleStatusFilter: (value: string | UserStatus) => void
   dir: string
+  showCreatedBy: boolean
 }): ColumnDef<UserResponse>[] => [
   {
     accessorKey: 'username',
@@ -91,7 +93,7 @@ export const setupColumns = ({
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
                 {onlineTimeText && <span className="hidden shrink-0 text-[10px] font-normal text-muted-foreground md:inline">{onlineTimeText}</span>}
               </div>
-              {row.original.admin?.username && (
+              {showCreatedBy && row.original.admin?.username && (
                 <span className="flex items-center gap-x-0.5 overflow-hidden text-xs font-normal text-muted-foreground">
                   <span className="hidden sm:block">{t('created')}</span>
                   <span>{t('by')}</span>

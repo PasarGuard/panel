@@ -51,19 +51,18 @@ from app.models.user import (
     ModifyUserByTemplate,
     RemoveUsersResponse,
     UserCreate,
-    UserSimple,
-    UsersSimpleResponse,
     UserModify,
     UsernameGenerationStrategy,
     UserNotificationResponse,
     UserResponse,
+    UserSimple,
     UsersResponse,
+    UsersSimpleResponse,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateList,
 )
-from app.node.sync import remove_user as sync_remove_user
-from app.node.sync import sync_user, sync_users
+from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
@@ -83,9 +82,9 @@ class UserOperation(BaseOperation):
 
     @staticmethod
     def _format_validation_errors(error: ValidationError) -> str:
-        return "; ".join(
-            [f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()]
-        )
+        return "; ".join([
+            f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()
+        ])
 
     @staticmethod
     async def generate_subscription_url(user: UserNotificationResponse):
@@ -105,7 +104,14 @@ class UserOperation(BaseOperation):
         count: int,
         strategy: UsernameGenerationStrategy,
         start_number: int | None = None,
+        username_prefix: str | None = None,
+        username_suffix: str | None = None,
     ) -> list[str]:
+        def _apply_affixes(candidate: str) -> str:
+            return (
+                f"{username_prefix if username_prefix else ''}{candidate}{username_suffix if username_suffix else ''}"
+            )
+
         if count <= 0:
             await self.raise_error(message="count must be greater than zero", code=400)
         if start_number is not None and start_number < 0:
@@ -125,7 +131,7 @@ class UserOperation(BaseOperation):
                 attempts += 1
                 if attempts > max_attempts:
                     await self.raise_error(message="unable to generate unique usernames", code=500)
-                candidate = secrets.token_hex(6)
+                candidate = _apply_affixes(secrets.token_hex(6))
                 if candidate in seen:
                     continue
                 seen.add(candidate)
@@ -136,7 +142,13 @@ class UserOperation(BaseOperation):
             if not base_username:
                 await self.raise_error(message="base username is required for sequence strategy", code=400)
 
-            prefix = base_username
+            sequence_base_username = _apply_affixes(base_username)
+
+            if 3 <= len(sequence_base_username) <= 128:
+                await self.raise_error(
+                    message="base username with affixes must be between 3 and 128 characters", code=400
+                )
+
             width = 0
             inferred_start_number = 1
 
@@ -146,7 +158,7 @@ class UserOperation(BaseOperation):
                 suffix = str(current)
                 if width:
                     suffix = suffix.zfill(width)
-                generated.append(f"{prefix}{suffix}")
+                generated.append(f"{sequence_base_username}{suffix}")
                 current += 1
             return generated
 
@@ -620,15 +632,25 @@ class UserOperation(BaseOperation):
 
         return user_args
 
-    def _build_user_create_from_template(
-        self, user_template: UserTemplate, payload: CreateUserFromTemplate
-    ) -> UserCreate:
-        new_user_args = self.load_base_user_args(user_template)
-        new_user_args["username"] = (
+    @staticmethod
+    def _apply_template_username_affixes(username: str, user_template: UserTemplate) -> str:
+        return (
             f"{user_template.username_prefix if user_template.username_prefix else ''}"
-            f"{payload.username}"
+            f"{username}"
             f"{user_template.username_suffix if user_template.username_suffix else ''}"
         )
+
+    def _build_user_create_from_template(
+        self,
+        user_template: UserTemplate,
+        payload: CreateUserFromTemplate,
+        apply_template_username_affixes: bool = True,
+    ) -> UserCreate:
+        new_user_args = self.load_base_user_args(user_template)
+        username = payload.username
+        if apply_template_username_affixes:
+            username = self._apply_template_username_affixes(username, user_template)
+        new_user_args["username"] = username
 
         try:
             new_user = UserCreate(**new_user_args, note=payload.note)
@@ -711,6 +733,8 @@ class UserOperation(BaseOperation):
             count=bulk_users.count,
             strategy=bulk_users.strategy,
             start_number=bulk_users.start_number,
+            username_prefix=user_template.username_prefix,
+            username_suffix=user_template.username_suffix,
         )
 
         def builder(username: str):
@@ -719,7 +743,11 @@ class UserOperation(BaseOperation):
                 user_template_id=template_payload.user_template_id,
                 note=template_payload.note,
             )
-            return self._build_user_create_from_template(user_template, payload)
+            return self._build_user_create_from_template(
+                user_template,
+                payload,
+                apply_template_username_affixes=False,
+            )
 
         users_to_create = self._build_bulk_user_models(candidate_usernames, builder)
 

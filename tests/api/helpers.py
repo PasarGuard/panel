@@ -214,6 +214,8 @@ def create_user_template(
     extra_settings: dict[str, Any] | None = None,
     status_value: str = "active",
     reset_usages: bool = True,
+    username_prefix: str | None = None,
+    username_suffix: str | None = None,
 ) -> dict:
     payload = {
         "name": name or unique_name("user_template"),
@@ -224,6 +226,10 @@ def create_user_template(
         "status": status_value,
         "reset_usages": reset_usages,
     }
+    if username_prefix is not None:
+        payload["username_prefix"] = username_prefix
+    if username_suffix is not None:
+        payload["username_suffix"] = username_suffix
     response = client.post("/api/user_template", headers=auth_headers(access_token), json=payload)
     assert response.status_code == status.HTTP_201_CREATED
     return response.json()

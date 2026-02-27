@@ -167,6 +167,7 @@ export default function UserTemplates() {
             isLoading={isCurrentlyLoading}
             loadingRows={6}
             className="gap-3"
+            onRowClick={handleEdit}
             mode={viewMode}
             showEmptyState={false}
             gridClassName="transform-gpu animate-slide-up"

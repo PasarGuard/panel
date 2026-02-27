@@ -92,6 +92,28 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                     )
                   }}
                 />
+                {isSudo && (
+                  <FormField
+                    control={form.control}
+                    name="show_created_by"
+                    render={({ field }) => {
+                      return (
+                        <FormItem className="flex w-full flex-1 items-center justify-between">
+                          <FormLabel>{t('advanceSearch.showCreatedBy', { defaultValue: 'Show created by' })}</FormLabel>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={checked => {
+                                field.onChange(checked)
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
+                  />
+                )}
                 <FormField
                   control={form.control}
                   name="group"

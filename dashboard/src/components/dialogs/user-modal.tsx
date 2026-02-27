@@ -1,8 +1,13 @@
 import { DatePicker } from '@/components/common/date-picker'
 import GroupsSelector from '@/components/common/groups-selector'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
+import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
+import UsageModal from '@/components/dialogs/usage-modal'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -10,12 +15,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
 import { type UseEditFormValues, type UseFormValues, userCreateSchema, userEditSchema } from '@/components/forms/user-form'
 import {
   getGeneralSettings,
+  getGetGroupsSimpleQueryKey,
   getGetGeneralSettingsQueryKey,
   useCreateUser,
   useCreateUserFromTemplate,
@@ -23,6 +30,8 @@ import {
   useGetUserTemplatesSimple,
   useModifyUser,
   useModifyUserWithTemplate,
+  useResetUserDataUsage,
+  useRevokeUserSubscription,
   type UserResponse,
   type UsersResponse,
 } from '@/service/api'
@@ -30,7 +39,7 @@ import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } fr
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Layers, ListStart, Lock, RefreshCcw, Users } from 'lucide-react'
+import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Users } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -104,9 +113,7 @@ const ExpiryDateField = ({
   const handleShortcut = React.useCallback(
     (days: number) => {
       const baseDate = displayDate || new Date()
-      const targetDate = new Date(baseDate)
-      targetDate.setDate(baseDate.getDate() + days)
-      // Preserve time from base date
+      const targetDate = parseDateInput(baseDate).add(days, 'day').toDate()
       handleDateChange(targetDate)
     },
     [handleDateChange, displayDate],
@@ -281,7 +288,9 @@ const StatusSelectItem = ({ value, children, onSelect }: { value: string; childr
 }
 
 export default function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserId, editingUserData, onSuccessCallback }: UserModalProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const { admin } = useAdmin()
+  const isSudo = admin?.is_sudo ?? false
   const dir = useDirDetection()
   const handleError = useDynamicErrorHandler()
   const [loading, setLoading] = useState(false)
@@ -296,6 +305,12 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
   const [expireCalendarOpen, setExpireCalendarOpen] = useState(false)
   const [onHoldCalendarOpen, setOnHoldCalendarOpen] = useState(false)
+  const [isResetUsageDialogOpen, setResetUsageDialogOpen] = useState(false)
+  const [isRevokeSubDialogOpen, setRevokeSubDialogOpen] = useState(false)
+  const [isUserAllIPsModalOpen, setUserAllIPsModalOpen] = useState(false)
+  const [isUsageModalOpen, setUsageModalOpen] = useState(false)
+  const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
+  const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
 
   // Watch next plan values directly for reactivity
   const nextPlanUserTemplateId = form.watch('next_plan.user_template_id')
@@ -308,11 +323,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
   const hasNextPlanData = React.useMemo(() => {
     const nextPlan = form.getValues('next_plan')
-    
+
     if (!nextPlan || nextPlan === null || nextPlan === undefined) {
       return false
     }
-    
+
     return (
       (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
       (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
@@ -328,6 +343,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       setOnHoldCalendarOpen(false)
       setNextPlanEnabled(false)
       setNextPlanManuallyDisabled(false)
+      setActionsMenuOpen(false)
     } else {
       setNextPlanManuallyDisabled(false)
       if (editingUser) {
@@ -339,22 +355,22 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           // Prevent stale form data from overriding explicit nulls.
           form.setValue('next_plan', undefined, { shouldValidate: false, shouldDirty: false })
         }
-        
+
         // Use editingUserData if form doesn't have it yet, otherwise use form value
         const nextPlan = nextPlanFromData === null
           ? null
-          : (nextPlanFromForm !== null && nextPlanFromForm !== undefined 
-              ? nextPlanFromForm 
-              : nextPlanFromData)
-        
-        const hasData = nextPlan !== null && 
-                       nextPlan !== undefined && 
-                       typeof nextPlan === 'object' && (
-          (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
-          (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
-          (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
-          (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
-        )
+          : (nextPlanFromForm !== null && nextPlanFromForm !== undefined
+            ? nextPlanFromForm
+            : nextPlanFromData)
+
+        const hasData = nextPlan !== null &&
+          nextPlan !== undefined &&
+          typeof nextPlan === 'object' && (
+            (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
+            (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
+            (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
+            (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
+          )
         setNextPlanEnabled(!!hasData)
       } else {
         // For create mode, always start with switch off
@@ -553,6 +569,30 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     }
   }
 
+  const updateUserInCache = (updatedUser: UserResponse) => {
+    queryClient.setQueriesData<UsersResponse>(
+      {
+        queryKey: ['/api/users'],
+        exact: false,
+      },
+      oldData => {
+        if (!oldData) return oldData
+
+        const updatedUsers = oldData.users.map(u => (u.username === updatedUser.username ? updatedUser : u))
+
+        return {
+          ...oldData,
+          users: updatedUsers,
+        }
+      },
+    )
+
+    queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
+    queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
+    queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
+    queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
+  }
+
   const createUserMutation = useCreateUser({
     mutation: {
       onSuccess: data => refreshUserData(data),
@@ -575,6 +615,24 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       onSuccess: data => refreshUserData(data, true),
     },
   })
+  const resetUserDataUsageMutation = useResetUserDataUsage({
+    mutation: {
+      onSuccess: updatedUser => {
+        if (updatedUser) {
+          updateUserInCache(updatedUser)
+        }
+      },
+    },
+  })
+  const revokeUserSubscriptionMutation = useRevokeUserSubscription({
+    mutation: {
+      onSuccess: updatedUser => {
+        if (updatedUser) {
+          updateUserInCache(updatedUser)
+        }
+      },
+    },
+  })
 
   useEffect(() => {
     // When the dialog closes, reset errors
@@ -582,6 +640,13 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       form.clearErrors()
     }
   }, [isDialogOpen, form])
+
+  useEffect(() => {
+    if (!isDialogOpen) return
+    queryClient.invalidateQueries({
+      queryKey: getGetGroupsSimpleQueryKey({ all: true }),
+    })
+  }, [isDialogOpen, queryClient])
 
   useEffect(() => {
     // Set form validation schema
@@ -675,20 +740,20 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     // Check both form values and editingUserData prop for next_plan
     const nextPlanFromForm = form.getValues('next_plan')
     const nextPlanFromData = editingUserData?.next_plan
-    
+
     // Use editingUserData if form doesn't have it yet, otherwise use form value
-    const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined 
-      ? nextPlanFromForm 
+    const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined
+      ? nextPlanFromForm
       : nextPlanFromData
-    
-    const hasDataFromForm = nextPlan !== null && 
-                           nextPlan !== undefined && 
-                           typeof nextPlan === 'object' && (
-      (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
-      (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
-      (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
-      (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
-    )
+
+    const hasDataFromForm = nextPlan !== null &&
+      nextPlan !== undefined &&
+      typeof nextPlan === 'object' && (
+        (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
+        (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
+        (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
+        (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
+      )
 
     const hasData = hasDataFromForm
 
@@ -802,11 +867,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       const fieldsToValidate = isSubmit
         ? currentValues
         : Object.keys(touchedFields).reduce((acc, key) => {
-            if (touchedFields[key]) {
-              acc[key] = currentValues[key]
-            }
-            return acc
-          }, {} as any)
+          if (touchedFields[key]) {
+            acc[key] = currentValues[key]
+          }
+          return acc
+        }, {} as any)
 
       // If no fields are touched, clear errors and return true
       if (!isSubmit && Object.keys(fieldsToValidate).length === 0) {
@@ -1031,26 +1096,30 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         // Clean proxy settings to ensure proper enum values
         const cleanedProxySettings = hasProxySettings
           ? {
-              ...values.proxy_settings,
-              vless: values.proxy_settings?.vless
-                ? {
-                    ...values.proxy_settings.vless,
-                    flow: values.proxy_settings.vless.flow || undefined,
-                  }
-                : undefined,
-              shadowsocks: values.proxy_settings?.shadowsocks
-                ? {
-                    ...values.proxy_settings.shadowsocks,
-                    method: values.proxy_settings.shadowsocks.method || undefined,
-                  }
-                : undefined,
-            }
+            ...values.proxy_settings,
+            vless: values.proxy_settings?.vless
+              ? {
+                ...values.proxy_settings.vless,
+                flow: values.proxy_settings.vless.flow || undefined,
+              }
+              : undefined,
+            shadowsocks: values.proxy_settings?.shadowsocks
+              ? {
+                ...values.proxy_settings.shadowsocks,
+                method: values.proxy_settings.shadowsocks.method || undefined,
+              }
+              : undefined,
+          }
           : undefined
+
+        const normalizedDataLimitGb = Number(preparedValues.data_limit ?? 0)
+        const hasDataLimit = Number.isFinite(normalizedDataLimitGb) && normalizedDataLimitGb > 0
 
         // Prepare next plan data
         const sendValues: any = {
           ...preparedValues,
-          data_limit: gbToBytes(preparedValues.data_limit as any),
+          data_limit: gbToBytes(normalizedDataLimitGb as any),
+          data_limit_reset_strategy: hasDataLimit ? preparedValues.data_limit_reset_strategy : 'no_reset',
           expire: preparedValues.expire,
           ...(hasProxySettings ? { proxy_settings: cleanedProxySettings } : {}),
         }
@@ -1059,7 +1128,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         if (nextPlanEnabled) {
           // Switch is ON - always send next_plan with defaults or existing data
           const nextPlan = values.next_plan || form.getValues('next_plan') || {}
-          
+
           if (nextPlan.user_template_id) {
             // Template selected - include numeric fields to avoid backend nulls in next_plan.
             sendValues.next_plan = {
@@ -1176,7 +1245,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     const arr = password.split('')
     for (let i = arr.length - 1; i > 0; i--) {
       const j = getRandomInt(i + 1)
-      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+        ;[arr[i], arr[j]] = [arr[j], arr[i]]
     }
     return arr.join('')
   }
@@ -1216,6 +1285,101 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       <RefreshCcw className="h-3 w-3" />
     </Button>
   )
+
+  const currentUsername = editingUserData?.username || form.getValues('username')
+  const isPersianLocale = i18n.language?.toLowerCase().startsWith('fa')
+  const formatMetaDate = React.useCallback(
+    (value?: string | number | null) => {
+      if (!value) return ''
+      const parsed = parseDateInput(value)
+      if (!parsed.isValid()) return ''
+      const date = parsed.toDate()
+      const locale = isPersianLocale ? 'fa-IR' : 'en-US'
+      return (
+        date.toLocaleDateString(locale, {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }) +
+        ' ' +
+        date.toLocaleTimeString(locale, {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+      )
+    },
+    [isPersianLocale],
+  )
+
+  const createdAtText = React.useMemo(() => {
+    return formatMetaDate(editingUserData?.created_at)
+  }, [editingUserData?.created_at, formatMetaDate])
+
+  const editedAtText = React.useMemo(() => {
+    return formatMetaDate(editingUserData?.edit_at)
+  }, [editingUserData?.edit_at, formatMetaDate])
+
+  const confirmResetUsage = async () => {
+    if (!currentUsername) return
+    try {
+      await resetUserDataUsageMutation.mutateAsync({ username: currentUsername })
+      toast.success(t('usersTable.resetUsageSuccess', { name: currentUsername }))
+      setResetUsageDialogOpen(false)
+    } catch (error: any) {
+      toast.error(t('usersTable.resetUsageFailed', { name: currentUsername, error: error?.message || '' }))
+    }
+  }
+
+  const confirmRevokeSubscription = async () => {
+    if (!currentUsername) return
+    try {
+      await revokeUserSubscriptionMutation.mutateAsync({ username: currentUsername })
+      toast.success(t('userDialog.revokeSubSuccess', { name: currentUsername }))
+      setRevokeSubDialogOpen(false)
+    } catch (error: any) {
+      toast.error(t('revokeUserSub.error', { name: currentUsername, error: error?.message || '' }))
+    }
+  }
+
+  const renderUserMetaPanel = (extraClassName?: string) => {
+    if (!editingUser) return null
+
+    return (
+      <div className={cn('mt-3 space-y-3', extraClassName)}>
+        <Accordion type="multiple" className="w-full">
+          <AccordionItem value="meta-details" className="mt-2 rounded-sm border bg-background px-2">
+            <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+              <span className="flex items-center gap-1.5">
+                <Info className="h-3.5 w-3.5" />
+                {t('details', { defaultValue: 'Details' })}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-2">
+              <div className="space-y-1.5 rounded-md border bg-background p-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <CalendarPlus className="h-3.5 w-3.5" />
+                    {t('createdAt', { defaultValue: 'Created at' })}
+                  </span>
+                  <span dir='ltr' className="text-right">{createdAtText}</span>
+                </div>
+                {editedAtText && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      {t('editedAt', { defaultValue: 'Edited at' })}
+                    </span>
+                    <span dir='ltr' className="text-right">{editedAtText}</span>
+                  </div>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+    )
+  }
 
   useEffect(() => {
     // Log form state when dialog opens
@@ -2173,6 +2337,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                       )}
                     </div>
                   )}
+                  {renderUserMetaPanel('hidden lg:block')}
                 </div>
                 <div className="h-full w-full flex-1 space-y-6">
                   <div className="w-full">
@@ -2181,9 +2346,8 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                          className={`relative flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                            activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                          }`}
+                          className={`relative flex-1 px-3 py-2 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                            }`}
                           type="button"
                         >
                           <div className="flex items-center justify-center gap-1.5">
@@ -2253,79 +2417,173 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                   </div>
                 </div>
               </div>
+              {renderUserMetaPanel('mt-4 lg:hidden')}
             </div>
             {/* Cancel/Create buttons - always visible */}
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={e => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onOpenChange(false)
-                }}
-              >
-                {t('cancel', { defaultValue: 'Cancel' })}
-              </Button>
-              <LoaderButton
-                type="submit"
-                isLoading={loading}
-                disabled={!isFormValid}
-                loadingText={editingUser ? t('modifying') : t('creating')}
-                onClick={e => {
-                  if (!isFormValid) {
+            <div className="mt-4 flex flex-row items-center justify-end gap-3 overflow-x-auto">
+              {editingUser && (
+                <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label={t('actions', { defaultValue: 'Actions' })}
+                      className="group h-10 w-10 border-border/70 bg-background/80 shadow-sm backdrop-blur transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=open]:border-primary/50 data-[state=open]:bg-primary/10"
+                    >
+                      <EllipsisVertical className="h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground group-data-[state=open]:rotate-90 group-data-[state=open]:text-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    onEscapeKeyDown={() => setActionsMenuOpen(false)}
+                    onPointerDownOutside={() => setActionsMenuOpen(false)}
+                    onInteractOutside={() => setActionsMenuOpen(false)}
+                  >
+                    {isSudo && (
+                      <DropdownMenuItem onSelect={() => {
+                        setActionsMenuOpen(false)
+                        setUserAllIPsModalOpen(true)
+                      }}>
+                        <Network className="mr-2 h-4 w-4" />
+                        <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onSelect={() => {
+                      setActionsMenuOpen(false)
+                      setUsageModalOpen(true)
+                    }}>
+                      <PieChart className="mr-2 h-4 w-4" />
+                      <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => {
+                      setActionsMenuOpen(false)
+                      setSubscriptionClientsModalOpen(true)
+                    }}>
+                      <Users className="mr-2 h-4 w-4" />
+                      <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => {
+                      setActionsMenuOpen(false)
+                      setRevokeSubDialogOpen(true)
+                    }}>
+                      <Link2Off className="mr-2 h-4 w-4" />
+                      <span>{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => {
+                      setActionsMenuOpen(false)
+                      setResetUsageDialogOpen(true)
+                    }}>
+                      <RefreshCcw className="mr-2 h-4 w-4" />
+                      <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              <div className="flex shrink-0 items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={e => {
                     e.preventDefault()
                     e.stopPropagation()
+                    onOpenChange(false)
+                  }}
+                >
+                  {t('cancel', { defaultValue: 'Cancel' })}
+                </Button>
+                <LoaderButton
+                  type="submit"
+                  isLoading={loading}
+                  disabled={!isFormValid}
+                  loadingText={editingUser ? t('modifying') : t('creating')}
+                  onClick={e => {
+                    if (!isFormValid) {
+                      e.preventDefault()
+                      e.stopPropagation()
 
-                    // Check what's missing and show appropriate toast
-                    const currentValues = form.getValues()
+                      // Check what's missing and show appropriate toast
+                      const currentValues = form.getValues()
 
-                    if (selectedTemplateId) {
-                      // Template mode - only username required
-                      if (!currentValues.username || currentValues.username.length < 3) {
-                        toast.error(t('validation.required', { field: t('username', { defaultValue: 'Username' }) }))
-                      }
-                    } else {
-                      // Regular mode - check required fields
-                      const missingFields = []
-
-                      if (!currentValues.username || currentValues.username.length < 3) {
-                        missingFields.push(t('username', { defaultValue: 'Username' }))
-                      }
-
-                      if (!currentValues.group_ids || !Array.isArray(currentValues.group_ids) || currentValues.group_ids.length === 0) {
-                        missingFields.push(t('groups', { defaultValue: 'Groups' }))
-                      }
-
-                      if (!currentValues.status) {
-                        missingFields.push(t('status', { defaultValue: 'Status' }))
-                      }
-
-                      if (currentValues.status === 'on_hold' && (!currentValues.on_hold_expire_duration || currentValues.on_hold_expire_duration <= 0)) {
-                        missingFields.push(t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }))
-                      }
-
-                      if (missingFields.length > 0) {
-                        toast.error(
-                          t('validation.missingFields', {
-                            fields: missingFields.join(', '),
-                            defaultValue: 'Please fill in the required fields: {{fields}}',
-                          }),
-                        )
+                      if (selectedTemplateId) {
+                        // Template mode - only username required
+                        if (!currentValues.username || currentValues.username.length < 3) {
+                          toast.error(t('validation.required', { field: t('username', { defaultValue: 'Username' }) }))
+                        }
                       } else {
-                        toast.error(t('validation.formInvalid', { defaultValue: 'Form is invalid. Please check all fields.' }))
+                        // Regular mode - check required fields
+                        const missingFields = []
+
+                        if (!currentValues.username || currentValues.username.length < 3) {
+                          missingFields.push(t('username', { defaultValue: 'Username' }))
+                        }
+
+                        if (!currentValues.group_ids || !Array.isArray(currentValues.group_ids) || currentValues.group_ids.length === 0) {
+                          missingFields.push(t('groups', { defaultValue: 'Groups' }))
+                        }
+
+                        if (!currentValues.status) {
+                          missingFields.push(t('status', { defaultValue: 'Status' }))
+                        }
+
+                        if (currentValues.status === 'on_hold' && (!currentValues.on_hold_expire_duration || currentValues.on_hold_expire_duration <= 0)) {
+                          missingFields.push(t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }))
+                        }
+
+                        if (missingFields.length > 0) {
+                          toast.error(
+                            t('validation.missingFields', {
+                              fields: missingFields.join(', '),
+                              defaultValue: 'Please fill in the required fields: {{fields}}',
+                            }),
+                          )
+                        } else {
+                          toast.error(t('validation.formInvalid', { defaultValue: 'Form is invalid. Please check all fields.' }))
+                        }
                       }
                     }
-                  }
-                }}
-              >
-                {editingUser ? t('modify', { defaultValue: 'Modify' }) : t('create', { defaultValue: 'Create' })}
-              </LoaderButton>
+                  }}
+                >
+                  {editingUser ? t('modify', { defaultValue: 'Modify' }) : t('create', { defaultValue: 'Create' })}
+                </LoaderButton>
+              </div>
             </div>
           </form>
         </Form>
       </DialogContent>
-      {/* Subscription Clients Modal */}
+      <AlertDialog open={isResetUsageDialogOpen} onOpenChange={setResetUsageDialogOpen}>
+        <AlertDialogContent dir={dir}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('usersTable.resetUsageTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('usersTable.resetUsagePrompt', { name: currentUsername })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
+            <AlertDialogCancel>{t('usersTable.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmResetUsage} disabled={resetUserDataUsageMutation.isPending}>
+              {t('usersTable.resetUsageSubmit')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isRevokeSubDialogOpen} onOpenChange={setRevokeSubDialogOpen}>
+        <AlertDialogContent dir={dir}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('revokeUserSub.title')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('revokeUserSub.prompt', { username: currentUsername })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
+            <AlertDialogCancel>{t('usersTable.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRevokeSubscription} disabled={revokeUserSubscriptionMutation.isPending}>
+              {t('revokeUserSub.title')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {isSudo && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
+      {currentUsername && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={currentUsername} />}
+      {currentUsername && <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={currentUsername} />}
     </Dialog>
   )
 }

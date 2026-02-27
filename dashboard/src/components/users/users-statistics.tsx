@@ -84,7 +84,7 @@ const UsersStatistics = () => {
         </div>
 
       {/* Total Users */}
-      <div className="w-full animate-fade-in" style={{ animationDuration: '600ms', animationDelay: '250ms' }}>
+      <div className="w-full animate-fade-in sm:col-span-2 lg:col-span-1" style={{ animationDuration: '600ms', animationDelay: '250ms' }}>
         <Card dir={dir} className="group relative w-full overflow-hidden rounded-md px-4 py-6 transition-all duration-500">
             <div
               className={cn(

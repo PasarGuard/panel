@@ -88,6 +88,7 @@
     "noNodesDescription": "Главная панель не имеет настроенных ядер. Вам нужно добавить и настроить узел из",
     "noNodesDescription2": "подключить и настроить его к панели.",
     "noSearchResults": "Нет узлов, соответствующих вашим критериям поиска. Попробуйте изменить условия поиска.",
+    "noFilteredResults": "Узлы не найдены",
     "logs": {
       "title": "Журналы",
       "description": "Просмотр и мониторинг журналов узла",
@@ -341,6 +342,7 @@
         "method": "Метод подключения",
         "methodPlaceholder": "Выберите метод подключения",
         "methodDescription": "Выберите, как бот получает обновления от Telegram",
+        "longPollingDisabledInMultiWorker": "Длинный опрос отключен в режиме multi-worker.",
         "webhook": "Webhook",
         "longPolling": "Long Polling",
         "proxyUrl": "URL прокси",
@@ -532,6 +534,9 @@
   "test": "Тест",
   "testing": "Тестирование",
   "confirm": "Подтвердить",
+  "actions": "Действия",
+  "details": "Детали",
+  "editedAt": "Изменено",
   "admins": {
     "title": "Администраторы",
     "description": "Управление системными администраторами",
@@ -927,6 +932,7 @@
   "statistics.networkSpeed": "Скорость сети",
   "statistics.ramUsage": "Использование RAM",
   "statistics.cpuUsage": "Использование CPU",
+  "statistics.diskUsage": "Использование диска",
   "statistics.cores": "ядер",
   "arrayInput": {
     "addPlaceholder": "Введите и нажмите Enter для добавления...",
@@ -984,6 +990,8 @@
     "randomUserAgent": "Использовать случайный User-Agent",
     "useSniAsHost": "Использовать SNI как хост",
     "echConfigList": "Список конфигураций ECH",
+    "echQueryStrategy": "Стратегия ECH-запроса",
+    "echQueryStrategy.info": "Стратегия ECH-запроса. Доступные значения: none, half, full.",
     "pinnedPeerCertSha256": "SHA256 закреплённого сертификата узла",
     "pinnedPeerCertSha256.info": "Необязательный пин публичного ключа сертификата (SHA-256) для TLS pinning.",
     "pinnedPeerCertSha256Placeholder": "Введите SHA-256 пин",
@@ -1479,7 +1487,14 @@
     "datePickerPreferenceSaved": "Предпочтение календаря сохранено",
     "datePickerModeLocale": "По языку",
     "datePickerModeGregorian": "Григорианский",
-    "datePickerModePersian": "Джалали"
+    "datePickerModePersian": "Джалали",
+    "chartViewType": "Вид диаграммы",
+    "chartViewDescription": "Выберите стиль диаграмм по умолчанию для графиков трафика.",
+    "chartViewBar": "Столбцы",
+    "chartViewArea": "Область",
+    "chartViewBarDescription": "Показывать трафик в виде столбцов.",
+    "chartViewAreaDescription": "Показывать трафик в виде диаграммы с областью.",
+    "chartViewSaved": "Предпочтение вида диаграммы сохранено"
   },
   "coreConfigModal": {
     "addConfig": "Добавить конфигурацию ядра",
@@ -1597,6 +1612,8 @@
   "copyFailed": "Не удалось скопировать",
   "more": "еще",
   "userDialog": {
+    "revokeSubscription": "Отозвать подписку",
+    "usage": "Использование",
     "deleteSuccess": "Пользователь «{{name}}» был успешно удалён.",
     "resetUsageSuccess": "Использование пользователя «{{name}}» было сброшено.",
     "revokeSubSuccess": "Подписка пользователя «{{name}}» была отозвана.",
@@ -1919,6 +1936,7 @@
     "title": "Расширенный поиск",
     "byUsername": "Имя пользователя и заметки",
     "byProtocol": "Данные протокола",
+    "showCreatedBy": "Показать создателя",
     "byStatus": "Статус",
     "byAdmin": "Администратор",
     "byGroup": "Группа",

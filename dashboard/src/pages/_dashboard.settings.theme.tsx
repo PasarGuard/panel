@@ -5,11 +5,11 @@ import { useTheme, colorThemes, type ColorTheme, type Radius } from '@/component
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { CheckCircle2, SunMoon, Palette, Ruler, Eye, RotateCcw, Sun, Moon, Monitor, CalendarClock, Languages } from 'lucide-react'
+import { CheckCircle2, SunMoon, Palette, Ruler, Eye, RotateCcw, Sun, Moon, Monitor, CalendarClock, Languages, BarChart3, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Switch } from '@/components/ui/switch'
-import { getDatePickerPreference, setDatePickerPreference, type DatePickerPreference } from '@/utils/userPreferenceStorage'
+import { getDatePickerPreference, getChartViewTypePreference, setDatePickerPreference, setChartViewTypePreference, type DatePickerPreference, type ChartViewType } from '@/utils/userPreferenceStorage'
 
 const colorThemeData = [
   { name: 'default', label: 'theme.default', dot: '#2563eb' },
@@ -37,12 +37,20 @@ const modeIcons: Record<(typeof modeOptions)[number], JSX.Element> = {
   system: <Monitor className="h-4 w-4 text-primary" />,
 }
 
+const chartViewOptions = ['bar', 'area'] as const
+
+const chartViewIcons: Record<(typeof chartViewOptions)[number], JSX.Element> = {
+  bar: <BarChart3 className="h-4 w-4 text-primary" />,
+  area: <TrendingUp className="h-4 w-4 text-primary" />,
+}
+
 export default function ThemeSettings() {
   const { t, i18n } = useTranslation()
   const { theme, colorTheme, radius, resolvedTheme, setTheme, setColorTheme, setRadius, resetToDefaults, isSystemTheme } = useTheme()
   const dir = useDirDetection()
   const [isResetting, setIsResetting] = useState(false)
   const [datePickerPreference, setDatePickerPreferenceState] = useState<DatePickerPreference>('locale')
+  const [chartViewType, setChartViewTypeState] = useState<ChartViewType>('bar')
   const isDatePickerFollowingLocale = datePickerPreference === 'locale'
   const defaultManualDatePreference: Exclude<DatePickerPreference, 'locale'> = i18n.language === 'fa' ? 'persian' : 'gregorian'
   const datePickerModeCopy: Record<DatePickerPreference, string> = {
@@ -50,9 +58,14 @@ export default function ThemeSettings() {
     gregorian: t('theme.datePickerModeGregorian'),
     persian: t('theme.datePickerModePersian'),
   }
+  const chartViewTypeCopy: Record<ChartViewType, string> = {
+    bar: t('theme.chartViewBar'),
+    area: t('theme.chartViewArea'),
+  }
 
   useEffect(() => {
     setDatePickerPreferenceState(getDatePickerPreference())
+    setChartViewTypeState(getChartViewTypePreference())
   }, [])
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
@@ -128,10 +141,23 @@ export default function ThemeSettings() {
     persistDatePickerPreference(preference)
   }
 
+  const handleChartViewTypeChange = (viewType: ChartViewType) => {
+    setChartViewTypeState(viewType)
+    setChartViewTypePreference(viewType)
+    toast.success(t('success'), {
+      description: `📊 ${t('theme.chartViewSaved')} • ${chartViewTypeCopy[viewType]}`,
+      duration: 2000,
+    })
+  }
+
   const handleResetToDefaults = async () => {
     setIsResetting(true)
     try {
       resetToDefaults()
+      setDatePickerPreferenceState('locale')
+      setDatePickerPreference('locale')
+      setChartViewTypeState('bar')
+      setChartViewTypePreference('bar')
       toast.success(t('success'), {
         description: '🔄 ' + t('theme.resetSuccess'),
         duration: 3000,
@@ -306,6 +332,42 @@ export default function ThemeSettings() {
             )}
           </div>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <p className="text-base font-semibold sm:text-lg">{t('theme.chartViewType')}</p>
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.chartViewDescription')}</p>
+        </div>
+        <RadioGroup value={chartViewType} onValueChange={value => handleChartViewTypeChange(value as ChartViewType)} className="grid gap-2 sm:grid-cols-2">
+          {chartViewOptions.map(option => (
+            <div dir={dir} key={option} className="relative">
+              <RadioGroupItem value={option} id={`chart-view-${option}`} className="peer sr-only" />
+              <Label
+                htmlFor={`chart-view-${option}`}
+                className={cn(
+                  'flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-4 py-3 text-sm transition-colors',
+                  'hover:border-primary/50 hover:bg-accent/40',
+                  'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5',
+                )}
+              >
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    {chartViewIcons[option]}
+                    <span className="font-medium">{option === 'bar' ? t('theme.chartViewBar') : t('theme.chartViewArea')}</span>
+                  </div>
+                  <span className="block text-xs leading-relaxed text-muted-foreground">
+                    {option === 'bar' ? t('theme.chartViewBarDescription') : t('theme.chartViewAreaDescription')}
+                  </span>
+                </div>
+                {chartViewType === option && <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary ltr:ml-auto rtl:mr-auto" />}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
       </section>
 
       <section className="space-y-3">

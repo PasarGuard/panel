@@ -1,5 +1,6 @@
 import ipaddress
 import math
+import os
 import secrets
 import socket
 from dataclasses import dataclass
@@ -21,6 +22,13 @@ class CPUStat:
     percent: float
 
 
+@dataclass
+class DiskStat:
+    total: int
+    used: int
+    free: int
+
+
 def cpu_usage() -> CPUStat:
     return CPUStat(cores=psutil.cpu_count(), percent=psutil.cpu_percent())
 
@@ -37,6 +45,17 @@ def memory_usage() -> MemoryStat:
         used = mem.used
 
     return MemoryStat(total=mem.total, used=used, free=mem.available)
+
+
+def disk_usage(path: str | None = None) -> DiskStat:
+    usage_path = path or os.path.abspath(os.sep)
+    try:
+        disk = psutil.disk_usage(usage_path)
+    except Exception:
+        # Fallback to the current working directory if root path is unavailable.
+        disk = psutil.disk_usage(".")
+
+    return DiskStat(total=disk.total, used=disk.used, free=disk.free)
 
 
 def random_password() -> str:

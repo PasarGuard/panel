@@ -9,6 +9,7 @@ from app.db.crud.admin import (
     AdminsSortingOptions,
     AdminsSortingOptionsSimple,
     create_admin,
+    find_admins_by_telegram_id,
     get_admin_usages,
     get_admins,
     get_admins_count,
@@ -39,6 +40,14 @@ class AdminOperation(BaseOperation):
 
     async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails) -> AdminDetails:
         """Create a new admin if the current admin has sudo privileges."""
+        if self.operator_type != OperatorType.CLI and new_admin.is_sudo:
+            await self.raise_error(message="Creating sudo admin via API is not allowed. Use pasarguard cli / tui.", code=403)
+
+        if new_admin.telegram_id is not None:
+            existing_admins = await find_admins_by_telegram_id(db, new_admin.telegram_id, limit=1)
+            if existing_admins:
+                await self.raise_error(message="Telegram ID is already assigned to another admin.", code=409, db=db)
+
         try:
             db_admin = await create_admin(db, new_admin)
         except IntegrityError:
@@ -56,10 +65,29 @@ class AdminOperation(BaseOperation):
     ) -> AdminDetails:
         """Modify an existing admin's details."""
         db_admin = await self.get_validated_admin(db, username=username)
-        if self.operator_type != OperatorType.CLI and db_admin.is_sudo:
+        if self.operator_type != OperatorType.CLI and not db_admin.is_sudo and modified_admin.is_sudo:
+            await self.raise_error(
+                message="Promoting admin to sudo via API is not allowed. Use pasarguard cli / tui instead.", code=403
+            )
+
+        if (
+            self.operator_type != OperatorType.CLI
+            and db_admin.is_sudo
+            and db_admin.username != current_admin.username
+        ):
             await self.raise_error(
                 message="You're not allowed to modify sudoer's account. Use pasarguard cli  / tui instead.", code=403
             )
+
+        if db_admin.username == current_admin.username and modified_admin.is_disabled is True:
+            await self.raise_error(message="You're not allowed to disable your own account.", code=403)
+
+        if modified_admin.telegram_id is not None:
+            existing_admins = await find_admins_by_telegram_id(
+                db, modified_admin.telegram_id, exclude_admin_id=db_admin.id, limit=1
+            )
+            if existing_admins:
+                await self.raise_error(message="Telegram ID is already assigned to another admin.", code=409, db=db)
 
         db_admin = await update_admin(db, db_admin, modified_admin)
 

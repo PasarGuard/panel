@@ -35,7 +35,7 @@ if DO_NOT_LOG_TELEGRAM_BOT:
 async def get_system_stats(
     admin_username: str | None = None, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
 ):
-    """Fetch system stats including memory, CPU, and user metrics."""
+    """Fetch system stats including memory, CPU, disk, and user metrics."""
     return await system_operator.get_system_stats(db, admin=admin, admin_username=admin_username)
 
 

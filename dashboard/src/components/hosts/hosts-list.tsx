@@ -152,6 +152,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
       priority: host.priority || 0,
       is_disabled: host.is_disabled || false,
       ech_config_list: host.ech_config_list || undefined,
+      ech_query_strategy: host.ech_query_strategy || undefined,
       pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
       verify_peer_cert_by_name: host.verify_peer_cert_by_name || [],
       fragment_settings: host.fragment_settings
@@ -320,6 +321,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         vless_route: host.vless_route || undefined,
         priority: host.priority ?? 0, // Use the same priority as the original host
         ech_config_list: host.ech_config_list,
+        ech_query_strategy: host.ech_query_strategy || undefined,
         pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
         fragment_settings: host.fragment_settings,
@@ -433,6 +435,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         vless_route: host.vless_route || undefined,
         priority: index, // New priority based on position
         ech_config_list: host.ech_config_list,
+        ech_query_strategy: host.ech_query_strategy || undefined,
         pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
         fragment_settings: host.fragment_settings,

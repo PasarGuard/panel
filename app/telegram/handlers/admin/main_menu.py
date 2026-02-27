@@ -55,3 +55,22 @@ async def sync_users(event: CallbackQuery, db: AsyncSession, admin: AdminDetails
         pass
 
     await event.answer(Texts.synced)
+
+
+@router.callback_query(IsAdminSUDO(), AdminPanel.Callback.filter(AdminPanelAction.reconnect_all_nodes == F.action))
+async def reconnect_all_nodes(event: CallbackQuery, db: AsyncSession, admin: AdminDetails):
+    await event.answer(Texts.reconnecting_nodes)
+    await node_operator.restart_all_node(db=db, admin=admin)
+    try:
+        stats = await system_operator.get_system_stats(db, admin)
+        settings = await telegram_settings()
+        await event.message.edit_text(
+            text=Texts.start(stats),
+            reply_markup=AdminPanel(
+                is_sudo=admin.is_sudo, panel_url=settings.mini_app_web_url if settings.mini_app_login else None
+            ).as_markup(),
+        )
+    except TelegramBadRequest:
+        pass
+
+    await event.answer(Texts.nodes_reconnected)

@@ -1,9 +1,16 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 from fastapi import status
+from sqlalchemy import select
 
-from app.db.models import NodeUserUsage
+from app.db.crud.admin import get_admin_by_telegram_id
+from app.db.models import Admin, NodeUserUsage
+from app.models.settings import RunMethod, Telegram
+from app.routers.authentication import validate_mini_app_admin
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
@@ -14,6 +21,28 @@ from tests.api.helpers import (
     unique_name,
     strong_password,
 )
+
+
+def set_admin_sudo(username: str, is_sudo: bool) -> None:
+    async def _set_flag():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one()
+            db_admin.is_sudo = is_sudo
+            await session.commit()
+
+    asyncio.run(_set_flag())
+
+
+def set_admin_used_traffic(username: str, used_traffic: int) -> None:
+    async def _set_usage():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one()
+            db_admin.used_traffic = used_traffic
+            await session.commit()
+
+    asyncio.run(_set_usage())
 
 
 def test_admin_login():
@@ -52,6 +81,69 @@ def test_admin_create(access_token):
     delete_admin(access_token, username)
 
 
+def test_admin_create_sudo_forbidden_via_api(access_token):
+    """Creating sudo admin via API should be forbidden."""
+    username = unique_name("forbiddensudo")
+    password = strong_password("ForbiddenSudo")
+
+    response = client.post(
+        url="/api/admin",
+        json={"username": username, "password": password, "is_sudo": True},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+def test_admin_create_with_note(access_token):
+    """Test that admin note can be set during creation."""
+
+    username = unique_name("testadminnote")
+    password = strong_password("TestAdminNote")
+    note = "created via api"
+
+    response = client.post(
+        url="/api/admin",
+        json={"username": username, "password": password, "is_sudo": False, "note": note},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()["username"] == username
+    assert response.json()["note"] == note
+
+    delete_admin(access_token, username)
+
+
+def test_admin_create_duplicate_telegram_id_conflict(access_token):
+    telegram_id = 9988776655
+    admin_a = create_admin(access_token)
+    admin_b_username = unique_name("tgdup")
+    admin_b_password = strong_password("TestAdminDup")
+    try:
+        response_a = client.put(
+            url=f"/api/admin/{admin_a['username']}",
+            json={"is_sudo": False, "telegram_id": telegram_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response_a.status_code == status.HTTP_200_OK
+
+        response_b = client.post(
+            url="/api/admin",
+            json={
+                "username": admin_b_username,
+                "password": admin_b_password,
+                "is_sudo": False,
+                "telegram_id": telegram_id,
+            },
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response_b.status_code == status.HTTP_409_CONFLICT
+        assert response_b.json()["detail"] == "Telegram ID is already assigned to another admin."
+    finally:
+        delete_admin(access_token, admin_a["username"])
+
+
 def test_admin_db_login(access_token):
     """Test that the admin db login route is accessible."""
 
@@ -86,6 +178,169 @@ def test_update_admin(access_token):
     delete_admin(access_token, admin["username"])
 
 
+def test_update_admin_note(access_token):
+    """Test updating admin note via modify route."""
+
+    admin = create_admin(access_token)
+    note = "updated admin note"
+
+    response = client.put(
+        url=f"/api/admin/{admin['username']}",
+        json={"is_sudo": False, "note": note},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["username"] == admin["username"]
+    assert response.json()["note"] == note
+
+    delete_admin(access_token, admin["username"])
+
+
+def test_update_admin_duplicate_telegram_id_conflict(access_token):
+    telegram_id = 8877665544
+    admin_a = create_admin(access_token)
+    admin_b = create_admin(access_token)
+    try:
+        first_update = client.put(
+            url=f"/api/admin/{admin_a['username']}",
+            json={"is_sudo": False, "telegram_id": telegram_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert first_update.status_code == status.HTTP_200_OK
+
+        second_update = client.put(
+            url=f"/api/admin/{admin_b['username']}",
+            json={"is_sudo": False, "telegram_id": telegram_id},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert second_update.status_code == status.HTTP_409_CONFLICT
+        assert second_update.json()["detail"] == "Telegram ID is already assigned to another admin."
+    finally:
+        delete_admin(access_token, admin_a["username"])
+        delete_admin(access_token, admin_b["username"])
+
+
+def test_promote_admin_to_sudo_forbidden_via_api(access_token):
+    """Promoting non-sudo admin to sudo via API should be forbidden."""
+    admin = create_admin(access_token, is_sudo=False)
+    try:
+        response = client.put(
+            url=f"/api/admin/{admin['username']}",
+            json={
+                "is_sudo": True,
+                "is_disabled": False,
+            },
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_sudo_admin_can_modify_self(access_token):
+    """A sudo admin can edit their own account."""
+    sudo_admin = create_admin(access_token)
+    set_admin_sudo(sudo_admin["username"], True)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": sudo_admin["username"],
+                "password": sudo_admin["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        sudo_token = login_response.json()["access_token"]
+
+        response = client.put(
+            url=f"/api/admin/{sudo_admin['username']}",
+            json={
+                "is_sudo": True,
+                "is_disabled": False,
+                "note": "self-updated",
+            },
+            headers={"Authorization": f"Bearer {sudo_token}"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["username"] == sudo_admin["username"]
+        assert response.json()["note"] == "self-updated"
+    finally:
+        set_admin_sudo(sudo_admin["username"], False)
+        delete_admin(access_token, sudo_admin["username"])
+
+
+def test_sudo_admin_cannot_disable_self(access_token):
+    """A sudo admin cannot disable their own account."""
+    sudo_admin = create_admin(access_token)
+    set_admin_sudo(sudo_admin["username"], True)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": sudo_admin["username"],
+                "password": sudo_admin["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        sudo_token = login_response.json()["access_token"]
+
+        response = client.put(
+            url=f"/api/admin/{sudo_admin['username']}",
+            json={
+                "is_sudo": True,
+                "is_disabled": True,
+            },
+            headers={"Authorization": f"Bearer {sudo_token}"},
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json()["detail"] == "You're not allowed to disable your own account."
+    finally:
+        set_admin_sudo(sudo_admin["username"], False)
+        delete_admin(access_token, sudo_admin["username"])
+
+
+def test_sudo_admin_cannot_modify_other_sudo_admin(access_token):
+    """A sudo admin cannot edit another sudo admin account."""
+    sudo_admin_a = create_admin(access_token)
+    sudo_admin_b = create_admin(access_token)
+    set_admin_sudo(sudo_admin_a["username"], True)
+    set_admin_sudo(sudo_admin_b["username"], True)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": sudo_admin_a["username"],
+                "password": sudo_admin_a["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        sudo_a_token = login_response.json()["access_token"]
+
+        response = client.put(
+            url=f"/api/admin/{sudo_admin_b['username']}",
+            json={
+                "is_sudo": True,
+                "is_disabled": False,
+                "note": "should-fail",
+            },
+            headers={"Authorization": f"Bearer {sudo_a_token}"},
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        set_admin_sudo(sudo_admin_a["username"], False)
+        set_admin_sudo(sudo_admin_b["username"], False)
+        delete_admin(access_token, sudo_admin_a["username"])
+        delete_admin(access_token, sudo_admin_b["username"])
+
+
 def test_get_admins(access_token):
     """Test that the admins get route is accessible."""
 
@@ -103,6 +358,35 @@ def test_get_admins(access_token):
     assert "disabled" in response_data
     assert admin["username"] in [record["username"] for record in response_data["admins"]]
     delete_admin(access_token, admin["username"])
+
+
+def test_get_admins_returns_admin_note(access_token):
+    """Test that /api/admins compact response includes admin note."""
+
+    username = unique_name("adminnote")
+    password = strong_password("TestAdminNote")
+    note = "visible in admins list"
+
+    create_response = client.post(
+        url="/api/admin",
+        json={"username": username, "password": password, "is_sudo": False, "note": note},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+
+    try:
+        response = client.get(
+            url="/api/admins",
+            params={"username": username},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        rows = response.json()["admins"]
+        created_admin_row = next((row for row in rows if row["username"] == username), None)
+        assert created_admin_row is not None
+        assert created_admin_row["note"] == note
+    finally:
+        delete_admin(access_token, username)
 
 
 def test_disable_admin(access_token):
@@ -191,6 +475,36 @@ def test_admin_delete(access_token):
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
+def test_reset_admin_usage_keeps_lifetime_traffic(access_token):
+    admin = create_admin(access_token)
+    try:
+        set_admin_used_traffic(admin["username"], 12345)
+
+        reset_response = client.post(
+            url=f"/api/admin/{admin['username']}/reset",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert reset_response.status_code == status.HTTP_200_OK
+        reset_data = reset_response.json()
+        assert reset_data["used_traffic"] == 0
+        assert reset_data["lifetime_used_traffic"] == 12345
+
+        admins_response = client.get(
+            url="/api/admins",
+            params={"username": admin["username"]},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert admins_response.status_code == status.HTTP_200_OK
+        rows = admins_response.json()["admins"]
+        target = next((row for row in rows if row["username"] == admin["username"]), None)
+        assert target is not None
+        assert target["used_traffic"] == 0
+        assert target["lifetime_used_traffic"] == 12345
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
 @pytest.mark.asyncio
 async def test_admin_usage_returns_stats_for_admin(access_token):
     admin = create_admin(access_token)
@@ -248,6 +562,54 @@ async def test_admin_usage_forbidden_for_other_admin(access_token):
 
     delete_admin(access_token, admin_a["username"])
     delete_admin(access_token, admin_b["username"])
+
+
+@pytest.mark.asyncio
+async def test_get_admin_by_telegram_id_handles_duplicate_rows():
+    telegram_id = 7766554433
+    async with TestSession() as session:
+        admin_a = Admin(username=unique_name("tg_read_a"), hashed_password="secret", telegram_id=telegram_id)
+        admin_b = Admin(username=unique_name("tg_read_b"), hashed_password="secret", telegram_id=telegram_id)
+        session.add_all([admin_a, admin_b])
+        await session.commit()
+
+        loaded = await get_admin_by_telegram_id(session, telegram_id, load_users=False, load_usage_logs=False)
+        assert loaded is not None
+        assert loaded.telegram_id == telegram_id
+        assert loaded.username == admin_a.username
+
+
+@pytest.mark.asyncio
+async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(monkeypatch: pytest.MonkeyPatch):
+    telegram_id = 6655443322
+    async with TestSession() as session:
+        session.add_all(
+            [
+                Admin(username=unique_name("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id),
+                Admin(username=unique_name("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id),
+            ]
+        )
+        await session.commit()
+
+        async def fake_telegram_settings():
+            return Telegram(
+                enable=True,
+                mini_app_login=True,
+                method=RunMethod.LONGPOLLING,
+                token="12345678:" + ("A" * 35),
+            )
+
+        monkeypatch.setattr("app.routers.authentication.telegram_settings", fake_telegram_settings)
+        monkeypatch.setattr(
+            "app.routers.authentication.safe_parse_webapp_init_data",
+            lambda token, init_data: SimpleNamespace(user=SimpleNamespace(id=telegram_id)),
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await validate_mini_app_admin(session, "signed-init-data")
+
+        assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+        assert exc_info.value.detail == "Telegram ID is assigned to multiple admins. Please contact support."
 
 
 # Tests for /api/admins/simple endpoint

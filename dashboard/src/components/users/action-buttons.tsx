@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Cpu, EllipsisVertical, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users, Copy, Check } from 'lucide-react'
+import { Check, Copy, Cpu, EllipsisVertical, Link2Off, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -46,6 +46,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const [isActiveNextPlanModalOpen, setIsActiveNextPlanModalOpen] = useState(false)
   const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
   const [isUserAllIPsModalOpen, setUserAllIPsModalOpen] = useState(false)
+  const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -426,6 +427,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             copiedMessage="usersTable.copied"
             defaultMessage="usersTable.copyLink"
             icon="link"
+            showToast={true}
+            toastSuccessMessage="userSettings.subscriptionUrlCopied"
           />
           <Tooltip open={copied ? true : undefined}>
             <DropdownMenu>
@@ -436,9 +439,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
                   </Button>
                 </TooltipTrigger>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
+              <DropdownMenuContent>
                 {subscribeLinks.map((item, index) => (
-                  <DropdownMenuItem key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
+                  <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
                     <span className="mr-2">{item.icon}</span>
                     {item.protocol}
                   </DropdownMenuItem>
@@ -448,28 +451,33 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <TooltipContent>{copied ? t('usersTable.copied') : t('usersTable.copyConfigs')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenu>
+        <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost">
               <EllipsisVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent
+            align="end"
+            onPointerDownOutside={() => setActionsMenuOpen(false)}
+            onInteractOutside={() => setActionsMenuOpen(false)}
+            onEscapeKeyDown={() => setActionsMenuOpen(false)}
+          >
             {/* Edit */}
-            <DropdownMenuItem className="hidden md:flex" onClick={handleEdit}>
+            <DropdownMenuItem className="hidden md:flex" onSelect={handleEdit}>
               <Pencil className="mr-2 h-4 w-4" />
               <span>{t('edit')}</span>
             </DropdownMenuItem>
 
             {/* QR Code */}
-            <DropdownMenuItem onClick={onOpenSubscriptionModal}>
+            <DropdownMenuItem onSelect={onOpenSubscriptionModal}>
               <QrCode className="mr-2 h-4 w-4" />
               <span>QR Code</span>
             </DropdownMenuItem>
 
             {/* Set Owner: only for sudo admins */}
             {currentAdmin?.is_sudo && (
-              <DropdownMenuItem onClick={handleSetOwner}>
+              <DropdownMenuItem onSelect={handleSetOwner}>
                 <User className="mr-2 h-4 w-4" />
                 <span>{t('setOwnerModal.title')}</span>
               </DropdownMenuItem>
@@ -477,7 +485,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
             {/* Copy Core Username for sudo admins */}
             {currentAdmin?.is_sudo && (
-              <DropdownMenuItem onClick={handleCopyCoreUsername}>
+              <DropdownMenuItem onSelect={handleCopyCoreUsername}>
                 <Cpu className="mr-2 h-4 w-4" />
                 <span>{t('coreUsername')}</span>
               </DropdownMenuItem>
@@ -486,40 +494,40 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <DropdownMenuSeparator />
 
             {/* Revoke Sub */}
-            <DropdownMenuItem onClick={handleRevokeSubscription}>
-              <RefreshCcw className="mr-2 h-4 w-4" />
+            <DropdownMenuItem onSelect={handleRevokeSubscription}>
+              <Link2Off className="mr-2 h-4 w-4" />
               <span>{t('userDialog.revokeSubscription')}</span>
             </DropdownMenuItem>
 
             {/* Reset Usage */}
-            <DropdownMenuItem onClick={handleResetUsage}>
+            <DropdownMenuItem onSelect={handleResetUsage}>
               <RefreshCcw className="mr-2 h-4 w-4" />
               <span>{t('userDialog.resetUsage')}</span>
             </DropdownMenuItem>
 
             {/* Usage State */}
-            <DropdownMenuItem onClick={handleUsageState}>
+            <DropdownMenuItem onSelect={handleUsageState}>
               <PieChart className="mr-2 h-4 w-4" />
               <span>{t('userDialog.usage')}</span>
             </DropdownMenuItem>
 
             {/* Active Next Plan */}
             {user.next_plan && (
-              <DropdownMenuItem onClick={handleActiveNextPlan}>
+              <DropdownMenuItem onSelect={handleActiveNextPlan}>
                 <ListStart className="mr-2 h-4 w-4" />
                 <span>{t('usersTable.activeNextPlanSubmit')}</span>
               </DropdownMenuItem>
             )}
 
             {/* Subscription Info */}
-            <DropdownMenuItem onClick={() => setSubscriptionClientsModalOpen(true)}>
+            <DropdownMenuItem onSelect={() => setSubscriptionClientsModalOpen(true)}>
               <Users className="mr-2 h-4 w-4" />
               <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
             </DropdownMenuItem>
 
             {/* View All IPs: only for sudo admins */}
             {currentAdmin?.is_sudo && (
-              <DropdownMenuItem onClick={() => setUserAllIPsModalOpen(true)}>
+              <DropdownMenuItem onSelect={() => setUserAllIPsModalOpen(true)}>
                 <Network className="mr-2 h-4 w-4" />
                 <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
               </DropdownMenuItem>
@@ -528,7 +536,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <DropdownMenuSeparator />
 
             {/* Trash */}
-            <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+            <DropdownMenuItem onSelect={handleDelete} className="text-red-600">
               <Trash2 className="mr-2 h-4 w-4" />
               <span>{t('remove')}</span>
             </DropdownMenuItem>

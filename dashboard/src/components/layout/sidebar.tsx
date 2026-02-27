@@ -23,6 +23,8 @@ import {
   Bell,
   BookOpen,
   Calendar,
+  ChevronsLeft,
+  ChevronsRight,
   Cpu,
   Database,
   FileText,
@@ -35,8 +37,6 @@ import {
   Lock,
   MessageCircle,
   Palette,
-  PanelLeftClose,
-  PanelLeftOpen,
   PieChart,
   RssIcon,
   Send,
@@ -261,19 +261,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
           ]
         : [
-            // For non-sudo admins, show only theme settings
-            {
-              title: 'settings.title',
-              url: '/settings',
-              icon: Settings2,
-              items: [
-                {
-                  title: 'theme.title',
-                  url: '/settings/theme',
-                  icon: Palette,
-                },
-              ],
-            },
             {
               title: 'bulk.title',
               url: '/bulk',
@@ -283,6 +270,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   title: 'bulk.createUsers',
                   url: '/bulk',
                   icon: UserPlus,
+                },
+              ],
+            },
+            // For non-sudo admins, show only theme settings and keep settings at the end
+            {
+              title: 'settings.title',
+              url: '/settings',
+              icon: Settings2,
+              items: [
+                {
+                  title: 'theme.title',
+                  url: '/settings/theme',
+                  icon: Palette,
                 },
               ],
             },
@@ -378,12 +378,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <SidebarMenuButton
                           size="lg"
                           className={cn(
-                            'absolute inset-0 w-full justify-center !gap-0 transition-opacity duration-200 ease-in-out',
+                            'absolute inset-0 w-full cursor-pointer justify-center !gap-0 rounded-full transition-opacity duration-200 ease-in-out hover:bg-sidebar-accent/70',
                             showCollapseButton ? 'opacity-100' : 'pointer-events-none opacity-0',
                           )}
                           onClick={toggleSidebar}
                         >
-                          <PanelLeftOpen className={cn('h-6 w-6 flex-shrink-0', isRTL && 'scale-x-[-1]')} />
+                          <ChevronsRight className={cn('h-5 w-5 flex-shrink-0', isRTL && 'scale-x-[-1]')} />
                           <span className="sr-only">Expand Sidebar</span>
                           {isSudo && hasUpdate && <VersionBadge currentVersion={normalizedVersion} />}
                         </SidebarMenuButton>
@@ -424,14 +424,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className={cn('absolute top-1/2 z-10 h-8 w-8 shrink-0 -translate-y-1/2', isRTL ? 'left-2' : 'right-2')}
+                          className={cn(
+                            'absolute top-1/2 z-10 h-8 w-8 shrink-0 -translate-y-1/2 cursor-pointer rounded-full border border-transparent transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/70',
+                            isRTL ? 'left-2' : 'right-2',
+                          )}
                           onClick={e => {
                             e.preventDefault()
                             e.stopPropagation()
                             toggleSidebar()
                           }}
                         >
-                          <PanelLeftClose className={cn('h-4 w-4', isRTL && 'scale-x-[-1]')} />
+                          <ChevronsLeft className={cn('h-4 w-4', isRTL && 'scale-x-[-1]')} />
                           <span className="sr-only">Collapse Sidebar</span>
                         </Button>
                       </TooltipTrigger>

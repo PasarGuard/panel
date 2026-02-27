@@ -39,7 +39,7 @@ jobs:
             EVENT_STATUS="🔔 <b>New Push to $BRANCH</b>"
 
             # GET COMMITS SAFELY
-            COMMITS_RAW=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + (.message | gsub("\n"; " ") | gsub("\r"; " ") | gsub("\""; "\\\"")) + " (" + (.id | .[0:7]) + ")"' | head -n 10)
+            COMMITS_RAW=$(echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "- " + (.message | gsub("\n"; " ") | gsub("\r"; " ")) + " (" + (.id | .[0:7]) + ")"' | head -n 10)
 
             ESCAPED_COMMITS=""
             while IFS= read -r line; do
@@ -56,7 +56,7 @@ jobs:
               fi
             done <<< "$COMMITS_RAW"
 
-            MESSAGE="$EVENT_STATUS%0A%0A👤 By: $ACTOR%0A🔗 <a href=\"$COMPARE_URL\">View Commits</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
+            MESSAGE="$EVENT_STATUS"$'\n\n'"👤 By: $ACTOR"$'\n'"🔗 <a href=\"$COMPARE_URL\">View Commits</a>"$'\n\n'"<b>Commits:</b>"$'\n'"$ESCAPED_COMMITS"
 
           else
             ACTOR=$(html_escape "${{ github.actor }}")
@@ -76,7 +76,7 @@ jobs:
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER/commits" \
-              | jq -r '.[] | "- " + (.commit.message | gsub("\n"; " ") | gsub("\r"; " ") | gsub("\""; "\\\"")) + " (" + (.sha | .[0:7]) + ")"' \
+              | jq -r '.[] | "- " + (.commit.message | gsub("\n"; " ") | gsub("\r"; " ")) + " (" + (.sha | .[0:7]) + ")"' \
               | head -n 10)
 
             ESCAPED_COMMITS=""
@@ -94,11 +94,11 @@ jobs:
               fi
             done <<< "$COMMITS_RAW"
 
-            MESSAGE="$PR_STATUS%0A%0A👤 By: $ACTOR%0ATitle: $PR_TITLE%0A🔗 <a href=\"$PR_URL\">View Pull Request</a>%0A%0A<b>Commits:</b>%0A$ESCAPED_COMMITS"
+            MESSAGE="$PR_STATUS"$'\n\n'"👤 By: $ACTOR"$'\n'"Title: $PR_TITLE"$'\n'"🔗 <a href=\"$PR_URL\">View Pull Request</a>"$'\n\n'"<b>Commits:</b>"$'\n'"$ESCAPED_COMMITS"
           fi
 
           # Prepare debug info (only shown on failure)
-          DECODED_MESSAGE=$(echo "$MESSAGE" | sed 's/%0A/\n/g')
+          DECODED_MESSAGE="$MESSAGE"
           log "=== GitHub Event Details ==="
           log "Event: ${{ github.event_name }}"
           log "Action: ${{ github.event.action }}"
@@ -129,7 +129,7 @@ jobs:
               -d "chat_id=$CHAT_ID" \
               ${TOPIC_ID:+-d "message_thread_id=$TOPIC_ID"} \
               -d "parse_mode=HTML" \
-              -d "text=$MESSAGE")
+              --data-urlencode "text=$MESSAGE")
 
             if echo "$RESPONSE" | grep -q '"ok":true'; then
               echo "✅ Notification sent."

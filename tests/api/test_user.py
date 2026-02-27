@@ -60,6 +60,30 @@ def test_user_create_active(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_create_expire_timezone_offset_normalized_to_utc(access_token):
+    """Expire with non-UTC offset should be persisted as the same UTC instant."""
+    core, groups = setup_groups(access_token, 1)
+    tehran_tz = timezone(timedelta(hours=3, minutes=30))
+    expire_utc = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    expire_tehran = expire_utc.astimezone(tehran_tz)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("test_user_tz_expire"),
+            "proxy_settings": {},
+            "expire": expire_tehran.isoformat(),
+            "status": "active",
+        },
+    )
+    try:
+        response_expire = datetime.fromisoformat(user["expire"])
+        assert response_expire.astimezone(timezone.utc).replace(microsecond=0) == expire_utc
+    finally:
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_user_create_on_hold(access_token):
     """Test that the user create on hold route is accessible."""
     core, groups = setup_groups(access_token, 2)
@@ -402,6 +426,52 @@ def test_bulk_create_users_from_template_sequence(access_token):
         assert len(response.json()["subscription_urls"]) == count
 
         expected_usernames = [f"{base_username}{start_number + idx}" for idx in range(count)]
+
+        for username in expected_usernames:
+            user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["data_limit"] == template["data_limit"]
+            assert user_response.json()["status"] == template["status"]
+    finally:
+        for username in expected_usernames:
+            delete_user(access_token, username)
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_bulk_create_users_from_template_sequence_with_template_affixes(access_token):
+    core, groups = setup_groups(access_token, 1)
+    prefix = "pre_"
+    suffix = "_suf"
+    template = create_user_template(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        username_prefix=prefix,
+        username_suffix=suffix,
+    )
+    base_username = unique_name("bulk_template_affix_seq")
+    count = 2
+    start_number = 7
+    expected_usernames: list[str] = []
+
+    try:
+        response = client.post(
+            "/api/users/bulk/from_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "user_template_id": template["id"],
+                "strategy": "sequence",
+                "username": base_username,
+                "count": count,
+                "start_number": start_number,
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["created"] == count
+        assert len(response.json()["subscription_urls"]) == count
+
+        expected_usernames = [f"{prefix}{base_username}{suffix}{start_number + idx}" for idx in range(count)]
 
         for username in expected_usernames:
             user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})

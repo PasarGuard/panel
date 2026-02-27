@@ -245,7 +245,7 @@ class BulkUsersFromTemplate(BulkCreationBase, CreateUserFromTemplate):
         # Skip validation if username is None (for random strategy)
         if v is None:
             return v
-        return UserValidator.validate_username(v)
+        return UserValidator.validate_username(username=v, len_check=False)
 
     @model_validator(mode="after")
     def validate_username_strategy(self):

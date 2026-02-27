@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 2.1.2
+ * OpenAPI spec version: 2.2.0
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -257,16 +257,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -286,11 +286,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsInput {
+export interface XrayMuxSettingsOutput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -479,6 +479,11 @@ export interface XHttpSettingsInput {
   download_settings?: XHttpSettingsInputDownloadSettings
 }
 
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
+
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -487,11 +492,6 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
-}
-
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
 }
 
 export interface WebhookInfo {
@@ -561,20 +561,20 @@ export const UsernameGenerationStrategy = {
   sequence: 'sequence',
 } as const
 
-export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
-
 export type UserUsageStatsListPeriod = Period | null
+
+export interface UserUsageStat {
+  total_traffic: number
+  period_start: string
+}
+
+export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
 
 export interface UserUsageStatsList {
   period?: UserUsageStatsListPeriod
   start: string
   end: string
   stats: UserUsageStatsListStats
-}
-
-export interface UserUsageStat {
-  total_traffic: number
-  period_start: string
 }
 
 export type UserTemplateSimpleName = string | null
@@ -885,13 +885,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
-
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -902,6 +895,13 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
+
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -1036,6 +1036,10 @@ export type SystemStatsCpuUsage = number | null
 
 export type SystemStatsCpuCores = number | null
 
+export type SystemStatsDiskUsed = number | null
+
+export type SystemStatsDiskTotal = number | null
+
 export type SystemStatsMemUsed = number | null
 
 export type SystemStatsMemTotal = number | null
@@ -1044,6 +1048,8 @@ export interface SystemStats {
   version: string
   mem_total?: SystemStatsMemTotal
   mem_used?: SystemStatsMemUsed
+  disk_total?: SystemStatsDiskTotal
+  disk_used?: SystemStatsDiskUsed
   cpu_cores?: SystemStatsCpuCores
   cpu_usage?: SystemStatsCpuUsage
   total_user: number
@@ -1379,6 +1385,19 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1394,19 +1413,6 @@ export interface NotificationChannel {
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
 }
 
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
 export interface NotFound {
   detail?: string
 }
@@ -1415,6 +1421,14 @@ export type NoiseSettingsXray = XrayNoiseSettings[] | null
 
 export interface NoiseSettings {
   xray?: NoiseSettingsXray
+}
+
+/**
+ * Response model for lightweight node list.
+ */
+export interface NodesSimpleResponse {
+  nodes: NodeSimple[]
+  total: number
 }
 
 export interface NodesResponse {
@@ -1474,14 +1488,6 @@ export interface NodeSimple {
   id: number
   name: string
   status: NodeStatus
-}
-
-/**
- * Response model for lightweight node list.
- */
-export interface NodesSimpleResponse {
-  nodes: NodeSimple[]
-  total: number
 }
 
 export interface NodeSettings {
@@ -1577,8 +1583,6 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
-export type NodeModifyConnectionType = NodeConnectionType | null
-
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1622,6 +1626,8 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
+
+export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -1885,6 +1891,15 @@ export interface ExtraSettings {
   method?: ExtraSettingsMethod
 }
 
+export type ECHQueryStrategy = (typeof ECHQueryStrategy)[keyof typeof ECHQueryStrategy]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ECHQueryStrategy = {
+  none: 'none',
+  half: 'half',
+  full: 'full',
+} as const
+
 export interface DownloadLink {
   /** @maxLength 64 */
   name: string
@@ -1925,6 +1940,8 @@ export type CreateHostVerifyPeerCertByName = string[] | null
 
 export type CreateHostPinnedPeerCertSha256 = string | null
 
+export type CreateHostEchQueryStrategy = ECHQueryStrategy | null
+
 export type CreateHostEchConfigList = string | null
 
 export type CreateHostStatus = UserStatus[] | null
@@ -1938,6 +1955,26 @@ export type CreateHostFragmentSettings = FragmentSettings | null
 export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
+
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
 
 export interface CreateHost {
   id?: CreateHostId
@@ -1964,29 +2001,10 @@ export interface CreateHost {
   priority: number
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
+  ech_query_strategy?: CreateHostEchQueryStrategy
   pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
 }
-
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
 
 /**
  * Lightweight core model with only id and name for performance.
@@ -2004,6 +2022,11 @@ export interface CoresSimpleResponse {
   total: number
 }
 
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
+}
+
 export type CoreResponseConfig = { [key: string]: unknown }
 
 export interface CoreResponse {
@@ -2013,11 +2036,6 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2158,6 +2176,8 @@ export type BaseHostVerifyPeerCertByName = string[] | null
 
 export type BaseHostPinnedPeerCertSha256 = string | null
 
+export type BaseHostEchQueryStrategy = ECHQueryStrategy | null
+
 export type BaseHostEchConfigList = string | null
 
 export type BaseHostStatus = UserStatus[] | null
@@ -2217,6 +2237,7 @@ export interface BaseHost {
   priority: number
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
+  ech_query_strategy?: BaseHostEchQueryStrategy
   pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
 }
@@ -2287,6 +2308,8 @@ export interface AdminNotificationEnable {
 
 export type AdminModifyNotificationEnable = UserNotificationEnable | null
 
+export type AdminModifyNote = string | null
+
 export type AdminModifySupportUrl = string | null
 
 export type AdminModifyProfileTitle = string | null
@@ -2316,8 +2339,11 @@ export interface AdminModify {
   sub_domain?: AdminModifySubDomain
   profile_title?: AdminModifyProfileTitle
   support_url?: AdminModifySupportUrl
+  note?: AdminModifyNote
   notification_enable?: AdminModifyNotificationEnable
 }
+
+export type AdminDetailsNote = string | null
 
 export type AdminDetailsLifetimeUsedTraffic = number | null
 
@@ -2358,9 +2384,12 @@ export interface AdminDetails {
   discord_id?: AdminDetailsDiscordId
   sub_template?: AdminDetailsSubTemplate
   lifetime_used_traffic?: AdminDetailsLifetimeUsedTraffic
+  note?: AdminDetailsNote
 }
 
 export type AdminCreateNotificationEnable = UserNotificationEnable | null
+
+export type AdminCreateNote = string | null
 
 export type AdminCreateSupportUrl = string | null
 
@@ -2392,6 +2421,7 @@ export interface AdminCreate {
   sub_domain?: AdminCreateSubDomain
   profile_title?: AdminCreateProfileTitle
   support_url?: AdminCreateSupportUrl
+  note?: AdminCreateNote
   notification_enable?: AdminCreateNotificationEnable
   username: string
 }
@@ -2659,7 +2689,7 @@ export const adminMiniAppToken = (signal?: AbortSignal) => {
 
 export const getAdminMiniAppTokenMutationOptions = <
   TData = Awaited<ReturnType<typeof adminMiniAppToken>>,
-  TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+  TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<TData, TError, void, TContext>
@@ -2680,12 +2710,16 @@ export const getAdminMiniAppTokenMutationOptions = <
 
 export type AdminMiniAppTokenMutationResult = NonNullable<Awaited<ReturnType<typeof adminMiniAppToken>>>
 
-export type AdminMiniAppTokenMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+export type AdminMiniAppTokenMutationError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>
 
 /**
  * @summary Admin Mini App Token
  */
-export const useAdminMiniAppToken = <TData = Awaited<ReturnType<typeof adminMiniAppToken>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+export const useAdminMiniAppToken = <
+  TData = Awaited<ReturnType<typeof adminMiniAppToken>>,
+  TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
   mutation?: UseMutationOptions<TData, TError, void, TContext>
 }): UseMutationResult<TData, TError, void, TContext> => {
   const mutationOptions = getAdminMiniAppTokenMutationOptions(options)
@@ -2803,7 +2837,7 @@ export const modifyAdmin = (username: string, adminModify: BodyType<AdminModify>
 
 export const getModifyAdminMutationOptions = <
   TData = Awaited<ReturnType<typeof modifyAdmin>>,
-  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<AdminModify> }, TContext>
@@ -2826,12 +2860,16 @@ export const getModifyAdminMutationOptions = <
 
 export type ModifyAdminMutationResult = NonNullable<Awaited<ReturnType<typeof modifyAdmin>>>
 export type ModifyAdminMutationBody = BodyType<AdminModify>
-export type ModifyAdminMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+export type ModifyAdminMutationError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
 /**
  * @summary Modify Admin
  */
-export const useModifyAdmin = <TData = Awaited<ReturnType<typeof modifyAdmin>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>, TContext = unknown>(options?: {
+export const useModifyAdmin = <
+  TData = Awaited<ReturnType<typeof modifyAdmin>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
   mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<AdminModify> }, TContext>
 }): UseMutationResult<TData, TError, { username: string; data: BodyType<AdminModify> }, TContext> => {
   const mutationOptions = getModifyAdminMutationOptions(options)
@@ -3265,7 +3303,7 @@ export const useResetAdminUsage = <TData = Awaited<ReturnType<typeof resetAdminU
 }
 
 /**
- * Fetch system stats including memory, CPU, and user metrics.
+ * Fetch system stats including memory, CPU, disk, and user metrics.
  * @summary Get System Stats
  */
 export const getSystemStats = (params?: GetSystemStatsParams, signal?: AbortSignal) => {

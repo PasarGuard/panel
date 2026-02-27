@@ -1,24 +1,25 @@
+import type { AdminFormValuesInput } from '@/components/forms/admin-form'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { useTranslation } from 'react-i18next'
-import { UseFormReturn } from 'react-hook-form'
-import { Button } from '@/components/ui/button'
-import { useCreateAdmin, useModifyAdmin } from '@/service/api'
-import { toast } from 'sonner'
-import { queryClient } from '@/utils/query-client.ts'
-import { PasswordInput } from '@/components/ui/password-input'
-import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { LoaderButton } from '@/components/ui/loader-button'
-import useDirDetection from '@/hooks/use-dir-detection'
+import { PasswordInput } from '@/components/ui/password-input'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import useDirDetection from '@/hooks/use-dir-detection'
+import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { useEffect, useState } from 'react'
+import { useCreateAdmin, useModifyAdmin } from '@/service/api'
+import { queryClient } from '@/utils/query-client.ts'
 import { ChevronDown, UserCog } from 'lucide-react'
-import type { AdminFormValuesInput } from '@/components/forms/admin-form'
+import { useEffect, useState } from 'react'
+import { UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 interface AdminModalProps {
   isDialogOpen: boolean
@@ -65,6 +66,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
         support_url: values.support_url,
         telegram_id: values.telegram_id,
         profile_title: values.profile_title,
+        note: values.note,
         discord_id: values.discord_id,
         notification_enable: values.notification_enable || null,
       }
@@ -100,7 +102,21 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
-      const fields = ['username', 'password', 'passwordConfirm', 'is_sudo', 'is_disabled', 'discord_webhook', 'sub_domain', 'sub_template', 'support_url', 'telegram_id', 'profile_title', 'discord_id']
+      const fields = [
+        'username',
+        'password',
+        'passwordConfirm',
+        'is_sudo',
+        'is_disabled',
+        'discord_webhook',
+        'sub_domain',
+        'sub_template',
+        'support_url',
+        'telegram_id',
+        'profile_title',
+        'note',
+        'discord_id',
+      ]
       handleError({ error, fields, form, contextKey: 'admins' })
     }
   }
@@ -114,7 +130,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" autoComplete="off">
             <div className="-mr-4 max-h-[80dvh] overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
               <div className="grid grid-cols-1 items-stretch gap-4 pb-4 sm:grid-cols-2">
                 <FormField
@@ -126,7 +142,31 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                       <FormItem>
                         <FormLabel>{t('admins.username')}</FormLabel>
                         <FormControl>
-                          <Input placeholder={t('admins.enterUsername')} disabled={editingAdmin} isError={hasError} {...field} />
+                          <Input placeholder={t('admins.enterUsername')} disabled={editingAdmin} isError={hasError} autoComplete="off" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+                <FormField
+                  control={form.control}
+                  name={'telegram_id'}
+                  render={({ field }) => {
+                    return (
+                      <FormItem>
+                        <FormLabel>{t('admins.telegramId')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder={t('Telegram ID (e.g. 36548974)')}
+                            autoComplete="off"
+                            onChange={e => {
+                              const value = e.target.value
+                              field.onChange(value ? parseInt(value) : 0)
+                            }}
+                            value={field.value ? field.value : ''}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -142,14 +182,13 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                       <FormItem>
                         <FormLabel>{t('admins.password')}</FormLabel>
                         <FormControl>
-                          <PasswordInput placeholder={t('admins.enterPassword')} isError={hasError} {...field} />
+                          <PasswordInput placeholder={t('admins.enterPassword')} isError={hasError} autoComplete="new-password" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )
                   }}
                 />
-
                 <FormField
                   control={form.control}
                   name="passwordConfirm"
@@ -159,7 +198,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                       <FormItem>
                         <FormLabel>{t('admins.passwordConfirm')}</FormLabel>
                         <FormControl>
-                          <PasswordInput placeholder={t('admins.enterPasswordConfirm')} isError={hasError} {...field} />
+                          <PasswordInput placeholder={t('admins.enterPasswordConfirm')} isError={hasError} autoComplete="new-password" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -168,38 +207,18 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                 />
                 <FormField
                   control={form.control}
-                  name={'telegram_id'}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('admins.telegramId')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder={t('Telegram ID (e.g. 36548974)')}
-                          onChange={e => {
-                            const value = e.target.value
-                            field.onChange(value ? parseInt(value) : 0)
-                          }}
-                          value={field.value ? field.value : ''}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name={'discord_id'}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('admins.discordId')}</FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
-                          placeholder={t('admins.discordId')}
-                          onChange={e => {
-                            const value = e.target.value
-                            field.onChange(value ? parseInt(value) : 0)
+                          <Input
+                            type="number"
+                            placeholder={t('admins.discordId')}
+                            autoComplete="off"
+                            onChange={e => {
+                              const value = e.target.value
+                              field.onChange(value ? parseInt(value) : 0)
                           }}
                           value={field.value ? field.value : ''}
                         />
@@ -215,7 +234,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                     <FormItem>
                       <FormLabel>{t('admins.discord')}</FormLabel>
                       <FormControl>
-                        <Input placeholder={t('admins.discord')} {...field} />
+                        <Input placeholder={t('admins.discord')} autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -228,7 +247,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                     <FormItem>
                       <FormLabel>{t('admins.supportUrl')}</FormLabel>
                       <FormControl>
-                        <Input placeholder={t('admins.supportUrl')} {...field} />
+                        <Input placeholder={t('admins.supportUrl')} autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -244,7 +263,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                         <VariablesPopover />
                       </div>
                       <FormControl>
-                        <Input placeholder={t('admins.profile')} {...field} />
+                        <Input placeholder={t('admins.profile')} autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -257,7 +276,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                     <FormItem>
                       <FormLabel>{t('admins.subDomain')}</FormLabel>
                       <FormControl>
-                        <Input placeholder={t('admins.subDomain')} {...field} />
+                        <Input placeholder={t('admins.subDomain')} autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -270,7 +289,20 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                     <FormItem>
                       <FormLabel>{t('admins.subTemplate')}</FormLabel>
                       <FormControl>
-                        <Input placeholder={t('admins.subTemplate')} {...field} />
+                        <Input placeholder={t('admins.subTemplate')} autoComplete="off" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={'note'}
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>{t('fields.note')}</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder={t('fields.note')} rows={4} autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -473,4 +505,3 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
     </Dialog>
   )
 }
-

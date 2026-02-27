@@ -10,6 +10,7 @@ interface ColumnSetupProps {
   t: (key: string) => string
   handleSort: (column: string) => void
   filters: { sort?: string }
+  currentAdminUsername?: string
   onEdit: (admin: AdminDetails) => void
   onDelete: (admin: AdminDetails) => void
   toggleStatus: (admin: AdminDetails) => void
@@ -48,6 +49,7 @@ export const setupColumns = ({
   t,
   handleSort,
   filters,
+  currentAdminUsername,
   onEdit,
   onDelete,
   toggleStatus,
@@ -130,92 +132,106 @@ export const setupColumns = ({
   },
   {
     id: 'actions',
-    cell: ({ row }) => (
-      <div className="flex items-center justify-end gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onSelect={e => {
-                e.preventDefault()
-                e.stopPropagation()
-                onEdit(row.original)
-              }}
-            >
-              <Pen className="mr-2 h-4 w-4" />
-              {t('edit')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={e => {
-                e.preventDefault()
-                e.stopPropagation()
-                toggleStatus(row.original)
-              }}
-            >
-              {row.original.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
-              {row.original.is_disabled ? t('enable') : t('disable')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={e => {
-                e.preventDefault()
-                e.stopPropagation()
-                onResetUsage(row.original.username)
-              }}
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              {t('admins.reset')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={e => {
-                e.preventDefault()
-                e.stopPropagation()
-                onDisableAllActiveUsers(row.original.username)
-              }}
-            >
-              <UserMinus className="mr-2 h-4 w-4" />
-              {t('admins.disableAllActiveUsers')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={e => {
-                e.preventDefault()
-                e.stopPropagation()
-                onActivateAllDisabledUsers(row.original.username)
-              }}
-            >
-              <UserCheck className="mr-2 h-4 w-4" />
-              {t('admins.activateAllDisabledUsers')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive"
-              onSelect={e => {
-                e.preventDefault()
-                e.stopPropagation()
-                onRemoveAllUsers(row.original.username)
-              }}
-            >
-              <UserX className="mr-2 h-4 w-4" />
-              {t('admins.removeAllUsers')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive"
-              onSelect={e => {
-                e.preventDefault()
-                e.stopPropagation()
-                onDelete(row.original)
-              }}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              {t('delete')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    ),
+    cell: ({ row }) => {
+      const isSudoTarget = row.original.is_sudo
+
+      return (
+        <div className="flex items-center justify-end gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onEdit(row.original)
+                }}
+              >
+                <Pen className="mr-2 h-4 w-4" />
+                {t('edit')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onResetUsage(row.original.username)
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {t('admins.reset')}
+              </DropdownMenuItem>
+              {!isSudoTarget && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    toggleStatus(row.original)
+                  }}
+                >
+                  {row.original.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
+                  {row.original.is_disabled ? t('enable') : t('disable')}
+                </DropdownMenuItem>
+              )}
+              {!isSudoTarget && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onDisableAllActiveUsers(row.original.username)
+                  }}
+                >
+                  <UserMinus className="mr-2 h-4 w-4" />
+                  {t('admins.disableAllActiveUsers')}
+                </DropdownMenuItem>
+              )}
+              {!isSudoTarget && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onActivateAllDisabledUsers(row.original.username)
+                  }}
+                >
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  {t('admins.activateAllDisabledUsers')}
+                </DropdownMenuItem>
+              )}
+              {!isSudoTarget && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onRemoveAllUsers(row.original.username)
+                  }}
+                >
+                  <UserX className="mr-2 h-4 w-4" />
+                  {t('admins.removeAllUsers')}
+                </DropdownMenuItem>
+              )}
+              {!isSudoTarget && row.original.username !== currentAdminUsername && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onDelete(row.original)
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t('delete')}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )
+    },
   },
   {
     id: 'chevron',

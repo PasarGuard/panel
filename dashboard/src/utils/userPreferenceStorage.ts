@@ -4,10 +4,17 @@ const NUM_ITEMS_PER_PAGE_DEFAULT = 10
 
 const USERS_AUTO_REFRESH_INTERVAL_KEY = 'pasarguard-users-auto-refresh-interval'
 const DEFAULT_USERS_AUTO_REFRESH_INTERVAL_SECONDS = 0
+const USERS_SHOW_CREATED_BY_KEY = 'pasarguard-users-show-created-by'
+const DEFAULT_USERS_SHOW_CREATED_BY = true
+const CHART_VIEW_TYPE_KEY = 'pasarguard-chart-view-type'
 
 export const DATE_PICKER_PREFERENCE_KEY = 'pasarguard-date-picker-preference'
 export type DatePickerPreference = 'locale' | 'gregorian' | 'persian'
 const DEFAULT_DATE_PICKER_PREFERENCE: DatePickerPreference = 'locale'
+
+export const CHART_VIEW_TYPE_CHANGE_EVENT = 'pasarguard-chart-view-type-change'
+export type ChartViewType = 'bar' | 'area'
+const DEFAULT_CHART_VIEW_TYPE: ChartViewType = 'bar'
 
 // Generic function for any table type
 export const getItemsPerPageLimitSize = (tableType: 'users' | 'admins' = 'users') => {
@@ -39,6 +46,18 @@ export const setUsersAutoRefreshIntervalSeconds = (seconds: number) => {
   localStorage.setItem(USERS_AUTO_REFRESH_INTERVAL_KEY, seconds.toString())
 }
 
+export const getUsersShowCreatedBy = () => {
+  if (typeof localStorage === 'undefined') return DEFAULT_USERS_SHOW_CREATED_BY
+  const storedValue = localStorage.getItem(USERS_SHOW_CREATED_BY_KEY)
+  if (storedValue === null) return DEFAULT_USERS_SHOW_CREATED_BY
+  return storedValue === 'true'
+}
+
+export const setUsersShowCreatedBy = (value: boolean) => {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(USERS_SHOW_CREATED_BY_KEY, value ? 'true' : 'false')
+}
+
 export const getDatePickerPreference = (): DatePickerPreference => {
   if (typeof localStorage === 'undefined') return DEFAULT_DATE_PICKER_PREFERENCE
   const storedValue = localStorage.getItem(DATE_PICKER_PREFERENCE_KEY)
@@ -51,4 +70,21 @@ export const getDatePickerPreference = (): DatePickerPreference => {
 export const setDatePickerPreference = (preference: DatePickerPreference) => {
   if (typeof localStorage === 'undefined') return
   localStorage.setItem(DATE_PICKER_PREFERENCE_KEY, preference)
+}
+
+export const getChartViewTypePreference = (): ChartViewType => {
+  if (typeof localStorage === 'undefined') return DEFAULT_CHART_VIEW_TYPE
+  const storedValue = localStorage.getItem(CHART_VIEW_TYPE_KEY)
+  if (storedValue === 'bar' || storedValue === 'area') {
+    return storedValue
+  }
+  return DEFAULT_CHART_VIEW_TYPE
+}
+
+export const setChartViewTypePreference = (viewType: ChartViewType) => {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(CHART_VIEW_TYPE_KEY, viewType)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<ChartViewType>(CHART_VIEW_TYPE_CHANGE_EVENT, { detail: viewType }))
+  }
 }

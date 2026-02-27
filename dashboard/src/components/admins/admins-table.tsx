@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox.tsx'
 import { getAdminsPerPageLimitSize, setAdminsPerPageLimitSize } from '@/utils/userPreferenceStorage'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
+import { useAdmin } from '@/hooks/use-admin'
 
 interface AdminFilters {
   sort?: string
@@ -76,7 +77,7 @@ const ToggleAdminStatusModal = ({ admin, isOpen, onClose, onConfirm }: { admin: 
             <span dir={dir} dangerouslySetInnerHTML={{ __html: t(admin.is_disabled ? 'activeUsers.prompt' : 'disableUsers.prompt', { name: admin.username }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className={cn(dir === 'rtl' && 'sm:flex-row-reverse sm:gap-x-2')}>
+        <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>{t('cancel')}</AlertDialogCancel>
           <AlertDialogAction onClick={() => onConfirm(adminUsersToggle)}>{t('confirm')}</AlertDialogAction>
         </AlertDialogFooter>
@@ -170,6 +171,7 @@ const BulkUsersStatusConfirmationDialog = ({
 
 export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetUsage, onTotalAdminsChange }: AdminsTableProps) {
   const { t } = useTranslation()
+  const { admin: currentAdmin } = useAdmin()
   const [currentPage, setCurrentPage] = useState(0)
   const [itemsPerPage, setItemsPerPage] = useState(getAdminsPerPageLimitSize())
   const [isChangingPage, setIsChangingPage] = useState(false)
@@ -418,6 +420,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     t,
     handleSort,
     filters,
+    currentAdminUsername: currentAdmin?.username,
     onEdit,
     onDelete: handleDeleteClick,
     toggleStatus: handleStatusToggleClick,
@@ -443,6 +446,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         onDisableAllActiveUsers={handleDisableAllActiveUsersClick}
         onActivateAllDisabledUsers={handleActivateAllDisabledUsersClick}
         onRemoveAllUsers={handleRemoveAllUsersClick}
+        currentAdminUsername={currentAdmin?.username}
         setStatusToggleDialogOpen={setStatusToggleDialogOpen}
         isLoading={isCurrentlyLoading && isFirstLoadRef.current}
         isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}

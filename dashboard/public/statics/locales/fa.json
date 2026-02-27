@@ -1,4 +1,4 @@
-{
+﻿{
   "pasarguard": "پاسارگارد",
   "dashboard": "داشبورد",
   "master": "همه گره‌ها",
@@ -234,6 +234,7 @@
         "method": "روش اتصال",
         "methodPlaceholder": "روش اتصال را انتخاب کنید",
         "methodDescription": "انتخاب کنید که ربات چگونه به‌روزرسانی‌ها را از تلگرام دریافت کند",
+        "longPollingDisabledInMultiWorker": "لانگ پولینگ در حالت چند-ورکر غیرفعال است.",
         "webhook": "Webhook",
         "longPolling": "Long Polling",
         "proxyUrl": "آدرس پروکسی",
@@ -435,6 +436,9 @@
   "test": "تست",
   "testing": "در حال تست",
   "confirm": "تایید",
+  "actions": "اقدامات",
+  "details": "جزئیات",
+  "editedAt": "زمان ویرایش",
   "admins": {
     "title": "مدیران",
     "description": "مدیریت مدیران سیستم",
@@ -872,6 +876,8 @@
     "security.info": "اگر سرور واسط این هاست از لایه امنیتی متفاوتی نسبت به پیش‌فرض ورودی شما استفاده می‌کند، می‌توانید لایه امنیتی سفارشی را اینجا تنظیم کنید.",
     "useSniAsHost": "استفاده از SNI به عنوان هاست",
     "echConfigList": "لیست پیکربندی ECH",
+    "echQueryStrategy": "راهبرد پرس‌وجوی ECH",
+    "echQueryStrategy.info": "راهبرد پرس‌وجوی ECH. مقادیر مجاز: none، half، full.",
     "pinnedPeerCertSha256": "SHA256 گواهی همتای پین‌شده",
     "pinnedPeerCertSha256.info": "پین اختیاری کلید عمومی گواهی (SHA-256) برای TLS peer pinning.",
     "pinnedPeerCertSha256Placeholder": "SHA-256 را وارد کنید",
@@ -1165,6 +1171,7 @@
   "statistics.networkSpeed": "سرعت شبکه",
   "statistics.ramUsage": "مصرف رم",
   "statistics.cpuUsage": "مصرف پردازنده",
+  "statistics.diskUsage": "مصرف دیسک",
   "statistics.cores": "هسته",
   "statistics.serverSelection": "انتخاب سرور",
   "statistics.selectServerToMonitor": "سروری را برای نظارت بر معیارهای عملکرد انتخاب کنید",
@@ -1407,6 +1414,7 @@
     "noNodesDescription": "پنل اصلی هیچ هسته‌ای ندارد. شما باید یک گره از",
     "noNodesDescription2": "پیکربندی کرده و آن را به پنل متصل کنید.",
     "noSearchResults": "هیچ گره‌ای با معیارهای جستجوی شما مطابقت ندارد. لطفاً عبارات جستجوی خود را تغییر دهید.",
+    "noFilteredResults": "گره‌ای یافت نشد",
     "logs": {
       "title": "لاگ‌ها",
       "description": "مشاهده و نظارت بر لاگ‌های گره‌ها",
@@ -1500,7 +1508,14 @@
     "datePickerPreferenceSaved": "ترجیحات تقویم ذخیره شد",
     "datePickerModeLocale": "پیش‌فرض بر اساس زبان",
     "datePickerModeGregorian": "میلادی",
-    "datePickerModePersian": "جلالی"
+    "datePickerModePersian": "جلالی",
+    "chartViewType": "نوع نمایش نمودار",
+    "chartViewDescription": "سبک پیش‌فرض نمودار برای نمودارهای ترافیک را انتخاب کنید.",
+    "chartViewBar": "میله‌ای",
+    "chartViewArea": "ناحیه‌ای",
+    "chartViewBarDescription": "نمایش ترافیک به‌صورت نمودار میله‌ای.",
+    "chartViewAreaDescription": "نمایش ترافیک به‌صورت نمودار ناحیه‌ای.",
+    "chartViewSaved": "ترجیح نمایش نمودار ذخیره شد"
   },
   "coreConfigModal": {
     "addConfig": "افزودن پیکربندی هسته",
@@ -1646,6 +1661,8 @@
     "group_ids": "گروه‌ها"
   },
   "userDialog": {
+    "revokeSubscription": "لغو اشتراک",
+    "usage": "مصرف",
     "deleteSuccess": "کاربر «{{name}}» با موفقیت حذف شد.",
     "resetUsageSuccess": "مصرف کاربر «{{name}}» بازنشانی شد.",
     "revokeSubSuccess": "اشتراک کاربر «{{name}}» بازنشانی شد.",
@@ -1951,6 +1968,7 @@
     "title": "جستجوی پیشرفته",
     "byUsername": "نام کاربری و یادداشت‌ها",
     "byProtocol": "داده‌های پروتکل",
+    "showCreatedBy": "نمایش ایجاد شده توسط",
     "byStatus": "وضعیت",
     "byAdmin": "مدیر",
     "byGroup": "گروه",

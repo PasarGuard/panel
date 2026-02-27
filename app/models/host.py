@@ -26,6 +26,12 @@ class XUDP(str, Enum):
     skip = "skip"
 
 
+class ECHQueryStrategy(str, Enum):
+    none = "none"
+    half = "half"
+    full = "full"
+
+
 class XrayFragmentSettings(BaseModel):
     packets: str = Field(pattern=r"^(:?tlshello|[\d-]{1,16})$")
     length: str = Field(pattern=r"^[\d-]{1,16}$")
@@ -238,6 +244,7 @@ class BaseHost(BaseModel):
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
     ech_config_list: str | None = Field(default=None)
+    ech_query_strategy: ECHQueryStrategy | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
 

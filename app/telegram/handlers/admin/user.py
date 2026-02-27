@@ -39,6 +39,7 @@ group_operations = GroupOperation(OperatorType.TELEGRAM)
 user_templates = UserTemplateOperation(OperatorType.TELEGRAM)
 
 router = Router(name="user")
+MAX_CALLBACK_ALERT_LENGTH = 200
 
 
 @router.callback_query(
@@ -309,8 +310,8 @@ async def modify_expiry_done(event: Message, state: FSMContext, db: AsyncSession
         await add_to_messages_to_delete(state, msg)
         return
     user_id = await state.get_value("user_id")
-    await delete_messages(event, state)
     await state.clear()
+    await delete_messages(event, state)
     try:
         user = await user_operations.get_user_by_id(db, user_id, admin)
     except ValueError:
@@ -355,8 +356,8 @@ async def modify_data_limit_done(event: Message, state: FSMContext, db: AsyncSes
         await add_to_messages_to_delete(state, msg)
         return
     user_id = await state.get_value("user_id")
-    await delete_messages(event, state)
     await state.clear()
+    await delete_messages(event, state)
     try:
         user = await user_operations.get_user_by_id(db, user_id, admin)
     except ValueError:
@@ -388,8 +389,8 @@ async def modify_note_done(event: Message, state: FSMContext, db: AsyncSession, 
     await add_to_messages_to_delete(state, event)
     note = event.text
     user_id = await state.get_value("user_id")
-    await delete_messages(event, state)
     await state.clear()
+    await delete_messages(event, state)
     try:
         user = await user_operations.get_user_by_id(db, user_id, admin)
     except ValueError:
@@ -550,8 +551,8 @@ async def create_user_from_template_choose(
     except ValueError:
         pass
 
-    await delete_messages(event, state)
     await state.clear()
+    await delete_messages(event, state)
 
     user = await user_operations.create_user_from_template(
         db, CreateUserFromTemplate(username=username, user_template_id=template_id), admin
@@ -589,7 +590,10 @@ async def get_v2ray_links(
         user_with_inbounds = await subscription_operations.validated_user(db_user)
         links, _ = await subscription_operations.fetch_config(user_with_inbounds, ConfigFormat.links)
     except ValueError as exc:
-        return await event.answer(str(exc), show_alert=True)
+        error = str(exc)
+        if len(error) > MAX_CALLBACK_ALERT_LENGTH:
+            error = f"{error[:MAX_CALLBACK_ALERT_LENGTH - 3]}..."
+        return await event.answer(error, show_alert=True)
 
     if not links or not links.strip():
         return await event.answer(Texts.v2ray_links_unavailable, show_alert=True)
@@ -610,17 +614,8 @@ async def get_v2ray_links(
 
 @router.message(F.text)
 @router.callback_query(UserPanel.Callback.filter(UserPanelAction.show == F.action))
-async def get_user(
-    event: Message | CallbackQuery,
-    admin: AdminDetails,
-    db: AsyncSession,
-    state: FSMContext | None = None,
-    **kwargs,
-):
+async def get_user(event: Message | CallbackQuery, admin: AdminDetails, db: AsyncSession, **kwargs):
     """get exact user, otherwise not found"""
-    if isinstance(event, CallbackQuery) and state is not None and await state.get_state() is not None:
-        await delete_messages(event, state)
-        await state.clear()
     try:
         if isinstance(event, Message):
             user = await user_operations.get_user(db, event.text, admin)
@@ -636,10 +631,7 @@ async def get_user(
     if isinstance(event, Message):
         await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
     else:
-        try:
-            await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
-        except TelegramBadRequest:
-            await event.message.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+        await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
 
 
 @router.inline_query()

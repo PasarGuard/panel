@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { useTranslation } from 'react-i18next'
 import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
 import { formatDateByLocale, formatDateShort, isDateDisabled } from '@/utils/datePickerUtils'
-import { formatOffsetDateTime, toUnixSeconds } from '@/utils/dateTimeParsing'
+import { formatOffsetDateTime, parseDateInput, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useTheme } from '@/components/common/theme-provider'
 import { DATE_PICKER_PREFERENCE_KEY, getDatePickerPreference, type DatePickerPreference } from '@/utils/userPreferenceStorage'
@@ -328,13 +328,13 @@ export function DatePicker({
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
             <Button
-              dir={dir}
+              dir="ltr"
               variant="outline"
               className={cn('w-full justify-start font-normal', isRTL ? 'text-right' : 'text-left', !displayDate && 'text-muted-foreground')}
               type="button"
             >
               {displayDate ? formatDate(displayDate) : <span>{placeholder || label || t('timeSelector.pickDate')}</span>}
-              <div className={cn('flex items-center gap-1', isRTL ? 'mr-auto' : 'ml-auto')}>
+              <div className="flex items-center gap-1 ml-auto">
                 {displayDate && (
                   <button
                     type="button"
@@ -399,9 +399,7 @@ export function DatePicker({
                   ].map(({ label, days }) => {
                     const handleShortcut = () => {
                       const baseDate = displayDate || now
-                      const targetDate = new Date(baseDate)
-                      targetDate.setDate(baseDate.getDate() + days)
-                      // Preserve time from base date
+                      const targetDate = new Date(parseDateInput(baseDate).add(days, 'day').valueOf())
                       handleDateSelect(targetDate)
                     }
                     return (
