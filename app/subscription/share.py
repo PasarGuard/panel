@@ -12,7 +12,7 @@ from app.db.models import UserStatus
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
-from app.subscription.core_templates import subscription_core_templates
+from app.subscription.client_templates import subscription_client_templates
 
 from . import (
     ClashConfiguration,
@@ -36,30 +36,30 @@ STATUS_EMOJIS = {
 
 def _build_subscription_config(
     config_format: str,
-    core_templates: dict[str, str],
+    client_templates: dict[str, str],
 ) -> StandardLinks | XrayConfiguration | SingBoxConfiguration | ClashConfiguration | ClashMetaConfiguration | OutlineConfiguration | None:
     common_kwargs = {
-        "user_agent_template_content": core_templates["USER_AGENT_TEMPLATE"],
-        "grpc_user_agent_template_content": core_templates["GRPC_USER_AGENT_TEMPLATE"],
+        "user_agent_template_content": client_templates["USER_AGENT_TEMPLATE"],
+        "grpc_user_agent_template_content": client_templates["GRPC_USER_AGENT_TEMPLATE"],
     }
 
     if config_format == "links":
         return StandardLinks(**common_kwargs)
     if config_format in ("clash", "clash_meta"):
         return ClashMetaConfiguration(
-            clash_template_content=core_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
+            clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
             **common_kwargs,
         )
     if config_format == "sing_box":
         return SingBoxConfiguration(
-            singbox_template_content=core_templates["SINGBOX_SUBSCRIPTION_TEMPLATE"],
+            singbox_template_content=client_templates["SINGBOX_SUBSCRIPTION_TEMPLATE"],
             **common_kwargs,
         )
     if config_format == "outline":
         return OutlineConfiguration()
     if config_format == "xray":
         return XrayConfiguration(
-            xray_template_content=core_templates["XRAY_SUBSCRIPTION_TEMPLATE"],
+            xray_template_content=client_templates["XRAY_SUBSCRIPTION_TEMPLATE"],
             **common_kwargs,
         )
     return None
@@ -72,8 +72,8 @@ async def generate_subscription(
     reverse: bool = False,
     randomize_order: bool = False,
 ) -> str:
-    core_templates = await subscription_core_templates()
-    conf = _build_subscription_config(config_format, core_templates)
+    client_templates = await subscription_client_templates()
+    conf = _build_subscription_config(config_format, client_templates)
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')
 
@@ -83,7 +83,7 @@ async def generate_subscription(
         user,
         format_variables,
         conf,
-        core_templates,
+        client_templates,
         reverse,
         randomize_order=randomize_order,
     )
@@ -280,7 +280,7 @@ async def _prepare_download_settings(
     format_variables: dict,
     inbounds: list[str],
     proxies: dict,
-    core_templates: dict[str, str],
+    client_templates: dict[str, str],
     conf: StandardLinks
     | XrayConfiguration
     | SingBoxConfiguration
@@ -300,9 +300,9 @@ async def _prepare_download_settings(
 
     if isinstance(conf, StandardLinks):
         xc = XrayConfiguration(
-            xray_template_content=core_templates["XRAY_SUBSCRIPTION_TEMPLATE"],
-            user_agent_template_content=core_templates["USER_AGENT_TEMPLATE"],
-            grpc_user_agent_template_content=core_templates["GRPC_USER_AGENT_TEMPLATE"],
+            xray_template_content=client_templates["XRAY_SUBSCRIPTION_TEMPLATE"],
+            user_agent_template_content=client_templates["USER_AGENT_TEMPLATE"],
+            grpc_user_agent_template_content=client_templates["GRPC_USER_AGENT_TEMPLATE"],
         )
         return xc._download_config(download_copy, link_format=True)
 
@@ -318,7 +318,7 @@ async def process_inbounds_and_tags(
     | ClashConfiguration
     | ClashMetaConfiguration
     | OutlineConfiguration,
-    core_templates: dict[str, str],
+    client_templates: dict[str, str],
     reverse=False,
     randomize_order: bool = False,
 ) -> list | str:
@@ -345,7 +345,7 @@ async def process_inbounds_and_tags(
                 format_variables,
                 user.inbounds,
                 proxy_settings,
-                core_templates,
+                client_templates,
                 conf,
             )
             if hasattr(inbound_copy.transport_config, "download_settings"):

@@ -3,7 +3,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class CoreTemplateType(StrEnum):
+class ClientTemplateType(StrEnum):
     clash_subscription = "clash_subscription"
     xray_subscription = "xray_subscription"
     singbox_subscription = "singbox_subscription"
@@ -11,9 +11,9 @@ class CoreTemplateType(StrEnum):
     grpc_user_agent = "grpc_user_agent"
 
 
-class CoreTemplateBase(BaseModel):
+class ClientTemplateBase(BaseModel):
     name: str = Field(max_length=64)
-    template_type: CoreTemplateType
+    template_type: ClientTemplateType
     content: str
     is_default: bool = Field(default=False)
 
@@ -33,11 +33,11 @@ class CoreTemplateBase(BaseModel):
         return value
 
 
-class CoreTemplateCreate(CoreTemplateBase):
+class ClientTemplateCreate(ClientTemplateBase):
     pass
 
 
-class CoreTemplateModify(BaseModel):
+class ClientTemplateModify(BaseModel):
     name: str | None = Field(default=None, max_length=64)
     content: str | None = None
     is_default: bool | None = None
@@ -62,10 +62,10 @@ class CoreTemplateModify(BaseModel):
         return value
 
 
-class CoreTemplateResponse(BaseModel):
+class ClientTemplateResponse(BaseModel):
     id: int
     name: str
-    template_type: CoreTemplateType
+    template_type: ClientTemplateType
     content: str
     is_default: bool
     is_system: bool
@@ -73,22 +73,22 @@ class CoreTemplateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class CoreTemplateResponseList(BaseModel):
+class ClientTemplateResponseList(BaseModel):
     count: int
-    templates: list[CoreTemplateResponse] = []
+    templates: list[ClientTemplateResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class CoreTemplateSimple(BaseModel):
+class ClientTemplateSimple(BaseModel):
     id: int
     name: str
-    template_type: CoreTemplateType
+    template_type: ClientTemplateType
     is_default: bool
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class CoreTemplatesSimpleResponse(BaseModel):
-    templates: list[CoreTemplateSimple]
+class ClientTemplatesSimpleResponse(BaseModel):
+    templates: list[ClientTemplateSimple]
     total: int

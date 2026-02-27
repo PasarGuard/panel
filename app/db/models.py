@@ -722,11 +722,11 @@ class CoreConfig(Base):
     fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
 
 
-class CoreTemplate(Base):
-    __tablename__ = "core_templates"
+class ClientTemplate(Base):
+    __tablename__ = "client_templates"
     __table_args__ = (
         UniqueConstraint("template_type", "name"),
-        Index("ix_core_templates_template_type", "template_type"),
+        Index("ix_client_templates_template_type", "template_type"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)

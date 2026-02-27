@@ -76,7 +76,7 @@ def delete_core(access_token: str, core_id: int) -> None:
     assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN)
 
 
-def create_core_template(
+def create_client_template(
     access_token: str,
     *,
     name: str | None = None,
@@ -85,18 +85,18 @@ def create_core_template(
     is_default: bool = False,
 ) -> dict:
     payload = {
-        "name": name or unique_name("core_template"),
+        "name": name or unique_name("client_template"),
         "template_type": template_type,
         "content": content,
         "is_default": is_default,
     }
-    response = client.post("/api/core_template", headers=auth_headers(access_token), json=payload)
+    response = client.post("/api/client_template", headers=auth_headers(access_token), json=payload)
     assert response.status_code == status.HTTP_201_CREATED
     return response.json()
 
 
-def delete_core_template(access_token: str, template_id: int) -> None:
-    response = client.delete(f"/api/core_template/{template_id}", headers=auth_headers(access_token))
+def delete_client_template(access_token: str, template_id: int) -> None:
+    response = client.delete(f"/api/client_template/{template_id}", headers=auth_headers(access_token))
     assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN)
 
 

@@ -1,4 +1,4 @@
-"""add core_templates table
+"""add client_templates table
 
 Revision ID: e8c6a4f1d2b7
 Revises: 20e2a5cf1e40
@@ -389,7 +389,7 @@ def _template_content_or_default(
 
 def upgrade() -> None:
     op.create_table(
-        "core_templates",
+        "client_templates",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=64), nullable=False),
         sa.Column("template_type", sa.String(length=32), nullable=False),
@@ -399,7 +399,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("template_type", "name"),
     )
-    op.create_index("ix_core_templates_template_type", "core_templates", ["template_type"], unique=False)
+    op.create_index("ix_client_templates_template_type", "client_templates", ["template_type"], unique=False)
 
     clash_template_content = _template_content_or_default(
         "CLASH_SUBSCRIPTION_TEMPLATE",
@@ -429,7 +429,7 @@ def upgrade() -> None:
 
     op.bulk_insert(
         sa.table(
-            "core_templates",
+            "client_templates",
             sa.Column("name", sa.String),
             sa.Column("template_type", sa.String),
             sa.Column("content", sa.Text),
@@ -477,5 +477,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_core_templates_template_type", table_name="core_templates")
-    op.drop_table("core_templates")
+    op.drop_index("ix_client_templates_template_type", table_name="client_templates")
+    op.drop_table("client_templates")

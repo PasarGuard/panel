@@ -4,47 +4,47 @@ import yaml
 from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
-from app.db.crud.core_template import (
-    CoreTemplateSortingOptionsSimple,
-    count_core_templates_by_type,
-    create_core_template,
-    get_core_templates,
-    get_core_templates_simple,
+from app.db.crud.client_template import (
+    ClientTemplateSortingOptionsSimple,
+    count_client_templates_by_type,
+    create_client_template,
+    get_client_templates,
+    get_client_templates_simple,
     get_first_template_by_type,
-    modify_core_template,
-    remove_core_template,
+    modify_client_template,
+    remove_client_template,
     set_default_template,
 )
 from app.models.admin import AdminDetails
-from app.models.core_template import (
-    CoreTemplateCreate,
-    CoreTemplateModify,
-    CoreTemplateResponse,
-    CoreTemplateResponseList,
-    CoreTemplateSimple,
-    CoreTemplatesSimpleResponse,
-    CoreTemplateType,
+from app.models.client_template import (
+    ClientTemplateCreate,
+    ClientTemplateModify,
+    ClientTemplateResponse,
+    ClientTemplateResponseList,
+    ClientTemplateSimple,
+    ClientTemplatesSimpleResponse,
+    ClientTemplateType,
 )
 from app.nats.message import MessageTopic
 from app.nats.router import router
-from app.subscription.core_templates import refresh_core_templates_cache
+from app.subscription.client_templates import refresh_client_templates_cache
 from app.templates import render_template_string
 from app.utils.logger import get_logger
 
 from . import BaseOperation
 
-logger = get_logger("core-template-operation")
+logger = get_logger("client-template-operation")
 
 
-class CoreTemplateOperation(BaseOperation):
+class ClientTemplateOperation(BaseOperation):
     @staticmethod
-    async def _sync_core_template_cache() -> None:
-        await refresh_core_templates_cache()
-        await router.publish(MessageTopic.CORE_TEMPLATE, {"action": "refresh"})
+    async def _sync_client_template_cache() -> None:
+        await refresh_client_templates_cache()
+        await router.publish(MessageTopic.CLIENT_TEMPLATE, {"action": "refresh"})
 
-    async def _validate_template_content(self, template_type: CoreTemplateType, content: str) -> None:
+    async def _validate_template_content(self, template_type: ClientTemplateType, content: str) -> None:
         try:
-            if template_type == CoreTemplateType.clash_subscription:
+            if template_type == ClientTemplateType.clash_subscription:
                 rendered = render_template_string(
                     content,
                     {
@@ -57,14 +57,14 @@ class CoreTemplateOperation(BaseOperation):
 
             rendered = render_template_string(content)
             parsed = json.loads(rendered)
-            if template_type in (CoreTemplateType.user_agent, CoreTemplateType.grpc_user_agent):
+            if template_type in (ClientTemplateType.user_agent, ClientTemplateType.grpc_user_agent):
                 if not isinstance(parsed, dict):
                     raise ValueError("User-Agent template content must render to a JSON object")
                 if (_list := parsed.get("list")) is None or not isinstance(_list, list):
                     raise ValueError("User-Agent template content must contain a 'list' field with an array of strings")
                 if not _list:
                     raise ValueError("User-Agent template content must contain at least one User-Agent string")
-            if template_type in (CoreTemplateType.xray_subscription, CoreTemplateType.singbox_subscription):
+            if template_type in (ClientTemplateType.xray_subscription, ClientTemplateType.singbox_subscription):
                 if not isinstance(parsed, dict):
                     raise ValueError("Subscription template content must render to a JSON object")
                 if (inb := parsed.get("inbounds")) is None or not isinstance(inb, list):
@@ -82,56 +82,56 @@ class CoreTemplateOperation(BaseOperation):
         except Exception as exc:
             await self.raise_error(message=f"Invalid template content: {str(exc)}", code=400)
 
-    async def create_core_template(
+    async def create_client_template(
         self,
         db: AsyncSession,
-        new_template: CoreTemplateCreate,
+        new_template: ClientTemplateCreate,
         admin: AdminDetails,
-    ) -> CoreTemplateResponse:
+    ) -> ClientTemplateResponse:
         await self._validate_template_content(new_template.template_type, new_template.content)
 
         try:
-            db_template = await create_core_template(db, new_template)
+            db_template = await create_client_template(db, new_template)
         except IntegrityError:
             await self.raise_error("Template with this name already exists for this type", 409, db=db)
 
         logger.info(
-            f'Core template "{db_template.name}" ({db_template.template_type}) created by admin "{admin.username}"'
+            f'Client template "{db_template.name}" ({db_template.template_type}) created by admin "{admin.username}"'
         )
-        await self._sync_core_template_cache()
-        return CoreTemplateResponse.model_validate(db_template)
+        await self._sync_client_template_cache()
+        return ClientTemplateResponse.model_validate(db_template)
 
-    async def get_core_templates(
+    async def get_client_templates(
         self,
         db: AsyncSession,
-        template_type: CoreTemplateType | None = None,
+        template_type: ClientTemplateType | None = None,
         offset: int | None = None,
         limit: int | None = None,
-    ) -> CoreTemplateResponseList:
-        templates, count = await get_core_templates(db, template_type=template_type, offset=offset, limit=limit)
-        return CoreTemplateResponseList(templates=templates, count=count)
+    ) -> ClientTemplateResponseList:
+        templates, count = await get_client_templates(db, template_type=template_type, offset=offset, limit=limit)
+        return ClientTemplateResponseList(templates=templates, count=count)
 
-    async def get_core_templates_simple(
+    async def get_client_templates_simple(
         self,
         db: AsyncSession,
         offset: int | None = None,
         limit: int | None = None,
         search: str | None = None,
-        template_type: CoreTemplateType | None = None,
+        template_type: ClientTemplateType | None = None,
         sort: str | None = None,
         all: bool = False,
-    ) -> CoreTemplatesSimpleResponse:
+    ) -> ClientTemplatesSimpleResponse:
         sort_list = []
         if sort is not None:
             opts = sort.strip(",").split(",")
             for opt in opts:
                 try:
-                    enum_member = CoreTemplateSortingOptionsSimple[opt]
+                    enum_member = ClientTemplateSortingOptionsSimple[opt]
                     sort_list.append(enum_member)
                 except KeyError:
                     await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
 
-        rows, total = await get_core_templates_simple(
+        rows, total = await get_client_templates_simple(
             db=db,
             offset=offset,
             limit=limit,
@@ -142,22 +142,22 @@ class CoreTemplateOperation(BaseOperation):
         )
 
         templates = [
-            CoreTemplateSimple(id=row[0], name=row[1], template_type=row[2], is_default=row[3]) for row in rows
+            ClientTemplateSimple(id=row[0], name=row[1], template_type=row[2], is_default=row[3]) for row in rows
         ]
-        return CoreTemplatesSimpleResponse(templates=templates, total=total)
+        return ClientTemplatesSimpleResponse(templates=templates, total=total)
 
-    async def modify_core_template(
+    async def modify_client_template(
         self,
         db: AsyncSession,
         template_id: int,
-        modified_template: CoreTemplateModify,
+        modified_template: ClientTemplateModify,
         admin: AdminDetails,
-    ) -> CoreTemplateResponse:
-        db_template = await self.get_validated_core_template(db, template_id)
+    ) -> ClientTemplateResponse:
+        db_template = await self.get_validated_client_template(db, template_id)
 
         if modified_template.content is not None:
             await self._validate_template_content(
-                CoreTemplateType(db_template.template_type), modified_template.content
+                ClientTemplateType(db_template.template_type), modified_template.content
             )
 
         if modified_template.is_default is False and db_template.is_default:
@@ -167,24 +167,24 @@ class CoreTemplateOperation(BaseOperation):
             )
 
         try:
-            db_template = await modify_core_template(db, db_template, modified_template)
+            db_template = await modify_client_template(db, db_template, modified_template)
         except IntegrityError:
             await self.raise_error("Template with this name already exists for this type", 409, db=db)
 
         logger.info(
-            f'Core template "{db_template.name}" ({db_template.template_type}) modified by admin "{admin.username}"'
+            f'Client template "{db_template.name}" ({db_template.template_type}) modified by admin "{admin.username}"'
         )
-        await self._sync_core_template_cache()
-        return CoreTemplateResponse.model_validate(db_template)
+        await self._sync_client_template_cache()
+        return ClientTemplateResponse.model_validate(db_template)
 
-    async def remove_core_template(self, db: AsyncSession, template_id: int, admin: AdminDetails) -> None:
-        db_template = await self.get_validated_core_template(db, template_id)
-        template_type = CoreTemplateType(db_template.template_type)
+    async def remove_client_template(self, db: AsyncSession, template_id: int, admin: AdminDetails) -> None:
+        db_template = await self.get_validated_client_template(db, template_id)
+        template_type = ClientTemplateType(db_template.template_type)
 
         if db_template.is_system:
             await self.raise_error(message="Cannot delete system template", code=403)
 
-        template_count = await count_core_templates_by_type(db, template_type)
+        template_count = await count_client_templates_by_type(db, template_type)
         if template_count <= 1:
             await self.raise_error(message="Cannot delete the last template for this type", code=403)
 
@@ -192,10 +192,10 @@ class CoreTemplateOperation(BaseOperation):
         if db_template.is_default:
             replacement = await get_first_template_by_type(db, template_type, exclude_id=db_template.id)
 
-        await remove_core_template(db, db_template)
+        await remove_client_template(db, db_template)
 
         if replacement is not None:
             await set_default_template(db, replacement)
 
-        logger.info(f'Core template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"')
-        await self._sync_core_template_cache()
+        logger.info(f'Client template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"')
+        await self._sync_client_template_cache()
