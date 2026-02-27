@@ -10,18 +10,18 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { useCreateCoreConfig, useModifyCoreConfig } from '@/service/api'
 import { isEmptyObject } from '@/utils/isEmptyObject.ts'
 import { generateMldsa65 } from '@/utils/mldsa65'
 import { queryClient } from '@/utils/query-client'
-import Editor from '@monaco-editor/react'
 import { encodeURLSafe } from '@stablelib/base64'
 import { generateKeyPair } from '@stablelib/x25519'
 import { debounce } from 'es-toolkit'
 import { Info, Key, Maximize2, Minimize2, Sparkles, Shield } from 'lucide-react'
 import { MlKem768 } from 'mlkem'
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -92,9 +92,13 @@ const createDefaultVlessOptions = (): VlessBuilderOptions => ({
   includeClientPadding: false,
 })
 
+const MonacoEditor = lazy(() => import('@monaco-editor/react'))
+const MobileJsonAceEditor = lazy(() => import('@/components/common/mobile-json-ace-editor'))
+
 export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, editingCore, editingCoreId }: CoreConfigModalProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
   const [isEditorReady, setIsEditorReady] = useState(false)
@@ -140,6 +144,43 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     setIsResultsDialogOpen(true)
   }, [])
 
+  const relayoutEditor = useCallback(
+    (editor = editorInstance) => {
+      if (!editor) return
+      if (typeof editor.layout === 'function') {
+        editor.layout()
+      }
+      if (typeof editor.resize === 'function') {
+        editor.resize()
+      }
+    },
+    [editorInstance],
+  )
+
+  const validateJsonContent = useCallback(
+    (value: string, showToast = false) => {
+      try {
+        JSON.parse(value)
+        setValidation({ isValid: true })
+        return true
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Invalid JSON'
+        setValidation({
+          isValid: false,
+          error: errorMessage,
+        })
+        if (showToast) {
+          toast.error(errorMessage, {
+            duration: 3000,
+            position: 'bottom-right',
+          })
+        }
+        return false
+      }
+    },
+    [],
+  )
+
   // Handle fullscreen toggle with editor resize
   const handleToggleFullscreen = useCallback(() => {
     setIsEditorFullscreen(prev => {
@@ -147,16 +188,13 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
       // Force editor layout update when toggling fullscreen
       setTimeout(() => {
-        if (editorInstance) {
-          editorInstance.layout()
-        }
-        // Also trigger window resize event for Monaco to recalculate
+        relayoutEditor()
         window.dispatchEvent(new Event('resize'))
       }, 50)
 
       return newValue
     })
-  }, [editorInstance])
+  }, [relayoutEditor])
 
   const handleEditorValidation = useCallback(
     (markers: any[]) => {
@@ -172,24 +210,18 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           position: 'bottom-right',
         })
       } else {
-        try {
-          // Additional validation - try parsing the JSON
-          JSON.parse(form.getValues().config)
-          setValidation({ isValid: true })
-        } catch (e) {
-          const errorMessage = e instanceof Error ? e.message : 'Invalid JSON'
-          setValidation({
-            isValid: false,
-            error: errorMessage,
-          })
-          toast.error(errorMessage, {
-            duration: 3000,
-            position: 'bottom-right',
-          })
-        }
+        validateJsonContent(form.getValues().config, true)
       }
     },
-    [form],
+    [form, validateJsonContent],
+  )
+
+  const handleAceEditorChange = useCallback(
+    (value: string, onChange: (value: string) => void) => {
+      onChange(value)
+      validateJsonContent(value)
+    },
+    [validateJsonContent],
   )
 
   // Debounce config changes to improve performance
@@ -226,10 +258,20 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     // This ensures the editor properly calculates its dimensions on first load
     requestAnimationFrame(() => {
       if (editor) {
-        editor.layout()
+        if (typeof editor.layout === 'function') {
+          editor.layout()
+        }
+        if (typeof editor.resize === 'function') {
+          editor.resize()
+        }
         // Also trigger a resize after a short delay to handle mobile viewport adjustments
         setTimeout(() => {
-          editor.layout()
+          if (typeof editor.layout === 'function') {
+            editor.layout()
+          }
+          if (typeof editor.resize === 'function') {
+            editor.resize()
+          }
         }, 100)
       }
     })
@@ -610,14 +652,15 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       // Force editor resize on mobile after modal opens
       // This ensures the editor properly renders on first load
       setTimeout(() => {
-        const editorElement = document.querySelector('.monaco-editor')
+        const editorSelector = isMobile ? '.ace_editor' : '.monaco-editor'
+        const editorElement = document.querySelector(editorSelector)
         if (editorElement) {
           // Trigger a resize event
           window.dispatchEvent(new Event('resize'))
         }
       }, 300)
     }
-  }, [isDialogOpen, editingCore, form, defaultConfig])
+  }, [isDialogOpen, editingCore, form, defaultConfig, isMobile])
 
   // Cleanup on modal close
   useEffect(() => {
@@ -705,16 +748,18 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
   // Add this useEffect to inject the styles
   useEffect(() => {
+    if (isMobile) return
     const styleElement = document.createElement('style')
     styleElement.textContent = styles
     document.head.appendChild(styleElement)
     return () => {
       document.head.removeChild(styleElement)
     }
-  }, [])
+  }, [isMobile])
 
   // Handle Monaco Editor web component registration errors
   useEffect(() => {
+    if (isMobile) return
     const originalError = console.error
     console.error = (...args) => {
       // Suppress the specific web component registration error
@@ -727,44 +772,90 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     return () => {
       console.error = originalError
     }
-  }, [])
+  }, [isMobile])
 
   // Handle window resize for editor layout updates
   useEffect(() => {
     const handleResize = () => {
       // Force editor to recalculate its dimensions
       setTimeout(() => {
-        if (editorInstance) {
-          editorInstance.layout()
-        }
+        relayoutEditor()
       }, 100)
+    }
+    const handleOrientationChange = () => {
+      setTimeout(() => {
+        relayoutEditor()
+      }, 300)
     }
 
     window.addEventListener('resize', handleResize)
-
-    // Also listen for orientation changes on mobile
-    window.addEventListener('orientationchange', () => {
-      setTimeout(() => {
-        if (editorInstance) {
-          editorInstance.layout()
-        }
-      }, 300)
-    })
+    window.addEventListener('orientationchange', handleOrientationChange)
 
     return () => {
       window.removeEventListener('resize', handleResize)
-      window.removeEventListener('orientationchange', handleResize)
+      window.removeEventListener('orientationchange', handleOrientationChange)
     }
-  }, [editorInstance])
+  }, [relayoutEditor])
 
   // Trigger layout update when fullscreen state changes
   useEffect(() => {
     if (editorInstance && isEditorReady) {
       setTimeout(() => {
-        editorInstance.layout()
+        relayoutEditor()
       }, 150)
     }
-  }, [isEditorFullscreen, editorInstance, isEditorReady])
+  }, [isEditorFullscreen, editorInstance, isEditorReady, relayoutEditor])
+
+  const monacoEditorOptions = {
+    minimap: { enabled: false },
+    fontSize: 14,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+    lineNumbers: 'on',
+    roundedSelection: true,
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+    formatOnPaste: true,
+    formatOnType: true,
+    renderWhitespace: 'none',
+    wordWrap: 'on',
+    folding: true,
+    suggestOnTriggerCharacters: true,
+    quickSuggestions: true,
+    renderLineHighlight: 'all',
+    scrollbar: {
+      vertical: 'visible',
+      horizontal: 'visible',
+      useShadows: false,
+      verticalScrollbarSize: 10,
+      horizontalScrollbarSize: 10,
+    },
+    contextmenu: true,
+    copyWithSyntaxHighlighting: false,
+    multiCursorModifier: 'alt',
+    accessibilitySupport: 'on',
+    mouseWheelZoom: true,
+    quickSuggestionsDelay: 0,
+    occurrencesHighlight: 'singleFile',
+    wordBasedSuggestions: 'currentDocument',
+    suggest: {
+      showWords: true,
+      showSnippets: true,
+      showClasses: true,
+      showFunctions: true,
+      showVariables: true,
+      showProperties: true,
+      showColors: true,
+      showFiles: true,
+      showReferences: true,
+      showFolders: true,
+      showTypeParameters: true,
+      showEnums: true,
+      showConstructors: true,
+      showDeprecated: true,
+      showEnumMembers: true,
+      showKeywords: true,
+    },
+  } as const
 
   // VLESS Advanced Settings Modal Component
   const renderVlessAdvancedModal = () => {
@@ -1224,66 +1315,29 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                       <Minimize2 className="h-4 w-4" />
                                     </Button>
                                     <div className="relative h-full sm:h-[calc(100vh-160px)]" style={{ width: '100%' }}>
-                                      <Editor
-                                        height="100%"
-                                        defaultLanguage="json"
-                                        value={field.value}
-                                        theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                                        onChange={field.onChange}
-                                        onValidate={handleEditorValidation}
-                                        onMount={handleEditorDidMount}
-                                        options={{
-                                          minimap: { enabled: false },
-                                          fontSize: 14,
-                                          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-                                          lineNumbers: 'on',
-                                          roundedSelection: true,
-                                          scrollBeyondLastLine: false,
-                                          automaticLayout: true,
-                                          formatOnPaste: true,
-                                          formatOnType: true,
-                                          renderWhitespace: 'none',
-                                          wordWrap: 'on',
-                                          folding: true,
-                                          suggestOnTriggerCharacters: true,
-                                          quickSuggestions: true,
-                                          renderLineHighlight: 'all',
-                                          scrollbar: {
-                                            vertical: 'visible',
-                                            horizontal: 'visible',
-                                            useShadows: false,
-                                            verticalScrollbarSize: 10,
-                                            horizontalScrollbarSize: 10,
-                                          },
-                                          // Mobile-friendly options
-                                          contextmenu: true,
-                                          copyWithSyntaxHighlighting: false,
-                                          multiCursorModifier: 'alt',
-                                          accessibilitySupport: 'on',
-                                          mouseWheelZoom: true,
-                                          quickSuggestionsDelay: 0,
-                                          occurrencesHighlight: 'singleFile',
-                                          wordBasedSuggestions: 'currentDocument',
-                                          suggest: {
-                                            showWords: true,
-                                            showSnippets: true,
-                                            showClasses: true,
-                                            showFunctions: true,
-                                            showVariables: true,
-                                            showProperties: true,
-                                            showColors: true,
-                                            showFiles: true,
-                                            showReferences: true,
-                                            showFolders: true,
-                                            showTypeParameters: true,
-                                            showEnums: true,
-                                            showConstructors: true,
-                                            showDeprecated: true,
-                                            showEnumMembers: true,
-                                            showKeywords: true,
-                                          },
-                                        }}
-                                      />
+                                      {isMobile ? (
+                                        <Suspense fallback={<div className="h-full w-full" />}>
+                                          <MobileJsonAceEditor
+                                            value={field.value || ''}
+                                            theme={resolvedTheme}
+                                            onChange={value => handleAceEditorChange(value, field.onChange)}
+                                            onLoad={handleEditorDidMount}
+                                          />
+                                        </Suspense>
+                                      ) : (
+                                        <Suspense fallback={<div className="h-full w-full" />}>
+                                          <MonacoEditor
+                                            height="100%"
+                                            defaultLanguage="json"
+                                            value={field.value}
+                                            theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+                                            onChange={value => field.onChange(value ?? '')}
+                                            onValidate={handleEditorValidation}
+                                            onMount={handleEditorDidMount}
+                                            options={monacoEditorOptions}
+                                          />
+                                        </Suspense>
+                                      )}
                                     </div>
                                   </div>
                                 ) : (
@@ -1301,65 +1355,29 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                       </Button>
                                     )}
                                     <div className="relative min-h-0 flex-1" style={{ minHeight: 0 }}>
-                                      <Editor
-                                        height={undefined}
-                                        defaultLanguage="json"
-                                        value={field.value}
-                                        theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                                        onChange={field.onChange}
-                                        onValidate={handleEditorValidation}
-                                        onMount={handleEditorDidMount}
-                                        options={{
-                                          minimap: { enabled: false },
-                                          fontSize: 14,
-                                          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-                                          lineNumbers: 'on',
-                                          roundedSelection: true,
-                                          scrollBeyondLastLine: false,
-                                          automaticLayout: true,
-                                          formatOnPaste: true,
-                                          formatOnType: true,
-                                          renderWhitespace: 'none',
-                                          wordWrap: 'on',
-                                          folding: true,
-                                          suggestOnTriggerCharacters: true,
-                                          quickSuggestions: true,
-                                          renderLineHighlight: 'all',
-                                          scrollbar: {
-                                            vertical: 'visible',
-                                            horizontal: 'visible',
-                                            useShadows: false,
-                                            verticalScrollbarSize: 10,
-                                            horizontalScrollbarSize: 10,
-                                          },
-                                          contextmenu: true,
-                                          copyWithSyntaxHighlighting: false,
-                                          multiCursorModifier: 'alt',
-                                          accessibilitySupport: 'on',
-                                          mouseWheelZoom: true,
-                                          quickSuggestionsDelay: 0,
-                                          occurrencesHighlight: 'singleFile',
-                                          wordBasedSuggestions: 'currentDocument',
-                                          suggest: {
-                                            showWords: true,
-                                            showSnippets: true,
-                                            showClasses: true,
-                                            showFunctions: true,
-                                            showVariables: true,
-                                            showProperties: true,
-                                            showColors: true,
-                                            showFiles: true,
-                                            showReferences: true,
-                                            showFolders: true,
-                                            showTypeParameters: true,
-                                            showEnums: true,
-                                            showConstructors: true,
-                                            showDeprecated: true,
-                                            showEnumMembers: true,
-                                            showKeywords: true,
-                                          },
-                                        }}
-                                      />
+                                      {isMobile ? (
+                                        <Suspense fallback={<div className="h-full w-full" />}>
+                                          <MobileJsonAceEditor
+                                            value={field.value || ''}
+                                            theme={resolvedTheme}
+                                            onChange={value => handleAceEditorChange(value, field.onChange)}
+                                            onLoad={handleEditorDidMount}
+                                          />
+                                        </Suspense>
+                                      ) : (
+                                        <Suspense fallback={<div className="h-full w-full" />}>
+                                          <MonacoEditor
+                                            height={undefined}
+                                            defaultLanguage="json"
+                                            value={field.value}
+                                            theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+                                            onChange={value => field.onChange(value ?? '')}
+                                            onValidate={handleEditorValidation}
+                                            onMount={handleEditorDidMount}
+                                            options={monacoEditorOptions}
+                                          />
+                                        </Suspense>
+                                      )}
                                     </div>
                                   </>
                                 )}

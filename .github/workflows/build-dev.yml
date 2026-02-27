@@ -2,11 +2,9 @@ name: Build-Docker-dev
 
 on:
   push:
-    branches:
-      - "dev"
-      - "next"
-      - "nats-io"
-
+    branches-ignore: 
+      - main
+      
 permissions:
   contents: read
   packages: write

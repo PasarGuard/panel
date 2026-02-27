@@ -258,7 +258,7 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
 
             <div className="flex items-end justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-                <span dir="ltr" className="truncate text-xl font-bold transition-all duration-300 sm:text-2xl lg:text-3xl">
+                <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
                   {formatBytes(getTotalTrafficValue() || 0, 1)}
                 </span>
               </div>

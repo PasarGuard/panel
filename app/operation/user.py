@@ -144,7 +144,7 @@ class UserOperation(BaseOperation):
 
             sequence_base_username = _apply_affixes(base_username)
 
-            if 3 <= len(sequence_base_username) <= 128:
+            if not (3 <= len(sequence_base_username) <= 128):
                 await self.raise_error(
                     message="base username with affixes must be between 3 and 128 characters", code=400
                 )
