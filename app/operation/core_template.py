@@ -33,7 +33,6 @@ from app.utils.logger import get_logger
 
 from . import BaseOperation
 
-
 logger = get_logger("core-template-operation")
 
 
@@ -58,10 +57,28 @@ class CoreTemplateOperation(BaseOperation):
 
             rendered = render_template_string(content)
             parsed = json.loads(rendered)
-            if template_type in (CoreTemplateType.user_agent, CoreTemplateType.grpc_user_agent) and not isinstance(
-                parsed, dict
-            ):
-                raise ValueError("User-Agent template content must render to a JSON object")
+            if template_type in (CoreTemplateType.user_agent, CoreTemplateType.grpc_user_agent):
+                if not isinstance(parsed, dict):
+                    raise ValueError("User-Agent template content must render to a JSON object")
+                if (_list := parsed.get("list")) is None or not isinstance(_list, list):
+                    raise ValueError("User-Agent template content must contain a 'list' field with an array of strings")
+                if not _list:
+                    raise ValueError("User-Agent template content must contain at least one User-Agent string")
+            if template_type in (CoreTemplateType.xray_subscription, CoreTemplateType.singbox_subscription):
+                if not isinstance(parsed, dict):
+                    raise ValueError("Subscription template content must render to a JSON object")
+                if (inb := parsed.get("inbounds")) is None or not isinstance(inb, list):
+                    raise ValueError(
+                        "Subscription template content must contain a 'inbounds' field with an array of proxy objects"
+                    )
+                if not inb:
+                    raise ValueError("Subscription template content must contain at least one inbound proxy")
+                if (out := parsed.get("outbounds")) is None or not isinstance(out, list):
+                    raise ValueError(
+                        "Subscription template content must contain a 'outbounds' field with an array of proxy objects"
+                    )
+                if not out:
+                    raise ValueError("Subscription template content must contain at least one outbound proxy")
         except Exception as exc:
             await self.raise_error(message=f"Invalid template content: {str(exc)}", code=400)
 
@@ -139,7 +156,9 @@ class CoreTemplateOperation(BaseOperation):
         db_template = await self.get_validated_core_template(db, template_id)
 
         if modified_template.content is not None:
-            await self._validate_template_content(CoreTemplateType(db_template.template_type), modified_template.content)
+            await self._validate_template_content(
+                CoreTemplateType(db_template.template_type), modified_template.content
+            )
 
         if modified_template.is_default is False and db_template.is_default:
             await self.raise_error(
