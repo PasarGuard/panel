@@ -1258,50 +1258,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   </AccordionContent>
                 </AccordionItem>
 
-                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="routing">
-                  <AccordionTrigger>
-                    <div className="flex items-center gap-2">
-                      <Route className="h-4 w-4" />
-                      <span>{t('hostsDialog.routingSettings')}</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="px-2">
-                    <FormField
-                      control={form.control}
-                      name="vless_route"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex items-center gap-2">
-                            <FormLabel>{t('hostsDialog.vlessRoute')}</FormLabel>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                  <Info className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
-                                <p className="text-[11px] text-muted-foreground">{t('hostsDialog.vlessRoute.info')}</p>
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                          <FormControl>
-                            <Input
-                              placeholder={t('hostsDialog.vlessRoutePlaceholder')}
-                              maxLength={4}
-                              value={field.value ?? ''}
-                              onChange={e => {
-                                const normalized = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 4)
-                                field.onChange(normalized)
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-
                 <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="transport">
                   <AccordionTrigger>
                     <div className="flex items-center gap-2">
@@ -3114,6 +3070,51 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     </div>
                   </AccordionContent>
                 </AccordionItem>
+                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="routing">
+                  <AccordionTrigger>
+                    <div className="flex items-center gap-2">
+                      <Route className="h-4 w-4" />
+                      <span>{t('hostsDialog.routingSettings')}</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-2">
+                    <FormField
+                      control={form.control}
+                      name="vless_route"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center gap-2">
+                            <FormLabel>{t('hostsDialog.vlessRoute')}</FormLabel>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                  <Info className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                <p className="text-[11px] text-muted-foreground">{t('hostsDialog.vlessRoute.info')}</p>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <FormControl>
+                            <Input
+                              placeholder={t('hostsDialog.vlessRoutePlaceholder')}
+                              maxLength={4}
+                              value={field.value ?? ''}
+                              onChange={e => {
+                                const normalized = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 4)
+                                field.onChange(normalized)
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+
+
               </Accordion>
             </div>
             <div className="flex justify-end gap-2">
