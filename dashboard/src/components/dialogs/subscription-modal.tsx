@@ -199,7 +199,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
 
   const handleCopyAllConfigs = useCallback(async () => {
     try {
-      const content = await fetchLinksWithTimeoutFallback()
+      const content = configs.map(item => item.config).join('\n')
       await navigator.clipboard.writeText(content)
       setAllConfigsCopied(true)
       toast.success(t('usersTable.copied', { defaultValue: 'Copied' }))
@@ -207,7 +207,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
     } catch (error) {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy' }))
     }
-  }, [fetchLinksWithTimeoutFallback, t])
+  }, [configs, t])
 
   const handleShowConfigQR = (config: ConfigItem) => {
     setSelectedConfigQR(config)

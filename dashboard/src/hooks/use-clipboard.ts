@@ -12,22 +12,23 @@ async function copyToClipboard(text: string): Promise<boolean> {
     }
   }
 
-  // Fallback: use execCommand for older browsers
-  const input = document.createElement('input')
-  input.value = text
-  input.style.position = 'fixed'
-  input.style.left = '-9999px'
-  input.style.top = '-9999px'
-  document.body.appendChild(input)
-  input.focus()
-  input.select()
+  // Fallback: use execCommand for older browsers and keep multiline content intact.
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  textarea.style.top = '-9999px'
+  textarea.setAttribute('readonly', '')
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
 
   try {
     const successful = document.execCommand('copy')
-    document.body.removeChild(input)
+    document.body.removeChild(textarea)
     return successful
   } catch (err) {
-    document.body.removeChild(input)
+    document.body.removeChild(textarea)
     return false
   }
 }
@@ -50,13 +51,16 @@ export function useClipboard({ timeout = 1500 } = {}) {
         if (success) {
           handleCopyResult(true)
           setError(null)
+          return true
         } else {
           setError(new Error('useClipboard: copyToClipboard failed'))
           handleCopyResult(false)
+          return false
         }
       } catch (err) {
         setError(err instanceof Error ? err : new Error('useClipboard: copyToClipboard failed'))
         handleCopyResult(false)
+        return false
       }
     },
     [timeout],

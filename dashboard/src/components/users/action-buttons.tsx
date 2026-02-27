@@ -7,7 +7,7 @@ import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Cpu, EllipsisVertical, Link2Off, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,6 +32,8 @@ export interface SubscribeLink {
   icon: string
 }
 
+const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box']
+
 const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const [subscribeUrl, setSubscribeUrl] = useState<string>('')
   const [subscribeLinks, setSubscribeLinks] = useState<SubscribeLink[]>([])
@@ -50,6 +52,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const configContentCacheRef = useRef<Record<string, string>>({})
+  const pendingContentFetchRef = useRef<Record<string, Promise<string>>>({})
 
   const updateUserInCache = (updatedUser: UserResponse) => {
     queryClient.setQueriesData<UsersResponse>(
@@ -193,6 +197,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const { copy, copied } = useClipboard({ timeout: 1500 })
 
+  useEffect(() => {
+    configContentCacheRef.current = {}
+    pendingContentFetchRef.current = {}
+  }, [subscribeLinks])
+
   // Refresh user data function (only for delete operations)
   const refreshUserData = () => {
     queryClient.invalidateQueries({ queryKey: ['/api/users'] })
@@ -322,6 +331,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
     return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
   }
 
+  const isSafariDesktop = () => {
+    const userAgent = navigator.userAgent
+    return /Safari/.test(userAgent) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(userAgent)
+  }
+
+  const requiresSynchronousClipboard = () => {
+    return isIOS() || isSafariDesktop()
+  }
+
   const showManualCopyAlert = (content: string, type: 'content' | 'url') => {
     const message =
       type === 'content' ? t('copyFailed', { defaultValue: 'Failed to copy automatically. Please copy manually:' }) : t('downloadFailed', { defaultValue: 'Download blocked. Please copy manually:' })
@@ -368,11 +386,67 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const fetchBlob = (url: string): Promise<Blob> => fetchWithDashboardFallback(url, response => response.blob())
 
+  const fetchAndCacheContent = (link: string): Promise<string> => {
+    const cachedContent = configContentCacheRef.current[link]
+    if (cachedContent !== undefined) {
+      return Promise.resolve(cachedContent)
+    }
+
+    const pendingRequest = pendingContentFetchRef.current[link]
+    if (pendingRequest) {
+      return pendingRequest
+    }
+
+    const request = fetchContent(link)
+      .then(content => {
+        configContentCacheRef.current[link] = content
+        return content
+      })
+      .finally(() => {
+        delete pendingContentFetchRef.current[link]
+      })
+
+    pendingContentFetchRef.current[link] = request
+    return request
+  }
+
+  const prefetchCopyableConfigs = () => {
+    subscribeLinks.forEach(({ protocol, link }) => {
+      if (DOWNLOAD_ONLY_PROTOCOLS.includes(protocol)) return
+      void fetchAndCacheContent(link).catch(error => {
+        console.error('Failed to prefetch config content:', error)
+      })
+    })
+  }
+
   const handleLinksCopy = async (link: string, type: string, icon: string) => {
     try {
-      const content = await fetchContent(link)
-      copy(content)
-      toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
+      const cachedContent = configContentCacheRef.current[link]
+      if (cachedContent !== undefined) {
+        const copiedSuccessfully = await copy(cachedContent)
+        if (copiedSuccessfully) {
+          toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
+        } else {
+          toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
+        }
+        return
+      }
+
+      if (requiresSynchronousClipboard()) {
+        void fetchAndCacheContent(link).catch(error => {
+          console.error('Failed to fetch config content:', error)
+        })
+        toast.info(t('copyPrepareRetry', { defaultValue: 'Preparing configuration. Tap again to copy.' }))
+        return
+      }
+
+      const content = await fetchAndCacheContent(link)
+      const copiedSuccessfully = await copy(content)
+      if (copiedSuccessfully) {
+        toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
+      } else {
+        toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
+      }
     } catch (error) {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
     }
@@ -408,7 +482,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   }
 
   const handleCopyOrDownload = (link: string, type: string, icon: string) => {
-    if (['clash', 'clash-meta', 'sing-box'].includes(type)) {
+    if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
       handleConfigDownload(link, type)
     } else {
       handleLinksCopy(link, type, icon)
@@ -431,7 +505,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             toastSuccessMessage="userSettings.subscriptionUrlCopied"
           />
           <Tooltip open={copied ? true : undefined}>
-            <DropdownMenu>
+            <DropdownMenu
+              onOpenChange={open => {
+                if (open) prefetchCopyableConfigs()
+              }}
+            >
               <DropdownMenuTrigger asChild>
                 <TooltipTrigger asChild>
                   <Button size="icon" variant="ghost">
