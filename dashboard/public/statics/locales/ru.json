@@ -928,7 +928,6 @@
   },
   "statistics.system": "Система",
   "statistics.totalTraffic": "Общий трафик",
-  "statistics.networkSpeed": "Скорость сети",
   "statistics.ramUsage": "Использование RAM",
   "statistics.cpuUsage": "Использование CPU",
   "statistics.diskUsage": "Использование диска",
