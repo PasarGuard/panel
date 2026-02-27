@@ -31,13 +31,13 @@ def test_client_template_can_switch_default(access_token):
         access_token,
         name=unique_name("tmpl_sb_first"),
         template_type="singbox_subscription",
-        content='{"outbounds": [{"type": "direct", "tag": "a"}],inbounds":[{"type": "socks5","tag":"b","settings":{"clients":[{"username":"user","password":"pass"}]}}]}',
+        content='{"outbounds": [{"type": "direct", "tag": "a"}],"inbounds":[{"type": "socks5","tag":"b","settings":{"clients":[{"username":"user","password":"pass"}]}}]}',
     )
     second = create_client_template(
         access_token,
         name=unique_name("tmpl_sb_second"),
         template_type="singbox_subscription",
-        content='{"outbounds": [{"type": "direct", "tag": "a"}],inbounds":[{"type": "socks5","tag":"b","settings":{"clients":[{"username":"user","password":"pass"}]}}]}',
+        content='{"outbounds": [{"type": "direct", "tag": "a"}],"inbounds":[{"type": "socks5","tag":"b","settings":{"clients":[{"username":"user","password":"pass"}]}}]}',
         is_default=True,
     )
 
