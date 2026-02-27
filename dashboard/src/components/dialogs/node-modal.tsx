@@ -381,9 +381,11 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
       <DialogContent className="h-full max-w-full focus:outline-none sm:max-w-[90vw] lg:h-auto lg:max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
-        <DialogHeader className="pb-2">
-          <DialogTitle className={cn('text-start text-base font-semibold sm:text-lg', dir === 'rtl' && 'sm:text-right')}>{editingNode ? t('editNode.title') : t('nodeModal.title')}</DialogTitle>
-          <p className={cn('text-start text-xs text-muted-foreground', dir === 'rtl' && 'sm:text-right')}>{editingNode ? t('nodes.prompt') : t('nodeModal.description')}</p>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            <span>{editingNode ? t('editNode.title') : t('nodeModal.title')}</span>
+          </DialogTitle>
         </DialogHeader>
 
         {/* Status Check Results - Positioned at the top of the modal */}

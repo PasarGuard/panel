@@ -122,7 +122,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-h-[100dvh] max-w-3xl overflow-hidden">
-        <DialogHeader className="pb-3">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bookmark className="h-5 w-5" />
             {t('quickActions.title')}

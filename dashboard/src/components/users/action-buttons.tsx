@@ -2,7 +2,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@/components/ui/button'
 import { useClipboard } from '@/hooks/use-clipboard'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { cn } from '@/lib/utils'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
@@ -638,7 +637,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <AlertDialogTitle>{t('usersTable.activeNextPlanTitle')}</AlertDialogTitle>
             <AlertDialogDescription>{t('usersTable.activeNextPlanPrompt', { name: user.username })}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
+          <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={activeNextPlan} disabled={activeNextMutation.isPending}>
               {t('usersTable.activeNextPlanSubmit')}
@@ -654,7 +653,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <AlertDialogTitle>{t('usersTable.deleteUserTitle')}</AlertDialogTitle>
             <AlertDialogDescription>{t('usersTable.deleteUserPrompt', { name: user.username })}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
+          <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={confirmDelete} disabled={removeUserMutation.isPending}>
               {t('usersTable.delete')}
@@ -670,7 +669,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <AlertDialogTitle>{t('usersTable.resetUsageTitle')}</AlertDialogTitle>
             <AlertDialogDescription>{t('usersTable.resetUsagePrompt', { name: user.username })}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
+          <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setResetUsageDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmResetUsage} disabled={resetUserDataUsageMutation.isPending}>
               {t('usersTable.resetUsageSubmit')}
@@ -686,7 +685,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             <AlertDialogTitle>{t('revokeUserSub.title')}</AlertDialogTitle>
             <AlertDialogDescription>{t('revokeUserSub.prompt', { username: user.username })}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
+          <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setRevokeSubDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmRevokeSubscription} disabled={revokeUserSubscriptionMutation.isPending}>
               {t('revokeUserSub.title')}

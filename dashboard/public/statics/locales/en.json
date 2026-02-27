@@ -1118,7 +1118,6 @@
   "manageServers": "Control your server details",
   "nodes.addHostForEveryInbound": "Add this node as a new host for every inbound",
   "nodes.addNewPasarGuardNode": "Create New PasarGuard Node",
-  "nodes.prompt": "Create and configure node details",
   "nodes.addNodeSuccess": "Node {{name}} created successfully",
   "nodes.apply": "modifyNode",
   "nodes.certificate": "Certificate",

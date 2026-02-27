@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
+import { Card, CardHeader, CardContent, CardFooter } from '../ui/card'
 import { ChartContainer, ChartTooltip, ChartConfig } from '../ui/chart'
 import { BarChart3, PieChart as PieChartIcon, TrendingUp, Calendar, Info } from 'lucide-react'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from '../charts/time-selector'
@@ -605,12 +605,16 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl p-0.5">
-        <DialogTitle className="sr-only">{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</DialogTitle>
-        <DialogDescription className="sr-only">Showing total usage for the selected period</DialogDescription>
+        <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6">
+          <DialogTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            <span>{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</span>
+          </DialogTitle>
+          <DialogDescription>{t('usersTable.usageSummary', { defaultValue: 'Showing total usage for the selected period.' })}</DialogDescription>
+        </DialogHeader>
         <Card className="w-full border-none shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-center text-lg sm:text-xl">{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</CardTitle>
-            <CardDescription className="flex flex-col items-center gap-4 pt-4">
+            <div className="flex flex-col items-center gap-4 pt-1">
               <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-center">
                 <TimeSelector
                   selectedTime={period}
@@ -679,7 +683,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                   <TimeRangeSelector onRangeChange={handleCustomRangeChange} initialRange={customRange} className="w-full sm:w-auto" />
                 </div>
               )}
-            </CardDescription>
+            </div>
           </CardHeader>
           <CardContent dir="ltr" className="mb-0 p-0">
             <div className="w-full">

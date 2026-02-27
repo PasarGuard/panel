@@ -608,7 +608,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
       <DialogContent className="h-full w-full max-w-2xl sm:h-auto sm:py-4" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className={cn('mt-2', dir === 'rtl' ? 'text-right' : 'text-left')}>{editingHost ? t('editHost.title') : t('hostsDialog.addHost')}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Network className="h-5 w-5" />
+            <span>{editingHost ? t('editHost.title') : t('hostsDialog.addHost')}</span>
+          </DialogTitle>
           <DialogDescription className="sr-only">Modify the host settings below</DialogDescription>
         </DialogHeader>
         <Form {...form}>

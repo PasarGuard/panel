@@ -345,7 +345,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[95vh] max-w-4xl flex-col sm:max-h-[600px]" dir={dir}>
         <DialogHeader>
-          <DialogTitle className={`flex items-center gap-2`}>
+          <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 flex-shrink-0" />
             <span>{t('subscriptionClients.title', { defaultValue: 'Subscription Clients' })}</span>
             <Badge variant="outline" dir="ltr" className="flex-shrink-0">

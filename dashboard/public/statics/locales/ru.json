@@ -756,7 +756,6 @@
   "manageServers": "Управляйте данными вашего сервера",
   "nodes.addHostForEveryInbound": "Добавить этот узел, как новый хост для каждого inbound",
   "nodes.addNewPasarGuardNode": "Добавить новый узел PasarGuard",
-  "nodes.prompt": "Добавьте и настройте данные узла",
   "nodes.addNode": "Добавить узел",
   "nodes.addNodeSuccess": "Узел {{name}} успешно добавлен",
   "nodes.apply": "Настройки узла успешно обновлены",

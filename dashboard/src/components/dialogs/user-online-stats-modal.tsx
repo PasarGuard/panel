@@ -474,7 +474,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[90vh] max-w-full flex-col sm:h-[600px] sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className={cn('flex items-center gap-2 text-xl font-semibold', dir === 'rtl' && 'sm:text-right')}>
+          <DialogTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
             <span>{dialogTitle}</span>
           </DialogTitle>

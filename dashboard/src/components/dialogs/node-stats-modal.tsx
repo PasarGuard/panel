@@ -141,9 +141,9 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="flex max-h-[95dvh] w-[96vw] max-w-md flex-col overflow-hidden p-3 sm:max-w-2xl sm:p-4 md:max-w-3xl lg:max-w-4xl" dir={dir}>
-        <DialogHeader className={isRTL ? 'text-right' : 'text-left'}>
+        <DialogHeader>
           <div className="flex flex-col items-start gap-3">
-            <DialogTitle className={`flex items-center gap-2 text-sm sm:text-base`}>
+            <DialogTitle className="flex items-center gap-2">
               <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
               {t('statistics.nodeStats', { defaultValue: 'Node Statistics' })}
             </DialogTitle>

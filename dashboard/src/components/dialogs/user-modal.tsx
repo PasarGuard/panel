@@ -39,7 +39,7 @@ import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } fr
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Users } from 'lucide-react'
+import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, User, Users } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -1448,8 +1448,9 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
       <DialogContent className={`h-auto lg:min-w-[900px]`}>
         <DialogHeader>
-          <DialogTitle className={`${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
-            {editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}
+          <DialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            <span>{editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">{editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}</DialogDescription>
         </DialogHeader>
@@ -2557,7 +2558,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
             <AlertDialogTitle>{t('usersTable.resetUsageTitle')}</AlertDialogTitle>
             <AlertDialogDescription>{t('usersTable.resetUsagePrompt', { name: currentUsername })}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
+          <AlertDialogFooter>
             <AlertDialogCancel>{t('usersTable.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmResetUsage} disabled={resetUserDataUsageMutation.isPending}>
               {t('usersTable.resetUsageSubmit')}
@@ -2572,7 +2573,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
             <AlertDialogTitle>{t('revokeUserSub.title')}</AlertDialogTitle>
             <AlertDialogDescription>{t('revokeUserSub.prompt', { username: currentUsername })}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2')}>
+          <AlertDialogFooter>
             <AlertDialogCancel>{t('usersTable.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmRevokeSubscription} disabled={revokeUserSubscriptionMutation.isPending}>
               {t('revokeUserSub.title')}

@@ -330,7 +330,7 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username }: User
         }}
       >
         <DialogHeader>
-          <DialogTitle className={cn('flex items-center gap-2 text-xl font-semibold', dir === 'rtl' && 'sm:text-right')}>
+          <DialogTitle className="flex items-center gap-2">
             <Network className="h-5 w-5" />
             <span>{dialogTitle}</span>
           </DialogTitle>

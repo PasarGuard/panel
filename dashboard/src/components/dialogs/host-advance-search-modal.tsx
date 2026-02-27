@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { HostAdvanceSearchFormValues } from '@/components/forms/host-advance-search-form'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { ProxyHostSecurity, UserStatus } from '@/service/api'
-import { X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -43,8 +43,9 @@ export default function HostAdvanceSearchModal({ isDialogOpen, onOpenChange, for
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-auto max-w-[650px] flex-col justify-start" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className={dir === 'rtl' ? 'text-right' : 'text-left'} dir={dir}>
-            {t('advanceSearch.title')}
+          <DialogTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            <span>{t('advanceSearch.title')}</span>
           </DialogTitle>
         </DialogHeader>
 

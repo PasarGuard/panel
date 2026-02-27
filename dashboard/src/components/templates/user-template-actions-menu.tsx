@@ -24,13 +24,13 @@ const DeleteAlertDialog = ({ userTemplate, isOpen, onClose, onConfirm }: { userT
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
-        <AlertDialogHeader className={cn(dir === 'rtl' && 'sm:text-right')}>
+        <AlertDialogHeader>
           <AlertDialogTitle>{t('templates.deleteUserTemplateTitle')}</AlertDialogTitle>
           <AlertDialogDescription>
             <span dir={dir} dangerouslySetInnerHTML={{ __html: t('templates.deleteUserTemplatePrompt', { name: userTemplate.name }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className={cn(dir === 'rtl' && 'sm:flex-row-reverse sm:gap-x-2')}>
+        <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>{t('cancel')}</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={onConfirm}>
             {t('remove')}

@@ -9,10 +9,9 @@ import { useCreateGroup, useModifyGroup, useGetInbounds } from '@/service/api'
 import { toast } from 'sonner'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, X } from 'lucide-react'
+import { Loader2, Users, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { queryClient } from '@/utils/query-client'
-import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import type { GroupFormValues } from '@/components/forms/group-form'
 
@@ -26,7 +25,6 @@ interface GroupModalProps {
 
 export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGroup, editingGroupId }: GroupModalProps) {
   const { t } = useTranslation()
-  const dir = useDirDetection()
   const handleError = useDynamicErrorHandler()
   const addGroupMutation = useCreateGroup()
   const modifyGroupMutation = useModifyGroup()
@@ -72,7 +70,10 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
       <DialogContent onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className={cn(dir === 'rtl' && 'text-right')}>{editingGroup ? t('editGroup', { defaultValue: 'Edit Group' }) : t('createGroup')}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            <span>{editingGroup ? t('editGroup', { defaultValue: 'Edit Group' }) : t('createGroup')}</span>
+          </DialogTitle>
           <DialogDescription className="sr-only">Modify the group settings below</DialogDescription>
         </DialogHeader>
         <Form {...form}>

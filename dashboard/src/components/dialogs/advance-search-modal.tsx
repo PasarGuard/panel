@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import GroupsSelector from '@/components/common/groups-selector.tsx'
 import AdminsSelector from '@/components/common/admins-selector.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
-import { X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { useGetGroupsSimple } from '@/service/api'
 import type { AdvanceSearchFormValue } from '@/components/forms/advance-search-form'
 
@@ -42,8 +42,9 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-full max-w-[650px] flex-col justify-start sm:h-auto" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className={`${dir === 'rtl' ? 'text-right' : 'text-left'}`} dir={dir}>
-            {t('advanceSearch.title')}
+          <DialogTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            <span>{t('advanceSearch.title')}</span>
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>

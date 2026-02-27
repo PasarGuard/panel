@@ -9,7 +9,6 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
-import useDirDetection from '@/hooks/use-dir-detection'
 import { ConfigFormat } from '@/service/api'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
@@ -410,7 +409,6 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
 
 export default function SubscriptionSettings() {
   const { t } = useTranslation()
-  const dir = useDirDetection()
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
   const [isAddAppOpen, setIsAddAppOpen] = useState(false)
   const [newAppName, setNewAppName] = useState('')
@@ -1325,7 +1323,10 @@ export default function SubscriptionSettings() {
         <Dialog open={isAddAppOpen} onOpenChange={setIsAddAppOpen}>
           <DialogContent className="h-full max-w-full sm:h-auto sm:max-w-[520px] sm:max-h-[90vh]" onOpenAutoFocus={e => e.preventDefault()}>
             <DialogHeader>
-              <DialogTitle className={dir === 'rtl' ? 'text-right' : 'text-left'}>{t('settings.subscriptions.applications.addApplication')}</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Plus className="h-5 w-5" />
+                <span>{t('settings.subscriptions.applications.addApplication')}</span>
+              </DialogTitle>
             </DialogHeader>
             <div className="-mr-4 max-h-[80dvh] overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

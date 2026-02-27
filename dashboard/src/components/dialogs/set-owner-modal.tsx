@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
+import { Loader2, UserCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSetOwner, UserResponse } from '@/service/api'
 import { toast } from 'sonner'
@@ -89,7 +89,10 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-full max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">{t('setOwnerModal.title', { defaultValue: 'Set Owner' })}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <UserCheck className="h-5 w-5" />
+            <span>{t('setOwnerModal.title', { defaultValue: 'Set Owner' })}</span>
+          </DialogTitle>
         </DialogHeader>
         <div className="mt-2 flex flex-col gap-4">
           <div>

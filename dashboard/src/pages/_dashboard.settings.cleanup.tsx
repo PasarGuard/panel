@@ -431,7 +431,7 @@ export default function CleanupSettings() {
                     : t('settings.cleanup.expiredUsers.confirmDeleteMessage')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter className="gap-2">
+              <AlertDialogFooter>
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeleteExpired} disabled={deleteExpiredUsersMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
                   {deleteTarget === 'limited'
@@ -522,7 +522,7 @@ export default function CleanupSettings() {
                   {t('settings.cleanup.clearUsageData.confirmClearMessage', { table: selectedTable })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter className="gap-2">
+              <AlertDialogFooter>
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleClearUsageData} disabled={clearUsageDataMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
                   {t('settings.cleanup.clearUsageData.clearData')}
@@ -563,7 +563,7 @@ export default function CleanupSettings() {
                 </AlertDialogTitle>
                 <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left')}>{t('settings.cleanup.resetUsage.confirmResetMessage')}</AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter className="gap-2">
+              <AlertDialogFooter>
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleResetUsage} disabled={resetUsersDataUsageMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
                   {t('settings.cleanup.resetUsage.resetAll')}

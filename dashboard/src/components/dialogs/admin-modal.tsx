@@ -10,7 +10,6 @@ import { PasswordInput } from '@/components/ui/password-input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
-import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
 import { useCreateAdmin, useModifyAdmin } from '@/service/api'
@@ -31,7 +30,6 @@ interface AdminModalProps {
 
 export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUserName, editingAdmin, form }: AdminModalProps) {
   const { t } = useTranslation()
-  const dir = useDirDetection()
   const handleError = useDynamicErrorHandler()
   const addAdminMutation = useCreateAdmin()
   const modifyAdminMutation = useModifyAdmin()
@@ -125,8 +123,9 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
     <Dialog open={isDialogOpen} onOpenChange={handleClose}>
       <DialogContent className="h-full max-w-[750px] sm:h-auto" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className={`${dir === 'rtl' ? 'text-right' : 'text-left'}`} dir={dir}>
-            {editingAdmin ? t('admins.editAdmin') : t('admins.createAdmin')}
+          <DialogTitle className="flex items-center gap-2">
+            <UserCog className="h-5 w-5" />
+            <span>{editingAdmin ? t('admins.editAdmin') : t('admins.createAdmin')}</span>
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>

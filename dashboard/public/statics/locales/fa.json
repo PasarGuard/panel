@@ -983,7 +983,6 @@
   "next": "بعدی",
   "monitorServers": "نظارت بر سرورها و کاربران شما",
   "manageServers": "کنترل جزئیات سرور شما",
-  "nodes.prompt": "افزودن و پیکربندی جزئیات گره",
   "nodes.addHostForEveryInbound": "استفاده از این گره به عنوان هاست تمام ورودی‌ها",
   "nodes.addNewPasarGuardNode": "افزودن گره پاسارگارد",
   "nodes.addNode": "افزودن گره",

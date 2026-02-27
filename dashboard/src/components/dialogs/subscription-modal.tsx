@@ -223,7 +223,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
         <DialogContent className="max-h-[90dvh] max-w-[860px] overflow-y-auto overflow-x-hidden">
           <DialogHeader dir={dir}>
             <DialogTitle>
-              <div className="flex items-center gap-2 px-2">
+              <div className="flex items-center gap-2">
                 <ScanQrCode className="h-6 w-6" />
                 <span>{t('subscriptionModal.title', { username, defaultValue: "{{username}}'s Subscription" })}</span>
               </div>
@@ -317,11 +317,11 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
       {/* Individual Config QR Code Dialog */}
       <Dialog open={!!selectedConfigQR} onOpenChange={handleCloseConfigQR}>
         <DialogContent className="w-[90vw] max-w-[320px]">
-          <DialogHeader dir={dir} className={isRTL ? 'pl-10' : 'pr-10'}>
+          <DialogHeader dir={dir}>
             <DialogTitle>
               <div className="flex items-center gap-2">
                 <QrCode className="h-5 w-5 shrink-0" />
-                <span className="text-sm" title={selectedConfigQR?.name}>
+                <span title={selectedConfigQR?.name}>
                   {selectedConfigQR?.name && selectedConfigQR.name.length > 20 ? `${selectedConfigQR.name.slice(0, 20)}...` : selectedConfigQR?.name}
                 </span>
               </div>

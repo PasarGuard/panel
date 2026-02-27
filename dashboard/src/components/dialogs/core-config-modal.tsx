@@ -863,7 +863,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       <Dialog open={isVlessAdvancedModalOpen} onOpenChange={setIsVlessAdvancedModalOpen}>
         <DialogContent className="h-full max-w-full px-2 py-6 sm:h-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 px-2 text-base sm:text-lg">
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
               <span className="truncate">{t('coreConfigModal.vlessAdvancedSettings', { defaultValue: 'VLESS Advanced Settings' })}</span>
             </DialogTitle>
           </DialogHeader>
@@ -1190,14 +1191,14 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     return (
       <Dialog open={isResultsDialogOpen} onOpenChange={setIsResultsDialogOpen}>
         <DialogContent className="max-h-[95vh] w-[95vw] max-w-2xl overflow-y-auto p-3 sm:p-6">
-          <DialogHeader className="pb-3">
-            <DialogTitle className="flex items-center gap-1.5 text-sm sm:gap-2 sm:text-base">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary sm:h-5 sm:w-5" />
               <span className="truncate">{t('coreConfigModal.result', { defaultValue: 'Result' })}</span>
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1 sm:space-y-4">{renderContent()}</div>
-          <DialogFooter className="pt-3 sm:pt-4">
+          <DialogFooter>
             <div className="flex w-full gap-2 sm:w-auto">
               <Button
                 variant="outline"
@@ -1242,8 +1243,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
         <DialogContent className="h-full max-w-full px-4 py-6 sm:h-auto sm:max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle className={cn('text-start text-xl font-semibold', dir === 'rtl' && 'sm:text-right')}>
-              {editingCore ? t('coreConfigModal.editCore') : t('coreConfigModal.addConfig')}
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              <span>{editingCore ? t('coreConfigModal.editCore') : t('coreConfigModal.addConfig')}</span>
             </DialogTitle>
             <DialogDescription className="sr-only">
               {editingCore ? t('coreConfigModal.editConfig', { defaultValue: 'Edit the core configuration' }) : t('coreConfigModal.createNewConfig')}

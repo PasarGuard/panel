@@ -8,7 +8,7 @@ import { queryClient } from '@/utils/query-client'
 import { useUpdateCore, NodeResponse } from '@/service/api'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { LoaderButton } from '../ui/loader-button'
-import { ExternalLink } from 'lucide-react'
+import { Cpu, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -120,9 +120,10 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className={cn('sm:max-w-[520px]', dir === 'rtl' && 'sm:text-right')}>
-        <DialogHeader className={cn('pb-2', dir === 'rtl' && 'text-right')}>
-          <DialogTitle className={cn(dir === 'rtl' && 'text-right')}>
-            {t('nodeModal.updateCoreTitle', { defaultValue: 'Update Xray Core' })}
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Cpu className="h-5 w-5" />
+            <span>{t('nodeModal.updateCoreTitle', { defaultValue: 'Update Xray Core' })}</span>
           </DialogTitle>
           <DialogDescription className={cn(dir === 'rtl' && 'text-right')}>
             {t('nodeModal.updateCoreDescription', {
@@ -282,7 +283,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateCoreMutation.isPending}>
             {t('cancel')}
           </Button>

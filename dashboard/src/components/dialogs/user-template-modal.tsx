@@ -7,9 +7,7 @@ import { LoaderButton } from '@/components/ui/loader-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.tsx'
 import { Switch } from '@/components/ui/switch.tsx'
-import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
-import { cn } from '@/lib/utils.ts'
 import {
   DataLimitResetStrategy,
   getGetGroupsSimpleQueryKey,
@@ -26,7 +24,7 @@ import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, FileText } from 'lucide-react'
 import type { UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 
 interface UserTemplatesModalprops {
@@ -118,7 +116,6 @@ const StatusSelectItem = ({ value, children, onSelect }: { value: string; childr
 
 export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, editingUserTemplate, editingUserTemplateId }: UserTemplatesModalprops) {
   const { t } = useTranslation()
-  const dir = useDirDetection()
   const addUserTemplateMutation = useCreateUserTemplate()
   const handleError = useDynamicErrorHandler()
   const modifyUserTemplateMutation = useModifyUserTemplate()
@@ -209,8 +206,9 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
       <DialogContent className="h-full max-w-[1000px] sm:h-auto" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className={cn('text-start text-xl font-semibold', dir === 'rtl' && 'sm:text-right')}>
-            {editingUserTemplate ? t('editUserTemplateModal.title') : t('userTemplateModal.title')}
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            <span>{editingUserTemplate ? t('editUserTemplateModal.title') : t('userTemplateModal.title')}</span>
           </DialogTitle>
         </DialogHeader>
 

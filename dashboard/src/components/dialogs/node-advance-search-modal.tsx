@@ -7,7 +7,7 @@ import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
-import { X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { NodeStatus } from '@/service/api'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
 import CoresSelector from '@/components/common/cores-selector.tsx'
@@ -36,8 +36,9 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-auto max-w-[650px] flex-col justify-start " onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className={`${dir === 'rtl' ? 'text-right' : 'text-left'}`} dir={dir}>
-            {t('advanceSearch.title')}
+          <DialogTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            <span>{t('advanceSearch.title')}</span>
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>

@@ -10,6 +10,7 @@ import { LoaderButton } from '../ui/loader-button'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import i18n from '@/locales/i18n'
+import { Globe } from 'lucide-react'
 
 interface UpdateGeofilesDialogProps {
   node: NodeResponse
@@ -62,9 +63,10 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className={cn('sm:max-w-[500px]', dir === 'rtl' && 'sm:text-right')}>
-        <DialogHeader className={cn(dir === 'rtl' && 'text-right')}>
-          <DialogTitle className={cn(dir === 'rtl' && 'text-right')}>
-            {t('nodeModal.updateGeofilesTitle', { defaultValue: 'Update Geofiles' })}
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            <span>{t('nodeModal.updateGeofilesTitle', { defaultValue: 'Update Geofiles' })}</span>
           </DialogTitle>
           <DialogDescription className={cn(dir === 'rtl' && 'text-right')}>
             {t('nodeModal.updateGeofilesDescription', {
@@ -102,7 +104,7 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
           </div>
         </div>
 
-        <DialogFooter className='gap-2'>
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateGeofilesMutation.isPending}>
             {t('cancel')}
           </Button>
