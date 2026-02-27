@@ -370,8 +370,16 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   const handleLinksCopy = async (link: string, type: string, icon: string) => {
     try {
-      const content = await fetchContent(link)
-      copy(content)
+      if (navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/plain': fetchContent(link).then(content => new Blob([content], { type: 'text/plain' })),
+          }),
+        ])
+      } else {
+        const content = await fetchContent(link)
+        copy(content)
+      }
       toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
     } catch (error) {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
