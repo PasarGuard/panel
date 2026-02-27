@@ -1356,7 +1356,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               </span>
             </AccordionTrigger>
             <AccordionContent className="pb-2">
-              <div className="space-y-1.5 rounded-md border bg-background p-2 text-xs">
+              <div className="space-y-1.5 rounded-md bg-background py-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-muted-foreground">
                     <CalendarPlus className="h-3.5 w-3.5" />
