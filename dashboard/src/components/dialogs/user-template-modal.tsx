@@ -1,6 +1,6 @@
 import GroupsSelector from '@/components/common/groups-selector'
 import { Button } from '@/components/ui/button.tsx'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog.tsx'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog.tsx'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -210,6 +210,9 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
             <FileText className="h-5 w-5" />
             <span>{editingUserTemplate ? t('editUserTemplateModal.title') : t('userTemplateModal.title')}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('userTemplateModal.description', { defaultValue: 'Configure user template settings.' })}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>

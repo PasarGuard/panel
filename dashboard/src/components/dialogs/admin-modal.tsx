@@ -2,7 +2,7 @@ import type { AdminFormValuesInput } from '@/components/forms/admin-form'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -130,6 +130,9 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
             <UserCog className="h-5 w-5" />
             <span>{editingAdmin ? t('admins.editAdmin') : t('admins.createAdmin')}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('admins.description', { defaultValue: 'Configure admin account settings.' })}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" autoComplete="off">

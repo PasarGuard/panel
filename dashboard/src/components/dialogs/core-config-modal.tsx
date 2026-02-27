@@ -1241,7 +1241,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       {renderVlessAdvancedModal()}
       {renderResultDialog()}
       <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="h-auto w-full max-w-5xl" onOpenAutoFocus={e => e.preventDefault()}>
+        <DialogContent className="h-auto w-full max-w-5xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />

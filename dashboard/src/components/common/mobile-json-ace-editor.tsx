@@ -2,7 +2,7 @@ import AceEditor from 'react-ace'
 import ace from 'ace-builds/src-noconflict/ace'
 import 'ace-builds/src-noconflict/mode-json'
 import 'ace-builds/src-noconflict/theme-monokai'
-import 'ace-builds/src-noconflict/theme-tomorrow_night'
+import 'ace-builds/src-noconflict/theme-textmate'
 import workerJsonUrl from 'ace-builds/src-noconflict/worker-json?url'
 
 ace.config.setModuleUrl('ace/mode/json_worker', workerJsonUrl)
@@ -38,9 +38,6 @@ export default function MobileJsonAceEditor({ value, theme, onChange, onLoad }: 
         displayIndentGuides: true,
         scrollPastEnd: false,
         showPrintMargin: false,
-        enableBasicAutocompletion: false,
-        enableLiveAutocompletion: false,
-        enableSnippets: false,
       }}
     />
   )

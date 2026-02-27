@@ -1,6 +1,6 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -386,6 +386,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
             <Settings className="h-5 w-5" />
             <span>{editingNode ? t('editNode.title') : t('nodeModal.title')}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('nodeModal.description', { defaultValue: 'Configure node settings and connection details.' })}
+          </DialogDescription>
         </DialogHeader>
 
         {/* Status Check Results - Positioned at the top of the modal */}
