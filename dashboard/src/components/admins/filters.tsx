@@ -2,14 +2,45 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { debounce } from 'es-toolkit'
-import { RefreshCw, SearchIcon, X } from 'lucide-react'
+import { ArrowUpDown, Calendar, ChartPie, ChevronDown, RefreshCw, SearchIcon, User, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGetAdmins } from '@/service/api'
 import { LoaderCircle } from 'lucide-react'
+
+const sortSections = [
+  {
+    key: 'username',
+    icon: User,
+    label: 'username',
+    asc: 'username',
+    desc: '-username',
+    ascHintKey: 'sort.hints.az',
+    descHintKey: 'sort.hints.za',
+  },
+  {
+    key: 'createdAt',
+    icon: Calendar,
+    label: 'createdAt',
+    asc: 'created_at',
+    desc: '-created_at',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
+  },
+  {
+    key: 'usage',
+    icon: ChartPie,
+    label: 'dataUsage',
+    asc: 'used_traffic',
+    desc: '-used_traffic',
+    ascHintKey: 'sort.hints.lowToHigh',
+    descHintKey: 'sort.hints.highToLow',
+  },
+] as const
 
 interface BaseFilters {
   sort?: string
@@ -21,11 +52,12 @@ interface BaseFilters {
 interface FiltersProps<T extends BaseFilters> {
   filters: T
   onFilterChange: (filters: Partial<T>) => void
+  handleSort?: (column: string, fromDropdown?: boolean) => void
   onRefresh?: () => void
   totalItems?: number
 }
 
-export function Filters<T extends BaseFilters>({ filters, onFilterChange }: FiltersProps<T>) {
+export function Filters<T extends BaseFilters>({ filters, onFilterChange, handleSort }: FiltersProps<T>) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const { refetch } = useGetAdmins(filters)
@@ -69,10 +101,24 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange }: Filt
     } as Partial<T>)
   }
 
+  const getSortState = (section: (typeof sortSections)[number]) => {
+    if (filters.sort === section.desc) return 'desc' as const
+    if (filters.sort === section.asc) return 'asc' as const
+    return 'none' as const
+  }
+
+  const handleCompactSort = (section: (typeof sortSections)[number]) => {
+    if (!handleSort) return
+
+    const state = getSortState(section)
+    const nextSort = state === 'none' ? section.desc : section.asc
+    handleSort(nextSort, true)
+  }
+
   return (
-    <div dir={dir} className="flex items-center gap-4 pb-4">
+    <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
       {/* Search Input */}
-      <div className="relative w-full md:w-[calc(100%/3-10px)]">
+      <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
         <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
         <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10" />
         {search && (
@@ -81,8 +127,54 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange }: Filt
           </button>
         )}
       </div>
+
+      {handleSort && (
+        <div className="flex h-full flex-shrink-0 items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon-md"
+                variant="ghost"
+                className="relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10"
+                aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}
+              >
+                <ArrowUpDown className="h-4 w-4" />
+                {filters.sort && filters.sort !== '-created_at' && <div className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52 max-h-72 overflow-y-auto">
+              <DropdownMenuLabel className="px-2 py-1 text-[10px] text-muted-foreground">
+                {t('sortOptions', { defaultValue: 'Sort Options' })}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {sortSections.map(section => {
+                const state = getSortState(section)
+                return (
+                  <DropdownMenuItem
+                    key={section.key}
+                    onClick={() => handleCompactSort(section)}
+                    className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}
+                  >
+                    <section.icon className="h-3 w-3 text-muted-foreground" />
+                    <span className="truncate">{t(section.label)}</span>
+                    {state !== 'none' && (
+                      <>
+                        <span className="ml-auto text-[10px] text-muted-foreground">
+                          {t(state === 'desc' ? section.descHintKey : section.ascHintKey)}
+                        </span>
+                        <ChevronDown className={cn('h-2.5 w-2.5 flex-shrink-0', state === 'asc' && 'rotate-180')} />
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       {/* Refresh Button */}
-      <div className="flex h-full items-center gap-2">
+      <div className="flex h-full flex-shrink-0 items-center gap-0">
         <Button size="icon-md" onClick={() => refetch()} variant="ghost" className="flex items-center gap-2 border">
           <RefreshCw className="h-4 w-4" />
         </Button>

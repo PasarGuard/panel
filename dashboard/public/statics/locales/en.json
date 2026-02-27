@@ -743,6 +743,14 @@
     "online": {
       "oldest": "Last Online (Oldest First)",
       "newest": "Last Online (Newest First)"
+    },
+    "hints": {
+      "newest": "Newest",
+      "oldest": "Oldest",
+      "az": "A-Z",
+      "za": "Z-A",
+      "highToLow": "High-Low",
+      "lowToHigh": "Low-High"
     }
   },
   "header.donation": "Donation",

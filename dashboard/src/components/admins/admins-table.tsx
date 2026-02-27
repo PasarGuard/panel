@@ -177,6 +177,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const isFirstLoadRef = useRef(true)
   const isAutoRefreshingRef = useRef(false)
   const [filters, setFilters] = useState<AdminFilters>({
+    sort: '-created_at',
     limit: itemsPerPage,
     offset: 0,
   })
@@ -397,21 +398,35 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     setIsChangingPage(false)
   }
 
-  const handleSort = (column: string) => {
+  const handleSort = (column: string, fromDropdown = false) => {
     const currentSort = filters.sort
 
-    if (currentSort === column) {
+    const cleanColumn = column.startsWith('-') ? column.slice(1) : column
+
+    if (fromDropdown) {
+      if (column.startsWith('-')) {
+        if (currentSort === '-' + cleanColumn) {
+          setFilters(prev => ({ ...prev, sort: '-created_at' }))
+        } else {
+          setFilters(prev => ({ ...prev, sort: '-' + cleanColumn }))
+        }
+      } else if (currentSort === cleanColumn) {
+        setFilters(prev => ({ ...prev, sort: '-created_at' }))
+      } else {
+        setFilters(prev => ({ ...prev, sort: cleanColumn }))
+      }
+      return
+    }
+
+    if (currentSort === cleanColumn) {
       // First click: ascending, make it descending
-      setFilters(prev => ({ ...prev, sort: '-' + column }))
-    } else if (currentSort === '-' + column) {
-      // Second click: descending, remove sort (third state: no sort)
-      setFilters(prev => {
-        const { sort, ...restFilters } = prev
-        return restFilters as AdminFilters
-      })
+      setFilters(prev => ({ ...prev, sort: '-' + cleanColumn }))
+    } else if (currentSort === '-' + cleanColumn) {
+      // Second click: descending, return to default sort
+      setFilters(prev => ({ ...prev, sort: '-created_at' }))
     } else {
       // Default state or different column: make it ascending
-      setFilters(prev => ({ ...prev, sort: column }))
+      setFilters(prev => ({ ...prev, sort: cleanColumn }))
     }
   }
 
@@ -434,7 +449,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
 
   return (
     <div>
-      <Filters filters={filters} onFilterChange={handleFilterChange} />
+      <Filters filters={filters} onFilterChange={handleFilterChange} handleSort={handleSort} />
       <DataTable
         columns={columns}
         data={adminsData || []}

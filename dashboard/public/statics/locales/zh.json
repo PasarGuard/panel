@@ -743,6 +743,14 @@
     "online": {
       "oldest": "最后在线 (最旧的优先)",
       "newest": "最后在线 (最新的优先)"
+    },
+    "hints": {
+      "newest": "最新",
+      "oldest": "最旧",
+      "az": "A-Z",
+      "za": "Z-A",
+      "highToLow": "高-低",
+      "lowToHigh": "低-高"
     }
   },
   "header.donation": "捐赠",

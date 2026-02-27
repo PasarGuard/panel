@@ -16,43 +16,61 @@ import { RefetchOptions } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
 import { getUsersAutoRefreshIntervalSeconds, setUsersAutoRefreshIntervalSeconds } from '@/utils/userPreferenceStorage'
 
-// Sort configuration to eliminate duplication
+// Compact sort configuration: one row per field
 const sortSections = [
   {
     key: 'username',
     icon: User,
     label: 'username',
-    items: [
-      { value: '-username', label: 'sort.username.desc' },
-      { value: 'username', label: 'sort.username.asc' },
-    ],
+    asc: 'username',
+    desc: '-username',
+    ascHintKey: 'sort.hints.az',
+    descHintKey: 'sort.hints.za',
+  },
+  {
+    key: 'createdAt',
+    icon: Calendar,
+    label: 'createdAt',
+    asc: 'created_at',
+    desc: '-created_at',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
+  },
+  {
+    key: 'editedAt',
+    icon: Clock,
+    label: 'editedAt',
+    asc: 'edit_at',
+    desc: '-edit_at',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
   },
   {
     key: 'expire',
     icon: Calendar,
     label: 'expireDate',
-    items: [
-      { value: '-expire', label: 'sort.expire.newest' },
-      { value: 'expire', label: 'sort.expire.oldest' },
-    ],
+    asc: 'expire',
+    desc: '-expire',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
   },
   {
     key: 'usage',
     icon: ChartPie,
     label: 'dataUsage',
-    items: [
-      { value: '-used_traffic', label: 'sort.usage.high' },
-      { value: 'used_traffic', label: 'sort.usage.low' },
-    ],
+    asc: 'used_traffic',
+    desc: '-used_traffic',
+    ascHintKey: 'sort.hints.lowToHigh',
+    descHintKey: 'sort.hints.highToLow',
   },
   {
     key: 'onlineAt',
     icon: Clock,
     label: 'lastOnline',
-    items: [
-      { value: '-online_at', label: 'sort.online.newest' },
-      { value: 'online_at', label: 'sort.online.oldest' },
-    ],
+    asc: 'online_at',
+    desc: '-online_at',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
   },
 ] as const
 
@@ -203,6 +221,20 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     return count
   }
 
+  const getSortState = (section: (typeof sortSections)[number]) => {
+    if (filters.sort === section.desc) return 'desc' as const
+    if (filters.sort === section.asc) return 'asc' as const
+    return 'none' as const
+  }
+
+  const handleCompactSort = (section: (typeof sortSections)[number]) => {
+    if (!handleSort) return
+
+    const state = getSortState(section)
+    const nextSort = state === 'none' ? section.desc : section.asc
+    handleSort(nextSort, true)
+  }
+
   return (
     <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
       {/* Search Input */}
@@ -252,31 +284,32 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
                 {filters.sort && filters.sort !== '-created_at' && <div className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              {sortSections.map((section, sectionIndex) => (
-                <div key={section.key}>
-                  {/* Section Label */}
-                  <DropdownMenuLabel className="flex items-center gap-1 px-1.5 py-1 text-[10px] text-muted-foreground">
-                    <section.icon className="h-2.5 w-2.5" />
-                    <span className="text-[10px]">{t(section.label)}</span>
-                  </DropdownMenuLabel>
-
-                  {/* Section Items */}
-                  {section.items.map(item => (
-                    <DropdownMenuItem
-                      key={item.value}
-                      onClick={() => handleSort && handleSort(item.value, true)}
-                      className={`whitespace-nowrap px-1.5 py-1 text-[11px] ${filters.sort === item.value ? 'bg-accent' : ''}`}
-                    >
-                      <span className="truncate">{t(item.label)}</span>
-                      {filters.sort === item.value && <ChevronDown className={`ml-auto h-2.5 w-2.5 flex-shrink-0 ${item.value.startsWith('-') ? '' : 'rotate-180'}`} />}
-                    </DropdownMenuItem>
-                  ))}
-
-                  {/* Add separator except for last section */}
-                  {sectionIndex < sortSections.length - 1 && <DropdownMenuSeparator />}
-                </div>
-              ))}
+            <DropdownMenuContent align="end" className="w-52 max-h-72 overflow-y-auto">
+              <DropdownMenuLabel className="px-2 py-1 text-[10px] text-muted-foreground">
+                {t('sortOptions', { defaultValue: 'Sort Options' })}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {sortSections.map(section => {
+                const state = getSortState(section)
+                return (
+                  <DropdownMenuItem
+                    key={section.key}
+                    onClick={() => handleCompactSort(section)}
+                    className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}
+                  >
+                    <section.icon className="h-3 w-3 text-muted-foreground" />
+                    <span className="truncate">{t(section.label)}</span>
+                    {state !== 'none' && (
+                      <>
+                        <span className="ml-auto text-[10px] text-muted-foreground">
+                          {t(state === 'desc' ? section.descHintKey : section.ascHintKey)}
+                        </span>
+                        <ChevronDown className={cn('h-2.5 w-2.5 flex-shrink-0', state === 'asc' && 'rotate-180')} />
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

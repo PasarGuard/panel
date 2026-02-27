@@ -181,7 +181,7 @@ export default function AdminsPage() {
       </div>
 
       <div className="w-full px-4 pt-2">
-        <div className="mb-6 transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
           <AdminsStatistics counts={adminCounts} />
         </div>
 
