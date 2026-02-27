@@ -20,6 +20,7 @@ import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscrip
 import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 
 type ActionButtonsProps = {
   user: UserResponse
@@ -55,29 +56,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const pendingContentFetchRef = useRef<Record<string, Promise<string>>>({})
 
   const updateUserInCache = (updatedUser: UserResponse) => {
-    queryClient.setQueriesData<UsersResponse>(
-      {
-        queryKey: ['/api/users'],
-        exact: false,
-      },
-      oldData => {
-        if (!oldData) return oldData
-
-        // Find and update the user in the users array
-        const updatedUsers = oldData.users.map(u => (u.username === updatedUser.username ? updatedUser : u))
-
-        return {
-          ...oldData,
-          users: updatedUsers,
-        }
-      },
-    )
-
-    // Still invalidate usage/stats queries as they may have changed
-    queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
-    queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
-    queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
-    queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
+    upsertUserInUsersCache(queryClient, updatedUser)
+    invalidateUserMetricsQueries(queryClient)
   }
 
   const removeUserMutation = useRemoveUser()

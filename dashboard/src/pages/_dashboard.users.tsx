@@ -5,24 +5,14 @@ import UsersTable from '@/components/users/users-table'
 import UsersStatistics from '@/components/users/users-statistics'
 import { Plus } from 'lucide-react'
 import UserModal from '@/components/dialogs/user-modal'
-import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 const Users = () => {
   const [isUserModalOpen, setUserModalOpen] = useState(false)
-  const queryClient = useQueryClient()
   const userForm = useForm<UseFormValues | UseEditFormValues>({
     defaultValues: getDefaultUserForm,
   })
-
-  // Configure global refetch for all user data
-  const refreshAllUserData = () => {
-    // Invalidate all relevant queries
-    queryClient.invalidateQueries({ queryKey: ['getUsers'] })
-    queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
-    queryClient.invalidateQueries({ queryKey: ['/api/users/'] })
-  }
 
   const handleCreateUser = () => {
     userForm.reset()
@@ -46,7 +36,7 @@ const Users = () => {
         </div>
       </div>
 
-      <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={() => refreshAllUserData()} />
+      <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} />
     </div>
   )
 }
