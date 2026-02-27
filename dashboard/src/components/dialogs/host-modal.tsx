@@ -606,7 +606,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
-      <DialogContent className="h-full w-full max-w-2xl sm:h-auto sm:py-4" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="h-auto w-full max-w-2xl" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Network className="h-5 w-5" />

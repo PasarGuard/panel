@@ -42,7 +42,7 @@ AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 const AlertDialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => {
   const dir = useDirDetection()
-  return <div dir={dir} className={cn('flex flex-col gap-1.5', dir === 'rtl' ? 'text-right' : 'text-left', className)} {...props} />
+  return <div dir={dir} className={cn('flex flex-col gap-1.5 pt-1', dir === 'rtl' ? 'text-right' : 'text-left', className)} {...props} />
 }
 AlertDialogHeader.displayName = 'AlertDialogHeader'
 

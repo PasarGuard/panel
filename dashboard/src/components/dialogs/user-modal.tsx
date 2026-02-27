@@ -2492,7 +2492,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       <AlertDialog open={isResetUsageDialogOpen} onOpenChange={setResetUsageDialogOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('usersTable.resetUsageTitle')}</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <PieChart className="h-5 w-5" />
+              {t('usersTable.resetUsageTitle')}
+            </AlertDialogTitle>
             <AlertDialogDescription>{t('usersTable.resetUsagePrompt', { name: currentUsername })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2507,7 +2510,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       <AlertDialog open={isRevokeSubDialogOpen} onOpenChange={setRevokeSubDialogOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('revokeUserSub.title')}</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Link2Off className="h-5 w-5" />
+              {t('revokeUserSub.title')}
+            </AlertDialogTitle>
             <AlertDialogDescription>{t('revokeUserSub.prompt', { username: currentUsername })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

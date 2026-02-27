@@ -222,11 +222,9 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
       <Dialog open={isOpen && !selectedConfigQR} onOpenChange={onCloseModal}>
         <DialogContent className="max-h-[90dvh] max-w-[860px] overflow-y-auto overflow-x-hidden">
           <DialogHeader dir={dir}>
-            <DialogTitle>
-              <div className="flex items-center gap-2">
-                <ScanQrCode className="h-6 w-6" />
-                <span>{t('subscriptionModal.title', { username, defaultValue: "{{username}}'s Subscription" })}</span>
-              </div>
+            <DialogTitle className="flex items-center gap-2">
+              <ScanQrCode className="h-5 w-5 shrink-0" />
+              <span>{t('subscriptionModal.title', { username, defaultValue: "{{username}}'s Subscription" })}</span>
             </DialogTitle>
           </DialogHeader>
 
@@ -318,13 +316,11 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
       <Dialog open={!!selectedConfigQR} onOpenChange={handleCloseConfigQR}>
         <DialogContent className="w-[90vw] max-w-[320px]">
           <DialogHeader dir={dir}>
-            <DialogTitle>
-              <div className="flex items-center gap-2">
-                <QrCode className="h-5 w-5 shrink-0" />
-                <span title={selectedConfigQR?.name}>
-                  {selectedConfigQR?.name && selectedConfigQR.name.length > 20 ? `${selectedConfigQR.name.slice(0, 20)}...` : selectedConfigQR?.name}
-                </span>
-              </div>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5 shrink-0" />
+              <span title={selectedConfigQR?.name}>
+                {selectedConfigQR?.name && selectedConfigQR.name.length > 20 ? `${selectedConfigQR.name.slice(0, 20)}...` : selectedConfigQR?.name}
+              </span>
             </DialogTitle>
           </DialogHeader>
           <div dir="ltr" className="flex flex-col items-center gap-4 py-2">

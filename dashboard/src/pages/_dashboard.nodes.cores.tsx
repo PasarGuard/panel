@@ -10,6 +10,7 @@ import { coreConfigFormSchema, type CoreConfigFormValues } from '@/components/fo
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle } from 'lucide-react'
 
 const defaultConfig = {
   log: {
@@ -218,7 +219,10 @@ export default function CoreSettings() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogClose}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('settings.cores.delete')}</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {t('settings.cores.delete')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               <span dangerouslySetInnerHTML={{ __html: t('core.deleteConfirm', { name: coreToDelete }) }} />
             </AlertDialogDescription>

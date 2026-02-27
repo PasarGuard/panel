@@ -604,8 +604,8 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl p-0.5">
-        <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6">
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             <span>{t('usersTable.usageChart', { defaultValue: 'Usage Chart' })}</span>
