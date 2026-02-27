@@ -2,21 +2,25 @@ name: Build-Docker-dev
 
 on:
   push:
-    branches:
-      - "dev"
-      - "next"
-      - "nats-io"
+    branches-ignore:
+      - main
+  pull_request:
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: build-docker-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
+  DOCKERHUB_IMAGE: pasarguard/${{ github.event.repository.name }}
+  GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
 
 jobs:
   build-dashboard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,12 +41,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dashboard-build
-          path: ./dashboard/build/
+          path: ./dashboard/build
           retention-days: 1
 
   build-images:
     needs: build-dashboard
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, arm64]
         include:
@@ -61,18 +66,24 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dashboard-build
-          path: ./dashboard/build/
+          path: ./dashboard/build
+
+      - name: Compute safe tag
+        id: vars
+        run: echo "tag=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
+        if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
+        if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -84,18 +95,23 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
-          push: true
+          push: ${{ github.event_name == 'push' }}
           file: ./Dockerfile
           tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.arch }}
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.arch }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.vars.outputs.tag }}-${{ matrix.arch }}
+            ${{ env.GHCR_IMAGE }}:${{ steps.vars.outputs.tag }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=${{ github.ref_name }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ github.ref_name }}-${{ matrix.arch }}
 
   push-manifest:
-    needs: [build-images]
-    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
     steps:
+      - name: Compute safe tag
+        id: vars
+        run: echo "tag=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -109,18 +125,18 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create tagged manifest
+      - name: Create tagged manifest (Docker Hub)
         uses: int128/docker-manifest-create-action@v2
         with:
-          tags: ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          tags: ${{ env.DOCKERHUB_IMAGE }}:${{ steps.vars.outputs.tag }}
           sources: |
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64
+            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.vars.outputs.tag }}-amd64
+            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.vars.outputs.tag }}-arm64
 
-      - name: Create tagged manifest for GitHub
+      - name: Create tagged manifest (GHCR)
         uses: int128/docker-manifest-create-action@v2
         with:
-          tags: ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          tags: ${{ env.GHCR_IMAGE }}:${{ steps.vars.outputs.tag }}
           sources: |
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64
+            ${{ env.GHCR_IMAGE }}:${{ steps.vars.outputs.tag }}-amd64
+            ${{ env.GHCR_IMAGE }}:${{ steps.vars.outputs.tag }}-arm64
