@@ -10,7 +10,7 @@ import { DateRange } from 'react-day-picker'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { Button } from '../ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
-import { ResponsiveContainer, TooltipProps, Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart as RechartsPieChart } from 'recharts'
+import { TooltipProps, Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart as RechartsPieChart } from 'recharts'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { useTheme } from '@/components/common/theme-provider'
@@ -612,7 +612,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
           </DialogTitle>
           <DialogDescription>{t('usersTable.usageSummary', { defaultValue: 'Showing total usage for the selected period.' })}</DialogDescription>
         </DialogHeader>
-        <Card className="w-full border-none shadow-none">
+        <Card className="w-full border-none shadow-none bg-transparent">
           <CardHeader className="pb-2">
             <div className="flex flex-col items-center gap-4 pt-1">
               <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-center">
@@ -730,125 +730,123 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                 </div>
               ) : (
                 <ChartContainer config={allNodesSelected && chartView === 'pie' ? pieChartConfig : chartConfig} dir={'ltr'} className="h-[200px] w-full sm:h-[320px]">
-                  <ResponsiveContainer width="100%" height={width < 500 ? 200 : 320}>
-                    {allNodesSelected && chartView === 'pie' ? (
-                      <RechartsPieChart>
-                        <ChartTooltip cursor={false} content={<NodePieTooltip />} />
-                        <Pie data={pieData} dataKey="usage" nameKey="name" innerRadius="45%" outerRadius="88%" paddingAngle={piePaddingAngle} strokeWidth={1.5}>
-                          {pieData.map(point => (
-                            <Cell key={point.name} fill={point.fill} />
-                          ))}
-                        </Pie>
-                      </RechartsPieChart>
-                    ) : (
-                      chartViewType === 'area' ? (
-                        <AreaChart data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
-                          <defs>
-                            {allNodesSelected ? (
-                              nodeList.map((node, idx) => {
-                                const color = chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`
-                                return (
-                                  <linearGradient key={node.id} id={`usage-modal-node-gradient-${node.id}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor={color} stopOpacity={0.45} />
-                                    <stop offset="100%" stopColor={color} stopOpacity={0.05} />
-                                  </linearGradient>
-                                )
-                              })
-                            ) : (
-                              <linearGradient id="usage-modal-single-gradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
-                                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
-                              </linearGradient>
-                            )}
-                          </defs>
-                          <CartesianGrid direction={'ltr'} vertical={false} />
-                          <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
-                          <YAxis
-                            direction={'ltr'}
-                            tickLine={false}
-                            axisLine={false}
-                            domain={[0, 'auto']}
-                            tickFormatter={value => `${value.toFixed(2)} GB`}
-                            tick={{
-                              fill: 'hsl(var(--muted-foreground))',
-                              fontSize: 9,
-                              fontWeight: 500,
-                            }}
-                            width={32}
-                            tickMargin={2}
-                          />
-                          <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
+                  {allNodesSelected && chartView === 'pie' ? (
+                    <RechartsPieChart>
+                      <ChartTooltip cursor={false} content={<NodePieTooltip />} />
+                      <Pie data={pieData} dataKey="usage" nameKey="name" innerRadius="45%" outerRadius="88%" paddingAngle={piePaddingAngle} strokeWidth={1.5}>
+                        {pieData.map(point => (
+                          <Cell key={point.name} fill={point.fill} />
+                        ))}
+                      </Pie>
+                    </RechartsPieChart>
+                  ) : (
+                    chartViewType === 'area' ? (
+                      <AreaChart data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
+                        <defs>
                           {allNodesSelected ? (
-                            nodeList.map((node, idx) => (
-                              <Area
-                                key={node.id}
-                                type="monotone"
-                                dataKey={node.name}
-                                stackId="a"
-                                fill={`url(#usage-modal-node-gradient-${node.id})`}
-                                stroke={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
-                                strokeWidth={1.5}
-                                dot={false}
-                                activeDot={{ r: 4 }}
-                                cursor="pointer"
-                              />
-                            ))
+                            nodeList.map((node, idx) => {
+                              const color = chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`
+                              return (
+                                <linearGradient key={node.id} id={`usage-modal-node-gradient-${node.id}`} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor={color} stopOpacity={0.45} />
+                                  <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+                                </linearGradient>
+                              )
+                            })
                           ) : (
+                            <linearGradient id="usage-modal-single-gradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                            </linearGradient>
+                          )}
+                        </defs>
+                        <CartesianGrid direction={'ltr'} vertical={false} />
+                        <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                        <YAxis
+                          direction={'ltr'}
+                          tickLine={false}
+                          axisLine={false}
+                          domain={[0, 'auto']}
+                          tickFormatter={value => `${value.toFixed(2)} GB`}
+                          tick={{
+                            fill: 'hsl(var(--muted-foreground))',
+                            fontSize: 9,
+                            fontWeight: 500,
+                          }}
+                          width={32}
+                          tickMargin={2}
+                        />
+                        <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
+                        {allNodesSelected ? (
+                          nodeList.map((node, idx) => (
                             <Area
+                              key={node.id}
                               type="monotone"
-                              dataKey="usage"
-                              fill="url(#usage-modal-single-gradient)"
-                              stroke="hsl(var(--primary))"
-                              strokeWidth={2}
+                              dataKey={node.name}
+                              stackId="a"
+                              fill={`url(#usage-modal-node-gradient-${node.id})`}
+                              stroke={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
+                              strokeWidth={1.5}
                               dot={false}
                               activeDot={{ r: 4 }}
                               cursor="pointer"
                             />
-                          )}
-                        </AreaChart>
-                      ) : (
-                        <BarChart data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
-                          <CartesianGrid direction={'ltr'} vertical={false} />
-                          <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
-                          <YAxis
-                            direction={'ltr'}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={value => `${value.toFixed(2)} GB`}
-                            tick={{
-                              fill: 'hsl(var(--muted-foreground))',
-                              fontSize: 9,
-                              fontWeight: 500,
-                            }}
-                            width={32}
-                            tickMargin={2}
+                          ))
+                        ) : (
+                          <Area
+                            type="monotone"
+                            dataKey="usage"
+                            fill="url(#usage-modal-single-gradient)"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 4 }}
+                            cursor="pointer"
                           />
-                          <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
-                          {allNodesSelected ? (
-                            // All nodes selected for sudo admins - render stacked bars
-                            nodeList.map((node, idx) => (
-                              <Bar
-                                key={node.id}
-                                dataKey={node.name}
-                                stackId="a"
-                                minPointSize={1}
-                                fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
-                                radius={nodeList.length === 1 ? [4, 4, 4, 4] : idx === 0 ? [0, 0, 4, 4] : idx === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                                cursor="pointer"
-                              />
-                            ))
-                          ) : (
-                            // Single node selected OR non-sudo admin aggregated data - render single bar
-                            <Bar dataKey="usage" radius={6} cursor="pointer" minPointSize={2}>
-                              {processedChartData.map((_: any, index: number) => (
-                                <Cell key={`cell-${index}`} fill={'hsl(var(--primary))'} />
-                              ))}
-                            </Bar>
-                          )}
-                        </BarChart>
-                      )
-                    )}
-                  </ResponsiveContainer>
+                        )}
+                      </AreaChart>
+                    ) : (
+                      <BarChart data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
+                        <CartesianGrid direction={'ltr'} vertical={false} />
+                        <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                        <YAxis
+                          direction={'ltr'}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={value => `${value.toFixed(2)} GB`}
+                          tick={{
+                            fill: 'hsl(var(--muted-foreground))',
+                            fontSize: 9,
+                            fontWeight: 500,
+                          }}
+                          width={32}
+                          tickMargin={2}
+                        />
+                        <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
+                        {allNodesSelected ? (
+                          // All nodes selected for sudo admins - render stacked bars
+                          nodeList.map((node, idx) => (
+                            <Bar
+                              key={node.id}
+                              dataKey={node.name}
+                              stackId="a"
+                              minPointSize={1}
+                              fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
+                              radius={nodeList.length === 1 ? [4, 4, 4, 4] : idx === 0 ? [0, 0, 4, 4] : idx === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                              cursor="pointer"
+                            />
+                          ))
+                        ) : (
+                          // Single node selected OR non-sudo admin aggregated data - render single bar
+                          <Bar dataKey="usage" radius={6} cursor="pointer" minPointSize={2}>
+                            {processedChartData.map((_: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={'hsl(var(--primary))'} />
+                            ))}
+                          </Bar>
+                        )}
+                      </BarChart>
+                    )
+                  )}
                 </ChartContainer>
               )}
             </div>

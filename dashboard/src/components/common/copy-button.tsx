@@ -48,7 +48,7 @@ export function CopyButton({ value, className, copiedMessage = 'Copied!', defaul
   }, [copied, error, toastSuccessMessage, toastErrorMessage, copiedMessage, t])
 
   return (
-    <Tooltip open={copied ? true : undefined}>
+    <Tooltip>
       <TooltipTrigger asChild>
         <div>
           <Button type="button" size="icon" variant="ghost" className={className} aria-label="Copy to clipboard" onClick={handleCopy}>

@@ -28,7 +28,7 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
           <StatusBadge showOnlyExpiry expiryDate={row.original.expire} status={row.original.status} showExpiry />
         </div>
         <div onClick={e => e.stopPropagation()}>
-          <ActionButtons user={row.original} />
+          <ActionButtons user={row.original} isModalHost={false} />
         </div>
       </div>
       <div className="flex items-center gap-x-1">
@@ -42,7 +42,7 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
   </div>
 ))
 
-export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, isFetching = false, onEdit }: DataTableProps<TData, TValue>) => {
+export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, onEdit }: DataTableProps<TData, TValue>) => {
   const { t } = useTranslation()
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
   const dir = useDirDetection()
@@ -78,7 +78,8 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
     [handleRowToggle, onEdit],
   )
 
-  const isLoadingData = isLoading || isFetching
+  // Keep rows mounted during background fetching so row-level dialogs remain stable.
+  const isLoadingData = isLoading
 
   const LoadingState = useMemo(
     () => (

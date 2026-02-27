@@ -6,7 +6,7 @@ import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Cpu, EllipsisVertical, Link2Off, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -24,6 +24,8 @@ import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/us
 
 type ActionButtonsProps = {
   user: UserResponse
+  isModalHost?: boolean
+  renderActions?: boolean
 }
 
 export interface SubscribeLink {
@@ -34,26 +36,187 @@ export interface SubscribeLink {
 
 const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box']
 
-const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
-  const [subscribeUrl, setSubscribeUrl] = useState<string>('')
+type ActionButtonsModalState = {
+  subscribeUrl: string
+  showSubscriptionModal: boolean
+  isDeleteDialogOpen: boolean
+  isResetUsageDialogOpen: boolean
+  isRevokeSubDialogOpen: boolean
+  isUsageModalOpen: boolean
+  isSetOwnerModalOpen: boolean
+  isActiveNextPlanModalOpen: boolean
+  isSubscriptionClientsModalOpen: boolean
+  isUserAllIPsModalOpen: boolean
+}
+
+const actionButtonsModalStateStore = new Map<number, ActionButtonsModalState>()
+const actionButtonsUserStore = new Map<number, UserResponse>()
+const actionButtonsModalStateListeners = new Map<number, Set<() => void>>()
+const actionButtonsGlobalListeners = new Set<() => void>()
+let actionButtonsGlobalStateVersion = 0
+
+const createDefaultModalState = (user: UserResponse): ActionButtonsModalState => ({
+  subscribeUrl: user.subscription_url || '',
+  showSubscriptionModal: false,
+  isDeleteDialogOpen: false,
+  isResetUsageDialogOpen: false,
+  isRevokeSubDialogOpen: false,
+  isUsageModalOpen: false,
+  isSetOwnerModalOpen: false,
+  isActiveNextPlanModalOpen: false,
+  isSubscriptionClientsModalOpen: false,
+  isUserAllIPsModalOpen: false,
+})
+
+const ensureModalState = (user: UserResponse): ActionButtonsModalState => {
+  if (!actionButtonsUserStore.has(user.id)) {
+    actionButtonsUserStore.set(user.id, user)
+  }
+
+  const existing = actionButtonsModalStateStore.get(user.id)
+  if (existing) return existing
+  const initial = createDefaultModalState(user)
+  actionButtonsModalStateStore.set(user.id, initial)
+  return initial
+}
+
+const hasOpenModal = (state: ActionButtonsModalState) =>
+  state.showSubscriptionModal ||
+  state.isDeleteDialogOpen ||
+  state.isResetUsageDialogOpen ||
+  state.isRevokeSubDialogOpen ||
+  state.isUsageModalOpen ||
+  state.isSetOwnerModalOpen ||
+  state.isActiveNextPlanModalOpen ||
+  state.isSubscriptionClientsModalOpen ||
+  state.isUserAllIPsModalOpen
+
+const notifyGlobalListeners = () => {
+  actionButtonsGlobalStateVersion += 1
+  actionButtonsGlobalListeners.forEach(listener => listener())
+}
+
+const syncUserSnapshot = (user: UserResponse) => {
+  const currentUser = actionButtonsUserStore.get(user.id)
+  if (currentUser === user) return
+
+  actionButtonsUserStore.set(user.id, user)
+
+  const modalState = actionButtonsModalStateStore.get(user.id)
+  if (modalState && hasOpenModal(modalState)) {
+    actionButtonsModalStateListeners.get(user.id)?.forEach(listener => listener())
+    notifyGlobalListeners()
+  }
+}
+
+const subscribeModalState = (userId: number, listener: () => void) => {
+  let listeners = actionButtonsModalStateListeners.get(userId)
+  if (!listeners) {
+    listeners = new Set()
+    actionButtonsModalStateListeners.set(userId, listeners)
+  }
+
+  listeners.add(listener)
+
+  return () => {
+    const current = actionButtonsModalStateListeners.get(userId)
+    if (!current) return
+    current.delete(listener)
+    if (current.size === 0) {
+      actionButtonsModalStateListeners.delete(userId)
+    }
+  }
+}
+
+const subscribeGlobalModalState = (listener: () => void) => {
+  actionButtonsGlobalListeners.add(listener)
+
+  return () => {
+    actionButtonsGlobalListeners.delete(listener)
+  }
+}
+
+const getOpenModalUsers = (): UserResponse[] =>
+  Array.from(actionButtonsModalStateStore.entries())
+    .filter(([, state]) => hasOpenModal(state))
+    .map(([userId]) => actionButtonsUserStore.get(userId))
+    .filter((user): user is UserResponse => Boolean(user))
+
+const getGlobalModalStateSnapshot = () => actionButtonsGlobalStateVersion
+
+const updateModalState = (userId: number, updater: (prev: ActionButtonsModalState) => ActionButtonsModalState) => {
+  const current = actionButtonsModalStateStore.get(userId)
+  if (!current) return
+
+  const next = updater(current)
+  if (next === current) return
+
+  actionButtonsModalStateStore.set(userId, next)
+  actionButtonsModalStateListeners.get(userId)?.forEach(listener => listener())
+  notifyGlobalListeners()
+}
+
+const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, renderActions = true }) => {
   const [subscribeLinks, setSubscribeLinks] = useState<SubscribeLink[]>([])
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
-  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [isResetUsageDialogOpen, setResetUsageDialogOpen] = useState(false)
-  const [isRevokeSubDialogOpen, setRevokeSubDialogOpen] = useState(false)
-  const [isUsageModalOpen, setUsageModalOpen] = useState(false)
-  const [isSetOwnerModalOpen, setSetOwnerModalOpen] = useState(false)
-  const [isActiveNextPlanModalOpen, setIsActiveNextPlanModalOpen] = useState(false)
-  const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
-  const [isUserAllIPsModalOpen, setUserAllIPsModalOpen] = useState(false)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const dir = useDirDetection()
   const configContentCacheRef = useRef<Record<string, string>>({})
   const pendingContentFetchRef = useRef<Record<string, Promise<string>>>({})
+  const getModalStateSnapshot = useCallback(() => ensureModalState(user), [user])
+
+  const modalState = useSyncExternalStore(
+    useCallback(listener => subscribeModalState(user.id, listener), [user.id]),
+    getModalStateSnapshot,
+    getModalStateSnapshot,
+  )
+
+  const setModalState = useCallback(
+    (updater: Partial<ActionButtonsModalState> | ((prev: ActionButtonsModalState) => ActionButtonsModalState)) => {
+      ensureModalState(user)
+      updateModalState(user.id, prev => (typeof updater === 'function' ? updater(prev) : { ...prev, ...updater }))
+    },
+    [user, user.id],
+  )
+
+  const {
+    subscribeUrl,
+    showSubscriptionModal,
+    isDeleteDialogOpen,
+    isResetUsageDialogOpen,
+    isRevokeSubDialogOpen,
+    isUsageModalOpen,
+    isSetOwnerModalOpen,
+    isActiveNextPlanModalOpen,
+    isSubscriptionClientsModalOpen,
+    isUserAllIPsModalOpen,
+  } = modalState
+
+  const setSubscribeUrl = useCallback((value: string) => setModalState({ subscribeUrl: value }), [setModalState])
+  const setShowSubscriptionModal = useCallback((value: boolean) => setModalState({ showSubscriptionModal: value }), [setModalState])
+  const setDeleteDialogOpen = useCallback((value: boolean) => setModalState({ isDeleteDialogOpen: value }), [setModalState])
+  const setResetUsageDialogOpen = useCallback((value: boolean) => setModalState({ isResetUsageDialogOpen: value }), [setModalState])
+  const setRevokeSubDialogOpen = useCallback((value: boolean) => setModalState({ isRevokeSubDialogOpen: value }), [setModalState])
+  const setUsageModalOpen = useCallback((value: boolean) => setModalState({ isUsageModalOpen: value }), [setModalState])
+  const setSetOwnerModalOpen = useCallback((value: boolean) => setModalState({ isSetOwnerModalOpen: value }), [setModalState])
+  const setIsActiveNextPlanModalOpen = useCallback((value: boolean) => setModalState({ isActiveNextPlanModalOpen: value }), [setModalState])
+  const setSubscriptionClientsModalOpen = useCallback((value: boolean) => setModalState({ isSubscriptionClientsModalOpen: value }), [setModalState])
+  const setUserAllIPsModalOpen = useCallback((value: boolean) => setModalState({ isUserAllIPsModalOpen: value }), [setModalState])
+
+  useEffect(() => {
+    ensureModalState(user)
+    syncUserSnapshot(user)
+  }, [user])
+
+  useEffect(() => {
+    if (showSubscriptionModal) return
+    const nextSubscribeUrl = user.subscription_url || ''
+    if (nextSubscribeUrl === subscribeUrl) return
+    setSubscribeUrl(nextSubscribeUrl)
+  }, [showSubscriptionModal, subscribeUrl, user.subscription_url, setSubscribeUrl])
 
   const updateUserInCache = (updatedUser: UserResponse) => {
     upsertUserInUsersCache(queryClient, updatedUser)
@@ -469,210 +632,239 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   }
 
   return (
-    <div onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-end">
-        <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <TooltipProvider>
-          <CopyButton
-            value={user.subscription_url ? (user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url) : ''}
-            copiedMessage="usersTable.copied"
-            defaultMessage="usersTable.copyLink"
-            icon="link"
-            showToast={true}
-            toastSuccessMessage="userSettings.subscriptionUrlCopied"
-          />
-          <Tooltip open={copied ? true : undefined}>
-            <DropdownMenu
-              onOpenChange={open => {
-                if (open) prefetchCopyableConfigs()
-              }}
+    <div onClick={renderActions ? (e => e.stopPropagation()) : undefined}>
+      {renderActions && (
+        <div className="flex items-center justify-end">
+          <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <TooltipProvider>
+            <CopyButton
+              value={user.subscription_url ? (user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url) : ''}
+              copiedMessage="usersTable.copied"
+              defaultMessage="usersTable.copyLink"
+              icon="link"
+              showToast={true}
+              toastSuccessMessage="userSettings.subscriptionUrlCopied"
+            />
+            <Tooltip>
+              <DropdownMenu
+                onOpenChange={open => {
+                  if (open) prefetchCopyableConfigs()
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <TooltipTrigger asChild>
+                    <Button size="icon" variant="ghost">
+                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  {subscribeLinks.map((item, index) => (
+                    <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
+                      <span className="mr-2">{item.icon}</span>
+                      {item.protocol}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <TooltipContent>{copied ? t('usersTable.copied') : t('usersTable.copyConfigs')}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost">
+                <EllipsisVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              onPointerDownOutside={() => setActionsMenuOpen(false)}
+              onInteractOutside={() => setActionsMenuOpen(false)}
+              onEscapeKeyDown={() => setActionsMenuOpen(false)}
             >
-              <DropdownMenuTrigger asChild>
-                <TooltipTrigger asChild>
-                  <Button size="icon" variant="ghost">
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {subscribeLinks.map((item, index) => (
-                  <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
-                    <span className="mr-2">{item.icon}</span>
-                    {item.protocol}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <TooltipContent>{copied ? t('usersTable.copied') : t('usersTable.copyConfigs')}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost">
-              <EllipsisVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            onPointerDownOutside={() => setActionsMenuOpen(false)}
-            onInteractOutside={() => setActionsMenuOpen(false)}
-            onEscapeKeyDown={() => setActionsMenuOpen(false)}
-          >
-            {/* Edit */}
-            <DropdownMenuItem className="hidden md:flex" onSelect={handleEdit}>
-              <Pencil className="mr-2 h-4 w-4" />
-              <span>{t('edit')}</span>
-            </DropdownMenuItem>
-
-            {/* QR Code */}
-            <DropdownMenuItem onSelect={onOpenSubscriptionModal}>
-              <QrCode className="mr-2 h-4 w-4" />
-              <span>QR Code</span>
-            </DropdownMenuItem>
-
-            {/* Set Owner: only for sudo admins */}
-            {currentAdmin?.is_sudo && (
-              <DropdownMenuItem onSelect={handleSetOwner}>
-                <User className="mr-2 h-4 w-4" />
-                <span>{t('setOwnerModal.title')}</span>
+              {/* Edit */}
+              <DropdownMenuItem className="hidden md:flex" onSelect={handleEdit}>
+                <Pencil className="mr-2 h-4 w-4" />
+                <span>{t('edit')}</span>
               </DropdownMenuItem>
-            )}
 
-            {/* Copy Core Username for sudo admins */}
-            {currentAdmin?.is_sudo && (
-              <DropdownMenuItem onSelect={handleCopyCoreUsername}>
-                <Cpu className="mr-2 h-4 w-4" />
-                <span>{t('coreUsername')}</span>
+              {/* QR Code */}
+              <DropdownMenuItem onSelect={onOpenSubscriptionModal}>
+                <QrCode className="mr-2 h-4 w-4" />
+                <span>QR Code</span>
               </DropdownMenuItem>
-            )}
 
-            <DropdownMenuSeparator />
+              {/* Set Owner: only for sudo admins */}
+              {currentAdmin?.is_sudo && (
+                <DropdownMenuItem onSelect={handleSetOwner}>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>{t('setOwnerModal.title')}</span>
+                </DropdownMenuItem>
+              )}
 
-            {/* Revoke Sub */}
-            <DropdownMenuItem onSelect={handleRevokeSubscription}>
-              <Link2Off className="mr-2 h-4 w-4" />
-              <span>{t('userDialog.revokeSubscription')}</span>
-            </DropdownMenuItem>
+              {/* Copy Core Username for sudo admins */}
+              {currentAdmin?.is_sudo && (
+                <DropdownMenuItem onSelect={handleCopyCoreUsername}>
+                  <Cpu className="mr-2 h-4 w-4" />
+                  <span>{t('coreUsername')}</span>
+                </DropdownMenuItem>
+              )}
 
-            {/* Reset Usage */}
-            <DropdownMenuItem onSelect={handleResetUsage}>
-              <RefreshCcw className="mr-2 h-4 w-4" />
-              <span>{t('userDialog.resetUsage')}</span>
-            </DropdownMenuItem>
+              <DropdownMenuSeparator />
 
-            {/* Usage State */}
-            <DropdownMenuItem onSelect={handleUsageState}>
-              <PieChart className="mr-2 h-4 w-4" />
-              <span>{t('userDialog.usage')}</span>
-            </DropdownMenuItem>
-
-            {/* Active Next Plan */}
-            {user.next_plan && (
-              <DropdownMenuItem onSelect={handleActiveNextPlan}>
-                <ListStart className="mr-2 h-4 w-4" />
-                <span>{t('usersTable.activeNextPlanSubmit')}</span>
+              {/* Revoke Sub */}
+              <DropdownMenuItem onSelect={handleRevokeSubscription}>
+                <Link2Off className="mr-2 h-4 w-4" />
+                <span>{t('userDialog.revokeSubscription')}</span>
               </DropdownMenuItem>
-            )}
 
-            {/* Subscription Info */}
-            <DropdownMenuItem onSelect={() => setSubscriptionClientsModalOpen(true)}>
-              <Users className="mr-2 h-4 w-4" />
-              <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
-            </DropdownMenuItem>
-
-            {/* View All IPs: only for sudo admins */}
-            {currentAdmin?.is_sudo && (
-              <DropdownMenuItem onSelect={() => setUserAllIPsModalOpen(true)}>
-                <Network className="mr-2 h-4 w-4" />
-                <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
+              {/* Reset Usage */}
+              <DropdownMenuItem onSelect={handleResetUsage}>
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                <span>{t('userDialog.resetUsage')}</span>
               </DropdownMenuItem>
-            )}
 
-            <DropdownMenuSeparator />
+              {/* Usage State */}
+              <DropdownMenuItem onSelect={handleUsageState}>
+                <PieChart className="mr-2 h-4 w-4" />
+                <span>{t('userDialog.usage')}</span>
+              </DropdownMenuItem>
 
-            {/* Trash */}
-            <DropdownMenuItem onSelect={handleDelete} className="text-red-600">
-              <Trash2 className="mr-2 h-4 w-4" />
-              <span>{t('remove')}</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+              {/* Active Next Plan */}
+              {user.next_plan && (
+                <DropdownMenuItem onSelect={handleActiveNextPlan}>
+                  <ListStart className="mr-2 h-4 w-4" />
+                  <span>{t('usersTable.activeNextPlanSubmit')}</span>
+                </DropdownMenuItem>
+              )}
 
-      {/* Subscription Modal */}
-      {showSubscriptionModal && subscribeUrl && (
-        <SubscriptionModal 
-          subscribeUrl={subscribeUrl} 
-          username={user.username} 
-          onCloseModal={onCloseSubscriptionModal} 
-        />
+              {/* Subscription Info */}
+              <DropdownMenuItem onSelect={() => setSubscriptionClientsModalOpen(true)}>
+                <Users className="mr-2 h-4 w-4" />
+                <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
+              </DropdownMenuItem>
+
+              {/* View All IPs: only for sudo admins */}
+              {currentAdmin?.is_sudo && (
+                <DropdownMenuItem onSelect={() => setUserAllIPsModalOpen(true)}>
+                  <Network className="mr-2 h-4 w-4" />
+                  <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator />
+
+              {/* Trash */}
+              <DropdownMenuItem onSelect={handleDelete} className="text-red-600">
+                <Trash2 className="mr-2 h-4 w-4" />
+                <span>{t('remove')}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )}
 
-      {/* Active Next Plan Confirm Dialog */}
-      <AlertDialog open={isActiveNextPlanModalOpen} onOpenChange={setIsActiveNextPlanModalOpen}>
-        <AlertDialogContent dir={dir}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('usersTable.activeNextPlanTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('usersTable.activeNextPlanPrompt', { name: user.username })}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={activeNextPlan} disabled={activeNextMutation.isPending}>
-              {t('usersTable.activeNextPlanSubmit')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {isModalHost && (
+        <>
+          {/* Subscription Modal */}
+          {showSubscriptionModal && subscribeUrl && (
+            <SubscriptionModal
+              subscribeUrl={subscribeUrl}
+              username={user.username}
+              onCloseModal={onCloseSubscriptionModal}
+            />
+          )}
 
-      {/* Delete User Confirm Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent dir={dir}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('usersTable.deleteUserTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('usersTable.deleteUserPrompt', { name: user.username })}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={confirmDelete} disabled={removeUserMutation.isPending}>
-              {t('usersTable.delete')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          {/* Active Next Plan Confirm Dialog */}
+          <AlertDialog open={isActiveNextPlanModalOpen} onOpenChange={setIsActiveNextPlanModalOpen}>
+            <AlertDialogContent dir={dir}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('usersTable.activeNextPlanTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('usersTable.activeNextPlanPrompt', { name: user.username })}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setIsActiveNextPlanModalOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={activeNextPlan} disabled={activeNextMutation.isPending}>
+                  {t('usersTable.activeNextPlanSubmit')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-      {/* Reset Usage Confirm Dialog */}
-      <AlertDialog open={isResetUsageDialogOpen} onOpenChange={setResetUsageDialogOpen}>
-        <AlertDialogContent dir={dir}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('usersTable.resetUsageTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('usersTable.resetUsagePrompt', { name: user.username })}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setResetUsageDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmResetUsage} disabled={resetUserDataUsageMutation.isPending}>
-              {t('usersTable.resetUsageSubmit')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          {/* Delete User Confirm Dialog */}
+          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent dir={dir}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('usersTable.deleteUserTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('usersTable.deleteUserPrompt', { name: user.username })}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={confirmDelete} disabled={removeUserMutation.isPending}>
+                  {t('usersTable.delete')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-      {/* Revoke Subscription Confirm Dialog */}
-      <AlertDialog open={isRevokeSubDialogOpen} onOpenChange={setRevokeSubDialogOpen}>
-        <AlertDialogContent dir={dir}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('revokeUserSub.title')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('revokeUserSub.prompt', { username: user.username })}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setRevokeSubDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRevokeSubscription} disabled={revokeUserSubscriptionMutation.isPending}>
-              {t('revokeUserSub.title')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          {/* Reset Usage Confirm Dialog */}
+          <AlertDialog open={isResetUsageDialogOpen} onOpenChange={setResetUsageDialogOpen}>
+            <AlertDialogContent dir={dir}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('usersTable.resetUsageTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('usersTable.resetUsagePrompt', { name: user.username })}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setResetUsageDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmResetUsage} disabled={resetUserDataUsageMutation.isPending}>
+                  {t('usersTable.resetUsageSubmit')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Revoke Subscription Confirm Dialog */}
+          <AlertDialog open={isRevokeSubDialogOpen} onOpenChange={setRevokeSubDialogOpen}>
+            <AlertDialogContent dir={dir}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('revokeUserSub.title')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('revokeUserSub.prompt', { username: user.username })}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setRevokeSubDialogOpen(false)}>{t('usersTable.cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmRevokeSubscription} disabled={revokeUserSubscriptionMutation.isPending}>
+                  {t('revokeUserSub.title')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={user.username} />
+
+          {/* SetOwnerModal: only for sudo admins */}
+          {currentAdmin?.is_sudo && (
+            <SetOwnerModal
+              open={isSetOwnerModalOpen}
+              onClose={() => setSetOwnerModalOpen(false)}
+              username={user.username}
+              currentOwner={user.admin?.username}
+              onSuccess={(updatedUser?: UserResponse) => {
+                if (updatedUser) {
+                  updateUserInCache(updatedUser)
+                }
+              }}
+            />
+          )}
+
+          {/* UserSubscriptionClientsModal */}
+          <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={user.username} />
+
+          {/* UserAllIPsModal: only for sudo admins */}
+          {currentAdmin?.is_sudo && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
+        </>
+      )}
 
       {/* Edit User Modal */}
       {selectedUser && (
@@ -695,29 +887,21 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
           }}
         />
       )}
+    </div>
+  )
+}
 
-      <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={user.username} />
+export const ActionButtonsModalHost: FC = () => {
+  const modalStateVersion = useSyncExternalStore(subscribeGlobalModalState, getGlobalModalStateSnapshot, getGlobalModalStateSnapshot)
+  const usersWithOpenModals = useMemo(() => getOpenModalUsers(), [modalStateVersion])
 
-      {/* SetOwnerModal: only for sudo admins */}
-      {currentAdmin?.is_sudo && (
-        <SetOwnerModal
-          open={isSetOwnerModalOpen}
-          onClose={() => setSetOwnerModalOpen(false)}
-          username={user.username}
-          currentOwner={user.admin?.username}
-          onSuccess={(updatedUser?: UserResponse) => {
-            if (updatedUser) {
-              updateUserInCache(updatedUser)
-            }
-          }}
-        />
-      )}
+  if (usersWithOpenModals.length === 0) return null
 
-      {/* UserSubscriptionClientsModal */}
-      <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={user.username} />
-
-      {/* UserAllIPsModal: only for sudo admins */}
-      {currentAdmin?.is_sudo && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
+  return (
+    <div className="hidden" aria-hidden="true">
+      {usersWithOpenModals.map(user => (
+        <ActionButtons key={`modal-host-${user.id}`} user={user} renderActions={false} />
+      ))}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { setupColumns } from '@/components/users/columns'
+import { ActionButtonsModalHost } from '@/components/users/action-buttons'
 import { DataTable } from '@/components/users/data-table'
 import { Filters } from '@/components/users/filters'
 import { type UseEditFormValues } from '@/components/forms/user-form'
@@ -260,6 +261,7 @@ const UsersTable = memo(() => {
       staleTime: 0,
       gcTime: 0,
       retry: 1,
+      placeholderData: previousData => previousData,
     },
   })
 
@@ -602,6 +604,7 @@ const UsersTable = memo(() => {
           isSudo={isSudo}
         />
       )}
+      <ActionButtonsModalHost />
     </div>
   )
 })

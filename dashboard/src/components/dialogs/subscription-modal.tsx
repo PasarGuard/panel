@@ -105,8 +105,8 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
   const [copiedConfig, setCopiedConfig] = useState<string | null>(null)
   const [allConfigsCopied, setAllConfigsCopied] = useState(false)
 
-  const sublink = String(subscribeUrl).startsWith('/') 
-    ? window.location.origin + subscribeUrl 
+  const sublink = String(subscribeUrl).startsWith('/')
+    ? window.location.origin + subscribeUrl
     : String(subscribeUrl)
 
   const subscribeQrLink = sublink
@@ -295,13 +295,13 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-4 pt-2">
                       <Button variant="outline" size="icon" className="h-8 w-8" onClick={isRTL ? handleNextPage : handlePreviousPage} disabled={totalPages <= 1}>
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className={cn("h-4 w-4", dir === "rtl" && "rotate-180")} />
                       </Button>
                       <span className="text-sm text-muted-foreground">
                         {currentPage + 1} / {totalPages}
                       </span>
                       <Button variant="outline" size="icon" className="h-8 w-8" onClick={isRTL ? handlePreviousPage : handleNextPage} disabled={totalPages <= 1}>
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className={cn("h-4 w-4", dir === "rtl" && "rotate-180")} />
                       </Button>
                     </div>
                   )}
