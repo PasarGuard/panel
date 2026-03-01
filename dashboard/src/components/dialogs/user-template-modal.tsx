@@ -1,6 +1,6 @@
 import GroupsSelector from '@/components/common/groups-selector'
 import { Button } from '@/components/ui/button.tsx'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog.tsx'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog.tsx'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -204,17 +204,20 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="h-full max-w-[1000px] sm:h-auto" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="h-auto max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             <span>{editingUserTemplate ? t('editUserTemplateModal.title') : t('userTemplateModal.title')}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('userTemplateModal.description', { defaultValue: 'Configure user template settings.' })}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
-            <div className="-mr-4 flex max-h-[76dvh] flex-col items-start gap-4 overflow-y-auto px-2 pb-6 pr-4 sm:max-h-[75dvh] sm:flex-row">
+            <div className="-mr-4 flex max-h-[78dvh] flex-col items-start gap-4 overflow-y-auto px-2 pb-6 pr-4 sm:max-h-[75dvh] sm:flex-row">
               <div className="w-full flex-1 space-y-4">
                 <div className="flex w-full flex-row gap-2">
                   <FormField
@@ -509,7 +512,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                 <FormField control={form.control} name="groups" render={({ field }) => <GroupsSelector control={form.control} name="groups" onGroupsChange={field.onChange} />} />
               </div>
             </div>
-            <div className="mt-4 flex justify-end gap-2 pt-4">
+            <div className="mt-4 flex justify-end gap-2 ">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>

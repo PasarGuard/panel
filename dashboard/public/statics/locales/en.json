@@ -743,6 +743,14 @@
     "online": {
       "oldest": "Last Online (Oldest First)",
       "newest": "Last Online (Newest First)"
+    },
+    "hints": {
+      "newest": "Newest",
+      "oldest": "Oldest",
+      "az": "A-Z",
+      "za": "Z-A",
+      "highToLow": "High-Low",
+      "lowToHigh": "Low-High"
     }
   },
   "header.donation": "Donation",
@@ -1325,7 +1333,6 @@
   },
   "statistics.system": "System",
   "statistics.totalTraffic": "Total Traffic",
-  "statistics.networkSpeed": "Network Speed",
   "statistics.ramUsage": "RAM Usage",
   "statistics.cpuUsage": "CPU Usage",
   "statistics.diskUsage": "Disk Usage",

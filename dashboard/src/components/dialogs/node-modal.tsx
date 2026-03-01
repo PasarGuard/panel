@@ -1,6 +1,6 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -386,6 +386,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
             <Settings className="h-5 w-5" />
             <span>{editingNode ? t('editNode.title') : t('nodeModal.title')}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('nodeModal.description', { defaultValue: 'Configure node settings and connection details.' })}
+          </DialogDescription>
         </DialogHeader>
 
         {/* Status Check Results - Positioned at the top of the modal */}
@@ -448,7 +451,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
             <div
               className={cn(
                 '-mr-2 overflow-y-auto px-1 pr-2 sm:-mr-4 sm:px-2 sm:pr-4',
-                showErrorDetails && currentNode?.status === 'error' ? 'max-h-[55dvh] sm:max-h-[55dvh]' : 'max-h-[65dvh] sm:max-h-[65dvh]',
+                showErrorDetails && currentNode?.status === 'error' ? 'max-h-[62.3dvh] sm:max-h-[56.8dvh]' : 'max-h-[71dvh] sm:max-h-[70dvh]',
                 isFetchingNodeData && 'pointer-events-none blur-sm',
               )}
             >
@@ -1192,7 +1195,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-3">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={addNodeMutation.isPending || modifyNodeMutation.isPending} size="sm">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={addNodeMutation.isPending || modifyNodeMutation.isPending}>
                 {t('cancel')}
               </Button>
               <LoaderButton
@@ -1200,7 +1203,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                 disabled={addNodeMutation.isPending || modifyNodeMutation.isPending}
                 isLoading={addNodeMutation.isPending || modifyNodeMutation.isPending}
                 loadingText={editingNode ? t('modifying') : t('creating')}
-                size="sm"
               >
                 {editingNode ? t('modify') : t('create')}
               </LoaderButton>

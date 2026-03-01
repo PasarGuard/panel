@@ -260,7 +260,10 @@ export default function General() {
           <AlertDialog open={isReconnectAllDialogOpen} onOpenChange={setIsReconnectAllDialogOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t('nodes.reconnectAll', { defaultValue: 'Reconnect All Nodes' })}</AlertDialogTitle>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <RefreshCcw className="h-5 w-5" />
+                  {t('nodes.reconnectAll', { defaultValue: 'Reconnect All Nodes' })}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   {t('nodes.reconnectAllPrompt', {
                     defaultValue: 'Are you sure you want to reconnect all nodes? This will temporarily disconnect all active connections and may take a few moments to complete.',

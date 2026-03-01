@@ -23,10 +23,9 @@ const QRCodeModal: FC<QRCodeModalProps> = memo(({ subscribeUrl, username, onClos
     <Dialog open={isOpen} onOpenChange={onCloseModal}>
       <DialogContent className="max-h-[100dvh] max-w-[425px] overflow-y-auto overflow-x-hidden">
         <DialogHeader dir={dir}>
-          <DialogTitle>
-            <div className="px-2">
-              <ScanQrCode className="h-8 w-8" />
-            </div>
+          <DialogTitle className="flex items-center gap-2">
+            <ScanQrCode className="h-5 w-5" />
+            <span>{t('qrcodeDialog.title', { defaultValue: 'QR Code' })}</span>
           </DialogTitle>
         </DialogHeader>
         <div dir="ltr" className="flex w-full justify-center overflow-x-hidden">

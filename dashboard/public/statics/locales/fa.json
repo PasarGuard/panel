@@ -630,6 +630,14 @@
     "online": {
       "oldest": "آخرین آنلاین (قدیمی‌ترین اول)",
       "newest": "آخرین آنلاین (جدیدترین اول)"
+    },
+    "hints": {
+      "newest": "جدیدترین",
+      "oldest": "قدیمی‌ترین",
+      "az": "الف-ی",
+      "za": "ی-الف",
+      "highToLow": "زیاد-کم",
+      "lowToHigh": "کم-زیاد"
     }
   },
   "header.donation": "کمک مالی",
@@ -1167,7 +1175,6 @@
   },
   "statistics.system": "سیستم",
   "statistics.totalTraffic": "کل ترافیک",
-  "statistics.networkSpeed": "سرعت شبکه",
   "statistics.ramUsage": "مصرف رم",
   "statistics.cpuUsage": "مصرف پردازنده",
   "statistics.diskUsage": "مصرف دیسک",

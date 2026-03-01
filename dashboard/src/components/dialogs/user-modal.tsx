@@ -33,8 +33,8 @@ import {
   useResetUserDataUsage,
   useRevokeUserSubscription,
   type UserResponse,
-  type UsersResponse,
 } from '@/service/api'
+import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
@@ -522,104 +522,41 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     refetchOnMount: true,
   })
 
-  // Function to refresh all user-related data
-  const refreshUserData = (user: UserResponse, isEdit: boolean = false) => {
-    if (isEdit) {
-      // When editing, update the specific user in the cache
-      // Get all cached queries for users
-      queryClient.setQueriesData<UsersResponse>(
-        {
-          queryKey: ['/api/users'],
-          exact: false,
-        },
-        oldData => {
-          if (!oldData) return oldData
-
-          // Find and update the user in the users array
-          const updatedUsers = oldData.users.map(u => (u.username === user.username ? user : u))
-
-          return {
-            ...oldData,
-            users: updatedUsers,
-          }
-        },
-      )
-
-      // Invalidate the users query to ensure all components refetch and see the updated data
-      // This is important for components that read user data to repopulate forms
-      queryClient.invalidateQueries({ queryKey: ['/api/users'], exact: false })
-
-      // Still invalidate usage/stats queries as they may have changed
-      queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
-      queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
-      queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
-      queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
-    } else {
-      // When creating, invalidate and refetch all users
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] })
-      queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
-      queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
-      queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
-      queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
+  const syncUserCacheFromApiResponse = (user: UserResponse, options?: { allowInsert?: boolean; notifySuccessCallback?: boolean }) => {
+    upsertUserInUsersCache(queryClient, user, { allowInsert: options?.allowInsert ?? false })
+    invalidateUserMetricsQueries(queryClient)
+    if (options?.notifySuccessCallback) {
+      onSuccessCallback?.(user)
     }
-
-    // Call the success callback if provided
-    if (onSuccessCallback) {
-      onSuccessCallback(user)
-    }
-  }
-
-  const updateUserInCache = (updatedUser: UserResponse) => {
-    queryClient.setQueriesData<UsersResponse>(
-      {
-        queryKey: ['/api/users'],
-        exact: false,
-      },
-      oldData => {
-        if (!oldData) return oldData
-
-        const updatedUsers = oldData.users.map(u => (u.username === updatedUser.username ? updatedUser : u))
-
-        return {
-          ...oldData,
-          users: updatedUsers,
-        }
-      },
-    )
-
-    queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
-    queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
-    queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
-    queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
   }
 
   const createUserMutation = useCreateUser({
     mutation: {
-      onSuccess: data => refreshUserData(data),
+      onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
   })
   const modifyUserMutation = useModifyUser({
     mutation: {
-      onSuccess: data => refreshUserData(data, true),
+      onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
   })
   const createUserFromTemplateMutation = useCreateUserFromTemplate({
     mutation: {
-      onSuccess: data => refreshUserData(data),
+      onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
   })
 
   // Add the mutation hook at the top with other mutations
   const modifyUserWithTemplateMutation = useModifyUserWithTemplate({
     mutation: {
-      onSuccess: data => refreshUserData(data, true),
+      onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
   })
   const resetUserDataUsageMutation = useResetUserDataUsage({
     mutation: {
       onSuccess: updatedUser => {
         if (updatedUser) {
-          updateUserInCache(updatedUser)
+          syncUserCacheFromApiResponse(updatedUser)
         }
       },
     },
@@ -628,7 +565,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     mutation: {
       onSuccess: updatedUser => {
         if (updatedUser) {
-          updateUserInCache(updatedUser)
+          syncUserCacheFromApiResponse(updatedUser)
         }
       },
     },
@@ -1356,7 +1293,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               </span>
             </AccordionTrigger>
             <AccordionContent className="pb-2">
-              <div className="space-y-1.5 rounded-md border bg-background p-2 text-xs">
+              <div className="space-y-1.5 rounded-md bg-background py-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-muted-foreground">
                     <CalendarPlus className="h-3.5 w-3.5" />
@@ -2555,7 +2492,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       <AlertDialog open={isResetUsageDialogOpen} onOpenChange={setResetUsageDialogOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('usersTable.resetUsageTitle')}</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <PieChart className="h-5 w-5" />
+              {t('usersTable.resetUsageTitle')}
+            </AlertDialogTitle>
             <AlertDialogDescription>{t('usersTable.resetUsagePrompt', { name: currentUsername })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2570,7 +2510,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       <AlertDialog open={isRevokeSubDialogOpen} onOpenChange={setRevokeSubDialogOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('revokeUserSub.title')}</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Link2Off className="h-5 w-5" />
+              {t('revokeUserSub.title')}
+            </AlertDialogTitle>
             <AlertDialogDescription>{t('revokeUserSub.prompt', { username: currentUsername })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

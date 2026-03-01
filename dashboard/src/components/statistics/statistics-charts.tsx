@@ -8,6 +8,7 @@ import UserSubUpdatePieChart from '../charts/user-sub-update-pie-chart'
 import SystemStatisticsSection from './system-statistics-section'
 import { AllNodesStackedBarChart } from '../charts/all-nodes-stacked-bar-chart'
 import { AreaCostumeChart } from '../charts/area-costume-chart'
+import { BarChart3 } from 'lucide-react'
 
 interface StatisticsChartsProps {
   data?: SystemStats
@@ -97,9 +98,9 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
     return (
       <div className="space-y-8">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
-            <p className="text-sm">{t('monitorServers')}</p>
           </div>
         </div>
         <EmptyState type="error" title={t('errors.statisticsLoadFailed')} description={error?.message || nodesError?.message || t('errors.connectionFailed')} className="min-h-[400px]" />
@@ -115,9 +116,9 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
       {/* System Statistics Section - show for all admins */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
-            <p className="text-sm">{t('monitorServers')}</p>
           </div>
         </div>
         <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>

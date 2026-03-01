@@ -333,7 +333,7 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
                 </div>
               </div>
 
-              <div className="rounded-lg border bg-background/60 p-3 sm:p-4">
+              <div className="rounded-lg border bg-background/60 p-3 sm:p-4 sm:col-span-2 lg:col-span-1">
                 <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground sm:gap-2 sm:text-sm">
                   <Wifi className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
                   <span>{t('statistics.onlineUsers')}</span>

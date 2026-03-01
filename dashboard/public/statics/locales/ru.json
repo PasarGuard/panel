@@ -729,6 +729,14 @@
     "online": {
       "oldest": "Последний онлайн (сначала старые)",
       "newest": "Последний онлайн (сначала новые)"
+    },
+    "hints": {
+      "newest": "Новые",
+      "oldest": "Старые",
+      "az": "А-Я",
+      "za": "Я-А",
+      "highToLow": "Выс-Низ",
+      "lowToHigh": "Низ-Выс"
     }
   },
   "header.donation": "Пожертвование",
@@ -928,7 +936,6 @@
   },
   "statistics.system": "Система",
   "statistics.totalTraffic": "Общий трафик",
-  "statistics.networkSpeed": "Скорость сети",
   "statistics.ramUsage": "Использование RAM",
   "statistics.cpuUsage": "Использование CPU",
   "statistics.diskUsage": "Использование диска",

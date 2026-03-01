@@ -39,7 +39,7 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
         <DialogPrimitive.Close
           className={cn(
             'absolute',
-            dir === 'rtl' ? 'left-8 md:left-6' : 'right-8 md:right-6',
+            dir === 'rtl' ? 'left-6' : 'right-6',
             'top-6 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground',
           )}
         >
@@ -54,7 +54,7 @@ DialogContent.displayName = DialogPrimitive.Content.displayName
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => {
   const dir = useDirDetection()
-  return <div dir={dir} className={cn('flex flex-col gap-1.5', dir === 'rtl' ? 'pl-10 text-right' : 'pr-10 text-left', className)} {...props} />
+  return <div dir={dir} className={cn('flex flex-col gap-1.5 pt-1', dir === 'rtl' ? 'pl-10 text-right' : 'pr-10 text-left', className)} {...props} />
 }
 DialogHeader.displayName = 'DialogHeader'
 

@@ -183,7 +183,7 @@ export const setupColumns = ({
       <div className="flex items-center justify-between gap-2">
         <UsageSliderCompact total={row.original.data_limit} used={row.original.used_traffic} totalUsedTraffic={row.original.lifetime_used_traffic} status={row.original.status} />
         <div className="hidden w-[200px] px-4 py-1 md:block">
-          <ActionButtons user={row.original} />
+          <ActionButtons user={row.original} isModalHost={false} />
         </div>
       </div>
     ),

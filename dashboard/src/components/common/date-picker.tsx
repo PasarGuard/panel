@@ -1,7 +1,7 @@
 'use client'
 
 import { addDays } from 'date-fns'
-import { useState, useEffect, useCallback, ChangeEvent, MouseEvent } from 'react'
+import { useState, useEffect, useCallback, ChangeEvent, KeyboardEvent, MouseEvent } from 'react'
 import { Calendar as CalendarIcon, X } from 'lucide-react'
 import { DateRange } from 'react-day-picker'
 import { cn } from '@/lib/utils'
@@ -311,15 +311,31 @@ export function DatePicker({
     const displayDate = internalDate || (date ? new Date(date) : undefined)
     const timeValue = displayDate ? `${String(displayDate.getHours()).padStart(2, '0')}:${String(displayDate.getMinutes()).padStart(2, '0')}` : ''
 
-    const handleClear = useCallback(
-      (e: MouseEvent<HTMLButtonElement>) => {
-        e.preventDefault()
-        e.stopPropagation()
+    const clearDate = useCallback(() => {
         setInternalDate(undefined)
         onDateChange(undefined)
         onFieldChange?.(fieldName, undefined)
-      },
+      }, 
       [onDateChange, onFieldChange, fieldName],
+    )
+
+    const handleClearClick = useCallback(
+      (e: MouseEvent<HTMLElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        clearDate()
+      },
+      [clearDate],
+    )
+
+    const handleClearKeyDown = useCallback(
+      (e: KeyboardEvent<HTMLElement>) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return
+        e.preventDefault()
+        e.stopPropagation()
+        clearDate()
+      },
+      [clearDate],
     )
 
     return (
@@ -336,14 +352,16 @@ export function DatePicker({
               {displayDate ? formatDate(displayDate) : <span>{placeholder || label || t('timeSelector.pickDate')}</span>}
               <div className="flex items-center gap-1 ml-auto">
                 {displayDate && (
-                  <button
-                    type="button"
-                    onClick={handleClear}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleClearClick}
+                    onKeyDown={handleClearKeyDown}
                     className="rounded-sm opacity-50 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                     aria-label={t('clear', { defaultValue: 'Clear' })}
                   >
                     <X className="h-4 w-4" />
-                  </button>
+                  </span>
                 )}
                 <CalendarIcon className="h-4 w-4 opacity-50" />
               </div>

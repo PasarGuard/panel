@@ -575,19 +575,19 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     typeof message === 'string'
                       ? message
                       : t('validation.invalid', {
-                          field: t(`coreConfigModal.${field}`, { defaultValue: field }),
-                          defaultValue: `${field} is invalid`,
-                        }),
+                        field: t(`coreConfigModal.${field}`, { defaultValue: field }),
+                        defaultValue: `${field} is invalid`,
+                      }),
                 })
               }
             })
 
             toast.error(
               firstMessage ||
-                t('validation.invalid', {
-                  field: t(`coreConfigModal.${firstField}`, { defaultValue: firstField }),
-                  defaultValue: `${firstField} is invalid`,
-                }),
+              t('validation.invalid', {
+                field: t(`coreConfigModal.${firstField}`, { defaultValue: firstField }),
+                defaultValue: `${firstField} is invalid`,
+              }),
             )
           } else if (typeof detail === 'string' && !Array.isArray(detail)) {
             toast.error(detail)
@@ -861,14 +861,14 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const renderVlessAdvancedModal = () => {
     return (
       <Dialog open={isVlessAdvancedModalOpen} onOpenChange={setIsVlessAdvancedModalOpen}>
-        <DialogContent className="h-full max-w-full px-2 py-6 sm:h-auto sm:max-w-2xl">
+        <DialogContent className="max-w-full h-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               <span className="truncate">{t('coreConfigModal.vlessAdvancedSettings', { defaultValue: 'VLESS Advanced Settings' })}</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="max-h-[calc(100dvh-120px)] space-y-4 overflow-y-auto px-2">
+          <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh] space-y-4 overflow-y-auto">
             {/* Variant Selector */}
             <div className="space-y-2">
               <Label className="text-xs font-semibold tracking-wide text-muted-foreground">{t('coreConfigModal.chooseAuthentication')}</Label>
@@ -1050,7 +1050,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
               </div>
             </div>
           </div>
-          <div className="flex justify-end gap-2 px-4">
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setIsVlessAdvancedModalOpen(false)} size="sm" disabled={isGeneratingVLESSEncryption}>
               {t('close')}
             </Button>
@@ -1190,7 +1190,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
     return (
       <Dialog open={isResultsDialogOpen} onOpenChange={setIsResultsDialogOpen}>
-        <DialogContent className="max-h-[95vh] w-[95vw] max-w-2xl overflow-y-auto p-3 sm:p-6">
+        <DialogContent className="max-h-[95vh] w-[95vw] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary sm:h-5 sm:w-5" />
@@ -1241,7 +1241,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       {renderVlessAdvancedModal()}
       {renderResultDialog()}
       <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="h-full max-w-full px-4 py-6 sm:h-auto sm:max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
+        <DialogContent className="h-auto w-full max-w-5xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
@@ -1254,7 +1254,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="-mr-4 max-h-[69dvh] overflow-y-auto px-2 pr-4 sm:max-h-[72dvh]">
+              <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
                 <div className="grid grid-cols-1 gap-4 md:h-full md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
                   <div className="flex flex-col">
                     <div className="flex flex-col space-y-4 md:h-full">
@@ -1275,15 +1275,15 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                 style={
                                   isEditorFullscreen
                                     ? {
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                      }
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }
                                     : {
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                      }
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                    }
                                 }
                               >
                                 {isEditorFullscreen && <div className="absolute inset-0 bg-background/95 backdrop-blur-sm" onClick={handleToggleFullscreen} />}
@@ -1578,27 +1578,27 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
                           <LoaderButton
                             type="button"
-                            onClick={viewMldsa65}
-                            className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                            isLoading={isGeneratingMldsa65}
-                            loadingText={t('coreConfigModal.generatingMldsa65')}
-                          >
-                            <span className="flex items-center gap-2 truncate">
-                              {generatedMldsa65 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                              {t('coreConfigModal.generateMldsa65')}
-                            </span>
-                          </LoaderButton>
-
-                          <LoaderButton
-                            type="button"
                             onClick={viewShortId}
-                            className="col-span-2 h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                            className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
                             isLoading={isGeneratingShortId}
                             loadingText={t('coreConfigModal.generatingShortId')}
                           >
                             <span className="flex items-center gap-2 truncate">
                               {generatedShortId && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
                               {t('coreConfigModal.generateShortId')}
+                            </span>
+                          </LoaderButton>
+
+                          <LoaderButton
+                            type="button"
+                            onClick={viewMldsa65}
+                            className="col-span-2 h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                            isLoading={isGeneratingMldsa65}
+                            loadingText={t('coreConfigModal.generatingMldsa65')}
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              {generatedMldsa65 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                              {t('coreConfigModal.generateMldsa65')}
                             </span>
                           </LoaderButton>
                         </div>
@@ -1658,13 +1658,13 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
               </div>
               {/* Form: Restart nodes toggle */}
               {!isEditorFullscreen && (
-                <div className="flex flex-col gap-2">
+                <div className={cn("flex items-center gap-2", editingCore ? "justify-between" : "justify-end")}>
                   {editingCore && (
                     <FormField
                       control={form.control}
                       name="restart_nodes"
                       render={({ field }) => (
-                        <FormItem className={'mb-2 flex flex-row-reverse items-center gap-2'}>
+                        <FormItem className='flex flex-row-reverse items-center gap-2'>
                           <FormControl>
                             <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                           </FormControl>

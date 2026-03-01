@@ -3,7 +3,7 @@ const NUM_ADMINS_PER_PAGE_LOCAL_STORAGE_KEY = 'pasarguard-num-admins-per-page'
 const NUM_ITEMS_PER_PAGE_DEFAULT = 10
 
 const USERS_AUTO_REFRESH_INTERVAL_KEY = 'pasarguard-users-auto-refresh-interval'
-const DEFAULT_USERS_AUTO_REFRESH_INTERVAL_SECONDS = 0
+const DEFAULT_USERS_AUTO_REFRESH_INTERVAL_SECONDS = 15
 const USERS_SHOW_CREATED_BY_KEY = 'pasarguard-users-show-created-by'
 const DEFAULT_USERS_SHOW_CREATED_BY = true
 const CHART_VIEW_TYPE_KEY = 'pasarguard-chart-view-type'

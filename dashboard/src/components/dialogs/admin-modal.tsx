@@ -2,7 +2,7 @@ import type { AdminFormValuesInput } from '@/components/forms/admin-form'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -13,7 +13,8 @@ import { VariablesPopover } from '@/components/ui/variables-popover'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
 import { useCreateAdmin, useModifyAdmin } from '@/service/api'
-import { queryClient } from '@/utils/query-client.ts'
+import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
+import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, UserCog } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -31,6 +32,7 @@ interface AdminModalProps {
 export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUserName, editingAdmin, form }: AdminModalProps) {
   const { t } = useTranslation()
   const handleError = useDynamicErrorHandler()
+  const queryClient = useQueryClient()
   const addAdminMutation = useCreateAdmin()
   const modifyAdminMutation = useModifyAdmin()
 
@@ -69,10 +71,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
         notification_enable: values.notification_enable || null,
       }
       if (editingAdmin && editingAdminUserName) {
-        await modifyAdminMutation.mutateAsync({
+        const updatedAdmin = await modifyAdminMutation.mutateAsync({
           username: editingAdminUserName,
           data: editData,
         })
+        upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
         toast.success(
           t('admins.editSuccess', {
             name: values.username,
@@ -86,9 +89,10 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
           is_sudo: values.is_sudo ?? false,
           password: values.password, // Ensure password is present
         }
-        await addAdminMutation.mutateAsync({
+        const createdAdmin = await addAdminMutation.mutateAsync({
           data: createData,
         })
+        upsertAdminInAdminsCache(queryClient, createdAdmin, { allowInsert: true })
         toast.success(
           t('admins.createSuccess', {
             name: values.username,
@@ -96,7 +100,6 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
           }),
         )
       }
-      queryClient.invalidateQueries({ queryKey: ['/api/admins'] })
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
@@ -121,12 +124,15 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleClose}>
-      <DialogContent className="h-full max-w-[750px] sm:h-auto" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="h-auto max-w-[750px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserCog className="h-5 w-5" />
             <span>{editingAdmin ? t('admins.editAdmin') : t('admins.createAdmin')}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('admins.description', { defaultValue: 'Configure admin account settings.' })}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" autoComplete="off">

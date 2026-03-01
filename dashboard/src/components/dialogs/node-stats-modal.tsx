@@ -140,7 +140,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="flex max-h-[95dvh] w-[96vw] max-w-md flex-col overflow-hidden p-3 sm:max-w-2xl sm:p-4 md:max-w-3xl lg:max-w-4xl" dir={dir}>
+      <DialogContent className="flex max-h-[95dvh] w-[96vw] max-w-md flex-col overflow-hidden sm:max-w-2xl md:max-w-3xl lg:max-w-4xl" dir={dir}>
         <DialogHeader>
           <div className="flex flex-col items-start gap-3">
             <DialogTitle className="flex items-center gap-2">

@@ -19,7 +19,30 @@ interface DataTableProps<TData extends UserResponse, TValue> {
   onEdit?: (user: UserResponse) => void
 }
 
-export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, isFetching = false, onEdit }: DataTableProps<TData, TValue>) => {
+const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) => (
+  <div className="flex flex-col gap-y-4 p-4">
+    <UsageSliderCompact isMobile status={row.original.status} total={row.original.data_limit} totalUsedTraffic={row.original.lifetime_used_traffic} used={row.original.used_traffic} />
+    <div className="flex flex-col gap-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <StatusBadge showOnlyExpiry expiryDate={row.original.expire} status={row.original.status} showExpiry />
+        </div>
+        <div onClick={e => e.stopPropagation()}>
+          <ActionButtons user={row.original} isModalHost={false} />
+        </div>
+      </div>
+      <div className="flex items-center gap-x-1">
+        <span className="flex items-center gap-x-0.5">
+          <Rss className="h-3 w-3 text-muted-foreground" />
+          <span className="text-muted-foreground">:</span>
+        </span>
+        <OnlineStatus lastOnline={row.original.online_at} />
+      </div>
+    </div>
+  </div>
+))
+
+export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, onEdit }: DataTableProps<TData, TValue>) => {
   const { t } = useTranslation()
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
   const dir = useDirDetection()
@@ -30,6 +53,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
     () => ({
       data,
       columns,
+      getRowId: (row: TData) => String(row.id),
       getCoreRowModel: getCoreRowModel(),
     }),
     [data, columns],
@@ -54,30 +78,8 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
     [handleRowToggle, onEdit],
   )
 
-  const isLoadingData = isLoading || isFetching
-
-  const ExpandedRowContent = memo(({ row }: { row: any }) => (
-    <div className="flex flex-col gap-y-4 p-4">
-      <UsageSliderCompact isMobile status={row.original.status} total={row.original.data_limit} totalUsedTraffic={row.original.lifetime_used_traffic} used={row.original.used_traffic} />
-      <div className="flex flex-col gap-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <StatusBadge showOnlyExpiry expiryDate={row.original.expire} status={row.original.status} showExpiry />
-          </div>
-          <div onClick={e => e.stopPropagation()}>
-            <ActionButtons user={row.original} />
-          </div>
-        </div>
-        <div className="flex items-center gap-x-1">
-          <span className="flex items-center gap-x-0.5">
-            <Rss className="h-3 w-3 text-muted-foreground" />
-            <span className="text-muted-foreground">:</span>
-          </span>
-          <OnlineStatus lastOnline={row.original.online_at} />
-        </div>
-      </div>
-    </div>
-  ))
+  // Keep rows mounted during background fetching so row-level dialogs remain stable.
+  const isLoadingData = isLoading
 
   const LoadingState = useMemo(
     () => (

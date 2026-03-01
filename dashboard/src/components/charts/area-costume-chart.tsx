@@ -273,7 +273,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
         </div>
 
         <CardDescription className="text-sm text-muted-foreground sm:!mt-0">{viewMode === 'realtime' ? t('statistics.realtimeDescription') : t('statistics.historicalDescription')}</CardDescription>
-        <div className="grid grid-cols-2 gap-4 pt-2 sm:gap-6">
+        <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2 sm:gap-6">
           <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">
             <div className="flex items-center gap-2">
               <Cpu className="h-4 w-4 text-muted-foreground" />

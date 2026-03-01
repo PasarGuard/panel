@@ -105,8 +105,8 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
   const [copiedConfig, setCopiedConfig] = useState<string | null>(null)
   const [allConfigsCopied, setAllConfigsCopied] = useState(false)
 
-  const sublink = String(subscribeUrl).startsWith('/') 
-    ? window.location.origin + subscribeUrl 
+  const sublink = String(subscribeUrl).startsWith('/')
+    ? window.location.origin + subscribeUrl
     : String(subscribeUrl)
 
   const subscribeQrLink = sublink
@@ -222,11 +222,9 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
       <Dialog open={isOpen && !selectedConfigQR} onOpenChange={onCloseModal}>
         <DialogContent className="max-h-[90dvh] max-w-[860px] overflow-y-auto overflow-x-hidden">
           <DialogHeader dir={dir}>
-            <DialogTitle>
-              <div className="flex items-center gap-2">
-                <ScanQrCode className="h-6 w-6" />
-                <span>{t('subscriptionModal.title', { username, defaultValue: "{{username}}'s Subscription" })}</span>
-              </div>
+            <DialogTitle className="flex items-center gap-2">
+              <ScanQrCode className="h-5 w-5 shrink-0" />
+              <span>{t('subscriptionModal.title', { username, defaultValue: "{{username}}'s Subscription" })}</span>
             </DialogTitle>
           </DialogHeader>
 
@@ -297,13 +295,13 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-4 pt-2">
                       <Button variant="outline" size="icon" className="h-8 w-8" onClick={isRTL ? handleNextPage : handlePreviousPage} disabled={totalPages <= 1}>
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className={cn("h-4 w-4", dir === "rtl" && "rotate-180")} />
                       </Button>
                       <span className="text-sm text-muted-foreground">
                         {currentPage + 1} / {totalPages}
                       </span>
                       <Button variant="outline" size="icon" className="h-8 w-8" onClick={isRTL ? handlePreviousPage : handleNextPage} disabled={totalPages <= 1}>
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className={cn("h-4 w-4", dir === "rtl" && "rotate-180")} />
                       </Button>
                     </div>
                   )}
@@ -318,13 +316,11 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
       <Dialog open={!!selectedConfigQR} onOpenChange={handleCloseConfigQR}>
         <DialogContent className="w-[90vw] max-w-[320px]">
           <DialogHeader dir={dir}>
-            <DialogTitle>
-              <div className="flex items-center gap-2">
-                <QrCode className="h-5 w-5 shrink-0" />
-                <span title={selectedConfigQR?.name}>
-                  {selectedConfigQR?.name && selectedConfigQR.name.length > 20 ? `${selectedConfigQR.name.slice(0, 20)}...` : selectedConfigQR?.name}
-                </span>
-              </div>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5 shrink-0" />
+              <span title={selectedConfigQR?.name}>
+                {selectedConfigQR?.name && selectedConfigQR.name.length > 20 ? `${selectedConfigQR.name.slice(0, 20)}...` : selectedConfigQR?.name}
+              </span>
             </DialogTitle>
           </DialogHeader>
           <div dir="ltr" className="flex flex-col items-center gap-4 py-2">
