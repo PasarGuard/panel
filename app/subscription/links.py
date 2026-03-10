@@ -155,6 +155,10 @@ class StandardLinks(BaseSubscription):
         """Handle kcp transport - only gets KCP config"""
         # KCP header/seed are removed in latest Xray-core; no extra fields needed.
 
+    def _apply_finalmask(self, payload: dict, protocol: str, inbound: SubscriptionInboundData):
+        """Apply finalMask for vmess if needed"""
+        payload["finalmask"] = json.dumps(inbound.finalmask)
+
     def _transport_tcp(self, payload: dict, protocol: str, config: TCPTransportConfig, path: str):
         """Handle tcp/raw/http transport - only gets TCP config"""
         host = config.host if isinstance(config.host, str) else ""
@@ -228,6 +232,8 @@ class StandardLinks(BaseSubscription):
 
         self._apply_transport_settings(payload, "vmess", inbound, path)
 
+        self._apply_finalmask(payload, "vmess", inbound)
+
         if inbound.tls_config.tls in ("tls", "reality"):
             # Use stored TLS config instance
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
@@ -258,6 +264,7 @@ class StandardLinks(BaseSubscription):
 
         self._apply_transport_settings(payload, "vless", inbound, path)
 
+        self._apply_finalmask(payload, "vless", inbound)
         if inbound.tls_config.tls in ("tls", "reality"):
             # Use stored TLS config instance
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
@@ -278,6 +285,7 @@ class StandardLinks(BaseSubscription):
 
         self._apply_transport_settings(payload, "trojan", inbound, path)
 
+        self._apply_finalmask(payload, "trojan", inbound)
         if inbound.tls_config.tls in ("tls", "reality"):
             # Use stored TLS config instance
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
