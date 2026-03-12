@@ -172,6 +172,8 @@ class SubscriptionOperation(BaseOperation):
                     {
                         "user": user,
                         "links": links,
+                        "announce": sub_settings.announce,
+                        "announce_url": sub_settings.announce_url,
                         "apps": self._make_apps_import_urls(sub_settings.applications, format_variables),
                     },
                 )

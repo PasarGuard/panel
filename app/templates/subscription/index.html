@@ -100,6 +100,36 @@
                 text-align: center;
             }
 
+            .announcement {
+                background: hsl(216 46% 53% / 0.15);
+                border: 1px solid hsl(var(--primary));
+                border-radius: 6px;
+                padding: 12px 16px;
+                margin-bottom: 16px;
+                font-size: 0.9rem;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                transition: background-color 0.3s, border-color 0.3s;
+            }
+
+            .announcement span {
+                color: hsl(var(--foreground));
+                flex: 1;
+            }
+
+            .announcement a {
+                color: hsl(var(--primary));
+                text-decoration: none;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+
+            .announcement a:hover {
+                text-decoration: underline;
+            }
+
             .user-info {
                 background: hsl(var(--muted));
                 border: 1px solid hsl(var(--border));
@@ -512,10 +542,19 @@
         <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
             <span id="theme-icon">🌙</span>
         </button>
-        
+
         <div class="container">
             <h1>Subscription Information</h1>
-            
+
+            {% if announce %}
+            <div class="announcement">
+                <span>{{ announce | replace('\n', '<br>') }}</span>
+                {% if announce_url %}
+                <a href="{{ announce_url }}" target="_blank">More info</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
             <div class="user-info">
                 <div class="info-item">
                     <span class="info-label">Username:</span>
