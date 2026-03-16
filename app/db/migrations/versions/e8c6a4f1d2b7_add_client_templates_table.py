@@ -222,8 +222,7 @@ DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE = """{
 }
 """
 
-DEFAULT_USER_AGENT_TEMPLATE = """
-{
+DEFAULT_USER_AGENT_TEMPLATE = """{
   "list":[
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -326,11 +325,9 @@ DEFAULT_USER_AGENT_TEMPLATE = """
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/24.0 Chrome/117.0.0.0 Mobile Safari/537.36"
   ]
-}
-"""
+}"""
 
-DEFAULT_GRPC_USER_AGENT_TEMPLATE = """
-{
+DEFAULT_GRPC_USER_AGENT_TEMPLATE = """{
     "list": [
         "grpc-dotnet/2.41.0 (.NET 6.0.1; CLR 6.0.1; net6.0; windows; x64)",
         "grpc-dotnet/2.41.0 (.NET 6.0.0-preview.7.21377.19; CLR 6.0.0; net6.0; osx; x64)",
@@ -349,8 +346,7 @@ DEFAULT_GRPC_USER_AGENT_TEMPLATE = """
         "grpc-node/1.19.0 grpc-c/7.0.0 (linux; chttp2; gold)",
         "grpc-ruby/1.62.0 grpc-c/39.0.0 (osx; chttp2)]"
     ]
-}
-"""
+}"""
 
 
 def _template_content_or_default(
