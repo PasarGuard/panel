@@ -72,8 +72,7 @@ proxy-groups:
   {{ proxy_remarks | yaml | indent(2) }}
 
 rules:
-  - MATCH,PROXY
-"""
+  - MATCH,PROXY"""
 
 DEFAULT_XRAY_SUBSCRIPTION_TEMPLATE = """{
   "log": {
@@ -132,8 +131,7 @@ DEFAULT_XRAY_SUBSCRIPTION_TEMPLATE = """{
     "domainStrategy": "AsIs",
     "rules": []
   }
-}
-"""
+}"""
 
 DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE = """{
   "log": {
@@ -219,8 +217,7 @@ DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE = """{
       "store_rdrc": true
     }
   }
-}
-"""
+}"""
 
 DEFAULT_USER_AGENT_TEMPLATE = """{
   "list":[
