@@ -120,7 +120,16 @@ DEFAULT_XRAY_SUBSCRIPTION_TEMPLATE = """{
       }
     }
   ],
-  "outbounds": [],
+  "outbounds": [
+      {
+        "protocol": "freedom",
+        "tag": "DIRECT"
+      },
+      {
+        "protocol": "blackhole",
+        "tag": "BLOCK"
+      }
+    ],
   "dns": {
     "servers": [
       "1.1.1.1",
