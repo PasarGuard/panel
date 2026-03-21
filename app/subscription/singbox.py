@@ -12,7 +12,6 @@ from app.templates import render_template_string
 from app.utils.helpers import UUIDEncoder
 
 from . import BaseSubscription
-from .default_templates import DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE
 
 
 class SingBoxConfiguration(BaseSubscription):
@@ -26,8 +25,6 @@ class SingBoxConfiguration(BaseSubscription):
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
-        if singbox_template_content is None:
-            singbox_template_content = DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE
         self.config = json.loads(render_template_string(singbox_template_content))
 
         # Registry for transport handlers

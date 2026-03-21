@@ -6,8 +6,6 @@ from enum import Enum
 
 from app.templates import render_template_string
 
-from .default_templates import DEFAULT_GRPC_USER_AGENT_TEMPLATE, DEFAULT_USER_AGENT_TEMPLATE
-
 
 class BaseSubscription:
     def __init__(
@@ -15,10 +13,6 @@ class BaseSubscription:
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
     ):
-        if user_agent_template_content is None:
-            user_agent_template_content = DEFAULT_USER_AGENT_TEMPLATE
-        if grpc_user_agent_template_content is None:
-            grpc_user_agent_template_content = DEFAULT_GRPC_USER_AGENT_TEMPLATE
 
         self.proxy_remarks = []
         user_agent_data = json.loads(render_template_string(user_agent_template_content))

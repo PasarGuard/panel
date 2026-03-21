@@ -1,5 +1,4 @@
 from collections import defaultdict
-from collections.abc import Mapping
 from enum import Enum
 
 from sqlalchemy import func, select, update
@@ -8,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ClientTemplate
 from app.models.client_template import ClientTemplateCreate, ClientTemplateModify, ClientTemplateType
-from app.subscription.default_templates import DEFAULT_TEMPLATE_CONTENTS_BY_LEGACY_KEY
 
 TEMPLATE_TYPE_TO_LEGACY_KEY: dict[ClientTemplateType, str] = {
     ClientTemplateType.clash_subscription: "CLASH_SUBSCRIPTION_TEMPLATE",
@@ -31,24 +29,7 @@ ClientTemplateSortingOptionsSimple = Enum(
 )
 
 
-def get_default_client_template_contents() -> dict[str, str]:
-    return DEFAULT_TEMPLATE_CONTENTS_BY_LEGACY_KEY.copy()
-
-
-def merge_client_template_values(values: Mapping[str, str] | None = None) -> dict[str, str]:
-    merged = get_default_client_template_contents()
-    if not values:
-        return merged
-
-    for key, value in values.items():
-        if key in merged and value:
-            merged[key] = value
-
-    return merged
-
-
 async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
-    defaults = get_default_client_template_contents()
     try:
         rows = (
             await db.execute(
@@ -61,7 +42,7 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
             )
         ).all()
     except SQLAlchemyError:
-        return defaults
+        return {}
 
     by_type: dict[str, list[tuple[int, str, bool]]] = defaultdict(list)
     for row in rows:
@@ -85,7 +66,7 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
         if selected_content:
             values[legacy_key] = selected_content
 
-    return merge_client_template_values(values)
+    return values
 
 
 async def get_client_template_by_id(db: AsyncSession, template_id: int) -> ClientTemplate | None:

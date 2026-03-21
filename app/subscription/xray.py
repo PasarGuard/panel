@@ -15,7 +15,6 @@ from app.templates import render_template_string
 from app.utils.helpers import UUIDEncoder
 
 from . import BaseSubscription
-from .default_templates import DEFAULT_XRAY_SUBSCRIPTION_TEMPLATE
 
 
 class XrayConfiguration(BaseSubscription):
@@ -30,8 +29,6 @@ class XrayConfiguration(BaseSubscription):
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
         self.config = []
-        if xray_template_content is None:
-            xray_template_content = DEFAULT_XRAY_SUBSCRIPTION_TEMPLATE
         self.template = render_template_string(xray_template_content)
 
         # Registry for transport handlers

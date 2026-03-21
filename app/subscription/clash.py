@@ -14,7 +14,6 @@ from app.templates import render_template_string
 from app.utils.helpers import yml_uuid_representer
 
 from . import BaseSubscription
-from .default_templates import DEFAULT_CLASH_SUBSCRIPTION_TEMPLATE
 
 
 class ClashConfiguration(BaseSubscription):
@@ -28,7 +27,7 @@ class ClashConfiguration(BaseSubscription):
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
-        self.clash_template_content = clash_template_content or DEFAULT_CLASH_SUBSCRIPTION_TEMPLATE
+        self.clash_template_content = clash_template_content
         self.data = {
             "proxies": [],
             "proxy-groups": [],
