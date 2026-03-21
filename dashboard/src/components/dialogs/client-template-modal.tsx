@@ -1,5 +1,6 @@
 import { useTheme } from '@/components/common/theme-provider'
 import type { ClientTemplateFormValues } from '@/components/forms/client-template-form'
+import { DEFAULT_TEMPLATE_CONTENT } from '@/components/forms/client-template-form'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -104,7 +105,10 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
   useEffect(() => {
     setValidation({ isValid: true })
-  }, [templateType])
+    if (!editingTemplate) {
+      form.setValue('content', DEFAULT_TEMPLATE_CONTENT[templateType as ClientTemplateType] ?? '')
+    }
+  }, [templateType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isDialogOpen) {
