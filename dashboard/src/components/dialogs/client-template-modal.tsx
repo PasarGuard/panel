@@ -121,7 +121,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
       finalContent = values.content
     } else {
       try {
-        finalContent = JSON.stringify(JSON.parse(values.content))
+        finalContent = JSON.stringify(JSON.parse(values.content), null, 2)
       } catch {
         setValidation({ isValid: false, error: 'Invalid JSON' })
         toast.error('Invalid JSON content')
