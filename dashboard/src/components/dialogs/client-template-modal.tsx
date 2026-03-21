@@ -314,11 +314,11 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
               </div>
 
               <div className="shrink-0 border-t p-4">
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)} disabled={isPending}>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
                     {t('cancel')}
                   </Button>
-                  <LoaderButton type="submit" className="flex-1" isLoading={isPending} loadingText={t('saving', { defaultValue: 'Saving...' })}>
+                  <LoaderButton type="submit" isLoading={isPending} loadingText={t('saving', { defaultValue: 'Saving...' })}>
                     {editingTemplate ? t('modify') : t('create')}
                   </LoaderButton>
                 </div>
