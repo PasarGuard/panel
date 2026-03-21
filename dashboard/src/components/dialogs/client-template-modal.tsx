@@ -215,14 +215,14 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                   {isEditorExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                 </Button>
               </div>
-              <div className="min-h-0 flex-1">
+              <div className="min-h-0 flex-1" dir="ltr">
                 <FormField
                   control={form.control}
                   name="content"
                   render={({ field }) => (
                     <FormItem className="h-full">
                       <FormControl className="h-full">
-                        <div className="h-full">{renderEditor(field)}</div>
+                        <div className="h-full" dir="ltr">{renderEditor(field)}</div>
                       </FormControl>
                       {!validation.isValid && validation.error && (
                         <div className="absolute bottom-2 left-2 right-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
@@ -302,7 +302,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                           <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">{isYaml ? 'YAML' : 'JSON'}</span>
                         </FormLabel>
                         <FormControl>
-                          <div className="overflow-hidden rounded-md border" style={{ height: '250px' }}>
+                          <div className="overflow-hidden rounded-md border" dir="ltr" style={{ height: '250px' }}>
                             {renderEditor(field)}
                           </div>
                         </FormControl>
