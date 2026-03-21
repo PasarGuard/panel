@@ -176,6 +176,21 @@ export type GetHostsParams = {
   limit?: number
 }
 
+export type GetClientTemplatesSimpleParams = {
+  template_type?: ClientTemplateType | null
+  offset?: number | null
+  limit?: number | null
+  search?: string | null
+  sort?: string | null
+  all?: boolean
+}
+
+export type GetClientTemplatesParams = {
+  template_type?: ClientTemplateType | null
+  offset?: number | null
+  limit?: number | null
+}
+
 export type GetCoresSimpleParams = {
   offset?: number | null
   limit?: number | null
@@ -257,6 +272,13 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
+
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
@@ -285,13 +307,6 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
-
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -444,18 +459,6 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
-
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -478,6 +481,18 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
+
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
 
 export interface WorkersHealth {
   scheduler: WorkerHealth
@@ -1385,6 +1400,17 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
+export type NotificationChannelDiscordWebhookUrl = string | null
+
+/**
+ * Channel configuration for sending notifications to a specific entity
+ */
+export interface NotificationChannel {
+  telegram_chat_id?: NotificationChannelTelegramChatId
+  telegram_topic_id?: NotificationChannelTelegramTopicId
+  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
 /**
  * Per-object notification channels
  */
@@ -1398,20 +1424,9 @@ export interface NotificationChannels {
   user_template?: NotificationChannel
 }
 
-export type NotificationChannelDiscordWebhookUrl = string | null
-
 export type NotificationChannelTelegramTopicId = number | null
 
 export type NotificationChannelTelegramChatId = number | null
-
-/**
- * Channel configuration for sending notifications to a specific entity
- */
-export interface NotificationChannel {
-  telegram_chat_id?: NotificationChannelTelegramChatId
-  telegram_topic_id?: NotificationChannelTelegramTopicId
-  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
-}
 
 export interface NotFound {
   detail?: string
@@ -1438,6 +1453,13 @@ export interface NodesResponse {
 
 export type NodeUsageStatsListPeriod = Period | null
 
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
+
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -1445,13 +1467,6 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1583,6 +1598,8 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
+export type NodeModifyConnectionType = NodeConnectionType | null
+
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1626,8 +1643,6 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
-
-export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -2022,11 +2037,6 @@ export interface CoresSimpleResponse {
   total: number
 }
 
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
-}
-
 export type CoreResponseConfig = { [key: string]: unknown }
 
 export interface CoreResponse {
@@ -2036,6 +2046,11 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
+}
+
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2070,6 +2085,63 @@ export const ConfigFormat = {
   outline: 'outline',
   block: 'block',
 } as const
+
+export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ClientTemplateType = {
+  clash_subscription: 'clash_subscription',
+  xray_subscription: 'xray_subscription',
+  singbox_subscription: 'singbox_subscription',
+  user_agent: 'user_agent',
+  grpc_user_agent: 'grpc_user_agent',
+} as const
+
+export interface ClientTemplateSimple {
+  id: number
+  name: string
+  template_type: ClientTemplateType
+  is_default: boolean
+}
+
+export interface ClientTemplatesSimpleResponse {
+  templates: ClientTemplateSimple[]
+  total: number
+}
+
+export interface ClientTemplateResponse {
+  id: number
+  name: string
+  template_type: ClientTemplateType
+  content: string
+  is_default: boolean
+  is_system: boolean
+}
+
+export interface ClientTemplateResponseList {
+  count: number
+  templates?: ClientTemplateResponse[]
+}
+
+export type ClientTemplateModifyIsDefault = boolean | null
+
+export type ClientTemplateModifyContent = string | null
+
+export type ClientTemplateModifyName = string | null
+
+export interface ClientTemplateModify {
+  name?: ClientTemplateModifyName
+  content?: ClientTemplateModifyContent
+  is_default?: ClientTemplateModifyIsDefault
+}
+
+export interface ClientTemplateCreate {
+  /** @maxLength 64 */
+  name: string
+  template_type: ClientTemplateType
+  content: string
+  is_default?: boolean
+}
 
 export type ClashMuxSettingsBrutal = Brutal | null
 
@@ -4413,6 +4485,327 @@ export const useRestartCore = <TData = Awaited<ReturnType<typeof restartCore>>, 
   const mutationOptions = getRestartCoreMutationOptions(options)
 
   return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Create Client Template
+ */
+export const createClientTemplate = (clientTemplateCreate: BodyType<ClientTemplateCreate>, signal?: AbortSignal) => {
+  return orvalFetcher<ClientTemplateResponse>({ url: `/api/client_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: clientTemplateCreate, signal })
+}
+
+export const getCreateClientTemplateMutationOptions = <
+  TData = Awaited<ReturnType<typeof createClientTemplate>>,
+  TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ClientTemplateCreate> }, TContext>
+}) => {
+  const mutationKey = ['createClientTemplate']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClientTemplate>>, { data: BodyType<ClientTemplateCreate> }> = props => {
+    const { data } = props ?? {}
+
+    return createClientTemplate(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<ClientTemplateCreate> }, TContext>
+}
+
+export type CreateClientTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof createClientTemplate>>>
+export type CreateClientTemplateMutationBody = BodyType<ClientTemplateCreate>
+export type CreateClientTemplateMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Create Client Template
+ */
+export const useCreateClientTemplate = <TData = Awaited<ReturnType<typeof createClientTemplate>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ClientTemplateCreate> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<ClientTemplateCreate> }, TContext> => {
+  const mutationOptions = getCreateClientTemplateMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Get Client Template
+ */
+export const getClientTemplate = (templateId: number, signal?: AbortSignal) => {
+  return orvalFetcher<ClientTemplateResponse>({ url: `/api/client_template/${templateId}`, method: 'GET', signal })
+}
+
+export const getGetClientTemplateQueryKey = (templateId: number) => {
+  return [`/api/client_template/${templateId}`] as const
+}
+
+export const getGetClientTemplateQueryOptions = <TData = Awaited<ReturnType<typeof getClientTemplate>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  templateId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplate>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetClientTemplateQueryKey(templateId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientTemplate>>> = ({ signal }) => getClientTemplate(templateId, signal)
+
+  return { queryKey, queryFn, enabled: !!templateId, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getClientTemplate>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClientTemplateQueryResult = NonNullable<Awaited<ReturnType<typeof getClientTemplate>>>
+export type GetClientTemplateQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetClientTemplate<TData = Awaited<ReturnType<typeof getClientTemplate>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  templateId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplate>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getClientTemplate>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientTemplate<TData = Awaited<ReturnType<typeof getClientTemplate>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  templateId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplate>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getClientTemplate>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientTemplate<TData = Awaited<ReturnType<typeof getClientTemplate>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  templateId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplate>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Client Template
+ */
+
+export function useGetClientTemplate<TData = Awaited<ReturnType<typeof getClientTemplate>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  templateId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplate>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetClientTemplateQueryOptions(templateId, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * @summary Modify Client Template
+ */
+export const modifyClientTemplate = (templateId: number, clientTemplateModify: BodyType<ClientTemplateModify>) => {
+  return orvalFetcher<ClientTemplateResponse>({ url: `/api/client_template/${templateId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: clientTemplateModify })
+}
+
+export const getModifyClientTemplateMutationOptions = <
+  TData = Awaited<ReturnType<typeof modifyClientTemplate>>,
+  TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { templateId: number; data: BodyType<ClientTemplateModify> }, TContext>
+}) => {
+  const mutationKey = ['modifyClientTemplate']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifyClientTemplate>>, { templateId: number; data: BodyType<ClientTemplateModify> }> = props => {
+    const { templateId, data } = props ?? {}
+
+    return modifyClientTemplate(templateId, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { templateId: number; data: BodyType<ClientTemplateModify> }, TContext>
+}
+
+export type ModifyClientTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof modifyClientTemplate>>>
+export type ModifyClientTemplateMutationBody = BodyType<ClientTemplateModify>
+export type ModifyClientTemplateMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Modify Client Template
+ */
+export const useModifyClientTemplate = <TData = Awaited<ReturnType<typeof modifyClientTemplate>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { templateId: number; data: BodyType<ClientTemplateModify> }, TContext>
+}): UseMutationResult<TData, TError, { templateId: number; data: BodyType<ClientTemplateModify> }, TContext> => {
+  const mutationOptions = getModifyClientTemplateMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Remove Client Template
+ */
+export const removeClientTemplate = (templateId: number) => {
+  return orvalFetcher<void>({ url: `/api/client_template/${templateId}`, method: 'DELETE' })
+}
+
+export const getRemoveClientTemplateMutationOptions = <
+  TData = Awaited<ReturnType<typeof removeClientTemplate>>,
+  TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { templateId: number }, TContext>
+}) => {
+  const mutationKey = ['removeClientTemplate']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeClientTemplate>>, { templateId: number }> = props => {
+    const { templateId } = props ?? {}
+
+    return removeClientTemplate(templateId)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { templateId: number }, TContext>
+}
+
+export type RemoveClientTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof removeClientTemplate>>>
+
+export type RemoveClientTemplateMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Remove Client Template
+ */
+export const useRemoveClientTemplate = <TData = Awaited<ReturnType<typeof removeClientTemplate>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { templateId: number }, TContext>
+}): UseMutationResult<TData, TError, { templateId: number }, TContext> => {
+  const mutationOptions = getRemoveClientTemplateMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Get Client Templates
+ */
+export const getClientTemplates = (params?: GetClientTemplatesParams, signal?: AbortSignal) => {
+  return orvalFetcher<ClientTemplateResponseList>({ url: `/api/client_templates`, method: 'GET', params, signal })
+}
+
+export const getGetClientTemplatesQueryKey = (params?: GetClientTemplatesParams) => {
+  return [`/api/client_templates`, ...(params ? [params] : [])] as const
+}
+
+export const getGetClientTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof getClientTemplates>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetClientTemplatesParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplates>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetClientTemplatesQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientTemplates>>> = ({ signal }) => getClientTemplates(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getClientTemplates>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClientTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof getClientTemplates>>>
+export type GetClientTemplatesQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetClientTemplates<TData = Awaited<ReturnType<typeof getClientTemplates>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetClientTemplatesParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplates>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getClientTemplates>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientTemplates<TData = Awaited<ReturnType<typeof getClientTemplates>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetClientTemplatesParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplates>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getClientTemplates>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientTemplates<TData = Awaited<ReturnType<typeof getClientTemplates>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetClientTemplatesParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplates>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Client Templates
+ */
+
+export function useGetClientTemplates<TData = Awaited<ReturnType<typeof getClientTemplates>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetClientTemplatesParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplates>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetClientTemplatesQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * @summary Get Client Templates Simple
+ */
+export const getClientTemplatesSimple = (params?: GetClientTemplatesSimpleParams, signal?: AbortSignal) => {
+  return orvalFetcher<ClientTemplatesSimpleResponse>({ url: `/api/client_templates/simple`, method: 'GET', params, signal })
+}
+
+export const getGetClientTemplatesSimpleQueryKey = (params?: GetClientTemplatesSimpleParams) => {
+  return [`/api/client_templates/simple`, ...(params ? [params] : [])] as const
+}
+
+export const getGetClientTemplatesSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetClientTemplatesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetClientTemplatesSimpleQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientTemplatesSimple>>> = ({ signal }) => getClientTemplatesSimple(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClientTemplatesSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getClientTemplatesSimple>>>
+export type GetClientTemplatesSimpleQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetClientTemplatesSimple<TData = Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetClientTemplatesSimpleParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientTemplatesSimple<TData = Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetClientTemplatesSimpleParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientTemplatesSimple<TData = Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetClientTemplatesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Client Templates Simple
+ */
+
+export function useGetClientTemplatesSimple<TData = Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetClientTemplatesSimpleParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientTemplatesSimple>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetClientTemplatesSimpleQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
 }
 
 /**
