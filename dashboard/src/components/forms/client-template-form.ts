@@ -201,7 +201,7 @@ rules:
 
 export const clientTemplateFormDefaultValues: Partial<ClientTemplateFormValues> = {
   name: '',
-  template_type: ClientTemplateType.clash_subscription,
-  content: DEFAULT_TEMPLATE_CONTENT[ClientTemplateType.clash_subscription],
+  template_type: ClientTemplateType.xray_subscription,
+  content: DEFAULT_TEMPLATE_CONTENT[ClientTemplateType.xray_subscription],
   is_default: false,
 }
