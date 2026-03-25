@@ -178,12 +178,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
             {
               title: 'templates.title',
-              url: '/templates',
+              url: '/templates/user',
               icon: LayoutTemplate,
               items: [
                 {
                   title: 'templates.userTemplates',
-                  url: '/templates',
+                  url: '/templates/user',
                   icon: Users2,
                 },
                 {

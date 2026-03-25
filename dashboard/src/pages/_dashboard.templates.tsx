@@ -14,7 +14,7 @@ interface Tab {
 }
 
 const tabs: Tab[] = [
-  { id: 'templates.userTemplates', label: 'templates.userTemplates', icon: User, url: '/templates' },
+  { id: 'templates.userTemplates', label: 'templates.userTemplates', icon: User, url: '/templates/user' },
   { id: 'templates.clientTemplates', label: 'templates.clientTemplates', icon: LayoutTemplate, url: '/templates/client' },
 ]
 

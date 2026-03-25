@@ -154,7 +154,11 @@ export const router = createHashRouter([
         ),
         children: [
           {
-            path: '/templates',
+            index: true,
+            element: <Navigate to="/templates/user" replace />,
+          },
+          {
+            path: '/templates/user',
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <UserTemplates />
