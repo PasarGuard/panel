@@ -115,7 +115,9 @@ class SubscriptionOperation(BaseOperation):
         # Only include headers that have values
         return {k: v for k, v in headers.items() if v}
 
-    async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str, str]:
+    async def fetch_config(
+        self, user: UsersResponseWithInbounds, client_type: ConfigFormat
+    ) -> tuple[str, str]:
         # Get client configuration
         config = client_config.get(client_type)
         sub_settings = await subscription_settings()

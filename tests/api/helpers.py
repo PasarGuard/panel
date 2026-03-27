@@ -6,10 +6,9 @@ from uuid import uuid4
 
 from fastapi import status
 
+from config import NATS_ENABLED, ROLE
 from tests.api import client
 from tests.api.sample_data import XRAY_CONFIG
-from config import ROLE, NATS_ENABLED
-
 
 _WAIT_FOR_INBOUNDS = ROLE.requires_nats and NATS_ENABLED
 _INBOUNDS_RETRIES = 10
@@ -74,6 +73,30 @@ def create_core(
 def delete_core(access_token: str, core_id: int) -> None:
     response = client.delete(f"/api/core/{core_id}", headers=auth_headers(access_token))
 
+    assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN)
+
+
+def create_client_template(
+    access_token: str,
+    *,
+    name: str | None = None,
+    template_type: str = "xray_subscription",
+    content: str = '{"outbounds": [{"tag":"direct","protocol":"freedom","settings":{}}],"inbounds":[{"tag":"proxy","protocol":"vmess","settings":{"clients":[{"id":"uuid","alterId":0,"email":"}',
+    is_default: bool = False,
+) -> dict:
+    payload = {
+        "name": name or unique_name("client_template"),
+        "template_type": template_type,
+        "content": content,
+        "is_default": is_default,
+    }
+    response = client.post("/api/client_template", headers=auth_headers(access_token), json=payload)
+    assert response.status_code == status.HTTP_201_CREATED
+    return response.json()
+
+
+def delete_client_template(access_token: str, template_id: int) -> None:
+    response = client.delete(f"/api/client_template/{template_id}", headers=auth_headers(access_token))
     assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN)
 
 

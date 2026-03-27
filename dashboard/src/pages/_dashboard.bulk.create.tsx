@@ -225,7 +225,7 @@ export default function BulkCreateUsersPage() {
                 {t('bulk.create.noTemplatesDesc')}
               </p>
             </div>
-            <Button onClick={() => navigate('/templates')} size="lg">
+            <Button onClick={() => navigate('/templates/user')} size="lg">
               <FileText className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
               {t('bulk.create.createTemplate')}
             </Button>

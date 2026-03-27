@@ -36,6 +36,7 @@ import {
   ListTodo,
   Lock,
   MessageCircle,
+  Monitor,
   Palette,
   PieChart,
   RssIcon,
@@ -177,8 +178,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
             {
               title: 'templates.title',
-              url: '/templates',
+              url: '/templates/user',
               icon: LayoutTemplate,
+              items: [
+                {
+                  title: 'templates.userTemplates',
+                  url: '/templates/user',
+                  icon: Users2,
+                },
+                {
+                  title: 'templates.clientTemplates',
+                  url: '/templates/client',
+                  icon: Monitor,
+                },
+              ],
             },
             {
               title: 'bulk.title',

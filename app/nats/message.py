@@ -10,6 +10,7 @@ class MessageTopic(str, Enum):
     CORE = "core"
     HOST = "host"
     SETTING = "setting"
+    CLIENT_TEMPLATE = "client_template"
     NODE = "node"  # For future use
 
 

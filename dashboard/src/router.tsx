@@ -29,7 +29,9 @@ const SubscriptionSettings = lazy(() => import('./pages/_dashboard.settings.subs
 const TelegramSettings = lazy(() => import('./pages/_dashboard.settings.telegram'))
 const WebhookSettings = lazy(() => import('./pages/_dashboard.settings.webhook'))
 const Statistics = lazy(() => import('./pages/_dashboard.statistics'))
-const UserTemplates = lazy(() => import('./pages/_dashboard.templates'))
+const TemplatesLayout = lazy(() => import('./pages/_dashboard.templates'))
+const UserTemplates = lazy(() => import('./pages/_dashboard.templates.user'))
+const ClientTemplates = lazy(() => import('./pages/_dashboard.templates.client'))
 const Users = lazy(() => import('./pages/_dashboard.users'))
 const Login = lazy(() => import('./pages/login'))
 
@@ -147,9 +149,31 @@ export const router = createHashRouter([
         path: '/templates',
         element: (
           <Suspense fallback={<LoadingSpinner />}>
-            <UserTemplates />
+            <TemplatesLayout />
           </Suspense>
         ),
+        children: [
+          {
+            index: true,
+            element: <Navigate to="/templates/user" replace />,
+          },
+          {
+            path: '/templates/user',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <UserTemplates />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/templates/client',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <ClientTemplates />
+              </Suspense>
+            ),
+          },
+        ],
       },
       {
         path: '/admins',
