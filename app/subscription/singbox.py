@@ -1,4 +1,5 @@
 import json
+import re
 from random import choice
 
 from app.models.subscription import (
@@ -45,6 +46,7 @@ class SingBoxConfiguration(BaseSubscription):
             "vless": self._build_vless,
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
+            "hysteria": self._build_hysteria,
         }
 
     def add_outbound(self, outbound_data):
@@ -143,15 +145,13 @@ class SingBoxConfiguration(BaseSubscription):
 
     def _transport_grpc(self, config: GRPCTransportConfig, path: str) -> dict:
         """Handle GRPC transport - only gets GRPC config"""
-        return self._normalize_and_remove_none_values(
-            {
-                "type": "grpc",
-                "service_name": path,
-                "idle_timeout": f"{config.idle_timeout}s" if config.idle_timeout else "15s",
-                "ping_timeout": f"{config.health_check_timeout}s" if config.health_check_timeout else "15s",
-                "permit_without_stream": config.permit_without_stream,
-            }
-        )
+        return self._normalize_and_remove_none_values({
+            "type": "grpc",
+            "service_name": path,
+            "idle_timeout": f"{config.idle_timeout}s" if config.idle_timeout else "15s",
+            "ping_timeout": f"{config.health_check_timeout}s" if config.health_check_timeout else "15s",
+            "permit_without_stream": config.permit_without_stream,
+        })
 
     def _transport_httpupgrade(self, config: WebSocketTransportConfig, path: str) -> dict:
         """Handle HTTPUpgrade transport - only gets WS config (similar to WS)"""
@@ -292,6 +292,38 @@ class SingBoxConfiguration(BaseSubscription):
             "password": password,
         }
 
+        return self._normalize_and_remove_none_values(config)
+
+    def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build Hysteria outbound"""
+        pattern = r"(\d+(?:\.\d+)?)"
+
+        config = {
+            "type": "hysteria2",
+            "tag": remark,
+            "server": address,
+            "server_port": self._select_port(inbound.port),
+            "password": settings["auth"],
+        }
+        obfs_password, quic_params = self.get_hysteria_data_from_finalmask(inbound.finalmask)
+        if obfs_password:
+            config["obfs"] = {
+                "type": "salamander",
+                "password": obfs_password,
+            }
+        config["server_ports"] = [quic_params.get("udpHop", {}).get("ports", "")]
+        config["hop_interval"] = (
+            f"{quic_params.get('udpHop', {}).get('hopInterval', '')}s"
+            if quic_params.get("udpHop", {}).get("interval")
+            else None
+        )
+        config["brutal_debug"] = quic_params.get("debug", False)
+        up = re.search(pattern, str(quic_params.get("brutalUp")))
+        down = re.search(pattern, str(quic_params.get("brutalDown")))
+        config["up_mbps"] = up.group(1) if up else None
+        config["down_mbps"] = down.group(1) if down else None
+
+        self._apply_tls(config, inbound.tls_config, inbound.fragment_settings)
         return self._normalize_and_remove_none_values(config)
 
     def _build_outbound(

@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 from enum import Enum
+from typing import Any, Literal
 
 from app.templates import render_template_string
 
@@ -170,3 +171,14 @@ class BaseSubscription:
         parts = uuid.split("-")
         parts[2] = route
         return "-".join(parts)
+
+    def get_hysteria_data_from_finalmask(self, finalmask: dict) -> tuple[Any | Literal[""], Any | dict]:
+        obfs_password = ""
+        quic_params: dict = finalmask.get("quicParams", {})
+        if udp := finalmask.get("udp"):
+            for i in udp:
+                if i.get("type") == "salamander":
+                    obfs_password = i.get("settings", {}).get("password")
+                    break
+
+        return obfs_password, quic_params

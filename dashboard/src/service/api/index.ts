@@ -459,6 +459,18 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -481,18 +493,6 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
-
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
 
 export interface WorkersHealth {
   scheduler: WorkerHealth
@@ -615,6 +615,14 @@ export type UserTemplateResponseIsDisabled = boolean | null
 export type UserTemplateResponseOnHoldTimeout = number | null
 
 export type UserTemplateResponseResetUsages = boolean | null
+
+export type UserStatusCreate = (typeof UserStatusCreate)[keyof typeof UserStatusCreate]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UserStatusCreate = {
+  active: 'active',
+  on_hold: 'on_hold',
+} as const
 
 export type UserTemplateResponseStatus = UserStatusCreate | null
 
@@ -769,14 +777,6 @@ export type UserStatusModify = (typeof UserStatusModify)[keyof typeof UserStatus
 export const UserStatusModify = {
   active: 'active',
   disabled: 'disabled',
-  on_hold: 'on_hold',
-} as const
-
-export type UserStatusCreate = (typeof UserStatusCreate)[keyof typeof UserStatusCreate]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const UserStatusCreate = {
-  active: 'active',
   on_hold: 'on_hold',
 } as const
 
@@ -1273,6 +1273,7 @@ export interface ProxyTableOutput {
   vless?: VlessSettings
   trojan?: TrojanSettings
   shadowsocks?: ShadowsocksSettings
+  hysteria?: HysteriaSettings
 }
 
 export interface ProxyTableInput {
@@ -1280,6 +1281,7 @@ export interface ProxyTableInput {
   vless?: VlessSettings
   trojan?: TrojanSettings
   shadowsocks?: ShadowsocksSettings
+  hysteria?: HysteriaSettings
 }
 
 export type ProxyHostSecurity = (typeof ProxyHostSecurity)[keyof typeof ProxyHostSecurity]
@@ -1400,17 +1402,6 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
-export type NotificationChannelDiscordWebhookUrl = string | null
-
-/**
- * Channel configuration for sending notifications to a specific entity
- */
-export interface NotificationChannel {
-  telegram_chat_id?: NotificationChannelTelegramChatId
-  telegram_topic_id?: NotificationChannelTelegramTopicId
-  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
-}
-
 /**
  * Per-object notification channels
  */
@@ -1424,9 +1415,20 @@ export interface NotificationChannels {
   user_template?: NotificationChannel
 }
 
+export type NotificationChannelDiscordWebhookUrl = string | null
+
 export type NotificationChannelTelegramTopicId = number | null
 
 export type NotificationChannelTelegramChatId = number | null
+
+/**
+ * Channel configuration for sending notifications to a specific entity
+ */
+export interface NotificationChannel {
+  telegram_chat_id?: NotificationChannelTelegramChatId
+  telegram_topic_id?: NotificationChannelTelegramTopicId
+  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
 
 export interface NotFound {
   detail?: string
@@ -1756,6 +1758,10 @@ export interface KCPSettings {
   congestion?: KCPSettingsCongestion
   read_buffer_size?: KCPSettingsReadBufferSize
   write_buffer_size?: KCPSettingsWriteBufferSize
+}
+
+export interface HysteriaSettings {
+  auth?: string
 }
 
 export interface HostNotificationEnable {
