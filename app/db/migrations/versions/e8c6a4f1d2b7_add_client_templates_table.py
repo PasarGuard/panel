@@ -361,19 +361,9 @@ def _template_content_or_default(
     default_content: str,
 ) -> str:
     env_value = os.getenv(env_key)
-    if env_value:
-        return env_value
-
     custom_templates_directory = os.getenv("CUSTOM_TEMPLATES_DIRECTORY")
     if custom_templates_directory:
-        custom_base_path = Path(custom_templates_directory).expanduser()
-        project_relative_path = Path(path_from_project_root)
-        try:
-            custom_relative_path = project_relative_path.relative_to("app/templates")
-        except ValueError:
-            custom_relative_path = project_relative_path
-
-        custom_file_path = custom_base_path / custom_relative_path
+        custom_file_path = Path(custom_templates_directory) / env_value
         try:
             if custom_file_path.exists():
                 return custom_file_path.read_text(encoding="utf-8")
