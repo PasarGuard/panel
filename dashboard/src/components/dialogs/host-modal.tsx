@@ -59,100 +59,107 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
   }, [index, onDuplicate])
 
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-md border p-2 md:grid-cols-[minmax(100px,120px),1fr,1fr,1fr,1fr,auto] md:border-none md:p-0">
-      <FormField
-        control={form.control}
-        name={`noise_settings.xray.${index}.type`}
-        render={({ field }) => (
-          <FormItem>
-            <Select onValueChange={field.onChange} value={field.value}>
+    <div className="rounded-md border p-2 space-y-2">
+      {/* Row 1: type, apply_to, actions */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground w-5 shrink-0 text-center">{index + 1}</span>
+        <FormField
+          control={form.control}
+          name={`noise_settings.xray.${index}.type`}
+          render={({ field }) => (
+            <FormItem className="w-[110px] shrink-0">
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder={t('hostsDialog.noise.type')} />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="rand">rand</SelectItem>
+                  <SelectItem value="str">str</SelectItem>
+                  <SelectItem value="base64">base64</SelectItem>
+                  <SelectItem value="hex">hex</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name={`noise_settings.xray.${index}.apply_to`}
+          render={({ field }) => (
+            <FormItem className="w-[100px] shrink-0">
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder={t('hostsDialog.noise.applyTo')} />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="ip">ip</SelectItem>
+                  <SelectItem value="ipv4">ipv4</SelectItem>
+                  <SelectItem value="ipv6">ipv6</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <div className="ml-auto flex items-center gap-1">
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 transition-colors hover:bg-muted/70" onClick={handleDuplicate} title={t('hostsDialog.noise.duplicateNoise')}>
+            <Copy className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 border-red-500/20 transition-colors hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+            onClick={handleRemove}
+            title={t('hostsDialog.noise.removeNoise')}
+          >
+            <Trash2 className="h-4 w-4 text-red-500" />
+          </Button>
+        </div>
+      </div>
+      {/* Row 2: packet, delay, rand_range */}
+      <div className="grid grid-cols-3 gap-2 pl-7">
+        <FormField
+          control={form.control}
+          name={`noise_settings.xray.${index}.packet`}
+          render={({ field }) => (
+            <FormItem>
               <FormControl>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder={t('hostsDialog.noise.type')} />
-                </SelectTrigger>
+                <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
               </FormControl>
-              <SelectContent>
-                <SelectItem value="rand">rand</SelectItem>
-                <SelectItem value="str">str</SelectItem>
-                <SelectItem value="base64">base64</SelectItem>
-                <SelectItem value="hex">hex</SelectItem>
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name={`noise_settings.xray.${index}.packet`}
-        render={({ field }) => (
-          <FormItem className="order-3 md:order-none">
-            <FormControl>
-              <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name={`noise_settings.xray.${index}.delay`}
-        render={({ field }) => (
-          <FormItem className="order-4 md:order-none">
-            <FormControl>
-              <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name={`noise_settings.xray.${index}.rand_range`}
-        render={({ field }) => (
-          <FormItem className="order-5 md:order-none">
-            <FormControl>
-              <Input placeholder={t('hostsDialog.noise.randRangePlaceholder')} {...field} value={field.value || ''} className="h-8" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name={`noise_settings.xray.${index}.apply_to`}
-        render={({ field }) => (
-          <FormItem className="order-2 md:order-none">
-            <Select onValueChange={field.onChange} value={field.value}>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name={`noise_settings.xray.${index}.delay`}
+          render={({ field }) => (
+            <FormItem>
               <FormControl>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder={t('hostsDialog.noise.applyTo')} />
-                </SelectTrigger>
+                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
               </FormControl>
-              <SelectContent>
-                <SelectItem value="ip">ip</SelectItem>
-                <SelectItem value="ipv4">ipv4</SelectItem>
-                <SelectItem value="ipv6">ipv6</SelectItem>
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <div className="order-6 col-span-2 flex items-center justify-end gap-1 md:order-none md:col-auto md:justify-start">
-        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 transition-colors hover:bg-muted/70" onClick={handleDuplicate} title={t('hostsDialog.noise.duplicateNoise')}>
-          <Copy className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0 border-red-500/20 transition-colors hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
-          onClick={handleRemove}
-          title={t('hostsDialog.noise.removeNoise')}
-        >
-          <Trash2 className="h-4 w-4 text-red-500" />
-        </Button>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name={`noise_settings.xray.${index}.rand_range`}
+          render={({ field }) => (
+            <FormItem>
+              <FormControl>
+                <Input placeholder={t('hostsDialog.noise.randRangePlaceholder')} {...field} value={field.value || ''} className="h-8" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </div>
     </div>
   )
