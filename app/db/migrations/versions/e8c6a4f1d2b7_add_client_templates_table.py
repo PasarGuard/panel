@@ -362,7 +362,7 @@ def _template_content_or_default(
 ) -> str:
     env_value = os.getenv(env_key)
     custom_templates_directory = os.getenv("CUSTOM_TEMPLATES_DIRECTORY")
-    if custom_templates_directory:
+    if custom_templates_directory and env_value:
         custom_file_path = Path(custom_templates_directory) / env_value
         try:
             if custom_file_path.exists():
