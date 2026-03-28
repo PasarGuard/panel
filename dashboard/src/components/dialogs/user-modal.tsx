@@ -2017,6 +2017,51 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                               </FormItem>
                             )}
                           />
+                          {/* Hysteria */}
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.hysteria.auth"
+                            render={({ field, formState }) => {
+                              const error = formState.errors.proxy_settings?.hysteria?.auth
+                              return (
+                                <FormItem className="mb-2">
+                                  <FormLabel>
+                                    {t('userDialog.proxySettings.hysteria')} {t('userDialog.proxySettings.auth')}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                      <Input
+                                        {...field}
+                                        placeholder={t('userDialog.proxySettings.auth')}
+                                        onChange={e => {
+                                          field.onChange(e)
+                                          form.trigger('proxy_settings.hysteria.auth')
+                                          handleFieldChange('proxy_settings.hysteria.auth', e.target.value)
+                                        }}
+                                      />
+                                      <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={e => {
+                                          e.preventDefault()
+                                          e.stopPropagation()
+                                          const newVal = uuidv4()
+                                          field.onChange(newVal)
+                                          form.trigger('proxy_settings.hysteria.auth')
+                                          handleFieldChange('proxy_settings.hysteria.auth', newVal)
+                                        }}
+                                        title="Generate UUID"
+                                      >
+                                        <RefreshCcw className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage>{error?.message === 'Invalid uuid' && t('validation.invalidUuid', { defaultValue: 'Invalid UUID format' })}</FormMessage>
+                                </FormItem>
+                              )
+                            }}
+                          />
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
