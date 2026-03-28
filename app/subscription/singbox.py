@@ -323,7 +323,10 @@ class SingBoxConfiguration(BaseSubscription):
         config["up_mbps"] = up.group(1) if up else None
         config["down_mbps"] = down.group(1) if down else None
 
-        self._apply_tls(config, inbound.tls_config, inbound.fragment_settings)
+        # Add TLS
+        if inbound.tls_config.tls in ("tls", "reality"):
+            config["tls"] = self._apply_tls(inbound.tls_config, inbound.fragment_settings)
+
         return self._normalize_and_remove_none_values(config)
 
     def _build_outbound(
