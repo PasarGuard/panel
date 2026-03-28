@@ -396,7 +396,6 @@ class XRayConfig(dict):
         if inbound["tag"] not in self._inbounds:
             self._inbounds.append(inbound["tag"])
             self._inbounds_by_tag[inbound["tag"]] = settings
-        print(f"Resolved inbound: {settings}")
 
     def _make_fallback_inbound(
         self,
