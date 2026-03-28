@@ -333,7 +333,7 @@ class XRayConfig(dict):
 
     def _read_inbound(self, inbound: dict):
         """Read an inbound and its settings."""
-        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks"):
+        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks","hysteria"):
             return
 
         if inbound["tag"] in self.exclude_inbound_tags:
@@ -351,7 +351,7 @@ class XRayConfig(dict):
             settings["flow"] = inbound.get("settings").get("flow", "")
             vless_decryption = inbound.get("settings").get("decryption", "none")
             vless_encryption = inbound.get("settings").get("encryption", "none")
-            if vless_decryption != "none" and vless_encryption == "none":
+            if vless_decryption != "none" and vless_encryption  in ("", "none",None):
                 raise ValueError(f"'encryption' key must be provided in {inbound['tag']} inbound")
             settings["encryption"] = vless_encryption
 

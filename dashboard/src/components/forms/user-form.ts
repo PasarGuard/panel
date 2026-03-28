@@ -20,11 +20,15 @@ export const shadowsocksSettingsSchema = z.object({
   password: z.string().min(2).max(32).optional(),
   method: shadowsocksMethodsEnum.optional(),
 })
+export const hysteriaSettingsSchema = z.object({
+  auth: z.string().uuid().optional(),
+})
 export const proxyTableInputSchema = z.object({
   vmess: vMessSettingsSchema.optional(),
   vless: vlessSettingsSchema.optional(),
   trojan: trojanSettingsSchema.optional(),
   shadowsocks: shadowsocksSettingsSchema.optional(),
+  hysteria: hysteriaSettingsSchema.optional(),
 })
 
 export const userStatusCreateEnum = z.enum(['active', 'on_hold'])
@@ -119,7 +123,9 @@ export const getDefaultUserForm = async () => {
         password: undefined,
         method: DEFAULT_SHADOWSOCKS_METHOD,
       },
+      hysteria: {
+        auth: undefined,
+      },
     },
   } satisfies UseFormValues
 }
-

@@ -313,10 +313,11 @@ class ClashMetaConfiguration(ClashConfiguration):
             "vmess": self._build_vmess,
             "vless": self._build_vless,
             "trojan": self._build_trojan,
-            "shadowsocks": self._build_shadowsocks_meta,
+            "shadowsocks": self._build_shadowsocks,
+            "hysteria": self._build_hysteria,
         }
 
-    def _apply_tls_meta(self, node: dict, tls_config: TLSConfig, protocol: str):
+    def _apply_tls(self, node: dict, tls_config: TLSConfig, protocol: str):
         """Apply TLS settings with Reality support for Clash Meta"""
         if not tls_config.tls:
             return
@@ -358,15 +359,13 @@ class ClashMetaConfiguration(ClashConfiguration):
         if inbound.flow_enabled and (flow := settings.get("flow", "")):
             node["flow"] = flow
 
-        self._apply_tls_meta(node, inbound.tls_config, "vless")
+        self._apply_tls(node, inbound.tls_config, "vless")
         self._apply_transport(node, inbound, inbound.transport_config.path, inbound.random_user_agent)
         self._apply_mux(node, inbound.mux_settings)
 
         return node
 
-    def _build_shadowsocks_meta(
-        self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
-    ) -> dict:
+    def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build Shadowsocks node with 2022 support"""
         method, password = self.detect_shadowsocks_2022(
             inbound.is_2022,
@@ -387,6 +386,36 @@ class ClashMetaConfiguration(ClashConfiguration):
             "cipher": method,
             "password": password,
         }
+
+    def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build Hysteria node with Clash Meta support"""
+        node = {
+            "name": remark,
+            "type": "hysteria2",
+            "server": address,
+            "port": inbound.port,
+            "password": settings["auth"],
+        }
+
+        obfs_password, quic_params = self._get_hysteria_data_from_finalmask(inbound.finalmask)
+
+        node["ports"] = quic_params.get("udpHop", {}).get("ports", "")
+        node["hop-interval"] = (
+            f"{quic_params.get('udpHop', {}).get('hopInterval', '')}s"
+            if quic_params.get("udpHop", {}).get("interval")
+            else None
+        )
+
+        if obfs_password:
+            node["obfs"] = "salamander"
+            node["obfs-password"] = obfs_password
+        node["down"] = quic_params.get("brutalDown")
+        node["up"] = quic_params.get("brutalUp")
+
+        self._apply_tls(node, inbound.tls_config, "hysteria")
+        self._apply_mux(node, inbound.mux_settings)
+
+        return self._normalize_and_remove_none_values(node)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         # not supported by clash-meta

@@ -52,6 +52,7 @@ class XrayConfiguration(BaseSubscription):
             "vless": self._build_vless,
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
+            "hysteria": self._build_hysteria,
         }
 
     def add_config(self, remarks, outbounds):
@@ -457,6 +458,15 @@ class XrayConfiguration(BaseSubscription):
 
         return self._normalize_and_remove_none_values(outbound)
 
+    def _build_hysteria(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
+        """Build Hysteria outbound - returns (main_outbound, extra_outbounds_list)"""
+        return self._build_outbound(
+            protocol_type="hysteria",
+            address=address,
+            inbound=inbound,
+            user_settings={"auth": str(settings["auth"])},
+        )
+
     def _build_outbound(
         self,
         protocol_type: str,
@@ -467,6 +477,8 @@ class XrayConfiguration(BaseSubscription):
         """Generic outbound builder"""
         network = inbound.network
         path = inbound.transport_config.path
+        vnext_protocols = ("vmess", "vless")
+        servers_protocols = ("trojan", "shadowsocks")
 
         # Process GRPC path
         if network in ("grpc", "gun"):
@@ -475,27 +487,64 @@ class XrayConfiguration(BaseSubscription):
             else:
                 path = self.get_grpc_gun(path)
 
-        user_object = "vnext" if protocol_type in ("vmess", "vless") else "servers"
-
-        outbound = {
-            "protocol": protocol_type,
-            "tag": "proxy",
-            "settings": {
-                user_object: [
-                    {
-                        "address": address,
-                        "port": self._select_port(inbound.port),
-                    }
-                ]
-            },
-        }
-        if protocol_type in ("vmess", "vless"):
-            outbound["settings"][user_object][0].update({"users": [user_settings]})
-        else:
-            outbound["settings"][user_object][0].update(user_settings)
+        if protocol_type in vnext_protocols:
+            outbound = {
+                "protocol": protocol_type,
+                "tag": "proxy",
+                "settings": {
+                    "vnext": [
+                        {
+                            "address": address,
+                            "port": self._select_port(inbound.port),
+                            "users": [
+                                user_settings,
+                            ],
+                        },
+                    ]
+                },
+            }
+        elif protocol_type in servers_protocols:
+            outbound = {
+                "protocol": protocol_type,
+                "tag": "proxy",
+                "settings": {
+                    "servers": [
+                        {
+                            "address": address,
+                            "port": self._select_port(inbound.port),
+                            **user_settings,
+                        },
+                    ]
+                },
+            }
+        elif protocol_type == "hysteria":
+            outbound = {
+                "protocol": protocol_type,
+                "tag": "proxy",
+                "settings": {
+                    "version": 2,
+                    "address": inbound.address,
+                    "port": inbound.port,
+                },
+            }
 
         # Build stream settings
-        network_setting = self._apply_transport(network, inbound, path)
+        if network == "hysteria":
+            auth = ""
+            if protocol_type == "hysteria":
+                auth = user_settings.get("auth", "")
+            elif protocol_type in vnext_protocols:
+                auth = user_settings.get("id", "")
+            elif protocol_type in servers_protocols:
+                auth = user_settings.get("password", "")
+
+            network_setting = {
+                "version": 2,
+                "auth": auth,
+            }
+
+        else:
+            network_setting = self._apply_transport(network, inbound, path)
 
         security = inbound.tls_config.tls if inbound.tls_config.tls != "none" else None
         tls_settings = self._apply_tls(inbound.tls_config, security) if security else None

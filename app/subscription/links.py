@@ -53,6 +53,7 @@ class StandardLinks(BaseSubscription):
             "vless": self._build_vless,
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
+            "hysteria": self._build_hysteria,
         }
 
     def add_link(self, link):
@@ -164,7 +165,7 @@ class StandardLinks(BaseSubscription):
 
     def _apply_finalmask(self, payload: dict, protocol: str, inbound: SubscriptionInboundData):
         """Apply finalMask for vmess if needed"""
-        payload["finalmask"] = json.dumps(inbound.finalmask)
+        payload["fm"] = json.dumps(inbound.finalmask)
 
     def _transport_tcp(self, payload: dict, protocol: str, config: TCPTransportConfig, path: str):
         """Handle tcp/raw/http transport - only gets TCP config"""
@@ -313,6 +314,23 @@ class StandardLinks(BaseSubscription):
 
         encoded = base64.b64encode(f"{method}:{password}".encode()).decode()
         return f"ss://{encoded}@{address}:{inbound.port}#{urlparse.quote(remark)}"
+
+    def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
+        """Build Hysteria link"""
+        payload = {}
+        obfs_password, quic_params = self._get_hysteria_data_from_finalmask(inbound.finalmask)
+        if obfs_password:
+            payload["obfs"] = "salamander"
+            payload["obfs-password"] = obfs_password
+        payload["mports"] = quic_params.get("udpHop", {}).get("ports", "")
+
+        self._apply_finalmask(payload, "hysteria", inbound)
+        if inbound.tls_config.tls in ("tls", "reality"):
+            # Use stored TLS config instance
+            self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
+
+        payload = self._normalize_and_remove_none_values(payload)
+        return f"hysteria2://{settings['auth']}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
 
     # ========== Helper Methods ==========
 

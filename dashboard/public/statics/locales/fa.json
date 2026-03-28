@@ -1168,6 +1168,8 @@
   "userDialog.proxySettings.password": "رمز عبور",
   "userDialog.proxySettings.method": "روش رمزنگاری",
   "userDialog.proxySettings.flow": "جریان (Flow)",
+  "userDialog.proxySettings.hysteria": "Hysteria",
+  "userDialog.proxySettings.auth": "احراز هویت (Auth)",
   "userDialog.proxySettings.desc": "تنظیمات اختصاصی پروتکل برای این کاربر را پیکربندی کنید.",
   "userDialog.expireDate": "تاریخ انقضا",
   "username": "نام کاربری",

@@ -1303,6 +1303,8 @@
     "proxySettings.password": "Password",
     "proxySettings.method": "Method",
     "proxySettings.flow": "Flow",
+    "proxySettings.hysteria": "Hysteria",
+    "proxySettings.auth": "Auth",
     "proxySettings.desc": "Configure protocol-specific settings for this user.",
     "selectNode": "Select Node",
     "allNodes": "All Nodes",
