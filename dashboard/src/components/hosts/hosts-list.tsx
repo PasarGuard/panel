@@ -169,6 +169,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                 packet: noise.packet,
                 delay: noise.delay,
                 apply_to: (noise.apply_to as 'ip' | 'ipv4' | 'ipv6') || 'ip',
+                rand_range: noise.rand_range ?? undefined,
               })) ?? undefined,
           }
         : undefined,

@@ -83,6 +83,7 @@ export interface HostFormValues {
       packet: string
       delay: string
       apply_to: 'ip' | 'ipv4' | 'ipv6'
+      rand_range?: string
     }[]
   }
   mux_settings?: MuxSettings
@@ -362,6 +363,12 @@ export const HostFormSchema = z.object({
                 message: "Delay must be in format like '10-20' or '10'",
               }),
             apply_to: z.enum(['ip', 'ipv4', 'ipv6']).default('ip'),
+            rand_range: z
+              .string()
+              .optional()
+              .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+                message: "Rand range must be in format like '10-20' or '10'",
+              }),
           }),
         )
         .optional(),

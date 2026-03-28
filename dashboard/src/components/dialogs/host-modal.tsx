@@ -59,7 +59,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
   }, [index, onDuplicate])
 
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-md border p-2 md:grid-cols-[minmax(100px,120px),1fr,1fr,1fr,auto] md:border-none md:p-0">
+    <div className="grid grid-cols-2 gap-2 rounded-md border p-2 md:grid-cols-[minmax(100px,120px),1fr,1fr,1fr,1fr,auto] md:border-none md:p-0">
       <FormField
         control={form.control}
         name={`noise_settings.xray.${index}.type`}
@@ -108,6 +108,18 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
       />
       <FormField
         control={form.control}
+        name={`noise_settings.xray.${index}.rand_range`}
+        render={({ field }) => (
+          <FormItem className="order-5 md:order-none">
+            <FormControl>
+              <Input placeholder={t('hostsDialog.noise.randRangePlaceholder')} {...field} value={field.value || ''} className="h-8" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
         name={`noise_settings.xray.${index}.apply_to`}
         render={({ field }) => (
           <FormItem className="order-2 md:order-none">
@@ -127,7 +139,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           </FormItem>
         )}
       />
-      <div className="order-5 col-span-2 flex items-center justify-end gap-1 md:order-none md:col-auto md:justify-start">
+      <div className="order-6 col-span-2 flex items-center justify-end gap-1 md:order-none md:col-auto md:justify-start">
         <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 transition-colors hover:bg-muted/70" onClick={handleDuplicate} title={t('hostsDialog.noise.duplicateNoise')}>
           <Copy className="h-4 w-4" />
         </Button>
@@ -441,6 +453,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           packet: '',
           delay: '',
           apply_to: 'ip',
+          rand_range: '',
         },
       ],
       {

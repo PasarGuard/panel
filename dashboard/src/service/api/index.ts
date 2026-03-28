@@ -258,6 +258,8 @@ export type GetManifestParams = {
   start_url?: string | null
 }
 
+export type XrayNoiseSettingsRandRange = string | null
+
 export interface XrayNoiseSettings {
   /** @pattern ^(:?rand|str|base64|hex)$ */
   type: string
@@ -266,6 +268,7 @@ export interface XrayNoiseSettings {
   delay: string
   /** @pattern ip|ipv4|ipv6 */
   apply_to?: string
+  rand_range?: XrayNoiseSettingsRandRange
 }
 
 export type XrayMuxSettingsOutputXudpConcurrency = number | null

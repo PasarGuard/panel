@@ -850,7 +850,9 @@
       "applyTo": "اعمال به",
       "applyTo.ip": "IP",
       "applyTo.ipv4": "IPv4",
-      "applyTo.ipv6": "IPv6"
+      "applyTo.ipv6": "IPv6",
+      "randRange": "محدوده تصادفی",
+      "randRangePlaceholder": "محدوده تصادفی را وارد کنید (مثلاً 10-20)"
     },
     "muxSettings": "تنظیمات Mux",
     "enableMux": "فعال‌سازی Mux",

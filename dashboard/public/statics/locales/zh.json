@@ -945,7 +945,9 @@
       "applyTo": "应用到",
       "applyTo.ip": "IP",
       "applyTo.ipv4": "IPv4",
-      "applyTo.ipv6": "IPv6"
+      "applyTo.ipv6": "IPv6",
+      "randRange": "随机范围",
+      "randRangePlaceholder": "输入随机范围（例如 10-20）"
     },
     "muxSettings": "Mux 设置",
     "enableMux": "启用 Mux",

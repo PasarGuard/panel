@@ -971,7 +971,9 @@
       "applyTo": "Apply To",
       "applyTo.ip": "IP",
       "applyTo.ipv4": "IPv4",
-      "applyTo.ipv6": "IPv6"
+      "applyTo.ipv6": "IPv6",
+      "randRange": "Rand Range",
+      "randRangePlaceholder": "Enter rand range (e.g. 10-20)"
     },
     "muxSettings": "Mux Settings",
     "enableMux": "Enable Mux",

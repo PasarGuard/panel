@@ -151,6 +151,7 @@ export default function HostsPage() {
                 packet: noise.packet,
                 delay: noise.delay,
                 apply_to: noise.apply_to,
+                rand_range: noise.rand_range || undefined,
               })),
             }
           : undefined,

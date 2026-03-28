@@ -54,6 +54,7 @@ class XrayNoiseSettings(BaseModel):
     packet: str
     delay: str = Field(pattern=r"^\d{1,16}(-\d{1,16})?$")
     apply_to: str = Field(default="ip", pattern=r"ip|ipv4|ipv6")
+    rand_range: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
 
 
 class NoiseSettings(BaseModel):

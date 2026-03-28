@@ -1155,7 +1155,9 @@
       "applyTo": "Применить к",
       "applyTo.ip": "IP",
       "applyTo.ipv4": "IPv4",
-      "applyTo.ipv6": "IPv6"
+      "applyTo.ipv6": "IPv6",
+      "randRange": "Случайный диапазон",
+      "randRangePlaceholder": "Введите случайный диапазон (например 10-20)"
     },
     "muxSettings": "Настройки Mux",
     "enableMux": "Включить Mux",
