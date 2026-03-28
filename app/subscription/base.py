@@ -172,7 +172,7 @@ class BaseSubscription:
         parts[2] = route
         return "-".join(parts)
 
-    def get_hysteria_data_from_finalmask(self, finalmask: dict) -> tuple[Any | Literal[""], Any | dict]:
+    def _get_hysteria_data_from_finalmask(self, finalmask: dict) -> tuple[Any | Literal[""], Any | dict]:
         obfs_password = ""
         quic_params: dict = finalmask.get("quicParams", {})
         if udp := finalmask.get("udp"):

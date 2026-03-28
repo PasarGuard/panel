@@ -318,7 +318,7 @@ class StandardLinks(BaseSubscription):
     def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Hysteria link"""
         payload = {}
-        obfs_password, quic_params = self.get_hysteria_data_from_finalmask(inbound.finalmask)
+        obfs_password, quic_params = self._get_hysteria_data_from_finalmask(inbound.finalmask)
         if obfs_password:
             payload["obfs"] = "salamander"
             payload["obfs-password"] = obfs_password

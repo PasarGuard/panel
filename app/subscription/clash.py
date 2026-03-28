@@ -397,7 +397,7 @@ class ClashMetaConfiguration(ClashConfiguration):
             "password": settings["auth"],
         }
 
-        obfs_password, quic_params = self.get_hysteria_data_from_finalmask(inbound.finalmask)
+        obfs_password, quic_params = self._get_hysteria_data_from_finalmask(inbound.finalmask)
 
         node["ports"] = quic_params.get("udpHop", {}).get("ports", "")
         node["hop-interval"] = (

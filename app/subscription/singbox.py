@@ -305,7 +305,7 @@ class SingBoxConfiguration(BaseSubscription):
             "server_port": self._select_port(inbound.port),
             "password": settings["auth"],
         }
-        obfs_password, quic_params = self.get_hysteria_data_from_finalmask(inbound.finalmask)
+        obfs_password, quic_params = self._get_hysteria_data_from_finalmask(inbound.finalmask)
         if obfs_password:
             config["obfs"] = {
                 "type": "salamander",
