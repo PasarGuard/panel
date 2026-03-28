@@ -35,14 +35,11 @@ def upgrade() -> None:
         if not proxy_settings:
             proxy_settings = {}
 
-        hysteria = proxy_settings.get('hysteria', {})
-        if not isinstance(hysteria, dict):
-            hysteria = {}
-
-        if 'auth' not in hysteria:
-            hysteria['auth'] = str(uuid4())
-            proxy_settings['hysteria'] = hysteria
-            updates.append({'_id': user_id, 'proxy_settings': json.dumps(proxy_settings)})
+        hysteria = {
+            "auth" : str(uuid4()),
+        }
+        proxy_settings['hysteria'] = hysteria
+        updates.append({'_id': user_id, 'proxy_settings': json.dumps(proxy_settings)})
 
     if updates:
         bind.execute(
