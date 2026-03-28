@@ -40,6 +40,23 @@ class XRayConfig(dict):
         self._inbounds = []
         self._inbounds_by_tag = {}
         self._fallbacks_inbound = []
+
+        # Registery pattern for network handlers, making it easy to add support for new network types in the future
+        self.network_handlers = {
+            "tcp": self._handle_tcp_raw_settings,
+            "raw": self._handle_tcp_raw_settings,
+            "ws": self._handle_ws_settings,
+            "grpc": self._handle_grpc_settings,
+            "gun": self._handle_grpc_settings,
+            "quic": self._handle_quic_settings,
+            "httpupgrade": self._handle_httpupgrade_settings,
+            "splithttp": self._handle_xhttp_settings,
+            "xhttp": self._handle_xhttp_settings,
+            "kcp": self._handle_kcp_settings,
+            "http": self._handle_http_settings,
+            "h2": self._handle_http_settings,
+            "h3": self._handle_http_settings,
+        }
         self._collect_fallback_inbounds(fallbacks_inbound_tags)
 
         if skip_validation:
@@ -198,24 +215,8 @@ class XRayConfig(dict):
 
     def _handle_network_settings(self, net: str, net_settings: dict, settings: dict, inbound_tag: str):
         """Handle network-specific settings."""
-        if net in ("tcp", "raw"):
-            self._handle_tcp_raw_settings(net_settings, settings, inbound_tag)
-        elif net == "ws":
-            self._handle_ws_settings(net_settings, settings)
-        elif net in ("grpc", "gun"):
-            self._handle_grpc_settings(net_settings, settings)
-        elif net == "quic":
-            self._handle_quic_settings(net_settings, settings)
-        elif net == "httpupgrade":
-            self._handle_httpupgrade_settings(net_settings, settings)
-        elif net in ("splithttp", "xhttp"):
-            self._handle_xhttp_settings(net_settings, settings)
-        elif net == "kcp":
-            self._handle_kcp_settings(net_settings, settings)
-        elif net in ("http", "h2", "h3"):
-            self._handle_http_settings(net_settings, settings)
-        else:
-            self._handle_default_network_settings(net_settings, settings)
+        handler = self.network_handlers.get(net, self._handle_default_network_settings)
+        handler(net_settings, settings, inbound_tag)
 
     def _handle_tcp_raw_settings(self, net_settings: dict, settings: dict, inbound_tag: str):
         """Handle TCP and RAW network settings."""
@@ -238,7 +239,7 @@ class XRayConfig(dict):
         if host and isinstance(host, list):
             settings["host"] = host
 
-    def _handle_ws_settings(self, net_settings: dict, settings: dict):
+    def _handle_ws_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle WebSocket network settings."""
         path = net_settings.get("path", "")
         host = net_settings.get("host", "") or net_settings.get("headers", {}).get("Host")
@@ -257,33 +258,33 @@ class XRayConfig(dict):
         if isinstance(host, str):
             settings["host"] = [host]
 
-    def _handle_grpc_settings(self, net_settings: dict, settings: dict):
+    def _handle_grpc_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle gRPC network settings."""
         settings["header_type"] = ""
         settings["path"] = net_settings.get("serviceName", "")
         host = net_settings.get("authority", "")
         settings["host"] = [host]
 
-    def _handle_quic_settings(self, net_settings: dict, settings: dict):
+    def _handle_quic_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle QUIC network settings."""
         settings["header_type"] = net_settings.get("header", {}).get("type", "")
         settings["path"] = net_settings.get("key", "")
         settings["host"] = [net_settings.get("security", "")]
 
-    def _handle_httpupgrade_settings(self, net_settings: dict, settings: dict):
+    def _handle_httpupgrade_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle HTTP Upgrade network settings."""
         settings["path"] = net_settings.get("path", "")
         host = net_settings.get("host", "")
         settings["host"] = [host]
 
-    def _handle_xhttp_settings(self, net_settings: dict, settings: dict):
+    def _handle_xhttp_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle XHTTP network settings."""
         settings["path"] = net_settings.get("path", "")
         host = net_settings.get("host", "")
         settings["host"] = [host]
         settings["mode"] = net_settings.get("mode", "auto")
 
-    def _handle_kcp_settings(self, net_settings: dict, settings: dict):
+    def _handle_kcp_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle KCP network settings."""
         settings["mtu"] = net_settings.get("mtu")
         settings["tti"] = net_settings.get("tti")
@@ -293,12 +294,12 @@ class XRayConfig(dict):
         settings["read_buffer_size"] = net_settings.get("readBufferSize")
         settings["write_buffer_size"] = net_settings.get("writeBufferSize")
 
-    def _handle_http_settings(self, net_settings: dict, settings: dict):
+    def _handle_http_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle HTTP network settings."""
         settings["host"] = net_settings.get("host") or net_settings.get("Host", "")
         settings["path"] = net_settings.get("path", "")
 
-    def _handle_default_network_settings(self, net_settings: dict, settings: dict):
+    def _handle_default_network_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle default network settings."""
         settings["path"] = net_settings.get("path", "")
         host = net_settings.get("host", {}) or net_settings.get("Host", {})
@@ -333,7 +334,7 @@ class XRayConfig(dict):
 
     def _read_inbound(self, inbound: dict):
         """Read an inbound and its settings."""
-        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks","hysteria"):
+        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria"):
             return
 
         if inbound["tag"] in self.exclude_inbound_tags:
@@ -351,7 +352,7 @@ class XRayConfig(dict):
             settings["flow"] = inbound.get("settings").get("flow", "")
             vless_decryption = inbound.get("settings").get("decryption", "none")
             vless_encryption = inbound.get("settings").get("encryption", "none")
-            if vless_decryption != "none" and vless_encryption  in ("", "none",None):
+            if vless_decryption != "none" and vless_encryption in ("", "none", None):
                 raise ValueError(f"'encryption' key must be provided in {inbound['tag']} inbound")
             settings["encryption"] = vless_encryption
 
