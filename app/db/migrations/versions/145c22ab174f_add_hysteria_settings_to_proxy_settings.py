@@ -39,7 +39,7 @@ def upgrade() -> None:
             "auth" : str(uuid4()),
         }
         proxy_settings['hysteria'] = hysteria
-        updates.append({'_id': user_id, 'proxy_settings': json.dumps(proxy_settings)})
+        updates.append({'_id': user_id, 'proxy_settings': proxy_settings})
 
     if updates:
         bind.execute(
