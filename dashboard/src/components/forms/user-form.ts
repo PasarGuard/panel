@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 export const userStatusEnum = z.enum(['active', 'disabled', 'limited', 'expired', 'on_hold'])
 export const userDataLimitResetStrategyEnum = z.enum(['no_reset', 'day', 'week', 'month', 'year'])
-export const xtlsFlowsEnum = z.enum(['', 'xtls-rprx-vision'])
+export const xtlsFlowsEnum = z.enum(['', 'xtls-rprx-vision', 'xtls-rprx-vision-udp443'])
 export const shadowsocksMethodsEnum = z.enum(['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305', 'xchacha20-poly1305'])
 
 export const vMessSettingsSchema = z.object({

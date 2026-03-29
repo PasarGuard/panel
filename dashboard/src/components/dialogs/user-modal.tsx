@@ -1195,7 +1195,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       },
       vless: {
         id: uuidv4(),
-        flow: '' as '' | 'xtls-rprx-vision' | undefined,
+        flow: '' as '' | 'xtls-rprx-vision' | 'xtls-rprx-vision-udp443' | undefined,
       },
       trojan: {
         password: generatePassword(),
@@ -1894,6 +1894,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                     <SelectContent>
                                       <SelectItem value="none">{t('userDialog.proxySettings.flow.none', { defaultValue: 'None' })}</SelectItem>
                                       <SelectItem value="xtls-rprx-vision">xtls-rprx-vision</SelectItem>
+                                      <SelectItem value="xtls-rprx-vision-udp443">xtls-rprx-vision-udp443</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </FormControl>
