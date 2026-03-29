@@ -201,7 +201,7 @@ class SingBoxConfiguration(BaseSubscription):
             "insecure": tls_config.allowinsecure,
             "certificate_public_key_sha256": [tls_config.pinned_peer_cert_sha256]
             if tls_config.pinned_peer_cert_sha256
-            else [],
+            else None,
             "utls": {
                 "enabled": bool(tls_config.fingerprint) or tls_config.tls == "reality",
                 "fingerprint": tls_config.fingerprint,
