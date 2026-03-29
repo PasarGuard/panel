@@ -161,6 +161,8 @@ class StandardLinks(BaseSubscription):
 
     def _transport_kcp(self, payload: dict, protocol: str, config: KCPTransportConfig, path: str):
         """Handle kcp transport - only gets KCP config"""
+        payload["tti"] = config.tti
+        payload["mtu"] = config.mtu
         # KCP header/seed are removed in latest Xray-core; no extra fields needed.
 
     def _apply_finalmask(self, payload: dict, protocol: str, inbound: SubscriptionInboundData):
