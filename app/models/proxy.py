@@ -14,7 +14,7 @@ class VMessSettings(BaseModel):
 class XTLSFlows(StrEnum):
     NONE = ""
     VISION = "xtls-rprx-vision"
-
+    VISION_UDP = "xtls-rprx-vision-udp443"
 
 class VlessSettings(BaseModel):
     id: UUID = Field(default_factory=uuid4)

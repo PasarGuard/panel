@@ -48,12 +48,16 @@ def _serialize_user_for_node(id: int, username: str, user_settings: dict, inboun
     shadowsocks_settings = user_settings.get("shadowsocks", {})
     hysteria_settings = user_settings.get("hysteria", {})
 
+    vless_flow = vless_settings.get("flow")
+    if vless_flow == "xtls-rprx-vision-udp443":
+        vless_flow = "xtls-rprx-vision"
+
     return create_user(
         f"{id}.{username}",
         create_proxy(
             vmess_id=vmess_settings.get("id"),
             vless_id=vless_settings.get("id"),
-            vless_flow=vless_settings.get("flow"),
+            vless_flow=vless_flow,
             trojan_password=trojan_settings.get("password"),
             shadowsocks_password=shadowsocks_settings.get("password"),
             shadowsocks_method=shadowsocks_settings.get("method"),
