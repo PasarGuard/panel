@@ -57,7 +57,7 @@
         "isbot": "^5.1.32",
         "lodash.debounce": "^4.0.8",
         "lucide-react": "^0.465.0",
-        "mlkem": "^2.5.0",
+        "mlkem": "^2.7.0",
         "next-themes": "^0.4.6",
         "ofetch": "^1.5.1",
         "qrcode.react": "^3.2.0",
@@ -1508,7 +1508,7 @@
 
     "mitt": ["mitt@3.0.1", "", {}, "sha512-vKivATfr97l2/QBCYAkXYDbrIWPM2IIKEl7YPhjCvKlG3kE2gm+uBo6nEXK3M5/Ffh/FLpKExzOQ3JJoJGFKBw=="],
 
-    "mlkem": ["mlkem@2.5.0", "", {}, "sha512-TnSvGBs0EVPukQcdPF0882ZoYXYuD2rb+VgO0kUDbFi/XM1rJOwnQoFW3wGGuc3nG3AT/zp3oWJ86W7ewwKYyA=="],
+    "mlkem": ["mlkem@2.7.0", "", {}, "sha512-I2bcB5d6jtkdan6MLGOxObpUbidqv0ej+PhbCGnXUqmcGYZ6X8F0qBpU6HE4mvYc81NSznBrVDp+Uc808Ba2RA=="],
 
     "monaco-editor": ["monaco-editor@0.52.2", "", {}, "sha512-GEQWEZmfkOGLdd3XK8ryrfWz3AIP8YymVXiPHEdewrUq7mh0qrKrfHLNCXcbB6sTnMLnOZ3ztSiKcciFUkIJwQ=="],
 
