@@ -1241,7 +1241,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       {renderVlessAdvancedModal()}
       {renderResultDialog()}
       <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="h-auto w-full max-w-5xl">
+        <DialogContent className="md:h-auto h-full w-full max-w-5xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
@@ -1254,7 +1254,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
+              <div className="-mr-4 max-h-[78dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
                 <div className="grid grid-cols-1 gap-4 md:h-full md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
                   <div className="flex flex-col">
                     <div className="flex flex-col space-y-4 md:h-full">
