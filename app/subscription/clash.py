@@ -9,6 +9,7 @@ from app.models.subscription import (
     TCPTransportConfig,
     TLSConfig,
     WebSocketTransportConfig,
+    XHTTPTransportConfig,
 )
 from app.templates import render_template_string
 from app.utils.helpers import yml_uuid_representer
@@ -45,6 +46,8 @@ class ClashConfiguration(BaseSubscription):
             "gun": self._transport_grpc,
             "tcp": self._transport_tcp,
             "raw": self._transport_tcp,
+            "xhttp": self._transport_xhttp,
+            "splithttp": self._transport_xhttp,
         }
 
         # Registry for protocol builders
@@ -145,6 +148,28 @@ class ClashConfiguration(BaseSubscription):
             "headers": {**http_headers, "Host": host} if http_headers else {"Host": host},
         }
         return self._normalize_and_remove_none_values(result)
+    
+    def _transport_xhttp(self, config: XHTTPTransportConfig, path: str, random_user_agent: bool = False):
+        """Build XHTTP transport config for Clash Meta"""
+        host = config.host if isinstance(config.host, str) else ""
+        http_headers = config.http_headers or {}
+
+        result = {
+            "path": path or "/",
+            "host": host,
+            "mode": config.mode or "auto",
+            "headers": {**http_headers, "Host": host} if http_headers else ({"Host": host} if host else None),
+            "no-grpc-header": config.no_grpc_header,
+            "x-padding-bytes": config.x_padding_bytes,
+            "download-settings": config.download_settings,
+        }
+
+        if random_user_agent:
+            headers = result.get("headers") or {}
+            headers["User-Agent"] = choice(self.user_agent_list)
+            result["headers"] = headers
+
+        return self._normalize_and_remove_none_values(result)
 
     def _apply_tls(self, node: dict, tls_config: TLSConfig, protocol: str):
         """Apply TLS settings to node"""
@@ -170,6 +195,10 @@ class ClashConfiguration(BaseSubscription):
     ):
         """Apply transport settings using registry"""
         network = inbound.network
+        
+        # Normalize legacy splithttp -> xhttp
+        if network == "splithttp":
+            network = "xhttp"
 
         # Normalize network type for clash
         if network in ("http", "h2", "h3"):
@@ -419,7 +448,7 @@ class ClashMetaConfiguration(ClashConfiguration):
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         # not supported by clash-meta
-        if inbound.network in ("kcp", "splithttp", "xhttp"):
+        if inbound.network in ("kcp"):
             return
 
         # QUIC with header not supported
