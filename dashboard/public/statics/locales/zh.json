@@ -2035,8 +2035,8 @@
     "selectStatus": "选择状态 ...",
     "byCore": "按核心配置",
     "selectCore": "选择核心配置 ...",
-    "searchCore" : "搜索核心配置...",
-    "selectedCore" : "已选择 {{name}} 个核心配置",
+    "searchCore": "搜索核心配置...",
+    "selectedCore": "已选择 {{name}} 个核心配置",
     "noCoresFound": "未找到核心配置",
     "noCoresAvailable": "无可用核心配置"
   },
@@ -2077,7 +2077,7 @@
     "too_small": "{{field}} 太短",
     "too_big": "{{field}} 太长",
     "minLength": "字符串必须至少包含 3 个字符",
-    "maxLength": "字符串最多包含 32 个字符",
+    "maxLength": "字符串最多包含 128 个字符",
     "formHasErrors": "请在提交前修复表单错误",
     "formInvalid": "表单无效。请检查所有必填字段。",
     "missingFields": "请填写必填字段：{{fields}}"
