@@ -682,6 +682,7 @@
     "contentPlaceholder": "Содержимое шаблона...",
     "namePlaceholder": "Название шаблона",
     "isDefault": "Установить по умолчанию",
+    "isDefaultDescription": "Использовать этот шаблон автоматически для подходящего типа вывода.",
     "createSuccess": "Шаблон «{{name}}» успешно создан",
     "updateSuccess": "Шаблон «{{name}}» успешно обновлён",
     "deleteSuccess": "Шаблон «{{name}}» успешно удалён",

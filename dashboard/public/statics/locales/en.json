@@ -696,6 +696,7 @@
     "contentPlaceholder": "Template content...",
     "namePlaceholder": "Template name",
     "isDefault": "Set as default",
+    "isDefaultDescription": "Use this template automatically for matching output type.",
     "createSuccess": "Template \"{{name}}\" created successfully",
     "updateSuccess": "Template \"{{name}}\" updated successfully",
     "deleteSuccess": "Template \"{{name}}\" deleted successfully",

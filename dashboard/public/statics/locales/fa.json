@@ -584,6 +584,7 @@
     "contentPlaceholder": "محتوای قالب...",
     "namePlaceholder": "نام قالب",
     "isDefault": "تنظیم به عنوان پیش‌فرض",
+    "isDefaultDescription": "برای نوع خروجی منطبق، این قالب را به صورت خودکار استفاده کن.",
     "createSuccess": "قالب «{{name}}» با موفقیت ایجاد شد",
     "updateSuccess": "قالب «{{name}}» با موفقیت به‌روزرسانی شد",
     "deleteSuccess": "قالب «{{name}}» با موفقیت حذف شد",

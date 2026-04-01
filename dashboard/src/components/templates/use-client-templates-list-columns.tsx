@@ -4,7 +4,7 @@ import { ListColumn } from '@/components/common/list-generator'
 import { ClientTemplateResponse } from '@/service/api'
 import ClientTemplateActionsMenu from '@/components/templates/client-template-actions-menu'
 import { Badge } from '@/components/ui/badge'
-import { Shield } from 'lucide-react'
+import ClientTemplateMarkers from '@/components/templates/client-template-markers'
 
 const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   clash_subscription: 'Clash',
@@ -20,6 +20,7 @@ interface UseClientTemplatesListColumnsProps {
 
 export const useClientTemplatesListColumns = ({ onEdit }: UseClientTemplatesListColumnsProps) => {
   const { t } = useTranslation()
+  const compactBadgeClassName = 'h-5 shrink-0 px-1.5 text-[10px] leading-none'
 
   return useMemo<ListColumn<ClientTemplateResponse>[]>(
     () => [
@@ -36,17 +37,7 @@ export const useClientTemplatesListColumns = ({ onEdit }: UseClientTemplatesList
             }}
           >
             <span className="truncate font-medium">{template.name}</span>
-            {template.is_default && (
-              <Badge variant="secondary" className="shrink-0 text-xs">
-                {t('default', { defaultValue: 'Default' })}
-              </Badge>
-            )}
-            {template.is_system && (
-              <Badge variant="outline" className="flex shrink-0 items-center gap-1 text-xs">
-                <Shield className="h-3 w-3" />
-                {t('system', { defaultValue: 'System' })}
-              </Badge>
-            )}
+            <ClientTemplateMarkers isDefault={template.is_default} isSystem={template.is_system} />
           </div>
         ),
       },
@@ -55,7 +46,7 @@ export const useClientTemplatesListColumns = ({ onEdit }: UseClientTemplatesList
         header: t('clientTemplates.templateType', { defaultValue: 'Type' }),
         width: '1fr',
         cell: template => (
-          <Badge variant="secondary" className="text-xs capitalize">
+          <Badge variant="secondary" className={`${compactBadgeClassName} capitalize`}>
             {TEMPLATE_TYPE_LABELS[template.template_type] || template.template_type.replace(/_/g, ' ')}
           </Badge>
         ),
@@ -70,6 +61,6 @@ export const useClientTemplatesListColumns = ({ onEdit }: UseClientTemplatesList
         cell: template => <ClientTemplateActionsMenu template={template} onEdit={onEdit} />,
       },
     ],
-    [t, onEdit],
+    [compactBadgeClassName, t, onEdit],
   )
 }

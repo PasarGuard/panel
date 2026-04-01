@@ -1,9 +1,8 @@
-import { Card, CardTitle } from '../ui/card'
-import { useTranslation } from 'react-i18next'
+import { Card } from '@/components/ui/card'
 import { ClientTemplateResponse } from '@/service/api'
+import { useTranslation } from 'react-i18next'
 import ClientTemplateActionsMenu from './client-template-actions-menu'
-import { Badge } from '../ui/badge'
-import { Shield } from 'lucide-react'
+import ClientTemplateMarkers from './client-template-markers'
 
 const ClientTemplate = ({
   template,
@@ -13,28 +12,21 @@ const ClientTemplate = ({
   onEdit: (template: ClientTemplateResponse) => void
 }) => {
   const { t } = useTranslation()
+  const templateTypeLabel = template.template_type.replace(/_/g, ' ')
 
   return (
-    <Card className="group rounded-lg px-5 py-6 transition-colors hover:bg-accent">
-      <div className="flex items-center justify-between">
-        <div className="flex-1 cursor-pointer" onClick={() => onEdit(template)}>
-          <CardTitle className="flex items-center gap-x-2">
-            <span>{template.name}</span>
-            {template.is_default && <Badge variant="secondary" className="text-xs">{t('default', { defaultValue: 'Default' })}</Badge>}
-            {template.is_system && (
-              <Badge variant="outline" className="flex items-center gap-1 text-xs">
-                <Shield className="h-3 w-3" />
-                {t('system', { defaultValue: 'System' })}
-              </Badge>
-            )}
-          </CardTitle>
-          <div className="mt-1.5">
-            <Badge variant="secondary" className="text-xs capitalize">
-              {template.template_type.replace(/_/g, ' ')}
-            </Badge>
+    <Card className="group relative h-full cursor-pointer px-4 py-5 transition-colors hover:bg-accent" onClick={() => onEdit(template)}>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 truncate font-medium">{template.name}</div>
+            <ClientTemplateMarkers isDefault={template.is_default} isSystem={template.is_system} />
           </div>
+          <div className="min-w-0 truncate text-sm capitalize text-muted-foreground">{templateTypeLabel}</div>
         </div>
-        <ClientTemplateActionsMenu template={template} onEdit={onEdit} />
+        <div onClick={event => event.stopPropagation()}>
+          <ClientTemplateActionsMenu template={template} onEdit={onEdit} />
+        </div>
       </div>
     </Card>
   )
