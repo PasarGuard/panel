@@ -47,6 +47,7 @@ class ClashConfiguration(BaseSubscription):
             "tcp": self._transport_tcp,
             "raw": self._transport_tcp,
             "xhttp": self._transport_xhttp,
+            "splithttp": self._transport_xhttp,
         }
 
         # Registry for protocol builders
@@ -194,6 +195,10 @@ class ClashConfiguration(BaseSubscription):
     ):
         """Apply transport settings using registry"""
         network = inbound.network
+        
+        # Normalize legacy splithttp -> xhttp
+        if network == "splithttp":
+            network = "xhttp"
 
         # Normalize network type for clash
         if network in ("http", "h2", "h3"):
@@ -443,7 +448,7 @@ class ClashMetaConfiguration(ClashConfiguration):
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         # not supported by clash-meta
-        if inbound.network in ("kcp", "splithttp"):
+        if inbound.network in ("kcp"):
             return
 
         # QUIC with header not supported
