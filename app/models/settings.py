@@ -1,5 +1,6 @@
 import re
 from enum import Enum, StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -197,7 +198,7 @@ class ConfigFormat(str, Enum):
 class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
-    response_headers: dict[str, str] = Field(default_factory=dict)
+    response_headers: dict[str, Any] = Field(default_factory=dict)
 
 
 class SubFormatEnable(BaseModel):

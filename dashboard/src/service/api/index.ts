@@ -1126,7 +1126,7 @@ export interface SubRule {
   pattern: string
   target: ConfigFormat
   response_headers?: {
-    [key: string]: string
+    [key: string]: unknown
   }
 }
 

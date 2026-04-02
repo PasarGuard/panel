@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
-import { ConfigFormat } from '@/service/api'
+import { ConfigFormat, type SubRule as ApiSubRule } from '@/service/api'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -642,7 +642,14 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
-        rules: subscriptionData.rules || [],
+        rules:
+          subscriptionData.rules?.map((rule: ApiSubRule) => ({
+            pattern: rule.pattern,
+            target: rule.target,
+            response_headers: Object.fromEntries(
+              Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
+            ),
+          })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
           links: subscriptionData.manual_sub_request?.links ?? true,
@@ -790,7 +797,14 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
-        rules: subscriptionData.rules || [],
+        rules:
+          subscriptionData.rules?.map((rule: ApiSubRule) => ({
+            pattern: rule.pattern,
+            target: rule.target,
+            response_headers: Object.fromEntries(
+              Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
+            ),
+          })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
           links: subscriptionData.manual_sub_request?.links ?? true,

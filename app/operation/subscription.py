@@ -1,5 +1,7 @@
 import re
+from json import dumps as json_dumps
 from datetime import datetime as dt
+from typing import Any
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
@@ -126,15 +128,13 @@ class SubscriptionOperation(BaseOperation):
 
         headers: dict[str, str] = {}
         for raw_name, raw_value in rule.response_headers.items():
-            header_name = raw_name.strip()
-            header_value = raw_value.strip()
-            if not header_name or not header_value:
+            header_name = str(raw_name).strip()
+            if not header_name or raw_value is None:
                 continue
 
-            try:
-                formatted_value = header_value.format_map(format_variables)
-            except (ValueError, KeyError):
-                formatted_value = header_value
+            formatted_value = cls._stringify_rule_header_value(raw_value, format_variables)
+            if not formatted_value:
+                continue
 
             if header_name.lower() in cls._ENCODED_RULE_RESPONSE_HEADERS:
                 formatted_value = encode_title(formatted_value)
@@ -142,6 +142,22 @@ class SubscriptionOperation(BaseOperation):
             headers[header_name] = formatted_value
 
         return headers
+
+    @staticmethod
+    def _stringify_rule_header_value(value: Any, format_variables: dict[str, str | int | float]) -> str:
+        if isinstance(value, str):
+            header_value = value.strip()
+            if not header_value:
+                return ""
+            try:
+                return header_value.format_map(format_variables)
+            except (ValueError, KeyError):
+                return header_value
+
+        if isinstance(value, (dict, list, tuple, bool, int, float)):
+            return json_dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+        return str(value).strip()
 
     @staticmethod
     def create_info_response_headers(user: UsersResponseWithInbounds, sub_settings: SubSettings) -> dict:

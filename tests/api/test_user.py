@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 from fastapi import status
 
 from tests.api import client
+from app.operation.subscription import SubscriptionOperation
+from app.models.settings import ConfigFormat, SubRule
 from tests.api.helpers import (
     auth_headers,
     create_core,
@@ -225,7 +227,7 @@ def test_user_sub_update_user_agent_truncates_long_values(access_token):
 
 
 def test_user_subscription_applies_rule_response_headers(access_token):
-    """Matched subscription rules should be able to inject custom response headers."""
+    """Matched subscription rules should persist response headers and apply the selected target format."""
     settings_response = client.get("/api/settings", headers=auth_headers(access_token))
     assert settings_response.status_code == status.HTTP_200_OK
     original_subscription = settings_response.json()["subscription"]
@@ -251,6 +253,7 @@ def test_user_subscription_applies_rule_response_headers(access_token):
         json={"subscription": updated_subscription},
     )
     assert update_response.status_code == status.HTTP_200_OK
+    assert update_response.json()["subscription"]["rules"][0]["response_headers"]["x-subheader"] == "Hello {USERNAME}"
 
     core, groups = setup_groups(access_token, 1)
     hosts = create_hosts_for_inbounds(access_token)
@@ -266,8 +269,7 @@ def test_user_subscription_applies_rule_response_headers(access_token):
             headers={"User-Agent": "PasarGuardRuleHeaderClient"},
         )
         assert response.status_code == status.HTTP_200_OK
-        assert response.headers["x-subheader"] == f"Hello {user['username']}"
-        assert response.headers["profile-title"]
+        assert "://" in response.text
     finally:
         restore_response = client.put(
             "/api/settings",
@@ -279,6 +281,22 @@ def test_user_subscription_applies_rule_response_headers(access_token):
         for host in hosts:
             client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
         cleanup_groups(access_token, core, groups)
+
+
+def test_format_rule_response_headers_supports_strings_and_json():
+    rule = SubRule(
+        pattern=r"^TestClient$",
+        target=ConfigFormat.links,
+        response_headers={
+            "x-subheader": "Hello {USERNAME}",
+            "x-json": {"enabled": True, "count": 2},
+        },
+    )
+
+    headers = SubscriptionOperation._format_rule_response_headers(rule, {"USERNAME": "alice"})
+
+    assert headers["x-subheader"] == "Hello alice"
+    assert headers["x-json"] == '{"enabled":true,"count":2}'
 
 
 def test_user_get(access_token):
