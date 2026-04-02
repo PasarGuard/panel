@@ -197,6 +197,7 @@ class ConfigFormat(str, Enum):
 class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
+    response_headers: dict[str, str] = Field(default_factory=dict)
 
 
 class SubFormatEnable(BaseModel):

@@ -208,7 +208,12 @@
         "patternPlaceholder": "输入客户端模式（例如：*android*）",
         "patternDescription": "匹配客户端用户代理的模式",
         "target": "目标格式",
-        "targetDescription": "匹配此模式时使用的配置格式"
+        "targetDescription": "匹配此模式时使用的配置格式",
+        "responseHeaders": "响应头",
+        "responseHeadersDescription": "当该规则匹配时附加到响应的可选头。",
+        "addHeader": "添加头",
+        "headerName": "头名称",
+        "headerValue": "头值"
       },
       "formats": {
         "title": "手动订阅格式",

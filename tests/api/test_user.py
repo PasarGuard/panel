@@ -4,6 +4,7 @@ from fastapi import status
 
 from tests.api import client
 from tests.api.helpers import (
+    auth_headers,
     create_core,
     create_group,
     create_user,
@@ -220,6 +221,63 @@ def test_user_sub_update_user_agent_truncates_long_values(access_token):
         assert response.json()["updates"][0]["user_agent"] == long_user_agent[:512]
     finally:
         delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_user_subscription_applies_rule_response_headers(access_token):
+    """Matched subscription rules should be able to inject custom response headers."""
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+
+    updated_subscription = {
+        **original_subscription,
+        "rules": [
+            {
+                "pattern": r"^PasarGuardRuleHeaderClient$",
+                "target": "links",
+                "response_headers": {
+                    "x-subheader": "Hello {USERNAME}",
+                    "profile-title": "Rule Profile {USERNAME}",
+                },
+            },
+            *original_subscription["rules"],
+        ],
+    }
+
+    update_response = client.put(
+        "/api/settings",
+        headers=auth_headers(access_token),
+        json={"subscription": updated_subscription},
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_user_rule_response_headers")},
+    )
+
+    try:
+        response = client.get(
+            user["subscription_url"],
+            headers={"User-Agent": "PasarGuardRuleHeaderClient"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers["x-subheader"] == f"Hello {user['username']}"
+        assert response.headers["profile-title"]
+    finally:
+        restore_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": original_subscription},
+        )
+        assert restore_response.status_code == status.HTTP_200_OK
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
         cleanup_groups(access_token, core, groups)
 
 

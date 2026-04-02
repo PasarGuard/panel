@@ -30,6 +30,8 @@ client_config = {
 
 
 class SubscriptionOperation(BaseOperation):
+    _ENCODED_RULE_RESPONSE_HEADERS = {"announce", "profile-title"}
+
     @staticmethod
     async def validated_user(db_user: User) -> UsersResponseWithInbounds:
         user = UsersResponseWithInbounds.model_validate(db_user.__dict__)
@@ -45,6 +47,14 @@ class SubscriptionOperation(BaseOperation):
         for rule in rules:
             if re.match(rule.pattern, user_agent):
                 return rule.target
+
+    @staticmethod
+    def detect_client_rule(user_agent: str, rules: list[SubRule]) -> SubRule | None:
+        """Return the first matching subscription rule for the provided user agent."""
+        for rule in rules:
+            if re.match(rule.pattern, user_agent):
+                return rule
+        return None
 
     @staticmethod
     def _format_profile_title(
@@ -67,7 +77,11 @@ class SubscriptionOperation(BaseOperation):
 
     @staticmethod
     def create_response_headers(
-        user: UsersResponseWithInbounds, request_url: str, sub_settings: SubSettings, inline: bool = False
+        user: UsersResponseWithInbounds,
+        request_url: str,
+        sub_settings: SubSettings,
+        inline: bool = False,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict:
         """Create response headers for subscription responses, including user subscription info."""
         # Generate user subscription info
@@ -89,7 +103,7 @@ class SubscriptionOperation(BaseOperation):
         # Use 'inline' for browser viewing, 'attachment' for download
         disposition = "inline" if inline else "attachment"
 
-        return {
+        headers = {
             "content-disposition": f'{disposition}; filename="{user.username}"',
             "profile-web-page-url": request_url,
             "support-url": support_url,
@@ -99,6 +113,35 @@ class SubscriptionOperation(BaseOperation):
             "announce": encode_title(sub_settings.announce),
             "announce-url": sub_settings.announce_url,
         }
+        if extra_headers:
+            headers.update(extra_headers)
+        return headers
+
+    @classmethod
+    def _format_rule_response_headers(
+        cls, rule: SubRule | None, format_variables: dict[str, str | int | float]
+    ) -> dict[str, str]:
+        if not rule or not rule.response_headers:
+            return {}
+
+        headers: dict[str, str] = {}
+        for raw_name, raw_value in rule.response_headers.items():
+            header_name = raw_name.strip()
+            header_value = raw_value.strip()
+            if not header_name or not header_value:
+                continue
+
+            try:
+                formatted_value = header_value.format_map(format_variables)
+            except (ValueError, KeyError):
+                formatted_value = header_value
+
+            if header_name.lower() in cls._ENCODED_RULE_RESPONSE_HEADERS:
+                formatted_value = encode_title(formatted_value)
+
+            headers[header_name] = formatted_value
+
+        return headers
 
     @staticmethod
     def create_info_response_headers(user: UsersResponseWithInbounds, sub_settings: SubSettings) -> dict:
@@ -181,7 +224,8 @@ class SubscriptionOperation(BaseOperation):
                 )
             )
         else:
-            client_type = await self.detect_client_type(user_agent, sub_settings.rules)
+            matched_rule = self.detect_client_rule(user_agent, sub_settings.rules)
+            client_type = matched_rule.target if matched_rule else None
             if client_type == ConfigFormat.block or not client_type:
                 await self.raise_error(message="Client not supported", code=406)
 
@@ -191,7 +235,13 @@ class SubscriptionOperation(BaseOperation):
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
             inline_view = sub_settings.disable_sub_template and is_browser_request
-            response_headers = self.create_response_headers(user, request_url, sub_settings, inline=inline_view)
+            response_headers = self.create_response_headers(
+                user,
+                request_url,
+                sub_settings,
+                inline=inline_view,
+                extra_headers=self._format_rule_response_headers(matched_rule, setup_format_variables(user)),
+            )
 
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
