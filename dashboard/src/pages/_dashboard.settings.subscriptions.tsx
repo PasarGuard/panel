@@ -1,7 +1,7 @@
 import { SortableApplication } from '@/components/apps/sortable-application'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -337,7 +337,17 @@ interface SortableRuleProps {
 function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const { t } = useTranslation()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const [isHeadersOpen, setIsHeadersOpen] = useState(false)
   const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
+  const responseHeaderEntries = Object.entries(responseHeaders)
+  const responseHeaderCount = responseHeaderEntries.length
+  const responseHeaderPreview =
+    responseHeaderCount > 0
+      ? responseHeaderEntries
+          .slice(0, 2)
+          .map(([headerKey]) => headerKey)
+          .join(', ')
+      : t('settings.subscriptions.rules.responseHeadersDescription')
 
   const addResponseHeader = () => {
     const nextKey = `x-header-${Object.keys(responseHeaders).length + 1}`
@@ -385,102 +395,9 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const cursor = isDragging ? 'grabbing' : 'grab'
 
   return (
-    <div ref={setNodeRef} style={style} className="cursor-default">
-      <div className="group relative h-full rounded-md border bg-card p-4 transition-colors hover:bg-accent/20">
-        <div className="flex items-center gap-3">
-          {/* Drag handle */}
-          <button type="button" style={{ cursor: cursor }} className="touch-none opacity-50 transition-opacity group-hover:opacity-100" {...attributes} {...listeners}>
-            <GripVertical className="h-5 w-5" />
-            <span className="sr-only">Drag to reorder</span>
-          </button>
-
-          {/* Rule content */}
-          <div className="min-w-0 flex-1 space-y-2">
-            <FormField
-              control={form.control}
-              name={`rules.${index}.pattern`}
-              render={({ field }) => (
-                <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.pattern')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('settings.subscriptions.rules.patternPlaceholder')}
-                      {...field}
-                      className="h-7 border-muted bg-background/60 font-mono text-xs text-foreground/90 focus:bg-background"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name={`rules.${index}.target`}
-              render={({ field }) => (
-                <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.target')}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="h-7 border-muted bg-background/60 text-xs focus:bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="scrollbar-thin z-[50]">
-                      {configFormatOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs">{option.icon}</span>
-                            <span className="text-xs">{t(option.label)}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="space-y-2 rounded-md border border-dashed border-muted p-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
-                  <p className="text-[11px] text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
-                </div>
-                <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={addResponseHeader}>
-                  <Plus className="mr-1 h-3.5 w-3.5" />
-                  {t('settings.subscriptions.rules.addHeader')}
-                </Button>
-              </div>
-
-              {Object.entries(responseHeaders).length > 0 && (
-                <div className="space-y-2">
-                  {Object.entries(responseHeaders).map(([headerKey, headerValue]) => (
-                    <div key={`${id}-${headerKey}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
-                      <Input
-                        value={headerKey}
-                        onChange={e => updateResponseHeaderName(headerKey, e.target.value)}
-                        placeholder={t('settings.subscriptions.rules.headerName')}
-                        className="h-7 border-muted bg-background/60 font-mono text-xs"
-                      />
-                      <Input
-                        value={headerValue}
-                        onChange={e => updateResponseHeaderValue(headerKey, e.target.value)}
-                        placeholder={t('settings.subscriptions.rules.headerValue')}
-                        className="h-7 border-muted bg-background/60 font-mono text-xs"
-                      />
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => removeResponseHeader(headerKey)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Delete button */}
+    <>
+      <div ref={setNodeRef} style={style} className="cursor-default">
+        <div className="group relative h-full rounded-md border bg-card p-4 transition-colors hover:bg-accent/20">
           <Button
             type="button"
             variant="ghost"
@@ -490,16 +407,131 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
               e.stopPropagation()
               onRemove(index)
             }}
-            className="h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
+            className="absolute right-3 top-3 h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
-        </div>
 
-        {/* Drag overlay */}
-        {isDragging && <div className="pointer-events-none absolute inset-0 rounded-md border border-primary/20 bg-primary/5"></div>}
+          <div className="flex items-start gap-3">
+            <button type="button" style={{ cursor: cursor }} className="touch-none opacity-50 transition-opacity group-hover:opacity-100" {...attributes} {...listeners}>
+              <GripVertical className="h-5 w-5" />
+              <span className="sr-only">Drag to reorder</span>
+            </button>
+
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className="grid gap-3">
+                <FormField
+                  control={form.control}
+                  name={`rules.${index}.pattern`}
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.pattern')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('settings.subscriptions.rules.patternPlaceholder')}
+                          {...field}
+                          className="h-7 border-muted bg-background/60 font-mono text-xs text-foreground/90 focus:bg-background"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`rules.${index}.target`}
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.target')}</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-7 border-muted bg-background/60 text-xs focus:bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="scrollbar-thin z-[50]">
+                          {configFormatOptions.map(option => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs">{option.icon}</span>
+                                <span className="text-xs">{t(option.label)}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="rounded-md border border-dashed border-muted p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{responseHeaderPreview}</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={() => setIsHeadersOpen(true)}>
+                    {responseHeaderCount === 0 ? t('settings.subscriptions.rules.addHeader') : t('settings.subscriptions.rules.responseHeaders')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {isDragging && <div className="pointer-events-none absolute inset-0 rounded-md border border-primary/20 bg-primary/5" />}
+        </div>
       </div>
-    </div>
+
+      <Dialog open={isHeadersOpen} onOpenChange={setIsHeadersOpen}>
+        <DialogContent className="max-w-xl" onOpenAutoFocus={e => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{t('settings.subscriptions.rules.responseHeaders')}</DialogTitle>
+            <DialogDescription>{t('settings.subscriptions.rules.responseHeadersDescription')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={addResponseHeader}>
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                {t('settings.subscriptions.rules.addHeader')}
+              </Button>
+            </div>
+
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+              {responseHeaderCount > 0 ? (
+                responseHeaderEntries.map(([headerKey, headerValue]) => (
+                  <div key={`${id}-${headerKey}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
+                    <Input
+                      value={headerKey}
+                      onChange={e => updateResponseHeaderName(headerKey, e.target.value)}
+                      placeholder={t('settings.subscriptions.rules.headerName')}
+                      className="h-7 border-muted bg-background/60 font-mono text-xs"
+                    />
+                    <Input
+                      value={headerValue}
+                      onChange={e => updateResponseHeaderValue(headerKey, e.target.value)}
+                      placeholder={t('settings.subscriptions.rules.headerValue')}
+                      className="h-7 border-muted bg-background/60 font-mono text-xs"
+                    />
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive hover:bg-destructive/10" onClick={() => removeResponseHeader(headerKey)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center">
+                  <p className="text-sm font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
