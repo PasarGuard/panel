@@ -1139,6 +1139,9 @@ export interface SubscriptionUserResponse {
 export interface SubRule {
   pattern: string
   target: ConfigFormat
+  response_headers?: {
+    [key: string]: unknown
+  }
 }
 
 export interface SubFormatEnable {

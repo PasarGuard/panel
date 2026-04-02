@@ -226,9 +226,12 @@
         "removeRule": "Remove Rule",
         "pattern": "Pattern",
         "patternPlaceholder": "Enter pattern (e.g., user-agent pattern)",
-        "patternDescription": "Pattern to match against client requests",
         "target": "Target Format",
-        "targetDescription": "Configuration format to serve for this pattern",
+        "responseHeaders": "Response Headers",
+        "responseHeadersDescription": "Optional headers to include when this rule matches.",
+        "addHeader": "Add Header",
+        "headerName": "Header name",
+        "headerValue": "Header value",
         "noRules": "No rules configured. Add rules to customize subscription behavior for different clients."
       },
       "formats": {

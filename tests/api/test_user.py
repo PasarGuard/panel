@@ -3,7 +3,10 @@ from datetime import datetime, timedelta, timezone
 from fastapi import status
 
 from tests.api import client
+from app.operation.subscription import SubscriptionOperation
+from app.models.settings import ConfigFormat, SubRule
 from tests.api.helpers import (
+    auth_headers,
     create_core,
     create_group,
     create_user,
@@ -221,6 +224,93 @@ def test_user_sub_update_user_agent_truncates_long_values(access_token):
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
+
+
+def test_user_subscription_applies_rule_response_headers(access_token):
+    """Custom rule response headers should persist and keep subscription requests healthy."""
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+
+    updated_subscription = {
+        **original_subscription,
+        "rules": [
+            {
+                "pattern": r"^PasarGuardRuleHeaderClient$",
+                "target": "links",
+                "response_headers": {
+                    "x-subheader": "Hello {USERNAME}",
+                    "profile-title": "Rule Profile {USERNAME}",
+                },
+            },
+            *original_subscription["rules"],
+        ],
+    }
+
+    update_response = client.put(
+        "/api/settings",
+        headers=auth_headers(access_token),
+        json={"subscription": updated_subscription},
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+    assert update_response.json()["subscription"]["rules"][0]["response_headers"]["x-subheader"] == "Hello {USERNAME}"
+
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_user_rule_response_headers")},
+    )
+
+    try:
+        response = client.get(
+            user["subscription_url"],
+            headers={"User-Agent": "PasarGuardRuleHeaderClient"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.text
+    finally:
+        restore_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": original_subscription},
+        )
+        assert restore_response.status_code == status.HTTP_200_OK
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
+        cleanup_groups(access_token, core, groups)
+
+
+def test_format_rule_response_headers_supports_strings_and_json():
+    rule = SubRule(
+        pattern=r"^TestClient$",
+        target=ConfigFormat.links,
+        response_headers={
+            "x-subheader": "Hello {USERNAME}",
+            "x-json": {"enabled": True, "count": 2},
+        },
+    )
+
+    headers = SubscriptionOperation._format_rule_response_headers(rule, {"USERNAME": "alice"})
+
+    assert headers["x-subheader"] == "Hello alice"
+    assert headers["x-json"] == '{"enabled":true,"count":2}'
+
+
+def test_detect_client_rule_matches_user_agent():
+    rule = SubRule(
+        pattern=r"^PasarGuardRuleHeaderClient$",
+        target=ConfigFormat.links,
+        response_headers={"x-subheader": "Hello {USERNAME}"},
+    )
+
+    matched_rule = SubscriptionOperation.detect_client_rule("PasarGuardRuleHeaderClient", [rule])
+
+    assert matched_rule is not None
+    assert matched_rule.target == ConfigFormat.links
+    assert matched_rule.response_headers["x-subheader"] == "Hello {USERNAME}"
 
 
 def test_user_get(access_token):
