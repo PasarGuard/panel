@@ -183,6 +183,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
   // Store generated values
   const [generatedKeyPair, setGeneratedKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null)
+  const [generatedWireGuardKeyPair, setGeneratedWireGuardKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null)
   const [generatedShortId, setGeneratedShortId] = useState<string | null>(null)
   const [generatedShadowsocksPassword, setGeneratedShadowsocksPassword] = useState<{ password: string; encryptionMethod: string } | null>(null)
   const [generatedMldsa65, setGeneratedMldsa65] = useState<{ seed: string; verify: string } | null>(null)
@@ -508,24 +509,32 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     }
   }
 
-  const defaultConfig = JSON.stringify(JSON.parse(defaultXrayConfig), null, 2)
-
-  const loadDefaultTemplate = useCallback(() => {
-    const defaultTemplate = getDefaultCoreConfigString(backendType)
+  const applyBackendTemplate = useCallback((nextBackendType: CoreBackendType) => {
+    const defaultTemplate = getDefaultCoreConfigString(nextBackendType)
     form.setValue('config', defaultTemplate, { shouldDirty: true, shouldValidate: true })
     validateJsonContent(defaultTemplate)
     debouncedConfigChange(defaultTemplate)
-  }, [backendType, debouncedConfigChange, form, validateJsonContent])
+  }, [debouncedConfigChange, form, validateJsonContent])
 
   const generateWireGuardKeys = useCallback(() => {
     try {
       const keyPair = generateWireGuardKeyPair()
+      setGeneratedWireGuardKeyPair(keyPair)
       showResultDialog('wireguardKeyPair', keyPair)
       toast.success(t('coreConfigModal.wireguardKeyPairGenerated', { defaultValue: 'WireGuard keypair generated' }))
     } catch (error) {
       toast.error(t('coreConfigModal.wireguardKeyPairGenerationFailed', { defaultValue: 'Failed to generate WireGuard keypair' }))
     }
   }, [showResultDialog, t])
+
+  const viewWireGuardKeys = useCallback(() => {
+    if (generatedWireGuardKeyPair) {
+      showResultDialog('wireguardKeyPair', generatedWireGuardKeyPair)
+      return
+    }
+
+    generateWireGuardKeys()
+  }, [generateWireGuardKeys, generatedWireGuardKeyPair, showResultDialog])
 
   const onSubmit = async (values: CoreConfigFormValues) => {
     try {
@@ -681,7 +690,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         form.reset({
           name: '',
           backend_type: 'xray',
-          config: defaultConfig,
+          config: getDefaultCoreConfigString('xray'),
           excluded_inbound_ids: [],
           fallback_id: [],
           restart_nodes: true,
@@ -705,7 +714,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         }
       }, 300)
     }
-  }, [isDialogOpen, editingCore, form, defaultConfig, isMobile])
+  }, [isDialogOpen, editingCore, form, isMobile])
 
   // Cleanup on modal close
   useEffect(() => {
@@ -1492,15 +1501,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                               onValueChange={value => {
                                 const nextBackendType = value as CoreBackendType
                                 field.onChange(nextBackendType)
-
-                                const currentConfig = form.getValues('config')?.trim()
-                                const defaultTemplates = [defaultXrayConfig.trim(), defaultWireGuardConfig.trim(), '{}']
-                                if (!editingCore && defaultTemplates.includes(currentConfig || '{}')) {
-                                  const nextTemplate = getDefaultCoreConfigString(nextBackendType)
-                                  form.setValue('config', nextTemplate, { shouldDirty: true, shouldValidate: true })
-                                  validateJsonContent(nextTemplate)
-                                  debouncedConfigChange(nextTemplate)
-                                }
+                                form.setValue('fallback_id', [], { shouldDirty: true })
+                                form.setValue('excluded_inbound_ids', [], { shouldDirty: true })
+                                applyBackendTemplate(nextBackendType)
                               }}
                             >
                               <SelectTrigger>
@@ -1518,16 +1521,14 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     />
 
                     <div className="rounded-lg border bg-muted/30 p-3">
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button type="button" variant="outline" className="flex-1" onClick={loadDefaultTemplate}>
-                          {t('coreConfigModal.loadDefaultTemplate', { defaultValue: 'Load default template' })}
-                        </Button>
-                        {!isXrayBackend && (
-                          <Button type="button" variant="outline" className="flex-1" onClick={generateWireGuardKeys}>
+                      {!isXrayBackend && (
+                        <LoaderButton type="button" onClick={viewWireGuardKeys} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
+                          <span className="flex items-center gap-2 truncate">
+                            {generatedWireGuardKeyPair && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
                             {t('coreConfigModal.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
-                          </Button>
-                        )}
-                      </div>
+                          </span>
+                        </LoaderButton>
+                      )}
                       <p className="mt-2 text-xs text-muted-foreground">
                         {isXrayBackend
                           ? t('coreConfigModal.xrayTemplateHint', { defaultValue: 'Xray cores continue to expose inbound tags from the JSON editor as before.' })

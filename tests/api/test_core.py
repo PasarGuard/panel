@@ -1,6 +1,7 @@
 from fastapi import status
 
 from app.core.xray import XRayConfig
+from app.utils.crypto import generate_wireguard_keypair
 from tests.api import client
 from tests.api.helpers import create_core, delete_core, get_inbounds, unique_name
 from tests.api.sample_data import XRAY_CONFIG as xray_config
@@ -16,6 +17,32 @@ def test_core_create(access_token):
         assert v in {"fallback-A", "fallback-B"}
     assert len(core["fallbacks_inbound_tags"]) == 2
     assert len(core["exclude_inbound_tags"]) == 0
+    delete_core(access_token, core["id"])
+
+
+def test_wireguard_core_create(access_token):
+    """Test that a WireGuard core can be created."""
+
+    private_key, _ = generate_wireguard_keypair()
+    wireguard_config = {
+        "interface_name": unique_name("wg"),
+        "private_key": private_key,
+        "listen_port": 51820,
+        "address": ["10.8.0.1/24"],
+        "peer_keepalive_seconds": 25,
+    }
+
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_core"),
+        config=wireguard_config,
+        backend_type="wireguard",
+        fallbacks=[],
+    )
+    assert core["config"]["interface_name"] == wireguard_config["interface_name"]
+    assert core["backend_type"] == "wireguard"
+    assert core["exclude_inbound_tags"] == []
+    assert core["fallbacks_inbound_tags"] == []
     delete_core(access_token, core["id"])
 
 
