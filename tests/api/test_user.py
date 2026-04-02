@@ -53,6 +53,8 @@ def test_user_create_active(access_token):
         assert user["data_limit"] == (1024 * 1024 * 1024 * 10)
         assert user["data_limit_reset_strategy"] == "no_reset"
         assert user["status"] == "active"
+        assert user["proxy_settings"]["wireguard"]["private_key"]
+        assert user["proxy_settings"]["wireguard"]["public_key"]
         assert set(user["group_ids"]) == set(group_ids)
         response_datetime = datetime.fromisoformat(user["expire"])
         expected_formatted = expire.replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
@@ -158,6 +160,7 @@ def test_user_subscriptions(access_token):
         "outline",
         "links",
         "links_base64",
+        "wireguard",
         "xray",
     ]
 

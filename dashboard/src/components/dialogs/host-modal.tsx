@@ -12,11 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { UserStatus, getHosts, getInbounds } from '@/service/api'
+import { UserStatus, getHosts } from '@/service/api'
+import { getInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -446,6 +447,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [_isSubmitting, setIsSubmitting] = useState(false)
+  const selectedInboundTag = form.watch('inbound_tag')
+  const selectedNoiseSettings = form.watch('noise_settings.xray')
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
 
   // Optimized noise settings handlers with useCallback for performance
@@ -500,11 +503,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     },
     [form],
   )
-
-  // Memoized noise settings array to prevent unnecessary re-renders
-  const noiseSettings = useMemo(() => {
-    return form.getValues('noise_settings.xray') || []
-  }, [form.watch('noise_settings.xray')])
 
   const cleanPayload = (data: any): any => {
     // Helper function to check if an object has any non-empty values
@@ -564,11 +562,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     onOpenChange(open)
   }
 
-  const { data: inbounds = [], isLoading: isLoadingInbounds } = useQuery({
-    queryKey: ['getInboundsQueryKey'],
-    queryFn: () => getInbounds(),
+  const { data: inboundDetails = [], isLoading: isLoadingInbounds } = useQuery({
+    queryKey: ['getInboundDetailsQueryKey'],
+    queryFn: ({ signal }) => getInboundDetails(signal),
     enabled: isDialogOpen,
   })
+  const inbounds = useMemo(() => inboundDetails.map(inbound => inbound.tag), [inboundDetails])
+  const selectedInbound = useMemo(() => inboundDetails.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
+  const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
@@ -587,11 +588,59 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     setOpenSection(prevSection => (prevSection === value ? undefined : value))
   }
 
+  useEffect(() => {
+    if (!isWireGuardInbound) {
+      return
+    }
+
+    form.setValue('host', [], { shouldDirty: true })
+    form.setValue('sni', [], { shouldDirty: true })
+    form.setValue('path', '', { shouldDirty: true })
+    form.setValue('http_headers', {}, { shouldDirty: true })
+    form.setValue('security', 'inbound_default', { shouldDirty: true })
+    form.setValue('alpn', [], { shouldDirty: true })
+    form.setValue('fingerprint', '', { shouldDirty: true })
+    form.setValue('allowinsecure', false, { shouldDirty: true })
+    form.setValue('random_user_agent', false, { shouldDirty: true })
+    form.setValue('use_sni_as_host', false, { shouldDirty: true })
+    form.setValue('vless_route', '', { shouldDirty: true })
+    form.setValue('ech_config_list', undefined, { shouldDirty: true })
+    form.setValue('ech_query_strategy', undefined, { shouldDirty: true })
+    form.setValue('pinned_peer_cert_sha256', undefined, { shouldDirty: true })
+    form.setValue('verify_peer_cert_by_name', [], { shouldDirty: true })
+    form.setValue('fragment_settings', undefined, { shouldDirty: true })
+    form.setValue('noise_settings', undefined, { shouldDirty: true })
+    form.setValue('mux_settings', undefined, { shouldDirty: true })
+    form.setValue('transport_settings', undefined, { shouldDirty: true })
+  }, [form, isWireGuardInbound, selectedInboundTag])
+
   const handleSubmit = async (data: HostFormValues) => {
     setIsSubmitting(true)
     try {
       // Clean the payload before sending
       const payload = { ...data }
+
+      if (isWireGuardInbound) {
+        payload.host = []
+        payload.sni = []
+        payload.path = ''
+        payload.http_headers = {}
+        payload.security = 'inbound_default'
+        payload.alpn = []
+        payload.fingerprint = ''
+        payload.allowinsecure = false
+        payload.random_user_agent = false
+        payload.use_sni_as_host = false
+        payload.vless_route = ''
+        payload.ech_config_list = undefined
+        payload.ech_query_strategy = undefined
+        payload.pinned_peer_cert_sha256 = undefined
+        payload.verify_peer_cert_by_name = []
+        payload.fragment_settings = undefined
+        payload.noise_settings = undefined
+        payload.mux_settings = undefined
+        payload.transport_settings = undefined
+      }
 
       // If SingBox fragment is disabled, clear related fields
       if (!payload.fragment_settings?.sing_box?.fragment && payload.fragment_settings?.sing_box) {
@@ -812,6 +861,13 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 </div>
               </div>
 
+              {isWireGuardInbound ? (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  {t('hostsDialog.wireguardMinimalHint', {
+                    defaultValue: 'WireGuard host entries only use endpoint address and port. Xray-only network, security, transport, camouflage, mux, and routing options are hidden for this inbound.',
+                  })}
+                </div>
+              ) : (
               <Accordion type="single" collapsible value={openSection} onValueChange={handleAccordionChange} className="!mt-0 mb-6 flex w-full flex-col gap-y-6">
                 <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="network">
                   <AccordionTrigger>
@@ -2528,10 +2584,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               </Button>
                             </div>
                             <div className="space-y-2">
-                              {noiseSettings.map((_, index) => (
+                              {(selectedNoiseSettings || []).map((_, index) => (
                                 <NoiseItem key={index} index={index} form={form} onRemove={removeNoiseSetting} onDuplicate={duplicateNoiseSetting} t={t} />
                               ))}
-                              {noiseSettings.length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">{t('hostsDialog.noise.noNoiseSettings')}</div>}
+                              {(selectedNoiseSettings || []).length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">{t('hostsDialog.noise.noNoiseSettings')}</div>}
                             </div>
                           </div>
                         </div>
@@ -3136,6 +3192,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
 
               </Accordion>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => handleModalOpenChange(false)}>

@@ -9,7 +9,7 @@ from app.db.crud.general import get_system_usage
 from app.db.crud.user import count_online_users, get_users_count_by_status
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
-from app.models.system import SystemStats
+from app.models.system import InboundSummary, SystemStats
 from app.utils.system import cpu_usage, disk_usage, memory_usage
 
 from . import BaseOperation
@@ -83,3 +83,11 @@ class SystemOperation(BaseOperation):
     @staticmethod
     async def get_inbounds() -> list[str]:
         return await core_manager.get_inbounds()
+
+    @staticmethod
+    async def get_inbound_details() -> list[InboundSummary]:
+        inbounds = await core_manager.get_inbounds_by_tag()
+        return [
+            InboundSummary(tag=tag, protocol=data.get("protocol", ""), network=data.get("network"))
+            for tag, data in sorted(inbounds.items())
+        ]

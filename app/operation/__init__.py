@@ -229,10 +229,6 @@ class BaseOperation:
 
     async def check_host_inbound_tags(self, tags: list[str]) -> None:
         await self.check_inbound_tags(tags)
-        for tag in tags:
-            inbound = await core_manager.get_inbound_by_tag(tag)
-            if inbound and inbound.get("protocol") == "wireguard":
-                await self.raise_error("Hosts are not supported for WireGuard interfaces", 400)
 
     async def get_validated_core_config(self, db: AsyncSession, core_id) -> CoreConfig:
         """Dependency: Fetch core config or return not found error."""

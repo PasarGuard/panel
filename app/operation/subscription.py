@@ -27,6 +27,7 @@ client_config = {
     ConfigFormat.links_base64: {"config_format": "links", "media_type": "text/plain", "as_base64": True},
     ConfigFormat.links: {"config_format": "links", "media_type": "text/plain", "as_base64": False},
     ConfigFormat.outline: {"config_format": "outline", "media_type": "application/json", "as_base64": False},
+    ConfigFormat.wireguard: {"config_format": "wireguard", "media_type": "text/plain", "as_base64": False},
     ConfigFormat.xray: {"config_format": "xray", "media_type": "application/json", "as_base64": False},
 }
 

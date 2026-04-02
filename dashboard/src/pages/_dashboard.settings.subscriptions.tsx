@@ -9,12 +9,12 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
-import { ConfigFormat, type SubRule as ApiSubRule } from '@/service/api'
+import { type SubRule as ApiSubRule } from '@/service/api'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
+import { Cable, Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { FieldErrors, useFieldArray, useForm, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -78,6 +78,7 @@ const subscriptionSchema = z.object({
       links: z.boolean().optional(),
       links_base64: z.boolean().optional(),
       xray: z.boolean().optional(),
+      wireguard: z.boolean().optional(),
       sing_box: z.boolean().optional(),
       clash: z.boolean().optional(),
       clash_meta: z.boolean().optional(),
@@ -298,7 +299,7 @@ const buildDefaultApplications = () => {
 }
 
 // Default subscription rules
-const defaultSubscriptionRules: { pattern: string; target: ConfigFormat }[] = [
+const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
   {
     pattern: '^([Cc]lash[\\-\\.]?[Vv]erge|[Cc]lash[\\-\\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)',
     target: 'clash_meta',
@@ -591,6 +592,7 @@ export default function SubscriptionSettings() {
         links: true,
         links_base64: true,
         xray: true,
+        wireguard: true,
         sing_box: true,
         clash: true,
         clash_meta: true,
@@ -687,6 +689,7 @@ export default function SubscriptionSettings() {
           links: subscriptionData.manual_sub_request?.links ?? true,
           links_base64: subscriptionData.manual_sub_request?.links_base64 ?? true,
           xray: subscriptionData.manual_sub_request?.xray ?? true,
+          wireguard: subscriptionData.manual_sub_request?.wireguard ?? true,
           sing_box: subscriptionData.manual_sub_request?.sing_box ?? true,
           clash: subscriptionData.manual_sub_request?.clash ?? true,
           clash_meta: subscriptionData.manual_sub_request?.clash_meta ?? true,
@@ -842,6 +845,7 @@ export default function SubscriptionSettings() {
           links: subscriptionData.manual_sub_request?.links ?? true,
           links_base64: subscriptionData.manual_sub_request?.links_base64 ?? true,
           xray: subscriptionData.manual_sub_request?.xray ?? true,
+          wireguard: subscriptionData.manual_sub_request?.wireguard ?? true,
           sing_box: subscriptionData.manual_sub_request?.sing_box ?? true,
           clash: subscriptionData.manual_sub_request?.clash ?? true,
           clash_meta: subscriptionData.manual_sub_request?.clash_meta ?? true,
@@ -868,7 +872,7 @@ export default function SubscriptionSettings() {
   }
 
   const addRule = () => {
-    appendRule({ pattern: '', target: 'links' as ConfigFormat, response_headers: {} })
+    appendRule({ pattern: '', target: 'links', response_headers: {} })
   }
 
   const addApplication = () => {
@@ -1380,6 +1384,27 @@ export default function SubscriptionSettings() {
                         {t('settings.subscriptions.formats.xray')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.formats.xrayDescription')}</FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="manual_sub_request.wireguard"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                        <Cable className="h-4 w-4" />
+                        {t('settings.subscriptions.formats.wireguard', { defaultValue: 'WireGuard' })}
+                      </FormLabel>
+                      <FormDescription className="text-xs text-muted-foreground">
+                        {t('settings.subscriptions.formats.wireguardDescription', { defaultValue: 'Expose /wireguard manual configs for WireGuard clients.' })}
+                      </FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />

@@ -4,6 +4,7 @@ from .xray import XrayConfiguration
 from .singbox import SingBoxConfiguration
 from .outline import OutlineConfiguration
 from .clash import ClashConfiguration, ClashMetaConfiguration
+from .wireguard import WireGuardConfiguration
 
 __all__ = [
     "BaseSubscription",
@@ -13,4 +14,5 @@ __all__ = [
     "OutlineConfiguration",
     "ClashConfiguration",
     "ClashMetaConfiguration",
+    "WireGuardConfiguration",
 ]

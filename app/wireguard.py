@@ -6,7 +6,9 @@ from typing import Iterable
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import on_startup
 from app.core.manager import core_manager
+from app.db import GetDB
 from app.db.models import Group, ProxyInbound, User, inbounds_groups_association, users_groups_association
 from app.models.proxy import ProxyTable
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
@@ -224,3 +226,30 @@ async def prepare_wireguard_proxy_settings(
         )
 
     return proxy_settings
+
+
+@on_startup
+async def ensure_users_have_wireguard_keypairs():
+    async with GetDB() as db:
+        users = (await db.execute(select(User))).scalars().all()
+        updated = False
+
+        for db_user in users:
+            proxy_settings = ProxyTable.model_validate(db_user.proxy_settings or {})
+            wireguard_settings = proxy_settings.wireguard
+
+            if not wireguard_settings.private_key:
+                private_key, public_key = generate_wireguard_keypair()
+                wireguard_settings.private_key = private_key
+                wireguard_settings.public_key = public_key
+                db_user.proxy_settings = proxy_settings.dict()
+                updated = True
+                continue
+
+            if not wireguard_settings.public_key:
+                wireguard_settings.public_key = get_wireguard_public_key(wireguard_settings.private_key)
+                db_user.proxy_settings = proxy_settings.dict()
+                updated = True
+
+        if updated:
+            await db.commit()

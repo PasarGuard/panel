@@ -54,6 +54,7 @@ class StandardLinks(BaseSubscription):
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
+            "wireguard": self._build_wireguard,
         }
 
     def add_link(self, link):
@@ -333,6 +334,22 @@ class StandardLinks(BaseSubscription):
 
         payload = self._normalize_and_remove_none_values(payload)
         return f"hysteria2://{settings['auth']}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
+
+    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
+        """Build WireGuard link"""
+        payload = {
+            "publickey": inbound.wireguard_public_key,
+            "address": ",".join(settings.get("peer_ips", [])),
+            "allowedips": ",".join(inbound.wireguard_allowed_ips or ["0.0.0.0/0", "::/0"]),
+            "keepalive": inbound.wireguard_keepalive,
+        }
+
+        if inbound.wireguard_pre_shared_key:
+            payload["presharedkey"] = inbound.wireguard_pre_shared_key
+
+        payload = self._normalize_and_remove_none_values(payload)
+        private_key = urlparse.quote(settings["private_key"], safe="")
+        return f"wireguard://{private_key}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
 
     # ========== Helper Methods ==========
 

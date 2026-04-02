@@ -141,18 +141,25 @@ def get_inbounds(access_token: str) -> list[str]:
     raise AssertionError(f"Unexpected response from /api/inbounds: {response_code}")
 
 
+def get_inbound_details(access_token: str) -> list[dict[str, Any]]:
+    response = client.get("/api/inbounds/details", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_200_OK
+    return response.json()
+
+
 def create_hosts_for_inbounds(access_token: str, *, address: list[str] | None = None, port: int = 443) -> list[dict]:
-    inbounds = get_inbounds(access_token)
+    inbound_details = get_inbound_details(access_token)
     hosts: list[dict] = []
-    for idx, inbound in enumerate(inbounds):
+    for idx, inbound in enumerate(inbound_details):
         payload = {
             "remark": unique_name(f"host_{idx}"),
             "address": address or ["127.0.0.1"],
-            "port": port,
-            "sni": [f"test_host_{idx}.example.com"],
-            "inbound_tag": inbound,
+            "port": 51820 if inbound["protocol"] == "wireguard" else port,
+            "inbound_tag": inbound["tag"],
             "priority": idx + 1,
         }
+        if inbound["protocol"] != "wireguard":
+            payload["sni"] = [f"test_host_{idx}.example.com"]
         response = client.post("/api/host", headers=auth_headers(access_token), json=payload)
         assert response.status_code == status.HTTP_201_CREATED
         hosts.append(response.json())

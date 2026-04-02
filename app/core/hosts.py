@@ -53,6 +53,34 @@ async def _prepare_subscription_inbound_data(
     network = inbound_config.get("network", "tcp")
     path = host.path or inbound_config.get("path", "")
 
+    if protocol == "wireguard":
+        endpoint_addresses = list(host.address) if host.address else ["{SERVER_IP}"]
+
+        if host.port:
+            port_list = [host.port]
+        else:
+            listen_port = inbound_config.get("listen_port")
+            port_list = [listen_port] if listen_port else []
+
+        return SubscriptionInboundData(
+            remark=host.remark,
+            inbound_tag=host.inbound_tag,
+            protocol=protocol,
+            address=endpoint_addresses,
+            port=port_list,
+            network=network,
+            tls_config=TLSConfig(),
+            transport_config=TCPTransportConfig(path="", host=[]),
+            mux_settings=None,
+            wireguard_public_key=inbound_config.get("public_key", ""),
+            wireguard_pre_shared_key=inbound_config.get("pre_shared_key", ""),
+            wireguard_local_address=inbound_config.get("address", []) or [],
+            wireguard_allowed_ips=["0.0.0.0/0", "::/0"],
+            wireguard_keepalive=inbound_config.get("peer_keepalive_seconds"),
+            priority=host.priority,
+            status=list(host.status) if host.status else None,
+        )
+
     sni_list = list(host.sni) if host.sni else inbound_config.get("sni", [])
     host_list = list(host.host) if host.host else inbound_config.get("host", [])
     address_list = list(host.address) if host.address else []

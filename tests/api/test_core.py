@@ -3,7 +3,7 @@ from fastapi import status
 from app.core.xray import XRayConfig
 from app.utils.crypto import generate_wireguard_keypair
 from tests.api import client
-from tests.api.helpers import create_core, delete_core, get_inbounds, unique_name
+from tests.api.helpers import create_core, delete_core, get_inbound_details, get_inbounds, unique_name
 from tests.api.sample_data import XRAY_CONFIG as xray_config
 
 
@@ -118,6 +118,32 @@ def test_inbounds_get(access_token):
     assert len(inbounds) > 0
     assert set(response_tags) == set(config_tags)
     delete_core(access_token, core["id"])
+
+
+def test_inbound_details_include_wireguard_metadata(access_token):
+    private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_details")
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_core_details"),
+        config={
+            "interface_name": interface_name,
+            "private_key": private_key,
+            "listen_port": 51820,
+            "address": ["10.9.0.1/24"],
+            "peer_keepalive_seconds": 25,
+        },
+        backend_type="wireguard",
+        fallbacks=[],
+    )
+
+    try:
+        details = get_inbound_details(access_token)
+        wg_detail = next(item for item in details if item["tag"] == interface_name)
+        assert wg_detail["protocol"] == "wireguard"
+        assert wg_detail["network"] == "udp"
+    finally:
+        delete_core(access_token, core["id"])
 
 
 def test_xray_auto_detects_fallback_tls_without_manual_fallback_tags():

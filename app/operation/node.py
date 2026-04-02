@@ -4,6 +4,7 @@ from typing import AsyncIterator, Callable
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common import service_pb2 as service
+from packaging.version import InvalidVersion, Version
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
@@ -52,9 +53,36 @@ from config import ROLE
 MAX_MESSAGE_LENGTH = 128
 
 logger = get_logger("node-operation")
+WIREGUARD_MIN_NODE_VERSION = Version("0.3.0")
 
 
 class NodeOperation(BaseOperation):
+    @staticmethod
+    def _parse_node_version(version: str | None) -> Version | None:
+        if not version:
+            return None
+
+        normalized = version.strip()
+        if not normalized:
+            return None
+
+        if normalized.startswith("v"):
+            normalized = normalized[1:]
+
+        try:
+            return Version(normalized)
+        except InvalidVersion:
+            return None
+
+    @classmethod
+    def _validate_wireguard_node_version(cls, version: str | None) -> str | None:
+        parsed_version = cls._parse_node_version(version)
+        if parsed_version is None:
+            return None
+        if parsed_version < WIREGUARD_MIN_NODE_VERSION:
+            return f"WireGuard cores require node version 0.3.0 or later, got {version}"
+        return None
+
     def __init__(self, operator_type: OperatorType):
         super().__init__(operator_type)
         if ROLE.runs_node:
@@ -237,6 +265,18 @@ class NodeOperation(BaseOperation):
         )
 
         try:
+            if core.backend_type == CoreType.WIREGUARD:
+                version_error = NodeOperation._validate_wireguard_node_version(db_node.node_version)
+                if version_error:
+                    return {
+                        "node_id": db_node.id,
+                        "status": NodeStatus.error,
+                        "message": version_error,
+                        "xray_version": "",
+                        "node_version": db_node.node_version or "",
+                        "old_status": old_status,
+                    }
+
             start_kwargs = {
                 "config": core.to_str(),
                 "backend_type": backend_type,
@@ -247,6 +287,18 @@ class NodeOperation(BaseOperation):
                 start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
 
             info = await pg_node.start(**start_kwargs)
+            if core.backend_type == CoreType.WIREGUARD:
+                version_error = NodeOperation._validate_wireguard_node_version(info.node_version)
+                if version_error:
+                    await pg_node.stop()
+                    return {
+                        "node_id": db_node.id,
+                        "status": NodeStatus.error,
+                        "message": version_error,
+                        "xray_version": "",
+                        "node_version": info.node_version,
+                        "old_status": old_status,
+                    }
             logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, core run on v{info.core_version}')
 
             return {

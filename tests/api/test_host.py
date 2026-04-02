@@ -1,6 +1,7 @@
 from fastapi import status
 
 from tests.api import client
+from app.utils.crypto import generate_wireguard_keypair
 from tests.api.helpers import create_core, delete_core, get_inbounds, unique_name
 
 
@@ -137,6 +138,48 @@ def test_host_delete(access_token):
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
     delete_core(access_token, core["id"])
+
+
+def test_wireguard_host_create(access_token):
+    private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_host")
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_host_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": private_key,
+            "listen_port": 51820,
+            "address": ["10.10.0.1/24"],
+            "peer_keepalive_seconds": 25,
+        },
+        backend_type="wireguard",
+        fallbacks=[],
+    )
+
+    try:
+        response = client.post(
+            "/api/host",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "remark": unique_name("test_wireguard_host"),
+                "address": ["198.51.100.10"],
+                "port": 51820,
+                "inbound_tag": interface_name,
+                "priority": 1,
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["inbound_tag"] == interface_name
+        assert response.json()["address"] == ["198.51.100.10"]
+        assert response.json()["port"] == 51820
+    finally:
+        hosts_response = client.get("/api/hosts", headers={"Authorization": f"Bearer {access_token}"})
+        if hosts_response.status_code == status.HTTP_200_OK:
+            for host in hosts_response.json():
+                if host["inbound_tag"] == interface_name:
+                    client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
 
 
 # Tests for /api/hosts/simple endpoint

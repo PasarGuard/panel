@@ -5,8 +5,12 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
+from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key, validate_wireguard_key
 from app.utils.system import random_password
+
+
+def _generate_wireguard_private_key() -> str:
+    return generate_wireguard_keypair()[0]
 
 
 class VMessSettings(BaseModel):
@@ -44,7 +48,7 @@ class HysteriaSettings(BaseModel):
 
 
 class WireGuardSettings(BaseModel):
-    private_key: str | None = None
+    private_key: str | None = Field(default_factory=_generate_wireguard_private_key)
     public_key: str | None = None
     peer_ips: list[str] = Field(default_factory=list)
 

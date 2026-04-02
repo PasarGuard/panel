@@ -1148,6 +1148,7 @@ export interface SubFormatEnable {
   links?: boolean
   links_base64?: boolean
   xray?: boolean
+  wireguard?: boolean
   sing_box?: boolean
   clash?: boolean
   clash_meta?: boolean
@@ -2081,6 +2082,12 @@ export interface CoreResponse {
   created_at: string
 }
 
+export interface InboundDetails {
+  tag: string
+  protocol: string
+  network?: string | null
+}
+
 export interface CoreResponseList {
   count: number
   cores?: CoreResponse[]
@@ -2113,6 +2120,7 @@ export const ConfigFormat = {
   links: 'links',
   links_base64: 'links_base64',
   xray: 'xray',
+  wireguard: 'wireguard',
   sing_box: 'sing_box',
   clash: 'clash',
   clash_meta: 'clash_meta',
@@ -3477,6 +3485,14 @@ export function useGetSystemStats<TData = Awaited<ReturnType<typeof getSystemSta
  */
 export const getInbounds = (signal?: AbortSignal) => {
   return orvalFetcher<string[]>({ url: `/api/inbounds`, method: 'GET', signal })
+}
+
+export const getInboundDetails = (signal?: AbortSignal) => {
+  return orvalFetcher<InboundDetails[]>({
+    url: '/api/inbounds/details',
+    method: 'GET',
+    signal,
+  })
 }
 
 export const getGetInboundsQueryKey = () => {

@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.settings import Telegram
-from app.models.system import SystemStats, WorkerHealth, WorkersHealth
+from app.models.system import InboundSummary, SystemStats, WorkerHealth, WorkersHealth
 from app.nats import is_nats_enabled
 from app.nats.node_rpc import node_nats_client
 from app.nats.scheduler_rpc import scheduler_nats_client
@@ -43,6 +43,12 @@ async def get_system_stats(
 async def get_inbounds(_: AdminDetails = Depends(get_current)):
     """Retrieve inbound configurations grouped by protocol."""
     return await system_operator.get_inbounds()
+
+
+@router.get("/inbounds/details", response_model=list[InboundSummary])
+async def get_inbound_details(_: AdminDetails = Depends(get_current)):
+    """Retrieve lightweight inbound metadata for dashboard forms."""
+    return await system_operator.get_inbound_details()
 
 
 async def _measure_worker_health(request_coro) -> WorkerHealth:
