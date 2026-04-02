@@ -1,7 +1,7 @@
 from fastapi import status
 
 from app.core.xray import XRayConfig
-from app.utils.crypto import generate_wireguard_keypair
+from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from tests.api import client
 from tests.api.helpers import create_core, delete_core, get_inbound_details, get_inbounds, unique_name
 from tests.api.sample_data import XRAY_CONFIG as xray_config
@@ -142,6 +142,11 @@ def test_inbound_details_include_wireguard_metadata(access_token):
         wg_detail = next(item for item in details if item["tag"] == interface_name)
         assert wg_detail["protocol"] == "wireguard"
         assert wg_detail["network"] == "udp"
+        assert wg_detail.get("wireguard_private_key") == private_key
+        assert wg_detail.get("wireguard_public_key") == get_wireguard_public_key(private_key)
+        assert wg_detail.get("wireguard_listen_port") == 51820
+        assert wg_detail.get("wireguard_addresses") == ["10.9.0.1/24"]
+        assert wg_detail.get("wireguard_peer_keepalive_seconds") == 25
     finally:
         delete_core(access_token, core["id"])
 

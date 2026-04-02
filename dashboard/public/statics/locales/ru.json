@@ -264,12 +264,15 @@
         "clashMeta": "Clash Meta",
         "clashMetaDescription": "Формат конфигурации Clash Meta",
         "outline": "Outline",
-        "outlineDescription": "Формат конфигурации Outline VPN"
+        "outlineDescription": "Формат конфигурации Outline VPN",
+        "wireguard": "WireGuard",
+        "wireguardDescription": "Открывать ручные конфиги /wireguard для клиентов WireGuard."
       },
       "configFormats": {
         "links": "Ссылки",
         "links_base64": "Ссылки (Base64)",
         "xray": "Xray",
+        "wireguard": "WireGuard",
         "sing_box": "Sing-box",
         "clash": "Clash",
         "clash_meta": "Clash Meta",
@@ -1291,7 +1294,26 @@
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "wireguard": {
+      "sectionOverview": "Обзор",
+      "sectionServerKeys": "Ключи сервера",
+      "sectionOverrides": "Переопределения подписки",
+      "minimalHint": "Адрес и порт задают конечную точку для клиента. PrivateKey в секции Interface и адрес туннеля WireGuard каждого пользователя берутся из его настроек прокси. Параметры только для Xray для этого inbound скрыты.",
+      "noServerKeys": "Ключи WireGuard для выбранного inbound пока недоступны. Убедитесь, что ядро загружено и тег inbound совпадает с интерфейсом WireGuard.",
+      "serverPublicKey": "Публичный ключ сервера",
+      "serverPrivateKey": "Приватный ключ сервера (интерфейс)",
+      "inboundPsk": "Предварительно разделяемый ключ inbound",
+      "overridesIntro": "Необязательные значения, подмешиваемые в создаваемые для этого хоста подписки WireGuard.",
+      "overridePsk": "Замена предварительно разделяемого ключа",
+      "overridePskPlaceholder": "Оставьте пустым, чтобы использовать PSK inbound",
+      "allowedIps": "Переопределение AllowedIPs",
+      "allowedIpsHint": "Оставьте пустым для значений по умолчанию 0.0.0.0/0 и ::/0",
+      "mtu": "MTU",
+      "keepalive": "Постоянный keepalive (сек)",
+      "keepalivePlaceholder": "По умолчанию inbound",
+      "reserved": "Reserved (например 0,0,0)"
+    }
   },
   "enable": "Включить",
   "host": {

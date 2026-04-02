@@ -106,6 +106,7 @@ class WireGuardConfig(dict):
             "address": list(self["address"]),
             "peer_keepalive_seconds": self["peer_keepalive_seconds"],
             "public_key": self.get("public_key", ""),
+            "private_key": self.get("private_key", ""),
             "pre_shared_key": self.get("pre_shared_key", ""),
         }
         self._inbounds = [interface_name]

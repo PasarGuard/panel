@@ -11,12 +11,13 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useClipboard } from '@/hooks/use-clipboard'
 import { cn } from '@/lib/utils'
 import { UserStatus, getHosts } from '@/service/api'
 import { getInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
+import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Settings, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -443,6 +444,7 @@ ArrayInput.displayName = 'ArrayInput'
 
 const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSubmit, editingHost, form }) => {
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
+  const [wireguardOpenSection, setWireguardOpenSection] = useState<string | undefined>(undefined)
   const [isTransportOpen, setIsTransportOpen] = useState(false)
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -558,8 +560,13 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     if (!open) {
       // Let the parent component handle the form reset
       setOpenSection(undefined)
+      setWireguardOpenSection(undefined)
     }
     onOpenChange(open)
+  }
+
+  const handleWireguardAccordionChange = (value: string) => {
+    setWireguardOpenSection(value || undefined)
   }
 
   const { data: inboundDetails = [], isLoading: isLoadingInbounds } = useQuery({
@@ -570,6 +577,25 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const inbounds = useMemo(() => inboundDetails.map(inbound => inbound.tag), [inboundDetails])
   const selectedInbound = useMemo(() => inboundDetails.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
+  const wireguardServerKeysPresent = useMemo(
+    () =>
+      Boolean(
+        selectedInbound?.wireguard_public_key ||
+          selectedInbound?.wireguard_private_key ||
+          selectedInbound?.wireguard_pre_shared_key,
+      ),
+    [selectedInbound],
+  )
+  const { copy: copyToClipboard } = useClipboard({ timeout: 1500 })
+
+  const copyWireguardField = async (text: string) => {
+    const ok = await copyToClipboard(text)
+    if (ok) {
+      toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
+    } else {
+      toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
+    }
+  }
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
@@ -614,6 +640,21 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('transport_settings', undefined, { shouldDirty: true })
   }, [form, isWireGuardInbound, selectedInboundTag])
 
+  useEffect(() => {
+    if (!isWireGuardInbound) {
+      form.setValue('wireguard_overrides', undefined, { shouldDirty: false })
+      return
+    }
+    const wg = form.getValues('wireguard_overrides')
+    if (wg == null) {
+      form.setValue(
+        'wireguard_overrides',
+        { pre_shared_key: '', allowed_ips: [], reserved: '', mtu: undefined, keepalive_seconds: undefined },
+        { shouldDirty: false },
+      )
+    }
+  }, [form, isWireGuardInbound, selectedInboundTag])
+
   const handleSubmit = async (data: HostFormValues) => {
     setIsSubmitting(true)
     try {
@@ -640,6 +681,20 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.noise_settings = undefined
         payload.mux_settings = undefined
         payload.transport_settings = undefined
+        if (payload.wireguard_overrides) {
+          const wg = payload.wireguard_overrides
+          const next: NonNullable<HostFormValues['wireguard_overrides']> = {}
+          if (wg.pre_shared_key?.trim()) next.pre_shared_key = wg.pre_shared_key.trim()
+          if (wg.allowed_ips?.length) next.allowed_ips = wg.allowed_ips
+          if (wg.mtu != null && !Number.isNaN(Number(wg.mtu))) next.mtu = Number(wg.mtu)
+          if (wg.reserved?.trim()) next.reserved = wg.reserved.trim()
+          if (wg.keepalive_seconds != null && !Number.isNaN(Number(wg.keepalive_seconds))) {
+            next.keepalive_seconds = Number(wg.keepalive_seconds)
+          }
+          payload.wireguard_overrides = Object.keys(next).length > 0 ? next : undefined
+        }
+      } else {
+        payload.wireguard_overrides = undefined
       }
 
       // If SingBox fragment is disabled, clear related fields
@@ -862,11 +917,182 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
               </div>
 
               {isWireGuardInbound ? (
-                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  {t('hostsDialog.wireguardMinimalHint', {
-                    defaultValue: 'WireGuard host entries only use endpoint address and port. Xray-only network, security, transport, camouflage, mux, and routing options are hidden for this inbound.',
-                  })}
-                </div>
+                <Accordion
+                  type="single"
+                  collapsible
+                  value={wireguardOpenSection}
+                  onValueChange={handleWireguardAccordionChange}
+                  className="!mt-0 mb-6 flex w-full flex-col gap-y-6"
+                >
+                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_overview">
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-2">
+                        <Info className="h-4 w-4" />
+                        <span>{t('hostsDialog.wireguard.sectionOverview')}</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-2 pb-4">
+                      <p className="text-sm text-muted-foreground">{t('hostsDialog.wireguard.minimalHint')}</p>
+                    </AccordionContent>
+                  </AccordionItem>
+                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_server_keys">
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-2">
+                        <Lock className="h-4 w-4" />
+                        <span>{t('hostsDialog.wireguard.sectionServerKeys')}</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-2 pb-4">
+                      {!wireguardServerKeysPresent ? (
+                        <p className="text-sm text-muted-foreground">{t('hostsDialog.wireguard.noServerKeys')}</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {selectedInbound?.wireguard_public_key ? (
+                            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                              <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-40">{t('hostsDialog.wireguard.serverPublicKey')}</span>
+                              <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <Input readOnly className="font-mono text-xs" value={selectedInbound.wireguard_public_key} dir="ltr" />
+                                <Button type="button" size="icon" variant="outline" className="shrink-0" onClick={() => void copyWireguardField(selectedInbound.wireguard_public_key!)}>
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
+                          {selectedInbound?.wireguard_private_key ? (
+                            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                              <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-40">{t('hostsDialog.wireguard.serverPrivateKey')}</span>
+                              <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <Input readOnly className="font-mono text-xs" value={selectedInbound.wireguard_private_key} dir="ltr" type="password" />
+                                <Button type="button" size="icon" variant="outline" className="shrink-0" onClick={() => void copyWireguardField(selectedInbound.wireguard_private_key!)}>
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
+                          {selectedInbound?.wireguard_pre_shared_key ? (
+                            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                              <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-40">{t('hostsDialog.wireguard.inboundPsk')}</span>
+                              <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <Input readOnly className="font-mono text-xs" value={selectedInbound.wireguard_pre_shared_key} dir="ltr" type="password" />
+                                <Button type="button" size="icon" variant="outline" className="shrink-0" onClick={() => void copyWireguardField(selectedInbound.wireguard_pre_shared_key!)}>
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_overrides">
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        <span>{t('hostsDialog.wireguard.sectionOverrides')}</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-2 pb-4">
+                      <p className="mb-3 text-xs text-muted-foreground">{t('hostsDialog.wireguard.overridesIntro')}</p>
+                      <div className="space-y-3">
+                        <FormField
+                          control={form.control}
+                          name="wireguard_overrides.pre_shared_key"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">{t('hostsDialog.wireguard.overridePsk')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  className="font-mono text-xs"
+                                  dir="ltr"
+                                  type="password"
+                                  autoComplete="new-password"
+                                  placeholder={t('hostsDialog.wireguard.overridePskPlaceholder')}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="wireguard_overrides.allowed_ips"
+                          render={({ field }) => (
+                            <ArrayInput
+                              field={{ ...field, value: field.value ?? [] }}
+                              placeholder="0.0.0.0/0"
+                              label={t('hostsDialog.wireguard.allowedIps')}
+                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.allowedIpsHint')}</p>}
+                            />
+                          )}
+                        />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="wireguard_overrides.mtu"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">{t('hostsDialog.wireguard.mtu')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="1280"
+                                    min={576}
+                                    max={9000}
+                                    {...field}
+                                    value={field.value ?? ''}
+                                    onChange={e => {
+                                      const v = e.target.value
+                                      field.onChange(v === '' ? undefined : Number.parseInt(v, 10))
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="wireguard_overrides.keepalive_seconds"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">{t('hostsDialog.wireguard.keepalive')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder={t('hostsDialog.wireguard.keepalivePlaceholder')}
+                                    min={0}
+                                    max={86400}
+                                    {...field}
+                                    value={field.value ?? ''}
+                                    onChange={e => {
+                                      const v = e.target.value
+                                      field.onChange(v === '' ? undefined : Number.parseInt(v, 10))
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormField
+                          control={form.control}
+                          name="wireguard_overrides.reserved"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">{t('hostsDialog.wireguard.reserved')}</FormLabel>
+                              <FormControl>
+                                <Input className="font-mono text-xs" dir="ltr" placeholder="0,0,0" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               ) : (
               <Accordion type="single" collapsible value={openSection} onValueChange={handleAccordionChange} className="!mt-0 mb-6 flex w-full flex-col gap-y-6">
                 <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="network">

@@ -1,4 +1,4 @@
-﻿{
+{
   "pasarguard": "پاسارگارد",
   "dashboard": "داشبورد",
   "master": "همه گره‌ها",
@@ -156,12 +156,15 @@
         "clashMeta": "Clash Meta",
         "clashMetaDescription": "فرمت پیکربندی Clash Meta",
         "outline": "Outline",
-        "outlineDescription": "فرمت پیکربندی Outline VPN"
+        "outlineDescription": "فرمت پیکربندی Outline VPN",
+        "wireguard": "WireGuard",
+        "wireguardDescription": "نمایش پیکربندی‌های دستی /wireguard برای کلاینت‌های WireGuard."
       },
       "configFormats": {
         "links": "لینک‌ها",
         "links_base64": "لینک‌ها (Base64)",
         "xray": "Xray",
+        "wireguard": "WireGuard",
         "sing_box": "Sing-box",
         "clash": "Clash",
         "clash_meta": "Clash Meta",
@@ -1000,7 +1003,26 @@
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "wireguard": {
+      "sectionOverview": "نمای کلی",
+      "sectionServerKeys": "کلیدهای سرور",
+      "sectionOverrides": "جایگزین‌های اشتراک",
+      "minimalHint": "از آدرس و پورت به‌عنوان نقطه پایانی کلاینت استفاده کنید. PrivateKey بخش Interface و آدرس تونل WireGuard هر کاربر از تنظیمات پروکسی همان کاربر می‌آید. گزینه‌های مخصوص Xray برای این inbound پنهان است.",
+      "noServerKeys": "هنوز کلیدی از inbound انتخاب‌شده در دسترس نیست. مطمئن شوید هسته بارگذاری شده و تگ inbound با اینترفیس WireGuard یکی است.",
+      "serverPublicKey": "کلید عمومی سرور",
+      "serverPrivateKey": "کلید خصوصی سرور (interface)",
+      "inboundPsk": "کلید از پیش اشتراکی inbound",
+      "overridesIntro": "مقادیر اختیاری که در اشتراک‌های WireGuard تولیدشده برای این هاست ادغام می‌شوند.",
+      "overridePsk": "جایگزین کلید از پیش اشتراکی",
+      "overridePskPlaceholder": "خالی بگذارید تا از PSK همان inbound استفاده شود",
+      "allowedIps": "جایگزین AllowedIPs",
+      "allowedIpsHint": "خالی بگذارید تا پیش‌فرض 0.0.0.0/0 و ::/0 استفاده شود",
+      "mtu": "MTU",
+      "keepalive": "نگه‌داشت زنده (ثانیه)",
+      "keepalivePlaceholder": "پیش‌فرض inbound",
+      "reserved": "Reserved (مثلاً 0,0,0)"
+    }
   },
   "inbound": "ورودی",
   "inbounds": "ورودی‌ها",

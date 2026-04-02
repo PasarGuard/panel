@@ -36,7 +36,7 @@ const subscriptionSchema = z.object({
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),
-      target: z.enum(['links', 'links_base64', 'xray', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
+      target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
       response_headers: z.record(z.string()).optional(),
     }),
   ),
@@ -113,6 +113,7 @@ const configFormatOptions = [
   { value: 'links', label: 'settings.subscriptions.configFormats.links', icon: '🔗' },
   { value: 'links_base64', label: 'settings.subscriptions.configFormats.links_base64', icon: '📝' },
   { value: 'xray', label: 'settings.subscriptions.configFormats.xray', icon: '⚡' },
+  { value: 'wireguard', label: 'settings.subscriptions.configFormats.wireguard', icon: '🛜' },
   { value: 'sing_box', label: 'settings.subscriptions.configFormats.sing_box', icon: '📦' },
   { value: 'clash', label: 'settings.subscriptions.configFormats.clash', icon: '⚔️' },
   { value: 'clash_meta', label: 'settings.subscriptions.configFormats.clash_meta', icon: '🛡️' },
@@ -1400,10 +1401,10 @@ export default function SubscriptionSettings() {
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
                         <Cable className="h-4 w-4" />
-                        {t('settings.subscriptions.formats.wireguard', { defaultValue: 'WireGuard' })}
+                        {t('settings.subscriptions.formats.wireguard')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">
-                        {t('settings.subscriptions.formats.wireguardDescription', { defaultValue: 'Expose /wireguard manual configs for WireGuard clients.' })}
+                        {t('settings.subscriptions.formats.wireguardDescription')}
                       </FormDescription>
                     </div>
                     <FormControl>

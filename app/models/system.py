@@ -5,6 +5,12 @@ class InboundSummary(BaseModel):
     tag: str
     protocol: str
     network: str | None = None
+    wireguard_public_key: str | None = None
+    wireguard_private_key: str | None = None
+    wireguard_pre_shared_key: str | None = None
+    wireguard_listen_port: int | None = None
+    wireguard_addresses: list[str] | None = None
+    wireguard_peer_keepalive_seconds: int | None = None
 
 
 class SystemStats(BaseModel):

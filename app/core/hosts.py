@@ -13,7 +13,7 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.models.host import BaseHost, TransportSettings
+from app.models.host import BaseHost, TransportSettings, WireGuardHostOverrides
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -62,6 +62,25 @@ async def _prepare_subscription_inbound_data(
             listen_port = inbound_config.get("listen_port")
             port_list = [listen_port] if listen_port else []
 
+        wg_over: WireGuardHostOverrides | None = host.wireguard_overrides
+        if isinstance(wg_over, dict):
+            wg_over = WireGuardHostOverrides.model_validate(wg_over)
+
+        inbound_psk = str(inbound_config.get("pre_shared_key") or "")
+        psk = (wg_over.pre_shared_key.strip() if wg_over and wg_over.pre_shared_key else None) or inbound_psk
+
+        default_allowed = ["0.0.0.0/0", "::/0"]
+        allowed_ips = (
+            list(wg_over.allowed_ips) if wg_over and wg_over.allowed_ips is not None and len(wg_over.allowed_ips) > 0 else list(default_allowed)
+        )
+
+        keepalive = inbound_config.get("peer_keepalive_seconds")
+        if wg_over and wg_over.keepalive_seconds is not None:
+            keepalive = wg_over.keepalive_seconds if wg_over.keepalive_seconds > 0 else None
+
+        mtu = wg_over.mtu if wg_over else None
+        reserved = wg_over.reserved.strip() if wg_over and wg_over.reserved else None
+
         return SubscriptionInboundData(
             remark=host.remark,
             inbound_tag=host.inbound_tag,
@@ -73,10 +92,12 @@ async def _prepare_subscription_inbound_data(
             transport_config=TCPTransportConfig(path="", host=[]),
             mux_settings=None,
             wireguard_public_key=inbound_config.get("public_key", ""),
-            wireguard_pre_shared_key=inbound_config.get("pre_shared_key", ""),
+            wireguard_pre_shared_key=psk,
             wireguard_local_address=inbound_config.get("address", []) or [],
-            wireguard_allowed_ips=["0.0.0.0/0", "::/0"],
-            wireguard_keepalive=inbound_config.get("peer_keepalive_seconds"),
+            wireguard_allowed_ips=allowed_ips,
+            wireguard_keepalive=keepalive,
+            wireguard_mtu=mtu,
+            wireguard_reserved=reserved,
             priority=host.priority,
             status=list(host.status) if host.status else None,
         )

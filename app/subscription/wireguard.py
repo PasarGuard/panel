@@ -20,10 +20,18 @@ class WireGuardConfiguration(BaseSubscription):
             "[Interface]",
             f"PrivateKey = {private_key}",
             f"Address = {', '.join(peer_ips)}",
-            "",
-            "[Peer]",
-            f"PublicKey = {inbound.wireguard_public_key}",
         ]
+        if inbound.wireguard_mtu:
+            lines.append(f"MTU = {inbound.wireguard_mtu}")
+        if inbound.wireguard_reserved:
+            lines.append(f"Reserved = {inbound.wireguard_reserved}")
+        lines.extend(
+            [
+                "",
+                "[Peer]",
+                f"PublicKey = {inbound.wireguard_public_key}",
+            ]
+        )
 
         if inbound.wireguard_pre_shared_key:
             lines.append(f"PresharedKey = {inbound.wireguard_pre_shared_key}")

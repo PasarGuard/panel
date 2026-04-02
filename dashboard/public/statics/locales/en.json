@@ -250,12 +250,15 @@
         "clashMeta": "Clash Meta",
         "clashMetaDescription": "Clash Meta configuration format",
         "outline": "Outline",
-        "outlineDescription": "Outline VPN configuration format"
+        "outlineDescription": "Outline VPN configuration format",
+        "wireguard": "WireGuard",
+        "wireguardDescription": "Expose /wireguard manual configs for WireGuard clients."
       },
       "configFormats": {
         "links": "Links",
         "links_base64": "Links (Base64)",
         "xray": "Xray",
+        "wireguard": "WireGuard",
         "sing_box": "Sing-box",
         "clash": "Clash",
         "clash_meta": "Clash Meta",
@@ -1134,7 +1137,26 @@
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "wireguard": {
+      "sectionOverview": "Overview",
+      "sectionServerKeys": "Server keys",
+      "sectionOverrides": "Subscription overrides",
+      "minimalHint": "Use address and port as the client endpoint. Each user's WireGuard Interface PrivateKey and tunnel Address (peer IPs) come from that user's proxy settings. Xray-only host options are hidden for this inbound.",
+      "noServerKeys": "No WireGuard key material is available from the selected inbound yet. Ensure the core is loaded and the inbound tag matches a WireGuard interface.",
+      "serverPublicKey": "Server public key",
+      "serverPrivateKey": "Server private key (interface)",
+      "inboundPsk": "Inbound preshared key",
+      "overridesIntro": "Optional values merged into generated WireGuard subscriptions for this host.",
+      "overridePsk": "Preshared key override",
+      "overridePskPlaceholder": "Leave empty to use the inbound PSK",
+      "allowedIps": "AllowedIPs override",
+      "allowedIpsHint": "Leave empty for default 0.0.0.0/0 and ::/0",
+      "mtu": "MTU",
+      "keepalive": "Persistent keepalive (seconds)",
+      "keepalivePlaceholder": "Inbound default",
+      "reserved": "Reserved (e.g. 0,0,0)"
+    }
   },
   "inbound": "Inbound",
   "inbounds": "Inbounds",

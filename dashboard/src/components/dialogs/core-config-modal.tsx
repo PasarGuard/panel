@@ -625,19 +625,19 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     typeof message === 'string'
                       ? message
                       : t('validation.invalid', {
-                          field: t(`coreConfigModal.${field}`, { defaultValue: field }),
-                          defaultValue: `${field} is invalid`,
-                        }),
+                        field: t(`coreConfigModal.${field}`, { defaultValue: field }),
+                        defaultValue: `${field} is invalid`,
+                      }),
                 })
               }
             })
 
             toast.error(
               firstMessage ||
-                t('validation.invalid', {
-                  field: t(`coreConfigModal.${firstField}`, { defaultValue: firstField }),
-                  defaultValue: `${firstField} is invalid`,
-                }),
+              t('validation.invalid', {
+                field: t(`coreConfigModal.${firstField}`, { defaultValue: firstField }),
+                defaultValue: `${firstField} is invalid`,
+              }),
             )
           } else if (typeof detail === 'string' && !Array.isArray(detail)) {
             toast.error(detail)
@@ -1352,15 +1352,15 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                 style={
                                   isEditorFullscreen
                                     ? {
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                      }
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }
                                     : {
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                      }
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                    }
                                 }
                               >
                                 {isEditorFullscreen && <div className="absolute inset-0 bg-background/95 backdrop-blur-sm" onClick={handleToggleFullscreen} />}
@@ -1520,7 +1520,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                       )}
                     />
 
-                    <div className="rounded-lg border bg-muted/30 p-3">
+                    <div>
                       {!isXrayBackend && (
                         <LoaderButton type="button" onClick={viewWireGuardKeys} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
                           <span className="flex items-center gap-2 truncate">
@@ -1529,11 +1529,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                           </span>
                         </LoaderButton>
                       )}
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {isXrayBackend
-                          ? t('coreConfigModal.xrayTemplateHint', { defaultValue: 'Xray cores continue to expose inbound tags from the JSON editor as before.' })
-                          : t('coreConfigModal.wireguardTemplateHint', { defaultValue: 'WireGuard cores use interface_name as the assignable tag and ignore Xray-only fallback and exclude lists.' })}
-                      </p>
                     </div>
 
                     {isXrayBackend && (
@@ -1786,13 +1781,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                           </TabsContent>
                         </Tabs>
                       </>
-                    )}
-                    {!isXrayBackend && (
-                      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                        {t('coreConfigModal.wireguardXrayFieldsDisabled', {
-                          defaultValue: 'Fallback and excluded inbound selectors are Xray-only. For WireGuard, the interface_name in the JSON is the single assignable tag.',
-                        })}
-                      </div>
                     )}
                   </div>
                 </div>

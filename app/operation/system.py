@@ -87,7 +87,17 @@ class SystemOperation(BaseOperation):
     @staticmethod
     async def get_inbound_details() -> list[InboundSummary]:
         inbounds = await core_manager.get_inbounds_by_tag()
-        return [
-            InboundSummary(tag=tag, protocol=data.get("protocol", ""), network=data.get("network"))
-            for tag, data in sorted(inbounds.items())
-        ]
+        summaries: list[InboundSummary] = []
+        for tag, data in sorted(inbounds.items()):
+            protocol = data.get("protocol", "")
+            kwargs: dict = {"tag": tag, "protocol": protocol, "network": data.get("network")}
+            if protocol == "wireguard":
+                addrs = data.get("address")
+                kwargs["wireguard_public_key"] = data.get("public_key") or None
+                kwargs["wireguard_private_key"] = data.get("private_key") or None
+                kwargs["wireguard_pre_shared_key"] = data.get("pre_shared_key") or None
+                kwargs["wireguard_listen_port"] = data.get("listen_port")
+                kwargs["wireguard_addresses"] = list(addrs) if isinstance(addrs, list) else None
+                kwargs["wireguard_peer_keepalive_seconds"] = data.get("peer_keepalive_seconds")
+            summaries.append(InboundSummary(**kwargs))
+        return summaries

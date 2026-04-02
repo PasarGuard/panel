@@ -229,12 +229,15 @@
         "clashMeta": "Clash Meta",
         "clashMetaDescription": "Clash Meta 增强配置格式",
         "outline": "Outline",
-        "outlineDescription": "Outline VPN 配置格式"
+        "outlineDescription": "Outline VPN 配置格式",
+        "wireguard": "WireGuard",
+        "wireguardDescription": "为 WireGuard 客户端开放 /wireguard 手动配置。"
       },
       "configFormats": {
         "links": "链接",
         "links_base64": "Base64 链接",
         "xray": "Xray",
+        "wireguard": "WireGuard",
         "sing_box": "Sing-box",
         "clash": "Clash",
         "clash_meta": "Clash Meta",
@@ -1108,7 +1111,26 @@
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "wireguard": {
+      "sectionOverview": "概览",
+      "sectionServerKeys": "服务器密钥",
+      "sectionOverrides": "订阅覆盖",
+      "minimalHint": "使用地址和端口作为客户端连接端点。每位用户的 WireGuard 接口 PrivateKey 与隧道地址（peer IP）来自该用户的代理设置。此入站隐藏仅适用于 Xray 的选项。",
+      "noServerKeys": "当前选中的入站尚无 WireGuard 密钥信息。请确认核心已加载且入站标签与 WireGuard 接口一致。",
+      "serverPublicKey": "服务器公钥",
+      "serverPrivateKey": "服务器私钥（接口）",
+      "inboundPsk": "入站预共享密钥",
+      "overridesIntro": "以下可选值会合并到本主机生成的 WireGuard 订阅中。",
+      "overridePsk": "预共享密钥覆盖",
+      "overridePskPlaceholder": "留空则使用入站 PSK",
+      "allowedIps": "AllowedIPs 覆盖",
+      "allowedIpsHint": "留空则使用默认 0.0.0.0/0 与 ::/0",
+      "mtu": "MTU",
+      "keepalive": "持久 Keepalive（秒）",
+      "keepalivePlaceholder": "入站默认值",
+      "reserved": "Reserved（例如 0,0,0）"
+    }
   },
   "inbound": "入站",
   "inbounds": "入站",

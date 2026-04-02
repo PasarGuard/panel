@@ -344,6 +344,11 @@ class StandardLinks(BaseSubscription):
             "keepalive": inbound.wireguard_keepalive,
         }
 
+        if inbound.wireguard_mtu:
+            payload["mtu"] = inbound.wireguard_mtu
+        if inbound.wireguard_reserved:
+            payload["reserved"] = inbound.wireguard_reserved
+
         if inbound.wireguard_pre_shared_key:
             payload["presharedkey"] = inbound.wireguard_pre_shared_key
 

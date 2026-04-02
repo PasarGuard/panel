@@ -2023,6 +2023,14 @@ export type CreateHostInboundTag = string | null
 
 export type CreateHostId = number | null
 
+export interface WireGuardHostOverrides {
+  pre_shared_key?: string | null
+  allowed_ips?: string[] | null
+  mtu?: number | null
+  reserved?: string | null
+  keepalive_seconds?: number | null
+}
+
 export interface CreateHost {
   id?: CreateHostId
   remark: string
@@ -2051,6 +2059,7 @@ export interface CreateHost {
   ech_query_strategy?: CreateHostEchQueryStrategy
   pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
+  wireguard_overrides?: WireGuardHostOverrides | null
 }
 
 /**
@@ -2086,6 +2095,12 @@ export interface InboundDetails {
   tag: string
   protocol: string
   network?: string | null
+  wireguard_public_key?: string | null
+  wireguard_private_key?: string | null
+  wireguard_pre_shared_key?: string | null
+  wireguard_listen_port?: number | null
+  wireguard_addresses?: string[] | null
+  wireguard_peer_keepalive_seconds?: number | null
 }
 
 export interface CoreResponseList {
@@ -2354,6 +2369,7 @@ export interface BaseHost {
   ech_query_strategy?: BaseHostEchQueryStrategy
   pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
+  wireguard_overrides?: WireGuardHostOverrides | null
 }
 
 export type ApplicationOutputDescription = { [key: string]: string }

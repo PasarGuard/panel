@@ -291,6 +291,15 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               : undefined,
           }
         : undefined,
+      wireguard_overrides: host.wireguard_overrides
+        ? {
+            pre_shared_key: host.wireguard_overrides.pre_shared_key ?? '',
+            allowed_ips: host.wireguard_overrides.allowed_ips ?? [],
+            mtu: host.wireguard_overrides.mtu ?? undefined,
+            reserved: host.wireguard_overrides.reserved ?? '',
+            keepalive_seconds: host.wireguard_overrides.keepalive_seconds ?? undefined,
+          }
+        : undefined,
     }
     form.reset(formData)
     setEditingHost(host)
@@ -330,6 +339,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         mux_settings: host.mux_settings,
         transport_settings: host.transport_settings as any, // Type cast needed due to Output/Input mismatch
         http_headers: host.http_headers || {},
+        wireguard_overrides: host.wireguard_overrides ?? undefined,
       }
 
       await createHost(newHost)
@@ -559,6 +569,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                 : undefined,
             }
           : undefined,
+        wireguard_overrides: host.wireguard_overrides ?? undefined,
         http_headers: host.http_headers || {},
       }))
 
