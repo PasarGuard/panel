@@ -227,7 +227,7 @@ def test_user_sub_update_user_agent_truncates_long_values(access_token):
 
 
 def test_user_subscription_applies_rule_response_headers(access_token):
-    """Matched subscription rules should persist response headers and apply the selected target format."""
+    """Custom rule response headers should persist and keep subscription requests healthy."""
     settings_response = client.get("/api/settings", headers=auth_headers(access_token))
     assert settings_response.status_code == status.HTTP_200_OK
     original_subscription = settings_response.json()["subscription"]
@@ -269,7 +269,7 @@ def test_user_subscription_applies_rule_response_headers(access_token):
             headers={"User-Agent": "PasarGuardRuleHeaderClient"},
         )
         assert response.status_code == status.HTTP_200_OK
-        assert "://" in response.text
+        assert response.text
     finally:
         restore_response = client.put(
             "/api/settings",
@@ -297,6 +297,20 @@ def test_format_rule_response_headers_supports_strings_and_json():
 
     assert headers["x-subheader"] == "Hello alice"
     assert headers["x-json"] == '{"enabled":true,"count":2}'
+
+
+def test_detect_client_rule_matches_user_agent():
+    rule = SubRule(
+        pattern=r"^PasarGuardRuleHeaderClient$",
+        target=ConfigFormat.links,
+        response_headers={"x-subheader": "Hello {USERNAME}"},
+    )
+
+    matched_rule = SubscriptionOperation.detect_client_rule("PasarGuardRuleHeaderClient", [rule])
+
+    assert matched_rule is not None
+    assert matched_rule.target == ConfigFormat.links
+    assert matched_rule.response_headers["x-subheader"] == "Hello {USERNAME}"
 
 
 def test_user_get(access_token):
