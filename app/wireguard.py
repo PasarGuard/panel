@@ -35,6 +35,8 @@ async def get_wireguard_tags_from_groups(groups: Iterable[Group]) -> list[str]:
     for group in groups:
         if getattr(group, "is_disabled", False):
             continue
+        if hasattr(group, "awaitable_attrs"):
+            await group.awaitable_attrs.inbounds
         tags.extend(inbound.tag for inbound in group.inbounds)
     return await get_wireguard_tags(tags)
 

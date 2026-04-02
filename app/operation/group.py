@@ -86,7 +86,7 @@ class GroupOperation(BaseOperation):
         target_users = list((await db.execute(stmt)).unique().scalars().all())
 
         for user in target_users:
-            final_groups = list(dict.fromkeys([*user.groups, *groups_to_add]))
+            final_groups = list({group.id: group for group in [*user.groups, *groups_to_add]}.values())
             try:
                 await ensure_single_wireguard_interface_for_groups(final_groups, context="user")
             except ValueError as exc:

@@ -75,7 +75,6 @@ class CoreSimple(BaseModel):
 
     id: int
     name: str
-    backend_type: CoreType = Field(default=CoreType.XRAY)
     model_config = ConfigDict(from_attributes=True)
 
 
