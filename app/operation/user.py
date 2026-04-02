@@ -41,6 +41,7 @@ from app.db.crud.user import (
 )
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
+from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
     BulkUser,
@@ -67,6 +68,7 @@ from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
+from app.wireguard import prepare_wireguard_proxy_settings
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
@@ -206,6 +208,13 @@ class UserOperation(BaseOperation):
         if not users_to_create:
             return []
 
+        for user_to_create in users_to_create:
+            user_to_create.proxy_settings = await self._prepare_user_proxy_settings(
+                db,
+                groups,
+                user_to_create.proxy_settings,
+            )
+
         db_users = await create_users_bulk(db, users_to_create, groups, db_admin)
 
         subscription_urls: list[str] = []
@@ -232,12 +241,31 @@ class UserOperation(BaseOperation):
         )
         return user
 
+    async def _prepare_user_proxy_settings(
+        self,
+        db: AsyncSession,
+        groups: list,
+        proxy_settings: ProxyTable,
+        *,
+        exclude_user_id: int | None = None,
+    ) -> ProxyTable:
+        try:
+            return await prepare_wireguard_proxy_settings(
+                db,
+                proxy_settings,
+                groups,
+                exclude_user_id=exclude_user_id,
+            )
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400, db=db)
+
     async def create_user(self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails) -> UserResponse:
         if new_user.next_plan is not None and new_user.next_plan.user_template_id is not None:
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
 
         all_groups = await self.validate_all_groups(db, new_user)
         db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
+        new_user.proxy_settings = await self._prepare_user_proxy_settings(db, all_groups, new_user.proxy_settings)
 
         try:
             db_user = await create_user(db, new_user, all_groups, db_admin)
@@ -263,6 +291,26 @@ class UserOperation(BaseOperation):
             await self.get_validated_user_template(db, modified_user.next_plan.user_template_id)
 
         old_status = db_user.status
+
+        effective_groups = validated_groups if validated_groups is not None else db_user.groups
+        current_proxy_settings = ProxyTable.model_validate(db_user.proxy_settings)
+        current_proxy_settings_data = current_proxy_settings.dict()
+        proxy_settings_to_prepare = (
+            ProxyTable.model_validate(modified_user.proxy_settings.dict())
+            if modified_user.proxy_settings is not None
+            else ProxyTable.model_validate(current_proxy_settings_data)
+        )
+        prepared_proxy_settings = await self._prepare_user_proxy_settings(
+            db,
+            effective_groups,
+            proxy_settings_to_prepare,
+            exclude_user_id=db_user.id,
+        )
+        if (
+            modified_user.proxy_settings is not None
+            or prepared_proxy_settings.dict() != current_proxy_settings_data
+        ):
+            modified_user.proxy_settings = prepared_proxy_settings
 
         db_user = await modify_user(db, db_user, modified_user, groups=validated_groups)
         user = await self.update_user(db_user)

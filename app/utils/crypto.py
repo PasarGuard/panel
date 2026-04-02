@@ -61,3 +61,43 @@ def get_x25519_public_key(private_key_b64: str) -> str:
 
     except (ValueError, binascii.Error):
         raise ValueError("Invalid private key.")
+
+
+def validate_wireguard_key(key_b64: str, field_name: str = "wireguard key") -> str:
+    try:
+        key_bytes = base64.b64decode(add_base64_padding(key_b64.strip()), validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError(f"Invalid {field_name}.") from exc
+
+    if len(key_bytes) != 32:
+        raise ValueError(f"Invalid {field_name}.")
+
+    return base64.b64encode(key_bytes).decode("ascii")
+
+
+def get_wireguard_public_key(private_key_b64: str) -> str:
+    normalized_private_key = validate_wireguard_key(private_key_b64, "wireguard private_key")
+    private_key_bytes = base64.b64decode(normalized_private_key, validate=True)
+    private_key = x25519.X25519PrivateKey.from_private_bytes(private_key_bytes)
+    public_key_bytes = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    return base64.b64encode(public_key_bytes).decode("ascii")
+
+
+def generate_wireguard_keypair() -> tuple[str, str]:
+    private_key = x25519.X25519PrivateKey.generate()
+    private_key_bytes = private_key.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    public_key_bytes = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    return (
+        base64.b64encode(private_key_bytes).decode("ascii"),
+        base64.b64encode(public_key_bytes).decode("ascii"),
+    )

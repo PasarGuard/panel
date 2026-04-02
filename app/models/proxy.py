@@ -1,9 +1,11 @@
 import json
 from enum import StrEnum
+from ipaddress import ip_network
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 from app.utils.system import random_password
 
 
@@ -41,11 +43,56 @@ class HysteriaSettings(BaseModel):
     auth: UUID = Field(default_factory=uuid4)
 
 
+class WireGuardSettings(BaseModel):
+    private_key: str | None = None
+    public_key: str | None = None
+    peer_ips: list[str] = Field(default_factory=list)
+
+    @field_validator("private_key", mode="before")
+    @classmethod
+    def validate_private_key(cls, value):
+        if value in (None, ""):
+            return None
+        return validate_wireguard_key(value, "wireguard private_key")
+
+    @field_validator("public_key", mode="before")
+    @classmethod
+    def validate_public_key(cls, value):
+        if value in (None, ""):
+            return None
+        return validate_wireguard_key(value, "wireguard public_key")
+
+    @field_validator("peer_ips", mode="before")
+    @classmethod
+    def validate_peer_ips(cls, value):
+        if value in (None, ""):
+            return []
+
+        normalized: list[str] = []
+        for peer_ip in value:
+            if not isinstance(peer_ip, str) or not peer_ip.strip():
+                continue
+            normalized_peer_ip = str(ip_network(peer_ip.strip(), strict=False))
+            if normalized_peer_ip not in normalized:
+                normalized.append(normalized_peer_ip)
+        return normalized
+
+    @model_validator(mode="after")
+    def derive_public_key(self):
+        if self.private_key:
+            derived_public_key = get_wireguard_public_key(self.private_key)
+            if self.public_key and self.public_key != derived_public_key:
+                raise ValueError("wireguard public_key does not match private_key")
+            self.public_key = derived_public_key
+        return self
+
+
 class ProxyTable(BaseModel):
     vmess: VMessSettings = Field(default_factory=VMessSettings)
     vless: VlessSettings = Field(default_factory=VlessSettings)
     trojan: TrojanSettings = Field(default_factory=TrojanSettings)
     shadowsocks: ShadowsocksSettings = Field(default_factory=ShadowsocksSettings)
+    wireguard: WireGuardSettings = Field(default_factory=WireGuardSettings)
     hysteria: HysteriaSettings = Field(default_factory=HysteriaSettings)
 
     def dict(self, *, no_obj=True, **kwargs):

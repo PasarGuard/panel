@@ -24,6 +24,7 @@ from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
 from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
+from app.wireguard import ensure_single_wireguard_interface_for_groups
 
 
 class OperatorType(IntEnum):
@@ -199,6 +200,12 @@ class BaseOperation:
         if missing_ids:
             await self.raise_error("Group not found", 404)
 
+        if not isinstance(model, BulkGroup):
+            try:
+                await ensure_single_wireguard_interface_for_groups(groups, context="user")
+            except ValueError as exc:
+                await self.raise_error(str(exc), 400)
+
         # Preserve the requested order and duplicate semantics.
         return [groups_by_id[group_id] for group_id in requested_group_ids]
 
@@ -219,6 +226,13 @@ class BaseOperation:
         for tag in tags:
             if tag not in await core_manager.get_inbounds():
                 await self.raise_error(f"{tag} not found", 400)
+
+    async def check_host_inbound_tags(self, tags: list[str]) -> None:
+        await self.check_inbound_tags(tags)
+        for tag in tags:
+            inbound = await core_manager.get_inbound_by_tag(tag)
+            if inbound and inbound.get("protocol") == "wireguard":
+                await self.raise_error("Hosts are not supported for WireGuard interfaces", 400)
 
     async def get_validated_core_config(self, db: AsyncSession, core_id) -> CoreConfig:
         """Dependency: Fetch core config or return not found error."""

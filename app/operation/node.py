@@ -3,6 +3,7 @@ from datetime import datetime as dt
 from typing import AsyncIterator, Callable
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
+from PasarGuardNodeBridge.common import service_pb2 as service
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
@@ -25,6 +26,7 @@ from app.db.crud.node import (
 )
 from app.db.crud.user import get_user, get_users_count_by_status
 from app.db.models import Node, NodeStatus, UserStatus
+from app.models.core import CoreType
 from app.models.admin import AdminDetails
 from app.models.node import (
     NodeCoreUpdate,
@@ -230,16 +232,22 @@ class NodeOperation(BaseOperation):
         logger.info(f'Connecting to "{db_node.name}" node')
 
         core = await core_manager.get_core(db_node.core_config_id if db_node.core_config_id else 1)
+        backend_type = (
+            service.BackendType.WIREGUARD if core.backend_type == CoreType.WIREGUARD else service.BackendType.XRAY
+        )
 
         try:
-            info = await pg_node.start(
-                config=core.to_str(),
-                backend_type=0,
-                users=users,
-                keep_alive=db_node.keep_alive,
-                exclude_inbounds=core.exclude_inbound_tags,
-            )
-            logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, xray run on v{info.core_version}')
+            start_kwargs = {
+                "config": core.to_str(),
+                "backend_type": backend_type,
+                "users": users,
+                "keep_alive": db_node.keep_alive,
+            }
+            if core.backend_type == CoreType.XRAY:
+                start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+
+            info = await pg_node.start(**start_kwargs)
+            logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, core run on v{info.core_version}')
 
             return {
                 "node_id": db_node.id,

@@ -36,11 +36,14 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   const addNodeMutation = useCreateNode()
   const modifyNodeMutation = useModifyNode()
   const handleError = useDynamicErrorHandler()
-  const { data: cores, isLoading: isLoadingCores } = useGetCoresSimple({ all: true }, {
-    query: {
-      enabled: isDialogOpen,
+  const { data: cores, isLoading: isLoadingCores } = useGetCoresSimple(
+    { all: true },
+    {
+      query: {
+        enabled: isDialogOpen,
+      },
     },
-  })
+  )
   const [statusChecking, setStatusChecking] = useState(false)
   const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [autoCheck, setAutoCheck] = useState(false)
@@ -93,7 +96,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       lastSynced.id === node.id &&
       lastSynced.status === node.status &&
       lastSynced.message === node.message &&
-      lastSynced.xray_version === node.xray_version &&
+      (lastSynced.core_version ?? lastSynced.xray_version) === (node.core_version ?? node.xray_version) &&
       lastSynced.node_version === node.node_version &&
       lastSynced.uplink === node.uplink &&
       lastSynced.downlink === node.downlink &&
@@ -386,9 +389,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
             <Settings className="h-5 w-5" />
             <span>{editingNode ? t('editNode.title') : t('nodeModal.title')}</span>
           </DialogTitle>
-          <DialogDescription className="sr-only">
-            {t('nodeModal.description', { defaultValue: 'Configure node settings and connection details.' })}
-          </DialogDescription>
+          <DialogDescription className="sr-only">{t('nodeModal.description', { defaultValue: 'Configure node settings and connection details.' })}</DialogDescription>
         </DialogHeader>
 
         {/* Status Check Results - Positioned at the top of the modal */}
@@ -513,11 +514,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t('nodeModal.coreConfig')}</FormLabel>
-                        <Select
-                          onValueChange={value => field.onChange(parseInt(value))}
-                          value={field.value ? field.value.toString() : t('nodeModal.selectCoreConfig')}
-                          disabled={isLoadingCores}
-                        >
+                        <Select onValueChange={value => field.onChange(parseInt(value))} value={field.value ? field.value.toString() : t('nodeModal.selectCoreConfig')} disabled={isLoadingCores}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder={isLoadingCores ? t('loading', { defaultValue: 'Loading...' }) : t('nodeModal.selectCoreConfig')} />

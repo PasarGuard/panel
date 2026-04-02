@@ -319,6 +319,14 @@ export const XTLSFlows = {
   'xtls-rprx-vision': 'xtls-rprx-vision',
 } as const
 
+export type CoreType = (typeof CoreType)[keyof typeof CoreType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const CoreType = {
+  xray: 'xray',
+  wireguard: 'wireguard',
+} as const
+
 export type XMuxSettingsOutputHKeepAlivePeriod = number | null
 
 export type XMuxSettingsOutputHMaxRequestTimes = string | null
@@ -540,6 +548,12 @@ export interface WebSocketSettings {
 export interface VlessSettings {
   id?: string
   flow?: XTLSFlows
+}
+
+export interface WireGuardSettings {
+  private_key?: string
+  public_key?: string
+  peer_ips?: string[]
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown }
@@ -1276,6 +1290,7 @@ export interface ProxyTableOutput {
   vless?: VlessSettings
   trojan?: TrojanSettings
   shadowsocks?: ShadowsocksSettings
+  wireguard?: WireGuardSettings
   hysteria?: HysteriaSettings
 }
 
@@ -1284,6 +1299,7 @@ export interface ProxyTableInput {
   vless?: VlessSettings
   trojan?: TrojanSettings
   shadowsocks?: ShadowsocksSettings
+  wireguard?: WireGuardSettings
   hysteria?: HysteriaSettings
 }
 
@@ -1524,6 +1540,8 @@ export type NodeResponseNodeVersion = string | null
 
 export type NodeResponseXrayVersion = string | null
 
+export type NodeResponseCoreVersion = string | null
+
 export type NodeResponseApiKey = string | null
 
 export type NodeResponseCoreConfigId = number | null
@@ -1555,6 +1573,7 @@ export interface NodeResponse {
   internal_timeout?: number
   id: number
   xray_version: NodeResponseXrayVersion
+  core_version?: NodeResponseCoreVersion
   node_version: NodeResponseNodeVersion
   status: NodeStatus
   message: NodeResponseMessage
@@ -2036,6 +2055,7 @@ export interface CreateHost {
 export interface CoreSimple {
   id: number
   name: string
+  backend_type?: CoreType
 }
 
 /**
@@ -2051,6 +2071,7 @@ export type CoreResponseConfig = { [key: string]: unknown }
 export interface CoreResponse {
   name: string
   config: CoreResponseConfig
+  backend_type: CoreType
   exclude_inbound_tags: string[]
   fallbacks_inbound_tags: string[]
   id: number
@@ -2073,6 +2094,7 @@ export type CoreCreateName = string | null
 export interface CoreCreate {
   name?: CoreCreateName
   config: CoreCreateConfig
+  backend_type?: CoreType
   exclude_inbound_tags?: CoreCreateExcludeInboundTags
   fallbacks_inbound_tags?: CoreCreateFallbacksInboundTags
 }

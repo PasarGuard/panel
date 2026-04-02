@@ -23,11 +23,17 @@ export const shadowsocksSettingsSchema = z.object({
 export const hysteriaSettingsSchema = z.object({
   auth: z.string().uuid().optional(),
 })
+export const wireguardSettingsSchema = z.object({
+  private_key: z.string().optional(),
+  public_key: z.string().optional(),
+  peer_ips: z.array(z.string()).optional(),
+})
 export const proxyTableInputSchema = z.object({
   vmess: vMessSettingsSchema.optional(),
   vless: vlessSettingsSchema.optional(),
   trojan: trojanSettingsSchema.optional(),
   shadowsocks: shadowsocksSettingsSchema.optional(),
+  wireguard: wireguardSettingsSchema.optional(),
   hysteria: hysteriaSettingsSchema.optional(),
 })
 
@@ -122,6 +128,11 @@ export const getDefaultUserForm = async () => {
       shadowsocks: {
         password: undefined,
         method: DEFAULT_SHADOWSOCKS_METHOD,
+      },
+      wireguard: {
+        private_key: undefined,
+        public_key: undefined,
+        peer_ips: [],
       },
       hysteria: {
         auth: undefined,

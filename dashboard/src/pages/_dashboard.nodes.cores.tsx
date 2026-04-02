@@ -52,6 +52,7 @@ export default function CoreSettings() {
     resolver: zodResolver(coreConfigFormSchema) as any,
     defaultValues: {
       name: '',
+      backend_type: 'xray',
       config: JSON.stringify(defaultConfig, null, 2),
       excluded_inbound_ids: [],
       fallback_id: [],
@@ -73,6 +74,7 @@ export default function CoreSettings() {
 
         coreConfigForm.reset({
           name: coreToEdit.name,
+          backend_type: coreToEdit.backend_type || 'xray',
           config: JSON.stringify(coreToEdit.config, null, 2),
           excluded_inbound_ids: excludedInboundIds,
           fallback_id: fallbackIds,
@@ -81,6 +83,7 @@ export default function CoreSettings() {
       } else {
         coreConfigForm.reset({
           name: 'Core Name',
+          backend_type: 'xray',
           config: JSON.stringify(defaultConfig, null, 2),
           excluded_inbound_ids: [],
           fallback_id: [],

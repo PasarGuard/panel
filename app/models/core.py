@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -6,9 +7,15 @@ from app.utils.helpers import fix_datetime_timezone
 from .validators import StringArrayValidator
 
 
+class CoreType(StrEnum):
+    XRAY = "xray"
+    WIREGUARD = "wireguard"
+
+
 class CoreBase(BaseModel):
     name: str
     config: dict
+    backend_type: CoreType = Field(default=CoreType.XRAY)
     exclude_inbound_tags: set[str]
     fallbacks_inbound_tags: set[str]
 
@@ -27,6 +34,7 @@ class CoreBase(BaseModel):
 
 class CoreCreate(CoreBase):
     name: str | None = Field(max_length=256, default=None)
+    backend_type: CoreType = Field(default=CoreType.XRAY)
     exclude_inbound_tags: set | None = Field(default=None)
     fallbacks_inbound_tags: set | None = Field(default=None)
 
@@ -67,6 +75,7 @@ class CoreSimple(BaseModel):
 
     id: int
     name: str
+    backend_type: CoreType = Field(default=CoreType.XRAY)
     model_config = ConfigDict(from_attributes=True)
 
 
