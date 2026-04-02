@@ -1,7 +1,7 @@
 from fastapi import status
 
 from tests.api import client
-from tests.api.helpers import create_core, delete_core, get_inbounds, unique_name
+from tests.api.helpers import create_client_template, create_core, delete_client_template, delete_core, get_inbounds, unique_name
 
 
 def test_host_create(access_token):
@@ -11,6 +11,12 @@ def test_host_create(access_token):
     inbounds = get_inbounds(access_token)
     assert inbounds, "No inbounds available for host creation"
     created_hosts = []
+    xray_template = create_client_template(
+        access_token,
+        name=unique_name("host_xray_template"),
+        template_type="xray_subscription",
+        content='{"metadata":{"marker":"host-create"},"outbounds":[{"tag":"direct","protocol":"freedom","settings":{}}],"inbounds":[{"tag":"proxy","protocol":"vmess","settings":{"clients":[{"id":"00000000-0000-0000-0000-000000000000","alterId":0}]}}]}',
+    )
 
     try:
         for idx, inbound in enumerate(inbounds[:3]):
@@ -20,6 +26,7 @@ def test_host_create(access_token):
                 "port": 443,
                 "sni": [f"test_sni_{idx}.com"],
                 "inbound_tag": inbound,
+                "client_template_ids": {"xray_subscription": xray_template["id"]} if idx == 0 else None,
                 "priority": idx + 1,
                 "vless_route": "6967" if idx == 0 else None,  # Only test vless_route on the first host
             }
@@ -35,9 +42,12 @@ def test_host_create(access_token):
             assert response.json()["port"] == payload["port"]
             assert response.json()["sni"] == payload["sni"]
             assert response.json()["inbound_tag"] == inbound
+            if idx == 0:
+                assert response.json()["client_template_ids"]["xray_subscription"] == xray_template["id"]
     finally:
         for host_id in created_hosts:
             client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_client_template(access_token, xray_template["id"])
         delete_core(access_token, core["id"])
 
 
@@ -75,6 +85,12 @@ def test_host_update(access_token):
     inbound_list = get_inbounds(access_token)
     assert inbound_list, "No inbounds available for host updates"
     inbound = inbound_list[0]
+    clash_template = create_client_template(
+        access_token,
+        name=unique_name("host_clash_template"),
+        template_type="clash_subscription",
+        content="proxies: []\nproxy-groups: []\nrules: []\n",
+    )
     create_response = client.post(
         "/api/host",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -98,6 +114,7 @@ def test_host_update(access_token):
             "port": 443,
             "sni": ["test_sni_updated.com"],
             "inbound_tag": "Trojan Websocket TLS",
+            "client_template_ids": {"clash_subscription": clash_template["id"]},
         },
     )
     assert response.status_code == status.HTTP_200_OK
@@ -107,7 +124,9 @@ def test_host_update(access_token):
     assert response.json()["sni"] == ["test_sni_updated.com"]
     assert response.json()["priority"] == 666
     assert response.json()["inbound_tag"] == "Trojan Websocket TLS"
+    assert response.json()["client_template_ids"]["clash_subscription"] == clash_template["id"]
     client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+    delete_client_template(access_token, clash_template["id"])
     delete_core(access_token, core["id"])
 
 

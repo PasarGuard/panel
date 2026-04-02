@@ -34,6 +34,84 @@ STATUS_EMOJIS = {
     "on_hold": "🔌",
 }
 
+CONFIG_FORMAT_TEMPLATE_KEYS = {
+    "clash": "clash_subscription",
+    "clash_meta": "clash_subscription",
+    "sing_box": "singbox_subscription",
+    "xray": "xray_subscription",
+}
+
+TEMPLATE_TYPE_TO_LEGACY_KEY = {
+    "clash_subscription": "CLASH_SUBSCRIPTION_TEMPLATE",
+    "xray_subscription": "XRAY_SUBSCRIPTION_TEMPLATE",
+    "singbox_subscription": "SINGBOX_SUBSCRIPTION_TEMPLATE",
+    "user_agent": "USER_AGENT_TEMPLATE",
+    "grpc_user_agent": "GRPC_USER_AGENT_TEMPLATE",
+}
+
+
+def _template_keys_for_format(config_format: str) -> list[str]:
+    template_types = ["user_agent", "grpc_user_agent"]
+    main_template_type = CONFIG_FORMAT_TEMPLATE_KEYS.get(config_format)
+    if main_template_type:
+        template_types.append(main_template_type)
+    return template_types
+
+
+def _resolve_template_content_for_hosts(
+    template_type: str,
+    defaults: dict[str, str],
+    catalog_by_id: dict[int, dict[str, str | int]],
+    hosts: list[SubscriptionInboundData],
+) -> str:
+    legacy_key = TEMPLATE_TYPE_TO_LEGACY_KEY[template_type]
+    default_content = defaults[legacy_key]
+    if not hosts:
+        return default_content
+
+    selected_ids: set[int] = set()
+    for host in hosts:
+        template_ids = host.client_template_ids.model_dump() if host.client_template_ids else {}
+        selected_template_id = template_ids.get(template_type)
+        if selected_template_id is None:
+            return default_content
+
+        selected = catalog_by_id.get(selected_template_id)
+        if not selected or selected.get("template_type") != template_type:
+            return default_content
+
+        selected_ids.add(selected_template_id)
+        if len(selected_ids) > 1:
+            return default_content
+
+    if not selected_ids:
+        return default_content
+
+    selected_template = catalog_by_id[next(iter(selected_ids))]
+    return str(selected_template["content"])
+
+
+def _resolve_request_client_templates(
+    config_format: str,
+    client_template_catalog: dict[str, dict],
+    hosts: list[SubscriptionInboundData],
+) -> dict[str, str]:
+    defaults = client_template_catalog["defaults"]
+    catalog_by_id = client_template_catalog["by_id"]
+    resolved_templates = dict(defaults)
+
+    for template_type in _template_keys_for_format(config_format):
+        legacy_key = TEMPLATE_TYPE_TO_LEGACY_KEY[template_type]
+        resolved_templates[legacy_key] = _resolve_template_content_for_hosts(
+            template_type,
+            defaults,
+            catalog_by_id,
+            hosts,
+        )
+
+    return resolved_templates
+
+
 def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],
@@ -72,20 +150,24 @@ async def generate_subscription(
     reverse: bool = False,
     randomize_order: bool = False,
 ) -> str:
-    client_templates = await subscription_client_templates()
+    client_template_catalog = await subscription_client_templates()
+    format_variables = setup_format_variables(user)
+    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    if randomize_order and len(hosts) > 1:
+        random.shuffle(hosts)
+
+    client_templates = _resolve_request_client_templates(config_format, client_template_catalog, hosts)
     conf = _build_subscription_config(config_format, client_templates)
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')
-
-    format_variables = setup_format_variables(user)
 
     config = await process_inbounds_and_tags(
         user,
         format_variables,
         conf,
         client_templates,
+        hosts,
         reverse,
-        randomize_order=randomize_order,
     )
 
     if as_base64:
@@ -319,13 +401,10 @@ async def process_inbounds_and_tags(
     | ClashMetaConfiguration
     | OutlineConfiguration,
     client_templates: dict[str, str],
+    hosts: list[SubscriptionInboundData],
     reverse=False,
-    randomize_order: bool = False,
 ) -> list | str:
     proxy_settings = user.proxy_settings.dict()
-    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
-    if randomize_order and len(hosts) > 1:
-        random.shuffle(hosts)
     for host_data in hosts:
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
         if not result:

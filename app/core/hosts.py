@@ -269,6 +269,7 @@ async def _prepare_subscription_inbound_data(
     return SubscriptionInboundData(
         remark=host.remark,
         inbound_tag=host.inbound_tag,
+        client_template_ids=host.client_template_ids,
         protocol=protocol,
         address=address_list,
         port=port_list,  # Store the LIST for random selection!

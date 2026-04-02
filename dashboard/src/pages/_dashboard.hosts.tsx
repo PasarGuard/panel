@@ -56,6 +56,15 @@ export default function HostsPage() {
       const hostData: CreateHost = {
         ...formData,
         priority,
+        client_template_ids: formData.client_template_ids
+          ? {
+              clash_subscription: formData.client_template_ids.clash_subscription || undefined,
+              xray_subscription: formData.client_template_ids.xray_subscription || undefined,
+              singbox_subscription: formData.client_template_ids.singbox_subscription || undefined,
+              user_agent: formData.client_template_ids.user_agent || undefined,
+              grpc_user_agent: formData.client_template_ids.grpc_user_agent || undefined,
+            }
+          : undefined,
         alpn: formData.alpn as ProxyHostALPN[] | undefined,
         fingerprint: formData.fingerprint as ProxyHostFingerprint | undefined,
         ech_config_list: formData.ech_config_list || undefined,

@@ -47,6 +47,13 @@ export interface HostFormValues {
   address: string[]
   port?: number
   inbound_tag: string
+  client_template_ids?: {
+    clash_subscription?: number
+    xray_subscription?: number
+    singbox_subscription?: number
+    user_agent?: number
+    grpc_user_agent?: number
+  }
   status: ('active' | 'disabled' | 'limited' | 'expired' | 'on_hold')[]
   host?: string[]
   sni?: string[]
@@ -310,6 +317,15 @@ export const HostFormSchema = z.object({
   address: z.array(z.string()).min(1, 'At least one address is required'),
   port: z.number().min(1, 'Port must be at least 1').max(65535, 'Port must be at most 65535').optional().or(z.literal('')),
   inbound_tag: z.string().min(1, 'Inbound tag is required'),
+  client_template_ids: z
+    .object({
+      clash_subscription: z.number().int().positive().optional(),
+      xray_subscription: z.number().int().positive().optional(),
+      singbox_subscription: z.number().int().positive().optional(),
+      user_agent: z.number().int().positive().optional(),
+      grpc_user_agent: z.number().int().positive().optional(),
+    })
+    .optional(),
   status: z.array(z.string()).default([]),
   host: z.array(z.string()).default([]),
   sni: z.array(z.string()).default([]),
@@ -432,6 +448,7 @@ export const hostFormDefaultValues: HostFormValues = {
   address: [],
   port: undefined,
   inbound_tag: '',
+  client_template_ids: undefined,
   status: [],
   host: [],
   sni: [],

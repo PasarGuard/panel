@@ -1285,10 +1285,29 @@
     "nextPlanDataLimit": "Лимит данных (ГБ)",
     "nextPlanExpire": "Срок действия (дней)",
     "nextPlanAddRemainingTraffic": "Добавить оставшийся трафик",
-    "routingSettings": "Routing",
-    "vlessRoute": "VLESS Route",
-    "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "clientTemplateOverrides": "Шаблоны клиентов",
+    "clientTemplateOverridesDescription": "Оставьте поля пустыми, чтобы использовать обычные шаблоны по умолчанию.",
+    "clearOverrides": "Очистить все",
+    "useDefaultTemplate": "По умолчанию",
+    "clientTemplatePlaceholder": "Использовать шаблон по умолчанию",
+    "clientTemplateTypes": {
+      "clashSubscription": "Clash / Clash Meta",
+      "xraySubscription": "Xray",
+      "singboxSubscription": "Sing-box",
+      "userAgent": "User-Agent",
+      "grpcUserAgent": "gRPC User-Agent"
+    },
+    "clientTemplateTypeDescriptions": {
+      "clashSubscription": "Переопределить YAML-шаблон Clash для этого хоста.",
+      "xraySubscription": "Переопределить JSON-шаблон Xray для этого хоста.",
+      "singboxSubscription": "Переопределить JSON-шаблон sing-box для этого хоста.",
+      "userAgent": "Переопределить пул HTTP User-Agent для этого хоста.",
+      "grpcUserAgent": "Переопределить пул gRPC User-Agent для этого хоста."
+    },
+    "routingSettings": "Маршрутизация",
+    "vlessRoute": "Маршрут VLESS",
+    "vlessRoutePlaceholder": "например abcd",
+    "vlessRoute.info": "Необязательное значение маршрута для VLESS-хостов. Должно состоять ровно из 4 шестнадцатеричных символов. Оставьте пустым, чтобы использовать маршрут по умолчанию."
   },
   "enable": "Включить",
   "host": {

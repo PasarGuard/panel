@@ -2,6 +2,7 @@ import asyncio
 
 from app.db import AsyncSession
 from app.db.models import ProxyHost
+from app.models.client_template import ClientTemplateType
 from app.models.host import CreateHost, BaseHost
 from app.models.admin import AdminDetails
 from app.operation import BaseOperation
@@ -22,6 +23,24 @@ logger = get_logger("host-operation")
 
 
 class HostOperation(BaseOperation):
+    async def validate_client_template_ids(self, db: AsyncSession, host: CreateHost) -> None:
+        if not host.client_template_ids:
+            return
+
+        for template_type, template_id in host.client_template_ids.model_dump().items():
+            if template_id is None:
+                continue
+
+            db_template = await self.get_validated_client_template(db, template_id)
+            if db_template.template_type != template_type:
+                await self.raise_error(
+                    message=(
+                        f'Client template "{template_id}" must be of type "{ClientTemplateType(template_type).value}"'
+                    ),
+                    code=400,
+                    db=db,
+                )
+
     async def get_hosts(self, db: AsyncSession, offset: int = 0, limit: int = 0) -> list[BaseHost]:
         return await get_hosts(db=db, offset=offset, limit=limit)
 
@@ -45,6 +64,7 @@ class HostOperation(BaseOperation):
 
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
         await self.validate_ds_host(db, new_host)
+        await self.validate_client_template_ids(db, new_host)
 
         await self.check_inbound_tags([new_host.inbound_tag])
 
@@ -63,6 +83,7 @@ class HostOperation(BaseOperation):
         self, db: AsyncSession, host_id: int, modified_host: CreateHost, admin: AdminDetails
     ) -> BaseHost:
         await self.validate_ds_host(db, modified_host, host_id)
+        await self.validate_client_template_ids(db, modified_host)
 
         if modified_host.inbound_tag:
             await self.check_inbound_tags([modified_host.inbound_tag])
@@ -96,6 +117,7 @@ class HostOperation(BaseOperation):
     ) -> list[BaseHost]:
         for host in modified_hosts:
             await self.validate_ds_host(db, host, host.id)
+            await self.validate_client_template_ids(db, host)
 
             old_host: ProxyHost | None = None
             if host.id is not None:

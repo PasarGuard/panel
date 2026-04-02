@@ -4,11 +4,13 @@ from fastapi import status
 
 from tests.api import client
 from tests.api.helpers import (
+    create_client_template,
     create_core,
     create_group,
     create_user,
     create_user_template,
     create_hosts_for_inbounds,
+    delete_client_template,
     delete_core,
     delete_group,
     delete_user,
@@ -174,6 +176,52 @@ def test_user_subscriptions(access_token):
         delete_user(access_token, user["username"])
         for host in hosts:
             client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        cleanup_groups(access_token, core, groups)
+
+
+def test_user_xray_subscription_uses_host_template_override(access_token):
+    core, groups = setup_groups(access_token, 1)
+    marker = unique_name("host_xray_marker")
+    template = create_client_template(
+        access_token,
+        name=unique_name("host_xray_override"),
+        template_type="xray_subscription",
+        content=(
+            '{"metadata":{"marker":"'
+            + marker
+            + '"},"outbounds":[{"tag":"direct","protocol":"freedom","settings":{}}],"inbounds":[{"tag":"proxy","protocol":"vmess","settings":{"clients":[{"id":"00000000-0000-0000-0000-000000000000","alterId":0}]}}]}'
+        ),
+    )
+    inbounds = [group["inbound_tags"][0] for group in groups if group.get("inbound_tags")]
+    assert inbounds, "No inbound tag available for host template override test"
+    host_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("host_override"),
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "sni": ["override.example.com"],
+            "inbound_tag": inbounds[0],
+            "client_template_ids": {"xray_subscription": template["id"]},
+            "priority": 1,
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host = host_response.json()
+    user = create_user(
+        access_token,
+        group_ids=[group["id"] for group in groups],
+        payload={"username": unique_name("test_user_host_template_override")},
+    )
+    try:
+        response = client.get(f"{user['subscription_url']}/xray")
+        assert response.status_code == status.HTTP_200_OK
+        assert marker in response.text
+    finally:
+        delete_user(access_token, user["username"])
+        client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_client_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
 
 

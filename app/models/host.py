@@ -220,11 +220,20 @@ class FormatVariables(dict):
         return key.join("{}")
 
 
+class HostClientTemplateIds(BaseModel):
+    clash_subscription: int | None = Field(default=None)
+    xray_subscription: int | None = Field(default=None)
+    singbox_subscription: int | None = Field(default=None)
+    user_agent: int | None = Field(default=None)
+    grpc_user_agent: int | None = Field(default=None)
+
+
 class BaseHost(BaseModel):
     id: int | None = Field(default=None)
     remark: str
     address: set[str] = Field(default_factory=set)
     inbound_tag: str | None = Field(default=None)
+    client_template_ids: HostClientTemplateIds | None = Field(default=None)
     port: int | None = Field(default=None)
     sni: set[str] | None = Field(default_factory=set)
     host: set[str] | None = Field(default_factory=set)

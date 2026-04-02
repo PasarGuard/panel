@@ -1102,10 +1102,29 @@
     "nextPlanDataLimit": "数据限制 (GB)",
     "nextPlanExpire": "有效期 (天)",
     "nextPlanAddRemainingTraffic": "添加剩余流量",
-    "routingSettings": "Routing",
-    "vlessRoute": "VLESS Route",
-    "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "clientTemplateOverrides": "客户端模板",
+    "clientTemplateOverridesDescription": "留空即可继续使用默认模板。",
+    "clearOverrides": "清除全部",
+    "useDefaultTemplate": "默认",
+    "clientTemplatePlaceholder": "使用默认模板",
+    "clientTemplateTypes": {
+      "clashSubscription": "Clash / Clash Meta",
+      "xraySubscription": "Xray",
+      "singboxSubscription": "Sing-box",
+      "userAgent": "User-Agent",
+      "grpcUserAgent": "gRPC User-Agent"
+    },
+    "clientTemplateTypeDescriptions": {
+      "clashSubscription": "为此主机覆盖 Clash 的 YAML 模板。",
+      "xraySubscription": "为此主机覆盖 Xray 的 JSON 模板。",
+      "singboxSubscription": "为此主机覆盖 sing-box 的 JSON 模板。",
+      "userAgent": "为此主机覆盖 HTTP User-Agent 池。",
+      "grpcUserAgent": "为此主机覆盖 gRPC User-Agent 池。"
+    },
+    "routingSettings": "路由",
+    "vlessRoute": "VLESS 路由",
+    "vlessRoutePlaceholder": "例如 abcd",
+    "vlessRoute.info": "VLESS 主机的可选路由值。必须正好为 4 位十六进制字符。留空则使用默认路由。"
   },
   "inbound": "入站",
   "inbounds": "入站",

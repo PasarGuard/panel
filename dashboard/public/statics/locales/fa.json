@@ -994,10 +994,29 @@
       "505": "نسخه HTTP پشتیبانی نمی‌شود"
     },
     "selectReason": "انتخاب دلیل",
-    "routingSettings": "Routing",
-    "vlessRoute": "VLESS Route",
-    "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "clientTemplateOverrides": "قالب‌های کلاینت",
+    "clientTemplateOverridesDescription": "برای استفاده از قالب‌های پیش‌فرض، این فیلدها را خالی بگذارید.",
+    "clearOverrides": "پاک کردن همه",
+    "useDefaultTemplate": "پیش‌فرض",
+    "clientTemplatePlaceholder": "استفاده از قالب پیش‌فرض",
+    "clientTemplateTypes": {
+      "clashSubscription": "Clash / Clash Meta",
+      "xraySubscription": "Xray",
+      "singboxSubscription": "Sing-box",
+      "userAgent": "User-Agent",
+      "grpcUserAgent": "gRPC User-Agent"
+    },
+    "clientTemplateTypeDescriptions": {
+      "clashSubscription": "قالب YAML کلش را فقط برای این هاست تغییر می‌دهد.",
+      "xraySubscription": "قالب JSON ایکس‌ری را فقط برای این هاست تغییر می‌دهد.",
+      "singboxSubscription": "قالب JSON سینگ‌باکس را فقط برای این هاست تغییر می‌دهد.",
+      "userAgent": "لیست User-Agent مربوط به HTTP را برای این هاست تغییر می‌دهد.",
+      "grpcUserAgent": "لیست User-Agent مربوط به gRPC را برای این هاست تغییر می‌دهد."
+    },
+    "routingSettings": "مسیریابی",
+    "vlessRoute": "مسیر VLESS",
+    "vlessRoutePlaceholder": "مثلاً abcd",
+    "vlessRoute.info": "مقدار مسیر اختیاری برای هاست‌های VLESS. باید دقیقاً شامل ۴ کاراکتر هگزادسیمال باشد. برای استفاده از مسیر پیش‌فرض خالی بگذارید."
   },
   "inbound": "ورودی",
   "inbounds": "ورودی‌ها",

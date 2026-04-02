@@ -137,6 +137,15 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
       address: Array.isArray(host.address) ? host.address : host.address ? [host.address] : [],
       port: host.port ? Number(host.port) : undefined,
       inbound_tag: host.inbound_tag || '',
+      client_template_ids: host.client_template_ids
+        ? {
+            clash_subscription: host.client_template_ids.clash_subscription ?? undefined,
+            xray_subscription: host.client_template_ids.xray_subscription ?? undefined,
+            singbox_subscription: host.client_template_ids.singbox_subscription ?? undefined,
+            user_agent: host.client_template_ids.user_agent ?? undefined,
+            grpc_user_agent: host.client_template_ids.grpc_user_agent ?? undefined,
+          }
+        : undefined,
       status: host.status || [],
       host: Array.isArray(host.host) ? host.host : host.host ? [host.host] : [],
       sni: Array.isArray(host.sni) ? host.sni : host.sni ? [host.sni] : [],
@@ -308,6 +317,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         address: host.address || [],
         port: host.port,
         inbound_tag: host.inbound_tag || '',
+        client_template_ids: host.client_template_ids || undefined,
         status: host.status || [],
         host: host.host || [],
         sni: host.sni || [],
@@ -422,6 +432,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         address: host.address || [],
         port: host.port,
         inbound_tag: host.inbound_tag || '',
+        client_template_ids: host.client_template_ids || undefined,
         status: host.status || [],
         host: host.host || [],
         sni: host.sni || [],

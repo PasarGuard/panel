@@ -9,6 +9,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, computed_field
 
+from app.models.host import HostClientTemplateIds
+
 
 class TLSConfig(BaseModel):
     """TLS configuration - only TLS-related fields"""
@@ -210,6 +212,7 @@ class SubscriptionInboundData(BaseModel):
     # Basic info
     remark: str
     inbound_tag: str
+    client_template_ids: HostClientTemplateIds | None = Field(default=None)
     protocol: str
     address: list[str] | str = Field(default_factory=list)
     port: list[int] | int = Field(default_factory=list)

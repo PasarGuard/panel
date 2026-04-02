@@ -30,6 +30,10 @@ ClientTemplateSortingOptionsSimple = Enum(
 
 
 async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
+    return (await get_client_template_catalog(db))["defaults"]
+
+
+async def get_client_template_catalog(db: AsyncSession) -> dict[str, dict]:
     try:
         rows = (
             await db.execute(
@@ -49,6 +53,7 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
         by_type[row.template_type].append((row.id, row.content, row.is_default))
 
     values: dict[str, str] = {}
+    by_id: dict[int, dict[str, str | int]] = {}
     for template_type, legacy_key in TEMPLATE_TYPE_TO_LEGACY_KEY.items():
         type_rows = by_type.get(template_type.value, [])
         if not type_rows:
@@ -66,7 +71,20 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
         if selected_content:
             values[legacy_key] = selected_content
 
-    return values
+    for row in rows:
+        try:
+            template_type = ClientTemplateType(row.template_type)
+        except ValueError:
+            continue
+
+        by_id[row.id] = {
+            "id": row.id,
+            "template_type": row.template_type,
+            "legacy_key": TEMPLATE_TYPE_TO_LEGACY_KEY[template_type],
+            "content": row.content,
+        }
+
+    return {"defaults": values, "by_id": by_id}
 
 
 async def get_client_template_by_id(db: AsyncSession, template_id: int) -> ClientTemplate | None:

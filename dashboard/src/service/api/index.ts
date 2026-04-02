@@ -1960,6 +1960,14 @@ export interface CreateUserFromTemplate {
   username: string
 }
 
+export interface HostClientTemplateIds {
+  clash_subscription?: number | null
+  xray_subscription?: number | null
+  singbox_subscription?: number | null
+  user_agent?: number | null
+  grpc_user_agent?: number | null
+}
+
 export type CreateHostVerifyPeerCertByName = string[] | null
 
 export type CreateHostPinnedPeerCertSha256 = string | null
@@ -2000,11 +2008,14 @@ export type CreateHostInboundTag = string | null
 
 export type CreateHostId = number | null
 
+export type CreateHostClientTemplateIds = HostClientTemplateIds | null
+
 export interface CreateHost {
   id?: CreateHostId
   remark: string
   address?: string[]
   inbound_tag?: CreateHostInboundTag
+  client_template_ids?: CreateHostClientTemplateIds
   port?: CreateHostPort
   sni?: CreateHostSni
   host?: CreateHostHost
@@ -2293,11 +2304,14 @@ export type BaseHostInboundTag = string | null
 
 export type BaseHostId = number | null
 
+export type BaseHostClientTemplateIds = HostClientTemplateIds | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
   address?: string[]
   inbound_tag?: BaseHostInboundTag
+  client_template_ids?: BaseHostClientTemplateIds
   port?: BaseHostPort
   sni?: BaseHostSni
   host?: BaseHostHost

@@ -1128,6 +1128,25 @@
     "nextPlanDataLimit": "Data Limit (GB)",
     "nextPlanExpire": "Expire (days)",
     "nextPlanAddRemainingTraffic": "Add Remaining Traffic",
+    "clientTemplateOverrides": "Client Templates",
+    "clientTemplateOverridesDescription": "Leave fields empty to follow the normal default templates.",
+    "clearOverrides": "Clear all",
+    "useDefaultTemplate": "Default",
+    "clientTemplatePlaceholder": "Follow default template",
+    "clientTemplateTypes": {
+      "clashSubscription": "Clash / Clash Meta",
+      "xraySubscription": "Xray",
+      "singboxSubscription": "Sing-box",
+      "userAgent": "User-Agent",
+      "grpcUserAgent": "gRPC User-Agent"
+    },
+    "clientTemplateTypeDescriptions": {
+      "clashSubscription": "Override the Clash YAML template for this host.",
+      "xraySubscription": "Override the Xray JSON template for this host.",
+      "singboxSubscription": "Override the sing-box JSON template for this host.",
+      "userAgent": "Override the HTTP user-agent pool for this host.",
+      "grpcUserAgent": "Override the gRPC user-agent pool for this host."
+    },
     "routingSettings": "Routing",
     "vlessRoute": "VLESS Route",
     "vlessRoutePlaceholder": "e.g. abcd",

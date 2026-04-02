@@ -12,10 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { UserStatus, getHosts, getInbounds } from '@/service/api'
+import { UserStatus, getClientTemplatesSimple, getHosts, getInbounds } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
+import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, LayoutTemplate, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -38,6 +38,39 @@ const statusOptions = [
   { value: UserStatus.limited, label: 'hostsDialog.status.limited' },
   { value: UserStatus.expired, label: 'hostsDialog.status.expired' },
   { value: UserStatus.on_hold, label: 'hostsDialog.status.onHold' },
+] as const
+
+const hostTemplateFieldOptions = [
+  {
+    field: 'client_template_ids.clash_subscription' as const,
+    type: 'clash_subscription',
+    label: 'hostsDialog.clientTemplateTypes.clashSubscription',
+    description: 'hostsDialog.clientTemplateTypeDescriptions.clashSubscription',
+  },
+  {
+    field: 'client_template_ids.xray_subscription' as const,
+    type: 'xray_subscription',
+    label: 'hostsDialog.clientTemplateTypes.xraySubscription',
+    description: 'hostsDialog.clientTemplateTypeDescriptions.xraySubscription',
+  },
+  {
+    field: 'client_template_ids.singbox_subscription' as const,
+    type: 'singbox_subscription',
+    label: 'hostsDialog.clientTemplateTypes.singboxSubscription',
+    description: 'hostsDialog.clientTemplateTypeDescriptions.singboxSubscription',
+  },
+  {
+    field: 'client_template_ids.user_agent' as const,
+    type: 'user_agent',
+    label: 'hostsDialog.clientTemplateTypes.userAgent',
+    description: 'hostsDialog.clientTemplateTypeDescriptions.userAgent',
+  },
+  {
+    field: 'client_template_ids.grpc_user_agent' as const,
+    type: 'grpc_user_agent',
+    label: 'hostsDialog.clientTemplateTypes.grpcUserAgent',
+    description: 'hostsDialog.clientTemplateTypeDescriptions.grpcUserAgent',
+  },
 ] as const
 
 // Memoized Noise Item Component for optimal performance
@@ -440,6 +473,57 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
 
 ArrayInput.displayName = 'ArrayInput'
 
+interface TemplateOverrideFieldProps {
+  fieldName: (typeof hostTemplateFieldOptions)[number]['field']
+  templateType: (typeof hostTemplateFieldOptions)[number]['type']
+  label: string
+  description: string
+  form: UseFormReturn<HostFormValues>
+  dir: 'ltr' | 'rtl'
+  isLoading: boolean
+  templates: Array<{ id: number; name: string; template_type: string; is_default: boolean }>
+  t: (key: string, options?: Record<string, unknown>) => string
+}
+
+const TemplateOverrideField = memo<TemplateOverrideFieldProps>(({ fieldName, templateType, label, description: _description, form, dir, isLoading, templates, t }) => (
+  <FormField
+    control={form.control}
+    name={fieldName}
+    render={({ field }) => (
+      <FormItem className="space-y-1">
+        <FormLabel className="text-xs font-medium text-muted-foreground">{label}</FormLabel>
+        <Select
+          dir={dir}
+          onValueChange={value => field.onChange(value === '__default__' ? undefined : Number.parseInt(value, 10))}
+          value={field.value != null ? String(field.value) : '__default__'}
+          disabled={isLoading}
+        >
+          <FormControl>
+            <SelectTrigger className="h-10">
+              <SelectValue placeholder={t('hostsDialog.clientTemplatePlaceholder', { defaultValue: 'Follow default template' })} />
+            </SelectTrigger>
+          </FormControl>
+          <SelectContent dir={dir}>
+            <SelectItem value="__default__">
+              {t('hostsDialog.useDefaultTemplate', { defaultValue: 'Follow default template' })}
+            </SelectItem>
+            {templates
+              .filter(template => template.template_type === templateType && !template.is_default)
+              .map(template => (
+                <SelectItem key={template.id} value={String(template.id)}>
+                  {template.name}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+        <FormMessage />
+      </FormItem>
+    )}
+  />
+))
+
+TemplateOverrideField.displayName = 'TemplateOverrideField'
+
 const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSubmit, editingHost, form }) => {
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
   const [isTransportOpen, setIsTransportOpen] = useState(false)
@@ -447,6 +531,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const dir = useDirDetection()
   const [_isSubmitting, setIsSubmitting] = useState(false)
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
+  const watchedTemplateIds = form.watch('client_template_ids')
+  const selectedTemplateOverrideCount = Object.values(watchedTemplateIds || {}).filter(Boolean).length
 
   // Optimized noise settings handlers with useCallback for performance
   const addNoiseSetting = useCallback(() => {
@@ -570,6 +656,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     enabled: isDialogOpen,
   })
 
+  const { data: clientTemplatesData, isLoading: isLoadingClientTemplates } = useQuery({
+    queryKey: ['/api/client_templates/simple'],
+    queryFn: () => getClientTemplatesSimple(),
+    enabled: isDialogOpen,
+  })
+
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
     queryKey: ['getHostsQueryKey'],
@@ -596,8 +688,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       // If SingBox fragment is disabled, clear related fields
       if (!payload.fragment_settings?.sing_box?.fragment && payload.fragment_settings?.sing_box) {
         const singBox = payload.fragment_settings.sing_box!
-        ;(singBox as any).fragment_fallback_delay = undefined
-        ;(singBox as any).record_fragment = undefined
+          ; (singBox as any).fragment_fallback_delay = undefined
+          ; (singBox as any).record_fragment = undefined
       }
 
       // Convert fragment_fallback_delay number to ms format
@@ -3131,6 +3223,48 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         </FormItem>
                       )}
                     />
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="template-overrides">
+                  <AccordionTrigger>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <LayoutTemplate className="h-4 w-4" />
+                      <span>{t('hostsDialog.clientTemplateOverrides')}</span>
+                      <Badge variant={selectedTemplateOverrideCount > 0 ? 'default' : 'secondary'} className="ml-1">
+                        {selectedTemplateOverrideCount > 0 ? selectedTemplateOverrideCount : t('hostsDialog.useDefaultTemplate')}
+                      </Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-2">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">{t('hostsDialog.clientTemplateOverridesDescription')}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={selectedTemplateOverrideCount === 0}
+                        onClick={() => form.setValue('client_template_ids', undefined, { shouldDirty: true, shouldTouch: true })}
+                      >
+                        {t('hostsDialog.clearOverrides')}
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {hostTemplateFieldOptions.map(option => (
+                        <TemplateOverrideField
+                          key={option.field}
+                          fieldName={option.field}
+                          templateType={option.type}
+                          label={t(option.label)}
+                          description={t(option.description)}
+                          form={form}
+                          dir={dir}
+                          isLoading={isLoadingClientTemplates}
+                          templates={clientTemplatesData?.templates || []}
+                          t={t}
+                        />
+                      ))}
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
 

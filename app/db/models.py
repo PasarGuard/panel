@@ -457,6 +457,7 @@ class ProxyHost(Base):
         String(256), ForeignKey("inbounds.tag", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, init=False
     )
     inbound: Mapped[Optional["ProxyInbound"]] = relationship(back_populates="hosts", init=False)
+    client_template_ids: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     security: Mapped[ProxyHostSecurity] = mapped_column(
         SQLEnum(ProxyHostSecurity),
         unique=False,
