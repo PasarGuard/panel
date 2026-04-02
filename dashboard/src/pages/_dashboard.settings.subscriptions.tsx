@@ -9,14 +9,14 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
-import { ConfigFormat } from '@/service/api'
+import { ConfigFormat, type SubRule as ApiSubRule } from '@/service/api'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { FieldErrors, useFieldArray, useForm, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -37,6 +37,7 @@ const subscriptionSchema = z.object({
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),
       target: z.enum(['links', 'links_base64', 'xray', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
+      response_headers: z.record(z.string()).optional(),
     }),
   ),
   applications: z
@@ -86,6 +87,26 @@ const subscriptionSchema = z.object({
 })
 
 type SubscriptionFormData = z.infer<typeof subscriptionSchema>
+type SubscriptionRuleFormData = SubscriptionFormData['rules'][number]
+type SubscriptionApplicationFormData = NonNullable<SubscriptionFormData['applications']>[number]
+type SubscriptionPlatform = SubscriptionApplicationFormData['platform']
+type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['download_links']>[number]['language']
+
+interface DefaultCatalogApp {
+  name: string
+  logo?: string
+  description?: string
+  faDescription?: string
+  ruDescription?: string
+  zhDescription?: string
+  configLink?: string
+  downloadLink: string
+}
+
+interface DefaultOperatingSystem {
+  name: string
+  apps: DefaultCatalogApp[]
+}
 
 const configFormatOptions = [
   { value: 'links', label: 'settings.subscriptions.configFormats.links', icon: '🔗' },
@@ -99,7 +120,7 @@ const configFormatOptions = [
 ]
 
 // Default Applications Dataset (mapped from provided data)
-const defaultApplicationsData = {
+const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = {
   operatingSystems: [
     {
       name: 'iOS',
@@ -213,7 +234,7 @@ const defaultApplicationsData = {
   ],
 }
 
-const mapOsNameToPlatform = (engName: string): 'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'appletv' | 'androidtv' => {
+const mapOsNameToPlatform = (engName: string): SubscriptionPlatform => {
   switch (engName.toLowerCase()) {
     case 'android':
       return 'android'
@@ -253,13 +274,13 @@ const buildDefaultApplications = () => {
       if (finalRecommended) platformRecommendedChosen[platform] = true
       apps.push({
         name: app.name,
-        icon_url: (app as any).logo || '',
+        icon_url: app.logo || '',
         import_url: app.configLink || '',
         description: {
           en: app.description || '',
           fa: app.faDescription || app.description || '',
-          ru: (app as any).ruDescription || app.description || '',
-          zh: (app as any).zhDescription || app.description || '',
+          ru: app.ruDescription || app.description || '',
+          zh: app.zhDescription || app.description || '',
         },
         recommended: finalRecommended,
         platform,
@@ -306,16 +327,54 @@ const defaultSubscriptionRules: { pattern: string; target: ConfigFormat }[] = [
 
 // Sortable Rule Component
 interface SortableRuleProps {
-  rule: { pattern: string; target: ConfigFormat }
+  rule: SubscriptionRuleFormData
   index: number
   onRemove: (index: number) => void
-  form: any
+  form: UseFormReturn<SubscriptionFormData>
   id: string
 }
 
 function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const { t } = useTranslation()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
+
+  const addResponseHeader = () => {
+    const nextKey = `x-header-${Object.keys(responseHeaders).length + 1}`
+    form.setValue(
+      `rules.${index}.response_headers`,
+      {
+        ...responseHeaders,
+        [nextKey]: '',
+      },
+      { shouldDirty: true },
+    )
+  }
+
+  const updateResponseHeaderName = (currentKey: string, nextKey: string) => {
+    const updatedHeaders = { ...responseHeaders }
+    const currentValue = updatedHeaders[currentKey] ?? ''
+    delete updatedHeaders[currentKey]
+    updatedHeaders[nextKey] = currentValue
+    form.setValue(`rules.${index}.response_headers`, updatedHeaders, { shouldDirty: true })
+  }
+
+  const updateResponseHeaderValue = (headerKey: string, value: string) => {
+    form.setValue(
+      `rules.${index}.response_headers`,
+      {
+        ...responseHeaders,
+        [headerKey]: value,
+      },
+      { shouldDirty: true },
+    )
+  }
+
+  const removeResponseHeader = (headerKey: string) => {
+    const updatedHeaders = { ...responseHeaders }
+    delete updatedHeaders[headerKey]
+    form.setValue(`rules.${index}.response_headers`, updatedHeaders, { shouldDirty: true })
+  }
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -382,6 +441,43 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
                 </FormItem>
               )}
             />
+
+            <div className="space-y-2 rounded-md border border-dashed border-muted p-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                  <p className="text-[11px] text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={addResponseHeader}>
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  {t('settings.subscriptions.rules.addHeader')}
+                </Button>
+              </div>
+
+              {Object.entries(responseHeaders).length > 0 && (
+                <div className="space-y-2">
+                  {Object.entries(responseHeaders).map(([headerKey, headerValue]) => (
+                    <div key={`${id}-${headerKey}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                      <Input
+                        value={headerKey}
+                        onChange={e => updateResponseHeaderName(headerKey, e.target.value)}
+                        placeholder={t('settings.subscriptions.rules.headerName')}
+                        className="h-7 border-muted bg-background/60 font-mono text-xs"
+                      />
+                      <Input
+                        value={headerValue}
+                        onChange={e => updateResponseHeaderValue(headerKey, e.target.value)}
+                        placeholder={t('settings.subscriptions.rules.headerValue')}
+                        className="h-7 border-muted bg-background/60 font-mono text-xs"
+                      />
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => removeResponseHeader(headerKey)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Delete button */}
@@ -419,9 +515,14 @@ export default function SubscriptionSettings() {
   const [newAppRecommended, setNewAppRecommended] = useState(false)
   const [newLinkName, setNewLinkName] = useState('')
   const [newLinkUrl, setNewLinkUrl] = useState('')
-  const [newLinkLang, setNewLinkLang] = useState<'fa' | 'en' | 'ru' | 'zh'>('en')
-  const [newDescLang, setNewDescLang] = useState<'fa' | 'en' | 'ru' | 'zh'>('en')
-  const [newAppDescription, setNewAppDescription] = useState<Record<'fa' | 'en' | 'ru' | 'zh', string>>({} as any)
+  const [newLinkLang, setNewLinkLang] = useState<SubscriptionLanguage>('en')
+  const [newDescLang, setNewDescLang] = useState<SubscriptionLanguage>('en')
+  const [newAppDescription, setNewAppDescription] = useState<Record<SubscriptionLanguage, string>>({
+    fa: '',
+    en: '',
+    ru: '',
+    zh: '',
+  })
 
   const isValidIconUrl = (url: string): boolean => {
     if (!url || url.trim() === '') return false
@@ -514,7 +615,7 @@ export default function SubscriptionSettings() {
 
       if (appOldIndex !== -1 && appNewIndex !== -1) {
         // Restrict sorting to within the same platform ("parent").
-        const apps = form.getValues('applications') as any[]
+        const apps = (form.getValues('applications') || []) as SubscriptionApplicationFormData[]
         const oldPlatform = apps?.[appOldIndex]?.platform
         const newPlatform = apps?.[appNewIndex]?.platform
         if (oldPlatform && newPlatform && oldPlatform === newPlatform) {
@@ -541,7 +642,14 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
-        rules: subscriptionData.rules || [],
+        rules:
+          subscriptionData.rules?.map((rule: ApiSubRule) => ({
+            pattern: rule.pattern,
+            target: rule.target,
+            response_headers: Object.fromEntries(
+              Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
+            ),
+          })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
           links: subscriptionData.manual_sub_request?.links ?? true,
@@ -558,6 +666,16 @@ export default function SubscriptionSettings() {
 
   const onSubmit = async (data: SubscriptionFormData) => {
     try {
+      const processedRules = (data.rules || []).map(rule => ({
+        pattern: rule.pattern.trim(),
+        target: rule.target,
+        response_headers: Object.fromEntries(
+          Object.entries(rule.response_headers || {})
+            .map(([key, value]) => [key.trim(), value.trim()] as const)
+            .filter(([key, value]) => key && value),
+        ),
+      }))
+
       // Process applications data to ensure proper format
       // Normalize recommended: allow only one per platform
       const rawApps = (data.applications || [])
@@ -590,7 +708,7 @@ export default function SubscriptionSettings() {
       })
 
       // Filter out empty values and prepare the payload
-      const filteredData: any = {
+      const filteredData = {
         subscription: {
           ...data,
           // Convert empty strings to undefined
@@ -599,18 +717,19 @@ export default function SubscriptionSettings() {
           profile_title: data.profile_title?.trim() || undefined,
           announce: data.announce?.trim() || undefined,
           announce_url: data.announce_url?.trim() || undefined,
+          rules: processedRules,
           // Include processed applications
           applications: processedApplications,
         },
       }
 
       await updateSettings(filteredData)
-    } catch (error) {
+    } catch {
       // Error handling is done in the parent context
     }
   }
 
-  const onInvalid = (errors: any) => {
+  const onInvalid = (errors: FieldErrors<SubscriptionFormData>) => {
     // Specific: if any application name is missing, show translated required message
     const appsErrors = errors?.applications
     if (Array.isArray(appsErrors)) {
@@ -643,17 +762,18 @@ export default function SubscriptionSettings() {
     }
 
     // Try to extract the first human-friendly message from nested errors
-    const extractFirstMessage = (errObj: any): string | undefined => {
+    const extractFirstMessage = (errObj: unknown): string | undefined => {
       if (!errObj) return undefined
       if (Array.isArray(errObj)) {
         for (const item of errObj) {
           const msg = extractFirstMessage(item)
           if (msg) return msg
         }
-      } else if (typeof errObj === 'object') {
-        if (errObj.message && typeof errObj.message === 'string') return errObj.message
-        for (const key of Object.keys(errObj)) {
-          const msg = extractFirstMessage(errObj[key])
+      } else if (typeof errObj === 'object' && errObj !== null) {
+        const errorRecord = errObj as Record<string, unknown>
+        if (typeof errorRecord.message === 'string') return errorRecord.message
+        for (const key of Object.keys(errorRecord)) {
+          const msg = extractFirstMessage(errorRecord[key])
           if (msg) return msg
         }
       }
@@ -677,7 +797,14 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
-        rules: subscriptionData.rules || [],
+        rules:
+          subscriptionData.rules?.map((rule: ApiSubRule) => ({
+            pattern: rule.pattern,
+            target: rule.target,
+            response_headers: Object.fromEntries(
+              Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
+            ),
+          })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
           links: subscriptionData.manual_sub_request?.links ?? true,
@@ -709,7 +836,7 @@ export default function SubscriptionSettings() {
   }
 
   const addRule = () => {
-    appendRule({ pattern: '', target: 'links' as ConfigFormat })
+    appendRule({ pattern: '', target: 'links' as ConfigFormat, response_headers: {} })
   }
 
   const addApplication = () => {
@@ -1140,7 +1267,8 @@ export default function SubscriptionSettings() {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 {/* Group items by platform and render separate SortableContexts to isolate drag-and-drop containers */}
                 {(['ios', 'android', 'windows', 'macos', 'linux', 'appletv', 'androidtv'] as const).map(platformKey => {
-                  const indices = applicationFields.map((f, idx) => ({ id: f.id, idx })).filter(({ idx }) => (form.getValues('applications') as any[])?.[idx]?.platform === platformKey)
+                  const currentApplications = (form.getValues('applications') || []) as SubscriptionApplicationFormData[]
+                  const indices = applicationFields.map((f, idx) => ({ id: f.id, idx })).filter(({ idx }) => currentApplications[idx]?.platform === platformKey)
                   if (indices.length === 0) return null
                   return (
                     <SortableContext key={platformKey} items={indices.map(i => i.id)} strategy={rectSortingStrategy}>
@@ -1336,7 +1464,7 @@ export default function SubscriptionSettings() {
                 </div>
                 <div className="space-y-1">
                   <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.platform')}</FormLabel>
-                  <Select value={newAppPlatform} onValueChange={(v: any) => setNewAppPlatform(v)}>
+                  <Select value={newAppPlatform} onValueChange={(v: SubscriptionPlatform) => setNewAppPlatform(v)}>
                     <FormControl>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue />
@@ -1393,7 +1521,7 @@ export default function SubscriptionSettings() {
                 <div className="space-y-1 sm:col-span-2">
                   <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Select value={newDescLang} onValueChange={(v: any) => setNewDescLang(v)}>
+                    <Select value={newDescLang} onValueChange={(v: SubscriptionLanguage) => setNewDescLang(v)}>
                       <FormControl>
                         <SelectTrigger className="h-8 w-full text-xs sm:w-32">
                           <SelectValue />
@@ -1444,7 +1572,7 @@ export default function SubscriptionSettings() {
                       className="h-8 flex-1 min-w-0 font-mono text-xs"
                       dir="ltr"
                     />
-                    <Select value={newLinkLang} onValueChange={(v: any) => setNewLinkLang(v)}>
+                    <Select value={newLinkLang} onValueChange={(v: SubscriptionLanguage) => setNewLinkLang(v)}>
                       <FormControl>
                         <SelectTrigger className="h-8 w-full text-xs sm:w-28">
                           <SelectValue />
