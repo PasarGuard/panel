@@ -53,6 +53,7 @@ class XrayConfiguration(BaseSubscription):
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
+            "wireguard": self._build_wireguard,
         }
 
     def add_config(self, remarks, outbounds):
@@ -467,6 +468,37 @@ class XrayConfiguration(BaseSubscription):
             user_settings={"auth": str(settings["auth"])},
         )
 
+    def _build_wireguard(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build WireGuard outbound for Xray subscriptions."""
+        private_key = settings.get("private_key", "")
+        peer_ips = [peer_ip for peer_ip in settings.get("peer_ips", []) if peer_ip]
+        public_key = inbound.wireguard_public_key
+        if not private_key or not peer_ips or not public_key:
+            return {}
+
+        peer = {
+            "endpoint": f"{address}:{self._select_port(inbound.port)}",
+            "publicKey": public_key,
+            "allowedIPs": inbound.wireguard_allowed_ips or ["0.0.0.0/0", "::/0"],
+            "keepAlive": inbound.wireguard_keepalive,
+            "preSharedKey": inbound.wireguard_pre_shared_key or None,
+        }
+
+        outbound = {
+            "protocol": "wireguard",
+            "tag": "proxy",
+            "settings": {
+                "secretKey": private_key,
+                "address": peer_ips,
+                "peers": [self._normalize_and_remove_none_values(peer)],
+                "mtu": inbound.wireguard_mtu,
+                "reserved": self._parse_wireguard_reserved(inbound.wireguard_reserved),
+                "domainStrategy": "ForceIP",
+            },
+        }
+
+        return self._normalize_and_remove_none_values(outbound)
+
     def _build_outbound(
         self,
         protocol_type: str,
@@ -601,3 +633,28 @@ class XrayConfiguration(BaseSubscription):
             ports = port.split(",")
             return int(choice(ports))
         return port
+
+    @staticmethod
+    def _parse_wireguard_reserved(reserved: str | None) -> list[int] | None:
+        """Parse WireGuard reserved bytes from common persisted string formats."""
+        if not reserved:
+            return None
+
+        raw = reserved.strip()
+        if not raw:
+            return None
+
+        if raw.startswith("[") and raw.endswith("]"):
+            raw = raw[1:-1]
+
+        values: list[int] = []
+        for part in raw.split(","):
+            piece = part.strip()
+            if not piece:
+                continue
+            try:
+                values.append(int(piece))
+            except ValueError:
+                return None
+
+        return values or None
