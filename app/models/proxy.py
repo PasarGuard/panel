@@ -9,10 +9,6 @@ from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_ke
 from app.utils.system import random_password
 
 
-def _generate_wireguard_private_key() -> str:
-    return generate_wireguard_keypair()[0]
-
-
 class VMessSettings(BaseModel):
     id: UUID = Field(default_factory=uuid4)
 
@@ -48,7 +44,7 @@ class HysteriaSettings(BaseModel):
 
 
 class WireGuardSettings(BaseModel):
-    private_key: str | None = Field(default_factory=_generate_wireguard_private_key)
+    private_key: str | None = None
     public_key: str | None = None
     peer_ips: list[str] = Field(default_factory=list)
 
@@ -84,11 +80,11 @@ class WireGuardSettings(BaseModel):
         return normalized
 
     @model_validator(mode="after")
-    def derive_public_key(self):
-        if self.private_key:
+    def handle_keys(self):
+        if not self.private_key:
+            self.private_key, self.public_key = generate_wireguard_keypair()
+        elif not self.public_key:
             self.public_key = get_wireguard_public_key(self.private_key)
-        else:
-            self.public_key = None
         return self
 
 

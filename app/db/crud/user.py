@@ -1023,8 +1023,6 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
     proxy_settings.shadowsocks.method = db_user.proxy_settings.get("shadowsocks", {}).get(
         "method", "chacha20-ietf-poly1305"
     )
-    proxy_settings.wireguard.private_key = db_user.proxy_settings.get("wireguard", {}).get("private_key")
-    proxy_settings.wireguard.public_key = db_user.proxy_settings.get("wireguard", {}).get("public_key")
     proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
     db_user.proxy_settings = proxy_settings.dict()
     await db.commit()

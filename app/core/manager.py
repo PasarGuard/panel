@@ -13,8 +13,7 @@ from app.core.wireguard import WireGuardConfig
 from app.core.xray import XRayConfig
 from app.db import GetDB
 from app.db.crud.core import get_core_configs
-from app.db.models import CoreConfig
-from app.models.core import CoreType
+from app.db.models import CoreConfig, CoreType
 from app.nats import is_nats_enabled
 from app.nats.client import setup_nats_kv
 from app.nats.message import MessageTopic

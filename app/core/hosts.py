@@ -66,12 +66,13 @@ async def _prepare_subscription_inbound_data(
         if isinstance(wg_over, dict):
             wg_over = WireGuardHostOverrides.model_validate(wg_over)
 
-        inbound_psk = str(inbound_config.get("pre_shared_key") or "")
-        psk = (wg_over.pre_shared_key.strip() if wg_over and wg_over.pre_shared_key else None) or inbound_psk
+        psk = inbound_config.get("pre_shared_key", "")
 
         default_allowed = ["0.0.0.0/0", "::/0"]
         allowed_ips = (
-            list(wg_over.allowed_ips) if wg_over and wg_over.allowed_ips is not None and len(wg_over.allowed_ips) > 0 else list(default_allowed)
+            list(wg_over.allowed_ips)
+            if wg_over and wg_over.allowed_ips is not None and len(wg_over.allowed_ips) > 0
+            else list(default_allowed)
         )
 
         keepalive = inbound_config.get("peer_keepalive_seconds")
