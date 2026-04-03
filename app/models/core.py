@@ -1,5 +1,4 @@
 from datetime import datetime as dt
-from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -7,9 +6,7 @@ from app.utils.helpers import fix_datetime_timezone
 from .validators import StringArrayValidator
 
 
-class CoreType(StrEnum):
-    XRAY = "xray"
-    WIREGUARD = "wireguard"
+from app.db.models import CoreType
 
 
 class CoreBase(BaseModel):

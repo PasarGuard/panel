@@ -18,12 +18,19 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Create the enum type for postgres explicitly
+    core_type = sa.Enum("xray", "wireguard", "mtproto", "singbox", name="coretype")
+    if op.get_bind().engine.name == "postgresql":
+        core_type.create(op.get_bind(), checkfirst=True)
+
     op.add_column(
         "core_configs",
-        sa.Column("backend_type", sa.String(length=32), nullable=False, server_default="xray"),
+        sa.Column("backend_type", core_type, nullable=False, server_default="xray"),
     )
-    op.execute("UPDATE core_configs SET backend_type = 'xray' WHERE backend_type IS NULL")
 
 
 def downgrade() -> None:
     op.drop_column("core_configs", "backend_type")
+    # Drop the enum type for postgres if it exists
+    if op.get_bind().engine.name == "postgresql":
+        sa.Enum(name="coretype").drop(op.get_bind(), checkfirst=True)
