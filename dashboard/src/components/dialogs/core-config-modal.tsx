@@ -41,7 +41,7 @@ interface ValidationResult {
   isValid: boolean
   error?: string
 }
-type CoreBackendType = 'xray' | 'wireguard'
+type CoreBackendType = 'xray' | 'wg'
 // Add encryption methods enum
 const SHADOWSOCKS_ENCRYPTION_METHODS = [
   { value: '2022-blake3-aes-128-gcm', label: '2022-blake3-aes-128-gcm', length: 16 },
@@ -147,7 +147,7 @@ const defaultWireGuardConfig = JSON.stringify(
   2,
 )
 
-const getDefaultCoreConfigString = (backendType: CoreBackendType) => (backendType === 'wireguard' ? defaultWireGuardConfig : defaultXrayConfig)
+const getDefaultCoreConfigString = (backendType: CoreBackendType) => (backendType === 'wg' ? defaultWireGuardConfig : defaultXrayConfig)
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
 const MobileJsonAceEditor = lazy(() => import('@/components/common/mobile-json-ace-editor'))
@@ -157,7 +157,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const dir = useDirDetection()
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
-  const backendType = (form.watch('backend_type') ?? 'xray') as CoreBackendType
+  const backendType = (form.watch('type') ?? 'xray') as CoreBackendType
   const isXrayBackend = backendType === 'xray'
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
   const [isEditorReady, setIsEditorReady] = useState(false)
@@ -286,8 +286,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     debounce((value: string) => {
       try {
         const parsedConfig = JSON.parse(value)
-        const selectedBackendType = (form.getValues('backend_type') ?? 'xray') as CoreBackendType
-        if (selectedBackendType === 'wireguard') {
+        const selectedBackendType = (form.getValues('type') ?? 'xray') as CoreBackendType
+        if (selectedBackendType === 'wg') {
           const interfaceName = typeof parsedConfig.interface_name === 'string' ? parsedConfig.interface_name.trim() : ''
           setInboundTags(interfaceName ? [interfaceName] : [])
         } else if (parsedConfig.inbounds && Array.isArray(parsedConfig.inbounds)) {
@@ -552,7 +552,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         return
       }
 
-      const backendType = values.backend_type ?? 'xray'
+      const backendType = values.type ?? 'xray'
       const fallbackTags = backendType === 'xray' ? values.fallback_id || [] : []
       const excludeInboundTags = backendType === 'xray' ? values.excluded_inbound_ids || [] : []
 
@@ -562,7 +562,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           coreId: editingCoreId,
           data: {
             name: values.name,
-            backend_type: backendType,
+            type: backendType,
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
             exclude_inbound_tags: excludeInboundTags,
@@ -576,7 +576,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         await createCoreMutation.mutateAsync({
           data: {
             name: values.name,
-            backend_type: backendType,
+            type: backendType,
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
             exclude_inbound_tags: excludeInboundTags,
@@ -606,7 +606,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       // Handle validation errors
       if (error?.response?._data && !isEmptyObject(error?.response?._data)) {
         // For zod validation errors
-        const fields = ['name', 'backend_type', 'config', 'fallback_id', 'excluded_inbound_ids']
+        const fields = ['name', 'type', 'config', 'fallback_id', 'excluded_inbound_ids']
 
         // Show first error in a toast
         if (error?.response?._data?.detail) {
@@ -689,7 +689,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         // Reset form for new core
         form.reset({
           name: '',
-          backend_type: 'xray',
+          type: 'xray',
           config: getDefaultCoreConfigString('xray'),
           excluded_inbound_ids: [],
           fallback_id: [],
@@ -698,8 +698,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       } else {
         // Set restart_nodes to true for editing
         form.setValue('restart_nodes', true)
-        if (!form.getValues('backend_type')) {
-          form.setValue('backend_type', 'xray')
+        if (!form.getValues('type')) {
+          form.setValue('type', 'xray')
         }
       }
 
@@ -1491,7 +1491,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
                     <FormField
                       control={form.control}
-                      name="backend_type"
+                      name="type"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>{t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}</FormLabel>
@@ -1511,7 +1511,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="xray">Xray</SelectItem>
-                                <SelectItem value="wireguard">WireGuard</SelectItem>
+                                <SelectItem value="wg">WireGuard</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>

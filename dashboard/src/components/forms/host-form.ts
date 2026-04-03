@@ -88,7 +88,6 @@ export interface HostFormValues {
   }
   mux_settings?: MuxSettings
   wireguard_overrides?: {
-    pre_shared_key?: string
     allowed_ips?: string[]
     mtu?: number
     reserved?: string
@@ -434,7 +433,6 @@ export const HostFormSchema = z.object({
   transport_settings: transportSettingsSchema,
   wireguard_overrides: z
     .object({
-      pre_shared_key: z.string().optional(),
       allowed_ips: z.array(z.string()).optional(),
       mtu: z.number().min(576).max(9000).optional(),
       reserved: z.string().max(64).optional(),

@@ -1007,8 +1007,6 @@
     "wireguard": {
       "sectionSecurityOverrides": "تنظیمات امنیتی",
       "sectionNetworkOverrides": "تنظیمات شبکه",
-      "overridePsk": "کلید از پیش اشتراکی",
-      "overridePskPlaceholder": "خالی بگذارید تا از PSK همان inbound استفاده شود",
       "allowedIps": "AllowedIPs",
       "allowedIpsHint": "خالی بگذارید تا پیش‌فرض 0.0.0.0/0 و ::/0 استفاده شود",
       "mtu": "MTU",

@@ -1298,8 +1298,6 @@
     "wireguard": {
       "sectionSecurityOverrides": "Настройки безопасности",
       "sectionNetworkOverrides": "Настройки сети",
-      "overridePsk": "Предварительно разделяемый ключ",
-      "overridePskPlaceholder": "Оставьте пустым, чтобы использовать PSK inbound",
       "allowedIps": "AllowedIPs",
       "allowedIpsHint": "Оставьте пустым для значений по умолчанию 0.0.0.0/0 и ::/0",
       "mtu": "MTU",

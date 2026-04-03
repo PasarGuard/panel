@@ -16,7 +16,7 @@ import { UserStatus, getHosts } from '@/service/api'
 import { getInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Shield, Trash2, X } from 'lucide-react'
+import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -629,7 +629,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     if (wg == null) {
       form.setValue(
         'wireguard_overrides',
-        { pre_shared_key: '', allowed_ips: [], reserved: '', mtu: undefined, keepalive_seconds: undefined },
+        { allowed_ips: [], reserved: '', mtu: undefined, keepalive_seconds: undefined },
         { shouldDirty: false },
       )
     }
@@ -664,7 +664,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         if (payload.wireguard_overrides) {
           const wg = payload.wireguard_overrides
           const next: NonNullable<HostFormValues['wireguard_overrides']> = {}
-          if (wg.pre_shared_key?.trim()) next.pre_shared_key = wg.pre_shared_key.trim()
           if (wg.allowed_ips?.length) next.allowed_ips = wg.allowed_ips
           if (wg.mtu != null && !Number.isNaN(Number(wg.mtu))) next.mtu = Number(wg.mtu)
           if (wg.reserved?.trim()) next.reserved = wg.reserved.trim()
@@ -904,38 +903,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   onValueChange={handleWireguardAccordionChange}
                   className="!mt-0 mb-6 flex w-full flex-col gap-y-6"
                 >
-                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_subscription_security">
-                    <AccordionTrigger>
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4" />
-                        <span>{t('hostsDialog.wireguard.sectionSecurityOverrides')}</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-2 pb-4">
-                      <div className="space-y-3">
-                        <FormField
-                          control={form.control}
-                          name="wireguard_overrides.pre_shared_key"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs">{t('hostsDialog.wireguard.overridePsk')}</FormLabel>
-                              <FormControl>
-                                <Input
-                                  className="font-mono text-xs"
-                                  dir="ltr"
-                                  type="password"
-                                  autoComplete="new-password"
-                                  placeholder={t('hostsDialog.wireguard.overridePskPlaceholder')}
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
                   <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_subscription_network">
                     <AccordionTrigger>
                       <div className="flex items-center gap-2">

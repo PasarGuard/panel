@@ -29,7 +29,7 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
     },
   })
   const coreVersion = node.core_version ?? node.xray_version
-  const isXrayBackend = (coreConfig?.backend_type || 'xray') === 'xray'
+  const isXrayBackend = (coreConfig?.type || 'xray') === 'xray'
   const hasCoreUpdate = !!(isXrayBackend && coreVersion && latestXrayVersion && hasXrayUpdate(coreVersion))
 
   const getStatusConfig = () => {

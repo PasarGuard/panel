@@ -1141,8 +1141,6 @@
     "wireguard": {
       "sectionSecurityOverrides": "Security settings",
       "sectionNetworkOverrides": "Network settings",
-      "overridePsk": "Preshared key",
-      "overridePskPlaceholder": "Leave empty to use the inbound PSK",
       "allowedIps": "AllowedIPs",
       "allowedIpsHint": "Leave empty for default 0.0.0.0/0 and ::/0",
       "mtu": "MTU",

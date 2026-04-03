@@ -36,7 +36,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
     },
   })
 
-  const coreBackendType = coreConfig?.backend_type || 'xray'
+  const coreBackendType = coreConfig?.type || 'xray'
   const isXrayBackend = coreBackendType === 'xray'
   const currentVersion = node.core_version ?? node.xray_version
   const showUpdateBadge = !!(isXrayBackend && currentVersion && latestVersion && hasUpdate(currentVersion))

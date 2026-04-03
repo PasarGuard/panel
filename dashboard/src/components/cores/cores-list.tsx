@@ -57,7 +57,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     setEditingCore(core)
     form.reset({
       name: core.name,
-      backend_type: core.backend_type || 'xray',
+      type: core.type || 'xray',
       config: JSON.stringify(core.config, null, 2),
       fallback_id: core.fallbacks_inbound_tags
         ? core.fallbacks_inbound_tags

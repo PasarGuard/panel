@@ -293,7 +293,6 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         : undefined,
       wireguard_overrides: host.wireguard_overrides
         ? {
-            pre_shared_key: host.wireguard_overrides.pre_shared_key ?? '',
             allowed_ips: host.wireguard_overrides.allowed_ips ?? [],
             mtu: host.wireguard_overrides.mtu ?? undefined,
             reserved: host.wireguard_overrides.reserved ?? '',

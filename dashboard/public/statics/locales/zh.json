@@ -1115,8 +1115,6 @@
     "wireguard": {
       "sectionSecurityOverrides": "安全设置",
       "sectionNetworkOverrides": "网络设置",
-      "overridePsk": "预共享密钥",
-      "overridePskPlaceholder": "留空则使用入站 PSK",
       "allowedIps": "AllowedIPs",
       "allowedIpsHint": "留空则使用默认 0.0.0.0/0 与 ::/0",
       "mtu": "MTU",
