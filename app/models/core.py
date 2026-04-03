@@ -1,6 +1,6 @@
 from datetime import datetime as dt
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.utils.helpers import fix_datetime_timezone
 from .validators import StringArrayValidator
@@ -12,7 +12,7 @@ from app.db.models import CoreType
 class CoreBase(BaseModel):
     name: str
     config: dict
-    backend_type: CoreType = Field(default=CoreType.XRAY)
+    backend_type: CoreType | None = Field(default=None)
     exclude_inbound_tags: set[str]
     fallbacks_inbound_tags: set[str]
 
@@ -31,25 +31,9 @@ class CoreBase(BaseModel):
 
 class CoreCreate(CoreBase):
     name: str | None = Field(max_length=256, default=None)
-    backend_type: CoreType = Field(default=CoreType.XRAY)
+    backend_type: CoreType | None = Field(default=None)
     exclude_inbound_tags: set | None = Field(default=None)
     fallbacks_inbound_tags: set | None = Field(default=None)
-
-    @model_validator(mode="before")
-    @classmethod
-    def infer_backend_type(cls, data):
-        if not isinstance(data, dict):
-            return data
-
-        if data.get("backend_type") is not None:
-            return data
-
-        config = data.get("config")
-        if isinstance(config, dict) and "interface_name" in config:
-            data = dict(data)
-            data["backend_type"] = CoreType.WIREGUARD
-
-        return data
 
     @field_validator("config", mode="before")
     def validate_config(cls, v: dict) -> dict:

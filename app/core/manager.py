@@ -124,23 +124,18 @@ class CoreManager:
         }
 
     @classmethod
-    def _normalize_backend_type(cls, backend_type: str | CoreType | None) -> CoreType:
+    def _normalize_backend_type(cls, backend_type: CoreType | None) -> CoreType:
         if not backend_type:
             return CoreType.XRAY
-        try:
-            return CoreType(backend_type)
-        except ValueError as exc:
-            raise ValueError(f"unsupported backend_type: {backend_type}") from exc
+        return backend_type
 
-    @classmethod
-    def _get_core_class(cls, backend_type: str | CoreType | None):
-        normalized_backend_type = cls._normalize_backend_type(backend_type)
-        return cls.CORE_CLASSES[normalized_backend_type]
+    def _get_core_class(self, backend_type: CoreType | None):
+        normalized_backend_type = self._normalize_backend_type(backend_type)
+        return self.CORE_CLASSES[normalized_backend_type]
 
-    @classmethod
-    def _core_from_json(cls, data: dict) -> AbstractCore:
+    def _core_from_json(self, data: dict) -> AbstractCore:
         backend_type = data.get("backend_type")
-        core_class = cls._get_core_class(backend_type)
+        core_class = self._get_core_class(backend_type)
         return core_class.from_json(data)
 
     async def _apply_core_payload(self, payload: dict):
@@ -187,16 +182,16 @@ class CoreManager:
         """Publish core update message via global router."""
         await router.publish(MessageTopic.CORE, message)
 
-    @staticmethod
     def validate_core(
+        self,
         config: dict,
         exclude_inbounds: set[str] | None = None,
         fallbacks_inbounds: set[str] | None = None,
-        backend_type: str | CoreType | None = None,
+        backend_type: CoreType | None = None,
     ):
         exclude_inbounds = exclude_inbounds or set()
         fallbacks_inbounds = fallbacks_inbounds or set()
-        core_class = CoreManager._get_core_class(backend_type)
+        core_class = self._get_core_class(backend_type)
         return core_class(config, exclude_inbounds.copy(), fallbacks_inbounds.copy())
 
     async def initialize(self, db):
