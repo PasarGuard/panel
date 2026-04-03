@@ -40,6 +40,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
   const dir = useDirDetection()
 
   const { data: coresData, isLoading, isFetching, refetch } = useGetAllCores({})
+  const shouldRenderLocalModal = !onEditCore
 
   useEffect(() => {
     const handleOpenDialog = () => onOpenChange?.(true)
@@ -210,7 +211,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
         )}
       </ScrollArea>
 
-      <CoreConfigModal isDialogOpen={!!isDialogOpen} onOpenChange={handleModalClose} form={form} editingCore={!!editingCore} editingCoreId={editingCore?.id} />
+      {shouldRenderLocalModal && <CoreConfigModal isDialogOpen={!!isDialogOpen} onOpenChange={handleModalClose} form={form} editingCore={!!editingCore} editingCoreId={editingCore?.id} />}
     </div>
   )
 }

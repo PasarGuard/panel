@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
 
 from tests.api import client
 from app.operation.subscription import SubscriptionOperation
 from app.models.settings import ConfigFormat, SubRule
+from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from tests.api.helpers import (
     auth_headers,
     create_core,
@@ -284,6 +286,82 @@ def test_user_subscription_applies_rule_response_headers(access_token):
         for host in hosts:
             client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
         cleanup_groups(access_token, core, groups)
+
+
+def test_wireguard_subscription_outputs_are_consistent(access_token):
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_public_key = get_wireguard_public_key(interface_private_key)
+    interface_name = unique_name("wg_subscription")
+    host_remark = "WG {USERNAME}"
+    endpoint = "198.51.100.10"
+
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_subscription_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.30.0.1/24"],
+            "peer_keepalive_seconds": 25,
+        },
+        backend_type="wireguard",
+        fallbacks=[],
+    )
+
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": host_remark,
+            "address": [endpoint],
+            "port": 51820,
+            "inbound_tag": interface_name,
+            "priority": 1,
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+
+    group = create_group(access_token, name=unique_name("wg_subscription_group"), inbound_tags=[interface_name])
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_user")})
+    expected_remark = f"WG {user['username']}"
+
+    try:
+        links_response = client.get(f"{user['subscription_url']}/links")
+        wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
+
+        assert links_response.status_code == status.HTTP_200_OK
+        assert wireguard_response.status_code == status.HTTP_200_OK
+
+        link = links_response.text.strip()
+        assert link.startswith("wireguard://")
+
+        parsed = urlsplit(link)
+        query = parse_qs(parsed.query)
+        assert unquote(parsed.username or "") == user["proxy_settings"]["wireguard"]["private_key"]
+        assert parsed.hostname == endpoint
+        assert parsed.port == 51820
+        assert query["publickey"] == [interface_public_key]
+        assert query["address"] == [",".join(user["proxy_settings"]["wireguard"]["peer_ips"])]
+        assert query["allowedips"] == ["0.0.0.0/0,::/0"]
+        assert query["keepalive"] == ["25"]
+        assert unquote(parsed.fragment) == expected_remark
+
+        body = wireguard_response.text
+        assert f"# Name = {expected_remark}" in body
+        assert f"PrivateKey = {user['proxy_settings']['wireguard']['private_key']}" in body
+        assert f"Address = {', '.join(user['proxy_settings']['wireguard']['peer_ips'])}" in body
+        assert f"PublicKey = {interface_public_key}" in body
+        assert "AllowedIPs = 0.0.0.0/0, ::/0" in body
+        assert f"Endpoint = {endpoint}:51820" in body
+        assert "PersistentKeepalive = 25" in body
+        assert f"# URI: {link}" in body
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
 
 
 def test_format_rule_response_headers_supports_strings_and_json():

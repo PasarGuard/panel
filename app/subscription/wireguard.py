@@ -1,5 +1,3 @@
-from urllib.parse import quote
-
 from app.models.subscription import SubscriptionInboundData
 
 from .base import BaseSubscription
@@ -7,47 +5,48 @@ from .base import BaseSubscription
 
 class WireGuardConfiguration(BaseSubscription):
     def __init__(self):
+        self.proxy_remarks = []
         self.configs: list[str] = []
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
-        peer_ips = settings.get("peer_ips", [])
-        private_key = settings.get("private_key", "")
-        if not private_key or not peer_ips:
+        components = self._build_wireguard_components(remark, address, inbound, settings)
+        if not components:
             return
 
+        payload = components["payload"]
         lines = [
-            f"# {remark}",
+            f"# Name = {components['remark']}",
             "[Interface]",
-            f"PrivateKey = {private_key}",
-            f"Address = {', '.join(peer_ips)}",
+            f"PrivateKey = {components['private_key']}",
+            f"Address = {', '.join(components['peer_ips'])}",
         ]
-        if inbound.wireguard_mtu:
-            lines.append(f"MTU = {inbound.wireguard_mtu}")
-        if inbound.wireguard_reserved:
-            lines.append(f"Reserved = {inbound.wireguard_reserved}")
+        if mtu := payload.get("mtu"):
+            lines.append(f"MTU = {mtu}")
+        if reserved := payload.get("reserved"):
+            lines.append(f"Reserved = {reserved}")
         lines.extend(
             [
                 "",
                 "[Peer]",
-                f"PublicKey = {inbound.wireguard_public_key}",
+                f"PublicKey = {payload['publickey']}",
             ]
         )
 
-        if inbound.wireguard_pre_shared_key:
-            lines.append(f"PresharedKey = {inbound.wireguard_pre_shared_key}")
+        if preshared_key := payload.get("presharedkey"):
+            lines.append(f"PresharedKey = {preshared_key}")
 
         lines.extend(
             [
-                f"AllowedIPs = {', '.join(inbound.wireguard_allowed_ips or ['0.0.0.0/0', '::/0'])}",
+                f"AllowedIPs = {payload['allowedips'].replace(',', ', ')}",
                 f"Endpoint = {address}:{inbound.port}",
             ]
         )
 
-        if inbound.wireguard_keepalive:
-            lines.append(f"PersistentKeepalive = {inbound.wireguard_keepalive}")
+        if keepalive := payload.get("keepalive"):
+            lines.append(f"PersistentKeepalive = {keepalive}")
 
         lines.append("")
-        lines.append(f"# URI: wireguard://{quote(private_key, safe='')}@{address}:{inbound.port}")
+        lines.append(f"# URI: {components['uri']}")
         self.configs.append("\n".join(lines))
 
     def render(self, reverse: bool = False):
