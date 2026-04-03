@@ -38,7 +38,7 @@ import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
-import { generateWireGuardKeyPair } from '@/utils/wireguard'
+import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, User, Users } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -1195,6 +1195,15 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     toast.success(t('userDialog.proxySettings.wireguardGenerated', { defaultValue: 'WireGuard keypair generated' }))
   }, [form, handleFieldChange, t])
 
+  const syncWireGuardPublicKey = React.useCallback(
+    (privateKey: string) => {
+      const publicKey = getWireGuardPublicKey(privateKey)
+      form.setValue('proxy_settings.wireguard.public_key', publicKey, { shouldDirty: true, shouldValidate: true })
+      handleFieldChange('proxy_settings.wireguard.public_key', publicKey)
+    },
+    [form, handleFieldChange],
+  )
+
   const parseWireGuardPeerIps = React.useCallback((value: string) => {
     return value
       .split(/[\n,]+/)
@@ -2135,20 +2144,27 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                             name="proxy_settings.wireguard.private_key"
                             render={({ field }) => (
                               <FormItem className="mb-2">
-                                <FormLabel>WireGuard {t('userDialog.proxySettings.privateKey', { defaultValue: 'Private key' })}</FormLabel>
+                                <FormLabel>{t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}</FormLabel>
                                 <FormControl>
                                   <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
                                     <Input
                                       {...field}
                                       value={field.value ?? ''}
-                                      placeholder={t('userDialog.proxySettings.privateKey', { defaultValue: 'Private key' })}
+                                      placeholder={t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}
                                       onChange={e => {
                                         field.onChange(e)
+                                        syncWireGuardPublicKey(e.target.value)
                                         form.trigger('proxy_settings.wireguard.private_key')
                                         handleFieldChange('proxy_settings.wireguard.private_key', e.target.value)
                                       }}
                                     />
-                                    <Button size="icon" type="button" variant="ghost" onClick={generateWireGuardProxySettings} title="Generate WireGuard keypair">
+                                    <Button
+                                      size="icon"
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={generateWireGuardProxySettings}
+                                      title={t('userDialog.proxySettings.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
+                                    >
                                       <RefreshCcw className="h-3 w-3" />
                                     </Button>
                                   </div>
@@ -2162,18 +2178,14 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                             name="proxy_settings.wireguard.public_key"
                             render={({ field }) => (
                               <FormItem className="mb-2">
-                                <FormLabel>WireGuard {t('userDialog.proxySettings.publicKey', { defaultValue: 'Public key' })}</FormLabel>
+                                <FormLabel>{t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}</FormLabel>
                                 <FormControl>
                                   <Input
                                     dir="ltr"
                                     {...field}
                                     value={field.value ?? ''}
-                                    placeholder={t('userDialog.proxySettings.publicKey', { defaultValue: 'Public key' })}
-                                    onChange={e => {
-                                      field.onChange(e)
-                                      form.trigger('proxy_settings.wireguard.public_key')
-                                      handleFieldChange('proxy_settings.wireguard.public_key', e.target.value)
-                                    }}
+                                    placeholder={t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}
+                                    disabled
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -2185,7 +2197,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                             name="proxy_settings.wireguard.peer_ips"
                             render={({ field }) => (
                               <FormItem className="mb-2">
-                                <FormLabel>WireGuard {t('userDialog.proxySettings.peerIps', { defaultValue: 'Peer IPs' })}</FormLabel>
+                                <FormLabel>{t('userDialog.proxySettings.wireguardPeerIps', { defaultValue: 'WireGuard Peer IPs' })}</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     dir="ltr"

@@ -11,13 +11,12 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { useClipboard } from '@/hooks/use-clipboard'
 import { cn } from '@/lib/utils'
 import { UserStatus, getHosts } from '@/service/api'
 import { getInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Settings, Trash2, X } from 'lucide-react'
+import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Settings, Shield, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -577,25 +576,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const inbounds = useMemo(() => inboundDetails.map(inbound => inbound.tag), [inboundDetails])
   const selectedInbound = useMemo(() => inboundDetails.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
-  const wireguardServerKeysPresent = useMemo(
-    () =>
-      Boolean(
-        selectedInbound?.wireguard_public_key ||
-          selectedInbound?.wireguard_private_key ||
-          selectedInbound?.wireguard_pre_shared_key,
-      ),
-    [selectedInbound],
-  )
-  const { copy: copyToClipboard } = useClipboard({ timeout: 1500 })
-
-  const copyWireguardField = async (text: string) => {
-    const ok = await copyToClipboard(text)
-    if (ok) {
-      toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
-    } else {
-      toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
-    }
-  }
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
@@ -924,75 +904,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   onValueChange={handleWireguardAccordionChange}
                   className="!mt-0 mb-6 flex w-full flex-col gap-y-6"
                 >
-                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_overview">
+                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_subscription_security">
                     <AccordionTrigger>
                       <div className="flex items-center gap-2">
-                        <Info className="h-4 w-4" />
-                        <span>{t('hostsDialog.wireguard.sectionOverview')}</span>
+                        <Shield className="h-4 w-4" />
+                        <span>{t('hostsDialog.wireguard.sectionSecurityOverrides')}</span>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-2 pb-4">
-                      <p className="text-sm text-muted-foreground">{t('hostsDialog.wireguard.minimalHint')}</p>
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_server_keys">
-                    <AccordionTrigger>
-                      <div className="flex items-center gap-2">
-                        <Lock className="h-4 w-4" />
-                        <span>{t('hostsDialog.wireguard.sectionServerKeys')}</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-2 pb-4">
-                      {!wireguardServerKeysPresent ? (
-                        <p className="text-sm text-muted-foreground">{t('hostsDialog.wireguard.noServerKeys')}</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {selectedInbound?.wireguard_public_key ? (
-                            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                              <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-40">{t('hostsDialog.wireguard.serverPublicKey')}</span>
-                              <div className="flex min-w-0 flex-1 items-center gap-2">
-                                <Input readOnly className="font-mono text-xs" value={selectedInbound.wireguard_public_key} dir="ltr" />
-                                <Button type="button" size="icon" variant="outline" className="shrink-0" onClick={() => void copyWireguardField(selectedInbound.wireguard_public_key!)}>
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
-                          {selectedInbound?.wireguard_private_key ? (
-                            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                              <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-40">{t('hostsDialog.wireguard.serverPrivateKey')}</span>
-                              <div className="flex min-w-0 flex-1 items-center gap-2">
-                                <Input readOnly className="font-mono text-xs" value={selectedInbound.wireguard_private_key} dir="ltr" type="password" />
-                                <Button type="button" size="icon" variant="outline" className="shrink-0" onClick={() => void copyWireguardField(selectedInbound.wireguard_private_key!)}>
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
-                          {selectedInbound?.wireguard_pre_shared_key ? (
-                            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                              <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-40">{t('hostsDialog.wireguard.inboundPsk')}</span>
-                              <div className="flex min-w-0 flex-1 items-center gap-2">
-                                <Input readOnly className="font-mono text-xs" value={selectedInbound.wireguard_pre_shared_key} dir="ltr" type="password" />
-                                <Button type="button" size="icon" variant="outline" className="shrink-0" onClick={() => void copyWireguardField(selectedInbound.wireguard_pre_shared_key!)}>
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_overrides">
-                    <AccordionTrigger>
-                      <div className="flex items-center gap-2">
-                        <Settings className="h-4 w-4" />
-                        <span>{t('hostsDialog.wireguard.sectionOverrides')}</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-2 pb-4">
-                      <p className="mb-3 text-xs text-muted-foreground">{t('hostsDialog.wireguard.overridesIntro')}</p>
                       <div className="space-y-3">
                         <FormField
                           control={form.control}
@@ -1014,6 +933,18 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             </FormItem>
                           )}
                         />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_subscription_network">
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-2">
+                        <Network className="h-4 w-4" />
+                        <span>{t('hostsDialog.wireguard.sectionNetworkOverrides')}</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-2 pb-4">
+                      <div className="space-y-3">
                         <FormField
                           control={form.control}
                           name="wireguard_overrides.allowed_ips"

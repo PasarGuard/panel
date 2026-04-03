@@ -64,7 +64,9 @@ class WireGuardSettings(BaseModel):
     def validate_public_key(cls, value):
         if value in (None, ""):
             return None
-        return validate_wireguard_key(value, "wireguard public_key")
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
     @field_validator("peer_ips", mode="before")
     @classmethod
@@ -84,10 +86,9 @@ class WireGuardSettings(BaseModel):
     @model_validator(mode="after")
     def derive_public_key(self):
         if self.private_key:
-            derived_public_key = get_wireguard_public_key(self.private_key)
-            if self.public_key and self.public_key != derived_public_key:
-                raise ValueError("wireguard public_key does not match private_key")
-            self.public_key = derived_public_key
+            self.public_key = get_wireguard_public_key(self.private_key)
+        else:
+            self.public_key = None
         return self
 
 
