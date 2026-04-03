@@ -56,7 +56,12 @@ def _build_subscription_config(
 
     if config_format == "links":
         return StandardLinks(**common_kwargs)
-    if config_format in ("clash", "clash_meta"):
+    if config_format == "clash":
+        return ClashConfiguration(
+            clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
+            **common_kwargs,
+        )
+    if config_format == "clash_meta":
         return ClashMetaConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
             **common_kwargs,
