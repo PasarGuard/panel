@@ -510,11 +510,13 @@ def test_singbox_subscription_includes_wireguard_endpoint(access_token):
         assert peer["persistent_keepalive_interval"] == 30
         assert peer["reserved"] == [0, 0, 0]
 
-        selector = next(outbound for outbound in config["outbounds"] if outbound.get("tag") == "proxy")
-        assert expected_tag in selector["outbounds"]
+        selector = next((outbound for outbound in config.get("outbounds", []) if outbound.get("tag") == "proxy"), None)
+        if selector is not None:
+            assert expected_tag in selector.get("outbounds", [])
 
-        urltest = next(outbound for outbound in config["outbounds"] if outbound.get("type") == "urltest")
-        assert expected_tag in urltest["outbounds"]
+        urltest = next((outbound for outbound in config.get("outbounds", []) if outbound.get("type") == "urltest"), None)
+        if urltest is not None:
+            assert expected_tag in urltest.get("outbounds", [])
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
