@@ -727,7 +727,7 @@ class CoreConfig(Base):
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
     backend_type: Mapped[CoreType] = mapped_column(
-        SQLEnum(CoreType), default=CoreType.XRAY, server_default=CoreType.XRAY.value
+        SQLEnum(CoreType), default=CoreType.XRAY, server_default=CoreType.XRAY
     )
     exclude_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
     fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
