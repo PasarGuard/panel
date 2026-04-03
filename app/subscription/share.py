@@ -35,6 +35,7 @@ STATUS_EMOJIS = {
     "on_hold": "🔌",
 }
 
+
 def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],

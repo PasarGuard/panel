@@ -84,9 +84,9 @@ class UserOperation(BaseOperation):
 
     @staticmethod
     def _format_validation_errors(error: ValidationError) -> str:
-        return "; ".join([
-            f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()
-        ])
+        return "; ".join(
+            [f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()]
+        )
 
     @staticmethod
     async def generate_subscription_url(user: UserNotificationResponse):
@@ -306,10 +306,7 @@ class UserOperation(BaseOperation):
             proxy_settings_to_prepare,
             exclude_user_id=db_user.id,
         )
-        if (
-            modified_user.proxy_settings is not None
-            or prepared_proxy_settings.dict() != current_proxy_settings_data
-        ):
+        if modified_user.proxy_settings is not None or prepared_proxy_settings.dict() != current_proxy_settings_data:
             modified_user.proxy_settings = prepared_proxy_settings
 
         db_user = await modify_user(db, db_user, modified_user, groups=validated_groups)

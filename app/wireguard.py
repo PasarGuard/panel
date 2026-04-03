@@ -27,9 +27,7 @@ def _unique_preserve_order(values: Iterable[str]) -> list[str]:
 
 async def get_wireguard_tags(tags: Iterable[str]) -> list[str]:
     inbounds_by_tag = await core_manager.get_inbounds_by_tag()
-    return _unique_preserve_order(
-        tag for tag in tags if inbounds_by_tag.get(tag, {}).get("protocol") == "wireguard"
-    )
+    return _unique_preserve_order(tag for tag in tags if inbounds_by_tag.get(tag, {}).get("protocol") == "wireguard")
 
 
 async def get_wireguard_tags_from_groups(groups: Iterable[Group]) -> list[str]:
@@ -122,10 +120,17 @@ async def validate_wireguard_peer_ips(
     validated_networks: list[IPv4Network | IPv6Network] = []
     for peer_ip in peer_ips:
         candidate = ip_network(peer_ip, strict=False)
-        if not any(candidate.version == interface.ip.version and candidate.subnet_of(interface.network) for interface in interface_addresses):
+        if not any(
+            candidate.version == interface.ip.version and candidate.subnet_of(interface.network)
+            for interface in interface_addresses
+        ):
             raise ValueError(f"wireguard peer IP '{peer_ip}' is outside interface '{interface_tag}' address ranges")
-        if any(candidate.version == interface.ip.version and interface.ip in candidate for interface in interface_addresses):
-            raise ValueError(f"wireguard peer IP '{peer_ip}' overlaps the server address on interface '{interface_tag}'")
+        if any(
+            candidate.version == interface.ip.version and interface.ip in candidate for interface in interface_addresses
+        ):
+            raise ValueError(
+                f"wireguard peer IP '{peer_ip}' overlaps the server address on interface '{interface_tag}'"
+            )
         if any(_networks_overlap(candidate, validated) for validated in validated_networks):
             raise ValueError(f"wireguard peer IP '{peer_ip}' overlaps another peer IP in the same user")
         if any(_networks_overlap(candidate, existing) for existing in existing_networks):
@@ -153,7 +158,11 @@ def _allocate_from_interface(
         if candidate == server_ip:
             continue
 
-        if any(candidate in existing_network for existing_network in used_networks if existing_network.version == candidate.version):
+        if any(
+            candidate in existing_network
+            for existing_network in used_networks
+            if existing_network.version == candidate.version
+        ):
             continue
 
         suffix = 32 if candidate.version == 4 else 128

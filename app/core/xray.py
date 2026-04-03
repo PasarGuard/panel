@@ -37,7 +37,7 @@ class XRayConfig(dict):
         if fallbacks_inbound_tags is None:
             fallbacks_inbound_tags = set()
 
-        self._backend_type = CoreType.XRAY
+        self._backend_type = CoreType.xray
         exclude_inbound_tags.update(fallbacks_inbound_tags)
         self.exclude_inbound_tags = exclude_inbound_tags
         self.fallbacks_inbound_tags = set(fallbacks_inbound_tags)

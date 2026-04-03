@@ -13,8 +13,8 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
-    Text,
     Table,
+    Text,
     UniqueConstraint,
     and_,
     case,
@@ -713,10 +713,10 @@ class Group(Base):
 
 
 class CoreType(str, Enum):
-    XRAY = "xray"
-    WIREGUARD = "wireguard"
-    MTPROTO = "mtproto"
-    SINGBOX = "singbox"
+    xray = "xray"
+    wg = "wg"
+    mtproto = "mtproto"
+    singbox = "singbox"
 
 
 class CoreConfig(Base):
@@ -727,7 +727,7 @@ class CoreConfig(Base):
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
     backend_type: Mapped[CoreType] = mapped_column(
-        SQLEnum(CoreType), default=CoreType.XRAY, server_default=CoreType.XRAY
+        SQLEnum(CoreType), default=CoreType.xray, server_default=CoreType.xray
     )
     exclude_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
     fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)

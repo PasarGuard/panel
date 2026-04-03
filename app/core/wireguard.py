@@ -29,7 +29,7 @@ class WireGuardConfig(dict):
 
         super().__init__(config)
 
-        self._backend_type = CoreType.WIREGUARD
+        self._backend_type = CoreType.wg
         self.exclude_inbound_tags = set(exclude_inbound_tags or set())
         self.fallbacks_inbound_tags = set(fallbacks_inbound_tags or set())
         self._inbounds: list[str] = []

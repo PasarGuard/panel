@@ -26,8 +26,8 @@ class CoreManager:
     STATE_CACHE_KEY = "state"
     KV_BUCKET_NAME = "core_manager_state"
     CORE_CLASSES = {
-        CoreType.XRAY: XRayConfig,
-        CoreType.WIREGUARD: WireGuardConfig,
+        CoreType.xray: XRayConfig,
+        CoreType.wg: WireGuardConfig,
     }
 
     def __init__(self):
@@ -126,7 +126,7 @@ class CoreManager:
     @classmethod
     def _normalize_backend_type(cls, backend_type: CoreType | None) -> CoreType:
         if not backend_type:
-            return CoreType.XRAY
+            return CoreType.xray
         return backend_type
 
     def _get_core_class(self, backend_type: CoreType | None):
@@ -141,7 +141,7 @@ class CoreManager:
     async def _apply_core_payload(self, payload: dict):
         try:
             core_id = payload["id"]
-            backend_type = payload.get("backend_type", CoreType.XRAY)
+            backend_type = payload.get("backend_type", CoreType.xray)
             config = payload["config"]
         except Exception:
             await self._reload_from_cache()

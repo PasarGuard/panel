@@ -190,8 +190,10 @@ async def get_admin_by_telegram_id(
         Admin: The admin object.
     """
     admins = (
-        await db.execute(select(Admin).where(Admin.telegram_id == telegram_id).order_by(Admin.id.asc()).limit(2))
-    ).scalars().all()
+        (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id).order_by(Admin.id.asc()).limit(2)))
+        .scalars()
+        .all()
+    )
     if len(admins) > 1:
         logger.error(
             "Duplicate telegram_id found for admins; using earliest record",

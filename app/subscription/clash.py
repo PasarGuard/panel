@@ -148,7 +148,7 @@ class ClashConfiguration(BaseSubscription):
             "headers": {**http_headers, "Host": host} if http_headers else {"Host": host},
         }
         return self._normalize_and_remove_none_values(result)
-    
+
     def _transport_xhttp(self, config: XHTTPTransportConfig, path: str, random_user_agent: bool = False):
         """Build XHTTP transport config for Clash Meta"""
         host = config.host if isinstance(config.host, str) else ""
@@ -195,7 +195,7 @@ class ClashConfiguration(BaseSubscription):
     ):
         """Apply transport settings using registry"""
         network = inbound.network
-        
+
         # Normalize legacy splithttp -> xhttp
         if network == "splithttp":
             network = "xhttp"

@@ -58,8 +58,12 @@ class GroupOperation(BaseOperation):
         db_group: DBGroup,
         modified_group: GroupModify,
     ) -> None:
-        final_is_disabled = modified_group.is_disabled if modified_group.is_disabled is not None else db_group.is_disabled
-        final_inbound_tags = modified_group.inbound_tags if modified_group.inbound_tags is not None else db_group.inbound_tags
+        final_is_disabled = (
+            modified_group.is_disabled if modified_group.is_disabled is not None else db_group.is_disabled
+        )
+        final_inbound_tags = (
+            modified_group.inbound_tags if modified_group.inbound_tags is not None else db_group.inbound_tags
+        )
         final_group = SimpleNamespace(
             is_disabled=final_is_disabled,
             inbounds=[SimpleNamespace(tag=tag) for tag in final_inbound_tags],
