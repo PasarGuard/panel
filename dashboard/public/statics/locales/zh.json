@@ -231,7 +231,7 @@
         "outline": "Outline",
         "outlineDescription": "Outline VPN 配置格式",
         "wireguard": "WireGuard",
-        "wireguardDescription": "为 WireGuard 客户端开放 /wireguard 手动配置。"
+        "wireguardDescription": "WireGuard 配置格式"
       },
       "configFormats": {
         "links": "链接",
@@ -1108,10 +1108,10 @@
     "nextPlanDataLimit": "数据限制 (GB)",
     "nextPlanExpire": "有效期 (天)",
     "nextPlanAddRemainingTraffic": "添加剩余流量",
-    "routingSettings": "Routing",
-    "vlessRoute": "VLESS Route",
+    "routingSettings": "路由",
+    "vlessRoute": "VLESS 路由",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "vlessRoute.info": "VLESS 主机的可选路由值。必须正好为 4 个十六进制字符（0-9、a-f、A-F）。留空则使用默认路由。",
     "wireguard": {
       "sectionSecurityOverrides": "安全设置",
       "sectionNetworkOverrides": "网络设置",

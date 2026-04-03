@@ -158,7 +158,7 @@
         "outline": "Outline",
         "outlineDescription": "فرمت پیکربندی Outline VPN",
         "wireguard": "WireGuard",
-        "wireguardDescription": "نمایش پیکربندی‌های دستی /wireguard برای کلاینت‌های WireGuard."
+        "wireguardDescription": "فرمت پیکربندی WireGuard"
       },
       "configFormats": {
         "links": "لینک‌ها",
@@ -1000,10 +1000,10 @@
       "505": "نسخه HTTP پشتیبانی نمی‌شود"
     },
     "selectReason": "انتخاب دلیل",
-    "routingSettings": "Routing",
-    "vlessRoute": "VLESS Route",
+    "routingSettings": "مسیریابی",
+    "vlessRoute": "مسیر VLESS",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "vlessRoute.info": "مقدار مسیر اختیاری برای میزبان‌های VLESS. باید دقیقاً ۴ کاراکتر هگزادسیمال باشد (0-9، a-f، A-F). برای استفاده از مسیریابی پیش‌فرض آن را خالی بگذارید.",
     "wireguard": {
       "sectionSecurityOverrides": "تنظیمات امنیتی",
       "sectionNetworkOverrides": "تنظیمات شبکه",

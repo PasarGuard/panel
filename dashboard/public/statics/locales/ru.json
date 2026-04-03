@@ -266,7 +266,7 @@
         "outline": "Outline",
         "outlineDescription": "Формат конфигурации Outline VPN",
         "wireguard": "WireGuard",
-        "wireguardDescription": "Открывать ручные конфиги /wireguard для клиентов WireGuard."
+        "wireguardDescription": "Формат конфигурации WireGuard"
       },
       "configFormats": {
         "links": "Ссылки",
@@ -1291,10 +1291,10 @@
     "nextPlanDataLimit": "Лимит данных (ГБ)",
     "nextPlanExpire": "Срок действия (дней)",
     "nextPlanAddRemainingTraffic": "Добавить оставшийся трафик",
-    "routingSettings": "Routing",
-    "vlessRoute": "VLESS Route",
+    "routingSettings": "Маршрутизация",
+    "vlessRoute": "Маршрут VLESS",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing.",
+    "vlessRoute.info": "Необязательное значение маршрута для хостов VLESS. Должно состоять ровно из 4 шестнадцатеричных символов (0-9, a-f, A-F). Оставьте пустым, чтобы использовать маршрутизацию по умолчанию.",
     "wireguard": {
       "sectionSecurityOverrides": "Настройки безопасности",
       "sectionNetworkOverrides": "Настройки сети",

@@ -20,6 +20,7 @@ import { FieldErrors, useFieldArray, useForm, UseFormReturn } from 'react-hook-f
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import useDirDetection from '@/hooks/use-dir-detection'
 import { useSettingsContext } from './_dashboard.settings'
 
 // Enhanced validation schema for subscription settings
@@ -338,6 +339,8 @@ interface SortableRuleProps {
 
 function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const { t } = useTranslation()
+  const dir = useDirDetection()
+  const isRtl = dir === 'rtl'
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const [isHeadersOpen, setIsHeadersOpen] = useState(false)
   const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
@@ -399,7 +402,7 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   return (
     <>
       <div ref={setNodeRef} style={style} className="cursor-default">
-        <div className="group relative h-full rounded-md border bg-card p-4 transition-colors hover:bg-accent/20">
+        <div className={`group relative h-full rounded-md border bg-card p-4 transition-colors hover:bg-accent/20 ${isRtl ? 'pl-14' : 'pr-14'}`}>
           <Button
             type="button"
             variant="ghost"
@@ -409,13 +412,21 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
               e.stopPropagation()
               onRemove(index)
             }}
-            className="absolute right-3 top-3 h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
+            className={`absolute top-3 h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100 ${
+              isRtl ? 'left-3' : 'right-3'
+            }`}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
 
           <div className="flex items-start gap-3">
-            <button type="button" style={{ cursor: cursor }} className="touch-none opacity-50 transition-opacity group-hover:opacity-100" {...attributes} {...listeners}>
+            <button
+              type="button"
+              style={{ cursor: cursor }}
+              className="shrink-0 touch-none opacity-50 transition-opacity group-hover:opacity-100"
+              {...attributes}
+              {...listeners}
+            >
               <GripVertical className="h-5 w-5" />
               <span className="sr-only">Drag to reorder</span>
             </button>

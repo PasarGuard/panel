@@ -252,7 +252,7 @@
         "outline": "Outline",
         "outlineDescription": "Outline VPN configuration format",
         "wireguard": "WireGuard",
-        "wireguardDescription": "Expose /wireguard manual configs for WireGuard clients."
+        "wireguardDescription": "WireGuard configuration format"
       },
       "configFormats": {
         "links": "Links",
@@ -848,7 +848,7 @@
     "selectHeader": "Select header type",
     "multiMode": "Multi Mode",
     "securitySettings": "Security Settings",
-    "camouflagSettings": "Camouflag Settings",
+    "camouflagSettings": "Camouflage Settings",
     "security": "Security",
     "alpn": "ALPN",
     "earlyData": "Early Data",

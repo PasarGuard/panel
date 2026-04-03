@@ -445,6 +445,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
   const [wireguardOpenSection, setWireguardOpenSection] = useState<string | undefined>(undefined)
   const [isTransportOpen, setIsTransportOpen] = useState(false)
+  const [resolvedHostMode, setResolvedHostMode] = useState<'xray' | 'wireguard'>('xray')
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [_isSubmitting, setIsSubmitting] = useState(false)
@@ -576,6 +577,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const inbounds = useMemo(() => inboundDetails.map(inbound => inbound.tag), [inboundDetails])
   const selectedInbound = useMemo(() => inboundDetails.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
+  const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
+  const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
@@ -593,6 +596,26 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }
     setOpenSection(prevSection => (prevSection === value ? undefined : value))
   }
+
+  useEffect(() => {
+    if (!isDialogOpen) {
+      return
+    }
+
+    if (!selectedInboundTag) {
+      setResolvedHostMode('xray')
+      return
+    }
+
+    if (selectedInbound) {
+      setResolvedHostMode(selectedInbound.protocol === 'wireguard' ? 'wireguard' : 'xray')
+      return
+    }
+
+    if (!isLoadingInbounds) {
+      setResolvedHostMode('xray')
+    }
+  }, [isDialogOpen, isLoadingInbounds, selectedInbound, selectedInboundTag])
 
   useEffect(() => {
     if (!isWireGuardInbound) {
@@ -895,7 +918,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 </div>
               </div>
 
-              {isWireGuardInbound ? (
+              {!isInboundModeResolved ? (
+                <div className="mb-6 rounded-sm border px-4 py-6">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>{t('loading', { defaultValue: 'Loading...' })}</span>
+                  </div>
+                </div>
+              ) : shouldRenderWireGuardLayout ? (
                 <Accordion
                   type="single"
                   collapsible
@@ -2608,12 +2638,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-2">
-                    <Tabs defaultValue="xray" className="w-full">
+                    <Tabs dir={dir} defaultValue="xray" className="w-full">
                       <TabsList className="mb-4 grid w-full grid-cols-2">
                         <TabsTrigger value="xray">Xray</TabsTrigger>
                         <TabsTrigger value="singbox">SingBox</TabsTrigger>
                       </TabsList>
-                      <TabsContent value="xray">
+                      <TabsContent dir={dir} value="xray">
                         <div className="space-y-6">
                           {/* Fragment Settings */}
                           <div className="space-y-4">
@@ -2716,7 +2746,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           </div>
                         </div>
                       </TabsContent>
-                      <TabsContent value="singbox">
+                      <TabsContent dir={dir} value="singbox">
                         <div className="space-y-6">
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
