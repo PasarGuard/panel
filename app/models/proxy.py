@@ -53,7 +53,7 @@ class WireGuardSettings(BaseModel):
     def validate_private_key(cls, value):
         if value in (None, ""):
             return None
-        return validate_wireguard_key(value, "wireguard private_key")
+        return validate_wireguard_key(value, "private_key")
 
     @field_validator("public_key", mode="before")
     @classmethod

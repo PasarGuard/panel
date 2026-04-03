@@ -125,7 +125,7 @@ class WireGuardConfig(dict):
 
     def to_json(self) -> dict:
         return {
-            "backend_type": self.type,
+            "type": self.type,
             "config": dict(self),
             "exclude_inbound_tags": [],
             "fallbacks_inbound_tags": [],
