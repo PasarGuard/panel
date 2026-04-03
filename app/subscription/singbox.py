@@ -27,6 +27,8 @@ class SingBoxConfiguration(BaseSubscription):
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
         self.config = json.loads(render_template_string(singbox_template_content))
+        self.config.setdefault("endpoints", [])
+        self.config.setdefault("outbounds", [])
 
         # Registry for transport handlers
         self.transport_handlers = {
@@ -47,16 +49,23 @@ class SingBoxConfiguration(BaseSubscription):
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
+            "wireguard": self._build_wireguard,
         }
 
     def add_outbound(self, outbound_data):
         self.config["outbounds"].append(outbound_data)
+
+    def add_endpoint(self, endpoint_data):
+        self.config["endpoints"].append(endpoint_data)
 
     def render(self, reverse=False):
         urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh"]
         urltest_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in urltest_types]
         selector_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh", "urltest"]
         selector_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in selector_types]
+        endpoint_tags = [endpoint["tag"] for endpoint in self.config.get("endpoints", []) if endpoint.get("tag")]
+        urltest_tags.extend(endpoint_tags)
+        selector_tags.extend(endpoint_tags)
 
         for outbound in self.config["outbounds"]:
             if outbound.get("type") == "urltest":
@@ -89,7 +98,10 @@ class SingBoxConfiguration(BaseSubscription):
         # Build outbound
         outbound = handler(remark=remark, address=address, inbound=inbound, settings=settings)
         if outbound:
-            self.add_outbound(outbound)
+            if inbound.protocol == "wireguard":
+                self.add_endpoint(outbound)
+            else:
+                self.add_outbound(outbound)
 
     # ========== Transport Handlers ==========
 
@@ -331,6 +343,38 @@ class SingBoxConfiguration(BaseSubscription):
 
         return self._normalize_and_remove_none_values(config)
 
+    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict | None:
+        """Build WireGuard endpoint for sing-box subscriptions."""
+        private_key = settings.get("private_key", "")
+        peer_ips = [peer_ip for peer_ip in settings.get("peer_ips", []) if peer_ip]
+        public_key = inbound.wireguard_public_key
+        if not private_key or not peer_ips or not public_key:
+            return None
+
+        peer = {
+            "address": address,
+            "port": self._select_port(inbound.port),
+            "public_key": public_key,
+            "pre_shared_key": inbound.wireguard_pre_shared_key or None,
+            "allowed_ips": inbound.wireguard_allowed_ips or ["0.0.0.0/0", "::/0"],
+            "persistent_keepalive_interval": inbound.wireguard_keepalive,
+            "reserved": self._parse_wireguard_reserved(inbound.wireguard_reserved),
+        }
+
+        endpoint = {
+            "type": "wireguard",
+            "tag": remark,
+            "system": True,
+            "name": "wg0",
+            "mtu": inbound.wireguard_mtu,
+            "address": peer_ips,
+            "private_key": private_key,
+            "listen_port": 10000,
+            "peers": [self._normalize_and_remove_none_values(peer)],
+        }
+
+        return self._normalize_and_remove_none_values(endpoint)
+
     def _build_outbound(
         self,
         protocol_type: str,
@@ -406,3 +450,28 @@ class SingBoxConfiguration(BaseSubscription):
             ports = port.split(",")
             return int(choice(ports))
         return port
+
+    @staticmethod
+    def _parse_wireguard_reserved(reserved: str | None) -> list[int] | None:
+        """Parse WireGuard reserved bytes from common persisted string formats."""
+        if not reserved:
+            return None
+
+        raw = reserved.strip()
+        if not raw:
+            return None
+
+        if raw.startswith("[") and raw.endswith("]"):
+            raw = raw[1:-1]
+
+        values: list[int] = []
+        for part in raw.split(","):
+            piece = part.strip()
+            if not piece:
+                continue
+            try:
+                values.append(int(piece))
+            except ValueError:
+                return None
+
+        return values or None

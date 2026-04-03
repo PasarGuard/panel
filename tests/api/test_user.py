@@ -438,6 +438,90 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
         delete_core(access_token, core["id"])
 
 
+def test_singbox_subscription_includes_wireguard_endpoint(access_token):
+    interface_private_key, interface_public_key = generate_wireguard_keypair()
+    pre_shared_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_singbox_subscription")
+    endpoint = "198.51.100.12"
+
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_singbox_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "pre_shared_key": pre_shared_key,
+            "listen_port": 51820,
+            "address": ["10.30.0.1/24"],
+            "peer_keepalive_seconds": 30,
+        },
+        type="wg",
+        fallbacks=[],
+    )
+
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "WG Singbox {USERNAME}",
+            "address": [endpoint],
+            "port": 10001,
+            "inbound_tag": interface_name,
+            "priority": 1,
+            "wireguard_overrides": {
+                "mtu": 1408,
+                "reserved": "0,0,0",
+            },
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+
+    group = create_group(access_token, name=unique_name("wg_singbox_group"), inbound_tags=[interface_name])
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_singbox_user")})
+    expected_tag = f"WG Singbox {user['username']}"
+
+    try:
+        response = client.get(f"{user['subscription_url']}/sing_box")
+        assert response.status_code == status.HTTP_200_OK
+
+        config = response.json()
+        assert "endpoints" in config
+        assert len(config["endpoints"]) == 1
+
+        wireguard_endpoint = config["endpoints"][0]
+        assert wireguard_endpoint["type"] == "wireguard"
+        assert wireguard_endpoint["tag"] == expected_tag
+        assert wireguard_endpoint["system"] is True
+        assert wireguard_endpoint["name"] == "wg0"
+        assert wireguard_endpoint["mtu"] == 1408
+        assert wireguard_endpoint["address"] == user["proxy_settings"]["wireguard"]["peer_ips"]
+        assert wireguard_endpoint["private_key"] == user["proxy_settings"]["wireguard"]["private_key"]
+        assert wireguard_endpoint["listen_port"] == 10000
+
+        peers = wireguard_endpoint["peers"]
+        assert len(peers) == 1
+        peer = peers[0]
+        assert peer["address"] == endpoint
+        assert peer["port"] == 10001
+        assert peer["public_key"] == interface_public_key
+        assert peer["pre_shared_key"] == pre_shared_key
+        assert peer["allowed_ips"] == ["0.0.0.0/0", "::/0"]
+        assert peer["persistent_keepalive_interval"] == 30
+        assert peer["reserved"] == [0, 0, 0]
+
+        selector = next(outbound for outbound in config["outbounds"] if outbound.get("tag") == "proxy")
+        assert expected_tag in selector["outbounds"]
+
+        urltest = next(outbound for outbound in config["outbounds"] if outbound.get("type") == "urltest")
+        assert expected_tag in urltest["outbounds"]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
 def test_format_rule_response_headers_supports_strings_and_json():
     rule = SubRule(
         pattern=r"^TestClient$",
