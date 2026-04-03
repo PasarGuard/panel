@@ -241,7 +241,7 @@
         "pattern": "Шаблон",
         "patternPlaceholder": "Введите шаблон (например, шаблон user-agent)",
         "target": "Целевой формат",
-        "responseHeaders": "Заголовки ответа",
+        "responseHeaders": "Заголовки",
         "responseHeadersDescription": "Дополнительные заголовки, которые добавляются при срабатывании этого правила.",
         "addHeader": "Добавить заголовок",
         "headerName": "Имя заголовка",

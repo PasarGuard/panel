@@ -207,7 +207,7 @@
         "pattern": "模式",
         "patternPlaceholder": "输入客户端模式（例如：*android*）",
         "target": "目标格式",
-        "responseHeaders": "响应头",
+        "responseHeaders": "头",
         "responseHeadersDescription": "当该规则匹配时附加到响应的可选头。",
         "addHeader": "添加头",
         "headerName": "头名称",

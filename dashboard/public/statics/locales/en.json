@@ -227,7 +227,7 @@
         "pattern": "Pattern",
         "patternPlaceholder": "Enter pattern (e.g., user-agent pattern)",
         "target": "Target Format",
-        "responseHeaders": "Response Headers",
+        "responseHeaders": "Headers",
         "responseHeadersDescription": "Optional headers to include when this rule matches.",
         "addHeader": "Add Header",
         "headerName": "Header name",

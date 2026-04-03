@@ -14,7 +14,7 @@ import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor,
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Cable, Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
+import { ArrowUpWideNarrow, Cable, Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { FieldErrors, useFieldArray, useForm, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -1225,7 +1225,7 @@ export default function SubscriptionSettings() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="space-y-1 min-w-0 flex-1">
                   <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
-                    <Sword className="h-5 w-5 text-primary shrink-0" />
+                    <ArrowUpWideNarrow className="h-5 w-5 text-primary shrink-0" />
                     {t('settings.subscriptions.rules.title')}
                     {ruleFields.length > 0 && (
                       <Badge variant="secondary" className="ml-2 shrink-0">

@@ -133,7 +133,7 @@
         "pattern": "الگو",
         "patternPlaceholder": "الگو را وارد کنید (مثال: الگوی user-agent)",
         "target": "فرمت هدف",
-        "responseHeaders": "هدرهای پاسخ",
+        "responseHeaders": "هدرها",
         "responseHeadersDescription": "هدرهای اختیاری که هنگام تطبیق این قانون به پاسخ اضافه می‌شوند.",
         "addHeader": "افزودن هدر",
         "headerName": "نام هدر",
