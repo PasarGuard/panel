@@ -37,7 +37,7 @@ class XRayConfig(dict):
         if fallbacks_inbound_tags is None:
             fallbacks_inbound_tags = set()
 
-        self._backend_type = CoreType.xray
+        self._type = CoreType.xray
         exclude_inbound_tags.update(fallbacks_inbound_tags)
         self.exclude_inbound_tags = exclude_inbound_tags
         self.fallbacks_inbound_tags = set(fallbacks_inbound_tags)
@@ -448,13 +448,13 @@ class XRayConfig(dict):
         return self._inbounds
 
     @property
-    def backend_type(self) -> str:
-        return self._backend_type
+    def type(self) -> str:
+        return self._type
 
     def to_json(self) -> dict:
         """Convert the config to a JSON-serializable dictionary."""
         return {
-            "backend_type": self.backend_type,
+            "type": self.type,
             "config": dict(self),
             "exclude_inbound_tags": list(self.exclude_inbound_tags),
             "fallbacks_inbound_tags": list(self.fallbacks_inbound_tags),

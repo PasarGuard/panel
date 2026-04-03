@@ -260,10 +260,10 @@ class NodeOperation(BaseOperation):
         logger.info(f'Connecting to "{db_node.name}" node')
 
         core = await core_manager.get_core(db_node.core_config_id if db_node.core_config_id else 1)
-        backend_type = service.BackendType.WIREGUARD if core.backend_type == CoreType.wg else service.BackendType.XRAY
+        type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
 
         try:
-            if core.backend_type == CoreType.wg:
+            if core.type == CoreType.wg:
                 version_error = NodeOperation._validate_wireguard_node_version(db_node.node_version)
                 if version_error:
                     return {
@@ -277,15 +277,15 @@ class NodeOperation(BaseOperation):
 
             start_kwargs = {
                 "config": core.to_str(),
-                "backend_type": backend_type,
+                "type": type,
                 "users": users,
                 "keep_alive": db_node.keep_alive,
             }
-            if core.backend_type == CoreType.xray:
+            if core.type == CoreType.xray:
                 start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
 
             info = await pg_node.start(**start_kwargs)
-            if core.backend_type == CoreType.wg:
+            if core.type == CoreType.wg:
                 version_error = NodeOperation._validate_wireguard_node_version(info.node_version)
                 if version_error:
                     await pg_node.stop()

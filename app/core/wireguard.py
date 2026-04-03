@@ -29,7 +29,7 @@ class WireGuardConfig(dict):
 
         super().__init__(config)
 
-        self._backend_type = CoreType.wg
+        self._type = CoreType.wg
         self.exclude_inbound_tags = set(exclude_inbound_tags or set())
         self.fallbacks_inbound_tags = set(fallbacks_inbound_tags or set())
         self._inbounds: list[str] = []
@@ -42,8 +42,8 @@ class WireGuardConfig(dict):
         self._resolve_inbounds()
 
     @property
-    def backend_type(self) -> str:
-        return self._backend_type
+    def type(self) -> str:
+        return self._type
 
     def _validate(self):
         if self.exclude_inbound_tags:
@@ -125,7 +125,7 @@ class WireGuardConfig(dict):
 
     def to_json(self) -> dict:
         return {
-            "backend_type": self.backend_type,
+            "backend_type": self.type,
             "config": dict(self),
             "exclude_inbound_tags": [],
             "fallbacks_inbound_tags": [],

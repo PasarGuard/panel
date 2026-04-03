@@ -117,31 +117,31 @@ class CoreManager:
     def _core_payload_from_db(self, db_core_config: CoreConfig) -> dict:
         return {
             "id": db_core_config.id,
-            "backend_type": db_core_config.type,
+            "type": db_core_config.type,
             "config": db_core_config.config,
             "exclude_inbound_tags": list(db_core_config.exclude_inbound_tags or []),
             "fallbacks_inbound_tags": list(db_core_config.fallbacks_inbound_tags or []),
         }
 
     @classmethod
-    def _normalize_backend_type(cls, backend_type: CoreType | None) -> CoreType:
-        if not backend_type:
+    def _normalize_type(cls, type: CoreType | None) -> CoreType:
+        if not type:
             return CoreType.xray
-        return backend_type
+        return type
 
-    def _get_core_class(self, backend_type: CoreType | None):
-        normalized_backend_type = self._normalize_backend_type(backend_type)
-        return self.CORE_CLASSES[normalized_backend_type]
+    def _get_core_class(self, type: CoreType | None):
+        normalized_type = self._normalize_type(type)
+        return self.CORE_CLASSES[normalized_type]
 
     def _core_from_json(self, data: dict) -> AbstractCore:
-        backend_type = data.get("backend_type")
-        core_class = self._get_core_class(backend_type)
+        type = data.get("type")
+        core_class = self._get_core_class(type)
         return core_class.from_json(data)
 
     async def _apply_core_payload(self, payload: dict):
         try:
             core_id = payload["id"]
-            backend_type = payload.get("backend_type", CoreType.xray)
+            type = payload.get("type", CoreType.xray)
             config = payload["config"]
         except Exception:
             await self._reload_from_cache()
@@ -151,14 +151,14 @@ class CoreManager:
         fallback_tags = set(payload.get("fallbacks_inbound_tags") or [])
 
         class _PayloadCore:
-            def __init__(self, cid, cfg, backend, exclude, fallbacks):
+            def __init__(self, cid, cfg, type, exclude, fallbacks):
                 self.id = cid
-                self.backend_type = backend
                 self.config = cfg
+                self.type = type
                 self.exclude_inbound_tags = exclude
                 self.fallbacks_inbound_tags = fallbacks
 
-        await self._update_core_local(_PayloadCore(core_id, config, backend_type, exclude_tags, fallback_tags))
+        await self._update_core_local(_PayloadCore(core_id, config, type, exclude_tags, fallback_tags))
 
     async def _handle_core_message(self, data: dict):
         """Handle incoming core messages from router."""
@@ -187,11 +187,11 @@ class CoreManager:
         config: dict,
         exclude_inbounds: set[str] | None = None,
         fallbacks_inbounds: set[str] | None = None,
-        backend_type: CoreType | None = None,
+        type: CoreType | None = None,
     ):
         exclude_inbounds = exclude_inbounds or set()
         fallbacks_inbounds = fallbacks_inbounds or set()
-        core_class = self._get_core_class(backend_type)
+        core_class = self._get_core_class(type)
         return core_class(config, exclude_inbounds.copy(), fallbacks_inbounds.copy())
 
     async def initialize(self, db):
@@ -207,18 +207,18 @@ class CoreManager:
             return
 
         core_configs, _ = await get_core_configs(db)
-        backends: dict[int, AbstractCore] = {}
+        cores: dict[int, AbstractCore] = {}
         for config in core_configs:
-            backend_config = self.validate_core(
+            core_config = self.validate_core(
                 config.config,
                 config.exclude_inbound_tags,
                 config.fallbacks_inbound_tags,
-                config.backend_type,
+                config.type,
             )
-            backends[config.id] = backend_config
+            cores[config.id] = core_config
 
         async with self._lock:
-            self._cores = backends
+            self._cores = cores
 
         await self.update_inbounds()
         await self._persist_state()
@@ -236,7 +236,7 @@ class CoreManager:
             await self.get_inbounds_by_tag.cache.clear()
 
     async def _update_core_local(self, db_core_config: CoreConfig):
-        backend_config = self.validate_core(
+        core_config = self.validate_core(
             db_core_config.config,
             db_core_config.exclude_inbound_tags,
             db_core_config.fallbacks_inbound_tags,
@@ -244,7 +244,7 @@ class CoreManager:
         )
 
         async with self._lock:
-            self._cores.update({db_core_config.id: backend_config})
+            self._cores.update({db_core_config.id: core_config})
 
         await self.update_inbounds()
         await self._persist_state()

@@ -12,7 +12,7 @@ class AbstractCore(ABC):
 
     @property
     @abstractmethod
-    def backend_type(self) -> str:
+    def type(self) -> str:
         raise NotImplementedError
 
     @property
