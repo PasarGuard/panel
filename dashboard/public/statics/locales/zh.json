@@ -1115,7 +1115,7 @@
     "wireguard": {
       "sectionSecurityOverrides": "安全设置",
       "sectionNetworkOverrides": "网络设置",
-      "allowedIps": "AllowedIPs",
+      "allowedIps": "IP 地址",
       "allowedIpsHint": "留空则使用默认 0.0.0.0/0 与 ::/0",
       "mtu": "MTU",
       "keepalive": "持久 Keepalive（秒）",

@@ -1007,7 +1007,7 @@
     "wireguard": {
       "sectionSecurityOverrides": "تنظیمات امنیتی",
       "sectionNetworkOverrides": "تنظیمات شبکه",
-      "allowedIps": "AllowedIPs",
+      "allowedIps": "آدرس‌های مجاز",
       "allowedIpsHint": "خالی بگذارید تا پیش‌فرض 0.0.0.0/0 و ::/0 استفاده شود",
       "mtu": "MTU",
       "keepalive": "نگه‌داشت زنده (ثانیه)",
