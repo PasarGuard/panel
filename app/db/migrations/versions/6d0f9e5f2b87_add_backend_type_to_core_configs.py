@@ -19,7 +19,7 @@ depends_on = None
 
 def upgrade() -> None:
     # Create the enum type for postgres explicitly
-    core_type = sa.Enum("xray", "wireguard", "mtproto", "singbox", name="type")
+    core_type = sa.Enum("xray", "wg", "mtproto", "singbox", name="coretype")
     if op.get_bind().engine.name == "postgresql":
         core_type.create(op.get_bind(), checkfirst=True)
 

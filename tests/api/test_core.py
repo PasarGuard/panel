@@ -140,7 +140,7 @@ def test_inbound_details_include_wireguard_metadata(access_token):
     try:
         details = get_inbound_details(access_token)
         wg_detail = next(item for item in details if item["tag"] == interface_name)
-        assert wg_detail["protocol"] == "wg"
+        assert wg_detail["protocol"] == "wireguard"
         assert wg_detail["network"] == "udp"
     finally:
         delete_core(access_token, core["id"])
