@@ -277,7 +277,7 @@ class NodeOperation(BaseOperation):
 
             start_kwargs = {
                 "config": core.to_str(),
-                "type": type,
+                "backend_type": type,
                 "users": users,
                 "keep_alive": db_node.keep_alive,
             }
