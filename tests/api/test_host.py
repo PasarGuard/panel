@@ -153,7 +153,7 @@ def test_wireguard_host_create(access_token):
             "address": ["10.10.0.1/24"],
             "peer_keepalive_seconds": 25,
         },
-        backend_type="wireguard",
+        backend_type="wg",
         fallbacks=[],
     )
 

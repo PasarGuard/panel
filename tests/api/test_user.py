@@ -305,7 +305,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
             "address": ["10.30.0.1/24"],
             "peer_keepalive_seconds": 25,
         },
-        backend_type="wireguard",
+        backend_type="wg",
         fallbacks=[],
     )
 
@@ -380,7 +380,7 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
             "address": ["10.30.0.1/24"],
             "peer_keepalive_seconds": 25,
         },
-        backend_type="wireguard",
+        backend_type="wg",
         fallbacks=[],
     )
 
