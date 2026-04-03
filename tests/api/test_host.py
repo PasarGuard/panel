@@ -1,7 +1,7 @@
 from fastapi import status
 
-from tests.api import client
 from app.utils.crypto import generate_wireguard_keypair
+from tests.api import client
 from tests.api.helpers import create_core, delete_core, get_inbounds, unique_name
 
 
@@ -153,7 +153,7 @@ def test_wireguard_host_create(access_token):
             "address": ["10.10.0.1/24"],
             "peer_keepalive_seconds": 25,
         },
-        backend_type="wg",
+        type="wg",
         fallbacks=[],
     )
 

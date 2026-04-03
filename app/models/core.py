@@ -2,17 +2,16 @@ from datetime import datetime as dt
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.utils.helpers import fix_datetime_timezone
-from .validators import StringArrayValidator
-
-
 from app.db.models import CoreType
+from app.utils.helpers import fix_datetime_timezone
+
+from .validators import StringArrayValidator
 
 
 class CoreBase(BaseModel):
     name: str
     config: dict
-    backend_type: CoreType | None = Field(default=None)
+    type: CoreType | None = Field(default=None)
     exclude_inbound_tags: set[str]
     fallbacks_inbound_tags: set[str]
 
@@ -31,7 +30,7 @@ class CoreBase(BaseModel):
 
 class CoreCreate(CoreBase):
     name: str | None = Field(max_length=256, default=None)
-    backend_type: CoreType | None = Field(default=None)
+    type: CoreType | None = Field(default=None)
     exclude_inbound_tags: set | None = Field(default=None)
     fallbacks_inbound_tags: set | None = Field(default=None)
 

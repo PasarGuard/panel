@@ -3,17 +3,17 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
 
-from tests.api import client
-from app.operation.subscription import SubscriptionOperation
 from app.models.settings import ConfigFormat, SubRule
+from app.operation.subscription import SubscriptionOperation
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
+from tests.api import client
 from tests.api.helpers import (
     auth_headers,
     create_core,
     create_group,
+    create_hosts_for_inbounds,
     create_user,
     create_user_template,
-    create_hosts_for_inbounds,
     delete_core,
     delete_group,
     delete_user,
@@ -305,7 +305,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
             "address": ["10.30.0.1/24"],
             "peer_keepalive_seconds": 25,
         },
-        backend_type="wg",
+        type="wg",
         fallbacks=[],
     )
 
@@ -380,7 +380,7 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
             "address": ["10.30.0.1/24"],
             "peer_keepalive_seconds": 25,
         },
-        backend_type="wg",
+        type="wg",
         fallbacks=[],
     )
 

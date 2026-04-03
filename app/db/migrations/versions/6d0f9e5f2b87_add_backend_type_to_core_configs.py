@@ -1,4 +1,4 @@
-"""add backend type to core configs
+"""add core type to core configs
 
 Revision ID: 6d0f9e5f2b87
 Revises: 145c22ab174f
@@ -19,18 +19,18 @@ depends_on = None
 
 def upgrade() -> None:
     # Create the enum type for postgres explicitly
-    core_type = sa.Enum("xray", "wireguard", "mtproto", "singbox", name="coretype")
+    core_type = sa.Enum("xray", "wireguard", "mtproto", "singbox", name="type")
     if op.get_bind().engine.name == "postgresql":
         core_type.create(op.get_bind(), checkfirst=True)
 
     op.add_column(
         "core_configs",
-        sa.Column("backend_type", core_type, nullable=False, server_default="xray"),
+        sa.Column("type", core_type, nullable=False, server_default="xray"),
     )
 
 
 def downgrade() -> None:
-    op.drop_column("core_configs", "backend_type")
+    op.drop_column("core_configs", "type")
     # Drop the enum type for postgres if it exists
     if op.get_bind().engine.name == "postgresql":
         sa.Enum(name="coretype").drop(op.get_bind(), checkfirst=True)

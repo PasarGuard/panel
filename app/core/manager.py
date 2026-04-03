@@ -117,7 +117,7 @@ class CoreManager:
     def _core_payload_from_db(self, db_core_config: CoreConfig) -> dict:
         return {
             "id": db_core_config.id,
-            "backend_type": db_core_config.backend_type,
+            "backend_type": db_core_config.type,
             "config": db_core_config.config,
             "exclude_inbound_tags": list(db_core_config.exclude_inbound_tags or []),
             "fallbacks_inbound_tags": list(db_core_config.fallbacks_inbound_tags or []),
@@ -240,7 +240,7 @@ class CoreManager:
             db_core_config.config,
             db_core_config.exclude_inbound_tags,
             db_core_config.fallbacks_inbound_tags,
-            db_core_config.backend_type,
+            db_core_config.type,
         )
 
         async with self._lock:
@@ -259,7 +259,7 @@ class CoreManager:
             db_core_config.config,
             db_core_config.exclude_inbound_tags,
             db_core_config.fallbacks_inbound_tags,
-            db_core_config.backend_type,
+            db_core_config.type,
         )
         try:
             await self._publish_invalidation({"action": "update", "core": self._core_payload_from_db(db_core_config)})

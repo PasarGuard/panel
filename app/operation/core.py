@@ -1,5 +1,8 @@
 import asyncio
 
+from app import notification
+from app.core.hosts import host_manager
+from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud.core import (
     CoreSortingOptionsSimple,
@@ -11,12 +14,8 @@ from app.db.crud.core import (
 )
 from app.models.admin import AdminDetails
 from app.models.core import CoreCreate, CoreResponse, CoreResponseList, CoreSimple, CoresSimpleResponse
-from app.core.manager import core_manager
 from app.operation import BaseOperation
-from app import notification
-from app.core.hosts import host_manager
 from app.utils.logger import get_logger
-
 
 logger = get_logger("core-operation")
 
@@ -28,7 +27,7 @@ class CoreOperation(BaseOperation):
                 new_core.config,
                 new_core.exclude_inbound_tags,
                 new_core.fallbacks_inbound_tags,
-                new_core.backend_type,
+                new_core.type,
             )
             db_core = await create_core_config(db, new_core)
         except Exception as e:
@@ -90,7 +89,7 @@ class CoreOperation(BaseOperation):
                 modified_core.config,
                 modified_core.exclude_inbound_tags,
                 modified_core.fallbacks_inbound_tags,
-                modified_core.backend_type,
+                modified_core.type,
             )
             db_core = await modify_core_config(db, db_core, modified_core)
         except Exception as e:

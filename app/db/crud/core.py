@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import CoreConfig
 from app.models.core import CoreCreate
 
-
 CoreSortingOptionsSimple = Enum(
     "CoreSortingOptionsSimple",
     {
@@ -45,7 +44,7 @@ async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreC
     """
     db_core_config = CoreConfig(
         name=core_config.name,
-        backend_type=core_config.backend_type,
+        type=core_config.type,
         config=core_config.config,
         exclude_inbound_tags=core_config.exclude_inbound_tags or set(),
         fallbacks_inbound_tags=core_config.fallbacks_inbound_tags or set(),

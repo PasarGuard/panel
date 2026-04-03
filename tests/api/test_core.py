@@ -36,11 +36,11 @@ def test_wireguard_core_create(access_token):
         access_token,
         name=unique_name("wireguard_core"),
         config=wireguard_config,
-        backend_type="wg",
+        type="wg",
         fallbacks=[],
     )
     assert core["config"]["interface_name"] == wireguard_config["interface_name"]
-    assert core["backend_type"] == "wg"
+    assert core["type"] == "wg"
     assert core["exclude_inbound_tags"] == []
     assert core["fallbacks_inbound_tags"] == []
     delete_core(access_token, core["id"])
@@ -133,7 +133,7 @@ def test_inbound_details_include_wireguard_metadata(access_token):
             "address": ["10.9.0.1/24"],
             "peer_keepalive_seconds": 25,
         },
-        backend_type="wg",
+        type="wg",
         fallbacks=[],
     )
 
