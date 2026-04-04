@@ -402,7 +402,7 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   return (
     <>
       <div ref={setNodeRef} style={style} className="cursor-default">
-        <div className={`group relative h-full rounded-md border bg-card p-4 transition-colors hover:bg-accent/20 ${isRtl ? 'pl-14' : 'pr-14'}`}>
+        <div className={`group relative h-full rounded-md border bg-card p-3 transition-colors hover:bg-accent/20 sm:p-4 ${isRtl ? 'pl-14' : 'pr-14'}`}>
           <Button
             type="button"
             variant="ghost"
@@ -505,7 +505,7 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
             <DialogDescription>{t('settings.subscriptions.rules.responseHeadersDescription')}</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div className="flex justify-end">
               <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={addResponseHeader}>
                 <Plus className="mr-1 h-3.5 w-3.5" />
@@ -536,7 +536,7 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
                 ))
               ) : (
                 <div className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center">
-                  <p className="text-sm font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                  <p className="text-xs font-medium text-foreground sm:text-sm">{t('settings.subscriptions.rules.responseHeaders')}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
                 </div>
               )}
@@ -1023,26 +1023,26 @@ export default function SubscriptionSettings() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6 p-4 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
           {/* General Settings */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold tracking-tight">{t('settings.subscriptions.general.title')}</h3>
-              <p className="text-sm text-muted-foreground">{t('settings.subscriptions.general.description')}</p>
+              <h3 className="text-base font-semibold sm:text-lg">{t('settings.subscriptions.general.title')}</h3>
+              <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.description')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
               <FormField
                 control={form.control}
                 name="url_prefix"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <Link className="h-4 w-4 shrink-0" />
                       {t('settings.subscriptions.general.urlPrefix')}
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com" {...field} className="font-mono text-sm sm:text-base" />
+                      <Input placeholder="https://example.com" {...field} className="font-mono text-xs sm:text-sm" />
                     </FormControl>
-                    <FormDescription className="text-xs sm:text-sm text-muted-foreground">{t('settings.subscriptions.general.urlPrefixDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.urlPrefixDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1053,19 +1053,19 @@ export default function SubscriptionSettings() {
                 name="update_interval"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <Clock className="h-4 w-4" />
                       {t('settings.subscriptions.general.updateInterval')}
                     </FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type="number" min="1" max="168" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 24)} className="pr-16" />
+                        <Input type="number" min="1" max="168" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 24)} className="pr-16 text-xs sm:text-sm" />
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                          <span className="text-sm text-muted-foreground">hours</span>
+                          <span className="text-xs text-muted-foreground sm:text-sm">hours</span>
                         </div>
                       </div>
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.updateIntervalDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.updateIntervalDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1076,14 +1076,14 @@ export default function SubscriptionSettings() {
                 name="support_url"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <HelpCircle className="h-4 w-4" />
                       {t('settings.subscriptions.general.supportUrl')}
                     </FormLabel>
                     <FormControl>
-                      <Input type="url" placeholder={t('settings.subscriptions.general.supportUrlPlaceholder')} {...field} className="font-mono" />
+                      <Input type="url" placeholder={t('settings.subscriptions.general.supportUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.supportUrlDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.supportUrlDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1095,16 +1095,16 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="space-y-2">
                     <div className="flex items-center gap-1.5">
-                      <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                         <User className="h-4 w-4" />
                         {t('settings.subscriptions.general.profileTitle')}
                       </FormLabel>
                       <VariablesPopover includeProfileTitle={true} />
                     </div>
                     <FormControl>
-                      <Input placeholder={t('settings.subscriptions.general.profileTitlePlaceholder')} {...field} />
+                      <Input placeholder={t('settings.subscriptions.general.profileTitlePlaceholder')} {...field} className="text-xs sm:text-sm" />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.profileTitleDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.profileTitleDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1115,7 +1115,7 @@ export default function SubscriptionSettings() {
                 name="announce"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <Megaphone className="h-4 w-4" />
                       {t('settings.subscriptions.general.announce')}
                     </FormLabel>
@@ -1124,11 +1124,11 @@ export default function SubscriptionSettings() {
                         maxLength={128}
                         placeholder={t('settings.subscriptions.general.announcePlaceholder')}
                         rows={3}
-                        className="resize-none"
+                        className="resize-none text-xs sm:text-sm"
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.announceDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.announceDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1139,14 +1139,14 @@ export default function SubscriptionSettings() {
                 name="announce_url"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <ExternalLink className="h-4 w-4" />
                       {t('settings.subscriptions.general.announceUrl')}
                     </FormLabel>
                     <FormControl>
-                      <Input type="url" placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono" />
+                      <Input type="url" placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.announceUrlDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.announceUrlDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1158,7 +1158,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
                     <div className="flex-1 space-y-0.5 pr-4">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Globe className="h-4 w-4 shrink-0" />
                         <span className="break-words">{t('settings.subscriptions.general.allowBrowserConfig')}</span>
                       </FormLabel>
@@ -1179,7 +1179,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
                     <div className="flex-1 space-y-0.5 pr-4">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <FileCode2 className="h-4 w-4 shrink-0" />
                         <span className="break-words">{t('settings.subscriptions.general.disableSubTemplate')}</span>
                       </FormLabel>
@@ -1200,7 +1200,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
                     <div className="flex-1 space-y-0.5 pr-4">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Shuffle className="h-4 w-4 shrink-0" />
                         <span className="break-words">{t('settings.subscriptions.general.randomizeOrder')}</span>
                       </FormLabel>
@@ -1217,14 +1217,14 @@ export default function SubscriptionSettings() {
             </div>
           </div>
 
-          <Separator className="my-4" />
+          <Separator className="my-3" />
 
           {/* Subscription Rules with Drag & Drop */}
-          <div className="space-y-4">
-            <div className="rounded-lg border bg-card p-4 shadow-sm">
+          <div className="space-y-3">
+            <div className="rounded-lg border bg-card p-3 shadow-sm sm:p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="space-y-1 min-w-0 flex-1">
-                  <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
+                  <h3 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
                     <ArrowUpWideNarrow className="h-5 w-5 text-primary shrink-0" />
                     {t('settings.subscriptions.rules.title')}
                     {ruleFields.length > 0 && (
@@ -1233,7 +1233,7 @@ export default function SubscriptionSettings() {
                       </Badge>
                     )}
                   </h3>
-                  <p className="text-sm text-muted-foreground">{t('settings.subscriptions.rules.description')}</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.rules.description')}</p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
                   <Button type="button" variant="outline" size="sm" onClick={handleResetToDefault} className="flex items-center justify-center gap-2 w-full sm:w-auto" disabled={isSaving}>
@@ -1252,7 +1252,7 @@ export default function SubscriptionSettings() {
             {ruleFields.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 <FileText className="mx-auto mb-3 h-8 w-8 opacity-30" />
-                <p className="mb-1 text-sm font-medium">{t('settings.subscriptions.rules.noRules')}</p>
+                <p className="mb-1 text-xs font-medium sm:text-sm">{t('settings.subscriptions.rules.noRules')}</p>
               </div>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1267,13 +1267,13 @@ export default function SubscriptionSettings() {
             )}
           </div>
 
-          <Separator className="my-4" />
+          <Separator className="my-3" />
 
           {/* Applications with Drag & Drop */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="space-y-1 min-w-0 flex-1">
-                <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
+                <h3 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
                   {t('settings.subscriptions.applications.title')}
                   {applicationFields.length > 0 && (
                     <Badge variant="secondary" className="ml-2 shrink-0">
@@ -1281,7 +1281,7 @@ export default function SubscriptionSettings() {
                     </Badge>
                   )}
                 </h3>
-                <p className="text-sm text-muted-foreground">{t('settings.subscriptions.applications.description')}</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.applications.description')}</p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
                 <Button type="button" variant="outline" size="sm" onClick={handleLoadOrResetApplications} className="flex shrink-0 items-center justify-center gap-2 w-full sm:w-auto">
@@ -1308,7 +1308,7 @@ export default function SubscriptionSettings() {
             {applicationFields.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 <Settings className="mx-auto mb-3 h-8 w-8 opacity-30" />
-                <p className="mb-1 text-sm font-medium">{t('settings.subscriptions.applications.noApplications')}</p>
+                <p className="mb-1 text-xs font-medium sm:text-sm">{t('settings.subscriptions.applications.noApplications')}</p>
                 <p className="text-xs">{t('settings.subscriptions.applications.noApplicationsDescription')}</p>
               </div>
             ) : (
@@ -1336,13 +1336,13 @@ export default function SubscriptionSettings() {
             )}
           </div>
 
-          <Separator className="my-4" />
+          <Separator className="my-3" />
 
           {/* Manual Subscription Formats */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="space-y-1">
-              <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">{t('settings.subscriptions.formats.title')}</h3>
-              <p className="text-sm text-muted-foreground">{t('settings.subscriptions.formats.description')}</p>
+              <h3 className="flex items-center gap-2 text-base font-semibold sm:text-lg">{t('settings.subscriptions.formats.title')}</h3>
+              <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.formats.description')}</p>
             </div>
 
             {/* Mobile: 1 column, Tablet: 2 columns, Desktop: 3 columns */}
@@ -1353,7 +1353,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Link className="h-4 w-4" />
                         {t('settings.subscriptions.formats.links')}
                       </FormLabel>
@@ -1372,7 +1372,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Code className="h-4 w-4" />
                         {t('settings.subscriptions.formats.linksBase64')}
                       </FormLabel>
@@ -1391,7 +1391,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <FileCode2 className="h-4 w-4" />
                         {t('settings.subscriptions.formats.xray')}
                       </FormLabel>
@@ -1410,7 +1410,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Cable className="h-4 w-4" />
                         {t('settings.subscriptions.formats.wireguard')}
                       </FormLabel>
@@ -1431,7 +1431,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Settings className="h-4 w-4" />
                         {t('settings.subscriptions.formats.singBox')}
                       </FormLabel>
@@ -1450,7 +1450,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Sword className="h-4 w-4" />
                         {t('settings.subscriptions.formats.clash')}
                       </FormLabel>
@@ -1469,7 +1469,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Shield className="h-4 w-4" />
                         {t('settings.subscriptions.formats.clashMeta')}
                       </FormLabel>
@@ -1488,7 +1488,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Lock className="h-4 w-4" />
                         {t('settings.subscriptions.formats.outline')}
                       </FormLabel>
@@ -1504,9 +1504,9 @@ export default function SubscriptionSettings() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:gap-4">
+          <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:gap-3 sm:pt-4">
             <div className="flex-1"></div>
-            <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
+            <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row sm:gap-3">
               <Button type="button" variant="outline" onClick={handleCancel} className="w-full min-w-[100px] sm:w-auto" disabled={isSaving}>
                 {t('cancel')}
               </Button>

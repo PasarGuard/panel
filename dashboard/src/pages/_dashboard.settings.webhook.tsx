@@ -207,10 +207,10 @@ export default function WebhookSettings() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col p-4 sm:py-6 lg:py-8">
           <div className="flex-1 space-y-6 sm:space-y-8 lg:space-y-10">
             {/* General Settings */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold tracking-tight">{t('settings.webhook.general.title')}</h3>
-                <p className="text-sm text-muted-foreground">{t('settings.webhook.general.description')}</p>
+                <h3 className="text-base font-semibold sm:text-lg">{t('settings.webhook.general.title')}</h3>
+                <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.description')}</p>
               </div>
 
               {/* Enable Webhook */}
@@ -218,13 +218,13 @@ export default function WebhookSettings() {
                 control={form.control}
                 name="enable"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-x-2 space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                  <FormItem className="flex items-center justify-between gap-x-3 space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Webhook className="h-4 w-4" />
                         {t('settings.webhook.general.enable')}
                       </FormLabel>
-                      <FormDescription className="text-sm text-muted-foreground">{t('settings.webhook.general.enableDescription')}</FormDescription>
+                      <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.enableDescription')}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -235,20 +235,20 @@ export default function WebhookSettings() {
 
               {/* Configuration Fields - Only show when Webhook is enabled */}
               {enableWebhook && (
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="timeout"
                     render={({ field }) => (
                       <FormItem className="space-y-2">
-                        <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                        <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                           <Clock className="h-4 w-4" />
                           {t('settings.webhook.general.timeout')}
                         </FormLabel>
                         <FormControl>
-                          <Input type="number" min="1" max="300" placeholder="30" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 30)} />
+                          <Input type="number" min="1" max="300" placeholder="30" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 30)} className="text-xs sm:text-sm" />
                         </FormControl>
-                        <FormDescription className="text-sm text-muted-foreground">{t('settings.webhook.general.timeoutDescription')}</FormDescription>
+                        <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.timeoutDescription')}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -259,14 +259,14 @@ export default function WebhookSettings() {
                     name="recurrent"
                     render={({ field }) => (
                       <FormItem className="space-y-2">
-                        <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                        <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                           <RotateCw className="h-4 w-4" />
                           {t('settings.webhook.general.recurrent')}
                         </FormLabel>
                         <FormControl>
-                          <Input type="number" min="1" max="24" placeholder="3" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 3)} />
+                          <Input type="number" min="1" max="24" placeholder="3" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 3)} className="text-xs sm:text-sm" />
                         </FormControl>
-                        <FormDescription className="text-sm text-muted-foreground">{t('settings.webhook.general.recurrentDescription')}</FormDescription>
+                        <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.recurrentDescription')}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -277,14 +277,14 @@ export default function WebhookSettings() {
                     name="proxy_url"
                     render={({ field }) => (
                       <FormItem className="space-y-2 lg:col-span-2">
-                        <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                        <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                           <Globe className="h-4 w-4" />
                           {t('settings.webhook.general.proxyUrl')}
                         </FormLabel>
                         <FormControl>
-                          <Input type="url" placeholder={t('settings.webhook.general.proxyUrlPlaceholder')} {...field} />
+                          <Input type="url" placeholder={t('settings.webhook.general.proxyUrlPlaceholder')} {...field} className="text-xs sm:text-sm" />
                         </FormControl>
-                        <FormDescription className="text-sm text-muted-foreground">{t('settings.webhook.general.proxyUrlDescription')}</FormDescription>
+                        <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.proxyUrlDescription')}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -295,42 +295,42 @@ export default function WebhookSettings() {
 
             {/* Webhook URLs */}
             {enableWebhook && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold tracking-tight">{t('settings.webhook.webhooks.title')}</h3>
-                    <p className="text-sm text-muted-foreground">{t('settings.webhook.webhooks.description')}</p>
+                    <h3 className="text-base font-semibold sm:text-lg">{t('settings.webhook.webhooks.title')}</h3>
+                    <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.webhooks.description')}</p>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={addWebhook} className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={addWebhook} className="flex w-full items-center justify-center gap-2 sm:w-auto">
                     <Plus className="h-4 w-4" />
                     {t('settings.webhook.webhooks.add')}
                   </Button>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {webhookFields.map((field, index) => (
-                    <Card key={field.id} className="p-4">
-                      <div className="mb-4 flex items-start justify-between">
+                    <Card key={field.id} className="p-3 sm:p-4">
+                      <div className="mb-3 flex items-start justify-between sm:mb-4">
                         <div className="flex items-center gap-2">
                           <Target className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-medium">
+                          <span className="text-xs font-medium sm:text-sm">
                             {t('settings.webhook.webhooks.webhook')} #{index + 1}
                           </span>
                         </div>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeWebhook(index)} className="text-red-500 hover:bg-red-50 hover:text-red-700">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeWebhook(index)} className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 sm:h-8 sm:w-8">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
                         <FormField
                           control={form.control}
                           name={`webhooks.${index}.url`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-sm">{t('settings.webhook.webhooks.url')} *</FormLabel>
+                              <FormLabel className="text-xs font-medium sm:text-sm">{t('settings.webhook.webhooks.url')} *</FormLabel>
                               <FormControl>
-                                <Input type="url" placeholder="https://example.com/webhook" {...field} />
+                                <Input type="url" placeholder="https://example.com/webhook" {...field} className="text-xs sm:text-sm" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -342,9 +342,9 @@ export default function WebhookSettings() {
                           name={`webhooks.${index}.secret`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-sm">{t('settings.webhook.webhooks.secret')} *</FormLabel>
+                              <FormLabel className="text-xs font-medium sm:text-sm">{t('settings.webhook.webhooks.secret')} *</FormLabel>
                               <FormControl>
-                                <PasswordInput placeholder={t('settings.webhook.webhooks.secretPlaceholder')} {...field} />
+                                <PasswordInput placeholder={t('settings.webhook.webhooks.secretPlaceholder')} {...field} className="text-xs sm:text-sm" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -355,10 +355,10 @@ export default function WebhookSettings() {
                   ))}
 
                   {webhookFields.length === 0 && (
-                    <Card className="border-dashed p-6 text-center">
+                    <Card className="border-dashed p-4 text-center sm:p-6">
                       <Target className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                      <p className="mb-4 text-sm text-muted-foreground">{t('settings.webhook.webhooks.empty')}</p>
-                      <Button type="button" variant="outline" size="sm" onClick={addWebhook} className="flex items-center gap-2">
+                      <p className="mb-3 text-xs text-muted-foreground sm:mb-4 sm:text-sm">{t('settings.webhook.webhooks.empty')}</p>
+                      <Button type="button" variant="outline" size="sm" onClick={addWebhook} className="flex w-full items-center justify-center gap-2 sm:w-auto">
                         <Plus className="h-4 w-4" />
                         {t('settings.webhook.webhooks.addFirst')}
                       </Button>
@@ -370,13 +370,13 @@ export default function WebhookSettings() {
 
             {/* Notification Triggers */}
             {enableWebhook && (
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
                 {/* Days Left Notifications */}
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <h4 className="text-sm font-medium">{t('settings.webhook.triggers.daysLeft.title')}</h4>
-                      <p className="text-xs text-muted-foreground">{t('settings.webhook.triggers.daysLeft.description')}</p>
+                      <h4 className="text-xs font-medium sm:text-sm">{t('settings.webhook.triggers.daysLeft.title')}</h4>
+                      <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.triggers.daysLeft.description')}</p>
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={addDaysLeft}>
                       <Plus className="h-4 w-4" />
@@ -411,11 +411,11 @@ export default function WebhookSettings() {
                 </div>
 
                 {/* Usage Percent Notifications */}
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <h4 className="text-sm font-medium">{t('settings.webhook.triggers.usagePercent.title')}</h4>
-                      <p className="text-xs text-muted-foreground">{t('settings.webhook.triggers.usagePercent.description')}</p>
+                      <h4 className="text-xs font-medium sm:text-sm">{t('settings.webhook.triggers.usagePercent.title')}</h4>
+                      <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.triggers.usagePercent.description')}</p>
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={addUsagePercent}>
                       <Plus className="h-4 w-4" />
@@ -454,13 +454,13 @@ export default function WebhookSettings() {
           </div>
 
           {/* Action Buttons */}
-          <div className="mt-6 flex flex-col gap-3 border-t pt-6 sm:flex-row sm:gap-4">
+          <div className="mt-3 flex flex-col gap-2 border-t pt-3 sm:mt-6 sm:flex-row sm:gap-3 sm:pt-6">
             <div className="flex-1"></div>
-            <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
-              <Button type="button" variant="outline" onClick={handleCancel} disabled={isSaving} className="sm:w-auto">
+            <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row sm:gap-3">
+              <Button type="button" variant="outline" onClick={handleCancel} disabled={isSaving} className="w-full sm:w-auto">
                 {t('cancel')}
               </Button>
-              <Button type="submit" disabled={isSaveDisabled} isLoading={isSaving} loadingText={t('saving')} className="sm:w-auto">
+              <Button type="submit" disabled={isSaveDisabled} isLoading={isSaving} loadingText={t('saving')} className="w-full sm:w-auto">
                 {t('save')}
               </Button>
             </div>

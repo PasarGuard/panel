@@ -198,7 +198,7 @@ export default function ThemeSettings() {
                 htmlFor={option}
                 dir={dir}
                 className={cn(
-                  'flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-4 py-3 text-sm transition-colors',
+                  'flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
                   'hover:border-primary/60 hover:bg-accent/40',
                   'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5',
                 )}
@@ -232,7 +232,7 @@ export default function ThemeSettings() {
               onClick={() => handleColorChange(color.name)}
               dir={dir}
               className={cn(
-                'group flex items-center gap-3 rounded-md border border-border/70 px-4 py-3 text-left transition-colors',
+                'group flex items-center gap-3 rounded-md border border-border/70 px-3 py-3 text-left transition-colors sm:px-4',
                 'hover:border-primary/60 hover:bg-accent/40',
                 colorTheme === color.name ? 'border-primary bg-primary/5' : 'bg-background',
               )}
@@ -245,7 +245,7 @@ export default function ThemeSettings() {
                 )}
                 style={{ background: color.dot }}
               />
-              <span className="text-sm font-medium">{t(color.label)}</span>
+              <span className="text-xs font-medium sm:text-sm">{t(color.label)}</span>
               {colorTheme === color.name && <CheckCircle2 className="h-4 w-4 text-primary ltr:ml-auto rtl:mr-auto" />}
             </button>
           ))}
@@ -268,7 +268,7 @@ export default function ThemeSettings() {
                 htmlFor={`radius-${option.value}`}
                 dir={dir}
                 className={cn(
-                  'flex cursor-pointer flex-wrap items-start gap-3 rounded-lg border border-border/70 bg-background px-4 py-3 text-sm transition-colors',
+                  'flex cursor-pointer flex-wrap items-start gap-3 rounded-lg border border-border/70 bg-background px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
                   'hover:border-primary/50 hover:bg-accent/40',
                   'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5',
                   'sm:flex-nowrap sm:items-center',
@@ -289,7 +289,7 @@ export default function ThemeSettings() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-primary" />
@@ -297,7 +297,7 @@ export default function ThemeSettings() {
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.datePickerDescription')}</p>
           </div>
-          <div className="flex items-center gap-3 justify-between rounded-lg border border-border/70 bg-muted/40 px-3 py-2">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-2">
             <div className="space-y-0.5">
               <p className="text-xs font-medium text-foreground">{t('theme.datePickerFollowLocale')}</p>
               <p className="text-[11px] leading-relaxed text-muted-foreground">{t('theme.datePickerManualHint')}</p>
@@ -307,7 +307,7 @@ export default function ThemeSettings() {
         </div>
 
         <div
-          className="grid grid-cols-1 gap-2 pb-6 sm:pb-2 rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 sm:flex sm:flex-wrap sm:items-center"
+          className="grid grid-cols-1 gap-2 rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 pb-6 sm:pb-2 sm:flex sm:flex-wrap sm:items-center"
           dir={dir}
         >
           {(['gregorian', 'persian'] as const).map(option => (
@@ -321,10 +321,10 @@ export default function ThemeSettings() {
               onClick={() => handleManualDatePreferenceChange(option)}
             >
               <CalendarClock className="h-3.5 w-3.5" />
-              <span className="text-sm font-medium">{datePickerModeCopy[option]}</span>
+              <span className="text-xs font-medium sm:text-sm">{datePickerModeCopy[option]}</span>
             </Button>
           ))}
-          <div className="flex items-center justify-start gap-2 mt-3 sm:mt-0 text-xs text-muted-foreground">
+          <div className="mt-3 flex items-center justify-start gap-2 text-xs text-muted-foreground sm:mt-0">
             <Languages className="h-3.5 w-3.5 text-primary" />
             <span className="font-medium text-foreground">{datePickerModeCopy[datePickerPreference]}</span>
             {isDatePickerFollowingLocale && (
@@ -349,7 +349,7 @@ export default function ThemeSettings() {
               <Label
                 htmlFor={`chart-view-${option}`}
                 className={cn(
-                  'flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-4 py-3 text-sm transition-colors',
+                  'flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
                   'hover:border-primary/50 hover:bg-accent/40',
                   'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5',
                 )}
@@ -378,10 +378,10 @@ export default function ThemeSettings() {
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.previewDescription')}</p>
         </div>
-        <div className="space-y-4 rounded-lg border border-border/70 bg-muted/30 p-4" style={{ borderRadius: radius }}>
+        <div className="space-y-3 rounded-lg border border-border/70 bg-muted/30 p-3 sm:space-y-4 sm:p-4" style={{ borderRadius: radius }}>
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-medium">{t('theme.dashboardPreview')}</p>
+              <p className="text-xs font-medium sm:text-sm">{t('theme.dashboardPreview')}</p>
               <p className="text-xs text-muted-foreground">
                 {t('theme.currentTheme')}: {t(colorThemeData.find(c => c.name === colorTheme)?.label || '')} • {resolvedTheme === 'dark' ? t('theme.dark') : t('theme.light')}
               </p>
