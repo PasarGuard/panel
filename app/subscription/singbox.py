@@ -61,7 +61,7 @@ class SingBoxConfiguration(BaseSubscription):
     def render(self, reverse=False):
         urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh"]
         urltest_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in urltest_types]
-        selector_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh", "urltest"]
+        selector_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh", "wireguard", "urltest"]
         selector_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in selector_types]
         endpoint_tags = [endpoint["tag"] for endpoint in self.config.get("endpoints", []) if endpoint.get("tag")]
         urltest_tags.extend(endpoint_tags)
@@ -98,10 +98,7 @@ class SingBoxConfiguration(BaseSubscription):
         # Build outbound
         outbound = handler(remark=remark, address=address, inbound=inbound, settings=settings)
         if outbound:
-            if inbound.protocol == "wireguard":
-                self.add_endpoint(outbound)
-            else:
-                self.add_outbound(outbound)
+            self.add_outbound(outbound)
 
     # ========== Transport Handlers ==========
 
@@ -344,36 +341,46 @@ class SingBoxConfiguration(BaseSubscription):
         return self._normalize_and_remove_none_values(config)
 
     def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict | None:
-        """Build WireGuard endpoint for sing-box subscriptions."""
+        """Build WireGuard outbound for sing-box subscriptions."""
         private_key = settings.get("private_key", "")
         peer_ips = [peer_ip for peer_ip in settings.get("peer_ips", []) if peer_ip]
         public_key = inbound.wireguard_public_key
         if not private_key or not peer_ips or not public_key:
             return None
 
+        selected_port = self._select_port(inbound.port)
+        allowed_ips = inbound.wireguard_allowed_ips or ["0.0.0.0/0", "::/0"]
+        reserved = self._parse_wireguard_reserved(inbound.wireguard_reserved)
+
         peer = {
-            "address": address,
-            "port": self._select_port(inbound.port),
+            "server": address,
+            "server_port": selected_port,
             "public_key": public_key,
             "pre_shared_key": inbound.wireguard_pre_shared_key or None,
-            "allowed_ips": inbound.wireguard_allowed_ips or ["0.0.0.0/0", "::/0"],
+            "allowed_ips": allowed_ips,
             "persistent_keepalive_interval": inbound.wireguard_keepalive,
-            "reserved": self._parse_wireguard_reserved(inbound.wireguard_reserved),
+            "reserved": reserved,
         }
 
-        endpoint = {
+        outbound = {
             "type": "wireguard",
             "tag": remark,
-            "system": True,
-            "name": "wg0",
+            "server": address,
+            "server_port": selected_port,
+            "system_interface": True,
+            "gso": True,
+            "interface_name": "wg0",
             "mtu": inbound.wireguard_mtu,
-            "address": peer_ips,
+            "local_address": peer_ips,
             "private_key": private_key,
-            "listen_port": 10000,
+            "peer_public_key": public_key,
+            "pre_shared_key": inbound.wireguard_pre_shared_key or None,
+            "reserved": reserved,
             "peers": [self._normalize_and_remove_none_values(peer)],
+            "workers": 4,
         }
 
-        return self._normalize_and_remove_none_values(endpoint)
+        return self._normalize_and_remove_none_values(outbound)
 
     def _build_outbound(
         self,
