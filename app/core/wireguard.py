@@ -87,11 +87,13 @@ class WireGuardConfig(dict):
             normalized_addresses.append(str(ip_interface(cidr.strip())))
         self["address"] = normalized_addresses
 
-        peer_keepalive_seconds = self.get("peer_keepalive_seconds", 25)
+        peer_keepalive_seconds = self.get("peer_keepalive_seconds", 0)
+        if peer_keepalive_seconds is None:
+            peer_keepalive_seconds = 0
         if not isinstance(peer_keepalive_seconds, int):
             raise ValueError("peer_keepalive_seconds must be an integer")
-        if peer_keepalive_seconds <= 0:
-            peer_keepalive_seconds = 25
+        if peer_keepalive_seconds < 0:
+            raise ValueError("peer_keepalive_seconds must be a non-negative integer")
         self["peer_keepalive_seconds"] = peer_keepalive_seconds
 
     def _resolve_inbounds(self):
