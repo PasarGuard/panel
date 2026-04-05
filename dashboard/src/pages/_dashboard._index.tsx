@@ -157,6 +157,7 @@ const Dashboard = () => {
   const { data: inboundDetails = [], isLoading: isLoadingInbounds } = useQuery({
     queryKey: ['getInboundDetailsQueryKey'],
     queryFn: ({ signal }) => getInboundDetails(signal),
+    enabled: isHostModalOpen,
   })
 
   // Keyboard shortcuts for dashboard actions
