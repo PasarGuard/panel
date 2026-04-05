@@ -2068,7 +2068,7 @@
     "runningLatest": "Версия {{version}}",
     "updateBanner": "Доступно обновление: {{current}} → {{latest}}",
     "updateBannerMobile": "Обновление: {{latest}}",
-    "updateCommandLabel": "Подключитесь по SSH и выполните:",
+    "updateCommandLabel": "Выполните через SSH:",
     "closeBanner": "Закрыть уведомление об обновлении",
     "needsUpdate": "Требуется обновление"
   }
