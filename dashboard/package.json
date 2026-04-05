@@ -46,6 +46,8 @@
     "@telegram-apps/sdk": "^3.11.8",
     "@vitejs/plugin-react": "^4.7.0",
     "ace-builds": "^1.43.6",
+    "baseline-browser-mapping": "^2.10.14",
+    "caniuse-lite": "^1.0.30001785",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
