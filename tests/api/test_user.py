@@ -1277,4 +1277,119 @@ def test_get_users_simple_search_and_sort(access_token):
     finally:
         for username in created_usernames:
             delete_user(access_token, username)
-        cleanup_groups(access_token, core, groups)
+
+
+def test_wireguard_peer_ip_global_pool_and_validation(access_token):
+    """Test that peer IPs are allocated from global pool and server IP is rejected."""
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_public_key = get_wireguard_public_key(interface_private_key)
+    interface_name = unique_name("wg_global_pool")
+    endpoint = "198.51.100.30"
+
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_global_pool_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": [],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "WG Global Pool {USERNAME}",
+            "address": [endpoint],
+            "port": 51820,
+            "inbound_tag": interface_name,
+            "priority": 1,
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+
+    group = create_group(access_token, name=unique_name("wg_global_pool_group"), inbound_tags=[interface_name])
+
+    user1 = None
+    user2 = None
+
+    try:
+        # Test 1: Try to create user with server IP (10.0.0.1) - should fail
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(access_token),
+            json={
+                "username": unique_name("wg_server_ip_user"),
+                "proxy_settings": {
+                    "wireguard": {
+                        "peer_ips": ["10.0.0.1/32"],
+                    }
+                },
+                "group_ids": [group["id"]],
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "reserved for the server" in response.json()["detail"]
+
+        # Test 2: Create user without specifying peer IPs - should get IP from global pool
+        user1 = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_auto_ip_user1")},
+        )
+        assert user1["proxy_settings"]["wireguard"]["peer_ips"]
+        peer_ip1 = user1["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert peer_ip1.startswith("10.")
+        assert peer_ip1 != "10.0.0.1/32"
+
+        # Test 3: Try to create another user with the same IP - should fail
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(access_token),
+            json={
+                "username": unique_name("wg_duplicate_ip_user"),
+                "proxy_settings": {
+                    "wireguard": {
+                        "peer_ips": [peer_ip1],
+                    }
+                },
+                "group_ids": [group["id"]],
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "already in use" in response.json()["detail"]
+
+        # Test 4: Create another user without specifying peer IPs - should get different IP
+        user2 = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_auto_ip_user2")},
+        )
+        assert user2["proxy_settings"]["wireguard"]["peer_ips"]
+        peer_ip2 = user2["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert peer_ip2.startswith("10.")
+        assert peer_ip2 != peer_ip1
+        assert peer_ip2 != "10.0.0.1/32"
+
+        # Test 5: Verify subscription links work with auto-allocated IPs
+        links_response = client.get(f"{user1['subscription_url']}/links")
+        assert links_response.status_code == status.HTTP_200_OK
+        link = links_response.text.strip()
+        assert link.startswith("wireguard://")
+        parsed = urlsplit(link)
+        query = parse_qs(parsed.query)
+        assert query["address"] == [peer_ip1]
+
+    finally:
+        if user1:
+            delete_user(access_token, user1["username"])
+        if user2:
+            delete_user(access_token, user2["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])

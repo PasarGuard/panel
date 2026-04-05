@@ -10,6 +10,7 @@ from app import on_startup
 from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.models import Group, ProxyInbound, User, inbounds_groups_association, users_groups_association
+from app.ip_pool import SERVER_IP, allocate_from_global_pool, is_server_ip, validate_global_ip_availability
 from app.models.proxy import ProxyTable, get_wireguard_peer_ips_for_inbound
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 
@@ -121,6 +122,10 @@ async def validate_wireguard_peer_ips(
     validated_networks: list[IPv4Network | IPv6Network] = []
     for peer_ip in peer_ips:
         candidate = ip_network(peer_ip, strict=False)
+
+        if is_server_ip(peer_ip):
+            raise ValueError(f"wireguard peer IP '{peer_ip}' is reserved for the server (10.0.0.1)")
+
         if not any(
             candidate.version == interface.ip.version and candidate.subnet_of(interface.network)
             for interface in interface_addresses
@@ -136,6 +141,10 @@ async def validate_wireguard_peer_ips(
             raise ValueError(f"wireguard peer IP '{peer_ip}' overlaps another peer IP in the same user")
         if any(_networks_overlap(candidate, existing) for existing in existing_networks):
             raise ValueError(f"wireguard peer IP '{peer_ip}' is already in use on interface '{interface_tag}'")
+
+        if not await validate_global_ip_availability(db, peer_ip):
+            raise ValueError(f"wireguard peer IP '{peer_ip}' is already in use globally")
+
         validated_networks.append(candidate)
 
 
@@ -188,6 +197,14 @@ async def allocate_wireguard_peer_ips(
     )
 
     allocated_peer_ips: list[str] = []
+
+    if not addresses:
+        global_ip = await allocate_from_global_pool(db)
+        if not global_ip:
+            raise ValueError(f"unable to allocate WireGuard peer IP from global pool for interface '{interface_tag}'")
+        allocated_peer_ips.append(global_ip)
+        return allocated_peer_ips
+
     for address in addresses:
         allocated = _allocate_from_interface(address, used_networks)
         if not allocated:
