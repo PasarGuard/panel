@@ -34,7 +34,7 @@ export interface SubscribeLink {
   icon: string
 }
 
-const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'wireguard']
+const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box']
 
 type ActionButtonsModalState = {
   subscribeUrl: string
@@ -624,13 +624,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     }
   }
 
-  const handleCopyOrDownload = (link: string, type: string, icon: string) => {
-    if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
-      handleConfigDownload(link, type)
-    } else {
-      handleLinksCopy(link, type, icon)
-    }
+const handleCopyOrDownload = (link: string, type: string, icon: string) => {
+  if (type === 'wireguard') {
+    window.open(link, '_blank')
+  } else if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
+    handleConfigDownload(link, type)
+  } else {
+    handleLinksCopy(link, type, icon)
   }
+}
 
   return (
     <div onClick={renderActions ? (e => e.stopPropagation()) : undefined}>
