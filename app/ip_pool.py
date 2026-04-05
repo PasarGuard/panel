@@ -27,18 +27,28 @@ def is_in_global_pool(ip_str: str) -> bool:
         return False
 
 
-async def get_global_used_ips(db: AsyncSession) -> set[IPv4Network | IPv6Network]:
+async def get_global_used_ips(
+    db: AsyncSession,
+    *,
+    exclude_user_id: int | None = None,
+) -> set[IPv4Network | IPv6Network]:
     from app.db.models import User
     from app.models.proxy import get_all_wireguard_peer_ips
     from sqlalchemy import select
 
     stmt = select(User)
+    if exclude_user_id is not None:
+        stmt = stmt.where(User.id != exclude_user_id)
     result = await db.execute(stmt)
     users = result.scalars().all()
 
     used_ips: set[IPv4Network | IPv6Network] = set()
     for user in users:
-        peer_ips = get_all_wireguard_peer_ips(user.proxy_settings)
+        wireguard_settings = {}
+        if isinstance(user.proxy_settings, dict):
+            wireguard_settings = user.proxy_settings.get("wireguard") or {}
+
+        peer_ips = get_all_wireguard_peer_ips(wireguard_settings)
         for peer_ip in peer_ips:
             try:
                 used_ips.add(ip_network(peer_ip, strict=False))
@@ -48,8 +58,12 @@ async def get_global_used_ips(db: AsyncSession) -> set[IPv4Network | IPv6Network
     return used_ips
 
 
-async def allocate_from_global_pool(db: AsyncSession) -> str | None:
-    used_ips = await get_global_used_ips(db)
+async def allocate_from_global_pool(
+    db: AsyncSession,
+    *,
+    exclude_user_id: int | None = None,
+) -> str | None:
+    used_ips = await get_global_used_ips(db, exclude_user_id=exclude_user_id)
 
     start = int(GLOBAL_IP_POOL.network_address)
     end = int(GLOBAL_IP_POOL.broadcast_address)
@@ -71,11 +85,16 @@ async def allocate_from_global_pool(db: AsyncSession) -> str | None:
     return None
 
 
-async def validate_global_ip_availability(db: AsyncSession, ip_str: str) -> bool:
+async def validate_global_ip_availability(
+    db: AsyncSession,
+    ip_str: str,
+    *,
+    exclude_user_id: int | None = None,
+) -> bool:
     if not is_in_global_pool(ip_str):
         return True
 
-    used_ips = await get_global_used_ips(db)
+    used_ips = await get_global_used_ips(db, exclude_user_id=exclude_user_id)
     try:
         ip = ip_network(ip_str, strict=False)
         return not any(ip.overlaps(used_ip) for used_ip in used_ips)

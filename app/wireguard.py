@@ -142,7 +142,7 @@ async def validate_wireguard_peer_ips(
         if any(_networks_overlap(candidate, existing) for existing in existing_networks):
             raise ValueError(f"wireguard peer IP '{peer_ip}' is already in use on interface '{interface_tag}'")
 
-        if not await validate_global_ip_availability(db, peer_ip):
+        if not await validate_global_ip_availability(db, peer_ip, exclude_user_id=exclude_user_id):
             raise ValueError(f"wireguard peer IP '{peer_ip}' is already in use globally")
 
         validated_networks.append(candidate)
@@ -199,7 +199,7 @@ async def allocate_wireguard_peer_ips(
     allocated_peer_ips: list[str] = []
 
     if not addresses:
-        global_ip = await allocate_from_global_pool(db)
+        global_ip = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
         if not global_ip:
             raise ValueError(f"unable to allocate WireGuard peer IP from global pool for interface '{interface_tag}'")
         allocated_peer_ips.append(global_ip)
