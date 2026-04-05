@@ -60,6 +60,9 @@ async def allocate_from_global_pool(db: AsyncSession) -> str | None:
         if candidate == SERVER_IP:
             continue
 
+        if candidate == GLOBAL_IP_POOL.network_address or candidate == GLOBAL_IP_POOL.broadcast_address:
+            continue
+
         if any(candidate in used_ip for used_ip in used_ips if used_ip.version == 4):
             continue
 
