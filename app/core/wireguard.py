@@ -77,8 +77,8 @@ class WireGuardConfig(dict):
             raise ValueError("listen_port must be an integer between 1 and 65535")
 
         addresses = self.get("address")
-        if not isinstance(addresses, list) or not addresses:
-            raise ValueError("address must contain at least one CIDR")
+        if not isinstance(addresses, list):
+            raise ValueError("address must be a list")
 
         normalized_addresses: list[str] = []
         for cidr in addresses:

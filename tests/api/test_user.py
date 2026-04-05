@@ -389,6 +389,9 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
             "port": 51820,
             "inbound_tag": interface_name,
             "priority": 1,
+            "wireguard_overrides": {
+                "keepalive_seconds": 25,
+            },
         },
     )
     assert host_response.status_code == status.HTTP_201_CREATED
@@ -1282,7 +1285,6 @@ def test_get_users_simple_search_and_sort(access_token):
 def test_wireguard_peer_ip_global_pool_and_validation(access_token):
     """Test that peer IPs are allocated from global pool and server IP is rejected."""
     interface_private_key, _ = generate_wireguard_keypair()
-    interface_public_key = get_wireguard_public_key(interface_private_key)
     interface_name = unique_name("wg_global_pool")
     endpoint = "198.51.100.30"
 
