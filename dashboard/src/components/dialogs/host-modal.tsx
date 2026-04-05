@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { UserStatus, getHosts } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
@@ -184,6 +185,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
   const [editingValue, setEditingValue] = useState('')
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const isMobile = useIsMobile()
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && inputValue.trim()) {
@@ -272,7 +274,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
                 <Info className="h-4 w-4 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[280px] p-3 sm:w-[320px]" side="top" align="start" sideOffset={5}>
+            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={isMobile ? 'bottom' : 'top'} align={isMobile ? 'center' : 'start'} sideOffset={5}>
               <div className="space-y-1.5">
                 <h4 className="mb-2 text-[12px] font-medium">{t('hostsDialog.variables.title')}</h4>
                 <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">{infoContent}</div>
@@ -449,10 +451,13 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const [resolvedHostMode, setResolvedHostMode] = useState<'xray' | 'wireguard'>('xray')
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const isMobile = useIsMobile()
   const [_isSubmitting, setIsSubmitting] = useState(false)
   const selectedInboundTag = form.watch('inbound_tag')
   const selectedNoiseSettings = form.watch('noise_settings.xray')
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
+  const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
+  const infoPopoverAlign = isMobile ? 'center' : 'start'
 
   // Optimized noise settings handlers with useCallback for performance
   const addNoiseSetting = useCallback(() => {
@@ -912,7 +917,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <Info className="h-4 w-4 text-muted-foreground" />
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                               <p className="text-[11px] text-muted-foreground">{t('hostsDialog.port.info')}</p>
                             </PopoverContent>
                           </Popover>
@@ -1080,7 +1085,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <Info className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                     <p className="text-[11px] text-muted-foreground">{t('hostsDialog.path.info')}</p>
                                   </PopoverContent>
                                 </Popover>
@@ -1218,7 +1223,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <Info className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                     <p className="text-[11px] text-muted-foreground">{t('hostsDialog.security.info')}</p>
                                   </PopoverContent>
                                 </Popover>
@@ -1396,7 +1401,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <Info className="h-4 w-4 text-muted-foreground" />
                                   </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                   <p className="text-[11px] text-muted-foreground">{t('hostsDialog.echConfigList.info')}</p>
                                 </PopoverContent>
                               </Popover>
@@ -1422,7 +1427,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <Info className="h-4 w-4 text-muted-foreground" />
                                   </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                   <p className="text-[11px] text-muted-foreground">
                                     {t('hostsDialog.echQueryStrategy.info', {
                                       defaultValue: 'ECH query strategy. Available values: none, half, full.',
@@ -1462,7 +1467,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <Info className="h-4 w-4 text-muted-foreground" />
                                   </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                   <p className="text-[11px] text-muted-foreground">
                                     {t('hostsDialog.pinnedPeerCertSha256.info', {
                                       defaultValue: 'Optional certificate public key pin (SHA-256) used for TLS peer pinning.',
@@ -2006,7 +2011,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                             <Info className="h-4 w-4 text-muted-foreground" />
                                           </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                           <p className="text-[11px] text-muted-foreground">{t('hostsDialog.xhttp.downloadSettingsInfo')}</p>
                                         </PopoverContent>
                                       </Popover>
@@ -2675,7 +2680,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <Info className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                     <div className="space-y-1.5">
                                       <p className="text-[11px] text-muted-foreground">{t('hostsDialog.fragment.info')}</p>
                                       <p className="text-[11px] text-muted-foreground">{t('hostsDialog.fragment.info.attention')}</p>
@@ -2740,7 +2745,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <Info className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                     <div className="space-y-1.5">
                                       <p className="text-[11px] text-muted-foreground">{t('hostsDialog.noise.info')}</p>
                                       <p className="text-[11px] text-muted-foreground">{t('hostsDialog.noise.info.attention')}</p>
@@ -3340,7 +3345,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <Info className="h-4 w-4 text-muted-foreground" />
                                 </Button>
                               </PopoverTrigger>
-                              <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                              <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                 <p className="text-[11px] text-muted-foreground">{t('hostsDialog.vlessRoute.info')}</p>
                               </PopoverContent>
                             </Popover>
