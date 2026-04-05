@@ -69,8 +69,6 @@ async def _get_wireguard_inbound(interface_tag: str) -> dict:
 
 def _get_interface_addresses(inbound: dict) -> list:
     addresses = inbound.get("address") or []
-    if not addresses:
-        raise ValueError(f"WireGuard interface '{inbound.get('tag', '')}' does not define any address ranges")
     return [ip_interface(address) for address in addresses]
 
 
@@ -126,17 +124,19 @@ async def validate_wireguard_peer_ips(
         if is_server_ip(peer_ip):
             raise ValueError(f"wireguard peer IP '{peer_ip}' is reserved for the server (10.0.0.1)")
 
-        if not any(
-            candidate.version == interface.ip.version and candidate.subnet_of(interface.network)
-            for interface in interface_addresses
-        ):
-            raise ValueError(f"wireguard peer IP '{peer_ip}' is outside interface '{interface_tag}' address ranges")
-        if any(
-            candidate.version == interface.ip.version and interface.ip in candidate for interface in interface_addresses
-        ):
-            raise ValueError(
-                f"wireguard peer IP '{peer_ip}' overlaps the server address on interface '{interface_tag}'"
-            )
+        if interface_addresses:
+            if not any(
+                candidate.version == interface.ip.version and candidate.subnet_of(interface.network)
+                for interface in interface_addresses
+            ):
+                raise ValueError(f"wireguard peer IP '{peer_ip}' is outside interface '{interface_tag}' address ranges")
+            if any(
+                candidate.version == interface.ip.version and interface.ip in candidate
+                for interface in interface_addresses
+            ):
+                raise ValueError(
+                    f"wireguard peer IP '{peer_ip}' overlaps the server address on interface '{interface_tag}'"
+                )
         if any(_networks_overlap(candidate, validated) for validated in validated_networks):
             raise ValueError(f"wireguard peer IP '{peer_ip}' overlaps another peer IP in the same user")
         if any(_networks_overlap(candidate, existing) for existing in existing_networks):
