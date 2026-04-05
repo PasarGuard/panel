@@ -714,7 +714,10 @@
     "deletePrompt": "确定要删除 <b>{{name}}</b> 吗？此操作无法撤销。",
     "noTemplates": "暂无客户端模板",
     "noTemplatesDescription": "创建客户端模板以自定义订阅输出格式。",
-    "noSearchResults": "没有匹配的客户端模板。"
+    "noSearchResults": "没有匹配的客户端模板。",
+    "default": "默认",
+    "system": "系统",
+    "defaultSystem": "默认系统"
   },
   "core.configuration": "配置",
   "core.generalErrorMessage": "配置有误, 请检查",

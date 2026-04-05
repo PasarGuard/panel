@@ -714,7 +714,10 @@
     "deletePrompt": "Are you sure you want to delete <b>{{name}}</b>? This action cannot be undone.",
     "noTemplates": "No client templates",
     "noTemplatesDescription": "Create a client template to customize subscription output formats.",
-    "noSearchResults": "No client templates match your search."
+    "noSearchResults": "No client templates match your search.",
+    "default": "Default",
+    "system": "System",
+    "defaultSystem": "Default System"
   },
   "core.configuration": "Configuration",
   "core.generalErrorMessage": "Something went wrong, please check the configuration",

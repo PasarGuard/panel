@@ -19,6 +19,7 @@ import {
   UserStatusCreate,
   XTLSFlows,
 } from '@/service/api'
+import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client.ts'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -121,6 +122,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const modifyUserTemplateMutation = useModifyUserTemplate()
   const [timeType, setTimeType] = useState<'seconds' | 'hours' | 'days'>('seconds')
   const [loading, setLoading] = useState(false)
+  const dataLimitInputRef = React.useRef<string>('')
 
   useEffect(() => {
     if (!isDialogOpen) return
@@ -133,17 +135,19 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
     setLoading(true)
     try {
       const status = values.status ?? UserStatusCreate.active
+      const normalizedDataLimitGb = Number(values.data_limit ?? 0)
+      const hasDataLimit = Number.isFinite(normalizedDataLimitGb) && normalizedDataLimitGb > 0
       // Build payload according to UserTemplateCreate interface
       const submitData = {
         name: values.name,
-        data_limit: values.data_limit,
+        data_limit: hasDataLimit ? gbToBytes(normalizedDataLimitGb as any) : 0,
         expire_duration: values.expire_duration,
         username_prefix: values.username_prefix || '',
         username_suffix: values.username_suffix || '',
         group_ids: values.groups, // map groups to group_ids
         status,
         on_hold_timeout: status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
-        data_limit_reset_strategy: values.data_limit ? values.data_limit_reset_strategy : undefined,
+        data_limit_reset_strategy: hasDataLimit ? values.data_limit_reset_strategy : undefined,
         reset_usages: values.reset_usages,
         extra_settings:
           values.method || values.flow
@@ -286,39 +290,91 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                 <FormField
                   control={form.control}
                   name="data_limit"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>{t('templates.dataLimit')}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            placeholder={t('templates.dataLimit')}
-                            {...field}
-                            onChange={e => {
-                              const value = parseInt(e.target.value)
-                              // Convert GB to bytes (1 GB = 1024 * 1024 * 1024 bytes)
-                              field.onChange(value ? value * 1024 * 1024 * 1024 : 0)
-                            }}
-                            value={field.value ? Math.round(field.value / (1024 * 1024 * 1024)) : ''}
-                            className="pr-10"
-                            min="0"
-                          />
-                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{t('userDialog.gb', { defaultValue: 'GB' })}</span>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    if (dataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
+                      dataLimitInputRef.current = String(field.value)
+                    } else if ((field.value === null || field.value === undefined) && dataLimitInputRef.current !== '') {
+                      dataLimitInputRef.current = ''
+                    }
+
+                    const displayValue =
+                      dataLimitInputRef.current !== '' ? dataLimitInputRef.current : field.value !== null && field.value !== undefined && field.value > 0 ? String(field.value) : ''
+
+                    return (
+                      <FormItem className="relative flex-1">
+                        <FormLabel>{t('templates.dataLimit')}</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder={t('templates.dataLimit')}
+                              value={displayValue}
+                              onChange={e => {
+                                const rawValue = e.target.value.trim()
+
+                                dataLimitInputRef.current = rawValue
+
+                                if (rawValue === '') {
+                                  field.onChange(0)
+                                  return
+                                }
+
+                                const validNumberPattern = /^-?\d*\.?\d*$/
+                                if (validNumberPattern.test(rawValue)) {
+                                  if (rawValue.endsWith('.') && rawValue.length > 1) {
+                                    const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
+                                    field.onChange(prevValue)
+                                  } else if (rawValue === '.') {
+                                    field.onChange(0)
+                                  } else {
+                                    const numValue = parseFloat(rawValue)
+                                    if (!isNaN(numValue) && numValue >= 0) {
+                                      field.onChange(numValue)
+                                    }
+                                  }
+                                }
+                              }}
+                              onBlur={() => {
+                                const rawValue = dataLimitInputRef.current.trim()
+                                if (rawValue === '' || rawValue === '.' || rawValue === '0') {
+                                  dataLimitInputRef.current = ''
+                                  field.onChange(0)
+                                } else {
+                                  const numValue = parseFloat(rawValue)
+                                  if (!isNaN(numValue) && numValue >= 0) {
+                                    const finalValue = numValue
+                                    dataLimitInputRef.current = finalValue > 0 ? String(finalValue) : ''
+                                    field.onChange(finalValue)
+                                  } else {
+                                    dataLimitInputRef.current = ''
+                                    field.onChange(0)
+                                  }
+                                }
+                              }}
+                              className="pr-10"
+                            />
+                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{t('userDialog.gb', { defaultValue: 'GB' })}</span>
+                          </div>
+                        </FormControl>
+                        {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
+                          <p dir='ltr' className="w-full mt-2 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
                 />
 
                 <FormField
                   control={form.control}
                   name="data_limit_reset_strategy"
                   render={({ field }) => {
-                    // Only show if data_limit is set
+                    // Only show if data_limit is set and greater than 0
                     const datalimit = form.watch('data_limit')
-                    if (!datalimit) {
+                    const normalizedDataLimitGb = Number(datalimit ?? 0)
+                    const hasDataLimit = Number.isFinite(normalizedDataLimitGb) && normalizedDataLimitGb > 0
+                    if (!hasDataLimit) {
                       return <></>
                     }
                     return (
