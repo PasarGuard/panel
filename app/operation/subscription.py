@@ -289,9 +289,11 @@ class SubscriptionOperation(BaseOperation):
         user_inbounds = user.inbounds or []
         hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
 
+        wireguard_hosts = [h for h in hosts if h.protocol == "wireguard"]
+
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for host_data in hosts:
+            for host_data in wireguard_hosts:
                 result = await process_host(host_data, format_variables, user_inbounds, proxy_settings)
                 if not result:
                     continue

@@ -34,7 +34,7 @@ export interface SubscribeLink {
   icon: string
 }
 
-const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box']
+const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'wireguard']
 
 type ActionButtonsModalState = {
   subscribeUrl: string
