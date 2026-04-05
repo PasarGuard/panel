@@ -98,6 +98,5 @@ class SystemOperation(BaseOperation):
                 kwargs["wireguard_pre_shared_key"] = data.get("pre_shared_key") or None
                 kwargs["wireguard_listen_port"] = data.get("listen_port")
                 kwargs["wireguard_addresses"] = list(addrs) if isinstance(addrs, list) else None
-                kwargs["wireguard_peer_keepalive_seconds"] = data.get("peer_keepalive_seconds")
             summaries.append(InboundSummary(**kwargs))
         return summaries

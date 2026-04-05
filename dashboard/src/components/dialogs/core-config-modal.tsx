@@ -140,7 +140,6 @@ const defaultWireGuardConfig = JSON.stringify(
     private_key: 'REPLACE_WITH_SERVER_PRIVATE_KEY',
     listen_port: 51820,
     address: ['10.8.0.1/24'],
-    peer_keepalive_seconds: 0,
   },
   null,
   2,

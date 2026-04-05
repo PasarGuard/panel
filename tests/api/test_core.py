@@ -131,7 +131,6 @@ def test_inbound_details_include_wireguard_metadata(access_token):
             "private_key": private_key,
             "listen_port": 51820,
             "address": ["10.9.0.1/24"],
-            "peer_keepalive_seconds": 25,
         },
         type="wg",
         fallbacks=[],

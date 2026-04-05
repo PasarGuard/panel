@@ -75,7 +75,7 @@ async def _prepare_subscription_inbound_data(
             else list(default_allowed)
         )
 
-        keepalive = inbound_config.get("peer_keepalive_seconds")
+        keepalive = None
         if wg_over and wg_over.keepalive_seconds is not None:
             keepalive = wg_over.keepalive_seconds if wg_over.keepalive_seconds > 0 else None
 

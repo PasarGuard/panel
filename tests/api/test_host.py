@@ -151,7 +151,6 @@ def test_wireguard_host_create(access_token):
             "private_key": private_key,
             "listen_port": 51820,
             "address": ["10.10.0.1/24"],
-            "peer_keepalive_seconds": 25,
         },
         type="wg",
         fallbacks=[],

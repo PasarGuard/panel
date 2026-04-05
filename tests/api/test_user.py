@@ -303,7 +303,6 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
             "private_key": interface_private_key,
             "listen_port": 51820,
             "address": ["10.30.0.1/24"],
-            "peer_keepalive_seconds": 25,
         },
         type="wg",
         fallbacks=[],
@@ -345,7 +344,6 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert query["publickey"] == [interface_public_key]
         assert query["address"] == [",".join(user["proxy_settings"]["wireguard"]["peer_ips"])]
         assert query["allowedips"] == ["0.0.0.0/0,::/0"]
-        assert query["keepalive"] == ["25"]
         assert unquote(parsed.fragment) == expected_remark
 
         body = wireguard_response.text
@@ -355,7 +353,6 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert f"PublicKey = {interface_public_key}" in body
         assert "AllowedIPs = 0.0.0.0/0, ::/0" in body
         assert f"Endpoint = {endpoint}:51820" in body
-        assert "PersistentKeepalive = 25" in body
         assert f"# URI: {link}" in body
     finally:
         delete_user(access_token, user["username"])
@@ -378,7 +375,6 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
             "private_key": interface_private_key,
             "listen_port": 51820,
             "address": ["10.30.0.1/24"],
-            "peer_keepalive_seconds": 25,
         },
         type="wg",
         fallbacks=[],
@@ -453,7 +449,6 @@ def test_singbox_subscription_includes_wireguard_outbound(access_token):
             "pre_shared_key": pre_shared_key,
             "listen_port": 51820,
             "address": ["10.30.0.1/24"],
-            "peer_keepalive_seconds": 30,
         },
         type="wg",
         fallbacks=[],
@@ -471,6 +466,7 @@ def test_singbox_subscription_includes_wireguard_outbound(access_token):
             "wireguard_overrides": {
                 "mtu": 1408,
                 "reserved": "0,0,0",
+                "keepalive_seconds": 30,
             },
         },
     )
@@ -517,7 +513,9 @@ def test_singbox_subscription_includes_wireguard_outbound(access_token):
         if selector is not None:
             assert expected_tag in selector.get("outbounds", [])
 
-        urltest = next((outbound for outbound in config.get("outbounds", []) if outbound.get("type") == "urltest"), None)
+        urltest = next(
+            (outbound for outbound in config.get("outbounds", []) if outbound.get("type") == "urltest"), None
+        )
         if urltest is not None:
             assert expected_tag in urltest.get("outbounds", [])
     finally:
@@ -543,7 +541,6 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
             "private_key": first_private_key,
             "listen_port": 51820,
             "address": ["10.30.10.1/24"],
-            "peer_keepalive_seconds": 25,
         },
         type="wg",
         fallbacks=[],
@@ -556,7 +553,6 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
             "private_key": second_private_key,
             "listen_port": 51821,
             "address": ["10.40.10.1/24"],
-            "peer_keepalive_seconds": 30,
         },
         type="wg",
         fallbacks=[],
@@ -635,9 +631,7 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
             json={"note": "keep existing wireguard allocations"},
         )
         assert update_response.status_code == status.HTTP_200_OK
-        assert (
-            update_response.json()["proxy_settings"]["wireguard"]["peer_ips_by_inbound"] == peer_ips_by_inbound
-        )
+        assert update_response.json()["proxy_settings"]["wireguard"]["peer_ips_by_inbound"] == peer_ips_by_inbound
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
