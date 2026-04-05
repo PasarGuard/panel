@@ -1193,7 +1193,7 @@
   "userDialog.proxySettings.wireguardPublicKey": "کلید عمومی WireGuard",
   "userDialog.proxySettings.wireguardPeerIps": "IPهای همتای WireGuard",
   "userDialog.proxySettings.generateWireGuardKeyPair": "جفت‌کلید WireGuard",
-  "userDialog.proxySettings.peerIpsHint": "اگر دقیقاً یک رابط WireGuard اختصاص داده شده باشد، برای تخصیص خودکار IPهای همتا توسط پنل این قسمت را خالی بگذارید.",
+  "userDialog.proxySettings.peerIpsHint": "برای اینکه پنل برای هر رابط WireGuard اختصاص‌داده‌شده به‌صورت خودکار IPهای همتا را تخصیص دهد، این قسمت را خالی بگذارید.",
   "userDialog.proxySettings.wireguardGenerated": "جفت‌کلید WireGuard تولید شد",
   "userDialog.proxySettings.desc": "تنظیمات اختصاصی پروتکل برای این کاربر را پیکربندی کنید.",
   "userDialog.expireDate": "تاریخ انقضا",

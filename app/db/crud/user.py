@@ -1024,6 +1024,9 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
         "method", "chacha20-ietf-poly1305"
     )
     proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
+    proxy_settings.wireguard.peer_ips_by_inbound = (
+        db_user.proxy_settings.get("wireguard", {}).get("peer_ips_by_inbound", {}) or {}
+    )
     db_user.proxy_settings = proxy_settings.dict()
     await db.commit()
     await refresh_and_load_user(db, db_user)

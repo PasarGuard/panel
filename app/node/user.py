@@ -6,6 +6,7 @@ from sqlalchemy import and_, func, select
 
 from app.db import AsyncSession
 from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
+from app.models.proxy import get_all_wireguard_peer_ips
 
 _CREATE_PROXY_PARAMS = set(inspect.signature(create_proxy).parameters)
 
@@ -60,7 +61,7 @@ def _serialize_user_for_node(id: int, username: str, user_settings: dict, inboun
         "shadowsocks_password": shadowsocks_settings.get("password"),
         "shadowsocks_method": shadowsocks_settings.get("method"),
         "wireguard_public_key": wireguard_settings.get("public_key"),
-        "wireguard_peer_ips": wireguard_settings.get("peer_ips") or [],
+        "wireguard_peer_ips": get_all_wireguard_peer_ips(wireguard_settings),
         "hysteria_auth": hysteria_settings.get("auth"),
     }
 

@@ -1298,7 +1298,7 @@
   "userDialog.proxySettings.wireguardPublicKey": "WireGuard 公钥",
   "userDialog.proxySettings.wireguardPeerIps": "WireGuard 对端 IP",
   "userDialog.proxySettings.generateWireGuardKeyPair": "WireGuard 密钥对",
-  "userDialog.proxySettings.peerIpsHint": "若恰好分配了一个 WireGuard 接口，留空可让面板自动分配对端 IP。",
+  "userDialog.proxySettings.peerIpsHint": "留空可让面板为每个已分配的 WireGuard 接口自动分配对端 IP。",
   "userDialog.proxySettings.wireguardGenerated": "WireGuard 密钥对已生成",
   "userDialog.proxySettings.desc": "为此用户配置协议专属设置。",
   "userDialog.expireDate": "过期日期",

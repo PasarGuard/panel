@@ -2212,7 +2212,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                   />
                                 </FormControl>
                                 <p className="text-xs text-muted-foreground">
-                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to let the panel auto-allocate peer IPs when exactly one WireGuard interface is assigned.' })}
+                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to let the panel auto-allocate peer IPs for each assigned WireGuard interface.' })}
                                 </p>
                                 <FormMessage />
                               </FormItem>

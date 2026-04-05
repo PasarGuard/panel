@@ -1328,7 +1328,7 @@
     "proxySettings.wireguardPublicKey": "WireGuard Public key",
     "proxySettings.wireguardPeerIps": "WireGuard Peer IPs",
     "proxySettings.generateWireGuardKeyPair": "WireGuard keypair",
-    "proxySettings.peerIpsHint": "Leave empty to let the panel auto-allocate peer IPs when exactly one WireGuard interface is assigned.",
+    "proxySettings.peerIpsHint": "Leave empty to let the panel auto-allocate peer IPs for each assigned WireGuard interface.",
     "proxySettings.wireguardGenerated": "WireGuard keypair generated",
     "proxySettings.desc": "Configure protocol-specific settings for this user.",
     "selectNode": "Select Node",

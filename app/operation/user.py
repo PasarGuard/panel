@@ -1,6 +1,7 @@
 import asyncio
 import re
 import secrets
+from copy import deepcopy
 from collections import Counter
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from typing import Literal
@@ -68,7 +69,7 @@ from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from app.wireguard import prepare_wireguard_proxy_settings
+from app.wireguard import get_wireguard_tags_from_groups, prepare_wireguard_proxy_settings
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
@@ -300,6 +301,12 @@ class UserOperation(BaseOperation):
             if modified_user.proxy_settings is not None
             else ProxyTable.model_validate(current_proxy_settings_data)
         )
+        if modified_user.proxy_settings is not None and current_proxy_settings.wireguard.peer_ips_by_inbound:
+            effective_wireguard_tags = await get_wireguard_tags_from_groups(effective_groups)
+            if len(effective_wireguard_tags) > 1 and not proxy_settings_to_prepare.wireguard.peer_ips_by_inbound:
+                proxy_settings_to_prepare.wireguard.peer_ips_by_inbound = deepcopy(
+                    current_proxy_settings.wireguard.peer_ips_by_inbound
+                )
         prepared_proxy_settings = await self._prepare_user_proxy_settings(
             db,
             effective_groups,

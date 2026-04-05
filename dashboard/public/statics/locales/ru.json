@@ -1695,7 +1695,7 @@
     "proxySettings.wireguardPublicKey": "Публичный ключ WireGuard",
     "proxySettings.wireguardPeerIps": "Peer IP-адреса WireGuard",
     "proxySettings.generateWireGuardKeyPair": "Пара ключей WireGuard",
-    "proxySettings.peerIpsHint": "Оставьте пустым, чтобы панель автоматически выделила peer IP-адреса, когда назначен ровно один интерфейс WireGuard.",
+    "proxySettings.peerIpsHint": "Оставьте пустым, чтобы панель автоматически выделила peer IP-адреса для каждого назначенного интерфейса WireGuard.",
     "proxySettings.wireguardGenerated": "Пара ключей WireGuard сгенерирована",
     "proxySettings.desc": "Настройте параметры протокола для этого пользователя.",
     "selectNode": "Выберите узел",

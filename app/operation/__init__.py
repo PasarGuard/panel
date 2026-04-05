@@ -24,7 +24,6 @@ from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
 from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
-from app.wireguard import ensure_single_wireguard_interface_for_groups
 
 
 class OperatorType(IntEnum):
@@ -199,12 +198,6 @@ class BaseOperation:
         missing_ids = [group_id for group_id in unique_ids if group_id not in groups_by_id]
         if missing_ids:
             await self.raise_error("Group not found", 404)
-
-        if not isinstance(model, BulkGroup):
-            try:
-                await ensure_single_wireguard_interface_for_groups(groups, context="user")
-            except ValueError as exc:
-                await self.raise_error(str(exc), 400)
 
         # Preserve the requested order and duplicate semantics.
         return [groups_by_id[group_id] for group_id in requested_group_ids]
