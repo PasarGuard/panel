@@ -13,7 +13,6 @@ import { VariablesList, VariablesPopover } from '@/components/ui/variables-popov
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UserStatus, getHosts } from '@/service/api'
-import { getInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
@@ -30,6 +29,8 @@ interface HostModalProps {
   onSubmit: (data: HostFormValues) => Promise<{ status: number }>
   editingHost?: boolean
   form: UseFormReturn<HostFormValues>
+  inboundDetails?: Array<{ tag: string; protocol: string }>
+  isLoadingInbounds?: boolean
 }
 
 // Update status options constant
@@ -441,7 +442,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
 
 ArrayInput.displayName = 'ArrayInput'
 
-const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSubmit, editingHost, form }) => {
+const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSubmit, editingHost, form, inboundDetails, isLoadingInbounds = false }) => {
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
   const [wireguardOpenSection, setWireguardOpenSection] = useState<string | undefined>(undefined)
   const [isTransportOpen, setIsTransportOpen] = useState(false)
@@ -569,13 +570,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     setWireguardOpenSection(value || undefined)
   }
 
-  const { data: inboundDetails = [], isLoading: isLoadingInbounds } = useQuery({
-    queryKey: ['getInboundDetailsQueryKey'],
-    queryFn: ({ signal }) => getInboundDetails(signal),
-    enabled: isDialogOpen,
-  })
-  const inbounds = useMemo(() => inboundDetails.map(inbound => inbound.tag), [inboundDetails])
-  const selectedInbound = useMemo(() => inboundDetails.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
+  const inbounds = useMemo(() => inboundDetails?.map(inbound => inbound.tag) || [], [inboundDetails])
+  const selectedInbound = useMemo(() => inboundDetails?.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
   const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
   const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
@@ -585,7 +581,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     queryKey: ['getHostsQueryKey'],
     queryFn: () => getHosts(),
     enabled: isDialogOpen && isTransportOpen,
-    select: data => data.filter(host => host.id != null),
+    select: (data: any[]) => data.filter((host: any) => host.id != null),
   })
 
   // No automatic refresh when dialog opens - only fetch on specific actions
@@ -618,7 +614,24 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   }, [isDialogOpen, isLoadingInbounds, selectedInbound, selectedInboundTag])
 
   useEffect(() => {
+    if (!isDialogOpen) {
+      return
+    }
+
+    if (resolvedHostMode === 'wireguard') {
+      setOpenSection(undefined)
+    } else {
+      setWireguardOpenSection(undefined)
+    }
+  }, [resolvedHostMode, isDialogOpen])
+
+  useEffect(() => {
     if (!isWireGuardInbound) {
+      return
+    }
+
+    // Don't clear fields when editing an existing host
+    if (editingHost) {
       return
     }
 
@@ -641,13 +654,19 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('noise_settings', undefined, { shouldDirty: true })
     form.setValue('mux_settings', undefined, { shouldDirty: true })
     form.setValue('transport_settings', undefined, { shouldDirty: true })
-  }, [form, isWireGuardInbound, selectedInboundTag])
+  }, [form, isWireGuardInbound, selectedInboundTag, editingHost])
 
   useEffect(() => {
     if (!isWireGuardInbound) {
       form.setValue('wireguard_overrides', undefined, { shouldDirty: false })
       return
     }
+
+    // Don't modify wireguard_overrides when editing an existing host
+    if (editingHost) {
+      return
+    }
+
     const wg = form.getValues('wireguard_overrides')
     if (wg == null) {
       form.setValue(
@@ -656,7 +675,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         { shouldDirty: false },
       )
     }
-  }, [form, isWireGuardInbound, selectedInboundTag])
+  }, [form, isWireGuardInbound, selectedInboundTag, editingHost])
 
   const handleSubmit = async (data: HostFormValues) => {
     setIsSubmitting(true)
@@ -2020,7 +2039,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                             </span>
                                           </SelectItem>
                                         ) : (
-                                          hosts.map(host => (
+                                          hosts.map((host: any) => (
                                             <SelectItem key={host.id} value={host.id?.toString() ?? ''}>
                                               {host.remark}
                                             </SelectItem>
