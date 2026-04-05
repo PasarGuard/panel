@@ -645,19 +645,19 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
         delete_core(access_token, second_core["id"])
 
 
-def test_legacy_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_token):
+def test_shared_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_token):
     first_private_key, _ = generate_wireguard_keypair()
     second_private_key, _ = generate_wireguard_keypair()
-    first_interface = unique_name("wg_multi_shared_a")
-    second_interface = unique_name("wg_multi_shared_b")
+    first_interface = unique_name("wg_multi_explicit_a")
+    second_interface = unique_name("wg_multi_explicit_b")
     first_endpoint = "198.51.100.23"
     second_endpoint = "198.51.100.24"
-    initial_peer_ips = ["10.30.20.9/32"]
-    updated_peer_ips = ["10.30.20.10/32"]
+    shared_peer_ips = ["10.30.20.9/32"]
+    updated_shared_peer_ips = ["10.30.20.10/32"]
 
     first_core = create_core(
         access_token,
-        name=unique_name("wireguard_multi_shared_core_a"),
+        name=unique_name("wireguard_multi_explicit_core_a"),
         config={
             "interface_name": first_interface,
             "private_key": first_private_key,
@@ -669,12 +669,12 @@ def test_legacy_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
     )
     second_core = create_core(
         access_token,
-        name=unique_name("wireguard_multi_shared_core_b"),
+        name=unique_name("wireguard_multi_explicit_core_b"),
         config={
             "interface_name": second_interface,
             "private_key": second_private_key,
             "listen_port": 51821,
-            "address": ["10.30.20.1/24"],
+            "address": ["10.40.20.1/24"],
         },
         type="wg",
         fallbacks=[],
@@ -710,7 +710,7 @@ def test_legacy_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
 
     group = create_group(
         access_token,
-        name=unique_name("wg_multi_shared_group"),
+        name=unique_name("wg_multi_explicit_group"),
         inbound_tags=[first_interface, second_interface],
     )
     user = None
@@ -723,19 +723,19 @@ def test_legacy_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
                 "username": unique_name("wg_multi_shared_user"),
                 "proxy_settings": {
                     "wireguard": {
-                        "peer_ips": initial_peer_ips,
+                        "peer_ips": shared_peer_ips,
                     }
                 },
             },
         )
 
-        peer_ips_by_inbound = user["proxy_settings"]["wireguard"]["peer_ips_by_inbound"]
-        assert user["proxy_settings"]["wireguard"]["peer_ips"] == []
-        assert peer_ips_by_inbound[first_interface] == initial_peer_ips
-        assert peer_ips_by_inbound[second_interface] == initial_peer_ips
+        wireguard_settings = user["proxy_settings"]["wireguard"]
+        assert wireguard_settings["peer_ips"] == []
+        assert wireguard_settings["peer_ips_by_inbound"][first_interface] == shared_peer_ips
+        assert wireguard_settings["peer_ips_by_inbound"][second_interface] == shared_peer_ips
 
         updated_proxy_settings = deepcopy(user["proxy_settings"])
-        updated_proxy_settings["wireguard"]["peer_ips"] = updated_peer_ips
+        updated_proxy_settings["wireguard"]["peer_ips"] = updated_shared_peer_ips
         update_response = client.put(
             f"/api/user/{user['username']}",
             headers=auth_headers(access_token),
@@ -745,8 +745,8 @@ def test_legacy_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
 
         updated_wireguard = update_response.json()["proxy_settings"]["wireguard"]
         assert updated_wireguard["peer_ips"] == []
-        assert updated_wireguard["peer_ips_by_inbound"][first_interface] == updated_peer_ips
-        assert updated_wireguard["peer_ips_by_inbound"][second_interface] == updated_peer_ips
+        assert updated_wireguard["peer_ips_by_inbound"][first_interface] == updated_shared_peer_ips
+        assert updated_wireguard["peer_ips_by_inbound"][second_interface] == updated_shared_peer_ips
     finally:
         if user:
             delete_user(access_token, user["username"])

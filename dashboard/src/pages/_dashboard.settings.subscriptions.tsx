@@ -569,17 +569,26 @@ export default function SubscriptionSettings() {
     zh: '',
   })
 
-  const isValidIconUrl = (url: string): boolean => {
-    if (!url || url.trim() === '') return false
+const isValidIconUrl = (url: string): boolean => {
+  if (!url || url.trim() === '') return false
 
-    try {
-      const urlObj = new URL(url)
-      // Only allow HTTP and HTTPS protocols
-      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
-    } catch {
+  try {
+    const urlObj = new URL(url)
+    // Only allow HTTP and HTTPS protocols (prevents javascript:, data: XSS)
+    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
       return false
     }
+    // Ensure the URL is not a potential XSS vector
+    // Disallow URLs with javascript: or data: anywhere in the string
+    const normalizedUrl = url.toLowerCase().trim()
+    if (normalizedUrl.includes('javascript:') || normalizedUrl.includes('data:')) {
+      return false
+    }
+    return true
+  } catch {
+    return false
   }
+}
 
   useEffect(() => {
     // reset icon error state when URL changes

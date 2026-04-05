@@ -10,7 +10,7 @@ from app import on_startup
 from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.models import Group, ProxyInbound, User, inbounds_groups_association, users_groups_association
-from app.ip_pool import SERVER_IP, allocate_from_global_pool, is_server_ip, validate_global_ip_availability
+from app.ip_pool import allocate_from_global_pool, is_server_ip, validate_global_ip_availability
 from app.models.proxy import ProxyTable, get_wireguard_peer_ips_for_inbound
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 
@@ -109,6 +109,7 @@ async def validate_wireguard_peer_ips(
     peer_ips: list[str],
     *,
     exclude_user_id: int | None = None,
+    enforce_interface_addresses: bool = True,
 ) -> None:
     existing_networks = await _get_existing_wireguard_peer_networks(
         db,
@@ -124,7 +125,7 @@ async def validate_wireguard_peer_ips(
         if is_server_ip(peer_ip):
             raise ValueError(f"wireguard peer IP '{peer_ip}' is reserved for the server (10.0.0.1)")
 
-        if interface_addresses:
+        if enforce_interface_addresses and interface_addresses:
             if not any(
                 candidate.version == interface.ip.version and candidate.subnet_of(interface.network)
                 for interface in interface_addresses
@@ -239,19 +240,20 @@ async def prepare_wireguard_proxy_settings(
         proxy_settings.wireguard.public_key = get_wireguard_public_key(proxy_settings.wireguard.private_key)
 
     configured_peer_ips_by_inbound = dict(proxy_settings.wireguard.peer_ips_by_inbound or {})
-    legacy_peer_ips = list(proxy_settings.wireguard.peer_ips or [])
-    use_legacy_peer_ips_for_all_inbounds = len(wireguard_tags) > 1 and bool(legacy_peer_ips)
+    configured_single_interface_peer_ips = list(proxy_settings.wireguard.peer_ips or [])
+    use_shared_peer_ips_for_all_inbounds = len(wireguard_tags) > 1 and bool(configured_single_interface_peer_ips)
 
     prepared_peer_ips_by_inbound: dict[str, list[str]] = {}
     for interface_tag in wireguard_tags:
-        if use_legacy_peer_ips_for_all_inbounds:
+        if use_shared_peer_ips_for_all_inbounds:
             await validate_wireguard_peer_ips(
                 db,
                 interface_tag,
-                legacy_peer_ips,
+                configured_single_interface_peer_ips,
                 exclude_user_id=exclude_user_id,
+                enforce_interface_addresses=False,
             )
-            prepared_peer_ips_by_inbound[interface_tag] = legacy_peer_ips
+            prepared_peer_ips_by_inbound[interface_tag] = configured_single_interface_peer_ips
             continue
 
         configured_peer_ips = list(configured_peer_ips_by_inbound.get(interface_tag) or [])
@@ -265,14 +267,14 @@ async def prepare_wireguard_proxy_settings(
             prepared_peer_ips_by_inbound[interface_tag] = configured_peer_ips
             continue
 
-        if legacy_peer_ips:
+        if configured_single_interface_peer_ips:
             await validate_wireguard_peer_ips(
                 db,
                 interface_tag,
-                legacy_peer_ips,
+                configured_single_interface_peer_ips,
                 exclude_user_id=exclude_user_id,
             )
-            prepared_peer_ips_by_inbound[interface_tag] = legacy_peer_ips
+            prepared_peer_ips_by_inbound[interface_tag] = configured_single_interface_peer_ips
             continue
 
         prepared_peer_ips_by_inbound[interface_tag] = await allocate_wireguard_peer_ips(
