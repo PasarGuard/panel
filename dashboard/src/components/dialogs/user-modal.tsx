@@ -203,6 +203,12 @@ const ExpiryDateField = ({
 export { ExpiryDateField }
 
 // Custom Select component that works reliably on mobile
+type StatusSelectItemProps = {
+  value: string
+  children: React.ReactNode
+  onSelect?: (value: string) => void
+}
+
 const StatusSelect = ({
   value,
   onValueChange,
@@ -249,7 +255,7 @@ const StatusSelect = ({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
         {React.Children.map(children, child => {
-          if (React.isValidElement(child) && child.props.value) {
+          if (React.isValidElement<StatusSelectItemProps>(child) && typeof child.props.value === 'string') {
             return React.cloneElement(child, {
               onSelect: handleSelect,
             })
@@ -261,7 +267,7 @@ const StatusSelect = ({
   )
 }
 
-const StatusSelectItem = ({ value, children, onSelect }: { value: string; children: React.ReactNode; onSelect?: (value: string) => void }) => {
+const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) => {
   const getDotColor = () => {
     switch (value) {
       case 'active':

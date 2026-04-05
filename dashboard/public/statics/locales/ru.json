@@ -825,10 +825,8 @@
   "password": "Пароль",
   "previous": "Назад",
   "back": "Назад",
+  "qrcodeDialog.title": "QR-код",
   "qrcodeDialog.sublink": "Ссылка на подписку {{username}}",
-  "configsQrcodeDialog.title": "Конфигурации {{username}}",
-  "configsQrcodeDialog.fetchError": "Не удалось получить конфигурации",
-  "configsQrcodeDialog.noConfigs": "Конфигурации не найдены",
   "subscriptionModal.title": "Подписка {{username}}",
   "subscriptionModal.subscriptionLink": "Ссылка на подписку",
   "subscriptionModal.configs": "Конфигурации",
@@ -837,6 +835,9 @@
   "subscriptionModal.fetchError": "Не удалось получить конфигурации",
   "subscriptionModal.noConfigs": "Конфигурации не найдены",
   "subscriptionModal.unknownConfig": "Неизвестная конфигурация",
+  "configActions.copyConfig": "Копировать конфиг",
+  "configActions.copyBase64": "Копировать Base64",
+  "configActions.downloadWireGuard": "Скачать WireGuard",
   "reset": "Сбросить",
   "resetAllUsage": "Сбросить расход трафика",
   "resetAllUsage.error": "Сброс расхода трафика не удался, пожалуйста, попробуйте ещё раз.",
@@ -1665,6 +1666,7 @@
   "copied": "Скопировано!",
   "clickToCopy": "Нажмите, чтобы скопировать",
   "copyFailed": "Не удалось скопировать",
+  "downloadFailed": "Не удалось скачать конфиг",
   "more": "еще",
   "userDialog": {
     "revokeSubscription": "Отозвать подписку",
@@ -1821,7 +1823,8 @@
     },
     "activeNextPlanTitle": "Активировать следующий план пользователя",
     "activeNextPlanPrompt": "Вы уверены, что хотите активировать следующий план для «{{name}}»?",
-    "activeNextPlanSubmit": "Активировать следующий план"
+    "activeNextPlanSubmit": "Активировать следующий план",
+    "downloadStarted": "Загрузка началась"
   },
   "setOwnerModal": {
     "title": "Назначить владельца",

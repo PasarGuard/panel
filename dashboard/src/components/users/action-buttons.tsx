@@ -694,7 +694,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               {/* QR Code */}
               <DropdownMenuItem onSelect={onOpenSubscriptionModal}>
                 <QrCode className="mr-2 h-4 w-4" />
-                <span>QR Code</span>
+                <span>{t('qrcodeDialog.title')}</span>
               </DropdownMenuItem>
 
               {/* Set Owner: only for sudo admins */}

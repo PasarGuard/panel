@@ -1190,10 +1190,8 @@
   "password": "Password",
   "previous": "Previous",
   "back": "Back",
+  "qrcodeDialog.title": "QR Code",
   "qrcodeDialog.sublink": "{{username}}'s Subscribe Link",
-  "configsQrcodeDialog.title": "{{username}}'s Configs",
-  "configsQrcodeDialog.fetchError": "Failed to fetch configurations",
-  "configsQrcodeDialog.noConfigs": "No configurations found",
   "subscriptionModal.title": "{{username}}'s Subscription",
   "subscriptionModal.subscriptionLink": "Subscription Link",
   "subscriptionModal.configs": "Configurations",
@@ -1202,6 +1200,9 @@
   "subscriptionModal.fetchError": "Failed to fetch configurations",
   "subscriptionModal.noConfigs": "No configurations found",
   "subscriptionModal.unknownConfig": "Unknown Config",
+  "configActions.copyConfig": "Copy Config",
+  "configActions.copyBase64": "Copy Base64",
+  "configActions.downloadWireGuard": "Download WireGuard",
   "reset": "Reset",
   "resetAllUsage": "Reset All Usages",
   "resetAllUsage.error": "Usage reset failed, please try again.",
@@ -1775,6 +1776,7 @@
   "copied": "Copied!",
   "clickToCopy": "Click to copy",
   "copyFailed": "Failed to copy",
+  "downloadFailed": "Failed to download config",
   "more": "more",
   "validation": {
     "generic": "{{field}} is invalid",
@@ -1902,7 +1904,8 @@
     "usageSummary": "Showing total usage for the selected period.",
     "activeNextPlanTitle": "Activate User Next Plan",
     "activeNextPlanPrompt": "Are you sure you want to activate next plan for «{{name}}»?",
-    "activeNextPlanSubmit": "Activate Next Plan"
+    "activeNextPlanSubmit": "Activate Next Plan",
+    "downloadStarted": "Download started"
   },
   "setOwnerModal": {
     "title": "Set Owner",

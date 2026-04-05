@@ -1,8 +1,11 @@
 import { z } from 'zod'
 
+export const coreBackendTypes = ['xray', 'wg', 'mtproto', 'singbox'] as const
+export type CoreBackendType = (typeof coreBackendTypes)[number]
+
 export const coreConfigFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['xray', 'wg']).optional(),
+  type: z.enum(coreBackendTypes).optional(),
   config: z.string().min(1, 'Configuration is required'),
   fallback_id: z.array(z.string()).optional(),
   excluded_inbound_ids: z.array(z.string()).optional(),

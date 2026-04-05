@@ -27,7 +27,7 @@ import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useTheme } from '@/components/common/theme-provider'
-import type { CoreConfigFormValues } from '@/components/forms/core-config-form'
+import type { CoreBackendType, CoreConfigFormValues } from '@/components/forms/core-config-form'
 
 interface CoreConfigModalProps {
   isDialogOpen: boolean
@@ -41,7 +41,6 @@ interface ValidationResult {
   isValid: boolean
   error?: string
 }
-type CoreBackendType = 'xray' | 'wg'
 // Add encryption methods enum
 const SHADOWSOCKS_ENCRYPTION_METHODS = [
   { value: '2022-blake3-aes-128-gcm', label: '2022-blake3-aes-128-gcm', length: 16 },
@@ -158,7 +157,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
   const backendType = (form.watch('type') ?? 'xray') as CoreBackendType
-  const isXrayBackend = backendType === 'xray'
+  const isXrayBackend = backendType !== 'wg'
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
   const [isEditorReady, setIsEditorReady] = useState(false)
   const createCoreMutation = useCreateCoreConfig()
@@ -553,8 +552,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       }
 
       const backendType = values.type ?? 'xray'
-      const fallbackTags = backendType === 'xray' ? values.fallback_id || [] : []
-      const excludeInboundTags = backendType === 'xray' ? values.excluded_inbound_ids || [] : []
+      const fallbackTags = backendType !== 'wg' ? values.fallback_id || [] : []
+      const excludeInboundTags = backendType !== 'wg' ? values.excluded_inbound_ids || [] : []
 
       if (editingCore && editingCoreId) {
         // Update existing core
@@ -1512,6 +1511,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                               <SelectContent>
                                 <SelectItem value="xray">Xray</SelectItem>
                                 <SelectItem value="wg">WireGuard</SelectItem>
+                                <SelectItem value="mtproto">MTProto</SelectItem>
+                                <SelectItem value="singbox">SingBox</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>
