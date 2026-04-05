@@ -303,7 +303,11 @@ class UserOperation(BaseOperation):
         )
         if modified_user.proxy_settings is not None and current_proxy_settings.wireguard.peer_ips_by_inbound:
             effective_wireguard_tags = await get_wireguard_tags_from_groups(effective_groups)
-            if len(effective_wireguard_tags) > 1 and not proxy_settings_to_prepare.wireguard.peer_ips_by_inbound:
+            if (
+                len(effective_wireguard_tags) > 1
+                and not proxy_settings_to_prepare.wireguard.peer_ips_by_inbound
+                and not proxy_settings_to_prepare.wireguard.peer_ips
+            ):
                 proxy_settings_to_prepare.wireguard.peer_ips_by_inbound = deepcopy(
                     current_proxy_settings.wireguard.peer_ips_by_inbound
                 )

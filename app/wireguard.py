@@ -240,13 +240,20 @@ async def prepare_wireguard_proxy_settings(
 
     configured_peer_ips_by_inbound = dict(proxy_settings.wireguard.peer_ips_by_inbound or {})
     legacy_peer_ips = list(proxy_settings.wireguard.peer_ips or [])
-    if len(wireguard_tags) > 1 and legacy_peer_ips and not configured_peer_ips_by_inbound:
-        raise ValueError(
-            "wireguard peer_ips can only be set directly when user is assigned to exactly one WireGuard interface"
-        )
+    use_legacy_peer_ips_for_all_inbounds = len(wireguard_tags) > 1 and bool(legacy_peer_ips)
 
     prepared_peer_ips_by_inbound: dict[str, list[str]] = {}
     for interface_tag in wireguard_tags:
+        if use_legacy_peer_ips_for_all_inbounds:
+            await validate_wireguard_peer_ips(
+                db,
+                interface_tag,
+                legacy_peer_ips,
+                exclude_user_id=exclude_user_id,
+            )
+            prepared_peer_ips_by_inbound[interface_tag] = legacy_peer_ips
+            continue
+
         configured_peer_ips = list(configured_peer_ips_by_inbound.get(interface_tag) or [])
         if configured_peer_ips:
             await validate_wireguard_peer_ips(
@@ -258,7 +265,7 @@ async def prepare_wireguard_proxy_settings(
             prepared_peer_ips_by_inbound[interface_tag] = configured_peer_ips
             continue
 
-        if len(wireguard_tags) == 1 and legacy_peer_ips:
+        if legacy_peer_ips:
             await validate_wireguard_peer_ips(
                 db,
                 interface_tag,

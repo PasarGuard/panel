@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -637,6 +638,118 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
         assert update_response.json()["proxy_settings"]["wireguard"]["peer_ips_by_inbound"] == peer_ips_by_inbound
     finally:
         delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{first_host_id}", headers=auth_headers(access_token))
+        client.delete(f"/api/host/{second_host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, first_core["id"])
+        delete_core(access_token, second_core["id"])
+
+
+def test_legacy_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_token):
+    first_private_key, _ = generate_wireguard_keypair()
+    second_private_key, _ = generate_wireguard_keypair()
+    first_interface = unique_name("wg_multi_shared_a")
+    second_interface = unique_name("wg_multi_shared_b")
+    first_endpoint = "198.51.100.23"
+    second_endpoint = "198.51.100.24"
+    initial_peer_ips = ["10.30.20.9/32"]
+    updated_peer_ips = ["10.30.20.10/32"]
+
+    first_core = create_core(
+        access_token,
+        name=unique_name("wireguard_multi_shared_core_a"),
+        config={
+            "interface_name": first_interface,
+            "private_key": first_private_key,
+            "listen_port": 51820,
+            "address": ["10.30.20.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    second_core = create_core(
+        access_token,
+        name=unique_name("wireguard_multi_shared_core_b"),
+        config={
+            "interface_name": second_interface,
+            "private_key": second_private_key,
+            "listen_port": 51821,
+            "address": ["10.30.20.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+
+    first_host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "WG Multi Shared A {USERNAME}",
+            "address": [first_endpoint],
+            "port": 51820,
+            "inbound_tag": first_interface,
+            "priority": 1,
+        },
+    )
+    assert first_host_response.status_code == status.HTTP_201_CREATED
+    first_host_id = first_host_response.json()["id"]
+
+    second_host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "WG Multi Shared B {USERNAME}",
+            "address": [second_endpoint],
+            "port": 51821,
+            "inbound_tag": second_interface,
+            "priority": 2,
+        },
+    )
+    assert second_host_response.status_code == status.HTTP_201_CREATED
+    second_host_id = second_host_response.json()["id"]
+
+    group = create_group(
+        access_token,
+        name=unique_name("wg_multi_shared_group"),
+        inbound_tags=[first_interface, second_interface],
+    )
+    user = None
+
+    try:
+        user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={
+                "username": unique_name("wg_multi_shared_user"),
+                "proxy_settings": {
+                    "wireguard": {
+                        "peer_ips": initial_peer_ips,
+                    }
+                },
+            },
+        )
+
+        peer_ips_by_inbound = user["proxy_settings"]["wireguard"]["peer_ips_by_inbound"]
+        assert user["proxy_settings"]["wireguard"]["peer_ips"] == []
+        assert peer_ips_by_inbound[first_interface] == initial_peer_ips
+        assert peer_ips_by_inbound[second_interface] == initial_peer_ips
+
+        updated_proxy_settings = deepcopy(user["proxy_settings"])
+        updated_proxy_settings["wireguard"]["peer_ips"] = updated_peer_ips
+        update_response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+            json={"proxy_settings": updated_proxy_settings},
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+
+        updated_wireguard = update_response.json()["proxy_settings"]["wireguard"]
+        assert updated_wireguard["peer_ips"] == []
+        assert updated_wireguard["peer_ips_by_inbound"][first_interface] == updated_peer_ips
+        assert updated_wireguard["peer_ips_by_inbound"][second_interface] == updated_peer_ips
+    finally:
+        if user:
+            delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
         client.delete(f"/api/host/{first_host_id}", headers=auth_headers(access_token))
         client.delete(f"/api/host/{second_host_id}", headers=auth_headers(access_token))
