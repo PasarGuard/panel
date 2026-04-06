@@ -10,8 +10,8 @@ updates:
     target-branch: "dev"
     schedule:
       interval: "weekly"
-  - package-ecosystem: "bun" # See documentation for possible values
-    directory: "/dashboard" # Location of package manifests
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
+  # - package-ecosystem: "bun" # See documentation for possible values
+  #   directory: "/dashboard" # Location of package manifests
+  #   target-branch: "dev"
+  #   schedule:
+  #     interval: "weekly"
