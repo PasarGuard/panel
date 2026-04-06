@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { NodeResponse, useGetCoreConfig } from '@/service/api'
+import { CoresSimpleResponse, NodeResponse, useGetCoreConfig } from '@/service/api'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { useNodeReleases } from '@/hooks/use-node-releases'
 import NodeUsageDisplay from './node-usage-display'
@@ -15,9 +15,10 @@ interface NodeProps {
   node: NodeResponse
   onEdit: (node: NodeResponse) => void
   onToggleStatus: (node: NodeResponse) => Promise<void>
+  coresData?: CoresSimpleResponse
 }
 
-export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
+export default function Node({ node, onEdit, onToggleStatus, coresData }: NodeProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const { latestVersion: latestXrayVersion, hasUpdate: hasXrayUpdate } = useXrayReleases()
@@ -111,7 +112,7 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                 ) : null}
               </div>
             </div>
-            <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} />
+            <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} />
           </div>
 
           {/* Connection Info */}

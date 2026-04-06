@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { CoreSimple, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetCoresSimple, useGetNode, useModifyNode } from '@/service/api'
+import { CoresSimpleResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client'
 import { Loader2, RefreshCw, Settings } from 'lucide-react'
@@ -20,6 +20,7 @@ import { toast } from 'sonner'
 import { v4 as uuidv4 } from 'uuid'
 import { LoaderButton } from '../ui/loader-button'
 import type { NodeFormValues } from '@/components/forms/node-form'
+import type { CoreSimple } from '@/service/api'
 
 interface NodeModalProps {
   isDialogOpen: boolean
@@ -28,23 +29,18 @@ interface NodeModalProps {
   editingNode: boolean
   editingNodeId?: number
   initialNodeData?: NodeResponse
+  coresData?: CoresSimpleResponse
   onSuccess?: () => void
 }
 
-export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNode, editingNodeId, initialNodeData, onSuccess }: NodeModalProps) {
+export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNode, editingNodeId, initialNodeData, coresData, onSuccess }: NodeModalProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const addNodeMutation = useCreateNode()
   const modifyNodeMutation = useModifyNode()
   const handleError = useDynamicErrorHandler()
-  const { data: cores, isLoading: isLoadingCores } = useGetCoresSimple(
-    { all: true },
-    {
-      query: {
-        enabled: isDialogOpen,
-      },
-    },
-  )
+  const cores = coresData?.cores
+  const isLoadingCores = false
   const [statusChecking, setStatusChecking] = useState(false)
   const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [autoCheck, setAutoCheck] = useState(false)
@@ -57,15 +53,15 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
     editingNodeId || 0,
     editingNode && editingNodeId
       ? {
-          query: {
-            enabled: editingNode && !!editingNodeId && isDialogOpen,
-            initialData: initialNodeData,
-            refetchInterval: 5000,
-            refetchOnMount: false,
-            staleTime: 0,
-            gcTime: 0,
-          },
-        }
+        query: {
+          enabled: editingNode && !!editingNodeId && isDialogOpen,
+          initialData: initialNodeData,
+          refetchInterval: 5000,
+          refetchOnMount: false,
+          staleTime: 0,
+          gcTime: 0,
+        },
+      }
       : { query: { enabled: false } },
   )
 
@@ -131,7 +127,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         keep_alive: node.keep_alive,
         keep_alive_unit: 'seconds',
         api_key: (node.api_key as string) || '',
-        core_config_id: node.core_config_id ?? cores?.cores?.[0]?.id,
+        core_config_id: node.core_config_id ?? cores?.[0]?.id,
         data_limit: dataLimitGB,
         data_limit_reset_strategy: node.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
         reset_time: node.reset_time ?? null,
@@ -193,7 +189,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           keep_alive: nodeData.keep_alive,
           keep_alive_unit: 'seconds',
           api_key: (nodeData.api_key as string) || '',
-          core_config_id: nodeData.core_config_id ?? cores?.cores?.[0]?.id,
+          core_config_id: nodeData.core_config_id ?? cores?.[0]?.id,
           data_limit: dataLimitGB,
           data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
           reset_time: nodeData.reset_time ?? null,
@@ -229,7 +225,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               keep_alive: nodeData.keep_alive,
               keep_alive_unit: 'seconds',
               api_key: (nodeData.api_key as string) || '',
-              core_config_id: nodeData.core_config_id ?? cores?.cores?.[0]?.id,
+              core_config_id: nodeData.core_config_id ?? cores?.[0]?.id,
               data_limit: dataLimitGB,
               data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
               reset_time: nodeData.reset_time ?? null,
@@ -259,7 +255,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         keep_alive: 60,
         keep_alive_unit: 'seconds',
         api_key: '',
-        core_config_id: cores?.cores?.[0]?.id,
+        core_config_id: cores?.[0]?.id,
         data_limit: 0,
         data_limit_reset_strategy: DataLimitResetStrategy.no_reset,
         reset_time: -1,
@@ -270,10 +266,10 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   }, [editingNode, editingNodeId, isDialogOpen, cores, initialNodeData, form])
 
   useEffect(() => {
-    if (isDialogOpen && cores?.cores?.[0]?.id) {
+    if (isDialogOpen && cores?.[0]?.id) {
       const currentValue = form.getValues('core_config_id')
       if (!currentValue || currentValue < 1) {
-        form.setValue('core_config_id', cores.cores[0].id, { shouldValidate: true })
+        form.setValue('core_config_id', cores[0].id, { shouldValidate: true })
       }
     }
   }, [isDialogOpen, cores, form])
@@ -399,15 +395,14 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div
-                className={`h-2 w-2 rounded-full ${
-                  currentNode?.status === 'connecting' || (statusChecking && !currentNode?.status)
-                    ? 'bg-yellow-500 dark:bg-yellow-400'
-                    : currentNode?.status === 'connected'
-                      ? 'bg-green-500 dark:bg-green-400'
-                      : currentNode?.status === 'error'
-                        ? 'bg-red-500 dark:bg-red-400'
-                        : 'bg-gray-500 dark:bg-gray-400'
-                }`}
+                className={`h-2 w-2 rounded-full ${currentNode?.status === 'connecting' || (statusChecking && !currentNode?.status)
+                  ? 'bg-yellow-500 dark:bg-yellow-400'
+                  : currentNode?.status === 'connected'
+                    ? 'bg-green-500 dark:bg-green-400'
+                    : currentNode?.status === 'error'
+                      ? 'bg-red-500 dark:bg-red-400'
+                      : 'bg-gray-500 dark:bg-gray-400'
+                  }`}
               />
               <span className="text-sm font-medium text-foreground">
                 {currentNode?.status === 'connecting' || (statusChecking && !currentNode?.status)
@@ -531,7 +526,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                 </span>
                               </SelectItem>
                             ) : (
-                              cores?.cores?.map((core: CoreSimple) => (
+                              cores?.map((core: CoreSimple) => (
                                 <SelectItem key={core.id} value={core.id.toString()}>
                                   {core.name}
                                 </SelectItem>
@@ -752,9 +747,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                     ? dataLimitInputRef.current
                                     : field.value !== null && field.value !== undefined && field.value > 0
                                       ? (() => {
-                                          const formatted = parseFloat(field.value.toFixed(9))
-                                          return String(formatted)
-                                        })()
+                                        const formatted = parseFloat(field.value.toFixed(9))
+                                        return String(formatted)
+                                      })()
                                       : ''
 
                                 return (

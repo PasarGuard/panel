@@ -122,9 +122,9 @@ async def get_cores_simple(
     search: str | None = None,
     sort: list[CoreSortingOptionsSimple] | None = None,
     skip_pagination: bool = False,
-) -> tuple[list[tuple[int, str]], int]:
+) -> tuple[list[tuple[int, str, str | None]], int]:
     """
-    Retrieves lightweight core data with only id and name.
+    Retrieves lightweight core data with only id, name and type.
 
     Args:
         db: Database session.
@@ -135,9 +135,9 @@ async def get_cores_simple(
         skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
 
     Returns:
-        Tuple of (list of (id, name) tuples, total_count).
+        Tuple of (list of (id, name, type) tuples, total_count).
     """
-    stmt = select(CoreConfig.id, CoreConfig.name)
+    stmt = select(CoreConfig.id, CoreConfig.name, CoreConfig.type)
 
     if search:
         stmt = stmt.where(CoreConfig.name.ilike(f"%{search}%"))

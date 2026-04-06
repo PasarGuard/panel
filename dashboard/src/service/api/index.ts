@@ -2089,11 +2089,12 @@ export const CoreType = {
 } as const
 
 /**
- * Lightweight core model with only id and name for performance.
+ * Lightweight core model with only id, name and type for performance.
  */
 export interface CoreSimple {
   id: number
   name: string
+  type?: CoreType | null
 }
 
 /**

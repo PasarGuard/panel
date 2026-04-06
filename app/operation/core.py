@@ -76,7 +76,7 @@ class CoreOperation(BaseOperation):
             skip_pagination=all,
         )
 
-        cores = [CoreSimple(id=row[0], name=row[1]) for row in rows]
+        cores = [CoreSimple(id=row[0], name=row[1], type=row[2]) for row in rows]
 
         return CoresSimpleResponse(cores=cores, total=total)
 

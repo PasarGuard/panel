@@ -67,10 +67,11 @@ class CoreResponseList(BaseModel):
 
 
 class CoreSimple(BaseModel):
-    """Lightweight core model with only id and name for performance."""
+    """Lightweight core model with only id, name and type for performance."""
 
     id: int
     name: str
+    type: CoreType | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
