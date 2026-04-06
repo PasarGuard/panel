@@ -409,6 +409,9 @@ export default function NodesList() {
           editingNode={!!editingNode}
           editingNodeId={editingNode?.id}
           initialNodeData={editingNode || undefined}
+          onSuccess={() => {
+            setTimeout(() => refetch(), 2500)
+          }}
         />
 
         <NodeAdvanceSearchModal

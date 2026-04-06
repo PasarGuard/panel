@@ -28,9 +28,10 @@ interface NodeModalProps {
   editingNode: boolean
   editingNodeId?: number
   initialNodeData?: NodeResponse
+  onSuccess?: () => void
 }
 
-export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNode, editingNodeId, initialNodeData }: NodeModalProps) {
+export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNode, editingNodeId, initialNodeData, onSuccess }: NodeModalProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const addNodeMutation = useCreateNode()
@@ -373,6 +374,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       }
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
       queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
+      onSuccess?.()
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
