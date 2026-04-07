@@ -14,7 +14,14 @@ import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor,
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowUpWideNarrow, Cable, Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
+import {
+  ArrowUpWideNarrow, Cat, CircleOff,
+  Clock, Code, ExternalLink, FileCode2,
+  FileText, Globe, GlobeLock, GripVertical,
+  HelpCircle, Link, ListTree, Megaphone, Plus,
+  RotateCcw, Settings, Shuffle, Trash2, User
+} from 'lucide-react'
+import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
 import { useEffect, useState } from 'react'
 import { FieldErrors, useFieldArray, useForm, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -111,15 +118,15 @@ interface DefaultOperatingSystem {
 }
 
 const configFormatOptions = [
-  { value: 'links', label: 'settings.subscriptions.configFormats.links', icon: '🔗' },
-  { value: 'links_base64', label: 'settings.subscriptions.configFormats.links_base64', icon: '📝' },
-  { value: 'xray', label: 'settings.subscriptions.configFormats.xray', icon: '⚡' },
-  { value: 'wireguard', label: 'settings.subscriptions.configFormats.wireguard', icon: '🛜' },
-  { value: 'sing_box', label: 'settings.subscriptions.configFormats.sing_box', icon: '📦' },
-  { value: 'clash', label: 'settings.subscriptions.configFormats.clash', icon: '⚔️' },
-  { value: 'clash_meta', label: 'settings.subscriptions.configFormats.clash_meta', icon: '🛡️' },
-  { value: 'outline', label: 'settings.subscriptions.configFormats.outline', icon: '🔒' },
-  { value: 'block', label: 'settings.subscriptions.configFormats.block', icon: '🚫' },
+  { value: 'links', label: 'settings.subscriptions.configFormats.links', icon: ListTree },
+  { value: 'links_base64', label: 'settings.subscriptions.configFormats.links_base64', icon: Code },
+  { value: 'xray', label: 'settings.subscriptions.configFormats.xray', icon: XrayIcon },
+  { value: 'wireguard', label: 'settings.subscriptions.configFormats.wireguard', icon: WireguardIcon },
+  { value: 'sing_box', label: 'settings.subscriptions.configFormats.sing_box', icon: SingboxIcon },
+  { value: 'clash', label: 'settings.subscriptions.configFormats.clash', icon: Cat },
+  { value: 'clash_meta', label: 'settings.subscriptions.configFormats.clash_meta', icon: MihomoIcon },
+  { value: 'outline', label: 'settings.subscriptions.configFormats.outline', icon: GlobeLock },
+  { value: 'block', label: 'settings.subscriptions.configFormats.block', icon: CircleOff },
 ]
 
 // Default Applications Dataset (mapped from provided data)
@@ -349,9 +356,9 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const responseHeaderPreview =
     responseHeaderCount > 0
       ? responseHeaderEntries
-          .slice(0, 2)
-          .map(([headerKey]) => headerKey)
-          .join(', ')
+        .slice(0, 2)
+        .map(([headerKey]) => headerKey)
+        .join(', ')
       : t('settings.subscriptions.rules.responseHeadersDescription')
 
   const addResponseHeader = () => {
@@ -412,9 +419,8 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
               e.stopPropagation()
               onRemove(index)
             }}
-            className={`absolute top-3 h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100 ${
-              isRtl ? 'left-3' : 'right-3'
-            }`}
+            className={`absolute top-3 h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100 ${isRtl ? 'left-3' : 'right-3'
+              }`}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -467,7 +473,7 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
                           {configFormatOptions.map(option => (
                             <SelectItem key={option.value} value={option.value}>
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs">{option.icon}</span>
+                                <option.icon className="h-4 w-4" />
                                 <span className="text-xs">{t(option.label)}</span>
                               </div>
                             </SelectItem>
@@ -569,26 +575,26 @@ export default function SubscriptionSettings() {
     zh: '',
   })
 
-const isValidIconUrl = (url: string): boolean => {
-  if (!url || url.trim() === '') return false
+  const isValidIconUrl = (url: string): boolean => {
+    if (!url || url.trim() === '') return false
 
-  try {
-    const urlObj = new URL(url)
-    // Only allow HTTP and HTTPS protocols (prevents javascript:, data: XSS)
-    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+    try {
+      const urlObj = new URL(url)
+      // Only allow HTTP and HTTPS protocols (prevents javascript:, data: XSS)
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+        return false
+      }
+      // Ensure the URL is not a potential XSS vector
+      // Disallow URLs with javascript: or data: anywhere in the string
+      const normalizedUrl = url.toLowerCase().trim()
+      if (normalizedUrl.includes('javascript:') || normalizedUrl.includes('data:')) {
+        return false
+      }
+      return true
+    } catch {
       return false
     }
-    // Ensure the URL is not a potential XSS vector
-    // Disallow URLs with javascript: or data: anywhere in the string
-    const normalizedUrl = url.toLowerCase().trim()
-    if (normalizedUrl.includes('javascript:') || normalizedUrl.includes('data:')) {
-      return false
-    }
-    return true
-  } catch {
-    return false
   }
-}
 
   useEffect(() => {
     // reset icon error state when URL changes
@@ -1266,7 +1272,7 @@ const isValidIconUrl = (url: string): boolean => {
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={ruleFields.map(field => field.id)} strategy={rectSortingStrategy}>
-                  <div className="scrollbar-thin grid max-h-[500px] touch-pan-y grid-cols-1 gap-3 overflow-y-auto p-1 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="scrollbar-thin grid max-h-[500px] touch-pan-y grid-cols-1 gap-3 overflow-y-auto py-1 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {ruleFields.map((field, index) => (
                       <SortableRule key={field.id} id={field.id} rule={field} index={index} onRemove={removeRule} form={form} />
                     ))}
@@ -1363,7 +1369,7 @@ const isValidIconUrl = (url: string): boolean => {
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
-                        <Link className="h-4 w-4" />
+                        <ListTree className="h-4 w-4" />
                         {t('settings.subscriptions.formats.links')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.formats.linksDescription')}</FormDescription>
@@ -1401,7 +1407,7 @@ const isValidIconUrl = (url: string): boolean => {
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
-                        <FileCode2 className="h-4 w-4" />
+                        <XrayIcon className="h-4 w-4" />
                         {t('settings.subscriptions.formats.xray')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.formats.xrayDescription')}</FormDescription>
@@ -1420,7 +1426,7 @@ const isValidIconUrl = (url: string): boolean => {
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
-                        <Cable className="h-4 w-4" />
+                        <WireguardIcon className="h-4 w-4" />
                         {t('settings.subscriptions.formats.wireguard')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">
@@ -1441,7 +1447,7 @@ const isValidIconUrl = (url: string): boolean => {
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
-                        <Settings className="h-4 w-4" />
+                        <SingboxIcon className="h-4 w-4" />
                         {t('settings.subscriptions.formats.singBox')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.formats.singBoxDescription')}</FormDescription>
@@ -1460,7 +1466,7 @@ const isValidIconUrl = (url: string): boolean => {
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
-                        <Sword className="h-4 w-4" />
+                        <Cat className="h-4 w-4" />
                         {t('settings.subscriptions.formats.clash')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.formats.clashDescription')}</FormDescription>
@@ -1479,7 +1485,7 @@ const isValidIconUrl = (url: string): boolean => {
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
-                        <Shield className="h-4 w-4" />
+                        <MihomoIcon className="h-4 w-4" />
                         {t('settings.subscriptions.formats.clashMeta')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.formats.clashMetaDescription')}</FormDescription>
@@ -1498,7 +1504,7 @@ const isValidIconUrl = (url: string): boolean => {
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
-                        <Lock className="h-4 w-4" />
+                        <GlobeLock className="h-4 w-4" />
                         {t('settings.subscriptions.formats.outline')}
                       </FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.formats.outlineDescription')}</FormDescription>

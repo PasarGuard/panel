@@ -5,7 +5,9 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, Cpu, EllipsisVertical, Link2Off, ListStart, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
+import { Cat, Check, Copy, Cpu, EllipsisVertical, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
+import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
+import { Code } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +33,7 @@ type ActionButtonsProps = {
 export interface SubscribeLink {
   protocol: string
   link: string
-  icon: string
+  icon: React.ComponentType<{ className?: string }>
 }
 
 const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box']
@@ -325,14 +327,14 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       const subURL = user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url
 
       const links = [
-        { protocol: 'links', link: `${subURL}/links`, icon: '🔗' },
-        { protocol: 'links (base64)', link: `${subURL}/links_base64`, icon: '📝' },
-        { protocol: 'xray', link: `${subURL}/xray`, icon: '⚡' },
-        { protocol: 'wireguard', link: `${subURL}/wireguard`, icon: '🛜' },
-        { protocol: 'clash', link: `${subURL}/clash`, icon: '⚔️' },
-        { protocol: 'clash-meta', link: `${subURL}/clash_meta`, icon: '🛡️' },
-        { protocol: 'outline', link: `${subURL}/outline`, icon: '🔒' },
-        { protocol: 'sing-box', link: `${subURL}/sing_box`, icon: '📦' },
+        { protocol: 'links', link: `${subURL}/links`, icon: ListTree },
+        { protocol: 'links (base64)', link: `${subURL}/links_base64`, icon: Code },
+        { protocol: 'xray', link: `${subURL}/xray`, icon: XrayIcon },
+        { protocol: 'wireguard', link: `${subURL}/wireguard`, icon: WireguardIcon },
+        { protocol: 'clash', link: `${subURL}/clash`, icon: Cat },
+        { protocol: 'clash-meta', link: `${subURL}/clash_meta`, icon: MihomoIcon },
+        { protocol: 'outline', link: `${subURL}/outline`, icon: GlobeLock },
+        { protocol: 'sing-box', link: `${subURL}/sing_box`, icon: SingboxIcon },
       ]
       setSubscribeLinks(links)
     }
@@ -562,13 +564,13 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     })
   }
 
-  const handleLinksCopy = async (link: string, type: string, icon: string) => {
+  const handleLinksCopy = async (link: string, type: string) => {
     try {
       const cachedContent = configContentCacheRef.current[link]
       if (cachedContent !== undefined) {
         const copiedSuccessfully = await copy(cachedContent)
         if (copiedSuccessfully) {
-          toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
+          toast.success(`${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
         } else {
           toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
         }
@@ -586,7 +588,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       const content = await fetchAndCacheContent(link)
       const copiedSuccessfully = await copy(content)
       if (copiedSuccessfully) {
-        toast.success(`${icon} ${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
+        toast.success(`${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
       } else {
         toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
       }
@@ -624,15 +626,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     }
   }
 
-const handleCopyOrDownload = (link: string, type: string, icon: string) => {
-  if (type === 'wireguard') {
-    window.open(link, '_blank')
-  } else if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
-    handleConfigDownload(link, type)
-  } else {
-    handleLinksCopy(link, type, icon)
+  const handleCopyOrDownload = (link: string, type: string) => {
+    if (type === 'wireguard') {
+      window.open(link, '_blank')
+    } else if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
+      handleConfigDownload(link, type)
+    } else {
+      handleLinksCopy(link, type)
+    }
   }
-}
 
   return (
     <div onClick={renderActions ? (e => e.stopPropagation()) : undefined}>
@@ -665,8 +667,8 @@ const handleCopyOrDownload = (link: string, type: string, icon: string) => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   {subscribeLinks.map((item, index) => (
-                    <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol, item.icon)}>
-                      <span className="mr-2">{item.icon}</span>
+                    <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol)}>
+                      <item.icon className="mr-2 h-4 w-4" />
                       {item.protocol}
                     </DropdownMenuItem>
                   ))}
