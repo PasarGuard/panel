@@ -71,14 +71,9 @@ async def prepare_wireguard_proxy_settings(
     peer_ips = list(proxy_settings.wireguard.peer_ips or [])
 
     if peer_ips:
-        # User supplied IPs — just check globally unique
         await validate_peer_ips_globally(db, peer_ips, exclude_user_id=exclude_user_id)
     else:
-        # Auto-assign a /32 from the global pool
-        allocated = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
-        if not allocated:
-            raise ValueError("unable to allocate a WireGuard peer IP from the 10.0.0.0/8 pool")
-        peer_ips = [allocated]
+        peer_ips = []
 
     proxy_settings.wireguard.peer_ips = peer_ips
     return proxy_settings

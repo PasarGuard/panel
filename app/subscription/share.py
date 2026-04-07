@@ -343,6 +343,7 @@ async def process_inbounds_and_tags(
     randomize_order: bool = False,
 ) -> list | str | bytes:
     proxy_settings = user.proxy_settings.dict()
+    proxy_settings["_user_id"] = user.id
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
