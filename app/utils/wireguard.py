@@ -10,7 +10,7 @@ from app.db import GetDB
 from app.db.crud.user import get_users_with_proxy_settings
 from app.models.proxy import ProxyTable
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
-from app.utils.ip_pool import validate_peer_ips_globally
+from app.utils.ip_pool import allocate_from_global_pool, get_global_used_networks, validate_peer_ips_globally
 
 
 async def get_wireguard_tags(tags: Iterable[str]) -> list[str]:
@@ -69,9 +69,63 @@ async def prepare_wireguard_proxy_settings(
         proxy_settings.wireguard.public_key = get_wireguard_public_key(proxy_settings.wireguard.private_key)
 
     peer_ips = list(proxy_settings.wireguard.peer_ips or [])
+    if not peer_ips:
+        # Prefer allocating from the WireGuard interface networks (core config),
+        # so that user addresses stay within the interface subnet (e.g. 10.8.0.0/24).
+        inbounds_by_tag = await core_manager.get_inbounds_by_tag()
+        used_networks = await get_global_used_networks(db, exclude_user_id=exclude_user_id)
 
-    if peer_ips:
-        await validate_peer_ips_globally(db, peer_ips, exclude_user_id=exclude_user_id)
+        candidate = None
+        for tag in wireguard_tags:
+            inbound = inbounds_by_tag.get(tag) or {}
+            addresses = inbound.get("address") or []
+            if not isinstance(addresses, list):
+                continue
+
+            for cidr in addresses:
+                if not isinstance(cidr, str) or not cidr.strip():
+                    continue
+                try:
+                    from ipaddress import ip_interface, ip_network, ip_address
+
+                    iface = ip_interface(cidr.strip())
+                    network = ip_network(cidr.strip(), strict=False)
+                    server_ip = iface.ip
+                except Exception:
+                    continue
+
+                # Skip networks that are too small to allocate a peer.
+                if network.num_addresses <= 2:
+                    continue
+
+                # Iterate usable hosts. For IPv4, this excludes network/broadcast automatically.
+                # For IPv6, it excludes only network address; broadcast doesn't exist.
+                for host_ip in network.hosts():
+                    if host_ip == server_ip:
+                        continue
+                    # Avoid overlaps with existing assigned networks.
+                    if any(host_ip in used for used in used_networks if used.version == host_ip.version):
+                        continue
+                    # Ensure canonical /32 or /128 peer assignment.
+                    prefix = 32 if host_ip.version == 4 else 128
+                    candidate = f"{ip_address(host_ip)}/{prefix}"
+                    break
+
+                if candidate:
+                    break
+            if candidate:
+                break
+
+        if candidate is None:
+            # Fallback: allocate from global pool if interface networks are missing/invalid/full.
+            candidate = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
+
+        if candidate is None:
+            raise ValueError("unable to allocate wireguard peer IP")
+
+        peer_ips = [candidate]
+
+    await validate_peer_ips_globally(db, peer_ips, exclude_user_id=exclude_user_id)
 
     proxy_settings.wireguard.peer_ips = peer_ips
     return proxy_settings
