@@ -2,7 +2,7 @@ import { useTheme } from '@/components/common/theme-provider'
 import type { ClientTemplateFormValues } from '@/components/forms/client-template-form'
 import { DEFAULT_TEMPLATE_CONTENT } from '@/components/forms/client-template-form'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -13,7 +13,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { ClientTemplateType, useCreateClientTemplate, useModifyClientTemplate } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { FileCode2, Maximize2, Minimize2 } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -48,9 +48,10 @@ interface ClientTemplateModalProps {
 
 const monacoEditorOptions = {
   minimap: { enabled: false },
-  fontSize: 13,
+  fontSize: 14,
   fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
   lineNumbers: 'on' as const,
+  roundedSelection: true,
   scrollBeyondLastLine: false,
   automaticLayout: true,
   formatOnPaste: true,
@@ -58,14 +59,43 @@ const monacoEditorOptions = {
   renderWhitespace: 'none' as const,
   wordWrap: 'on' as const,
   folding: true,
+  suggestOnTriggerCharacters: true,
+  quickSuggestions: true,
+  renderLineHighlight: 'all' as const,
   scrollbar: {
     vertical: 'visible' as const,
     horizontal: 'visible' as const,
     useShadows: false,
-    verticalScrollbarSize: 8,
-    horizontalScrollbarSize: 8,
+    verticalScrollbarSize: 10,
+    horizontalScrollbarSize: 10,
   },
-}
+  contextmenu: true,
+  copyWithSyntaxHighlighting: false,
+  multiCursorModifier: 'alt' as const,
+  accessibilitySupport: 'on' as const,
+  mouseWheelZoom: true,
+  quickSuggestionsDelay: 0,
+  occurrencesHighlight: 'singleFile' as const,
+  wordBasedSuggestions: 'currentDocument' as const,
+  suggest: {
+    showWords: true,
+    showSnippets: true,
+    showClasses: true,
+    showFunctions: true,
+    showVariables: true,
+    showProperties: true,
+    showColors: true,
+    showFiles: true,
+    showReferences: true,
+    showFolders: true,
+    showTypeParameters: true,
+    showEnums: true,
+    showConstructors: true,
+    showDeprecated: true,
+    showEnumMembers: true,
+    showKeywords: true,
+  },
+} as const
 
 export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, editingTemplate, editingTemplateId }: ClientTemplateModalProps) {
   const { t } = useTranslation()
@@ -74,33 +104,102 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
   const { resolvedTheme } = useTheme()
   const createClientTemplate = useCreateClientTemplate()
   const modifyClientTemplate = useModifyClientTemplate()
-  const [isEditorExpanded, setIsEditorExpanded] = useState(false)
+  const [isEditorFullscreen, setIsEditorFullscreen] = useState(false)
+  const [isEditorReady, setIsEditorReady] = useState(false)
+  const [editorInstance, setEditorInstance] = useState<any>(null)
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
 
   const templateType = form.watch('template_type')
   const isYaml = isYamlType(templateType)
 
   const validateContent = useCallback(
-    (value: string) => {
+    (value: string, showToast = false) => {
       if (!value.trim()) {
-        setValidation({ isValid: false, error: 'Content is required' })
+        const errorMessage = t('clientTemplates.contentRequired', { defaultValue: 'Content is required' })
+        setValidation({ isValid: false, error: errorMessage })
+        if (showToast) {
+          toast.error(errorMessage)
+        }
         return false
       }
+
       if (isYaml) {
         setValidation({ isValid: true })
         return true
       }
+
       try {
         JSON.parse(value)
         setValidation({ isValid: true })
         return true
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Invalid JSON'
-        setValidation({ isValid: false, error: msg })
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : t('clientTemplates.invalidJson', { defaultValue: 'Invalid JSON' })
+        setValidation({ isValid: false, error: errorMessage })
+        if (showToast) {
+          toast.error(errorMessage)
+        }
         return false
       }
     },
-    [isYaml],
+    [isYaml, t],
+  )
+
+  const relayoutEditor = useCallback(
+    (editor = editorInstance) => {
+      if (!editor) return
+      if (typeof editor.layout === 'function') {
+        editor.layout()
+      }
+      if (typeof editor.resize === 'function') {
+        editor.resize()
+      }
+    },
+    [editorInstance],
+  )
+
+  const handleToggleFullscreen = useCallback(() => {
+    setIsEditorFullscreen(prev => {
+      setTimeout(() => {
+        relayoutEditor()
+        window.dispatchEvent(new Event('resize'))
+      }, 50)
+      return !prev
+    })
+  }, [relayoutEditor])
+
+  const handleEditorDidMount = useCallback(
+    (editor: any) => {
+      setIsEditorReady(true)
+      setEditorInstance(editor)
+
+      requestAnimationFrame(() => {
+        relayoutEditor(editor)
+        setTimeout(() => {
+          relayoutEditor(editor)
+        }, 100)
+      })
+    },
+    [relayoutEditor],
+  )
+
+  const handleEditorValidation = useCallback(
+    (markers: any[]) => {
+      if (isYaml) {
+        validateContent(form.getValues().content)
+        return
+      }
+
+      if (markers.length > 0) {
+        setValidation({
+          isValid: false,
+          error: markers[0].message,
+        })
+        return
+      }
+
+      validateContent(form.getValues().content)
+    },
+    [form, isYaml, validateContent],
   )
 
   useEffect(() => {
@@ -108,27 +207,59 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
     if (!editingTemplate) {
       form.setValue('content', DEFAULT_TEMPLATE_CONTENT[templateType as ClientTemplateType] ?? '')
     }
-  }, [templateType]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editingTemplate, form, templateType])
 
   useEffect(() => {
     if (!isDialogOpen) {
-      setIsEditorExpanded(false)
+      setIsEditorFullscreen(false)
       setValidation({ isValid: true })
     }
   }, [isDialogOpen])
 
-  const handleSubmit = form.handleSubmit(async values => {
-    const isContentYaml = isYamlType(values.template_type)
+  useEffect(() => {
+    const handleResize = () => {
+      setTimeout(() => {
+        relayoutEditor()
+      }, 100)
+    }
 
-    let finalContent: string
-    if (isContentYaml) {
-      finalContent = values.content
-    } else {
+    const handleOrientationChange = () => {
+      setTimeout(() => {
+        relayoutEditor()
+      }, 300)
+    }
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleOrientationChange)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleOrientationChange)
+    }
+  }, [relayoutEditor])
+
+  useEffect(() => {
+    if (!editorInstance || !isEditorReady) return
+
+    setTimeout(() => {
+      relayoutEditor()
+    }, 150)
+  }, [editorInstance, isEditorFullscreen, isEditorReady, relayoutEditor])
+
+  const handleSubmit = form.handleSubmit(async values => {
+    if (!validateContent(values.content, true)) {
+      return
+    }
+
+    let finalContent = values.content
+
+    if (!isYamlType(values.template_type)) {
       try {
         finalContent = JSON.stringify(JSON.parse(values.content), null, 2)
       } catch {
-        setValidation({ isValid: false, error: 'Invalid JSON' })
-        toast.error('Invalid JSON content')
+        const errorMessage = t('clientTemplates.invalidJson', { defaultValue: 'Invalid JSON' })
+        setValidation({ isValid: false, error: errorMessage })
+        toast.error(errorMessage)
         return
       }
     }
@@ -150,6 +281,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
           description: t('clientTemplates.createSuccess', { name: values.name, defaultValue: 'Template "{{name}}" created successfully' }),
         })
       }
+
       queryClient.invalidateQueries({ queryKey: ['/api/client_templates'] })
       onOpenChange(false)
     } catch (error: any) {
@@ -162,21 +294,21 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
   const isPending = createClientTemplate.isPending || modifyClientTemplate.isPending
 
-  const renderEditor = (field: { value: string; onChange: (v: string) => void }) => {
+  const renderEditor = (field: { value: string; onChange: (value: string) => void }, fullscreen = false) => {
     const language = isYaml ? 'yaml' : 'json'
-    const handleChange = (v: string) => {
-      field.onChange(v)
-      validateContent(v)
+    const handleChange = (value: string) => {
+      field.onChange(value)
+      validateContent(value)
     }
 
     if (isMobile) {
       return isYaml ? (
         <Suspense fallback={<div className="h-full w-full" />}>
-          <MobileYamlAceEditor value={field.value || ''} theme={resolvedTheme} onChange={handleChange} />
+          <MobileYamlAceEditor value={field.value || ''} theme={resolvedTheme} onChange={handleChange} onLoad={handleEditorDidMount} />
         </Suspense>
       ) : (
         <Suspense fallback={<div className="h-full w-full" />}>
-          <MobileJsonAceEditor value={field.value || ''} theme={resolvedTheme} onChange={handleChange} />
+          <MobileJsonAceEditor value={field.value || ''} theme={resolvedTheme} onChange={handleChange} onLoad={handleEditorDidMount} />
         </Suspense>
       )
     }
@@ -184,12 +316,14 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
     return (
       <Suspense fallback={<div className="h-full w-full" />}>
         <MonacoEditor
-          height="100%"
+          height={fullscreen ? '100%' : undefined}
           defaultLanguage={language}
           language={language}
           value={field.value}
           theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-          onChange={v => handleChange(v ?? '')}
+          onChange={value => handleChange(value ?? '')}
+          onValidate={handleEditorValidation}
+          onMount={handleEditorDidMount}
           options={monacoEditorOptions}
         />
       </Suspense>
@@ -200,135 +334,184 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className={cn('flex h-[80dvh] max-h-[80dvh] w-[95vw] max-w-5xl flex-col gap-0 overflow-hidden p-0', dir === 'rtl' && 'rtl')}>
-        <DialogHeader className="shrink-0 border-b px-5 py-4">
-          <DialogTitle>{title}</DialogTitle>
+      <DialogContent className={cn('md:h-auto h-full w-full max-w-5xl', dir === 'rtl' && 'rtl')}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileCode2 className="h-5 w-5" />
+            <span>{title}</span>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('clientTemplates.modalDescription', { defaultValue: 'Create or edit a client template and adjust its content.' })}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 overflow-hidden">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="-mr-4 max-h-[78dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh] pb-2">
+              <div className="grid grid-cols-1 gap-4 md:h-full md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
+                <div className="flex flex-col">
+                  <div className="flex flex-col space-y-4 md:h-full">
+                    <FormField
+                      control={form.control}
+                      name="content"
+                      render={({ field }) => (
+                        <FormItem className="md:flex md:h-full md:flex-col">
+                          <FormControl className="md:flex md:flex-1">
+                            <div
+                              className={cn(
+                                'relative flex flex-col rounded-lg border bg-background',
+                                isEditorFullscreen ? 'fixed inset-0 z-[60] flex items-center justify-center' : 'h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:min-h-[450px]',
+                              )}
+                              dir="ltr"
+                              style={
+                                isEditorFullscreen
+                                  ? {
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }
+                                  : {
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                  }
+                              }
+                            >
+                              {isEditorFullscreen && <div className="absolute inset-0 bg-background/95 backdrop-blur-sm" onClick={handleToggleFullscreen} />}
+                              {!isEditorReady && (
+                                <div className="absolute inset-0 z-[70] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                                  <span className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-primary"></span>
+                                </div>
+                              )}
 
-            {/* ── Left panel: code editor ── */}
-            <div className={cn('relative flex min-h-0 flex-col border-r transition-all duration-200', isMobile ? 'hidden' : isEditorExpanded ? 'w-full' : 'w-1/2')}>
-              <div className="flex shrink-0 items-center justify-between border-b bg-muted/40 px-3 py-1.5">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {t('clientTemplates.content', { defaultValue: 'Content' })}
-                  <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">{isYaml ? 'YAML' : 'JSON'}</span>
-                </span>
-                <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => setIsEditorExpanded(v => !v)}>
-                  {isEditorExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                </Button>
-              </div>
-              <div className="min-h-0 flex-1" dir="ltr">
-                <FormField
-                  control={form.control}
-                  name="content"
-                  render={({ field }) => (
-                    <FormItem className="h-full">
-                      <FormControl className="h-full">
-                        <div className="h-full" dir="ltr">{renderEditor(field)}</div>
-                      </FormControl>
-                      {!validation.isValid && validation.error && (
-                        <div className="absolute bottom-2 left-2 right-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
-                          {validation.error}
-                        </div>
+                              {isEditorFullscreen ? (
+                                <div className="relative z-10 flex h-full w-full flex-col bg-background sm:my-8 sm:h-auto sm:w-full sm:max-w-[95vw] sm:rounded-lg sm:border sm:shadow-xl">
+                                  <div className="hidden items-center justify-between rounded-t-lg border-b bg-background px-3 py-2.5 sm:flex">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium">{title}</span>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8 shrink-0"
+                                      onClick={handleToggleFullscreen}
+                                      aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
+                                    >
+                                      <Minimize2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="default"
+                                    className="absolute right-2 top-2 z-20 h-9 w-9 rounded-full shadow-lg sm:hidden"
+                                    onClick={handleToggleFullscreen}
+                                    aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
+                                  >
+                                    <Minimize2 className="h-4 w-4" />
+                                  </Button>
+                                  <div className="relative h-full sm:h-[calc(100vh-160px)]" style={{ width: '100%' }}>
+                                    {renderEditor(field, true)}
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  {!isEditorFullscreen && (
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="absolute right-2 top-2 z-10 bg-background/90 backdrop-blur-sm hover:bg-background/90"
+                                      onClick={handleToggleFullscreen}
+                                      aria-label={t('fullscreen', { defaultValue: 'Fullscreen' })}
+                                    >
+                                      <Maximize2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <div className="relative min-h-0 flex-1" style={{ minHeight: 0 }}>
+                                    {renderEditor(field)}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </FormControl>
+                          {validation.error && !validation.isValid && <FormMessage>{validation.error}</FormMessage>}
+                        </FormItem>
                       )}
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
+                    />
+                  </div>
+                </div>
 
-            {/* ── Right panel: fields + submit ── */}
-            <div className={cn('flex shrink-0 flex-col transition-all duration-200', isMobile ? 'w-full' : isEditorExpanded ? 'w-0 overflow-hidden' : 'w-1/2')}>
-              <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('name')}</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder={t('clientTemplates.namePlaceholder', { defaultValue: 'Template name' })} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="template_type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('clientTemplates.templateType', { defaultValue: 'Template Type' })}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={editingTemplate}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('clientTemplates.selectType', { defaultValue: 'Select type' })} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(ClientTemplateType).map(type => (
-                            <SelectItem key={type} value={type}>
-                              {TEMPLATE_TYPE_LABELS[type] || type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="is_default"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                      <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
-                      <FormControl>
-                        <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                {/* Mobile-only editor */}
-                {isMobile && (
+                <div className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="content"
+                    name="name"
                     render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>
-                          {t('clientTemplates.content', { defaultValue: 'Content' })}
-                          <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">{isYaml ? 'YAML' : 'JSON'}</span>
-                        </FormLabel>
+                      <FormItem>
+                        <FormLabel>{t('name')}</FormLabel>
                         <FormControl>
-                          <div className="overflow-hidden rounded-md border" dir="ltr" style={{ height: '250px' }}>
-                            {renderEditor(field)}
-                          </div>
+                          <Input {...field} placeholder={t('clientTemplates.namePlaceholder', { defaultValue: 'Template name' })} isError={!!form.formState.errors.name} />
                         </FormControl>
-                        {!validation.isValid && validation.error && <FormMessage>{validation.error}</FormMessage>}
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
-              </div>
 
-              <div className="shrink-0 border-t p-4">
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-                    {t('cancel')}
-                  </Button>
-                  <LoaderButton type="submit" isLoading={isPending} loadingText={t('saving', { defaultValue: 'Saving...' })}>
-                    {editingTemplate ? t('modify') : t('create')}
-                  </LoaderButton>
+                  <FormField
+                    control={form.control}
+                    name="template_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('clientTemplates.templateType', { defaultValue: 'Template Type' })}</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={editingTemplate}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={t('clientTemplates.selectType', { defaultValue: 'Select type' })} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Object.values(ClientTemplateType).map(type => (
+                              <SelectItem key={type} value={type}>
+                                {TEMPLATE_TYPE_LABELS[type] || type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="is_default"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-1">
+                          <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
+                          <p className="text-xs text-muted-foreground">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
+                        </div>
+                        <FormControl>
+                          <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
             </div>
 
+            {!isEditorFullscreen && (
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+                  {t('cancel')}
+                </Button>
+                <LoaderButton type="submit" isLoading={isPending} disabled={!validation.isValid || isPending} loadingText={t('saving', { defaultValue: 'Saving...' })}>
+                  {editingTemplate ? t('modify') : t('create')}
+                </LoaderButton>
+              </div>
+            )}
           </form>
         </Form>
       </DialogContent>

@@ -1,7 +1,7 @@
 import { SortableApplication } from '@/components/apps/sortable-application'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -9,17 +9,18 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
-import { ConfigFormat } from '@/service/api'
+import { type SubRule as ApiSubRule } from '@/service/api'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
+import { ArrowUpWideNarrow, Cable, Clock, Code, ExternalLink, FileCode2, FileText, Globe, GripVertical, HelpCircle, Link, Lock, Megaphone, Plus, RotateCcw, Settings, Shield, Shuffle, Sword, Trash2, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { FieldErrors, useFieldArray, useForm, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import useDirDetection from '@/hooks/use-dir-detection'
 import { useSettingsContext } from './_dashboard.settings'
 
 // Enhanced validation schema for subscription settings
@@ -36,7 +37,8 @@ const subscriptionSchema = z.object({
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),
-      target: z.enum(['links', 'links_base64', 'xray', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
+      target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
+      response_headers: z.record(z.string()).optional(),
     }),
   ),
   applications: z
@@ -77,6 +79,7 @@ const subscriptionSchema = z.object({
       links: z.boolean().optional(),
       links_base64: z.boolean().optional(),
       xray: z.boolean().optional(),
+      wireguard: z.boolean().optional(),
       sing_box: z.boolean().optional(),
       clash: z.boolean().optional(),
       clash_meta: z.boolean().optional(),
@@ -86,11 +89,32 @@ const subscriptionSchema = z.object({
 })
 
 type SubscriptionFormData = z.infer<typeof subscriptionSchema>
+type SubscriptionRuleFormData = SubscriptionFormData['rules'][number]
+type SubscriptionApplicationFormData = NonNullable<SubscriptionFormData['applications']>[number]
+type SubscriptionPlatform = SubscriptionApplicationFormData['platform']
+type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['download_links']>[number]['language']
+
+interface DefaultCatalogApp {
+  name: string
+  logo?: string
+  description?: string
+  faDescription?: string
+  ruDescription?: string
+  zhDescription?: string
+  configLink?: string
+  downloadLink: string
+}
+
+interface DefaultOperatingSystem {
+  name: string
+  apps: DefaultCatalogApp[]
+}
 
 const configFormatOptions = [
   { value: 'links', label: 'settings.subscriptions.configFormats.links', icon: '🔗' },
   { value: 'links_base64', label: 'settings.subscriptions.configFormats.links_base64', icon: '📝' },
   { value: 'xray', label: 'settings.subscriptions.configFormats.xray', icon: '⚡' },
+  { value: 'wireguard', label: 'settings.subscriptions.configFormats.wireguard', icon: '🛜' },
   { value: 'sing_box', label: 'settings.subscriptions.configFormats.sing_box', icon: '📦' },
   { value: 'clash', label: 'settings.subscriptions.configFormats.clash', icon: '⚔️' },
   { value: 'clash_meta', label: 'settings.subscriptions.configFormats.clash_meta', icon: '🛡️' },
@@ -99,7 +123,7 @@ const configFormatOptions = [
 ]
 
 // Default Applications Dataset (mapped from provided data)
-const defaultApplicationsData = {
+const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = {
   operatingSystems: [
     {
       name: 'iOS',
@@ -213,7 +237,7 @@ const defaultApplicationsData = {
   ],
 }
 
-const mapOsNameToPlatform = (engName: string): 'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'appletv' | 'androidtv' => {
+const mapOsNameToPlatform = (engName: string): SubscriptionPlatform => {
   switch (engName.toLowerCase()) {
     case 'android':
       return 'android'
@@ -253,13 +277,13 @@ const buildDefaultApplications = () => {
       if (finalRecommended) platformRecommendedChosen[platform] = true
       apps.push({
         name: app.name,
-        icon_url: (app as any).logo || '',
+        icon_url: app.logo || '',
         import_url: app.configLink || '',
         description: {
           en: app.description || '',
           fa: app.faDescription || app.description || '',
-          ru: (app as any).ruDescription || app.description || '',
-          zh: (app as any).zhDescription || app.description || '',
+          ru: app.ruDescription || app.description || '',
+          zh: app.zhDescription || app.description || '',
         },
         recommended: finalRecommended,
         platform,
@@ -277,7 +301,7 @@ const buildDefaultApplications = () => {
 }
 
 // Default subscription rules
-const defaultSubscriptionRules: { pattern: string; target: ConfigFormat }[] = [
+const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
   {
     pattern: '^([Cc]lash[\\-\\.]?[Vv]erge|[Cc]lash[\\-\\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)',
     target: 'clash_meta',
@@ -306,16 +330,66 @@ const defaultSubscriptionRules: { pattern: string; target: ConfigFormat }[] = [
 
 // Sortable Rule Component
 interface SortableRuleProps {
-  rule: { pattern: string; target: ConfigFormat }
+  rule: SubscriptionRuleFormData
   index: number
   onRemove: (index: number) => void
-  form: any
+  form: UseFormReturn<SubscriptionFormData>
   id: string
 }
 
 function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const { t } = useTranslation()
+  const dir = useDirDetection()
+  const isRtl = dir === 'rtl'
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const [isHeadersOpen, setIsHeadersOpen] = useState(false)
+  const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
+  const responseHeaderEntries = Object.entries(responseHeaders)
+  const responseHeaderCount = responseHeaderEntries.length
+  const responseHeaderPreview =
+    responseHeaderCount > 0
+      ? responseHeaderEntries
+          .slice(0, 2)
+          .map(([headerKey]) => headerKey)
+          .join(', ')
+      : t('settings.subscriptions.rules.responseHeadersDescription')
+
+  const addResponseHeader = () => {
+    const nextKey = `x-header-${Object.keys(responseHeaders).length + 1}`
+    form.setValue(
+      `rules.${index}.response_headers`,
+      {
+        ...responseHeaders,
+        [nextKey]: '',
+      },
+      { shouldDirty: true },
+    )
+  }
+
+  const updateResponseHeaderName = (currentKey: string, nextKey: string) => {
+    const updatedHeaders = { ...responseHeaders }
+    const currentValue = updatedHeaders[currentKey] ?? ''
+    delete updatedHeaders[currentKey]
+    updatedHeaders[nextKey] = currentValue
+    form.setValue(`rules.${index}.response_headers`, updatedHeaders, { shouldDirty: true })
+  }
+
+  const updateResponseHeaderValue = (headerKey: string, value: string) => {
+    form.setValue(
+      `rules.${index}.response_headers`,
+      {
+        ...responseHeaders,
+        [headerKey]: value,
+      },
+      { shouldDirty: true },
+    )
+  }
+
+  const removeResponseHeader = (headerKey: string) => {
+    const updatedHeaders = { ...responseHeaders }
+    delete updatedHeaders[headerKey]
+    form.setValue(`rules.${index}.response_headers`, updatedHeaders, { shouldDirty: true })
+  }
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -326,65 +400,9 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const cursor = isDragging ? 'grabbing' : 'grab'
 
   return (
-    <div ref={setNodeRef} style={style} className="cursor-default">
-      <div className="group relative h-full rounded-md border bg-card p-4 transition-colors hover:bg-accent/20">
-        <div className="flex items-center gap-3">
-          {/* Drag handle */}
-          <button type="button" style={{ cursor: cursor }} className="touch-none opacity-50 transition-opacity group-hover:opacity-100" {...attributes} {...listeners}>
-            <GripVertical className="h-5 w-5" />
-            <span className="sr-only">Drag to reorder</span>
-          </button>
-
-          {/* Rule content */}
-          <div className="min-w-0 flex-1 space-y-2">
-            <FormField
-              control={form.control}
-              name={`rules.${index}.pattern`}
-              render={({ field }) => (
-                <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.pattern')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('settings.subscriptions.rules.patternPlaceholder')}
-                      {...field}
-                      className="h-7 border-muted bg-background/60 font-mono text-xs text-foreground/90 focus:bg-background"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name={`rules.${index}.target`}
-              render={({ field }) => (
-                <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.target')}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="h-7 border-muted bg-background/60 text-xs focus:bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="scrollbar-thin z-[50]">
-                      {configFormatOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs">{option.icon}</span>
-                            <span className="text-xs">{t(option.label)}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {/* Delete button */}
+    <>
+      <div ref={setNodeRef} style={style} className="cursor-default">
+        <div className={`group relative h-full rounded-md border bg-card p-3 transition-colors hover:bg-accent/20 sm:p-4 ${isRtl ? 'pl-14' : 'pr-14'}`}>
           <Button
             type="button"
             variant="ghost"
@@ -394,16 +412,139 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
               e.stopPropagation()
               onRemove(index)
             }}
-            className="h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
+            className={`absolute top-3 h-8 w-8 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100 ${
+              isRtl ? 'left-3' : 'right-3'
+            }`}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
-        </div>
 
-        {/* Drag overlay */}
-        {isDragging && <div className="pointer-events-none absolute inset-0 rounded-md border border-primary/20 bg-primary/5"></div>}
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              style={{ cursor: cursor }}
+              className="shrink-0 touch-none opacity-50 transition-opacity group-hover:opacity-100"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-5 w-5" />
+              <span className="sr-only">Drag to reorder</span>
+            </button>
+
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className="grid gap-3">
+                <FormField
+                  control={form.control}
+                  name={`rules.${index}.pattern`}
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.pattern')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('settings.subscriptions.rules.patternPlaceholder')}
+                          {...field}
+                          className="h-7 border-muted bg-background/60 font-mono text-xs text-foreground/90 focus:bg-background"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`rules.${index}.target`}
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.target')}</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-7 border-muted bg-background/60 text-xs focus:bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="scrollbar-thin z-[50]">
+                          {configFormatOptions.map(option => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs">{option.icon}</span>
+                                <span className="text-xs">{t(option.label)}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="rounded-md border border-dashed border-muted p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{responseHeaderPreview}</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={() => setIsHeadersOpen(true)}>
+                    {responseHeaderCount === 0 ? t('settings.subscriptions.rules.addHeader') : t('settings.subscriptions.rules.responseHeaders')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {isDragging && <div className="pointer-events-none absolute inset-0 rounded-md border border-primary/20 bg-primary/5" />}
+        </div>
       </div>
-    </div>
+
+      <Dialog open={isHeadersOpen} onOpenChange={setIsHeadersOpen}>
+        <DialogContent className="max-w-xl" onOpenAutoFocus={e => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{t('settings.subscriptions.rules.responseHeaders')}</DialogTitle>
+            <DialogDescription>{t('settings.subscriptions.rules.responseHeadersDescription')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={addResponseHeader}>
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                {t('settings.subscriptions.rules.addHeader')}
+              </Button>
+            </div>
+
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+              {responseHeaderCount > 0 ? (
+                responseHeaderEntries.map(([headerKey, headerValue]) => (
+                  <div key={`${id}-${headerKey}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
+                    <Input
+                      value={headerKey}
+                      onChange={e => updateResponseHeaderName(headerKey, e.target.value)}
+                      placeholder={t('settings.subscriptions.rules.headerName')}
+                      className="h-7 border-muted bg-background/60 font-mono text-xs"
+                    />
+                    <Input
+                      value={headerValue}
+                      onChange={e => updateResponseHeaderValue(headerKey, e.target.value)}
+                      placeholder={t('settings.subscriptions.rules.headerValue')}
+                      className="h-7 border-muted bg-background/60 font-mono text-xs"
+                    />
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive hover:bg-destructive/10" onClick={() => removeResponseHeader(headerKey)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center">
+                  <p className="text-xs font-medium text-foreground sm:text-sm">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -419,21 +560,35 @@ export default function SubscriptionSettings() {
   const [newAppRecommended, setNewAppRecommended] = useState(false)
   const [newLinkName, setNewLinkName] = useState('')
   const [newLinkUrl, setNewLinkUrl] = useState('')
-  const [newLinkLang, setNewLinkLang] = useState<'fa' | 'en' | 'ru' | 'zh'>('en')
-  const [newDescLang, setNewDescLang] = useState<'fa' | 'en' | 'ru' | 'zh'>('en')
-  const [newAppDescription, setNewAppDescription] = useState<Record<'fa' | 'en' | 'ru' | 'zh', string>>({} as any)
+  const [newLinkLang, setNewLinkLang] = useState<SubscriptionLanguage>('en')
+  const [newDescLang, setNewDescLang] = useState<SubscriptionLanguage>('en')
+  const [newAppDescription, setNewAppDescription] = useState<Record<SubscriptionLanguage, string>>({
+    fa: '',
+    en: '',
+    ru: '',
+    zh: '',
+  })
 
-  const isValidIconUrl = (url: string): boolean => {
-    if (!url || url.trim() === '') return false
+const isValidIconUrl = (url: string): boolean => {
+  if (!url || url.trim() === '') return false
 
-    try {
-      const urlObj = new URL(url)
-      // Only allow HTTP and HTTPS protocols
-      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
-    } catch {
+  try {
+    const urlObj = new URL(url)
+    // Only allow HTTP and HTTPS protocols (prevents javascript:, data: XSS)
+    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
       return false
     }
+    // Ensure the URL is not a potential XSS vector
+    // Disallow URLs with javascript: or data: anywhere in the string
+    const normalizedUrl = url.toLowerCase().trim()
+    if (normalizedUrl.includes('javascript:') || normalizedUrl.includes('data:')) {
+      return false
+    }
+    return true
+  } catch {
+    return false
   }
+}
 
   useEffect(() => {
     // reset icon error state when URL changes
@@ -458,6 +613,7 @@ export default function SubscriptionSettings() {
         links: true,
         links_base64: true,
         xray: true,
+        wireguard: true,
         sing_box: true,
         clash: true,
         clash_meta: true,
@@ -514,7 +670,7 @@ export default function SubscriptionSettings() {
 
       if (appOldIndex !== -1 && appNewIndex !== -1) {
         // Restrict sorting to within the same platform ("parent").
-        const apps = form.getValues('applications') as any[]
+        const apps = (form.getValues('applications') || []) as SubscriptionApplicationFormData[]
         const oldPlatform = apps?.[appOldIndex]?.platform
         const newPlatform = apps?.[appNewIndex]?.platform
         if (oldPlatform && newPlatform && oldPlatform === newPlatform) {
@@ -541,12 +697,20 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
-        rules: subscriptionData.rules || [],
+        rules:
+          subscriptionData.rules?.map((rule: ApiSubRule) => ({
+            pattern: rule.pattern,
+            target: rule.target,
+            response_headers: Object.fromEntries(
+              Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
+            ),
+          })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
           links: subscriptionData.manual_sub_request?.links ?? true,
           links_base64: subscriptionData.manual_sub_request?.links_base64 ?? true,
           xray: subscriptionData.manual_sub_request?.xray ?? true,
+          wireguard: subscriptionData.manual_sub_request?.wireguard ?? true,
           sing_box: subscriptionData.manual_sub_request?.sing_box ?? true,
           clash: subscriptionData.manual_sub_request?.clash ?? true,
           clash_meta: subscriptionData.manual_sub_request?.clash_meta ?? true,
@@ -558,6 +722,16 @@ export default function SubscriptionSettings() {
 
   const onSubmit = async (data: SubscriptionFormData) => {
     try {
+      const processedRules = (data.rules || []).map(rule => ({
+        pattern: rule.pattern.trim(),
+        target: rule.target,
+        response_headers: Object.fromEntries(
+          Object.entries(rule.response_headers || {})
+            .map(([key, value]) => [key.trim(), value.trim()] as const)
+            .filter(([key, value]) => key && value),
+        ),
+      }))
+
       // Process applications data to ensure proper format
       // Normalize recommended: allow only one per platform
       const rawApps = (data.applications || [])
@@ -590,7 +764,7 @@ export default function SubscriptionSettings() {
       })
 
       // Filter out empty values and prepare the payload
-      const filteredData: any = {
+      const filteredData = {
         subscription: {
           ...data,
           // Convert empty strings to undefined
@@ -599,18 +773,19 @@ export default function SubscriptionSettings() {
           profile_title: data.profile_title?.trim() || undefined,
           announce: data.announce?.trim() || undefined,
           announce_url: data.announce_url?.trim() || undefined,
+          rules: processedRules,
           // Include processed applications
           applications: processedApplications,
         },
       }
 
       await updateSettings(filteredData)
-    } catch (error) {
+    } catch {
       // Error handling is done in the parent context
     }
   }
 
-  const onInvalid = (errors: any) => {
+  const onInvalid = (errors: FieldErrors<SubscriptionFormData>) => {
     // Specific: if any application name is missing, show translated required message
     const appsErrors = errors?.applications
     if (Array.isArray(appsErrors)) {
@@ -643,17 +818,18 @@ export default function SubscriptionSettings() {
     }
 
     // Try to extract the first human-friendly message from nested errors
-    const extractFirstMessage = (errObj: any): string | undefined => {
+    const extractFirstMessage = (errObj: unknown): string | undefined => {
       if (!errObj) return undefined
       if (Array.isArray(errObj)) {
         for (const item of errObj) {
           const msg = extractFirstMessage(item)
           if (msg) return msg
         }
-      } else if (typeof errObj === 'object') {
-        if (errObj.message && typeof errObj.message === 'string') return errObj.message
-        for (const key of Object.keys(errObj)) {
-          const msg = extractFirstMessage(errObj[key])
+      } else if (typeof errObj === 'object' && errObj !== null) {
+        const errorRecord = errObj as Record<string, unknown>
+        if (typeof errorRecord.message === 'string') return errorRecord.message
+        for (const key of Object.keys(errorRecord)) {
+          const msg = extractFirstMessage(errorRecord[key])
           if (msg) return msg
         }
       }
@@ -677,12 +853,20 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
-        rules: subscriptionData.rules || [],
+        rules:
+          subscriptionData.rules?.map((rule: ApiSubRule) => ({
+            pattern: rule.pattern,
+            target: rule.target,
+            response_headers: Object.fromEntries(
+              Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
+            ),
+          })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
           links: subscriptionData.manual_sub_request?.links ?? true,
           links_base64: subscriptionData.manual_sub_request?.links_base64 ?? true,
           xray: subscriptionData.manual_sub_request?.xray ?? true,
+          wireguard: subscriptionData.manual_sub_request?.wireguard ?? true,
           sing_box: subscriptionData.manual_sub_request?.sing_box ?? true,
           clash: subscriptionData.manual_sub_request?.clash ?? true,
           clash_meta: subscriptionData.manual_sub_request?.clash_meta ?? true,
@@ -709,7 +893,7 @@ export default function SubscriptionSettings() {
   }
 
   const addRule = () => {
-    appendRule({ pattern: '', target: 'links' as ConfigFormat })
+    appendRule({ pattern: '', target: 'links', response_headers: {} })
   }
 
   const addApplication = () => {
@@ -848,26 +1032,26 @@ export default function SubscriptionSettings() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6 p-4 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
           {/* General Settings */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold tracking-tight">{t('settings.subscriptions.general.title')}</h3>
-              <p className="text-sm text-muted-foreground">{t('settings.subscriptions.general.description')}</p>
+              <h3 className="text-base font-semibold sm:text-lg">{t('settings.subscriptions.general.title')}</h3>
+              <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.description')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
               <FormField
                 control={form.control}
                 name="url_prefix"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <Link className="h-4 w-4 shrink-0" />
                       {t('settings.subscriptions.general.urlPrefix')}
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com" {...field} className="font-mono text-sm sm:text-base" />
+                      <Input placeholder="https://example.com" {...field} className="font-mono text-xs sm:text-sm" />
                     </FormControl>
-                    <FormDescription className="text-xs sm:text-sm text-muted-foreground">{t('settings.subscriptions.general.urlPrefixDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.urlPrefixDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -878,19 +1062,19 @@ export default function SubscriptionSettings() {
                 name="update_interval"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <Clock className="h-4 w-4" />
                       {t('settings.subscriptions.general.updateInterval')}
                     </FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type="number" min="1" max="168" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 24)} className="pr-16" />
+                        <Input type="number" min="1" max="168" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 24)} className="pr-16 text-xs sm:text-sm" />
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                          <span className="text-sm text-muted-foreground">hours</span>
+                          <span className="text-xs text-muted-foreground sm:text-sm">hours</span>
                         </div>
                       </div>
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.updateIntervalDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.updateIntervalDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -901,14 +1085,14 @@ export default function SubscriptionSettings() {
                 name="support_url"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <HelpCircle className="h-4 w-4" />
                       {t('settings.subscriptions.general.supportUrl')}
                     </FormLabel>
                     <FormControl>
-                      <Input type="url" placeholder={t('settings.subscriptions.general.supportUrlPlaceholder')} {...field} className="font-mono" />
+                      <Input type="url" placeholder={t('settings.subscriptions.general.supportUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.supportUrlDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.supportUrlDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -920,16 +1104,16 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="space-y-2">
                     <div className="flex items-center gap-1.5">
-                      <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                         <User className="h-4 w-4" />
                         {t('settings.subscriptions.general.profileTitle')}
                       </FormLabel>
                       <VariablesPopover includeProfileTitle={true} />
                     </div>
                     <FormControl>
-                      <Input placeholder={t('settings.subscriptions.general.profileTitlePlaceholder')} {...field} />
+                      <Input placeholder={t('settings.subscriptions.general.profileTitlePlaceholder')} {...field} className="text-xs sm:text-sm" />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.profileTitleDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.profileTitleDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -940,7 +1124,7 @@ export default function SubscriptionSettings() {
                 name="announce"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <Megaphone className="h-4 w-4" />
                       {t('settings.subscriptions.general.announce')}
                     </FormLabel>
@@ -949,11 +1133,11 @@ export default function SubscriptionSettings() {
                         maxLength={128}
                         placeholder={t('settings.subscriptions.general.announcePlaceholder')}
                         rows={3}
-                        className="resize-none"
+                        className="resize-none text-xs sm:text-sm"
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.announceDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.announceDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -964,14 +1148,14 @@ export default function SubscriptionSettings() {
                 name="announce_url"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                       <ExternalLink className="h-4 w-4" />
                       {t('settings.subscriptions.general.announceUrl')}
                     </FormLabel>
                     <FormControl>
-                      <Input type="url" placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono" />
+                      <Input type="url" placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.subscriptions.general.announceUrlDescription')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.announceUrlDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -983,7 +1167,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
                     <div className="flex-1 space-y-0.5 pr-4">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Globe className="h-4 w-4 shrink-0" />
                         <span className="break-words">{t('settings.subscriptions.general.allowBrowserConfig')}</span>
                       </FormLabel>
@@ -1004,7 +1188,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
                     <div className="flex-1 space-y-0.5 pr-4">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <FileCode2 className="h-4 w-4 shrink-0" />
                         <span className="break-words">{t('settings.subscriptions.general.disableSubTemplate')}</span>
                       </FormLabel>
@@ -1025,7 +1209,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
                     <div className="flex-1 space-y-0.5 pr-4">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Shuffle className="h-4 w-4 shrink-0" />
                         <span className="break-words">{t('settings.subscriptions.general.randomizeOrder')}</span>
                       </FormLabel>
@@ -1042,15 +1226,15 @@ export default function SubscriptionSettings() {
             </div>
           </div>
 
-          <Separator className="my-4" />
+          <Separator className="my-3" />
 
           {/* Subscription Rules with Drag & Drop */}
-          <div className="space-y-4">
-            <div className="rounded-lg border bg-card p-4 shadow-sm">
+          <div className="space-y-3">
+            <div className="rounded-lg border bg-card p-3 shadow-sm sm:p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="space-y-1 min-w-0 flex-1">
-                  <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
-                    <Sword className="h-5 w-5 text-primary shrink-0" />
+                  <h3 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
+                    <ArrowUpWideNarrow className="h-5 w-5 text-primary shrink-0" />
                     {t('settings.subscriptions.rules.title')}
                     {ruleFields.length > 0 && (
                       <Badge variant="secondary" className="ml-2 shrink-0">
@@ -1058,7 +1242,7 @@ export default function SubscriptionSettings() {
                       </Badge>
                     )}
                   </h3>
-                  <p className="text-sm text-muted-foreground">{t('settings.subscriptions.rules.description')}</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.rules.description')}</p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 w-full sm:w-auto">
                   <Button type="button" variant="outline" size="sm" onClick={handleResetToDefault} className="flex items-center justify-center gap-2 w-full sm:w-auto" disabled={isSaving}>
@@ -1077,7 +1261,7 @@ export default function SubscriptionSettings() {
             {ruleFields.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 <FileText className="mx-auto mb-3 h-8 w-8 opacity-30" />
-                <p className="mb-1 text-sm font-medium">{t('settings.subscriptions.rules.noRules')}</p>
+                <p className="mb-1 text-xs font-medium sm:text-sm">{t('settings.subscriptions.rules.noRules')}</p>
               </div>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1092,13 +1276,13 @@ export default function SubscriptionSettings() {
             )}
           </div>
 
-          <Separator className="my-4" />
+          <Separator className="my-3" />
 
           {/* Applications with Drag & Drop */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="space-y-1 min-w-0 flex-1">
-                <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
+                <h3 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
                   {t('settings.subscriptions.applications.title')}
                   {applicationFields.length > 0 && (
                     <Badge variant="secondary" className="ml-2 shrink-0">
@@ -1106,7 +1290,7 @@ export default function SubscriptionSettings() {
                     </Badge>
                   )}
                 </h3>
-                <p className="text-sm text-muted-foreground">{t('settings.subscriptions.applications.description')}</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.applications.description')}</p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
                 <Button type="button" variant="outline" size="sm" onClick={handleLoadOrResetApplications} className="flex shrink-0 items-center justify-center gap-2 w-full sm:w-auto">
@@ -1133,14 +1317,15 @@ export default function SubscriptionSettings() {
             {applicationFields.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 <Settings className="mx-auto mb-3 h-8 w-8 opacity-30" />
-                <p className="mb-1 text-sm font-medium">{t('settings.subscriptions.applications.noApplications')}</p>
+                <p className="mb-1 text-xs font-medium sm:text-sm">{t('settings.subscriptions.applications.noApplications')}</p>
                 <p className="text-xs">{t('settings.subscriptions.applications.noApplicationsDescription')}</p>
               </div>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 {/* Group items by platform and render separate SortableContexts to isolate drag-and-drop containers */}
                 {(['ios', 'android', 'windows', 'macos', 'linux', 'appletv', 'androidtv'] as const).map(platformKey => {
-                  const indices = applicationFields.map((f, idx) => ({ id: f.id, idx })).filter(({ idx }) => (form.getValues('applications') as any[])?.[idx]?.platform === platformKey)
+                  const currentApplications = (form.getValues('applications') || []) as SubscriptionApplicationFormData[]
+                  const indices = applicationFields.map((f, idx) => ({ id: f.id, idx })).filter(({ idx }) => currentApplications[idx]?.platform === platformKey)
                   if (indices.length === 0) return null
                   return (
                     <SortableContext key={platformKey} items={indices.map(i => i.id)} strategy={rectSortingStrategy}>
@@ -1160,13 +1345,13 @@ export default function SubscriptionSettings() {
             )}
           </div>
 
-          <Separator className="my-4" />
+          <Separator className="my-3" />
 
           {/* Manual Subscription Formats */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="space-y-1">
-              <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">{t('settings.subscriptions.formats.title')}</h3>
-              <p className="text-sm text-muted-foreground">{t('settings.subscriptions.formats.description')}</p>
+              <h3 className="flex items-center gap-2 text-base font-semibold sm:text-lg">{t('settings.subscriptions.formats.title')}</h3>
+              <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.formats.description')}</p>
             </div>
 
             {/* Mobile: 1 column, Tablet: 2 columns, Desktop: 3 columns */}
@@ -1177,7 +1362,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Link className="h-4 w-4" />
                         {t('settings.subscriptions.formats.links')}
                       </FormLabel>
@@ -1196,7 +1381,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Code className="h-4 w-4" />
                         {t('settings.subscriptions.formats.linksBase64')}
                       </FormLabel>
@@ -1215,7 +1400,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <FileCode2 className="h-4 w-4" />
                         {t('settings.subscriptions.formats.xray')}
                       </FormLabel>
@@ -1230,11 +1415,32 @@ export default function SubscriptionSettings() {
 
               <FormField
                 control={form.control}
+                name="manual_sub_request.wireguard"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
+                        <Cable className="h-4 w-4" />
+                        {t('settings.subscriptions.formats.wireguard')}
+                      </FormLabel>
+                      <FormDescription className="text-xs text-muted-foreground">
+                        {t('settings.subscriptions.formats.wireguardDescription')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="manual_sub_request.sing_box"
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Settings className="h-4 w-4" />
                         {t('settings.subscriptions.formats.singBox')}
                       </FormLabel>
@@ -1253,7 +1459,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Sword className="h-4 w-4" />
                         {t('settings.subscriptions.formats.clash')}
                       </FormLabel>
@@ -1272,7 +1478,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Shield className="h-4 w-4" />
                         {t('settings.subscriptions.formats.clashMeta')}
                       </FormLabel>
@@ -1291,7 +1497,7 @@ export default function SubscriptionSettings() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Lock className="h-4 w-4" />
                         {t('settings.subscriptions.formats.outline')}
                       </FormLabel>
@@ -1307,9 +1513,9 @@ export default function SubscriptionSettings() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:gap-4">
+          <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:gap-3 sm:pt-4">
             <div className="flex-1"></div>
-            <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
+            <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row sm:gap-3">
               <Button type="button" variant="outline" onClick={handleCancel} className="w-full min-w-[100px] sm:w-auto" disabled={isSaving}>
                 {t('cancel')}
               </Button>
@@ -1336,7 +1542,7 @@ export default function SubscriptionSettings() {
                 </div>
                 <div className="space-y-1">
                   <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.platform')}</FormLabel>
-                  <Select value={newAppPlatform} onValueChange={(v: any) => setNewAppPlatform(v)}>
+                  <Select value={newAppPlatform} onValueChange={(v: SubscriptionPlatform) => setNewAppPlatform(v)}>
                     <FormControl>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue />
@@ -1393,7 +1599,7 @@ export default function SubscriptionSettings() {
                 <div className="space-y-1 sm:col-span-2">
                   <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Select value={newDescLang} onValueChange={(v: any) => setNewDescLang(v)}>
+                    <Select value={newDescLang} onValueChange={(v: SubscriptionLanguage) => setNewDescLang(v)}>
                       <FormControl>
                         <SelectTrigger className="h-8 w-full text-xs sm:w-32">
                           <SelectValue />
@@ -1444,7 +1650,7 @@ export default function SubscriptionSettings() {
                       className="h-8 flex-1 min-w-0 font-mono text-xs"
                       dir="ltr"
                     />
-                    <Select value={newLinkLang} onValueChange={(v: any) => setNewLinkLang(v)}>
+                    <Select value={newLinkLang} onValueChange={(v: SubscriptionLanguage) => setNewLinkLang(v)}>
                       <FormControl>
                         <SelectTrigger className="h-8 w-full text-xs sm:w-28">
                           <SelectValue />

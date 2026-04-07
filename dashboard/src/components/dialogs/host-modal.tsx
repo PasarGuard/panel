@@ -11,12 +11,13 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { UserStatus, getHosts, getInbounds } from '@/service/api'
+import { UserStatus, getHosts } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Edit, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -29,6 +30,8 @@ interface HostModalProps {
   onSubmit: (data: HostFormValues) => Promise<{ status: number }>
   editingHost?: boolean
   form: UseFormReturn<HostFormValues>
+  inboundDetails?: Array<{ tag: string; protocol: string }>
+  isLoadingInbounds?: boolean
 }
 
 // Update status options constant
@@ -182,6 +185,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
   const [editingValue, setEditingValue] = useState('')
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const isMobile = useIsMobile()
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && inputValue.trim()) {
@@ -270,7 +274,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
                 <Info className="h-4 w-4 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[280px] p-3 sm:w-[320px]" side="top" align="start" sideOffset={5}>
+            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={isMobile ? 'bottom' : 'top'} align={isMobile ? 'center' : 'start'} sideOffset={5}>
               <div className="space-y-1.5">
                 <h4 className="mb-2 text-[12px] font-medium">{t('hostsDialog.variables.title')}</h4>
                 <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">{infoContent}</div>
@@ -440,13 +444,20 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
 
 ArrayInput.displayName = 'ArrayInput'
 
-const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSubmit, editingHost, form }) => {
+const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSubmit, editingHost, form, inboundDetails, isLoadingInbounds = false }) => {
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
+  const [wireguardOpenSection, setWireguardOpenSection] = useState<string | undefined>(undefined)
   const [isTransportOpen, setIsTransportOpen] = useState(false)
+  const [resolvedHostMode, setResolvedHostMode] = useState<'xray' | 'wireguard'>('xray')
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const isMobile = useIsMobile()
   const [_isSubmitting, setIsSubmitting] = useState(false)
+  const selectedInboundTag = form.watch('inbound_tag')
+  const selectedNoiseSettings = form.watch('noise_settings.xray')
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
+  const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
+  const infoPopoverAlign = isMobile ? 'center' : 'start'
 
   // Optimized noise settings handlers with useCallback for performance
   const addNoiseSetting = useCallback(() => {
@@ -500,11 +511,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     },
     [form],
   )
-
-  // Memoized noise settings array to prevent unnecessary re-renders
-  const noiseSettings = useMemo(() => {
-    return form.getValues('noise_settings.xray') || []
-  }, [form.watch('noise_settings.xray')])
 
   const cleanPayload = (data: any): any => {
     // Helper function to check if an object has any non-empty values
@@ -560,22 +566,27 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     if (!open) {
       // Let the parent component handle the form reset
       setOpenSection(undefined)
+      setWireguardOpenSection(undefined)
     }
     onOpenChange(open)
   }
 
-  const { data: inbounds = [], isLoading: isLoadingInbounds } = useQuery({
-    queryKey: ['getInboundsQueryKey'],
-    queryFn: () => getInbounds(),
-    enabled: isDialogOpen,
-  })
+  const handleWireguardAccordionChange = (value: string) => {
+    setWireguardOpenSection(value || undefined)
+  }
+
+  const inbounds = useMemo(() => inboundDetails?.map(inbound => inbound.tag) || [], [inboundDetails])
+  const selectedInbound = useMemo(() => inboundDetails?.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
+  const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
+  const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
+  const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
     queryKey: ['getHostsQueryKey'],
     queryFn: () => getHosts(),
     enabled: isDialogOpen && isTransportOpen,
-    select: data => data.filter(host => host.id != null),
+    select: (data: any[]) => data.filter((host: any) => host.id != null),
   })
 
   // No automatic refresh when dialog opens - only fetch on specific actions
@@ -587,11 +598,130 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     setOpenSection(prevSection => (prevSection === value ? undefined : value))
   }
 
+  useEffect(() => {
+    if (!isDialogOpen) {
+      return
+    }
+
+    if (!selectedInboundTag) {
+      setResolvedHostMode('xray')
+      return
+    }
+
+    if (selectedInbound) {
+      setResolvedHostMode(selectedInbound.protocol === 'wireguard' ? 'wireguard' : 'xray')
+      return
+    }
+
+    if (!isLoadingInbounds) {
+      setResolvedHostMode('xray')
+    }
+  }, [isDialogOpen, isLoadingInbounds, selectedInbound, selectedInboundTag])
+
+  useEffect(() => {
+    if (!isDialogOpen) {
+      return
+    }
+
+    if (resolvedHostMode === 'wireguard') {
+      setOpenSection(undefined)
+    } else {
+      setWireguardOpenSection(undefined)
+    }
+  }, [resolvedHostMode, isDialogOpen])
+
+  useEffect(() => {
+    if (!isWireGuardInbound) {
+      return
+    }
+
+    // Don't clear fields when editing an existing host
+    if (editingHost) {
+      return
+    }
+
+    form.setValue('host', [], { shouldDirty: true })
+    form.setValue('sni', [], { shouldDirty: true })
+    form.setValue('path', '', { shouldDirty: true })
+    form.setValue('http_headers', {}, { shouldDirty: true })
+    form.setValue('security', 'inbound_default', { shouldDirty: true })
+    form.setValue('alpn', [], { shouldDirty: true })
+    form.setValue('fingerprint', '', { shouldDirty: true })
+    form.setValue('allowinsecure', false, { shouldDirty: true })
+    form.setValue('random_user_agent', false, { shouldDirty: true })
+    form.setValue('use_sni_as_host', false, { shouldDirty: true })
+    form.setValue('vless_route', '', { shouldDirty: true })
+    form.setValue('ech_config_list', undefined, { shouldDirty: true })
+    form.setValue('ech_query_strategy', undefined, { shouldDirty: true })
+    form.setValue('pinned_peer_cert_sha256', undefined, { shouldDirty: true })
+    form.setValue('verify_peer_cert_by_name', [], { shouldDirty: true })
+    form.setValue('fragment_settings', undefined, { shouldDirty: true })
+    form.setValue('noise_settings', undefined, { shouldDirty: true })
+    form.setValue('mux_settings', undefined, { shouldDirty: true })
+    form.setValue('transport_settings', undefined, { shouldDirty: true })
+  }, [form, isWireGuardInbound, selectedInboundTag, editingHost])
+
+  useEffect(() => {
+    if (!isWireGuardInbound) {
+      form.setValue('wireguard_overrides', undefined, { shouldDirty: false })
+      return
+    }
+
+    // Don't modify wireguard_overrides when editing an existing host
+    if (editingHost) {
+      return
+    }
+
+    const wg = form.getValues('wireguard_overrides')
+    if (wg == null) {
+      form.setValue(
+        'wireguard_overrides',
+        { allowed_ips: [], reserved: '', mtu: undefined, keepalive_seconds: undefined },
+        { shouldDirty: false },
+      )
+    }
+  }, [form, isWireGuardInbound, selectedInboundTag, editingHost])
+
   const handleSubmit = async (data: HostFormValues) => {
     setIsSubmitting(true)
     try {
       // Clean the payload before sending
       const payload = { ...data }
+
+      if (isWireGuardInbound) {
+        payload.host = []
+        payload.sni = []
+        payload.path = ''
+        payload.http_headers = {}
+        payload.security = 'inbound_default'
+        payload.alpn = []
+        payload.fingerprint = ''
+        payload.allowinsecure = false
+        payload.random_user_agent = false
+        payload.use_sni_as_host = false
+        payload.vless_route = ''
+        payload.ech_config_list = undefined
+        payload.ech_query_strategy = undefined
+        payload.pinned_peer_cert_sha256 = undefined
+        payload.verify_peer_cert_by_name = []
+        payload.fragment_settings = undefined
+        payload.noise_settings = undefined
+        payload.mux_settings = undefined
+        payload.transport_settings = undefined
+        if (payload.wireguard_overrides) {
+          const wg = payload.wireguard_overrides
+          const next: NonNullable<HostFormValues['wireguard_overrides']> = {}
+          if (wg.allowed_ips?.length) next.allowed_ips = wg.allowed_ips
+          if (wg.mtu != null && !Number.isNaN(Number(wg.mtu))) next.mtu = Number(wg.mtu)
+          if (wg.reserved?.trim()) next.reserved = wg.reserved.trim()
+          if (wg.keepalive_seconds != null && !Number.isNaN(Number(wg.keepalive_seconds))) {
+            next.keepalive_seconds = Number(wg.keepalive_seconds)
+          }
+          payload.wireguard_overrides = Object.keys(next).length > 0 ? next : undefined
+        }
+      } else {
+        payload.wireguard_overrides = undefined
+      }
 
       // If SingBox fragment is disabled, clear related fields
       if (!payload.fragment_settings?.sing_box?.fragment && payload.fragment_settings?.sing_box) {
@@ -787,7 +917,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <Info className="h-4 w-4 text-muted-foreground" />
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                               <p className="text-[11px] text-muted-foreground">{t('hostsDialog.port.info')}</p>
                             </PopoverContent>
                           </Popover>
@@ -812,6 +942,110 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 </div>
               </div>
 
+              {!isInboundModeResolved ? (
+                <div className="mb-6 rounded-sm border px-4 py-6">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>{t('loading', { defaultValue: 'Loading...' })}</span>
+                  </div>
+                </div>
+              ) : shouldRenderWireGuardLayout ? (
+                <Accordion
+                  type="single"
+                  collapsible
+                  value={wireguardOpenSection}
+                  onValueChange={handleWireguardAccordionChange}
+                  className="!mt-0 mb-6 flex w-full flex-col gap-y-6"
+                >
+                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_subscription_network">
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-2">
+                        <Network className="h-4 w-4" />
+                        <span>{t('hostsDialog.wireguard.sectionNetworkOverrides')}</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-2 pb-4">
+                      <div className="space-y-3">
+                        <FormField
+                          control={form.control}
+                          name="wireguard_overrides.allowed_ips"
+                          render={({ field }) => (
+                            <ArrayInput
+                              field={{ ...field, value: field.value ?? [] }}
+                              placeholder="0.0.0.0/0"
+                              label={t('hostsDialog.wireguard.allowedIps')}
+                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.allowedIpsHint')}</p>}
+                            />
+                          )}
+                        />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="wireguard_overrides.mtu"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">{t('hostsDialog.wireguard.mtu')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="1280"
+                                    min={576}
+                                    max={9000}
+                                    {...field}
+                                    value={field.value ?? ''}
+                                    onChange={e => {
+                                      const v = e.target.value
+                                      field.onChange(v === '' ? undefined : Number.parseInt(v, 10))
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="wireguard_overrides.keepalive_seconds"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">{t('hostsDialog.wireguard.keepalive')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder={t('hostsDialog.wireguard.keepalivePlaceholder')}
+                                    min={0}
+                                    max={86400}
+                                    {...field}
+                                    value={field.value ?? ''}
+                                    onChange={e => {
+                                      const v = e.target.value
+                                      field.onChange(v === '' ? undefined : Number.parseInt(v, 10))
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormField
+                          control={form.control}
+                          name="wireguard_overrides.reserved"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">{t('hostsDialog.wireguard.reserved')}</FormLabel>
+                              <FormControl>
+                                <Input className="font-mono text-xs" dir="ltr" placeholder="0,0,0" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              ) : (
               <Accordion type="single" collapsible value={openSection} onValueChange={handleAccordionChange} className="!mt-0 mb-6 flex w-full flex-col gap-y-6">
                 <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="network">
                   <AccordionTrigger>
@@ -851,7 +1085,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <Info className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                     <p className="text-[11px] text-muted-foreground">{t('hostsDialog.path.info')}</p>
                                   </PopoverContent>
                                 </Popover>
@@ -989,7 +1223,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <Info className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                     <p className="text-[11px] text-muted-foreground">{t('hostsDialog.security.info')}</p>
                                   </PopoverContent>
                                 </Popover>
@@ -1167,7 +1401,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <Info className="h-4 w-4 text-muted-foreground" />
                                   </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                   <p className="text-[11px] text-muted-foreground">{t('hostsDialog.echConfigList.info')}</p>
                                 </PopoverContent>
                               </Popover>
@@ -1193,7 +1427,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <Info className="h-4 w-4 text-muted-foreground" />
                                   </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                   <p className="text-[11px] text-muted-foreground">
                                     {t('hostsDialog.echQueryStrategy.info', {
                                       defaultValue: 'ECH query strategy. Available values: none, half, full.',
@@ -1233,7 +1467,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <Info className="h-4 w-4 text-muted-foreground" />
                                   </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                   <p className="text-[11px] text-muted-foreground">
                                     {t('hostsDialog.pinnedPeerCertSha256.info', {
                                       defaultValue: 'Optional certificate public key pin (SHA-256) used for TLS peer pinning.',
@@ -1777,7 +2011,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                             <Info className="h-4 w-4 text-muted-foreground" />
                                           </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                           <p className="text-[11px] text-muted-foreground">{t('hostsDialog.xhttp.downloadSettingsInfo')}</p>
                                         </PopoverContent>
                                       </Popover>
@@ -1810,7 +2044,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                             </span>
                                           </SelectItem>
                                         ) : (
-                                          hosts.map(host => (
+                                          hosts.map((host: any) => (
                                             <SelectItem key={host.id} value={host.id?.toString() ?? ''}>
                                               {host.remark}
                                             </SelectItem>
@@ -2428,12 +2662,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-2">
-                    <Tabs defaultValue="xray" className="w-full">
+                    <Tabs dir={dir} defaultValue="xray" className="w-full">
                       <TabsList className="mb-4 grid w-full grid-cols-2">
                         <TabsTrigger value="xray">Xray</TabsTrigger>
                         <TabsTrigger value="singbox">SingBox</TabsTrigger>
                       </TabsList>
-                      <TabsContent value="xray">
+                      <TabsContent dir={dir} value="xray">
                         <div className="space-y-6">
                           {/* Fragment Settings */}
                           <div className="space-y-4">
@@ -2446,7 +2680,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <Info className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                     <div className="space-y-1.5">
                                       <p className="text-[11px] text-muted-foreground">{t('hostsDialog.fragment.info')}</p>
                                       <p className="text-[11px] text-muted-foreground">{t('hostsDialog.fragment.info.attention')}</p>
@@ -2511,7 +2745,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <Info className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                     <div className="space-y-1.5">
                                       <p className="text-[11px] text-muted-foreground">{t('hostsDialog.noise.info')}</p>
                                       <p className="text-[11px] text-muted-foreground">{t('hostsDialog.noise.info.attention')}</p>
@@ -2528,15 +2762,15 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               </Button>
                             </div>
                             <div className="space-y-2">
-                              {noiseSettings.map((_, index) => (
+                              {(selectedNoiseSettings || []).map((_, index) => (
                                 <NoiseItem key={index} index={index} form={form} onRemove={removeNoiseSetting} onDuplicate={duplicateNoiseSetting} t={t} />
                               ))}
-                              {noiseSettings.length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">{t('hostsDialog.noise.noNoiseSettings')}</div>}
+                              {(selectedNoiseSettings || []).length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">{t('hostsDialog.noise.noNoiseSettings')}</div>}
                             </div>
                           </div>
                         </div>
                       </TabsContent>
-                      <TabsContent value="singbox">
+                      <TabsContent dir={dir} value="singbox">
                         <div className="space-y-6">
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
@@ -3111,7 +3345,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <Info className="h-4 w-4 text-muted-foreground" />
                                 </Button>
                               </PopoverTrigger>
-                              <PopoverContent className="w-[320px] p-3" side="right" align="start" sideOffset={5}>
+                              <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                 <p className="text-[11px] text-muted-foreground">{t('hostsDialog.vlessRoute.info')}</p>
                               </PopoverContent>
                             </Popover>
@@ -3136,6 +3370,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
 
               </Accordion>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => handleModalOpenChange(false)}>

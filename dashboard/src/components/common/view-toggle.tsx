@@ -26,14 +26,14 @@ export default function ViewToggle({ value, onChange, className }: ViewTogglePro
       }}
       variant="default"
       size="sm"
-      className={cn('inline-flex h-9 items-center rounded-xl border bg-background p-0.5 shadow-sm', className)}
+      className={cn('inline-flex h-9 items-center rounded-lg border bg-background p-0.5 shadow-sm', className)}
       aria-label={viewModeLabel}
     >
       <ToggleGroupItem
         value="grid"
         aria-label={gridViewLabel}
         title={gridViewLabel}
-        className="h-8 min-w-8 rounded-lg border-0 px-2 text-muted-foreground shadow-none transition-colors data-[state=on]:bg-accent data-[state=on]:text-foreground data-[state=on]:shadow-sm"
+        className="h-8 min-w-8 rounded-md border-0 px-2 text-muted-foreground shadow-none transition-colors data-[state=on]:bg-accent data-[state=on]:text-foreground data-[state=on]:shadow-sm"
       >
         <LayoutGrid className="h-4 w-4" />
       </ToggleGroupItem>
@@ -41,7 +41,7 @@ export default function ViewToggle({ value, onChange, className }: ViewTogglePro
         value="list"
         aria-label={listViewLabel}
         title={listViewLabel}
-        className="h-8 min-w-8 rounded-lg border-0 px-2 text-muted-foreground shadow-none transition-colors data-[state=on]:bg-accent data-[state=on]:text-foreground data-[state=on]:shadow-sm"
+        className="h-8 min-w-8 rounded-md border-0 px-2 text-muted-foreground shadow-none transition-colors data-[state=on]:bg-accent data-[state=on]:text-foreground data-[state=on]:shadow-sm"
       >
         <List className="h-4 w-4" />
       </ToggleGroupItem>

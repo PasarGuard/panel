@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { NodeResponse } from '@/service/api'
+import { CoresSimpleResponse, NodeResponse, useGetCoreConfig } from '@/service/api'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { useNodeReleases } from '@/hooks/use-node-releases'
 import NodeUsageDisplay from './node-usage-display'
@@ -15,13 +15,23 @@ interface NodeProps {
   node: NodeResponse
   onEdit: (node: NodeResponse) => void
   onToggleStatus: (node: NodeResponse) => Promise<void>
+  coresData?: CoresSimpleResponse
 }
 
-export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
+export default function Node({ node, onEdit, onToggleStatus, coresData }: NodeProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const { latestVersion: latestXrayVersion, hasUpdate: hasXrayUpdate } = useXrayReleases()
   const { latestVersion: latestNodeVersion, hasUpdate: hasNodeUpdate } = useNodeReleases()
+  const { data: coreConfig } = useGetCoreConfig(node.core_config_id || 0, {
+    query: {
+      enabled: !!node.core_config_id,
+      staleTime: 5 * 60 * 1000,
+    },
+  })
+  const coreVersion = node.core_version ?? node.xray_version
+  const isXrayBackend = (coreConfig?.type || 'xray') === 'xray'
+  const hasCoreUpdate = !!(isXrayBackend && coreVersion && latestXrayVersion && hasXrayUpdate(coreVersion))
 
   const getStatusConfig = () => {
     switch (node.status) {
@@ -83,17 +93,17 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
               <div className="mb-0.5 flex items-center gap-1.5">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className={cn('h-2 w-2 rounded-full shrink-0', getStatusDotColor())} />
+                    <div className={cn('h-2 w-2 shrink-0 rounded-full', getStatusDotColor())} />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>{statusConfig.label}</p>
                   </TooltipContent>
                 </Tooltip>
-                <h3 className="truncate text-sm sm:text-base font-semibold leading-tight tracking-tight">{node.name}</h3>
+                <h3 className="truncate text-sm font-semibold leading-tight tracking-tight sm:text-base">{node.name}</h3>
                 {node.status === 'error' && node.message ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 cursor-help text-destructive" />
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 cursor-help text-destructive sm:h-4 sm:w-4" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs" side="top">
                       <p className="text-xs">{node.message}</p>
@@ -102,54 +112,45 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                 ) : null}
               </div>
             </div>
-            <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} />
+            <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} />
           </div>
 
           {/* Connection Info */}
           <div className="mb-2 space-y-1.5">
-            <div className={cn("flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground", dir === 'rtl' ? 'flex-row-reverse justify-end' : 'flex-row')}>
-              <Link2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 opacity-70" />
+            <div className={cn('flex items-center gap-1.5 text-[10px] text-muted-foreground sm:text-xs', dir === 'rtl' ? 'flex-row-reverse justify-end' : 'flex-row')}>
+              <Link2 className="h-3 w-3 shrink-0 opacity-70 sm:h-3.5 sm:w-3.5" />
               <span dir="ltr" className="truncate font-mono">
                 {node.address}:{node.port}
               </span>
             </div>
 
             {/* Version Info */}
-            {(node.xray_version || node.node_version) && (
+            {(coreVersion || node.node_version) && (
               <div className="flex flex-wrap items-center gap-3">
-                {node.xray_version && (
+                {coreVersion && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div
-                        className={cn(
-                          'group/version inline-flex items-center',
-                          dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
-                        )}
-                      >
-                        <Package className={cn('h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 transition-colors', latestXrayVersion && hasXrayUpdate(node.xray_version) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')} />
-                        <span className={cn('text-[10px] sm:text-[11px] font-medium font-mono', latestXrayVersion && hasXrayUpdate(node.xray_version) ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
-                          {node.xray_version}
-                        </span>
-                        {latestXrayVersion && hasXrayUpdate(node.xray_version) && (
-                          <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                        )}
+                      <div className={cn('group/version inline-flex items-center', dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1')}>
+                        <Package className={cn('h-3 w-3 shrink-0 transition-colors sm:h-3.5 sm:w-3.5', hasCoreUpdate ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')} />
+                        <span className={cn('font-mono text-[10px] font-medium sm:text-[11px]', hasCoreUpdate ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>{coreVersion}</span>
+                        {hasCoreUpdate && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
                       <div className="space-y-2 text-xs">
-                        <div className="font-semibold">{t('node.xrayVersion', { defaultValue: 'Xray Core' })}</div>
+                        <div className="font-semibold">{t('node.coreVersion', { defaultValue: 'Core' })}</div>
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between gap-4">
                             <span>{t('version.currentVersion', { defaultValue: 'Current' })}</span>
-                            <span className="font-mono font-medium">{node.xray_version}</span>
+                            <span className="font-mono font-medium">{coreVersion}</span>
                           </div>
-                          {latestXrayVersion && (
+                          {isXrayBackend && latestXrayVersion && (
                             <div className="flex items-center justify-between gap-4">
                               <span>{t('version.latestVersion', { defaultValue: 'Latest' })}</span>
                               <span className="font-mono font-medium">{latestXrayVersion}</span>
                             </div>
                           )}
-                          {latestXrayVersion && hasXrayUpdate(node.xray_version) && (
+                          {hasCoreUpdate && (
                             <>
                               <Separator className="my-1.5" />
                               <span>{t('nodeModal.updateAvailable', { defaultValue: 'Update available' })}</span>
@@ -163,19 +164,22 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
                 {node.node_version && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div
-                        className={cn(
-                          'group/version inline-flex items-center',
-                          dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
-                        )}
-                      >
-                        <Server className={cn('h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 transition-colors', latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')} />
-                        <span className={cn('text-[10px] sm:text-[11px] font-medium font-mono', latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+                      <div className={cn('group/version inline-flex items-center', dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1')}>
+                        <Server
+                          className={cn(
+                            'h-3 w-3 shrink-0 transition-colors sm:h-3.5 sm:w-3.5',
+                            latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground',
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            'font-mono text-[10px] font-medium sm:text-[11px]',
+                            latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground',
+                          )}
+                        >
                           {node.node_version}
                         </span>
-                        {latestNodeVersion && hasNodeUpdate(node.node_version) && (
-                          <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                        )}
+                        {latestNodeVersion && hasNodeUpdate(node.node_version) && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
@@ -210,7 +214,6 @@ export default function Node({ node, onEdit, onToggleStatus }: NodeProps) {
           )}
         </div>
       </Card>
-
     </TooltipProvider>
   )
 }

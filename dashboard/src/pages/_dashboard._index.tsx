@@ -20,8 +20,9 @@ import { useAdmin } from '@/hooks/use-admin'
 import { useClipboard } from '@/hooks/use-clipboard'
 import type { AdminDetails, UserResponse } from '@/service/api'
 import { useGetSystemStats } from '@/service/api'
+import { getInboundDetails } from '@/service/api'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bookmark } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { type Resolver, useForm } from 'react-hook-form'
@@ -145,8 +146,6 @@ const Dashboard = () => {
 
   const handleHostSubmit = async () => {
     try {
-      // For now, just pass the form data directly to the modal
-      // The modal will handle the complex type conversions
       return { status: 200 }
     } catch (error: any) {
       console.error('Error submitting host:', error)
@@ -154,6 +153,12 @@ const Dashboard = () => {
       return { status: 500 }
     }
   }
+
+  const { data: inboundDetails = [], isLoading: isLoadingInbounds } = useQuery({
+    queryKey: ['getInboundDetailsQueryKey'],
+    queryFn: ({ signal }) => getInboundDetails(signal),
+    enabled: isHostModalOpen,
+  })
 
   // Keyboard shortcuts for dashboard actions
   useEffect(() => {
@@ -254,7 +259,7 @@ const Dashboard = () => {
       )}
       {isHostModalOpen && (
         <Suspense fallback={<div />}>
-          <HostModal isDialogOpen={isHostModalOpen} onOpenChange={setHostModalOpen} onSubmit={handleHostSubmit} form={hostForm} />
+          <HostModal isDialogOpen={isHostModalOpen} onOpenChange={setHostModalOpen} onSubmit={handleHostSubmit} form={hostForm} inboundDetails={inboundDetails} isLoadingInbounds={isLoadingInbounds} />
         </Suspense>
       )}
       {/* Only render NodeModal for sudo admins */}

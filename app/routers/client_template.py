@@ -71,7 +71,9 @@ async def get_client_templates(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(get_current),
 ):
-    return await client_template_operator.get_client_templates(db, template_type=template_type, offset=offset, limit=limit)
+    return await client_template_operator.get_client_templates(
+        db, template_type=template_type, offset=offset, limit=limit
+    )
 
 
 @router.get("s/simple", response_model=ClientTemplatesSimpleResponse)

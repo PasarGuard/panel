@@ -70,7 +70,9 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
 
 
 async def get_client_template_by_id(db: AsyncSession, template_id: int) -> ClientTemplate | None:
-    return (await db.execute(select(ClientTemplate).where(ClientTemplate.id == template_id))).unique().scalar_one_or_none()
+    return (
+        (await db.execute(select(ClientTemplate).where(ClientTemplate.id == template_id))).unique().scalar_one_or_none()
+    )
 
 
 async def get_client_templates(
@@ -138,7 +140,9 @@ async def get_client_templates_simple(
 
 
 async def count_client_templates_by_type(db: AsyncSession, template_type: ClientTemplateType) -> int:
-    count_stmt = select(func.count()).select_from(ClientTemplate).where(ClientTemplate.template_type == template_type.value)
+    count_stmt = (
+        select(func.count()).select_from(ClientTemplate).where(ClientTemplate.template_type == template_type.value)
+    )
     return (await db.execute(count_stmt)).scalar() or 0
 
 
@@ -159,9 +163,7 @@ async def get_first_template_by_type(
 
 async def set_default_template(db: AsyncSession, db_template: ClientTemplate) -> ClientTemplate:
     await db.execute(
-        update(ClientTemplate)
-        .where(ClientTemplate.template_type == db_template.template_type)
-        .values(is_default=False)
+        update(ClientTemplate).where(ClientTemplate.template_type == db_template.template_type).values(is_default=False)
     )
     db_template.is_default = True
     await db.commit()

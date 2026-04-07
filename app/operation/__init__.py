@@ -220,6 +220,9 @@ class BaseOperation:
             if tag not in await core_manager.get_inbounds():
                 await self.raise_error(f"{tag} not found", 400)
 
+    async def check_host_inbound_tags(self, tags: list[str]) -> None:
+        await self.check_inbound_tags(tags)
+
     async def get_validated_core_config(self, db: AsyncSession, core_id) -> CoreConfig:
         """Dependency: Fetch core config or return not found error."""
         db_core_config = await get_core_config_by_id(db, core_id)

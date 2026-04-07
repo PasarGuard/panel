@@ -8,12 +8,14 @@ class BaseModal(ModalScreen):
 
     async def key_left(self) -> None:
         """Move focus left on arrow key press."""
-        if not self.query_one(Input).has_focus:
+        inputs = self.query(Input)
+        if not inputs or not inputs[0].has_focus:
             self.app.action_focus_previous()
 
     async def key_right(self) -> None:
         """Move focus right on arrow key press."""
-        if not self.query_one(Input).has_focus:
+        inputs = self.query(Input)
+        if not inputs or not inputs[0].has_focus:
             self.app.action_focus_next()
 
     async def key_down(self) -> None:

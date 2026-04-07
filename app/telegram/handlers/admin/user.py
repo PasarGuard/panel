@@ -592,7 +592,7 @@ async def get_v2ray_links(
     except ValueError as exc:
         error = str(exc)
         if len(error) > MAX_CALLBACK_ALERT_LENGTH:
-            error = f"{error[:MAX_CALLBACK_ALERT_LENGTH - 3]}..."
+            error = f"{error[: MAX_CALLBACK_ALERT_LENGTH - 3]}..."
         return await event.answer(error, show_alert=True)
 
     if not links or not links.strip():

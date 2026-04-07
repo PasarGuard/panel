@@ -54,6 +54,7 @@ class StandardLinks(BaseSubscription):
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
+            "wireguard": self._build_wireguard,
         }
 
     def add_link(self, link):
@@ -161,6 +162,8 @@ class StandardLinks(BaseSubscription):
 
     def _transport_kcp(self, payload: dict, protocol: str, config: KCPTransportConfig, path: str):
         """Handle kcp transport - only gets KCP config"""
+        payload["tti"] = config.tti
+        payload["mtu"] = config.mtu
         # KCP header/seed are removed in latest Xray-core; no extra fields needed.
 
     def _apply_finalmask(self, payload: dict, protocol: str, inbound: SubscriptionInboundData):
@@ -331,6 +334,13 @@ class StandardLinks(BaseSubscription):
 
         payload = self._normalize_and_remove_none_values(payload)
         return f"hysteria2://{settings['auth']}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
+
+    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
+        """Build WireGuard link"""
+        components = self._build_wireguard_components(remark, address, inbound, settings)
+        if not components:
+            return ""
+        return components["uri"]
 
     # ========== Helper Methods ==========
 

@@ -2,13 +2,16 @@ import asyncio
 from datetime import datetime as dt
 from typing import AsyncIterator, Callable
 
+from packaging.version import InvalidVersion, Version
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
+from PasarGuardNodeBridge.common import service_pb2 as service
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
 from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud.node import (
+    NodeSortingOptionsSimple,
     bulk_update_node_status,
     clear_usage_data,
     create_node,
@@ -21,11 +24,11 @@ from app.db.crud.node import (
     remove_node,
     reset_node_usage,
     update_node_status,
-    NodeSortingOptionsSimple,
 )
 from app.db.crud.user import get_user, get_users_count_by_status
 from app.db.models import Node, NodeStatus, UserStatus
 from app.models.admin import AdminDetails
+from app.models.core import CoreType
 from app.models.node import (
     NodeCoreUpdate,
     NodeCreate,
@@ -33,8 +36,8 @@ from app.models.node import (
     NodeModify,
     NodeNotification,
     NodeResponse,
-    NodesResponse,
     NodeSimple,
+    NodesResponse,
     NodesSimpleResponse,
     UsageTable,
     UserIPList,
@@ -230,16 +233,20 @@ class NodeOperation(BaseOperation):
         logger.info(f'Connecting to "{db_node.name}" node')
 
         core = await core_manager.get_core(db_node.core_config_id if db_node.core_config_id else 1)
+        type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
 
         try:
-            info = await pg_node.start(
-                config=core.to_str(),
-                backend_type=0,
-                users=users,
-                keep_alive=db_node.keep_alive,
-                exclude_inbounds=core.exclude_inbound_tags,
-            )
-            logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, xray run on v{info.core_version}')
+            start_kwargs = {
+                "config": core.to_str(),
+                "backend_type": type,
+                "users": users,
+                "keep_alive": db_node.keep_alive,
+            }
+            if core.type == CoreType.xray:
+                start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+
+            info = await pg_node.start(**start_kwargs)
+            logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, core run on v{info.core_version}')
 
             return {
                 "node_id": db_node.id,

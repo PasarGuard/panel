@@ -1,11 +1,12 @@
 import { DatePicker } from '@/components/common/date-picker'
 import GroupsSelector from '@/components/common/groups-selector'
+import UsageModal from '@/components/dialogs/usage-modal'
+import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
+import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
+import { type UseEditFormValues, type UseFormValues, userCreateSchema, userEditSchema } from '@/components/forms/user-form'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
-import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
-import UsageModal from '@/components/dialogs/usage-modal'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -19,11 +20,10 @@ import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { type UseEditFormValues, type UseFormValues, userCreateSchema, userEditSchema } from '@/components/forms/user-form'
 import {
   getGeneralSettings,
-  getGetGroupsSimpleQueryKey,
   getGetGeneralSettingsQueryKey,
+  getGetGroupsSimpleQueryKey,
   useCreateUser,
   useCreateUserFromTemplate,
   useGetGroupsSimple,
@@ -34,10 +34,11 @@ import {
   useRevokeUserSubscription,
   type UserResponse,
 } from '@/service/api'
-import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
-import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
+import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
+import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
+import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, User, Users } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -61,7 +62,7 @@ const isDate = (v: unknown): v is Date => typeof v === 'object' && v !== null &&
 
 // Add template validation schema
 const templateUserSchema = z.object({
-  username: z.string().min(3, 'validation.minLength').max(32, 'validation.maxLength'),
+  username: z.string().min(3, 'validation.minLength').max(128, 'validation.maxLength'),
   note: z.string().optional(),
 })
 
@@ -202,6 +203,12 @@ const ExpiryDateField = ({
 export { ExpiryDateField }
 
 // Custom Select component that works reliably on mobile
+type StatusSelectItemProps = {
+  value: string
+  children: React.ReactNode
+  onSelect?: (value: string) => void
+}
+
 const StatusSelect = ({
   value,
   onValueChange,
@@ -248,7 +255,7 @@ const StatusSelect = ({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
         {React.Children.map(children, child => {
-          if (React.isValidElement(child) && child.props.value) {
+          if (React.isValidElement<StatusSelectItemProps>(child) && typeof child.props.value === 'string') {
             return React.cloneElement(child, {
               onSelect: handleSelect,
             })
@@ -260,7 +267,7 @@ const StatusSelect = ({
   )
 }
 
-const StatusSelectItem = ({ value, children, onSelect }: { value: string; children: React.ReactNode; onSelect?: (value: string) => void }) => {
+const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) => {
   const getDotColor = () => {
     switch (value) {
       case 'active':
@@ -357,20 +364,16 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         }
 
         // Use editingUserData if form doesn't have it yet, otherwise use form value
-        const nextPlan = nextPlanFromData === null
-          ? null
-          : (nextPlanFromForm !== null && nextPlanFromForm !== undefined
-            ? nextPlanFromForm
-            : nextPlanFromData)
+        const nextPlan = nextPlanFromData === null ? null : nextPlanFromForm !== null && nextPlanFromForm !== undefined ? nextPlanFromForm : nextPlanFromData
 
-        const hasData = nextPlan !== null &&
+        const hasData =
+          nextPlan !== null &&
           nextPlan !== undefined &&
-          typeof nextPlan === 'object' && (
-            (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
+          typeof nextPlan === 'object' &&
+          ((nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
             (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
             (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
-            (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
-          )
+            (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null))
         setNextPlanEnabled(!!hasData)
       } else {
         // For create mode, always start with switch off
@@ -651,11 +654,15 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     } else {
       const currentNextPlan = form.getValues('next_plan')
       if (currentNextPlan === null || currentNextPlan === undefined) {
-        form.setValue('next_plan', {
-          expire: 0,
-          data_limit: 0,
-          add_remaining_traffic: false,
-        }, { shouldValidate: false, shouldDirty: false })
+        form.setValue(
+          'next_plan',
+          {
+            expire: 0,
+            data_limit: 0,
+            add_remaining_traffic: false,
+          },
+          { shouldValidate: false, shouldDirty: false },
+        )
       } else {
         if (!currentNextPlan.user_template_id) {
           const updatedPlan = {
@@ -679,25 +686,22 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     const nextPlanFromData = editingUserData?.next_plan
 
     // Use editingUserData if form doesn't have it yet, otherwise use form value
-    const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined
-      ? nextPlanFromForm
-      : nextPlanFromData
+    const nextPlan = nextPlanFromForm !== null && nextPlanFromForm !== undefined ? nextPlanFromForm : nextPlanFromData
 
-    const hasDataFromForm = nextPlan !== null &&
+    const hasDataFromForm =
+      nextPlan !== null &&
       nextPlan !== undefined &&
-      typeof nextPlan === 'object' && (
-        (nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
+      typeof nextPlan === 'object' &&
+      ((nextPlan.user_template_id !== undefined && nextPlan.user_template_id !== null) ||
         (nextPlan.expire !== undefined && nextPlan.expire !== null) ||
         (nextPlan.data_limit !== undefined && nextPlan.data_limit !== null) ||
-        (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null)
-      )
+        (nextPlan.add_remaining_traffic !== undefined && nextPlan.add_remaining_traffic !== null))
 
     const hasData = hasDataFromForm
 
     if (!hasData && nextPlanEnabled && !nextPlanManuallyDisabled) {
       setNextPlanEnabled(false)
-    }
-    else if (hasData && !nextPlanEnabled && !nextPlanManuallyDisabled) {
+    } else if (hasData && !nextPlanEnabled && !nextPlanManuallyDisabled) {
       setNextPlanEnabled(true)
       setNextPlanManuallyDisabled(false)
     }
@@ -730,7 +734,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const clearGroups = () => form.setValue('group_ids', [])
   // Helper to clear template selection
   const clearTemplate = () => setSelectedTemplateId(null)
-
 
   // Update validateAllFields function
   const validateAllFields = (currentValues: any, touchedFields: any, isSubmit: boolean = false) => {
@@ -804,11 +807,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       const fieldsToValidate = isSubmit
         ? currentValues
         : Object.keys(touchedFields).reduce((acc, key) => {
-          if (touchedFields[key]) {
-            acc[key] = currentValues[key]
-          }
-          return acc
-        }, {} as any)
+            if (touchedFields[key]) {
+              acc[key] = currentValues[key]
+            }
+            return acc
+          }, {} as any)
 
       // If no fields are touched, clear errors and return true
       if (!isSubmit && Object.keys(fieldsToValidate).length === 0) {
@@ -1025,29 +1028,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           status: values.status,
         }
 
-        // Check if proxy settings are filled
-        const hasProxySettings = values.proxy_settings && Object.values(values.proxy_settings).some(settings => settings && Object.values(settings).some(value => value !== undefined && value !== ''))
-
         setLoading(true)
 
         // Clean proxy settings to ensure proper enum values
-        const cleanedProxySettings = hasProxySettings
-          ? {
-            ...values.proxy_settings,
-            vless: values.proxy_settings?.vless
-              ? {
-                ...values.proxy_settings.vless,
-                flow: values.proxy_settings.vless.flow || undefined,
-              }
-              : undefined,
-            shadowsocks: values.proxy_settings?.shadowsocks
-              ? {
-                ...values.proxy_settings.shadowsocks,
-                method: values.proxy_settings.shadowsocks.method || undefined,
-              }
-              : undefined,
-          }
-          : undefined
+        const cleanedProxySettings = cleanProxySettings(values.proxy_settings)
+        const hasProxySettings = !!cleanedProxySettings
 
         const normalizedDataLimitGb = Number(preparedValues.data_limit ?? 0)
         const hasDataLimit = Number.isFinite(normalizedDataLimitGb) && normalizedDataLimitGb > 0
@@ -1182,7 +1167,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     const arr = password.split('')
     for (let i = arr.length - 1; i > 0; i--) {
       const j = getRandomInt(i + 1)
-        ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
     }
     return arr.join('')
   }
@@ -1205,6 +1190,100 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       },
     }
   }
+
+  const generateWireGuardProxySettings = React.useCallback(() => {
+    const keyPair = generateWireGuardKeyPair()
+    form.setValue('proxy_settings.wireguard.private_key', keyPair.privateKey, { shouldDirty: true, shouldValidate: true })
+    form.setValue('proxy_settings.wireguard.public_key', keyPair.publicKey, { shouldDirty: true, shouldValidate: true })
+    form.trigger(['proxy_settings.wireguard.private_key', 'proxy_settings.wireguard.public_key'])
+    handleFieldChange('proxy_settings.wireguard.private_key', keyPair.privateKey)
+    handleFieldChange('proxy_settings.wireguard.public_key', keyPair.publicKey)
+    toast.success(t('userDialog.proxySettings.wireguardGenerated', { defaultValue: 'WireGuard keypair generated' }))
+  }, [form, handleFieldChange, t])
+
+  const syncWireGuardPublicKey = React.useCallback(
+    (privateKey: string) => {
+      const publicKey = getWireGuardPublicKey(privateKey)
+      form.setValue('proxy_settings.wireguard.public_key', publicKey, { shouldDirty: true, shouldValidate: true })
+      handleFieldChange('proxy_settings.wireguard.public_key', publicKey)
+    },
+    [form, handleFieldChange],
+  )
+
+  const parseWireGuardPeerIps = React.useCallback((value: string) => {
+    return value
+      .split(/[\n,]+/)
+      .map(item => item.trim())
+      .filter(Boolean)
+  }, [])
+
+  const hasMeaningfulProxyValue = React.useCallback((value: unknown): boolean => {
+    if (Array.isArray(value)) {
+      return value.some(item => hasMeaningfulProxyValue(item))
+    }
+    if (value && typeof value === 'object') {
+      return Object.values(value).some(item => hasMeaningfulProxyValue(item))
+    }
+    return value !== undefined && value !== null && value !== ''
+  }, [])
+
+  const cleanProxySettings = React.useCallback(
+    (proxySettings: any) => {
+      if (!proxySettings) return undefined
+
+      const cleanedSettings = Object.entries(proxySettings).reduce(
+        (acc, [protocol, settings]) => {
+          if (!settings || typeof settings !== 'object') {
+            return acc
+          }
+
+          const cleanedProtocolSettings = Object.entries(settings as Record<string, unknown>).reduce(
+            (protocolAcc, [key, value]) => {
+              if (Array.isArray(value)) {
+                const cleanedList = value.map(item => (typeof item === 'string' ? item.trim() : item)).filter(item => hasMeaningfulProxyValue(item))
+
+                if (cleanedList.length > 0) {
+                  protocolAcc[key] = cleanedList
+                }
+                return protocolAcc
+              }
+
+              if (typeof value === 'string') {
+                const trimmedValue = value.trim()
+                if (trimmedValue) {
+                  protocolAcc[key] = trimmedValue
+                }
+                return protocolAcc
+              }
+
+              if (value !== undefined && value !== null) {
+                protocolAcc[key] = value
+              }
+
+              return protocolAcc
+            },
+            {} as Record<string, unknown>,
+          )
+
+          if (protocol === 'vless' && !cleanedProtocolSettings.flow) {
+            delete cleanedProtocolSettings.flow
+          }
+          if (protocol === 'shadowsocks' && !cleanedProtocolSettings.method) {
+            delete cleanedProtocolSettings.method
+          }
+
+          if (Object.keys(cleanedProtocolSettings).length > 0) {
+            acc[protocol] = cleanedProtocolSettings
+          }
+          return acc
+        },
+        {} as Record<string, Record<string, unknown>>,
+      )
+
+      return Object.keys(cleanedSettings).length > 0 ? cleanedSettings : undefined
+    },
+    [hasMeaningfulProxyValue],
+  )
 
   // Add this button component after the username generate button
   const GenerateProxySettingsButton = () => (
@@ -1299,7 +1378,9 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                     <CalendarPlus className="h-3.5 w-3.5" />
                     {t('createdAt', { defaultValue: 'Created at' })}
                   </span>
-                  <span dir='ltr' className="text-right">{createdAtText}</span>
+                  <span dir="ltr" className="text-right">
+                    {createdAtText}
+                  </span>
                 </div>
                 {editedAtText && (
                   <div className="flex items-center justify-between gap-2">
@@ -1307,7 +1388,9 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                       <CalendarClock className="h-3.5 w-3.5" />
                       {t('editedAt', { defaultValue: 'Edited at' })}
                     </span>
-                    <span dir='ltr' className="text-right">{editedAtText}</span>
+                    <span dir="ltr" className="text-right">
+                      {editedAtText}
+                    </span>
                   </div>
                 )}
               </div>
@@ -2063,6 +2146,85 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                               )
                             }}
                           />
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.wireguard.private_key"
+                            render={({ field }) => (
+                              <FormItem className="mb-2">
+                                <FormLabel>{t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}</FormLabel>
+                                <FormControl>
+                                  <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                    <Input
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      placeholder={t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}
+                                      onChange={e => {
+                                        field.onChange(e)
+                                        syncWireGuardPublicKey(e.target.value)
+                                        form.trigger('proxy_settings.wireguard.private_key')
+                                        handleFieldChange('proxy_settings.wireguard.private_key', e.target.value)
+                                      }}
+                                    />
+                                    <Button
+                                      size="icon"
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={generateWireGuardProxySettings}
+                                      title={t('userDialog.proxySettings.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
+                                    >
+                                      <RefreshCcw className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.wireguard.public_key"
+                            render={({ field }) => (
+                              <FormItem className="mb-2">
+                                <FormLabel>{t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    dir="ltr"
+                                    {...field}
+                                    value={field.value ?? ''}
+                                    placeholder={t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}
+                                    disabled
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.wireguard.peer_ips"
+                            render={({ field }) => (
+                              <FormItem className="mb-2">
+                                <FormLabel>{t('userDialog.proxySettings.wireguardPeerIps', { defaultValue: 'WireGuard Peer IPs' })}</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    dir="ltr"
+                                    value={Array.isArray(field.value) ? field.value.join('\n') : ''}
+                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.8.0.2/32' })}
+                                    onChange={e => {
+                                      const peerIps = parseWireGuardPeerIps(e.target.value)
+                                      field.onChange(peerIps)
+                                      form.trigger('proxy_settings.wireguard.peer_ips')
+                                      handleFieldChange('proxy_settings.wireguard.peer_ips', peerIps)
+                                    }}
+                                  />
+                                </FormControl>
+                                <p className="text-xs text-muted-foreground">
+                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to let the panel auto-allocate peer IPs for each assigned WireGuard interface.' })}
+                                </p>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
@@ -2149,7 +2311,12 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                   if (nextPlanExpireInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
                                     nextPlanExpireInputRef.current = String(dateUtils.secondsToDays(field.value))
                                   }
-                                  const displayValue = nextPlanExpireInputRef.current !== '' ? nextPlanExpireInputRef.current : (field.value !== null && field.value !== undefined && field.value > 0 ? String(dateUtils.secondsToDays(field.value)) : '')
+                                  const displayValue =
+                                    nextPlanExpireInputRef.current !== ''
+                                      ? nextPlanExpireInputRef.current
+                                      : field.value !== null && field.value !== undefined && field.value > 0
+                                        ? String(dateUtils.secondsToDays(field.value))
+                                        : ''
                                   return (
                                     <FormItem>
                                       <FormLabel>{t('userDialog.nextPlanExpire', { defaultValue: 'Expire' })}</FormLabel>
@@ -2226,7 +2393,12 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                   if (nextPlanDataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
                                     nextPlanDataLimitInputRef.current = String(Math.round(field.value / (1024 * 1024 * 1024)))
                                   }
-                                  const displayValue = nextPlanDataLimitInputRef.current !== '' ? nextPlanDataLimitInputRef.current : (field.value !== null && field.value !== undefined && field.value > 0 ? String(Math.round(field.value / (1024 * 1024 * 1024))) : '')
+                                  const displayValue =
+                                    nextPlanDataLimitInputRef.current !== ''
+                                      ? nextPlanDataLimitInputRef.current
+                                      : field.value !== null && field.value !== undefined && field.value > 0
+                                        ? String(Math.round(field.value / (1024 * 1024 * 1024)))
+                                        : ''
                                   return (
                                     <FormItem>
                                       <FormLabel>{t('userDialog.nextPlanDataLimit', { defaultValue: 'Data Limit' })}</FormLabel>
@@ -2330,8 +2502,9 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                          className={`relative flex-1 px-3 py-2 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                            }`}
+                          className={`relative flex-1 px-3 py-2 text-sm font-medium transition-colors ${
+                            activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                          }`}
                           type="button"
                         >
                           <div className="flex items-center justify-center gap-1.5">
@@ -2425,39 +2598,49 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                     onInteractOutside={() => setActionsMenuOpen(false)}
                   >
                     {isSudo && (
-                      <DropdownMenuItem onSelect={() => {
-                        setActionsMenuOpen(false)
-                        setUserAllIPsModalOpen(true)
-                      }}>
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setActionsMenuOpen(false)
+                          setUserAllIPsModalOpen(true)
+                        }}
+                      >
                         <Network className="mr-2 h-4 w-4" />
                         <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onSelect={() => {
-                      setActionsMenuOpen(false)
-                      setUsageModalOpen(true)
-                    }}>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setActionsMenuOpen(false)
+                        setUsageModalOpen(true)
+                      }}
+                    >
                       <PieChart className="mr-2 h-4 w-4" />
                       <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => {
-                      setActionsMenuOpen(false)
-                      setSubscriptionClientsModalOpen(true)
-                    }}>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setActionsMenuOpen(false)
+                        setSubscriptionClientsModalOpen(true)
+                      }}
+                    >
                       <Users className="mr-2 h-4 w-4" />
                       <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => {
-                      setActionsMenuOpen(false)
-                      setRevokeSubDialogOpen(true)
-                    }}>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setActionsMenuOpen(false)
+                        setRevokeSubDialogOpen(true)
+                      }}
+                    >
                       <Link2Off className="mr-2 h-4 w-4" />
                       <span>{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => {
-                      setActionsMenuOpen(false)
-                      setResetUsageDialogOpen(true)
-                    }}>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setActionsMenuOpen(false)
+                        setResetUsageDialogOpen(true)
+                      }}
+                    >
                       <RefreshCcw className="mr-2 h-4 w-4" />
                       <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
                     </DropdownMenuItem>
@@ -2577,4 +2760,3 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     </Dialog>
   )
 }
-

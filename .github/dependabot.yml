@@ -5,13 +5,18 @@
 
 version: 2
 updates:
-  - package-ecosystem: "uv" # See documentation for possible values
-    directory: "/" # Location of package manifests
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-  - package-ecosystem: "bun" # See documentation for possible values
-    directory: "/dashboard" # Location of package manifests
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
+    - package-ecosystem: "uv" # See documentation for possible values
+      directory: "/" # Location of package manifests
+      target-branch: "dev"
+      schedule:
+          interval: "daily"
+    # - package-ecosystem: "bun" # See documentation for possible values
+    #   directory: "/dashboard" # Location of package manifests
+    #   target-branch: "dev"
+    #   schedule:
+    #     interval: "weekly"
+    - package-ecosystem: "github-actions"
+      directory: "/"
+      target-branch: "dev"
+      schedule:
+          interval: "daily"

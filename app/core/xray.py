@@ -8,18 +8,21 @@ from typing import Union
 
 import commentjson
 
+from app.models.core import CoreType
 from app.utils.crypto import get_cert_SANs, get_x25519_public_key
 
 
 class XRayConfig(dict):
     def __init__(
         self,
-        config: Union[dict, str, PosixPath] = {},
-        exclude_inbound_tags: set[str] | None = set(),
-        fallbacks_inbound_tags: set[str] | None = set(),
+        config: Union[dict, str, PosixPath] | None = None,
+        exclude_inbound_tags: set[str] | None = None,
+        fallbacks_inbound_tags: set[str] | None = None,
         skip_validation: bool = False,
     ):
         """Initialize the XRay config."""
+        if config is None:
+            config = {}
         if isinstance(config, str):
             # considering string as json
             config = commentjson.loads(config)
@@ -34,8 +37,10 @@ class XRayConfig(dict):
         if fallbacks_inbound_tags is None:
             fallbacks_inbound_tags = set()
 
+        self._type = CoreType.xray
         exclude_inbound_tags.update(fallbacks_inbound_tags)
         self.exclude_inbound_tags = exclude_inbound_tags
+        self.fallbacks_inbound_tags = set(fallbacks_inbound_tags)
 
         self._inbounds = []
         self._inbounds_by_tag = {}
@@ -442,23 +447,32 @@ class XRayConfig(dict):
         """Get inbounds by tag."""
         return self._inbounds
 
+    @property
+    def type(self) -> str:
+        return self._type
+
     def to_json(self) -> dict:
         """Convert the config to a JSON-serializable dictionary."""
         return {
+            "type": self.type,
             "config": dict(self),
             "exclude_inbound_tags": list(self.exclude_inbound_tags),
+            "fallbacks_inbound_tags": list(self.fallbacks_inbound_tags),
             "inbounds": self.inbounds,
             "inbounds_by_tag": self.inbounds_by_tag,
-            "fallbacks_inbound": self._fallbacks_inbound,
         }
 
     @classmethod
     def from_json(cls, data: dict) -> "XRayConfig":
         """Reconstruct the config from a dictionary."""
+        fallback_tags = data.get("fallbacks_inbound_tags")
+        if fallback_tags is None:
+            fallback_tags = []
+
         instance = cls(
             config=data.get("config", {}),
             exclude_inbound_tags=set(data.get("exclude_inbound_tags", [])),
-            fallbacks_inbound_tags=set(data.get("fallbacks_inbound", [])),
+            fallbacks_inbound_tags=set(fallback_tags),
             skip_validation=True,
         )
         if "inbounds" in data:

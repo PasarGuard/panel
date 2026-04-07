@@ -13,8 +13,8 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
-    Text,
     Table,
+    Text,
     UniqueConstraint,
     and_,
     case,
@@ -487,6 +487,7 @@ class ProxyHost(Base):
     verify_peer_cert_by_name: Mapped[Optional[set[str]]] = mapped_column(
         StringArray(1000), default_factory=set, unique=False, nullable=True
     )
+    wireguard_overrides: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
 
 
 class System(Base):
@@ -711,6 +712,13 @@ class Group(Base):
         return len(self.users)
 
 
+class CoreType(str, Enum):
+    xray = "xray"
+    wg = "wg"
+    mtproto = "mtproto"
+    singbox = "singbox"
+
+
 class CoreConfig(Base):
     __tablename__ = "core_configs"
 
@@ -718,6 +726,7 @@ class CoreConfig(Base):
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
+    type: Mapped[CoreType] = mapped_column(SQLEnum(CoreType), default=CoreType.xray, server_default=CoreType.xray)
     exclude_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
     fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
 

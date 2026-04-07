@@ -151,14 +151,14 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
           <DropdownMenuItem
             onSelect={e => {
               e.stopPropagation()
               handleToggleStatus()
             }}
           >
-            <Power className="mr-2 h-4 w-4" />
+            <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {host?.is_disabled ? t('enable') : t('disable')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -168,7 +168,7 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
               onEdit(host)
             }}
           >
-            <Pencil className="mr-2 h-4 w-4" />
+            <Pencil className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {t('edit')}
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -177,11 +177,11 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
               onDuplicate(host)
             }}
           >
-            <Copy className="mr-2 h-4 w-4" />
+            <Copy className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {t('duplicate')}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" />
+            <Trash2 className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {t('delete')}
           </DropdownMenuItem>
         </DropdownMenuContent>

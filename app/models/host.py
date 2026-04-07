@@ -1,4 +1,5 @@
 from enum import Enum
+from ipaddress import ip_network
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -220,6 +221,36 @@ class FormatVariables(dict):
         return key.join("{}")
 
 
+class WireGuardHostOverrides(BaseModel):
+    """Optional per-host values merged into WireGuard subscription output."""
+
+    allowed_ips: list[str] | None = None
+    mtu: int | None = Field(default=None, ge=576, le=9000)
+    reserved: str | None = Field(default=None, max_length=64)
+    keepalive_seconds: int | None = Field(default=None, ge=0, le=86400)
+
+    @field_validator("reserved", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == "":
+            return None
+        return v
+
+    @field_validator("allowed_ips", mode="before")
+    @classmethod
+    def normalize_allowed_ips(cls, value):
+        if value in (None, "", []):
+            return None
+        if not isinstance(value, list):
+            raise ValueError("allowed_ips must be a list of CIDR strings")
+        normalized: list[str] = []
+        for cidr in value:
+            if not isinstance(cidr, str) or not cidr.strip():
+                continue
+            normalized.append(str(ip_network(cidr.strip(), strict=False)))
+        return normalized or None
+
+
 class BaseHost(BaseModel):
     id: int | None = Field(default=None)
     remark: str
@@ -248,6 +279,7 @@ class BaseHost(BaseModel):
     ech_query_strategy: ECHQueryStrategy | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
+    wireguard_overrides: WireGuardHostOverrides | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

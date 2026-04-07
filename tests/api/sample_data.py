@@ -290,6 +290,29 @@ XRAY_CONFIG = {
             "protocol": "shadowsocks",
             "settings": {"clients": [], "network": "tcp,udp"},
         },
+        {
+            "tag": "hy2",
+            "listen": "0.0.0.0",
+            "port": 1081,
+            "protocol": "hysteria",
+            "settings": {"version": 2, "clients": []},
+            "streamSettings": {
+                "network": "hysteria",
+                "hysteriaSettings": {"version": 2},
+                "security": "tls",
+                "tlsSettings": {
+                    "alpn": ["h3"],
+                    "certificates": [
+                        {
+                            "serveOnNode": True,
+                            "certificateFile": "/home/mohammad/app/PasarGuard/node/certs/ssl_cert.pem",
+                            "keyFile": "/home/mohammad/app/PasarGuard/node/certs/ssl_key.pem",
+                        }
+                    ],
+                },
+                "finalmask": {"udp": [{"type": "salamander", "settings": {"password": "1234"}}]},
+            },
+        },
     ],
     "outbounds": [{"protocol": "freedom", "tag": "DIRECT"}, {"protocol": "blackhole", "tag": "BLOCK"}],
     "routing": {

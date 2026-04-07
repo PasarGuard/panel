@@ -8,13 +8,16 @@ Create Date: 2023-10-22 13:58:12.431246
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
-from app.utils.crypto import generate_certificate
 
 # revision identifiers, used by Alembic.
 revision = '7a0dbb8a2f65'
 down_revision = '77c86a261126'
 branch_labels = None
 depends_on = None
+
+def generate_certificate():
+    return {"key": "dummy_key", "cert": "dummy_cert"}  # Placeholder implementation
+
 
 
 def upgrade() -> None:

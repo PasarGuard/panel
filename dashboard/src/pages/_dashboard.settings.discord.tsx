@@ -135,10 +135,10 @@ export default function DiscordSettings() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col p-4 sm:py-6 lg:py-8">
           <div className="flex-1 space-y-6 sm:space-y-8 lg:space-y-10">
             {/* General Settings */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold tracking-tight">{t('settings.discord.general.title')}</h3>
-                <p className="text-sm text-muted-foreground">{t('settings.discord.general.description')}</p>
+                <h3 className="text-base font-semibold sm:text-lg">{t('settings.discord.general.title')}</h3>
+                <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.discord.general.description')}</p>
               </div>
 
               {/* Enable Discord */}
@@ -146,13 +146,13 @@ export default function DiscordSettings() {
                 control={form.control}
                 name="enable"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-x-2 space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                  <FormItem className="flex items-center justify-between gap-x-3 space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <MessageCircle className="h-4 w-4" />
                         {t('settings.discord.general.enable')}
                       </FormLabel>
-                      <FormDescription className="text-sm text-muted-foreground">{t('settings.discord.general.enableDescription')}</FormDescription>
+                      <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.discord.general.enableDescription')}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -163,20 +163,20 @@ export default function DiscordSettings() {
 
               {/* Configuration Fields - Only show when Discord is enabled */}
               {enableDiscord && (
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="token"
                     render={({ field }) => (
                       <FormItem className="space-y-2">
-                        <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                        <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                           <Bot className="h-4 w-4" />
                           {t('settings.discord.general.token')}
                         </FormLabel>
                         <FormControl>
-                          <PasswordInput placeholder={t('settings.discord.general.tokenPlaceholder')} {...field} className="font-mono" />
+                          <PasswordInput placeholder={t('settings.discord.general.tokenPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
                         </FormControl>
-                        <FormDescription className="text-sm text-muted-foreground">{t('settings.discord.general.tokenDescription')}</FormDescription>
+                        <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.discord.general.tokenDescription')}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -187,14 +187,14 @@ export default function DiscordSettings() {
                     name="proxy_url"
                     render={({ field }) => (
                       <FormItem className="space-y-2">
-                        <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                        <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
                           <Globe className="h-4 w-4" />
                           {t('settings.discord.general.proxyUrl')}
                         </FormLabel>
                         <FormControl>
-                          <Input type="url" placeholder={t('settings.discord.general.proxyUrlPlaceholder')} {...field} className="font-mono" />
+                          <Input type="url" placeholder={t('settings.discord.general.proxyUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
                         </FormControl>
-                        <FormDescription className="text-sm text-muted-foreground">{t('settings.discord.general.proxyUrlDescription')}</FormDescription>
+                        <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.discord.general.proxyUrlDescription')}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -205,9 +205,9 @@ export default function DiscordSettings() {
           </div>
 
           {/* Action Buttons */}
-          <div className="mt-6 flex flex-col gap-3 border-t pt-6 sm:flex-row sm:gap-4">
+          <div className="mt-3 flex flex-col gap-2 border-t pt-3 sm:mt-6 sm:flex-row sm:gap-3 sm:pt-6">
             <div className="flex-1"></div>
-            <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
+            <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row sm:gap-3">
               <Button type="button" variant="outline" onClick={handleCancel} className="w-full min-w-[100px] sm:w-auto" disabled={isSaving}>
                 {t('cancel')}
               </Button>

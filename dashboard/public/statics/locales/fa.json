@@ -1,4 +1,4 @@
-﻿{
+{
   "pasarguard": "پاسارگارد",
   "dashboard": "داشبورد",
   "master": "همه گره‌ها",
@@ -132,9 +132,12 @@
         "removeRule": "حذف قانون",
         "pattern": "الگو",
         "patternPlaceholder": "الگو را وارد کنید (مثال: الگوی user-agent)",
-        "patternDescription": "الگو برای تطبیق با درخواست‌های کلاینت",
         "target": "فرمت هدف",
-        "targetDescription": "فرمت پیکربندی برای ارائه این الگو",
+        "responseHeaders": "هدرها",
+        "responseHeadersDescription": "هدرهای اختیاری که هنگام تطبیق این قانون به پاسخ اضافه می‌شوند.",
+        "addHeader": "افزودن هدر",
+        "headerName": "نام هدر",
+        "headerValue": "مقدار هدر",
         "noRules": "هیچ قانونی پیکربندی نشده است. قوانین را اضافه کنید تا رفتار اشتراک را برای کلاینت‌های مختلف سفارشی کنید."
       },
       "formats": {
@@ -153,12 +156,15 @@
         "clashMeta": "Clash Meta",
         "clashMetaDescription": "فرمت پیکربندی Clash Meta",
         "outline": "Outline",
-        "outlineDescription": "فرمت پیکربندی Outline VPN"
+        "outlineDescription": "فرمت پیکربندی Outline VPN",
+        "wireguard": "WireGuard",
+        "wireguardDescription": "فرمت پیکربندی WireGuard"
       },
       "configFormats": {
         "links": "لینک‌ها",
         "links_base64": "لینک‌ها (Base64)",
         "xray": "Xray",
+        "wireguard": "WireGuard",
         "sing_box": "Sing-box",
         "clash": "Clash",
         "clash_meta": "Clash Meta",
@@ -584,6 +590,7 @@
     "contentPlaceholder": "محتوای قالب...",
     "namePlaceholder": "نام قالب",
     "isDefault": "تنظیم به عنوان پیش‌فرض",
+    "isDefaultDescription": "برای نوع خروجی منطبق، این قالب را به صورت خودکار استفاده کن.",
     "createSuccess": "قالب «{{name}}» با موفقیت ایجاد شد",
     "updateSuccess": "قالب «{{name}}» با موفقیت به‌روزرسانی شد",
     "deleteSuccess": "قالب «{{name}}» با موفقیت حذف شد",
@@ -595,7 +602,10 @@
     "deletePrompt": "آیا مطمئن هستید که می‌خواهید <b>{{name}}</b> را حذف کنید؟ این عمل قابل بازگشت نیست.",
     "noTemplates": "قالب کلاینتی وجود ندارد",
     "noTemplatesDescription": "یک قالب کلاینت ایجاد کنید تا فرمت‌های خروجی اشتراک را سفارشی کنید.",
-    "noSearchResults": "هیچ قالب کلاینتی با جستجوی شما مطابقت ندارد."
+    "noSearchResults": "هیچ قالب کلاینتی با جستجوی شما مطابقت ندارد.",
+    "default": "پیش‌فرض",
+    "system": "سیستم",
+    "defaultSystem": "پیش‌فرض سیستم"
   },
   "core.configuration": "پیکربندی",
   "core.generalErrorMessage": "مشکلی پیش آمده، لطفا پیکربندی را بررسی کنید",
@@ -993,10 +1003,20 @@
       "505": "نسخه HTTP پشتیبانی نمی‌شود"
     },
     "selectReason": "انتخاب دلیل",
-    "routingSettings": "Routing",
-    "vlessRoute": "VLESS Route",
+    "routingSettings": "مسیریابی",
+    "vlessRoute": "مسیر VLESS",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "vlessRoute.info": "مقدار مسیر اختیاری برای میزبان‌های VLESS. باید دقیقاً ۴ کاراکتر هگزادسیمال باشد (0-9، a-f، A-F). برای استفاده از مسیریابی پیش‌فرض آن را خالی بگذارید.",
+    "wireguard": {
+      "sectionSecurityOverrides": "تنظیمات امنیتی",
+      "sectionNetworkOverrides": "تنظیمات شبکه",
+      "allowedIps": "آدرس‌های مجاز",
+      "allowedIpsHint": "خالی بگذارید تا پیش‌فرض 0.0.0.0/0 و ::/0 استفاده شود",
+      "mtu": "MTU",
+      "keepalive": "نگه‌داشت زنده (ثانیه)",
+      "keepalivePlaceholder": "پیش‌فرض inbound",
+      "reserved": "Reserved (مثلاً 0,0,0)"
+    }
   },
   "inbound": "ورودی",
   "inbounds": "ورودی‌ها",
@@ -1046,10 +1066,8 @@
   "password": "گذرواژه",
   "previous": "قبلی",
   "back": "بازگشت",
+  "qrcodeDialog.title": "کد QR",
   "qrcodeDialog.sublink": "لینک اشتراک {{username}}",
-  "configsQrcodeDialog.title": "کانفیگ های {{username}}",
-  "configsQrcodeDialog.fetchError": "دریافت کانفیگ ناموفق بود",
-  "configsQrcodeDialog.noConfigs": "کانفیگی یافت نشد",
   "subscriptionModal.title": "اشتراک {{username}}",
   "subscriptionModal.subscriptionLink": "لینک اشتراک",
   "subscriptionModal.configs": "کانفیگ‌ها",
@@ -1058,6 +1076,9 @@
   "subscriptionModal.fetchError": "دریافت کانفیگ‌ها ناموفق بود",
   "subscriptionModal.noConfigs": "کانفیگی یافت نشد",
   "subscriptionModal.unknownConfig": "کانفیگ ناشناخته",
+  "configActions.copyConfig": "کپی کانفیگ",
+  "configActions.copyBase64": "کپی Base64",
+  "configActions.downloadWireGuard": "دانلود WireGuard",
   "reset": "بازنشانی",
   "resetAllUsage": "بازنشانی کل مصرف",
   "resetAllUsage.error": "بازنشانی مصرف انجام نشد، دوباره تلاش کنید.",
@@ -1172,6 +1193,12 @@
   "userDialog.proxySettings.flow": "جریان (Flow)",
   "userDialog.proxySettings.hysteria": "Hysteria",
   "userDialog.proxySettings.auth": "احراز هویت (Auth)",
+  "userDialog.proxySettings.wireguardPrivateKey": "کلید خصوصی WireGuard",
+  "userDialog.proxySettings.wireguardPublicKey": "کلید عمومی WireGuard",
+  "userDialog.proxySettings.wireguardPeerIps": "IPهای همتای WireGuard",
+  "userDialog.proxySettings.generateWireGuardKeyPair": "جفت‌کلید WireGuard",
+  "userDialog.proxySettings.peerIpsHint": "برای اینکه پنل برای هر رابط WireGuard اختصاص‌داده‌شده به‌صورت خودکار IPهای همتا را تخصیص دهد، این قسمت را خالی بگذارید.",
+  "userDialog.proxySettings.wireguardGenerated": "جفت‌کلید WireGuard تولید شد",
   "userDialog.proxySettings.desc": "تنظیمات اختصاصی پروتکل برای این کاربر را پیکربندی کنید.",
   "userDialog.expireDate": "تاریخ انقضا",
   "username": "نام کاربری",
@@ -1575,6 +1602,8 @@
     "selectInbound": "ورودی را انتخاب کنید",
     "inbound": "ورودی",
     "generateKeyPair": "جفت کلید",
+    "backendType": "نوع بک‌اند",
+    "generateWireGuardKeyPair": "جفت‌کلید WireGuard",
     "generateShortId": "شناسه کوتاه",
     "publicKey": "کلید عمومی",
     "privateKey": "کلید خصوصی",
@@ -1671,6 +1700,7 @@
   "copied": "کپی شد!",
   "clickToCopy": "کلیک برای کپی",
   "copyFailed": "کپی ناموفق بود",
+  "downloadFailed": "دانلود کانفیگ ناموفق بود",
   "more": "بیشتر",
   "validation": {
     "generic": "{{field}} نامعتبر است",
@@ -1682,7 +1712,7 @@
     "too_small": "{{field}} خیلی کوتاه است",
     "too_big": "{{field}} خیلی بلند است",
     "minLength": "رشته باید حداقل ۳ کاراکتر داشته باشد",
-    "maxLength": "رشته باید حداکثر ۳۲ کاراکتر داشته باشد",
+    "maxLength": "رشته باید حداکثر ۱۲۸ کاراکتر داشته باشد",
     "formHasErrors": "لطفاً خطاهای فرم را قبل از ارسال برطرف کنید",
     "formInvalid": "فرم نامعتبر است. لطفاً تمام فیلدهای الزامی را بررسی کنید.",
     "missingFields": "لطفاً فیلدهای الزامی زیر را پر کنید: {{fields}}"
@@ -1816,7 +1846,8 @@
     "usageSummary": "نمایش مجموع مصرف در بازه انتخاب شده.",
     "activeNextPlanTitle": "فعال‌سازی پلن بعدی کاربر",
     "activeNextPlanPrompt": "آیا مطمئن هستید که می‌خواهید پلن بعدی را برای «{{name}}» فعال کنید؟",
-    "activeNextPlanSubmit": "فعال‌سازی پلن بعدی"
+    "activeNextPlanSubmit": "فعال‌سازی پلن بعدی",
+    "downloadStarted": "دانلود شروع شد"
   },
   "setOwnerModal": {
     "title": "تعیین مالک",
@@ -2012,8 +2043,8 @@
     "selectStatus": "انتخاب وضعیت ...",
     "byCore": "هسته",
     "selectCore": "انتخاب هسته ...",
-    "searchCore" : "جستجوی هسته ...",
-    "selectedCore" : "{{name}} :هسته انتخاب شده",
+    "searchCore": "جستجوی هسته ...",
+    "selectedCore": "{{name}} :هسته انتخاب شده",
     "noCoresFound": "هیچ هسته‌ای یافت نشد",
     "noCoresAvailable": "هیچ هسته‌ای در دسترس نیست"
   },

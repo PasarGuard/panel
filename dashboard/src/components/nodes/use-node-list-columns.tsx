@@ -3,12 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { ListColumn } from '@/components/common/list-generator'
 import NodeUsageDisplay from '@/components/nodes/node-usage-display'
 import NodeActionsMenu from '@/components/nodes/node-actions-menu'
-import { NodeResponse, NodeStatus } from '@/service/api'
+import { CoresSimpleResponse, NodeResponse, NodeStatus } from '@/service/api'
 import { cn } from '@/lib/utils'
 
 interface UseNodeListColumnsProps {
   onEdit: (node: NodeResponse) => void
   onToggleStatus: (node: NodeResponse) => Promise<void>
+  coresData?: CoresSimpleResponse
 }
 
 const getNodeStatusDotColor = (status: NodeStatus) => {
@@ -26,7 +27,7 @@ const getNodeStatusDotColor = (status: NodeStatus) => {
   }
 }
 
-export const useNodeListColumns = ({ onEdit, onToggleStatus }: UseNodeListColumnsProps) => {
+export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNodeListColumnsProps) => {
   const { t } = useTranslation()
 
   return useMemo<ListColumn<NodeResponse>[]>(
@@ -66,9 +67,9 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus }: UseNodeListColumn
         width: '64px',
         align: 'end',
         hideOnMobile: true,
-        cell: node => <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} />,
+        cell: node => <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} />,
       },
     ],
-    [t, onEdit, onToggleStatus],
+    [t, onEdit, onToggleStatus, coresData],
   )
 }

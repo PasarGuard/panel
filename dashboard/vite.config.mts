@@ -102,10 +102,6 @@ export default defineConfig({
             return 'radix-toggle'
           }
 
-          if (normalizedId.includes('/node_modules/zustand/')) {
-            return 'zustand'
-          }
-
           if (
             normalizedId.includes('/node_modules/i18next/') ||
             normalizedId.includes('/node_modules/react-i18next/') ||

@@ -40,6 +40,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
   const dir = useDirDetection()
 
   const { data: coresData, isLoading, isFetching, refetch } = useGetAllCores({})
+  const shouldRenderLocalModal = !onEditCore
 
   useEffect(() => {
     const handleOpenDialog = () => onOpenChange?.(true)
@@ -56,7 +57,15 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     setEditingCore(core)
     form.reset({
       name: core.name,
+      type: core.type || 'xray',
       config: JSON.stringify(core.config, null, 2),
+      fallback_id: core.fallbacks_inbound_tags
+        ? core.fallbacks_inbound_tags
+            .join(',')
+            .split(',')
+            .map((id: string) => id.trim())
+            .filter((id: string) => id.trim() !== '')
+        : [],
       excluded_inbound_ids: core.exclude_inbound_tags
         ? core.exclude_inbound_tags
             .join(',')
@@ -202,7 +211,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
         )}
       </ScrollArea>
 
-      <CoreConfigModal isDialogOpen={!!isDialogOpen} onOpenChange={handleModalClose} form={form} editingCore={!!editingCore} editingCoreId={editingCore?.id} />
+      {shouldRenderLocalModal && <CoreConfigModal isDialogOpen={!!isDialogOpen} onOpenChange={handleModalClose} form={form} editingCore={!!editingCore} editingCoreId={editingCore?.id} />}
     </div>
   )
 }

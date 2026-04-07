@@ -41,7 +41,9 @@ class AdminOperation(BaseOperation):
     async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails) -> AdminDetails:
         """Create a new admin if the current admin has sudo privileges."""
         if self.operator_type != OperatorType.CLI and new_admin.is_sudo:
-            await self.raise_error(message="Creating sudo admin via API is not allowed. Use pasarguard cli / tui.", code=403)
+            await self.raise_error(
+                message="Creating sudo admin via API is not allowed. Use pasarguard cli / tui.", code=403
+            )
 
         if new_admin.telegram_id is not None:
             existing_admins = await find_admins_by_telegram_id(db, new_admin.telegram_id, limit=1)
@@ -70,11 +72,7 @@ class AdminOperation(BaseOperation):
                 message="Promoting admin to sudo via API is not allowed. Use pasarguard cli / tui instead.", code=403
             )
 
-        if (
-            self.operator_type != OperatorType.CLI
-            and db_admin.is_sudo
-            and db_admin.username != current_admin.username
-        ):
+        if self.operator_type != OperatorType.CLI and db_admin.is_sudo and db_admin.username != current_admin.username:
             await self.raise_error(
                 message="You're not allowed to modify sudoer's account. Use pasarguard cli  / tui instead.", code=403
             )

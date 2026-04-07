@@ -53,6 +53,7 @@ class XrayConfiguration(BaseSubscription):
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
+            "wireguard": self._build_wireguard,
         }
 
     def add_config(self, remarks, outbounds):
@@ -269,23 +270,27 @@ class XrayConfiguration(BaseSubscription):
         """Handle QUIC transport - only gets QUIC config"""
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
-        return self._normalize_and_remove_none_values({
-            "security": host,
-            "header": {"type": config.header_type},
-            "key": path,
-        })
+        return self._normalize_and_remove_none_values(
+            {
+                "security": host,
+                "header": {"type": config.header_type},
+                "key": path,
+            }
+        )
 
     def _transport_kcp(self, config: KCPTransportConfig, path: str) -> dict:
         """Handle KCP transport - only gets KCP config"""
-        return self._normalize_and_remove_none_values({
-            "mtu": config.mtu if config.mtu is not None else 1350,
-            "tti": config.tti if config.tti is not None else 50,
-            "uplinkCapacity": config.uplink_capacity if config.uplink_capacity is not None else 5,
-            "downlinkCapacity": config.downlink_capacity if config.downlink_capacity is not None else 20,
-            "congestion": config.congestion,
-            "readBufferSize": config.read_buffer_size if config.read_buffer_size is not None else 2,
-            "writeBufferSize": config.write_buffer_size if config.write_buffer_size is not None else 2,
-        })
+        return self._normalize_and_remove_none_values(
+            {
+                "mtu": config.mtu if config.mtu is not None else 1350,
+                "tti": config.tti if config.tti is not None else 50,
+                "uplinkCapacity": config.uplink_capacity if config.uplink_capacity is not None else 5,
+                "downlinkCapacity": config.downlink_capacity if config.downlink_capacity is not None else 20,
+                "congestion": config.congestion,
+                "readBufferSize": config.read_buffer_size if config.read_buffer_size is not None else 2,
+                "writeBufferSize": config.write_buffer_size if config.write_buffer_size is not None else 2,
+            }
+        )
 
     def _apply_transport(self, network: str, inbound: SubscriptionInboundData, path: str) -> dict | None:
         """Apply transport settings using registry pattern"""
@@ -301,15 +306,17 @@ class XrayConfiguration(BaseSubscription):
         sni = tls_config.sni if isinstance(tls_config.sni, str) else (tls_config.sni[0] if tls_config.sni else None)
 
         if security == "reality":
-            return self._normalize_and_remove_none_values({
-                "serverName": sni,
-                "fingerprint": tls_config.fingerprint,
-                "show": False,
-                "publicKey": tls_config.reality_public_key,
-                "shortId": tls_config.reality_short_id,
-                "spiderX": tls_config.reality_spx,
-                "mldsa65Verify": tls_config.mldsa65_verify,
-            })
+            return self._normalize_and_remove_none_values(
+                {
+                    "serverName": sni,
+                    "fingerprint": tls_config.fingerprint,
+                    "show": False,
+                    "publicKey": tls_config.reality_public_key,
+                    "shortId": tls_config.reality_short_id,
+                    "spiderX": tls_config.reality_spx,
+                    "mldsa65Verify": tls_config.mldsa65_verify,
+                }
+            )
         else:  # tls
             config = {
                 "serverName": sni,
@@ -378,11 +385,13 @@ class XrayConfiguration(BaseSubscription):
             sockopt=sockopt,
         )
 
-        return self._normalize_and_remove_none_values({
-            "address": download_settings.address,
-            "port": self._select_port(download_settings.port),
-            **stream_settings,
-        })
+        return self._normalize_and_remove_none_values(
+            {
+                "address": download_settings.address,
+                "port": self._select_port(download_settings.port),
+                **stream_settings,
+            }
+        )
 
     # ========== Protocol Builders (Registry Methods) ==========
 
@@ -466,6 +475,37 @@ class XrayConfiguration(BaseSubscription):
             inbound=inbound,
             user_settings={"auth": str(settings["auth"])},
         )
+
+    def _build_wireguard(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build WireGuard outbound for Xray subscriptions."""
+        private_key = settings.get("private_key", "")
+        peer_ips = self._get_wireguard_peer_ips(settings, inbound.inbound_tag)
+        public_key = inbound.wireguard_public_key
+        if not private_key or not peer_ips or not public_key:
+            return {}
+
+        peer = {
+            "endpoint": f"{address}:{self._select_port(inbound.port)}",
+            "publicKey": public_key,
+            "allowedIPs": inbound.wireguard_allowed_ips or ["0.0.0.0/0", "::/0"],
+            "keepAlive": inbound.wireguard_keepalive,
+            "preSharedKey": inbound.wireguard_pre_shared_key or None,
+        }
+
+        outbound = {
+            "protocol": "wireguard",
+            "tag": "proxy",
+            "settings": {
+                "secretKey": private_key,
+                "address": peer_ips,
+                "peers": [self._normalize_and_remove_none_values(peer)],
+                "mtu": inbound.wireguard_mtu,
+                "reserved": self._parse_wireguard_reserved(inbound.wireguard_reserved),
+                "domainStrategy": "ForceIP",
+            },
+        }
+
+        return self._normalize_and_remove_none_values(outbound)
 
     def _build_outbound(
         self,
@@ -601,3 +641,28 @@ class XrayConfiguration(BaseSubscription):
             ports = port.split(",")
             return int(choice(ports))
         return port
+
+    @staticmethod
+    def _parse_wireguard_reserved(reserved: str | None) -> list[int] | None:
+        """Parse WireGuard reserved bytes from common persisted string formats."""
+        if not reserved:
+            return None
+
+        raw = reserved.strip()
+        if not raw:
+            return None
+
+        if raw.startswith("[") and raw.endswith("]"):
+            raw = raw[1:-1]
+
+        values: list[int] = []
+        for part in raw.split(","):
+            piece = part.strip()
+            if not piece:
+                continue
+            try:
+                values.append(int(piece))
+            except ValueError:
+                return None
+
+        return values or None
