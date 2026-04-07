@@ -232,6 +232,12 @@ async def process_host(
     settings = proxies.get(inbound.protocol)
     if not settings:
         return
+    settings = dict(settings)
+
+    # Keep user id accessible for protocol-level dynamic allocation helpers.
+    user_id = proxies.get("_user_id")
+    if user_id is not None:
+        settings["_user_id"] = user_id
 
     # Handle flow: user settings have priority, fall back to inbound flow
     if "flow" in settings and settings["flow"] == "":
