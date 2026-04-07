@@ -90,3 +90,7 @@ async def validate_peer_ips_globally(
 
         if any(candidate.overlaps(used_ip) for used_ip in used_networks):
             raise ValueError(f"peer IP/network '{peer_ip}' overlaps with an existing user's peer network")
+
+        candidate_ip = ip_address(candidate.network_address)
+        if candidate_ip in SERVER_RESERVED:
+            raise ValueError(f"peer IP '{peer_ip}' is reserved for server use")
