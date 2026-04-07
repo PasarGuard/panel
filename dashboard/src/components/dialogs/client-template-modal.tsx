@@ -13,7 +13,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { ClientTemplateType, useCreateClientTemplate, useModifyClientTemplate } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
-import { FileCode2, Maximize2, Minimize2 } from 'lucide-react'
+import { Pencil, FileCode2, Maximize2, Minimize2 } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -337,7 +337,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
       <DialogContent className={cn('md:h-auto h-full w-full max-w-5xl', dir === 'rtl' && 'rtl')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileCode2 className="h-5 w-5" />
+            {editingTemplate ? <Pencil className="h-5 w-5" /> : <FileCode2 className="h-5 w-5" />}
             <span>{title}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">

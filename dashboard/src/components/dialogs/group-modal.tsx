@@ -9,7 +9,7 @@ import { useCreateGroup, useModifyGroup, useGetInbounds } from '@/service/api'
 import { toast } from 'sonner'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Users, X } from 'lucide-react'
+import { Pencil, Loader2, Users, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { queryClient } from '@/utils/query-client'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
@@ -71,7 +71,7 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
       <DialogContent onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
+            {editingGroup ? <Pencil className="h-5 w-5" /> : <Users className="h-5 w-5" />}
             <span>{editingGroup ? t('editGroup', { defaultValue: 'Edit Group' }) : t('createGroup')}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">Modify the group settings below</DialogDescription>

@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { useCreateAdmin, useModifyAdmin } from '@/service/api'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, UserCog } from 'lucide-react'
+import { ChevronDown, Pencil, UserCog } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -127,7 +127,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
       <DialogContent className="h-auto max-w-[750px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <UserCog className="h-5 w-5" />
+            {editingAdmin ? <Pencil className="h-5 w-5" /> : <UserCog className="h-5 w-5" />}
             <span>{editingAdmin ? t('admins.editAdmin') : t('admins.createAdmin')}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">

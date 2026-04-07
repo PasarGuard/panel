@@ -40,7 +40,7 @@ import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, User, Users } from 'lucide-react'
+import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, User, Users, Pencil } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -1469,7 +1469,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       <DialogContent className={`h-auto lg:min-w-[900px]`}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
+            {editingUser ? <Pencil className="h-5 w-5" /> : <User className="h-5 w-5" />}
             <span>{editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">{editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}</DialogDescription>

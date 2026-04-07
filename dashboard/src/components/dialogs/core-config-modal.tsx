@@ -1,7 +1,7 @@
 import { CopyButton } from '@/components/common/copy-button'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,7 +20,7 @@ import { generateWireGuardKeyPair } from '@/utils/wireguard'
 import { encodeURLSafe } from '@stablelib/base64'
 import { generateKeyPair } from '@stablelib/x25519'
 import { debounce } from 'es-toolkit'
-import { Info, Key, Maximize2, Minimize2, Sparkles, Shield } from 'lucide-react'
+import { Info, Key, Maximize2, Minimize2, Sparkles, Shield, Pencil } from 'lucide-react'
 import { MlKem768 } from 'mlkem'
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -1317,15 +1317,12 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       {renderResultDialog()}
       <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
         <DialogContent className="h-full w-full max-w-5xl md:h-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              <span>{editingCore ? t('coreConfigModal.editCore') : t('coreConfigModal.addConfig')}</span>
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              {editingCore ? t('coreConfigModal.editConfig', { defaultValue: 'Edit the core configuration' }) : t('coreConfigModal.createNewConfig')}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {editingCore ? <Pencil className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
+            <span>{editingCore ? t('coreConfigModal.editTitle') : t('coreConfigModal.addTitle')}</span>
+          </DialogTitle>
+        </DialogHeader>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

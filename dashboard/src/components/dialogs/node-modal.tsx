@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { CoresSimpleResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client'
-import { Loader2, RefreshCw, Settings } from 'lucide-react'
+import { Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -384,7 +384,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       <DialogContent className="h-full max-w-full focus:outline-none sm:max-w-[90vw] lg:h-auto lg:max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
+            {editingNode ? <Pencil className="h-5 w-5" /> : <Server className="h-5 w-5" />}
             <span>{editingNode ? t('editNode.title') : t('nodeModal.title')}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">{t('nodeModal.description', { defaultValue: 'Configure node settings and connection details.' })}</DialogDescription>
