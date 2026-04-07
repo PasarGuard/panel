@@ -510,12 +510,12 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
       </div>
 
       <Dialog open={isHeadersOpen} onOpenChange={setIsHeadersOpen}>
-        <DialogContent className="max-h-[100dvh] w-screen max-w-full gap-0 overflow-hidden p-0 sm:max-w-2xl" onOpenAutoFocus={e => e.preventDefault()}>
-          <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6 sm:py-5">
+        <DialogContent className="max-w-2xl" onOpenAutoFocus={e => e.preventDefault()}>
+          <DialogHeader>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
-                <DialogTitle className="text-base sm:text-lg">{t('settings.subscriptions.rules.responseHeaders')}</DialogTitle>
-                <DialogDescription className="mt-1 text-xs sm:text-sm">{t('settings.subscriptions.rules.responseHeadersDescription')}</DialogDescription>
+                <DialogTitle>{t('settings.subscriptions.rules.responseHeaders')}</DialogTitle>
+                <DialogDescription>{t('settings.subscriptions.rules.responseHeadersDescription')}</DialogDescription>
               </div>
               <Popover>
                 <PopoverTrigger asChild>
@@ -535,15 +535,15 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
             </div>
           </DialogHeader>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
-            <div className="flex justify-end pb-3 sm:pb-4">
-              <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={addResponseHeader}>
+          <div className="space-y-4 py-4">
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={addResponseHeader}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
                 {t('settings.subscriptions.rules.addHeader')}
               </Button>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            <div className="max-h-[60dvh] space-y-3 overflow-y-auto">
               {responseHeaderCount > 0 ? (
                 responseHeaderEntries.map(([headerKey, headerValue]) => (
                   <div key={`${id}-${headerKey}`} className="space-y-2 rounded-lg border bg-card/50 p-3">
@@ -552,7 +552,7 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
                         value={headerKey}
                         onChange={e => updateResponseHeaderName(headerKey, e.target.value)}
                         placeholder={t('settings.subscriptions.rules.headerName')}
-                        className="h-8 flex-1 border-muted bg-background/60 font-mono text-xs"
+                        className="font-mono text-xs"
                       />
                       <Button
                         type="button"
@@ -568,26 +568,24 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
                       value={headerValue}
                       onChange={e => updateResponseHeaderValue(headerKey, e.target.value)}
                       placeholder={t('settings.subscriptions.rules.headerValue')}
-                      className="min-h-[60px] resize-none border-muted bg-background/60 font-mono text-xs"
+                      className="min-h-[60px] resize-none font-mono text-xs"
                       rows={2}
                     />
                   </div>
                 ))
               ) : (
                 <div className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center">
-                  <p className="text-xs font-medium text-foreground sm:text-sm">{t('settings.subscriptions.rules.responseHeaders')}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
+                  <p className="text-sm font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="shrink-0 border-t bg-background px-4 py-3 sm:px-6 sm:py-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => setIsHeadersOpen(false)} className="w-full sm:w-auto">
-                {t('close', { defaultValue: 'Close' })}
-              </Button>
-            </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsHeadersOpen(false)}>
+              {t('close', { defaultValue: 'Close' })}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
