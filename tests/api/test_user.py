@@ -355,7 +355,10 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert parsed.hostname == endpoint
         assert parsed.port == 51820
         assert query["publickey"] == [interface_public_key]
-        assert query["address"] == [",".join(user["proxy_settings"]["wireguard"]["peer_ips"])]
+        assert "address" in query
+        dynamic_address = query["address"][0]
+        assert dynamic_address.startswith("10.30.0.")
+        assert dynamic_address.endswith("/32")
         assert query["allowedips"] == ["0.0.0.0/0,::/0"]
         assert unquote(parsed.fragment) == expected_remark
 
@@ -364,7 +367,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
 
         body = config_bodies[0]
         assert f"PrivateKey = {user['proxy_settings']['wireguard']['private_key']}" in body
-        assert f"Address = {', '.join(user['proxy_settings']['wireguard']['peer_ips'])}" in body
+        assert f"Address = {dynamic_address}" in body
         assert f"PublicKey = {interface_public_key}" in body
         assert "AllowedIPs = 0.0.0.0/0, ::/0" in body
         assert f"Endpoint = {endpoint}:51820" in body
@@ -434,7 +437,9 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
         assert outbound["tag"] == "proxy"
         settings = outbound["settings"]
         assert settings["secretKey"] == user["proxy_settings"]["wireguard"]["private_key"]
-        assert settings["address"] == user["proxy_settings"]["wireguard"]["peer_ips"]
+        assert settings["address"]
+        assert settings["address"][0].startswith("10.30.0.")
+        assert settings["address"][0].endswith("/32")
         assert settings["domainStrategy"] == "ForceIP"
         assert "mtu" not in settings
         peers = settings["peers"]
@@ -560,7 +565,9 @@ def test_singbox_subscription_includes_wireguard_outbound(access_token):
         assert wireguard_outbound["system_interface"] is True
         assert wireguard_outbound["interface_name"] == "wg0"
         assert wireguard_outbound["mtu"] == 1408
-        assert wireguard_outbound["local_address"] == user["proxy_settings"]["wireguard"]["peer_ips"]
+        assert wireguard_outbound["local_address"]
+        assert wireguard_outbound["local_address"][0].startswith("10.30.0.")
+        assert wireguard_outbound["local_address"][0].endswith("/32")
         assert wireguard_outbound["private_key"] == user["proxy_settings"]["wireguard"]["private_key"]
         assert wireguard_outbound["server"] == endpoint
         assert wireguard_outbound["server_port"] == 10001
@@ -1567,6 +1574,7 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
 
     user1 = None
     user2 = None
+    duplicate_user = None
 
     try:
         # Test 1: Try to create user with server IP (10.0.0.1) - should fail
@@ -1610,7 +1618,8 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
         assert peer_ip1.endswith("/32")
         assert peer_ip1 != "10.0.0.1/32"  # Should not be the reserved server IP
 
-        # Test 3: Try to create another user with the same IP - should fail
+        # Test 3: Manual peer_ip is validated only against stored/manual peer_ips.
+        # Dynamic subscription-generated addresses are not persisted in user proxy settings.
         response = client.post(
             "/api/user",
             headers=auth_headers(access_token),
@@ -1624,9 +1633,8 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
                 "group_ids": [group["id"]],
             },
         )
-        # Since peer_ips are dynamically generated, manually specifying a duplicate should be rejected
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "already in use" in response.json()["detail"]
+        assert response.status_code == status.HTTP_201_CREATED
+        duplicate_user = response.json()
 
         # Test 4: Create another user without specifying peer IPs - should get different IP dynamically
         user2 = create_user(
@@ -1655,6 +1663,8 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
             delete_user(access_token, user1["username"])
         if user2:
             delete_user(access_token, user2["username"])
+        if duplicate_user:
+            delete_user(access_token, duplicate_user["username"])
         delete_group(access_token, group["id"])
         client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])
