@@ -592,7 +592,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     { template_type: ClientTemplateType.xray_subscription, all: true },
     { query: { enabled: isDialogOpen } },
   )
-  const xrayTemplates = xrayTemplateData?.templates ?? []
+  const xrayTemplates = useMemo(
+    () => (xrayTemplateData?.templates ?? []).filter(template => !template.is_default),
+    [xrayTemplateData?.templates],
+  )
 
   // No automatic refresh when dialog opens - only fetch on specific actions
 

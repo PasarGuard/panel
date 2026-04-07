@@ -276,26 +276,30 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
             <span className="min-w-0 truncate">{t('nodeModal.resetUsage', { defaultValue: 'Reset' })}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              setShowUpdateCoreDialog(true)
-            }}
-            disabled={syncing || reconnecting || resettingUsage || updatingNode || isWireGuard}
-          >
-            <Package className="mr-2 h-4 w-4 shrink-0" />
-            <span className="min-w-0 truncate">{t('nodeModal.updateCore', { defaultValue: 'Update Core' })}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              setShowUpdateGeofilesDialog(true)
-            }}
-            disabled={syncing || reconnecting || resettingUsage || updatingNode || isWireGuard}
-          >
-            <Map className="mr-2 h-4 w-4 shrink-0" />
-            <span className="min-w-0 truncate">{t('nodeModal.updateGeofiles', { defaultValue: 'Update Geofiles' })}</span>
-          </DropdownMenuItem>
+          {!isWireGuard && (
+            <>
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.stopPropagation()
+                  setShowUpdateCoreDialog(true)
+                }}
+                disabled={syncing || reconnecting || resettingUsage || updatingNode}
+              >
+                <Package className="mr-2 h-4 w-4 shrink-0" />
+                <span className="min-w-0 truncate">{t('nodeModal.updateCore', { defaultValue: 'Update Core' })}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.stopPropagation()
+                  setShowUpdateGeofilesDialog(true)
+                }}
+                disabled={syncing || reconnecting || resettingUsage || updatingNode}
+              >
+                <Map className="mr-2 h-4 w-4 shrink-0" />
+                <span className="min-w-0 truncate">{t('nodeModal.updateGeofiles', { defaultValue: 'Update Geofiles' })}</span>
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuItem
             onSelect={e => {
               e.stopPropagation()

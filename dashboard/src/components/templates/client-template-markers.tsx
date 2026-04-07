@@ -24,16 +24,18 @@ export default function ClientTemplateMarkers({ isDefault, isSystem, className }
     : isDefault
       ? t('clientTemplates.default', { defaultValue: 'Default' })
       : t('clientTemplates.system', { defaultValue: 'System' })
+  const markerStyleClassName = isDefaultSystem
+    ? 'border-amber-300/70 bg-amber-100/80 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-300'
+    : isDefault
+      ? 'border-sky-300/70 bg-sky-100/80 text-sky-700 dark:border-sky-500/50 dark:bg-sky-500/15 dark:text-sky-300'
+      : 'border-violet-300/70 bg-violet-100/80 text-violet-700 dark:border-violet-500/50 dark:bg-violet-500/15 dark:text-violet-300'
 
   return (
     <TooltipProvider delayDuration={120}>
       <div className={cn('flex items-center gap-1', className)}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span
-              aria-label={label}
-              className={cn(baseMarkerClassName, 'border-border/60 bg-muted/70 text-foreground/80')}
-            >
+            <span aria-label={label} className={cn(baseMarkerClassName, markerStyleClassName)}>
               <Merge className="h-3 w-3 fill-current" />
             </span>
           </TooltipTrigger>
