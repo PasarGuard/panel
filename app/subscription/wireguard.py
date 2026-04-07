@@ -1,3 +1,6 @@
+import io
+import zipfile
+
 from app.models.subscription import SubscriptionInboundData
 
 from .base import BaseSubscription
@@ -6,7 +9,7 @@ from .base import BaseSubscription
 class WireGuardConfiguration(BaseSubscription):
     def __init__(self):
         self.proxy_remarks = []
-        self.configs: list[str] = []
+        self.configs: list[tuple[str, str]] = []
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         components = self._build_wireguard_components(remark, address, inbound, settings)
@@ -47,10 +50,19 @@ class WireGuardConfiguration(BaseSubscription):
 
         lines.append("")
         lines.append(f"# URI: {components['uri']}")
-        self.configs.append("\n".join(lines))
+        self.configs.append((components["remark"], "\n".join(lines)))
 
-    def render(self, reverse: bool = False):
+    def render(self, reverse: bool = False) -> bytes:
         configs = list(self.configs)
         if reverse:
             configs.reverse()
-        return "\n\n".join(configs)
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for remark, config_content in configs:
+                hostname = remark.replace(" ", "_").replace("/", "_")
+                filename = f"{hostname}.conf"
+                zip_file.writestr(filename, config_content)
+
+        zip_buffer.seek(0)
+        return zip_buffer.getvalue()

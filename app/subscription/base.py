@@ -17,7 +17,6 @@ class BaseSubscription:
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
     ):
-
         self.proxy_remarks = []
         user_agent_data = json.loads(render_template_string(user_agent_template_content))
         if "list" in user_agent_data and isinstance(user_agent_data["list"], list):

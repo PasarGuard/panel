@@ -308,7 +308,9 @@ class ClashConfiguration(BaseSubscription):
             "cipher": settings["method"],
         }
 
-    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict | None:
+    def _build_wireguard(
+        self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
+    ) -> dict | None:
         """Build WireGuard node for Clash Premium userspace WireGuard."""
         private_key = settings.get("private_key", "")
         peer_ips = self._get_wireguard_peer_ips(settings, inbound.inbound_tag)
@@ -491,7 +493,9 @@ class ClashMetaConfiguration(ClashConfiguration):
 
         return self._normalize_and_remove_none_values(node)
 
-    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict | None:
+    def _build_wireguard(
+        self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
+    ) -> dict | None:
         """Build WireGuard node using Clash.Meta's documented fields."""
         private_key = settings.get("private_key", "")
         peer_ips = self._get_wireguard_peer_ips(settings, inbound.inbound_tag)

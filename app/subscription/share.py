@@ -89,7 +89,7 @@ async def generate_subscription(
     as_base64: bool,
     reverse: bool = False,
     randomize_order: bool = False,
-) -> str:
+) -> str | bytes:
     client_templates = await subscription_client_templates()
     conf = _build_subscription_config(config_format, client_templates)
     if conf is None:
@@ -106,7 +106,7 @@ async def generate_subscription(
         randomize_order=randomize_order,
     )
 
-    if as_base64:
+    if as_base64 and not isinstance(config, bytes):
         config = base64.b64encode(config.encode()).decode()
 
     return config
@@ -341,7 +341,7 @@ async def process_inbounds_and_tags(
     client_templates: dict[str, str],
     reverse=False,
     randomize_order: bool = False,
-) -> list | str:
+) -> list | str | bytes:
     proxy_settings = user.proxy_settings.dict()
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
     if randomize_order and len(hosts) > 1:

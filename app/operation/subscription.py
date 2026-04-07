@@ -2,8 +2,7 @@ import re
 from json import dumps as json_dumps
 from datetime import datetime as dt
 from typing import Any
-import io
-import zipfile
+
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
@@ -23,14 +22,54 @@ from . import BaseOperation
 from .user import UserOperation
 
 client_config = {
-    ConfigFormat.clash_meta: {"config_format": "clash_meta", "media_type": "text/yaml", "as_base64": False},
-    ConfigFormat.clash: {"config_format": "clash", "media_type": "text/yaml", "as_base64": False},
-    ConfigFormat.sing_box: {"config_format": "sing_box", "media_type": "application/json", "as_base64": False},
-    ConfigFormat.links_base64: {"config_format": "links", "media_type": "text/plain", "as_base64": True},
-    ConfigFormat.links: {"config_format": "links", "media_type": "text/plain", "as_base64": False},
-    ConfigFormat.outline: {"config_format": "outline", "media_type": "application/json", "as_base64": False},
-    ConfigFormat.wireguard: {"config_format": "wireguard", "media_type": "text/plain", "as_base64": False},
-    ConfigFormat.xray: {"config_format": "xray", "media_type": "application/json", "as_base64": False},
+    ConfigFormat.clash_meta: {
+        "config_format": "clash_meta",
+        "media_type": "text/yaml",
+        "as_base64": False,
+        "extension": ".yaml",
+    },
+    ConfigFormat.clash: {
+        "config_format": "clash",
+        "media_type": "text/yaml",
+        "as_base64": False,
+        "extension": ".yaml",
+    },
+    ConfigFormat.sing_box: {
+        "config_format": "sing_box",
+        "media_type": "application/json",
+        "as_base64": False,
+        "extension": ".json",
+    },
+    ConfigFormat.links_base64: {
+        "config_format": "links",
+        "media_type": "text/plain",
+        "as_base64": True,
+        "extension": ".txt",
+    },
+    ConfigFormat.links: {
+        "config_format": "links",
+        "media_type": "text/plain",
+        "as_base64": False,
+        "extension": ".txt",
+    },
+    ConfigFormat.outline: {
+        "config_format": "outline",
+        "media_type": "application/json",
+        "as_base64": False,
+        "extension": ".json",
+    },
+    ConfigFormat.wireguard: {
+        "config_format": "wireguard",
+        "media_type": "application/zip",
+        "as_base64": False,
+        "extension": ".zip",
+    },
+    ConfigFormat.xray: {
+        "config_format": "xray",
+        "media_type": "application/json",
+        "as_base64": False,
+        "extension": ".json",
+    },
 }
 
 
@@ -87,6 +126,7 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings,
         inline: bool = False,
         extra_headers: dict[str, str] | None = None,
+        extension: str = "",
     ) -> dict:
         """Create response headers for subscription responses, including user subscription info."""
         # Generate user subscription info
@@ -109,7 +149,7 @@ class SubscriptionOperation(BaseOperation):
         disposition = "inline" if inline else "attachment"
 
         headers = {
-            "content-disposition": f'{disposition}; filename="{user.username}"',
+            "content-disposition": f'{disposition}; filename="{user.username}{extension}"',
             "profile-web-page-url": request_url,
             "support-url": support_url,
             "profile-title": encode_title(formatted_title),
@@ -258,6 +298,7 @@ class SubscriptionOperation(BaseOperation):
                 sub_settings,
                 inline=inline_view,
                 extra_headers=self._format_rule_response_headers(matched_rule, setup_format_variables(user)),
+                extension=client_config.get(client_type, {}).get("extension", "") if client_type else "",
             )
 
         # Create response with appropriate headers
@@ -275,54 +316,6 @@ class SubscriptionOperation(BaseOperation):
 
         return format_variables
 
-    async def _generate_wireguard_zip(
-        self, user: UsersResponseWithInbounds, request_url: str, sub_settings: SubSettings
-    ):
-        """Generate a zip file containing individual .conf files for each WireGuard host."""
-        from app.subscription.share import setup_format_variables
-        from app.subscription import WireGuardConfiguration
-        from app.core.hosts import host_manager
-        from app.subscription.share import filter_hosts, process_host
-
-        format_variables = setup_format_variables(user)
-        proxy_settings = user.proxy_settings.dict()
-        user_inbounds = user.inbounds or []
-        hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
-
-        wireguard_hosts = [h for h in hosts if h.protocol == "wireguard"]
-
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for host_data in wireguard_hosts:
-                result = await process_host(host_data, format_variables, user_inbounds, proxy_settings)
-                if not result:
-                    continue
-
-                inbound_copy, settings = result
-
-                remark = inbound_copy.remark.format_map(format_variables)
-                address = inbound_copy.address
-                if isinstance(address, list):
-                    address = address[0] if address else ""
-                formatted_address = address.format_map(format_variables) if isinstance(address, str) else str(address)
-
-                wireguard_conf = WireGuardConfiguration()
-                wireguard_conf.add(remark=remark, address=formatted_address, inbound=inbound_copy, settings=settings)
-
-                config_content = wireguard_conf.render()
-
-                hostname = remark.replace(" ", "_").replace("/", "_")
-                filename = f"{hostname}.conf"
-                zip_file.writestr(filename, config_content)
-
-        zip_buffer.seek(0)
-        zip_content = zip_buffer.getvalue()
-
-        response_headers = self.create_response_headers(user, request_url, sub_settings)
-        response_headers["content-disposition"] = f'attachment; filename="{user.username}.zip"'
-
-        return Response(content=zip_content, media_type="application/zip", headers=response_headers)
-
     async def user_subscription_with_client_type(
         self, db: AsyncSession, token: str, client_type: ConfigFormat, request_url: str = "", accept_header: str = ""
     ):
@@ -334,12 +327,9 @@ class SubscriptionOperation(BaseOperation):
         db_user = await self.get_validated_sub(db, token=token)
         user = await self.validated_user(db_user)
 
-        is_browser_request = "text/html" in accept_header
-
-        if client_type == ConfigFormat.wireguard and is_browser_request:
-            return await self._generate_wireguard_zip(user, request_url, sub_settings)
-
-        response_headers = self.create_response_headers(user, request_url, sub_settings)
+        response_headers = self.create_response_headers(
+            user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
+        )
         conf, media_type = await self.fetch_config(user, client_type)
 
         # Create response headers

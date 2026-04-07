@@ -61,7 +61,18 @@ class SingBoxConfiguration(BaseSubscription):
     def render(self, reverse=False):
         urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh"]
         urltest_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in urltest_types]
-        selector_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh", "wireguard", "urltest"]
+        selector_types = [
+            "vmess",
+            "vless",
+            "trojan",
+            "shadowsocks",
+            "hysteria2",
+            "tuic",
+            "http",
+            "ssh",
+            "wireguard",
+            "urltest",
+        ]
         selector_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in selector_types]
         endpoint_tags = [endpoint["tag"] for endpoint in self.config.get("endpoints", []) if endpoint.get("tag")]
         urltest_tags.extend(endpoint_tags)
@@ -340,7 +351,9 @@ class SingBoxConfiguration(BaseSubscription):
 
         return self._normalize_and_remove_none_values(config)
 
-    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict | None:
+    def _build_wireguard(
+        self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
+    ) -> dict | None:
         """Build WireGuard outbound for sing-box subscriptions."""
         private_key = settings.get("private_key", "")
         peer_ips = self._get_wireguard_peer_ips(settings, inbound.inbound_tag)

@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime as dt
 from typing import AsyncIterator, Callable
 
-from packaging.version import InvalidVersion, Version
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common import service_pb2 as service
 from sqlalchemy.exc import IntegrityError
