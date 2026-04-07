@@ -62,9 +62,7 @@ class XrayConfiguration(BaseSubscription):
         json_template["outbounds"] = outbounds + json_template["outbounds"]
         self.config.append(json_template)
 
-    def render(self, reverse=False):
-        if reverse:
-            self.config.reverse()
+    def render(self):
         return json.dumps(self.config, indent=4, cls=UUIDEncoder)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
