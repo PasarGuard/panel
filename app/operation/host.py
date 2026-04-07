@@ -2,6 +2,7 @@ import asyncio
 
 from app.db import AsyncSession
 from app.db.models import ProxyHost
+from app.models.client_template import ClientTemplateType
 from app.models.host import CreateHost, BaseHost
 from app.models.admin import AdminDetails
 from app.operation import BaseOperation
@@ -25,6 +26,14 @@ class HostOperation(BaseOperation):
     async def get_hosts(self, db: AsyncSession, offset: int = 0, limit: int = 0) -> list[BaseHost]:
         return await get_hosts(db=db, offset=offset, limit=limit)
 
+    async def validate_subscription_templates(self, db: AsyncSession, host: CreateHost) -> None:
+        if not host.subscription_templates or host.subscription_templates.xray is None:
+            return
+
+        db_template = await self.get_validated_client_template(db, host.subscription_templates.xray)
+        if db_template.template_type != ClientTemplateType.xray_subscription.value:
+            await self.raise_error("Selected template must be an Xray subscription template", 400, db=db)
+
     async def validate_ds_host(self, db: AsyncSession, host: CreateHost, host_id: int | None = None) -> ProxyHost:
         if (
             host.transport_settings
@@ -44,6 +53,7 @@ class HostOperation(BaseOperation):
                 return await self.raise_error("download host cannot have a download host", 400, db=db)
 
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
+        await self.validate_subscription_templates(db, new_host)
         await self.validate_ds_host(db, new_host)
 
         await self.check_host_inbound_tags([new_host.inbound_tag])
@@ -62,6 +72,7 @@ class HostOperation(BaseOperation):
     async def modify_host(
         self, db: AsyncSession, host_id: int, modified_host: CreateHost, admin: AdminDetails
     ) -> BaseHost:
+        await self.validate_subscription_templates(db, modified_host)
         await self.validate_ds_host(db, modified_host, host_id)
 
         if modified_host.inbound_tag:
@@ -95,6 +106,7 @@ class HostOperation(BaseOperation):
         self, db: AsyncSession, modified_hosts: list[CreateHost], admin: AdminDetails
     ) -> list[BaseHost]:
         for host in modified_hosts:
+            await self.validate_subscription_templates(db, host)
             await self.validate_ds_host(db, host, host.id)
 
             old_host: ProxyHost | None = None

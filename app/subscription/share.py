@@ -11,7 +11,7 @@ from app.core.hosts import host_manager
 from app.db.models import UserStatus
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
-from app.subscription.client_templates import subscription_client_templates
+from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
 from . import (
@@ -90,6 +90,7 @@ async def generate_subscription(
     randomize_order: bool = False,
 ) -> str | bytes:
     client_templates = await subscription_client_templates()
+    xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
     conf = _build_subscription_config(config_format, client_templates)
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')
@@ -101,6 +102,7 @@ async def generate_subscription(
         format_variables,
         conf,
         client_templates,
+        xray_template_overrides=xray_template_overrides,
         randomize_order=randomize_order,
     )
 
@@ -337,6 +339,7 @@ async def process_inbounds_and_tags(
     | OutlineConfiguration
     | WireGuardConfiguration,
     client_templates: dict[str, str],
+    xray_template_overrides: dict[int, str] | None = None,
     randomize_order: bool = False,
 ) -> list | str | bytes:
     proxy_settings = user.proxy_settings.dict()
@@ -368,12 +371,29 @@ async def process_inbounds_and_tags(
             if hasattr(inbound_copy.transport_config, "download_settings"):
                 inbound_copy.transport_config.download_settings = processed_download_settings
 
-        conf.add(
-            remark=remark,
-            address=formatted_address,
-            inbound=inbound_copy,
-            settings=settings,
-        )
+        if isinstance(conf, XrayConfiguration):
+            template_content = None
+            if (
+                xray_template_overrides is not None
+                and isinstance(inbound_copy.subscription_templates, dict)
+                and isinstance((template_id := inbound_copy.subscription_templates.get("xray")), int)
+            ):
+                template_content = xray_template_overrides.get(template_id)
+
+            conf.add(
+                remark=remark,
+                address=formatted_address,
+                inbound=inbound_copy,
+                settings=settings,
+                template_content=template_content,
+            )
+        else:
+            conf.add(
+                remark=remark,
+                address=formatted_address,
+                inbound=inbound_copy,
+                settings=settings,
+            )
 
     return conf.render()
 

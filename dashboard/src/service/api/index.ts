@@ -2048,6 +2048,14 @@ export type CreateHostInboundTag = string | null
 
 export type CreateHostId = number | null
 
+export type HostSubscriptionTemplatesXray = number | null
+
+export interface HostSubscriptionTemplates {
+  xray?: HostSubscriptionTemplatesXray
+}
+
+export type CreateHostSubscriptionTemplates = HostSubscriptionTemplates | null
+
 export interface CreateHost {
   id?: CreateHostId
   remark: string
@@ -2077,6 +2085,7 @@ export interface CreateHost {
   pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
   wireguard_overrides?: CreateHostWireguardOverrides
+  subscription_templates?: CreateHostSubscriptionTemplates
 }
 
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
@@ -2342,6 +2351,8 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
+export type BaseHostSubscriptionTemplates = HostSubscriptionTemplates | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -2371,6 +2382,7 @@ export interface BaseHost {
   pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
   wireguard_overrides?: BaseHostWireguardOverrides
+  subscription_templates?: BaseHostSubscriptionTemplates
 }
 
 export type BaseHostHttpHeadersAnyOf = { [key: string]: string }

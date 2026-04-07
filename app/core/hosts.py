@@ -90,6 +90,9 @@ async def _prepare_subscription_inbound_data(
             wireguard_reserved=reserved,
             priority=host.priority,
             status=list(host.status) if host.status else None,
+            subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
+            if host.subscription_templates
+            else None,
         )
 
     sni_list = list(host.sni) if host.sni else inbound_config.get("sni", [])
@@ -329,6 +332,9 @@ async def _prepare_subscription_inbound_data(
         finalmask=finalmask,
         priority=host.priority,
         status=list(host.status) if host.status else None,
+        subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
+        if host.subscription_templates
+        else None,
     )
 
 

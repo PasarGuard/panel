@@ -1,4 +1,5 @@
 import io
+import json
 import zipfile
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -12,15 +13,18 @@ from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_ke
 from tests.api import client
 from tests.api.helpers import (
     auth_headers,
+    create_client_template,
     create_core,
     create_group,
     create_hosts_for_inbounds,
     create_user,
     create_user_template,
+    delete_client_template,
     delete_core,
     delete_group,
     delete_user,
     delete_user_template,
+    get_inbounds,
     unique_name,
 )
 
@@ -444,6 +448,59 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
         client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_xray_subscription_uses_host_specific_template_override(access_token):
+    core = create_core(access_token)
+    inbound = get_inbounds(access_token)[0]
+    override_template = create_client_template(
+        access_token,
+        name=unique_name("xray_host_override_template"),
+        template_type="xray_subscription",
+        content=json.dumps(
+            {
+                "log": {"loglevel": "warning"},
+                "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+                "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
+            }
+        ),
+    )
+
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "Override Host {USERNAME}",
+            "address": ["198.51.100.50"],
+            "port": 443,
+            "sni": ["override-template.example.com"],
+            "inbound_tag": inbound,
+            "priority": 1,
+            "subscription_templates": {"xray": override_template["id"]},
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+
+    group = create_group(access_token, name=unique_name("xray_override_group"), inbound_tags=[inbound])
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("xray_override_user")})
+
+    try:
+        response = client.get(f"{user['subscription_url']}/xray")
+        assert response.status_code == status.HTTP_200_OK
+
+        configs = response.json()
+        assert isinstance(configs, list)
+        assert len(configs) == 1
+
+        outbounds = configs[0]["outbounds"]
+        assert any(outbound["tag"] == "template-marker" for outbound in outbounds)
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_client_template(access_token, override_template["id"])
         delete_core(access_token, core["id"])
 
 

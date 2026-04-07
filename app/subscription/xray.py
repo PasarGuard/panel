@@ -56,8 +56,9 @@ class XrayConfiguration(BaseSubscription):
             "wireguard": self._build_wireguard,
         }
 
-    def add_config(self, remarks, outbounds):
-        json_template = json.loads(self.template)
+    def add_config(self, remarks, outbounds, template_content: str | None = None):
+        rendered_template = render_template_string(template_content) if template_content is not None else self.template
+        json_template = json.loads(rendered_template)
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
         self.config.append(json_template)
@@ -65,7 +66,14 @@ class XrayConfiguration(BaseSubscription):
     def render(self):
         return json.dumps(self.config, indent=4, cls=UUIDEncoder)
 
-    def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+    def add(
+        self,
+        remark: str,
+        address: str,
+        inbound: SubscriptionInboundData,
+        settings: dict,
+        template_content: str | None = None,
+    ):
         """Add outbound using registry pattern"""
 
         # Get protocol handler from registry
@@ -87,7 +95,7 @@ class XrayConfiguration(BaseSubscription):
             # Shadowsocks returns just a dict
             all_outbounds = [result]
 
-        self.add_config(remarks=remark, outbounds=all_outbounds)
+        self.add_config(remarks=remark, outbounds=all_outbounds, template_content=template_content)
 
     # ========== Transport Handlers (Registry Methods) ==========
 

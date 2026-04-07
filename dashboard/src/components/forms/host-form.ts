@@ -93,6 +93,9 @@ export interface HostFormValues {
     reserved?: string
     keepalive_seconds?: number
   }
+  subscription_templates?: {
+    xray?: number
+  }
   transport_settings?: {
     xhttp_settings?: {
       mode?: 'auto' | 'packet-up' | 'stream-up' | 'stream-one'
@@ -439,6 +442,11 @@ export const HostFormSchema = z.object({
       keepalive_seconds: z.number().min(0).max(86400).optional(),
     })
     .optional(),
+  subscription_templates: z
+    .object({
+      xray: z.number().int().positive().optional(),
+    })
+    .optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -465,4 +473,5 @@ export const hostFormDefaultValues: HostFormValues = {
   pinned_peer_cert_sha256: undefined,
   verify_peer_cert_by_name: [],
   fragment_settings: undefined,
+  subscription_templates: undefined,
 }

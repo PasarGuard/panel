@@ -251,6 +251,17 @@ class WireGuardHostOverrides(BaseModel):
         return normalized or None
 
 
+class SubscriptionTemplates(BaseModel):
+    xray: int | None = Field(default=None, ge=1)
+
+    @field_validator("xray", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == "":
+            return None
+        return v
+
+
 class BaseHost(BaseModel):
     id: int | None = Field(default=None)
     remark: str
@@ -280,6 +291,7 @@ class BaseHost(BaseModel):
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
     wireguard_overrides: WireGuardHostOverrides | None = None
+    subscription_templates: SubscriptionTemplates | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -288,6 +300,13 @@ class BaseHost(BaseModel):
         if self.address:
             return ",".join(self.address)
         return ""
+
+    @field_validator("subscription_templates", mode="after")
+    @classmethod
+    def empty_subscription_templates_to_none(cls, value: SubscriptionTemplates | None):
+        if value is not None and value.xray is None:
+            return None
+        return value
 
 
 class CreateHost(BaseHost):

@@ -2,7 +2,15 @@ from fastapi import status
 
 from app.utils.crypto import generate_wireguard_keypair
 from tests.api import client
-from tests.api.helpers import create_core, delete_core, get_inbounds, unique_name
+from tests.api.helpers import (
+    auth_headers,
+    create_client_template,
+    create_core,
+    delete_client_template,
+    delete_core,
+    get_inbounds,
+    unique_name,
+)
 
 
 def test_host_create(access_token):
@@ -178,6 +186,66 @@ def test_wireguard_host_create(access_token):
             for host in hosts_response.json():
                 if host["inbound_tag"] == interface_name:
                     client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+
+
+def test_host_subscription_templates_create_and_update(access_token):
+    core = create_core(access_token)
+    inbound_list = get_inbounds(access_token)
+    assert inbound_list, "No inbounds available for host template override test"
+    inbound = inbound_list[0]
+    first_template = create_client_template(
+        access_token,
+        name=unique_name("host_xray_template_first"),
+        template_type="xray_subscription",
+        content='{"inbounds":[{"tag":"placeholder","protocol":"vmess","settings":{"clients":[]}}],"outbounds":[{"tag":"first-template-marker","protocol":"freedom","settings":{}}]}',
+    )
+    second_template = create_client_template(
+        access_token,
+        name=unique_name("host_xray_template_second"),
+        template_type="xray_subscription",
+        content='{"inbounds":[{"tag":"placeholder","protocol":"vmess","settings":{"clients":[]}}],"outbounds":[{"tag":"second-template-marker","protocol":"freedom","settings":{}}]}',
+    )
+
+    host_id = None
+    try:
+        create_response = client.post(
+            "/api/host",
+            headers=auth_headers(access_token),
+            json={
+                "remark": unique_name("test_host_subscription_template"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "sni": ["test_template_host.example.com"],
+                "inbound_tag": inbound,
+                "priority": 1,
+                "subscription_templates": {"xray": first_template["id"]},
+            },
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED
+        host_id = create_response.json()["id"]
+        assert create_response.json()["subscription_templates"] == {"xray": first_template["id"]}
+
+        update_response = client.put(
+            f"/api/host/{host_id}",
+            headers=auth_headers(access_token),
+            json={
+                "remark": unique_name("test_host_subscription_template_updated"),
+                "address": ["127.0.0.2"],
+                "port": 443,
+                "sni": ["test_template_host_updated.example.com"],
+                "inbound_tag": inbound,
+                "priority": 2,
+                "subscription_templates": {"xray": second_template["id"]},
+            },
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+        assert update_response.json()["subscription_templates"] == {"xray": second_template["id"]}
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_client_template(access_token, second_template["id"])
+        delete_client_template(access_token, first_template["id"])
         delete_core(access_token, core["id"])
 
 

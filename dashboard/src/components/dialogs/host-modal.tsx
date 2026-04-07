@@ -13,7 +13,7 @@ import { VariablesList, VariablesPopover } from '@/components/ui/variables-popov
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { UserStatus, getHosts } from '@/service/api'
+import { ClientTemplateType, UserStatus, getHosts, useGetClientTemplatesSimple } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
@@ -588,6 +588,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     enabled: isDialogOpen && isTransportOpen,
     select: (data: any[]) => data.filter((host: any) => host.id != null),
   })
+  const { data: xrayTemplateData, isLoading: isLoadingXrayTemplates } = useGetClientTemplatesSimple(
+    { template_type: ClientTemplateType.xray_subscription, all: true },
+    { query: { enabled: isDialogOpen } },
+  )
+  const xrayTemplates = xrayTemplateData?.templates ?? []
 
   // No automatic refresh when dialog opens - only fetch on specific actions
 
@@ -799,6 +804,72 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+
+              <FormField
+                control={form.control}
+                name="subscription_templates.xray"
+                render={({ field }) => {
+                  const hasSelectedTemplate =
+                    field.value != null && xrayTemplates.some(template => template.id === field.value)
+
+                  return (
+                    <FormItem>
+                      <div className="flex items-center gap-2">
+                        <FormLabel>{t('hostsDialog.xrayTemplate')}</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                            <p className="text-[11px] text-muted-foreground">{t('hostsDialog.xrayTemplateInfo')}</p>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <Select
+                        dir={dir}
+                        value={field.value != null ? String(field.value) : '__default__'}
+                        onValueChange={value => field.onChange(value === '__default__' ? undefined : Number.parseInt(value, 10))}
+                        disabled={isLoadingXrayTemplates}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="py-5">
+                            <SelectValue placeholder={isLoadingXrayTemplates ? t('loading', { defaultValue: 'Loading...' }) : t('hostsDialog.selectXrayTemplate')} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent dir={dir}>
+                          <SelectItem className="cursor-pointer px-4" value="__default__">
+                            {t('hostsDialog.inboundDefault')}
+                          </SelectItem>
+                          {isLoadingXrayTemplates ? (
+                            <SelectItem className="px-4" value="__loading_xray_templates__" disabled>
+                              <span className="flex items-center gap-2">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                {t('loading', { defaultValue: 'Loading...' })}
+                              </span>
+                            </SelectItem>
+                          ) : (
+                            <>
+                              {!hasSelectedTemplate && field.value != null ? (
+                                <SelectItem className="px-4" value={String(field.value)}>
+                                  {t('hostsDialog.unknownXrayTemplate', { id: field.value })}
+                                </SelectItem>
+                              ) : null}
+                              {xrayTemplates.map(template => (
+                                <SelectItem className="cursor-pointer px-4" key={template.id} value={String(template.id)}>
+                                  {template.name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
               />
 
               <FormField
