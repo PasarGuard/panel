@@ -60,11 +60,9 @@ class StandardLinks(BaseSubscription):
     def add_link(self, link):
         self.links.append(link)
 
-    def render(self, reverse=False):
+    def render(self):
         if EXTERNAL_CONFIG:
             self.links.append(EXTERNAL_CONFIG)
-        if reverse:
-            self.links.reverse()
         return "\n".join((self.links))
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):

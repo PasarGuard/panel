@@ -58,7 +58,7 @@ class SingBoxConfiguration(BaseSubscription):
     def add_endpoint(self, endpoint_data):
         self.config["endpoints"].append(endpoint_data)
 
-    def render(self, reverse=False):
+    def render(self):
         urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh"]
         urltest_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in urltest_types]
         selector_types = [
@@ -86,8 +86,6 @@ class SingBoxConfiguration(BaseSubscription):
             if outbound.get("type") == "selector":
                 outbound["outbounds"] = selector_tags
 
-        if reverse:
-            self.config["outbounds"].reverse()
         return json.dumps(self.config, indent=4, cls=UUIDEncoder)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):

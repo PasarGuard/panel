@@ -1,5 +1,7 @@
 import json
+
 from app.models.subscription import SubscriptionInboundData
+
 from .base import BaseSubscription
 
 
@@ -10,11 +12,7 @@ class OutlineConfiguration(BaseSubscription):
     def add_directly(self, data: dict):
         self.config.update(data)
 
-    def render(self, reverse=False):
-        if reverse:
-            items = list(self.config.items())
-            items.reverse()
-            self.config = dict(items)
+    def render(self):
         return json.dumps(self.config, indent=0)
 
     def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:

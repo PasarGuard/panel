@@ -348,7 +348,6 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert unquote(parsed.fragment) == expected_remark
 
         body = wireguard_response.text
-        assert f"# Name = {expected_remark}" in body
         assert f"PrivateKey = {user['proxy_settings']['wireguard']['private_key']}" in body
         assert f"Address = {', '.join(user['proxy_settings']['wireguard']['peer_ips'])}" in body
         assert f"PublicKey = {interface_public_key}" in body

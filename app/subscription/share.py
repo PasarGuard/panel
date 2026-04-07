@@ -11,8 +11,8 @@ from app.core.hosts import host_manager
 from app.db.models import UserStatus
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
-from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 from app.subscription.client_templates import subscription_client_templates
+from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
 from . import (
     ClashConfiguration,
@@ -87,7 +87,6 @@ async def generate_subscription(
     user: UsersResponseWithInbounds,
     config_format: str,
     as_base64: bool,
-    reverse: bool = False,
     randomize_order: bool = False,
 ) -> str | bytes:
     client_templates = await subscription_client_templates()
@@ -102,7 +101,6 @@ async def generate_subscription(
         format_variables,
         conf,
         client_templates,
-        reverse,
         randomize_order=randomize_order,
     )
 
@@ -339,7 +337,6 @@ async def process_inbounds_and_tags(
     | OutlineConfiguration
     | WireGuardConfiguration,
     client_templates: dict[str, str],
-    reverse=False,
     randomize_order: bool = False,
 ) -> list | str | bytes:
     proxy_settings = user.proxy_settings.dict()
@@ -378,7 +375,7 @@ async def process_inbounds_and_tags(
             settings=settings,
         )
 
-    return conf.render(reverse=reverse)
+    return conf.render()
 
 
 def encode_title(text: str) -> str:

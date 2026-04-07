@@ -58,10 +58,7 @@ class ClashConfiguration(BaseSubscription):
             "wireguard": self._build_wireguard,
         }
 
-    def render(self, reverse=False):
-        if reverse:
-            self.data["proxies"].reverse()
-
+    def render(self):
         yaml.add_representer(UUID, yml_uuid_representer)
         return yaml.dump(
             yaml.safe_load(

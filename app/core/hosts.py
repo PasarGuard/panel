@@ -54,50 +54,39 @@ async def _prepare_subscription_inbound_data(
     path = host.path or inbound_config.get("path", "")
 
     if protocol == "wireguard":
-        endpoint_addresses = list(host.address) if host.address else ["{SERVER_IP}"]
-
-        if host.port:
-            port_list = [host.port]
-        else:
-            listen_port = inbound_config.get("listen_port")
-            port_list = [listen_port] if listen_port else []
-
         wg_over: WireGuardHostOverrides | None = host.wireguard_overrides
-        if isinstance(wg_over, dict):
-            wg_over = WireGuardHostOverrides.model_validate(wg_over)
-
-        psk = inbound_config.get("pre_shared_key", "")
+        if wg_over is None:
+            wg_over = WireGuardHostOverrides()
 
         default_allowed = ["0.0.0.0/0", "::/0"]
         allowed_ips = (
             list(wg_over.allowed_ips)
-            if wg_over and wg_over.allowed_ips is not None and len(wg_over.allowed_ips) > 0
+            if wg_over.allowed_ips is not None and len(wg_over.allowed_ips) > 0
             else list(default_allowed)
         )
 
         keepalive = None
-        if wg_over and wg_over.keepalive_seconds is not None:
+        if wg_over.keepalive_seconds is not None:
             keepalive = wg_over.keepalive_seconds if wg_over.keepalive_seconds > 0 else None
 
-        mtu = wg_over.mtu if wg_over else None
-        reserved = wg_over.reserved.strip() if wg_over and wg_over.reserved else None
+        reserved = wg_over.reserved.strip() if wg_over.reserved else None
 
         return SubscriptionInboundData(
             remark=host.remark,
             inbound_tag=host.inbound_tag,
             protocol=protocol,
-            address=endpoint_addresses,
-            port=port_list,
+            address=list(host.address) if host.address else ["{SERVER_IP}"],
+            port=[host.port] if host.port else [inbound_config.get("listen_port")],
             network=network,
             tls_config=TLSConfig(),
             transport_config=TCPTransportConfig(path="", host=[]),
             mux_settings=None,
             wireguard_public_key=inbound_config.get("public_key", ""),
-            wireguard_pre_shared_key=psk,
+            wireguard_pre_shared_key=inbound_config.get("pre_shared_key", None),
             wireguard_local_address=inbound_config.get("address", []) or [],
             wireguard_allowed_ips=allowed_ips,
             wireguard_keepalive=keepalive,
-            wireguard_mtu=mtu,
+            wireguard_mtu=wg_over.mtu,
             wireguard_reserved=reserved,
             priority=host.priority,
             status=list(host.status) if host.status else None,
