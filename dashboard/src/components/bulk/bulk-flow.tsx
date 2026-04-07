@@ -27,7 +27,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Settings, Users2, User, Shield, CheckCircle, AlertTriangle, Plus, Minus, X, HardDrive, Calendar, Network, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Settings, Group, User, Shield, CheckCircle, AlertTriangle, Plus, Minus, X, HardDrive, Calendar, Network, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { SelectorPanel } from '@/components/bulk/selector-panel'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
@@ -559,7 +559,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                 <div className="space-y-4 sm:space-y-5">
                   <div className="space-y-2.5 sm:space-y-3">
                     <Label className="flex items-center gap-1.5 text-sm font-medium">
-                      <Users2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Group className="h-3.5 w-3.5 text-muted-foreground" />
                       {t('bulk.groups', { defaultValue: 'Groups' })}
                     </Label>
                     <div>
@@ -742,7 +742,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
                 {operationType === 'groups' ? (
                   <SelectorPanel
-                    icon={Users2}
+                    icon={Group}
                     title={t('bulk.selectHasGroups', { defaultValue: 'Select Has Groups' })}
                     items={filteredHasGroups}
                     selected={selectedHasGroups}
@@ -767,7 +767,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   />
                 ) : (
                   <SelectorPanel
-                    icon={Users2}
+                    icon={Group}
                     title={t('bulk.selectGroups', { defaultValue: 'Select Groups' })}
                     items={filteredGroups}
                     selected={selectedGroups}

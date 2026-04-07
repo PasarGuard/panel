@@ -1,7 +1,7 @@
 import PageHeader from '@/components/layout/page-header'
 import PageTransition from '@/components/layout/page-transition'
 import { getDocsUrl } from '@/utils/docs-url'
-import { Cpu, LucideIcon, Share2, Plus, FileText } from 'lucide-react'
+import { Cpu, LucideIcon, Share2, Plus, Logs } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
@@ -16,7 +16,7 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'nodes.title', label: 'nodes.title', icon: Share2, url: '/nodes' },
   { id: 'core', label: 'core', icon: Cpu, url: '/nodes/cores' },
-  { id: 'nodes.logs.title', label: 'nodes.logs.title', icon: FileText, url: '/nodes/logs' },
+  { id: 'nodes.logs.title', label: 'nodes.logs.title', icon: Logs, url: '/nodes/logs' },
 ]
 
 const Settings = () => {

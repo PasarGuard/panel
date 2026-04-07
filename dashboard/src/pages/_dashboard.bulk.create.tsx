@@ -23,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { 
   UserPlus, 
   Users, 
-  FileText, 
+  FileUser, 
   Hash,
   Sparkles,
   CheckCircle2,
@@ -226,7 +226,7 @@ export default function BulkCreateUsersPage() {
               </p>
             </div>
             <Button onClick={() => navigate('/templates/user')} size="lg">
-              <FileText className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              <FileUser className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
               {t('bulk.create.createTemplate')}
             </Button>
           </CardContent>
@@ -373,7 +373,7 @@ export default function BulkCreateUsersPage() {
           {/* Template Selection */}
           <div className="space-y-3">
             <Label htmlFor="template" className="flex items-center gap-2 text-sm font-medium">
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <FileUser className="h-4 w-4 text-muted-foreground" />
               {t('bulk.create.selectTemplate')}
             </Label>
             {templatesLoading ? (

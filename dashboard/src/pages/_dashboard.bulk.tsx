@@ -2,14 +2,14 @@ import PageHeader from '@/components/layout/page-header'
 import { useAdmin } from '@/hooks/use-admin'
 import PageTransition from '@/components/layout/page-transition'
 import { getDocsUrl } from '@/utils/docs-url'
-import { ArrowUpDown, Calendar, Lock, Users2, UserPlus } from 'lucide-react'
+import { ArrowUpDown, Calendar, Lock, Group, UserPlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
 const sudoTabs = [
   { id: 'create', label: 'bulk.createUsers', icon: UserPlus, url: '/bulk' },
-  { id: 'groups', label: 'bulk.groups', icon: Users2, url: '/bulk/groups' },
+  { id: 'groups', label: 'bulk.groups', icon: Group, url: '/bulk/groups' },
   { id: 'expire', label: 'bulk.expireDate', icon: Calendar, url: '/bulk/expire' },
   { id: 'data', label: 'bulk.dataLimit', icon: ArrowUpDown, url: '/bulk/data' },
   { id: 'proxy', label: 'bulk.proxySettings', icon: Lock, url: '/bulk/proxy' },

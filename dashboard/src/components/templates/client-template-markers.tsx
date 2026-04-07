@@ -1,6 +1,6 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { Crown } from 'lucide-react'
+import { Merge } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface ClientTemplateMarkersProps {
@@ -34,7 +34,7 @@ export default function ClientTemplateMarkers({ isDefault, isSystem, className }
               aria-label={label}
               className={cn(baseMarkerClassName, 'border-border/60 bg-muted/70 text-foreground/80')}
             >
-              <Crown className="h-3 w-3 fill-current" />
+              <Merge className="h-3 w-3 fill-current" />
             </span>
           </TooltipTrigger>
           <TooltipContent>{label}</TooltipContent>

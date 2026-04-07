@@ -1,7 +1,7 @@
 import PageHeader from '@/components/layout/page-header'
 import PageTransition from '@/components/layout/page-transition'
 import { getDocsUrl } from '@/utils/docs-url'
-import { LayoutTemplate, LucideIcon, Plus, User } from 'lucide-react'
+import { FileCode2, FileUser, LucideIcon, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
@@ -14,8 +14,8 @@ interface Tab {
 }
 
 const tabs: Tab[] = [
-  { id: 'templates.userTemplates', label: 'templates.userTemplates', icon: User, url: '/templates/user' },
-  { id: 'templates.clientTemplates', label: 'templates.clientTemplates', icon: LayoutTemplate, url: '/templates/client' },
+  { id: 'templates.userTemplates', label: 'templates.userTemplates', icon: FileUser, url: '/templates/user' },
+  { id: 'templates.clientTemplates', label: 'templates.clientTemplates', icon: FileCode2, url: '/templates/client' },
 ]
 
 export default function TemplatesLayout() {

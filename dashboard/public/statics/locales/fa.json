@@ -582,7 +582,7 @@
   "clientTemplates": {
     "title": "قالب‌های کلاینت",
     "description": "مدیریت قالب‌های اشتراک و عامل کاربر",
-    "addTemplate": "ایجاد قالب",
+    "addTemplate": "ایجاد قالب کلاینت",
     "editTemplate": "ویرایش قالب کلاینت",
     "templateType": "نوع قالب",
     "selectType": "انتخاب نوع",

@@ -20,7 +20,7 @@ import { generateWireGuardKeyPair } from '@/utils/wireguard'
 import { encodeURLSafe } from '@stablelib/base64'
 import { generateKeyPair } from '@stablelib/x25519'
 import { debounce } from 'es-toolkit'
-import { Info, Key, Maximize2, Minimize2, Sparkles, Shield, Pencil } from 'lucide-react'
+import { Info, Key, Maximize2, Minimize2, Sparkles, Shield, Pencil, Cpu } from 'lucide-react'
 import { MlKem768 } from 'mlkem'
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -1319,8 +1319,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         <DialogContent className="h-full w-full max-w-5xl md:h-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {editingCore ? <Pencil className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
-            <span>{editingCore ? t('coreConfigModal.editTitle') : t('coreConfigModal.addTitle')}</span>
+            {editingCore ? <Pencil className="h-5 w-5" /> : <Cpu className="h-5 w-5" />}
+            <span>{editingCore ? t('coreConfigModal.editCore') : t('coreConfigModal.addConfig')}</span>
           </DialogTitle>
         </DialogHeader>
 

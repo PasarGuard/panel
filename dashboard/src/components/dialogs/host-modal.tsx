@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { UserStatus, getHosts } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X } from 'lucide-react'
+import { Cable, Check, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -759,7 +759,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       <DialogContent className="h-auto w-full max-w-2xl" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {editingHost ? <Pencil className="h-5 w-5" /> : <Network className="h-5 w-5" />}
+            {editingHost ? <Pencil className="h-5 w-5" /> : <ListTodo className="h-5 w-5" />}
             <span>{editingHost ? t('editHost.title') : t('hostsDialog.addHost')}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">Modify the host settings below</DialogDescription>

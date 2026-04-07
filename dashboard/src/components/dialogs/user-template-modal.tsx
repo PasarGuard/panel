@@ -25,7 +25,7 @@ import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ChevronDown, FileText, Pencil } from 'lucide-react'
+import { ChevronDown, FileUser, Pencil } from 'lucide-react'
 import type { UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 
 interface UserTemplatesModalprops {
@@ -217,7 +217,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       <DialogContent className="h-auto max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {editingUserTemplate ? <Pencil className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+            {editingUserTemplate ? <Pencil className="h-5 w-5" /> : <FileUser className="h-5 w-5" />}
             <span>{editingUserTemplate ? t('editUserTemplateModal.title') : t('userTemplateModal.title')}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">

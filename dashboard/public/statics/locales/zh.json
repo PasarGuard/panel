@@ -694,7 +694,7 @@
   "clientTemplates": {
     "title": "客户端模板",
     "description": "管理订阅和用户代理模板",
-    "addTemplate": "创建模板",
+    "addTemplate": "创建客户端模板",
     "editTemplate": "编辑客户端模板",
     "templateType": "模板类型",
     "selectType": "选择类型",

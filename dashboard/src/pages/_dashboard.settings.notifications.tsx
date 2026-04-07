@@ -23,7 +23,8 @@ import {
   Globe,
   RotateCcw,
   UserCog,
-  Users2,
+  Group,
+  Cpu,
   ListTodo,
   Share2Icon,
   LayoutTemplate,
@@ -163,7 +164,7 @@ const notificationConfigs: NotificationPermissionConfig[] = [
   {
     key: 'core',
     translationKey: 'core',
-    icon: Settings,
+    icon: Cpu,
     subPermissions: [
       { key: 'create', translationKey: 'create' },
       { key: 'modify', translationKey: 'modify' },
@@ -173,7 +174,7 @@ const notificationConfigs: NotificationPermissionConfig[] = [
   {
     key: 'group',
     translationKey: 'group',
-    icon: Users2,
+    icon: Group,
     subPermissions: [
       { key: 'create', translationKey: 'create' },
       { key: 'modify', translationKey: 'modify' },
@@ -254,7 +255,7 @@ const channelTargets: Array<{
 }> = [
   { key: 'admin', translationKey: 'admin', icon: UserCog },
   { key: 'core', translationKey: 'core', icon: Settings },
-  { key: 'group', translationKey: 'group', icon: Users2 },
+  { key: 'group', translationKey: 'group', icon: Group },
   { key: 'host', translationKey: 'host', icon: ListTodo },
   { key: 'node', translationKey: 'node', icon: Share2Icon },
   { key: 'user', translationKey: 'user', icon: Users },

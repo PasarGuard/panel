@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Card, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { useTranslation } from 'react-i18next'
-import { UsersIcon, Users2, LayoutTemplate, ListTodo, Share2Icon, Cpu, UserCog, Bookmark } from 'lucide-react'
+import { UsersIcon, Group, LayoutTemplate, ListTodo, Share2Icon, Cpu, UserCog, Bookmark } from 'lucide-react'
 
 interface QuickAction {
   id: string
@@ -47,7 +47,7 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             id: '2',
             name: t('createGroup'),
             description: t('manageGroups'),
-            icon: <Users2 className="h-5 w-5" />,
+            icon: <Group className="h-5 w-5" />,
             action: onCreateGroup,
             disabled: false,
             category: 'users' as const,

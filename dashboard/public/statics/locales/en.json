@@ -694,7 +694,7 @@
   "clientTemplates": {
     "title": "Client Templates",
     "description": "Manage subscription and user-agent templates",
-    "addTemplate": "Create Template",
+    "addTemplate": "Create Client Template",
     "editTemplate": "Edit Client Template",
     "templateType": "Template Type",
     "selectType": "Select type",
