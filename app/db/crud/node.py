@@ -144,6 +144,9 @@ async def get_nodes(
     if limit:
         query = query.limit(limit)
 
+    # Order by created_at and id for consistent results
+    query = query.order_by(Node.created_at.asc(), Node.id.asc())
+
     db_nodes = (await db.execute(query)).scalars().all()
     for node in db_nodes:
         await load_node_attrs(node)

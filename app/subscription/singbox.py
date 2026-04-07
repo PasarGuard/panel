@@ -27,6 +27,8 @@ class SingBoxConfiguration(BaseSubscription):
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
         self.config = json.loads(render_template_string(singbox_template_content))
+        self.config.setdefault("endpoints", [])
+        self.config.setdefault("outbounds", [])
 
         # Registry for transport handlers
         self.transport_handlers = {
@@ -47,16 +49,23 @@ class SingBoxConfiguration(BaseSubscription):
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
+            "wireguard": self._build_wireguard,
         }
 
     def add_outbound(self, outbound_data):
         self.config["outbounds"].append(outbound_data)
 
+    def add_endpoint(self, endpoint_data):
+        self.config["endpoints"].append(endpoint_data)
+
     def render(self, reverse=False):
         urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh"]
         urltest_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in urltest_types]
-        selector_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh", "urltest"]
+        selector_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh", "wireguard", "urltest"]
         selector_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in selector_types]
+        endpoint_tags = [endpoint["tag"] for endpoint in self.config.get("endpoints", []) if endpoint.get("tag")]
+        urltest_tags.extend(endpoint_tags)
+        selector_tags.extend(endpoint_tags)
 
         for outbound in self.config["outbounds"]:
             if outbound.get("type") == "urltest":
@@ -145,13 +154,15 @@ class SingBoxConfiguration(BaseSubscription):
 
     def _transport_grpc(self, config: GRPCTransportConfig, path: str) -> dict:
         """Handle GRPC transport - only gets GRPC config"""
-        return self._normalize_and_remove_none_values({
-            "type": "grpc",
-            "service_name": path,
-            "idle_timeout": f"{config.idle_timeout}s" if config.idle_timeout else "15s",
-            "ping_timeout": f"{config.health_check_timeout}s" if config.health_check_timeout else "15s",
-            "permit_without_stream": config.permit_without_stream,
-        })
+        return self._normalize_and_remove_none_values(
+            {
+                "type": "grpc",
+                "service_name": path,
+                "idle_timeout": f"{config.idle_timeout}s" if config.idle_timeout else "15s",
+                "ping_timeout": f"{config.health_check_timeout}s" if config.health_check_timeout else "15s",
+                "permit_without_stream": config.permit_without_stream,
+            }
+        )
 
     def _transport_httpupgrade(self, config: WebSocketTransportConfig, path: str) -> dict:
         """Handle HTTPUpgrade transport - only gets WS config (similar to WS)"""
@@ -329,6 +340,48 @@ class SingBoxConfiguration(BaseSubscription):
 
         return self._normalize_and_remove_none_values(config)
 
+    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict | None:
+        """Build WireGuard outbound for sing-box subscriptions."""
+        private_key = settings.get("private_key", "")
+        peer_ips = self._get_wireguard_peer_ips(settings, inbound.inbound_tag)
+        public_key = inbound.wireguard_public_key
+        if not private_key or not peer_ips or not public_key:
+            return None
+
+        selected_port = self._select_port(inbound.port)
+        allowed_ips = inbound.wireguard_allowed_ips or ["0.0.0.0/0", "::/0"]
+        reserved = self._parse_wireguard_reserved(inbound.wireguard_reserved)
+
+        peer = {
+            "server": address,
+            "server_port": selected_port,
+            "public_key": public_key,
+            "pre_shared_key": inbound.wireguard_pre_shared_key or None,
+            "allowed_ips": allowed_ips,
+            "persistent_keepalive_interval": inbound.wireguard_keepalive,
+            "reserved": reserved,
+        }
+
+        outbound = {
+            "type": "wireguard",
+            "tag": remark,
+            "server": address,
+            "server_port": selected_port,
+            "system_interface": True,
+            "gso": True,
+            "interface_name": "wg0",
+            "mtu": inbound.wireguard_mtu,
+            "local_address": peer_ips,
+            "private_key": private_key,
+            "peer_public_key": public_key,
+            "pre_shared_key": inbound.wireguard_pre_shared_key or None,
+            "reserved": reserved,
+            "peers": [self._normalize_and_remove_none_values(peer)],
+            "workers": 4,
+        }
+
+        return self._normalize_and_remove_none_values(outbound)
+
     def _build_outbound(
         self,
         protocol_type: str,
@@ -404,3 +457,28 @@ class SingBoxConfiguration(BaseSubscription):
             ports = port.split(",")
             return int(choice(ports))
         return port
+
+    @staticmethod
+    def _parse_wireguard_reserved(reserved: str | None) -> list[int] | None:
+        """Parse WireGuard reserved bytes from common persisted string formats."""
+        if not reserved:
+            return None
+
+        raw = reserved.strip()
+        if not raw:
+            return None
+
+        if raw.startswith("[") and raw.endswith("]"):
+            raw = raw[1:-1]
+
+        values: list[int] = []
+        for part in raw.split(","):
+            piece = part.strip()
+            if not piece:
+                continue
+            try:
+                values.append(int(piece))
+            except ValueError:
+                return None
+
+        return values or None

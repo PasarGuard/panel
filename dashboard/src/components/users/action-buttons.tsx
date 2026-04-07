@@ -328,6 +328,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
         { protocol: 'links', link: `${subURL}/links`, icon: '🔗' },
         { protocol: 'links (base64)', link: `${subURL}/links_base64`, icon: '📝' },
         { protocol: 'xray', link: `${subURL}/xray`, icon: '⚡' },
+        { protocol: 'wireguard', link: `${subURL}/wireguard`, icon: '🛜' },
         { protocol: 'clash', link: `${subURL}/clash`, icon: '⚔️' },
         { protocol: 'clash-meta', link: `${subURL}/clash_meta`, icon: '🛡️' },
         { protocol: 'outline', link: `${subURL}/outline`, icon: '🔒' },
@@ -623,13 +624,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     }
   }
 
-  const handleCopyOrDownload = (link: string, type: string, icon: string) => {
-    if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
-      handleConfigDownload(link, type)
-    } else {
-      handleLinksCopy(link, type, icon)
-    }
+const handleCopyOrDownload = (link: string, type: string, icon: string) => {
+  if (type === 'wireguard') {
+    window.open(link, '_blank')
+  } else if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
+    handleConfigDownload(link, type)
+  } else {
+    handleLinksCopy(link, type, icon)
   }
+}
 
   return (
     <div onClick={renderActions ? (e => e.stopPropagation()) : undefined}>
@@ -693,7 +696,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               {/* QR Code */}
               <DropdownMenuItem onSelect={onOpenSubscriptionModal}>
                 <QrCode className="mr-2 h-4 w-4" />
-                <span>QR Code</span>
+                <span>{t('qrcodeDialog.title')}</span>
               </DropdownMenuItem>
 
               {/* Set Owner: only for sudo admins */}

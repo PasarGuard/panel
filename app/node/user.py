@@ -1,9 +1,14 @@
+import inspect
+
 from PasarGuardNodeBridge import create_proxy, create_user
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import and_, func, select
 
 from app.db import AsyncSession
 from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
+from app.models.proxy import get_all_wireguard_peer_ips
+
+_CREATE_PROXY_PARAMS = set(inspect.signature(create_proxy).parameters)
 
 
 def _inbounds_from_loaded_groups(user: User) -> list[str] | None:
@@ -46,19 +51,23 @@ def _serialize_user_for_node(id: int, username: str, user_settings: dict, inboun
     vless_settings = user_settings.get("vless", {})
     trojan_settings = user_settings.get("trojan", {})
     shadowsocks_settings = user_settings.get("shadowsocks", {})
+    wireguard_settings = user_settings.get("wireguard", {})
     hysteria_settings = user_settings.get("hysteria", {})
+    proxy_kwargs = {
+        "vmess_id": vmess_settings.get("id"),
+        "vless_id": vless_settings.get("id"),
+        "vless_flow": vless_settings.get("flow"),
+        "trojan_password": trojan_settings.get("password"),
+        "shadowsocks_password": shadowsocks_settings.get("password"),
+        "shadowsocks_method": shadowsocks_settings.get("method"),
+        "wireguard_public_key": wireguard_settings.get("public_key"),
+        "wireguard_peer_ips": get_all_wireguard_peer_ips(wireguard_settings),
+        "hysteria_auth": hysteria_settings.get("auth"),
+    }
 
     return create_user(
         f"{id}.{username}",
-        create_proxy(
-            vmess_id=vmess_settings.get("id"),
-            vless_id=vless_settings.get("id"),
-            vless_flow=vless_settings.get("flow"),
-            trojan_password=trojan_settings.get("password"),
-            shadowsocks_password=shadowsocks_settings.get("password"),
-            shadowsocks_method=shadowsocks_settings.get("method"),
-            hysteria_auth=hysteria_settings.get("auth"),
-        ),
+        create_proxy(**{key: value for key, value in proxy_kwargs.items() if key in _CREATE_PROXY_PARAMS}),
         inbounds,
     )
 

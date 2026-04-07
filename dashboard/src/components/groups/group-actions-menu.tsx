@@ -84,7 +84,7 @@ export default function GroupActionsMenu({ group, onEdit, onToggleStatus, classN
               <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'} dir={dir}>
+          <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
             <DropdownMenuItem
               onSelect={e => {
                 e.stopPropagation()

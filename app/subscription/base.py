@@ -4,8 +4,11 @@ import json
 import re
 from enum import Enum
 from typing import Any, Literal
+from urllib.parse import quote, urlencode
 
+from app.models.proxy import get_wireguard_peer_ips_for_inbound
 from app.templates import render_template_string
+from app.models.subscription import SubscriptionInboundData
 
 
 class BaseSubscription:
@@ -184,3 +187,48 @@ class BaseSubscription:
                     break
 
         return obfs_password, quic_params
+
+    @staticmethod
+    def _get_wireguard_peer_ips(settings: dict, inbound_tag: str) -> list[str]:
+        return get_wireguard_peer_ips_for_inbound(settings, inbound_tag)
+
+    def _build_wireguard_components(
+        self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
+    ) -> dict | None:
+        private_key = settings.get("private_key", "")
+        peer_ips = self._get_wireguard_peer_ips(settings, inbound.inbound_tag)
+        public_key = inbound.wireguard_public_key
+        if not private_key or not peer_ips or not public_key:
+            return None
+
+        validated_remark = self._remark_validation(remark)
+        self.proxy_remarks.append(validated_remark)
+
+        payload = {
+            "publickey": public_key,
+            "address": ",".join(peer_ips),
+        }
+
+        if inbound.wireguard_mtu:
+            payload["mtu"] = inbound.wireguard_mtu
+        if inbound.wireguard_allowed_ips:
+            payload["allowedips"] = ",".join(inbound.wireguard_allowed_ips)
+        if inbound.wireguard_keepalive:
+            payload["keepalive"] = inbound.wireguard_keepalive
+        if inbound.wireguard_reserved:
+            payload["reserved"] = inbound.wireguard_reserved
+        if inbound.wireguard_pre_shared_key:
+            payload["presharedkey"] = inbound.wireguard_pre_shared_key
+
+        payload = self._normalize_and_remove_none_values(payload)
+
+        return {
+            "remark": validated_remark,
+            "private_key": private_key,
+            "peer_ips": peer_ips,
+            "payload": payload,
+            "uri": (
+                f"wireguard://{quote(private_key, safe='')}@{address}:{inbound.port}/"
+                f"?{urlencode(payload)}#{quote(validated_remark)}"
+            ),
+        }

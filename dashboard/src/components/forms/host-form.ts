@@ -87,6 +87,12 @@ export interface HostFormValues {
     }[]
   }
   mux_settings?: MuxSettings
+  wireguard_overrides?: {
+    allowed_ips?: string[]
+    mtu?: number
+    reserved?: string
+    keepalive_seconds?: number
+  }
   transport_settings?: {
     xhttp_settings?: {
       mode?: 'auto' | 'packet-up' | 'stream-up' | 'stream-one'
@@ -425,6 +431,14 @@ export const HostFormSchema = z.object({
     })
     .optional(),
   transport_settings: transportSettingsSchema,
+  wireguard_overrides: z
+    .object({
+      allowed_ips: z.array(z.string()).optional(),
+      mtu: z.number().min(576).max(9000).optional(),
+      reserved: z.string().max(64).optional(),
+      keepalive_seconds: z.number().min(0).max(86400).optional(),
+    })
+    .optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {

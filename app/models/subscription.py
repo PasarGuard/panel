@@ -238,6 +238,15 @@ class SubscriptionInboundData(BaseModel):
     encryption: str = Field("none")
     vless_route: str | None = Field(default=None)
 
+    # WireGuard specific
+    wireguard_public_key: str = Field("")
+    wireguard_pre_shared_key: str = Field("")
+    wireguard_local_address: list[str] = Field(default_factory=list)
+    wireguard_allowed_ips: list[str] = Field(default_factory=list)
+    wireguard_keepalive: int | None = Field(default=None)
+    wireguard_mtu: int | None = Field(default=None)
+    wireguard_reserved: str | None = Field(default=None)
+
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")
     flow_enabled: bool = Field(False)  # Computed once: if this inbound supports flow

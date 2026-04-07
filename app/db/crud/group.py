@@ -220,7 +220,7 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
         Group: The updated Group object.
     """
 
-    if modified_group.inbound_tags:
+    if modified_group.inbound_tags is not None:
         inbounds = await get_inbounds_by_tags(db, modified_group.inbound_tags)
         db_group.inbounds = inbounds
     if db_group.name != modified_group.name:

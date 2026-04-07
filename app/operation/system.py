@@ -9,7 +9,7 @@ from app.db.crud.general import get_system_usage
 from app.db.crud.user import count_online_users, get_users_count_by_status
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
-from app.models.system import SystemStats
+from app.models.system import InboundSummary, SystemStats
 from app.utils.system import cpu_usage, disk_usage, memory_usage
 
 from . import BaseOperation
@@ -83,3 +83,20 @@ class SystemOperation(BaseOperation):
     @staticmethod
     async def get_inbounds() -> list[str]:
         return await core_manager.get_inbounds()
+
+    @staticmethod
+    async def get_inbound_details() -> list[InboundSummary]:
+        inbounds = await core_manager.get_inbounds_by_tag()
+        summaries: list[InboundSummary] = []
+        for tag, data in sorted(inbounds.items()):
+            protocol = data.get("protocol", "")
+            kwargs: dict = {"tag": tag, "protocol": protocol, "network": data.get("network")}
+            if protocol == "wireguard":
+                addrs = data.get("address")
+                kwargs["wireguard_public_key"] = data.get("public_key") or None
+                kwargs["wireguard_private_key"] = data.get("private_key") or None
+                kwargs["wireguard_pre_shared_key"] = data.get("pre_shared_key") or None
+                kwargs["wireguard_listen_port"] = data.get("listen_port")
+                kwargs["wireguard_addresses"] = list(addrs) if isinstance(addrs, list) else None
+            summaries.append(InboundSummary(**kwargs))
+        return summaries

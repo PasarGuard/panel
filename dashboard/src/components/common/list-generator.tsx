@@ -47,8 +47,8 @@ interface SortableListRowProps {
   rowId: string | number
   sortingDisabled: boolean
   renderRow: (props: {
-    attributes: Record<string, unknown>
-    listeners: Record<string, unknown> | undefined
+    attributes: ReturnType<typeof useSortable>['attributes']
+    listeners: ReturnType<typeof useSortable>['listeners']
     style: React.CSSProperties
   }) => React.ReactNode
 }
@@ -230,7 +230,11 @@ export function ListGenerator<T>({
           const rowId = getRowId(item)
           const isExpanded = hasMobileExpandableDetails && expandedRowId === rowId
 
-          const RowContent = (props?: { attributes?: any; listeners?: any; style?: React.CSSProperties }) => (
+          const RowContent = (props?: {
+            attributes?: ReturnType<typeof useSortable>['attributes']
+            listeners?: ReturnType<typeof useSortable>['listeners']
+            style?: React.CSSProperties
+          }) => (
             <div
               className={cn(
                 listTemplateClassName,

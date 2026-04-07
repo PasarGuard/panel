@@ -6,7 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Activity, Loader2, Map, MoreVertical, Package, Pencil, Power, RefreshCw, RotateCcw, Trash2, Wifi } from 'lucide-react'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
-import { NodeResponse, useReconnectNode, useRemoveNode, useResetNodeUsage, useSyncNode, useUpdateNode } from '@/service/api'
+import { CoresSimpleResponse, NodeResponse, useReconnectNode, useRemoveNode, useResetNodeUsage, useSyncNode, useUpdateNode } from '@/service/api'
 import useDirDetection from '@/hooks/use-dir-detection'
 import UserOnlineStatsDialog from '@/components/dialogs/user-online-stats-modal'
 import UpdateCoreDialog from '@/components/dialogs/update-core-modal'
@@ -16,6 +16,7 @@ interface NodeActionsMenuProps {
   node: NodeResponse
   onEdit: (node: NodeResponse) => void
   onToggleStatus: (node: NodeResponse) => Promise<void>
+  coresData?: CoresSimpleResponse
   className?: string
 }
 
@@ -69,7 +70,7 @@ const ResetUsageAlertDialog = ({ node, isOpen, onClose, onConfirm, isLoading }: 
   )
 }
 
-export default function NodeActionsMenu({ node, onEdit, onToggleStatus, className }: NodeActionsMenuProps) {
+export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresData, className }: NodeActionsMenuProps) {
   const { t } = useTranslation()
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isResetUsageDialogOpen, setResetUsageDialogOpen] = useState(false)
@@ -85,6 +86,8 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, classNam
   const reconnectNodeMutation = useReconnectNode()
   const resetNodeUsageMutation = useResetNodeUsage()
   const updateNodeMutation = useUpdateNode()
+
+  const isWireGuard = coresData?.cores?.find(core => core.id === node.core_config_id)?.type === 'wg'
 
   const handleDeleteClick = (event: Event) => {
     event.stopPropagation()
@@ -278,7 +281,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, classNam
               e.stopPropagation()
               setShowUpdateCoreDialog(true)
             }}
-            disabled={syncing || reconnecting || resettingUsage || updatingNode}
+            disabled={syncing || reconnecting || resettingUsage || updatingNode || isWireGuard}
           >
             <Package className="mr-2 h-4 w-4 shrink-0" />
             <span className="min-w-0 truncate">{t('nodeModal.updateCore', { defaultValue: 'Update Core' })}</span>
@@ -288,7 +291,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, classNam
               e.stopPropagation()
               setShowUpdateGeofilesDialog(true)
             }}
-            disabled={syncing || reconnecting || resettingUsage || updatingNode}
+            disabled={syncing || reconnecting || resettingUsage || updatingNode || isWireGuard}
           >
             <Map className="mr-2 h-4 w-4 shrink-0" />
             <span className="min-w-0 truncate">{t('nodeModal.updateGeofiles', { defaultValue: 'Update Geofiles' })}</span>

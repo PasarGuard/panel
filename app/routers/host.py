@@ -38,7 +38,7 @@ async def create_host(
     """
     create a new host
 
-    **inbound_tag** must be available in one of xray config
+    **inbound_tag** must be available in one of the configured cores
     """
     return await host_operator.create_host(db, new_host=new_host, admin=admin)
 
@@ -53,7 +53,7 @@ async def modify_host(
     """
     modify host by **id**
 
-    **inbound_tag** must be available in one of xray configs
+    **inbound_tag** must be available in one of the configured cores
     """
     return await host_operator.modify_host(db, host_id=host_id, modified_host=modified_host, admin=admin)
 

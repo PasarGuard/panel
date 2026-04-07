@@ -6,7 +6,7 @@ import { type HostListFilters, HostFilters } from '@/components/hosts/host-filte
 import { ListGenerator } from '@/components/common/list-generator'
 import { useHostsListColumns } from '@/components/hosts/use-hosts-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { BaseHost, CreateHost, createHost, modifyHosts, useGetInbounds } from '@/service/api'
+import { BaseHost, CreateHost, createHost, modifyHosts, useGetInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
@@ -59,7 +59,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
       is_disabled: filters.is_disabled,
     },
   })
-  const { data: inbounds = [], isLoading: isLoadingInbounds } = useGetInbounds()
+  const { data: inbounds = [], isLoading: isLoadingInbounds } = useGetInboundDetails()
 
   const refreshHostsData = () => {
     // Just invalidate the main query key used in the dashboard
@@ -291,6 +291,14 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               : undefined,
           }
         : undefined,
+      wireguard_overrides: host.wireguard_overrides
+        ? {
+            allowed_ips: host.wireguard_overrides.allowed_ips ?? [],
+            mtu: host.wireguard_overrides.mtu ?? undefined,
+            reserved: host.wireguard_overrides.reserved ?? '',
+            keepalive_seconds: host.wireguard_overrides.keepalive_seconds ?? undefined,
+          }
+        : undefined,
     }
     form.reset(formData)
     setEditingHost(host)
@@ -330,6 +338,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         mux_settings: host.mux_settings,
         transport_settings: host.transport_settings as any, // Type cast needed due to Output/Input mismatch
         http_headers: host.http_headers || {},
+        wireguard_overrides: host.wireguard_overrides ?? undefined,
       }
 
       await createHost(newHost)
@@ -559,6 +568,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                 : undefined,
             }
           : undefined,
+        wireguard_overrides: host.wireguard_overrides ?? undefined,
         http_headers: host.http_headers || {},
       }))
 
@@ -761,7 +771,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         onOpenChange={handleAdvanceSearchOpen}
         form={advanceSearchForm}
         onSubmit={handleAdvanceSearchSubmit}
-        inbounds={inbounds}
+        inbounds={inbounds.map(inbound => inbound.tag)}
         isLoadingInbounds={isLoadingInbounds}
       />
 
@@ -771,15 +781,16 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         onOpenChange={open => {
           if (!open) {
             setEditingHost(null)
-            form.reset(hostFormDefaultValues) // Reset to initial values when closing
+            form.reset(hostFormDefaultValues)
           } else if (!editingHost) {
-            // When opening for a new host, ensure form is reset to initial values
             form.reset(hostFormDefaultValues)
           }
           onAddHost(open)
         }}
         form={form}
         editingHost={!!editingHost}
+        inboundDetails={inbounds}
+        isLoadingInbounds={isLoadingInbounds}
       />
     </div>
   )

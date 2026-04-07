@@ -188,6 +188,7 @@ class ConfigFormat(str, Enum):
     links = "links"
     links_base64 = "links_base64"
     xray = "xray"
+    wireguard = "wireguard"
     sing_box = "sing_box"
     clash = "clash"
     clash_meta = "clash_meta"
@@ -205,6 +206,7 @@ class SubFormatEnable(BaseModel):
     links: bool = Field(default=True)
     links_base64: bool = Field(default=True)
     xray: bool = Field(default=True)
+    wireguard: bool = Field(default=True)
     sing_box: bool = Field(default=True)
     clash: bool = Field(default=True)
     clash_meta: bool = Field(default=True)

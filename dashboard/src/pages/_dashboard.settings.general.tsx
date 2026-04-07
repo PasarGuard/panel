@@ -166,16 +166,16 @@ export default function General() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col p-4 sm:py-6 lg:py-8">
           <div className="mb-4 sm:mb-6 lg:mb-8">
             {/* General Settings */}
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
                 name="default_flow"
                 render={({ field }) => (
                   <FormItem className="relative space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">{t('settings.general.defaultFlow.title')}</FormLabel>
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">{t('settings.general.defaultFlow.title')}</FormLabel>
                     <FormControl>
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger>
+                        <SelectTrigger className="text-xs sm:text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         {field.value && (
@@ -188,7 +188,7 @@ export default function General() {
                             .filter(Boolean)
                             .map(flow => {
                               return (
-                                <SelectItem value={flow} key={flow}>
+                                <SelectItem value={flow} key={flow} className="text-xs sm:text-sm">
                                   {flow}
                                 </SelectItem>
                               )
@@ -196,7 +196,7 @@ export default function General() {
                         </SelectContent>
                       </Select>
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.general.defaultFlow.description')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.defaultFlow.description')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -206,10 +206,10 @@ export default function General() {
                 name="default_method"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">{t('settings.general.defaultMethod.title')}</FormLabel>
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">{t('settings.general.defaultMethod.title')}</FormLabel>
                     <FormControl>
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger>
+                        <SelectTrigger className="text-xs sm:text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -217,7 +217,7 @@ export default function General() {
                             .filter(Boolean)
                             .map(flow => {
                               return (
-                                <SelectItem value={flow} key={flow}>
+                                <SelectItem value={flow} key={flow} className="text-xs sm:text-sm">
                                   {flow}
                                 </SelectItem>
                               )
@@ -225,7 +225,7 @@ export default function General() {
                         </SelectContent>
                       </Select>
                     </FormControl>
-                    <FormDescription className="text-sm text-muted-foreground">{t('settings.general.defaultMethod.description')}</FormDescription>
+                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.defaultMethod.description')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -233,15 +233,15 @@ export default function General() {
             </div>
           </div>
 
-          <Separator className="my-4" />
+          <Separator className="my-3" />
 
           {/* Reconnect All Nodes Section */}
-          <div className="flex flex-col md:flex-row gap-4 py-3 md:items-start md:justify-between">
+          <div className="flex flex-col gap-3 py-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-1">
-              <h3 className="text-sm font-medium">{t('nodes.title', { defaultValue: 'Reconnect All Nodes' })}</h3>
-              <p className="text-xs text-muted-foreground">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
+              <h3 className="text-base font-semibold sm:text-lg">{t('nodes.title', { defaultValue: 'Reconnect All Nodes' })}</h3>
+              <p className="text-xs text-muted-foreground sm:text-sm">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
             </div>
-            <Button variant="destructive" size="sm" type="button" onClick={() => setIsReconnectAllDialogOpen(true)} disabled={reconnectAllNodeMutation.isPending} className="shrink-0 gap-2">
+            <Button variant="destructive" size="sm" type="button" onClick={() => setIsReconnectAllDialogOpen(true)} disabled={reconnectAllNodeMutation.isPending} className="w-full shrink-0 gap-2 sm:w-auto">
               {reconnectAllNodeMutation.isPending ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -287,9 +287,9 @@ export default function General() {
           </AlertDialog>
 
           {/* Action Buttons */}
-          <div className="mt-auto flex flex-col gap-3 pt-6 sm:flex-row sm:gap-4">
+          <div className="mt-auto flex flex-col gap-2 pt-3 sm:flex-row sm:gap-3 sm:pt-6">
             <div className="flex-1"></div>
-            <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
+            <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row sm:gap-3">
               <Button type="button" variant="outline" onClick={handleCancel} className="w-full min-w-[100px] sm:w-auto" disabled={isSaving}>
                 {t('cancel')}
               </Button>

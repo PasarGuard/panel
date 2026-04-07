@@ -286,13 +286,6 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
-
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -310,6 +303,13 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -462,18 +462,6 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
-
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -497,10 +485,17 @@ export interface XHttpSettingsInput {
   download_settings?: XHttpSettingsInputDownloadSettings
 }
 
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
-}
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
 
 export type WorkerHealthError = string | null
 
@@ -510,6 +505,39 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
+}
+
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
+
+export type WireGuardSettingsPublicKey = string | null
+
+export type WireGuardSettingsPrivateKey = string | null
+
+export interface WireGuardSettings {
+  private_key?: WireGuardSettingsPrivateKey
+  public_key?: WireGuardSettingsPublicKey
+  peer_ips?: string[]
+}
+
+export type WireGuardHostOverridesKeepaliveSeconds = number | null
+
+export type WireGuardHostOverridesReserved = string | null
+
+export type WireGuardHostOverridesMtu = number | null
+
+export type WireGuardHostOverridesAllowedIps = string[] | null
+
+/**
+ * Optional per-host values merged into WireGuard subscription output.
+ */
+export interface WireGuardHostOverrides {
+  allowed_ips?: WireGuardHostOverridesAllowedIps
+  mtu?: WireGuardHostOverridesMtu
+  reserved?: WireGuardHostOverridesReserved
+  keepalive_seconds?: WireGuardHostOverridesKeepaliveSeconds
 }
 
 export interface WebhookInfo {
@@ -581,19 +609,19 @@ export const UsernameGenerationStrategy = {
 
 export type UserUsageStatsListPeriod = Period | null
 
-export interface UserUsageStat {
-  total_traffic: number
-  period_start: string
-}
-
-export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
-
 export interface UserUsageStatsList {
   period?: UserUsageStatsListPeriod
   start: string
   end: string
   stats: UserUsageStatsListStats
 }
+
+export interface UserUsageStat {
+  total_traffic: number
+  period_start: string
+}
+
+export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
 
 export type UserTemplateSimpleName = string | null
 
@@ -618,14 +646,6 @@ export type UserTemplateResponseIsDisabled = boolean | null
 export type UserTemplateResponseOnHoldTimeout = number | null
 
 export type UserTemplateResponseResetUsages = boolean | null
-
-export type UserStatusCreate = (typeof UserStatusCreate)[keyof typeof UserStatusCreate]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const UserStatusCreate = {
-  active: 'active',
-  on_hold: 'on_hold',
-} as const
 
 export type UserTemplateResponseStatus = UserStatusCreate | null
 
@@ -780,6 +800,14 @@ export type UserStatusModify = (typeof UserStatusModify)[keyof typeof UserStatus
 export const UserStatusModify = {
   active: 'active',
   disabled: 'disabled',
+  on_hold: 'on_hold',
+} as const
+
+export type UserStatusCreate = (typeof UserStatusCreate)[keyof typeof UserStatusCreate]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UserStatusCreate = {
+  active: 'active',
   on_hold: 'on_hold',
 } as const
 
@@ -1122,18 +1150,19 @@ export interface SubscriptionUserResponse {
   online_at?: SubscriptionUserResponseOnlineAt
 }
 
+export type SubRuleResponseHeaders = { [key: string]: unknown }
+
 export interface SubRule {
   pattern: string
   target: ConfigFormat
-  response_headers?: {
-    [key: string]: unknown
-  }
+  response_headers?: SubRuleResponseHeaders
 }
 
 export interface SubFormatEnable {
   links?: boolean
   links_base64?: boolean
   xray?: boolean
+  wireguard?: boolean
   sing_box?: boolean
   clash?: boolean
   clash_meta?: boolean
@@ -1279,6 +1308,7 @@ export interface ProxyTableOutput {
   vless?: VlessSettings
   trojan?: TrojanSettings
   shadowsocks?: ShadowsocksSettings
+  wireguard?: WireGuardSettings
   hysteria?: HysteriaSettings
 }
 
@@ -1287,6 +1317,7 @@ export interface ProxyTableInput {
   vless?: VlessSettings
   trojan?: TrojanSettings
   shadowsocks?: ShadowsocksSettings
+  wireguard?: WireGuardSettings
   hysteria?: HysteriaSettings
 }
 
@@ -1517,6 +1548,8 @@ export interface NodeSettings {
   min_node_version?: string
 }
 
+export type NodeResponseCoreVersion = string | null
+
 export type NodeResponseLifetimeDownlink = number | null
 
 export type NodeResponseLifetimeUplink = number | null
@@ -1565,6 +1598,7 @@ export interface NodeResponse {
   downlink?: number
   lifetime_uplink?: NodeResponseLifetimeUplink
   lifetime_downlink?: NodeResponseLifetimeDownlink
+  readonly core_version: NodeResponseCoreVersion
 }
 
 export interface NodeRealtimeStats {
@@ -1766,6 +1800,14 @@ export interface KCPSettings {
   write_buffer_size?: KCPSettingsWriteBufferSize
 }
 
+export type InboundSummaryNetwork = string | null
+
+export interface InboundSummary {
+  tag: string
+  protocol: string
+  network?: InboundSummaryNetwork
+}
+
 export interface HysteriaSettings {
   auth?: string
 }
@@ -1963,6 +2005,8 @@ export interface CreateUserFromTemplate {
   username: string
 }
 
+export type CreateHostWireguardOverrides = WireGuardHostOverrides | null
+
 export type CreateHostVerifyPeerCertByName = string[] | null
 
 export type CreateHostPinnedPeerCertSha256 = string | null
@@ -2031,14 +2075,26 @@ export interface CreateHost {
   ech_query_strategy?: CreateHostEchQueryStrategy
   pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
+  wireguard_overrides?: CreateHostWireguardOverrides
 }
 
+export type CoreType = (typeof CoreType)[keyof typeof CoreType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const CoreType = {
+  xray: 'xray',
+  wg: 'wg',
+  mtproto: 'mtproto',
+  singbox: 'singbox',
+} as const
+
 /**
- * Lightweight core model with only id and name for performance.
+ * Lightweight core model with only id, name and type for performance.
  */
 export interface CoreSimple {
   id: number
   name: string
+  type?: CoreType | null
 }
 
 /**
@@ -2049,25 +2105,30 @@ export interface CoresSimpleResponse {
   total: number
 }
 
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
+}
+
+export type CoreResponseType = CoreType | null
+
 export type CoreResponseConfig = { [key: string]: unknown }
 
 export interface CoreResponse {
   name: string
   config: CoreResponseConfig
+  type?: CoreResponseType
   exclude_inbound_tags: string[]
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
 }
 
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
-}
-
 export type CoreCreateFallbacksInboundTags = unknown[] | null
 
 export type CoreCreateExcludeInboundTags = unknown[] | null
+
+export type CoreCreateType = CoreType | null
 
 export type CoreCreateConfig = { [key: string]: unknown }
 
@@ -2076,6 +2137,7 @@ export type CoreCreateName = string | null
 export interface CoreCreate {
   name?: CoreCreateName
   config: CoreCreateConfig
+  type?: CoreCreateType
   exclude_inbound_tags?: CoreCreateExcludeInboundTags
   fallbacks_inbound_tags?: CoreCreateFallbacksInboundTags
 }
@@ -2091,6 +2153,7 @@ export const ConfigFormat = {
   links: 'links',
   links_base64: 'links_base64',
   xray: 'xray',
+  wireguard: 'wireguard',
   sing_box: 'sing_box',
   clash: 'clash',
   clash_meta: 'clash_meta',
@@ -2256,6 +2319,8 @@ export interface BaseNotificationEnable {
   delete?: boolean
 }
 
+export type BaseHostWireguardOverrides = WireGuardHostOverrides | null
+
 export type BaseHostVerifyPeerCertByName = string[] | null
 
 export type BaseHostPinnedPeerCertSha256 = string | null
@@ -2275,26 +2340,6 @@ export type BaseHostFragmentSettings = FragmentSettings | null
 export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export interface BaseHost {
   id?: BaseHostId
@@ -2324,7 +2369,28 @@ export interface BaseHost {
   ech_query_strategy?: BaseHostEchQueryStrategy
   pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
+  wireguard_overrides?: BaseHostWireguardOverrides
 }
+
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 
@@ -3493,6 +3559,60 @@ export function useGetInbounds<TData = Awaited<ReturnType<typeof getInbounds>>, 
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInbounds>>, TError, TData>>
 }): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetInboundsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Retrieve lightweight inbound metadata for dashboard forms.
+ * @summary Get Inbound Details
+ */
+export const getInboundDetails = (signal?: AbortSignal) => {
+  return orvalFetcher<InboundSummary[]>({ url: `/api/inbounds/details`, method: 'GET', signal })
+}
+
+export const getGetInboundDetailsQueryKey = () => {
+  return [`/api/inbounds/details`] as const
+}
+
+export const getGetInboundDetailsQueryOptions = <TData = Awaited<ReturnType<typeof getInboundDetails>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInboundDetails>>, TError, TData>>
+}) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetInboundDetailsQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getInboundDetails>>> = ({ signal }) => getInboundDetails(signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getInboundDetails>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetInboundDetailsQueryResult = NonNullable<Awaited<ReturnType<typeof getInboundDetails>>>
+export type GetInboundDetailsQueryError = ErrorType<Unauthorized>
+
+export function useGetInboundDetails<TData = Awaited<ReturnType<typeof getInboundDetails>>, TError = ErrorType<Unauthorized>>(options: {
+  query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInboundDetails>>, TError, TData>> &
+    Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getInboundDetails>>, TError, TData>, 'initialData'>
+}): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetInboundDetails<TData = Awaited<ReturnType<typeof getInboundDetails>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInboundDetails>>, TError, TData>> &
+    Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getInboundDetails>>, TError, TData>, 'initialData'>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetInboundDetails<TData = Awaited<ReturnType<typeof getInboundDetails>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInboundDetails>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Inbound Details
+ */
+
+export function useGetInboundDetails<TData = Awaited<ReturnType<typeof getInboundDetails>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInboundDetails>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetInboundDetailsQueryOptions(options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
@@ -4882,7 +5002,7 @@ export function useGetHost<TData = Awaited<ReturnType<typeof getHost>>, TError =
 /**
  * modify host by **id**
 
-**inbound_tag** must be available in one of xray configs
+**inbound_tag** must be available in one of the configured cores
  * @summary Modify Host
  */
 export const modifyHost = (hostId: number, createHost: BodyType<CreateHost>) => {
@@ -5079,7 +5199,7 @@ export const useModifyHosts = <TData = Awaited<ReturnType<typeof modifyHosts>>, 
 /**
  * create a new host
 
-**inbound_tag** must be available in one of xray config
+**inbound_tag** must be available in one of the configured cores
  * @summary Create Host
  */
 export const createHost = (createHost: BodyType<CreateHost>, signal?: AbortSignal) => {

@@ -55,6 +55,7 @@ class ClashConfiguration(BaseSubscription):
             "vmess": self._build_vmess,
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
+            "wireguard": self._build_wireguard,
         }
 
     def render(self, reverse=False):
@@ -148,7 +149,7 @@ class ClashConfiguration(BaseSubscription):
             "headers": {**http_headers, "Host": host} if http_headers else {"Host": host},
         }
         return self._normalize_and_remove_none_values(result)
-    
+
     def _transport_xhttp(self, config: XHTTPTransportConfig, path: str, random_user_agent: bool = False):
         """Build XHTTP transport config for Clash Meta"""
         host = config.host if isinstance(config.host, str) else ""
@@ -195,7 +196,7 @@ class ClashConfiguration(BaseSubscription):
     ):
         """Apply transport settings using registry"""
         network = inbound.network
-        
+
         # Normalize legacy splithttp -> xhttp
         if network == "splithttp":
             network = "xhttp"
@@ -307,6 +308,49 @@ class ClashConfiguration(BaseSubscription):
             "cipher": settings["method"],
         }
 
+    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict | None:
+        """Build WireGuard node for Clash Premium userspace WireGuard."""
+        private_key = settings.get("private_key", "")
+        peer_ips = self._get_wireguard_peer_ips(settings, inbound.inbound_tag)
+        public_key = inbound.wireguard_public_key
+        if not private_key or not peer_ips or not public_key:
+            return None
+
+        ipv4 = None
+        ipv6 = None
+        for peer_ip in peer_ips:
+            ip = peer_ip.split("/", 1)[0]
+            if ":" in ip and not ipv6:
+                ipv6 = ip
+            elif "." in ip and not ipv4:
+                ipv4 = ip
+
+        node = {
+            "name": remark,
+            "type": "wireguard",
+            "server": address,
+            "port": self._select_port(inbound.port),
+            "ip": ipv4,
+            "ipv6": ipv6,
+            "private-key": private_key,
+            "public-key": public_key,
+            "preshared-key": inbound.wireguard_pre_shared_key or None,
+            "mtu": inbound.wireguard_mtu,
+            "udp": True,
+        }
+
+        return self._normalize_and_remove_none_values(node)
+
+    @staticmethod
+    def _select_port(port: int | str) -> int:
+        """Normalize port values from subscription data."""
+        if isinstance(port, str):
+            try:
+                return int(port)
+            except ValueError:
+                return 0
+        return port
+
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         # not supported by clash
         if inbound.network in ("kcp", "splithttp", "xhttp"):
@@ -344,6 +388,7 @@ class ClashMetaConfiguration(ClashConfiguration):
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
+            "wireguard": self._build_wireguard,
         }
 
     def _apply_tls(self, node: dict, tls_config: TLSConfig, protocol: str):
@@ -445,6 +490,52 @@ class ClashMetaConfiguration(ClashConfiguration):
         self._apply_mux(node, inbound.mux_settings)
 
         return self._normalize_and_remove_none_values(node)
+
+    def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict | None:
+        """Build WireGuard node using Clash.Meta's documented fields."""
+        private_key = settings.get("private_key", "")
+        peer_ips = self._get_wireguard_peer_ips(settings, inbound.inbound_tag)
+        public_key = inbound.wireguard_public_key
+        if not private_key or not peer_ips or not public_key:
+            return None
+
+        ipv4 = None
+        ipv6 = None
+        for peer_ip in peer_ips:
+            ip = peer_ip.split("/", 1)[0]
+            if ":" in ip and not ipv6:
+                ipv6 = ip
+            elif "." in ip and not ipv4:
+                ipv4 = ip
+
+        node = {
+            "name": remark,
+            "type": "wireguard",
+            "server": address,
+            "port": self._select_port(inbound.port),
+            "ip": ipv4,
+            "ipv6": ipv6,
+            "private-key": private_key,
+            "public-key": public_key,
+            "allowed-ips": inbound.wireguard_allowed_ips or ["0.0.0.0/0", "::/0"],
+            "pre-shared-key": inbound.wireguard_pre_shared_key or None,
+            "reserved": self._parse_wireguard_reserved(inbound.wireguard_reserved),
+            "mtu": inbound.wireguard_mtu,
+            "udp": True,
+        }
+
+        return self._normalize_and_remove_none_values(node)
+
+    @staticmethod
+    def _parse_wireguard_reserved(reserved: str | None) -> list[int] | str | None:
+        if not reserved:
+            return None
+
+        parts = [part.strip() for part in reserved.split(",")]
+        if len(parts) == 3 and all(part.isdigit() for part in parts):
+            return [int(part) for part in parts]
+
+        return reserved
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         # not supported by clash-meta

@@ -41,7 +41,7 @@ async def remove_node(node: NodeResponse, by: str):
 
 async def connect_node(node: NodeNotification):
     data = messages.CONNECT_NODE.format(
-        name=escape(node.name), node_version=node.node_version, core_version=node.xray_version, id=node.id
+        name=escape(node.name), node_version=node.node_version, core_version=node.core_version, id=node.id
     )
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:

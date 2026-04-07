@@ -46,7 +46,7 @@ class HostOperation(BaseOperation):
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
         await self.validate_ds_host(db, new_host)
 
-        await self.check_inbound_tags([new_host.inbound_tag])
+        await self.check_host_inbound_tags([new_host.inbound_tag])
 
         db_host = await create_host(db, new_host)
 
@@ -65,7 +65,7 @@ class HostOperation(BaseOperation):
         await self.validate_ds_host(db, modified_host, host_id)
 
         if modified_host.inbound_tag:
-            await self.check_inbound_tags([modified_host.inbound_tag])
+            await self.check_host_inbound_tags([modified_host.inbound_tag])
 
         db_host = await self.get_validated_host(db, host_id)
 

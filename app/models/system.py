@@ -1,6 +1,12 @@
 from pydantic import BaseModel
 
 
+class InboundSummary(BaseModel):
+    tag: str
+    protocol: str
+    network: str | None = None
+
+
 class SystemStats(BaseModel):
     version: str
     mem_total: int | None = None

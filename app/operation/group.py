@@ -86,7 +86,7 @@ class GroupOperation(BaseOperation):
 
     async def modify_group(self, db: AsyncSession, group_id: int, modified_group: GroupModify, admin: Admin) -> Group:
         db_group = await self.get_validated_group(db, group_id)
-        if modified_group.inbound_tags:
+        if modified_group.inbound_tags is not None:
             await self.check_inbound_tags(modified_group.inbound_tags)
         db_group = await modify_group(db, db_group, modified_group)
 

@@ -4,7 +4,7 @@ from ipaddress import ip_address
 from uuid import UUID
 
 from cryptography.x509 import load_pem_x509_certificate
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
 
@@ -206,6 +206,11 @@ class NodeResponse(Node):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @computed_field
+    @property
+    def core_version(self) -> str | None:
+        return self.xray_version
+
 
 class NodesResponse(BaseModel):
     nodes: list[NodeResponse]
@@ -238,6 +243,11 @@ class NodeNotification(BaseModel):
     message: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def core_version(self) -> str | None:
+        return self.xray_version
 
 
 class UserIPList(BaseModel):

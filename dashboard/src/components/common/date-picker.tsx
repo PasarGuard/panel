@@ -24,32 +24,7 @@ export type DatePickerAlign = 'start' | 'center' | 'end'
 
 export type DatePickerSide = 'top' | 'right' | 'bottom' | 'left'
 
-export interface DatePickerProps {
-  /**
-   * Mode of the date picker: 'single' for single date selection, 'range' for date range selection
-   */
-  mode: DatePickerMode
-  /**
-   * Callback when date or range changes
-   */
-  onDateChange: (date: Date | undefined) => void
-  onRangeChange?: (range: DateRange | undefined) => void
-  /**
-   * Initial/controlled date value (for single mode)
-   */
-  date?: Date | null
-  /**
-   * Initial/controlled range value (for range mode)
-   */
-  range?: DateRange | undefined
-  /**
-   * Whether to show time input (only for single mode)
-   */
-  showTime?: boolean
-  /**
-   * Whether to use UTC timestamp (only for single mode with showTime)
-   */
-  useUtcTimestamp?: boolean
+interface BaseDatePickerProps {
   /**
    * Label for the date picker
    */
@@ -112,6 +87,55 @@ export interface DatePickerProps {
   side?: DatePickerSide
 }
 
+export type SingleDatePickerProps = BaseDatePickerProps & {
+  /**
+   * Mode of the date picker: 'single' for single date selection
+   */
+  mode: 'single'
+  /**
+   * Callback when date changes
+   */
+  onDateChange: (date: Date | undefined) => void
+  onRangeChange?: (range: DateRange | undefined) => void
+  /**
+   * Initial/controlled date value (for single mode)
+   */
+  date?: Date | null
+  range?: never
+  /**
+   * Initial/controlled range value (for range mode)
+   */
+  showTime?: boolean
+  /**
+   * Whether to use UTC timestamp (only for single mode with showTime)
+   */
+  useUtcTimestamp?: boolean
+}
+
+export type RangeDatePickerProps = BaseDatePickerProps & {
+  /**
+   * Mode of the date picker: 'range' for date range selection
+   */
+  mode: 'range'
+  /**
+   * Callback when range changes
+   */
+  onDateChange?: never
+  onRangeChange: (range: DateRange | undefined) => void
+  /**
+   * Initial/controlled date value (for single mode)
+   */
+  date?: never
+  /**
+   * Initial/controlled range value (for range mode)
+   */
+  range?: DateRange | undefined
+  showTime?: never
+  useUtcTimestamp?: never
+}
+
+export type DatePickerProps = SingleDatePickerProps | RangeDatePickerProps
+
 /**
  * Centralized Date Picker Component
  * Supports both single date and date range selection modes
@@ -144,6 +168,7 @@ export function DatePicker({
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const isRTL = dir === 'rtl'
+  const handleSingleDateChange = onDateChange ?? (() => undefined)
   const [datePreference, setDatePreference] = useState<DatePickerPreference>('locale')
   const isPersianCalendar = datePreference === 'persian' || (datePreference === 'locale' && i18n.language === 'fa')
   const isMobile = useIsMobile()
@@ -198,7 +223,7 @@ export function DatePicker({
     (selectedDate: Date | undefined) => {
       if (!selectedDate) {
         setInternalDate(undefined)
-        onDateChange(undefined)
+        handleSingleDateChange(undefined)
         onFieldChange?.(fieldName, undefined)
         return
       }
@@ -225,13 +250,13 @@ export function DatePicker({
 
       setInternalDate(selectedDate)
       const value = useUtcTimestamp ? toUnixSeconds(selectedDate) : formatOffsetDateTime(selectedDate)
-      onDateChange(selectedDate)
+      handleSingleDateChange(selectedDate)
       onFieldChange?.(fieldName, value)
       setTimeout(() => {
         setIsOpen(false)
       }, 0)
     },
-    [onDateChange, onFieldChange, fieldName, useUtcTimestamp, minDate, internalDate, showTime],
+    [handleSingleDateChange, onFieldChange, fieldName, useUtcTimestamp, minDate, internalDate],
   )
 
   const handleDateSelectWrapper = useCallback(
@@ -257,11 +282,11 @@ export function DatePicker({
 
         const value = useUtcTimestamp ? toUnixSeconds(newDate) : formatOffsetDateTime(newDate)
         setInternalDate(newDate)
-        onDateChange(newDate)
+        handleSingleDateChange(newDate)
         onFieldChange?.(fieldName, value)
       }
     },
-    [internalDate, onDateChange, onFieldChange, fieldName, useUtcTimestamp],
+    [internalDate, handleSingleDateChange, onFieldChange, fieldName, useUtcTimestamp],
   )
 
   const handleRangeSelect = useCallback(
@@ -313,10 +338,10 @@ export function DatePicker({
 
     const clearDate = useCallback(() => {
         setInternalDate(undefined)
-        onDateChange(undefined)
+        handleSingleDateChange(undefined)
         onFieldChange?.(fieldName, undefined)
       }, 
-      [onDateChange, onFieldChange, fieldName],
+      [handleSingleDateChange, onFieldChange, fieldName],
     )
 
     const handleClearClick = useCallback(

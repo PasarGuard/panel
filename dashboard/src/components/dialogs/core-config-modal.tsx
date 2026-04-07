@@ -16,6 +16,7 @@ import { useCreateCoreConfig, useModifyCoreConfig } from '@/service/api'
 import { isEmptyObject } from '@/utils/isEmptyObject.ts'
 import { generateMldsa65 } from '@/utils/mldsa65'
 import { queryClient } from '@/utils/query-client'
+import { generateWireGuardKeyPair } from '@/utils/wireguard'
 import { encodeURLSafe } from '@stablelib/base64'
 import { generateKeyPair } from '@stablelib/x25519'
 import { debounce } from 'es-toolkit'
@@ -26,7 +27,7 @@ import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useTheme } from '@/components/common/theme-provider'
-import type { CoreConfigFormValues } from '@/components/forms/core-config-form'
+import type { CoreBackendType, CoreConfigFormValues } from '@/components/forms/core-config-form'
 
 interface CoreConfigModalProps {
   isDialogOpen: boolean
@@ -92,6 +93,60 @@ const createDefaultVlessOptions = (): VlessBuilderOptions => ({
   includeClientPadding: false,
 })
 
+const defaultXrayConfig = JSON.stringify(
+  {
+    log: {
+      loglevel: 'info',
+    },
+    inbounds: [
+      {
+        tag: 'Shadowsocks TCP',
+        listen: '0.0.0.0',
+        port: 1080,
+        protocol: 'shadowsocks',
+        settings: {
+          clients: [],
+          network: 'tcp,udp',
+        },
+      },
+    ],
+    outbounds: [
+      {
+        protocol: 'freedom',
+        tag: 'DIRECT',
+      },
+      {
+        protocol: 'blackhole',
+        tag: 'BLOCK',
+      },
+    ],
+    routing: {
+      rules: [
+        {
+          ip: ['geoip:private'],
+          outboundTag: 'BLOCK',
+          type: 'field',
+        },
+      ],
+    },
+  },
+  null,
+  2,
+)
+
+const defaultWireGuardConfig = JSON.stringify(
+  {
+    interface_name: 'wg0',
+    private_key: 'REPLACE_WITH_SERVER_PRIVATE_KEY',
+    listen_port: 51820,
+    address: ['10.8.0.1/24'],
+  },
+  null,
+  2,
+)
+
+const getDefaultCoreConfigString = (backendType: CoreBackendType) => (backendType === 'wg' ? defaultWireGuardConfig : defaultXrayConfig)
+
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
 const MobileJsonAceEditor = lazy(() => import('@/components/common/mobile-json-ace-editor'))
 
@@ -100,6 +155,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const dir = useDirDetection()
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
+  const backendType = (form.watch('type') ?? 'xray') as CoreBackendType
+  const isXrayBackend = backendType !== 'wg'
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
   const [isEditorReady, setIsEditorReady] = useState(false)
   const createCoreMutation = useCreateCoreConfig()
@@ -124,6 +181,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
   // Store generated values
   const [generatedKeyPair, setGeneratedKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null)
+  const [generatedWireGuardKeyPair, setGeneratedWireGuardKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null)
   const [generatedShortId, setGeneratedShortId] = useState<string | null>(null)
   const [generatedShadowsocksPassword, setGeneratedShadowsocksPassword] = useState<{ password: string; encryptionMethod: string } | null>(null)
   const [generatedMldsa65, setGeneratedMldsa65] = useState<{ seed: string; verify: string } | null>(null)
@@ -157,29 +215,26 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     [editorInstance],
   )
 
-  const validateJsonContent = useCallback(
-    (value: string, showToast = false) => {
-      try {
-        JSON.parse(value)
-        setValidation({ isValid: true })
-        return true
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Invalid JSON'
-        setValidation({
-          isValid: false,
-          error: errorMessage,
+  const validateJsonContent = useCallback((value: string, showToast = false) => {
+    try {
+      JSON.parse(value)
+      setValidation({ isValid: true })
+      return true
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Invalid JSON'
+      setValidation({
+        isValid: false,
+        error: errorMessage,
+      })
+      if (showToast) {
+        toast.error(errorMessage, {
+          duration: 3000,
+          position: 'bottom-right',
         })
-        if (showToast) {
-          toast.error(errorMessage, {
-            duration: 3000,
-            position: 'bottom-right',
-          })
-        }
-        return false
       }
-    },
-    [],
-  )
+      return false
+    }
+  }, [])
 
   // Handle fullscreen toggle with editor resize
   const handleToggleFullscreen = useCallback(() => {
@@ -229,7 +284,11 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     debounce((value: string) => {
       try {
         const parsedConfig = JSON.parse(value)
-        if (parsedConfig.inbounds && Array.isArray(parsedConfig.inbounds)) {
+        const selectedBackendType = (form.getValues('type') ?? 'xray') as CoreBackendType
+        if (selectedBackendType === 'wg') {
+          const interfaceName = typeof parsedConfig.interface_name === 'string' ? parsedConfig.interface_name.trim() : ''
+          setInboundTags(interfaceName ? [interfaceName] : [])
+        } else if (parsedConfig.inbounds && Array.isArray(parsedConfig.inbounds)) {
           const tags = parsedConfig.inbounds.filter((inbound: any) => typeof inbound.tag === 'string' && inbound.tag.trim() !== '').map((inbound: any) => inbound.tag)
           setInboundTags(tags)
         } else {
@@ -239,7 +298,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         setInboundTags([])
       }
     }, 300),
-    [],
+    [form],
   )
 
   // Extract inbound tags from config JSON whenever config changes
@@ -248,7 +307,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     if (configValue) {
       debouncedConfigChange(configValue)
     }
-  }, [form.watch('config'), debouncedConfigChange])
+  }, [form.watch('config'), backendType, debouncedConfigChange])
 
   const handleEditorDidMount = useCallback((editor: any) => {
     setIsEditorReady(true)
@@ -448,46 +507,32 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     }
   }
 
-  const defaultConfig = JSON.stringify(
-    {
-      log: {
-        loglevel: 'info',
-      },
-      inbounds: [
-        {
-          tag: 'Shadowsocks TCP',
-          listen: '0.0.0.0',
-          port: 1080,
-          protocol: 'shadowsocks',
-          settings: {
-            clients: [],
-            network: 'tcp,udp',
-          },
-        },
-      ],
-      outbounds: [
-        {
-          protocol: 'freedom',
-          tag: 'DIRECT',
-        },
-        {
-          protocol: 'blackhole',
-          tag: 'BLOCK',
-        },
-      ],
-      routing: {
-        rules: [
-          {
-            ip: ['geoip:private'],
-            outboundTag: 'BLOCK',
-            type: 'field',
-          },
-        ],
-      },
-    },
-    null,
-    2,
-  )
+  const applyBackendTemplate = useCallback((nextBackendType: CoreBackendType) => {
+    const defaultTemplate = getDefaultCoreConfigString(nextBackendType)
+    form.setValue('config', defaultTemplate, { shouldDirty: true, shouldValidate: true })
+    validateJsonContent(defaultTemplate)
+    debouncedConfigChange(defaultTemplate)
+  }, [debouncedConfigChange, form, validateJsonContent])
+
+  const generateWireGuardKeys = useCallback(() => {
+    try {
+      const keyPair = generateWireGuardKeyPair()
+      setGeneratedWireGuardKeyPair(keyPair)
+      showResultDialog('wireguardKeyPair', keyPair)
+      toast.success(t('coreConfigModal.wireguardKeyPairGenerated', { defaultValue: 'WireGuard keypair generated' }))
+    } catch (error) {
+      toast.error(t('coreConfigModal.wireguardKeyPairGenerationFailed', { defaultValue: 'Failed to generate WireGuard keypair' }))
+    }
+  }, [showResultDialog, t])
+
+  const viewWireGuardKeys = useCallback(() => {
+    if (generatedWireGuardKeyPair) {
+      showResultDialog('wireguardKeyPair', generatedWireGuardKeyPair)
+      return
+    }
+
+    generateWireGuardKeys()
+  }, [generateWireGuardKeys, generatedWireGuardKeyPair, showResultDialog])
 
   const onSubmit = async (values: CoreConfigFormValues) => {
     try {
@@ -505,8 +550,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         return
       }
 
-      const fallbackTags = values.fallback_id || []
-      const excludeInboundTags = values.excluded_inbound_ids || []
+      const backendType = values.type ?? 'xray'
+      const fallbackTags = backendType !== 'wg' ? values.fallback_id || [] : []
+      const excludeInboundTags = backendType !== 'wg' ? values.excluded_inbound_ids || [] : []
 
       if (editingCore && editingCoreId) {
         // Update existing core
@@ -514,6 +560,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           coreId: editingCoreId,
           data: {
             name: values.name,
+            type: backendType,
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
             exclude_inbound_tags: excludeInboundTags,
@@ -527,6 +574,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         await createCoreMutation.mutateAsync({
           data: {
             name: values.name,
+            type: backendType,
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
             exclude_inbound_tags: excludeInboundTags,
@@ -556,7 +604,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       // Handle validation errors
       if (error?.response?._data && !isEmptyObject(error?.response?._data)) {
         // For zod validation errors
-        const fields = ['name', 'config', 'fallback_id', 'excluded_inbound_ids']
+        const fields = ['name', 'type', 'config', 'fallback_id', 'excluded_inbound_ids']
 
         // Show first error in a toast
         if (error?.response?._data?.detail) {
@@ -639,7 +687,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         // Reset form for new core
         form.reset({
           name: '',
-          config: defaultConfig,
+          type: 'xray',
+          config: getDefaultCoreConfigString('xray'),
           excluded_inbound_ids: [],
           fallback_id: [],
           restart_nodes: true,
@@ -647,6 +696,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       } else {
         // Set restart_nodes to true for editing
         form.setValue('restart_nodes', true)
+        if (!form.getValues('type')) {
+          form.setValue('type', 'xray')
+        }
       }
 
       // Force editor resize on mobile after modal opens
@@ -660,7 +712,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         }
       }, 300)
     }
-  }, [isDialogOpen, editingCore, form, defaultConfig, isMobile])
+  }, [isDialogOpen, editingCore, form, isMobile])
 
   // Cleanup on modal close
   useEffect(() => {
@@ -861,14 +913,14 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const renderVlessAdvancedModal = () => {
     return (
       <Dialog open={isVlessAdvancedModalOpen} onOpenChange={setIsVlessAdvancedModalOpen}>
-        <DialogContent className="max-w-full h-auto sm:max-w-2xl">
+        <DialogContent className="h-auto max-w-full sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               <span className="truncate">{t('coreConfigModal.vlessAdvancedSettings', { defaultValue: 'VLESS Advanced Settings' })}</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh] space-y-4 overflow-y-auto">
+          <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
             {/* Variant Selector */}
             <div className="space-y-2">
               <Label className="text-xs font-semibold tracking-wide text-muted-foreground">{t('coreConfigModal.chooseAuthentication')}</Label>
@@ -1114,6 +1166,26 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
             </div>
           )
 
+        case 'wireguardKeyPair':
+          return (
+            <div className="space-y-4">
+              <DataField
+                label={t('coreConfigModal.publicKey', { defaultValue: 'Public key' })}
+                value={resultData.publicKey || ''}
+                statusColor="bg-green-500"
+                copiedMessage="coreConfigModal.publicKeyCopied"
+                defaultMessage="coreConfigModal.copyPublicKey"
+              />
+              <DataField
+                label={t('coreConfigModal.privateKey', { defaultValue: 'Private key' })}
+                value={resultData.privateKey || ''}
+                statusColor="bg-amber-500"
+                copiedMessage="coreConfigModal.privateKeyCopied"
+                defaultMessage="coreConfigModal.copyPrivateKey"
+              />
+            </div>
+          )
+
         case 'shortId':
           return (
             <DataField
@@ -1207,6 +1279,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     case 'keyPair':
                       generatePrivateAndPublicKey()
                       break
+                    case 'wireguardKeyPair':
+                      generateWireGuardKeys()
+                      break
                     case 'shortId':
                       generateShortId()
                       break
@@ -1241,7 +1316,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       {renderVlessAdvancedModal()}
       {renderResultDialog()}
       <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="md:h-auto h-full w-full max-w-5xl">
+        <DialogContent className="h-full w-full max-w-5xl md:h-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
@@ -1299,7 +1374,11 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                     {/* Header - hidden on mobile, visible on desktop */}
                                     <div className="hidden items-center justify-between rounded-t-lg border-b bg-background px-3 py-2.5 sm:flex">
                                       <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium">Xray Core Configuration</span>
+                                        <span className="text-sm font-medium">
+                                          {isXrayBackend
+                                            ? t('coreConfigModal.xrayConfigurationTitle', { defaultValue: 'Xray Core Configuration' })
+                                            : t('coreConfigModal.wireguardConfigurationTitle', { defaultValue: 'WireGuard Core Configuration' })}
+                                        </span>
                                       </div>
                                       <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleToggleFullscreen} aria-label={t('exitFullscreen')}>
                                         <Minimize2 className="h-4 w-4" />
@@ -1408,263 +1487,313 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                       )}
                     />
 
-                    {/* Form: Fallback inbound selectors */}
                     <FormField
                       control={form.control}
-                      name="fallback_id"
+                      name="type"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('coreConfigModal.fallback')}</FormLabel>
-                          <div className="flex flex-col gap-2">
-                            <div className="flex flex-wrap gap-2">
-                              {field.value && field.value.length > 0 ? (
-                                field.value.map((tag: string) => (
-                                  <span key={tag} className="flex items-center gap-2 rounded-md bg-muted/80 px-2 py-1 text-sm">
-                                    {tag}
-                                    <button type="button" className="hover:text-destructive" onClick={() => field.onChange((field.value || []).filter((t: string) => t !== tag))}>
-                                      ×
-                                    </button>
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-sm text-muted-foreground">{t('coreConfigModal.selectFallback')}</span>
-                              )}
-                            </div>
+                          <FormLabel>{t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}</FormLabel>
+                          <FormControl>
                             <Select
-                              value={undefined}
-                              onValueChange={(value: string) => {
-                                if (!value || value.trim() === '') return
-                                const currentValue = field.value || []
-                                if (!currentValue.includes(value)) {
-                                  field.onChange([...currentValue, value])
-                                }
+                              value={field.value ?? 'xray'}
+                              onValueChange={value => {
+                                const nextBackendType = value as CoreBackendType
+                                field.onChange(nextBackendType)
+                                form.setValue('fallback_id', [], { shouldDirty: true })
+                                form.setValue('excluded_inbound_ids', [], { shouldDirty: true })
+                                applyBackendTemplate(nextBackendType)
                               }}
                             >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder={t('coreConfigModal.selectFallback')} />
-                                </SelectTrigger>
-                              </FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })} />
+                              </SelectTrigger>
                               <SelectContent>
-                                {inboundTags.length > 0 ? (
-                                  inboundTags.map(tag => (
-                                    <SelectItem key={tag} value={tag} disabled={field.value?.includes(tag)} className="cursor-pointer">
-                                      {tag}
-                                    </SelectItem>
-                                  ))
-                                ) : (
-                                  <SelectItem key="no-inbounds" value="no-inbounds" disabled>
-                                    {t('coreConfigModal.noInboundsFound')}
-                                  </SelectItem>
-                                )}
+                                <SelectItem value="xray">Xray</SelectItem>
+                                <SelectItem value="wg">WireGuard</SelectItem>
+                                <SelectItem value="mtproto">MTProto</SelectItem>
+                                <SelectItem value="singbox">SingBox</SelectItem>
                               </SelectContent>
                             </Select>
-                            {field.value && field.value.length > 0 && (
-                              <Button type="button" variant="outline" size="sm" onClick={() => field.onChange([])} className="w-full">
-                                {t('coreConfigModal.clearAllFallbacks')}
-                              </Button>
-                            )}
-                          </div>
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    {/* Form: Excluded inbound selectors */}
-                    <FormField
-                      control={form.control}
-                      name="excluded_inbound_ids"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('coreConfigModal.excludedInbound')}</FormLabel>
-                          <div className="flex flex-col gap-2">
-                            <div className="flex flex-wrap gap-2">
-                              {field.value && field.value.length > 0 ? (
-                                field.value.map((tag: string) => (
-                                  <span key={tag} className="flex items-center gap-2 rounded-md bg-muted/80 px-2 py-1 text-sm">
-                                    {tag}
-                                    <button type="button" className="hover:text-destructive" onClick={() => field.onChange((field.value || []).filter((t: string) => t !== tag))}>
-                                      ×
-                                    </button>
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-sm text-muted-foreground">{t('coreConfigModal.selectInbound')}</span>
-                              )}
-                            </div>
-                            <Select
-                              value={undefined}
-                              onValueChange={(value: string) => {
-                                if (!value || value.trim() === '') return
-                                const currentValue = field.value || []
-                                if (!currentValue.includes(value)) {
-                                  field.onChange([...currentValue, value])
-                                }
-                              }}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder={t('coreConfigModal.selectInbound')} />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {inboundTags.length > 0 ? (
-                                  inboundTags.map(tag => (
-                                    <SelectItem key={tag} value={tag} disabled={field.value?.includes(tag)} className="cursor-pointer">
-                                      {tag}
-                                    </SelectItem>
-                                  ))
-                                ) : (
-                                  <SelectItem key="no-inbounds" value="no-inbounds" disabled>
-                                    {t('coreConfigModal.noInboundsFound')}
-                                  </SelectItem>
-                                )}
-                              </SelectContent>
-                            </Select>
-                            {field.value && field.value.length > 0 && (
-                              <Button type="button" variant="outline" size="sm" onClick={() => field.onChange([])} className="w-full">
-                                {t('coreConfigModal.clearAllExcluded')}
-                              </Button>
-                            )}
-                          </div>
-                          <FormMessage />
-                        </FormItem>
+                    <div>
+                      {!isXrayBackend && (
+                        <LoaderButton type="button" onClick={viewWireGuardKeys} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
+                          <span className="flex items-center gap-2 truncate">
+                            {generatedWireGuardKeyPair && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                            {t('coreConfigModal.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
+                          </span>
+                        </LoaderButton>
                       )}
-                    />
+                    </div>
 
-                    <Tabs dir={dir} defaultValue="reality" className="w-full pb-6">
-                      {/* Enhanced TabsList with Text Overflow */}
-                      <TabsList dir="ltr" className="grid h-auto w-full grid-cols-3 gap-1 bg-muted/50 p-1">
-                        <TabsTrigger
-                          value="reality"
-                          className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
-                        >
-                          Reality
-                        </TabsTrigger>
+                    {isXrayBackend && (
+                      <>
+                        {/* Form: Fallback inbound selectors */}
+                        <FormField
+                          control={form.control}
+                          name="fallback_id"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('coreConfigModal.fallback')}</FormLabel>
+                              <div className="flex flex-col gap-2">
+                                <div className="flex flex-wrap gap-2">
+                                  {field.value && field.value.length > 0 ? (
+                                    field.value.map((tag: string) => (
+                                      <span key={tag} className="flex items-center gap-2 rounded-md bg-muted/80 px-2 py-1 text-sm">
+                                        {tag}
+                                        <button type="button" className="hover:text-destructive" onClick={() => field.onChange((field.value || []).filter((t: string) => t !== tag))}>
+                                          ×
+                                        </button>
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">{t('coreConfigModal.selectFallback')}</span>
+                                  )}
+                                </div>
+                                <Select
+                                  value={undefined}
+                                  onValueChange={(value: string) => {
+                                    if (!value || value.trim() === '') return
+                                    const currentValue = field.value || []
+                                    if (!currentValue.includes(value)) {
+                                      field.onChange([...currentValue, value])
+                                    }
+                                  }}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={t('coreConfigModal.selectFallback')} />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {inboundTags.length > 0 ? (
+                                      inboundTags.map(tag => (
+                                        <SelectItem key={tag} value={tag} disabled={field.value?.includes(tag)} className="cursor-pointer">
+                                          {tag}
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem key="no-inbounds" value="no-inbounds" disabled>
+                                        {t('coreConfigModal.noInboundsFound')}
+                                      </SelectItem>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                                {field.value && field.value.length > 0 && (
+                                  <Button type="button" variant="outline" size="sm" onClick={() => field.onChange([])} className="w-full">
+                                    {t('coreConfigModal.clearAllFallbacks')}
+                                  </Button>
+                                )}
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                        <TabsTrigger
-                          value="shadowsocks"
-                          className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
-                        >
-                          ShadowSocks
-                        </TabsTrigger>
+                        {/* Form: Excluded inbound selectors */}
+                        <FormField
+                          control={form.control}
+                          name="excluded_inbound_ids"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('coreConfigModal.excludedInbound')}</FormLabel>
+                              <div className="flex flex-col gap-2">
+                                <div className="flex flex-wrap gap-2">
+                                  {field.value && field.value.length > 0 ? (
+                                    field.value.map((tag: string) => (
+                                      <span key={tag} className="flex items-center gap-2 rounded-md bg-muted/80 px-2 py-1 text-sm">
+                                        {tag}
+                                        <button type="button" className="hover:text-destructive" onClick={() => field.onChange((field.value || []).filter((t: string) => t !== tag))}>
+                                          ×
+                                        </button>
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">{t('coreConfigModal.selectInbound')}</span>
+                                  )}
+                                </div>
+                                <Select
+                                  value={undefined}
+                                  onValueChange={(value: string) => {
+                                    if (!value || value.trim() === '') return
+                                    const currentValue = field.value || []
+                                    if (!currentValue.includes(value)) {
+                                      field.onChange([...currentValue, value])
+                                    }
+                                  }}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={t('coreConfigModal.selectInbound')} />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {inboundTags.length > 0 ? (
+                                      inboundTags.map(tag => (
+                                        <SelectItem key={tag} value={tag} disabled={field.value?.includes(tag)} className="cursor-pointer">
+                                          {tag}
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem key="no-inbounds" value="no-inbounds" disabled>
+                                        {t('coreConfigModal.noInboundsFound')}
+                                      </SelectItem>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                                {field.value && field.value.length > 0 && (
+                                  <Button type="button" variant="outline" size="sm" onClick={() => field.onChange([])} className="w-full">
+                                    {t('coreConfigModal.clearAllExcluded')}
+                                  </Button>
+                                )}
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                        <TabsTrigger
-                          value="vless"
-                          className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
-                        >
-                          VLESS
-                        </TabsTrigger>
-                      </TabsList>
+                        <Tabs dir={dir} defaultValue="reality" className="w-full pb-6">
+                          {/* Enhanced TabsList with Text Overflow */}
+                          <TabsList dir="ltr" className="grid h-auto w-full grid-cols-3 gap-1 bg-muted/50 p-1">
+                            <TabsTrigger
+                              value="reality"
+                              className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
+                            >
+                              Reality
+                            </TabsTrigger>
 
-                      {/* ============================================
+                            <TabsTrigger
+                              value="shadowsocks"
+                              className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
+                            >
+                              ShadowSocks
+                            </TabsTrigger>
+
+                            <TabsTrigger
+                              value="vless"
+                              className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
+                            >
+                              VLESS
+                            </TabsTrigger>
+                          </TabsList>
+
+                          {/* ============================================
           Reality TAB
       ============================================ */}
-                      <TabsContent value="reality" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
-                        {/* Action Buttons */}
-                        <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-                          <LoaderButton
-                            type="button"
-                            onClick={viewKeyPair}
-                            className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                            isLoading={isGeneratingKeyPair}
-                            loadingText={t('coreConfigModal.generatingKeyPair')}
-                          >
-                            <span className="flex items-center gap-2 truncate">
-                              {generatedKeyPair && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                              {t('coreConfigModal.generateKeyPair')}
-                            </span>
-                          </LoaderButton>
+                          <TabsContent value="reality" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
+                            {/* Action Buttons */}
+                            <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                              <LoaderButton
+                                type="button"
+                                onClick={viewKeyPair}
+                                className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                                isLoading={isGeneratingKeyPair}
+                                loadingText={t('coreConfigModal.generatingKeyPair')}
+                              >
+                                <span className="flex items-center gap-2 truncate">
+                                  {generatedKeyPair && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                                  {t('coreConfigModal.generateKeyPair')}
+                                </span>
+                              </LoaderButton>
 
-                          <LoaderButton
-                            type="button"
-                            onClick={viewShortId}
-                            className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                            isLoading={isGeneratingShortId}
-                            loadingText={t('coreConfigModal.generatingShortId')}
-                          >
-                            <span className="flex items-center gap-2 truncate">
-                              {generatedShortId && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                              {t('coreConfigModal.generateShortId')}
-                            </span>
-                          </LoaderButton>
+                              <LoaderButton
+                                type="button"
+                                onClick={viewShortId}
+                                className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                                isLoading={isGeneratingShortId}
+                                loadingText={t('coreConfigModal.generatingShortId')}
+                              >
+                                <span className="flex items-center gap-2 truncate">
+                                  {generatedShortId && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                                  {t('coreConfigModal.generateShortId')}
+                                </span>
+                              </LoaderButton>
 
-                          <LoaderButton
-                            type="button"
-                            onClick={viewMldsa65}
-                            className="col-span-2 h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                            isLoading={isGeneratingMldsa65}
-                            loadingText={t('coreConfigModal.generatingMldsa65')}
-                          >
-                            <span className="flex items-center gap-2 truncate">
-                              {generatedMldsa65 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                              {t('coreConfigModal.generateMldsa65')}
-                            </span>
-                          </LoaderButton>
-                        </div>
-                      </TabsContent>
+                              <LoaderButton
+                                type="button"
+                                onClick={viewMldsa65}
+                                className="col-span-2 h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                                isLoading={isGeneratingMldsa65}
+                                loadingText={t('coreConfigModal.generatingMldsa65')}
+                              >
+                                <span className="flex items-center gap-2 truncate">
+                                  {generatedMldsa65 && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                                  {t('coreConfigModal.generateMldsa65')}
+                                </span>
+                              </LoaderButton>
+                            </div>
+                          </TabsContent>
 
-                      {/* ============================================
+                          {/* ============================================
           Shadowsocks TAB
       ============================================ */}
-                      <TabsContent value="shadowsocks" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
-                        {/* Encryption Method Selector */}
-                        <div className="space-y-2">
-                          <Label className="text-xs font-semibold tracking-wide text-muted-foreground">{t('coreConfigModal.shadowsocksEncryptionMethod', { defaultValue: 'Encryption Method' })}</Label>
-                          <Select value={selectedEncryptionMethod} onValueChange={setSelectedEncryptionMethod}>
-                            <SelectTrigger className="h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
-                                <SelectItem key={method.value} value={method.value}>
-                                  {method.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                          <TabsContent value="shadowsocks" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
+                            {/* Encryption Method Selector */}
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold tracking-wide text-muted-foreground">
+                                {t('coreConfigModal.shadowsocksEncryptionMethod', { defaultValue: 'Encryption Method' })}
+                              </Label>
+                              <Select value={selectedEncryptionMethod} onValueChange={setSelectedEncryptionMethod}>
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
+                                    <SelectItem key={method.value} value={method.value}>
+                                      {method.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
 
-                        {/* Action Buttons */}
-                        <LoaderButton
-                          type="button"
-                          onClick={viewShadowsocksPassword}
-                          className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                          isLoading={isGeneratingShadowsocksPassword}
-                          loadingText={t('coreConfigModal.generatingShadowsocksPassword')}
-                        >
-                          <span className="flex items-center gap-2 truncate">
-                            {generatedShadowsocksPassword && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                            {t('coreConfigModal.generateShadowsocksPassword')}
-                          </span>
-                        </LoaderButton>
-                      </TabsContent>
+                            {/* Action Buttons */}
+                            <LoaderButton
+                              type="button"
+                              onClick={viewShadowsocksPassword}
+                              className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                              isLoading={isGeneratingShadowsocksPassword}
+                              loadingText={t('coreConfigModal.generatingShadowsocksPassword')}
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                {generatedShadowsocksPassword && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                                {t('coreConfigModal.generateShadowsocksPassword')}
+                              </span>
+                            </LoaderButton>
+                          </TabsContent>
 
-                      {/* ============================================
+                          {/* ============================================
           VLESS TAB
       ============================================ */}
-                      <TabsContent value="vless" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
-                        {/* VLESS Buttons */}
-                        <LoaderButton type="button" onClick={viewVLESS} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
-                          <span className="flex items-center gap-2 truncate">
-                            {generatedVLESS && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                            {t('coreConfigModal.generateVLESSEncryption')}
-                          </span>
-                        </LoaderButton>
-                      </TabsContent>
-                    </Tabs>
+                          <TabsContent value="vless" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
+                            {/* VLESS Buttons */}
+                            <LoaderButton type="button" onClick={viewVLESS} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
+                              <span className="flex items-center gap-2 truncate">
+                                {generatedVLESS && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                                {t('coreConfigModal.generateVLESSEncryption')}
+                              </span>
+                            </LoaderButton>
+                          </TabsContent>
+                        </Tabs>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
               {/* Form: Restart nodes toggle */}
               {!isEditorFullscreen && (
-                <div className={cn("flex items-center gap-2", editingCore ? "justify-between" : "justify-end")}>
+                <div className={cn('flex items-center gap-2', editingCore ? 'justify-between' : 'justify-end')}>
                   {editingCore && (
                     <FormField
                       control={form.control}
                       name="restart_nodes"
                       render={({ field }) => (
-                        <FormItem className='flex flex-row-reverse items-center gap-2'>
+                        <FormItem className="flex flex-row-reverse items-center gap-2">
                           <FormControl>
                             <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                           </FormControl>

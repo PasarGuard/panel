@@ -241,7 +241,7 @@
         "pattern": "Шаблон",
         "patternPlaceholder": "Введите шаблон (например, шаблон user-agent)",
         "target": "Целевой формат",
-        "responseHeaders": "Заголовки ответа",
+        "responseHeaders": "Заголовки",
         "responseHeadersDescription": "Дополнительные заголовки, которые добавляются при срабатывании этого правила.",
         "addHeader": "Добавить заголовок",
         "headerName": "Имя заголовка",
@@ -264,12 +264,15 @@
         "clashMeta": "Clash Meta",
         "clashMetaDescription": "Формат конфигурации Clash Meta",
         "outline": "Outline",
-        "outlineDescription": "Формат конфигурации Outline VPN"
+        "outlineDescription": "Формат конфигурации Outline VPN",
+        "wireguard": "WireGuard",
+        "wireguardDescription": "Формат конфигурации WireGuard"
       },
       "configFormats": {
         "links": "Ссылки",
         "links_base64": "Ссылки (Base64)",
         "xray": "Xray",
+        "wireguard": "WireGuard",
         "sing_box": "Sing-box",
         "clash": "Clash",
         "clash_meta": "Clash Meta",
@@ -697,7 +700,10 @@
     "deletePrompt": "Вы уверены, что хотите удалить <b>{{name}}</b>? Это действие нельзя отменить.",
     "noTemplates": "Нет шаблонов клиентов",
     "noTemplatesDescription": "Создайте шаблон клиента для настройки форматов вывода подписок.",
-    "noSearchResults": "Нет шаблонов клиентов, соответствующих вашему запросу."
+    "noSearchResults": "Нет шаблонов клиентов, соответствующих вашему запросу.",
+    "default": "По умолчанию",
+    "system": "Системная",
+    "defaultSystem": "Системная по умолчанию"
   },
   "core.configuration": "Конфигурация",
   "core.generalErrorMessage": "Что-то пошло не так, пожалуйста, проверьте конфигурацию",
@@ -819,10 +825,8 @@
   "password": "Пароль",
   "previous": "Назад",
   "back": "Назад",
+  "qrcodeDialog.title": "QR-код",
   "qrcodeDialog.sublink": "Ссылка на подписку {{username}}",
-  "configsQrcodeDialog.title": "Конфигурации {{username}}",
-  "configsQrcodeDialog.fetchError": "Не удалось получить конфигурации",
-  "configsQrcodeDialog.noConfigs": "Конфигурации не найдены",
   "subscriptionModal.title": "Подписка {{username}}",
   "subscriptionModal.subscriptionLink": "Ссылка на подписку",
   "subscriptionModal.configs": "Конфигурации",
@@ -831,6 +835,9 @@
   "subscriptionModal.fetchError": "Не удалось получить конфигурации",
   "subscriptionModal.noConfigs": "Конфигурации не найдены",
   "subscriptionModal.unknownConfig": "Неизвестная конфигурация",
+  "configActions.copyConfig": "Копировать конфиг",
+  "configActions.copyBase64": "Копировать Base64",
+  "configActions.downloadWireGuard": "Скачать WireGuard",
   "reset": "Сбросить",
   "resetAllUsage": "Сбросить расход трафика",
   "resetAllUsage.error": "Сброс расхода трафика не удался, пожалуйста, попробуйте ещё раз.",
@@ -1288,10 +1295,20 @@
     "nextPlanDataLimit": "Лимит данных (ГБ)",
     "nextPlanExpire": "Срок действия (дней)",
     "nextPlanAddRemainingTraffic": "Добавить оставшийся трафик",
-    "routingSettings": "Routing",
-    "vlessRoute": "VLESS Route",
+    "routingSettings": "Маршрутизация",
+    "vlessRoute": "Маршрут VLESS",
     "vlessRoutePlaceholder": "e.g. abcd",
-    "vlessRoute.info": "Optional route value for VLESS hosts. Must be exactly 4 hexadecimal characters (0-9, a-f, A-F). Leave empty to use default routing."
+    "vlessRoute.info": "Необязательное значение маршрута для хостов VLESS. Должно состоять ровно из 4 шестнадцатеричных символов (0-9, a-f, A-F). Оставьте пустым, чтобы использовать маршрутизацию по умолчанию.",
+    "wireguard": {
+      "sectionSecurityOverrides": "Настройки безопасности",
+      "sectionNetworkOverrides": "Настройки сети",
+      "allowedIps": "IP-адреса",
+      "allowedIpsHint": "Оставьте пустым для значений по умолчанию 0.0.0.0/0 и ::/0",
+      "mtu": "MTU",
+      "keepalive": "Постоянный keepalive (сек)",
+      "keepalivePlaceholder": "По умолчанию inbound",
+      "reserved": "Reserved (например 0,0,0)"
+    }
   },
   "enable": "Включить",
   "host": {
@@ -1556,6 +1573,8 @@
     "selectInbound": "Выберите входящий",
     "inbound": "Входящий",
     "generateKeyPair": "Пара ключей",
+    "backendType": "Тип бэкенда",
+    "generateWireGuardKeyPair": "Пара ключей WireGuard",
     "generateShortId": "Короткий ID",
     "publicKey": "Публичный ключ",
     "privateKey": "Приватный ключ",
@@ -1647,6 +1666,7 @@
   "copied": "Скопировано!",
   "clickToCopy": "Нажмите, чтобы скопировать",
   "copyFailed": "Не удалось скопировать",
+  "downloadFailed": "Не удалось скачать конфиг",
   "more": "еще",
   "userDialog": {
     "revokeSubscription": "Отозвать подписку",
@@ -1676,6 +1696,12 @@
     "proxySettings.flow": "Поток (Flow)",
     "proxySettings.hysteria": "Hysteria",
     "proxySettings.auth": "Auth",
+    "proxySettings.wireguardPrivateKey": "Приватный ключ WireGuard",
+    "proxySettings.wireguardPublicKey": "Публичный ключ WireGuard",
+    "proxySettings.wireguardPeerIps": "Peer IP-адреса WireGuard",
+    "proxySettings.generateWireGuardKeyPair": "Пара ключей WireGuard",
+    "proxySettings.peerIpsHint": "Оставьте пустым, чтобы панель автоматически выделила peer IP-адреса для каждого назначенного интерфейса WireGuard.",
+    "proxySettings.wireguardGenerated": "Пара ключей WireGuard сгенерирована",
     "proxySettings.desc": "Настройте параметры протокола для этого пользователя.",
     "selectNode": "Выберите узел",
     "allNodes": "Все узлы",
@@ -1797,7 +1823,8 @@
     },
     "activeNextPlanTitle": "Активировать следующий план пользователя",
     "activeNextPlanPrompt": "Вы уверены, что хотите активировать следующий план для «{{name}}»?",
-    "activeNextPlanSubmit": "Активировать следующий план"
+    "activeNextPlanSubmit": "Активировать следующий план",
+    "downloadStarted": "Загрузка началась"
   },
   "setOwnerModal": {
     "title": "Назначить владельца",
@@ -2041,7 +2068,7 @@
     "runningLatest": "Версия {{version}}",
     "updateBanner": "Доступно обновление: {{current}} → {{latest}}",
     "updateBannerMobile": "Обновление: {{latest}}",
-    "updateCommandLabel": "Подключитесь по SSH и выполните:",
+    "updateCommandLabel": "Выполните через SSH:",
     "closeBanner": "Закрыть уведомление об обновлении",
     "needsUpdate": "Требуется обновление"
   }

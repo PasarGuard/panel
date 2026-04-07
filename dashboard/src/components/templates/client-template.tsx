@@ -1,6 +1,5 @@
 import { Card } from '@/components/ui/card'
 import { ClientTemplateResponse } from '@/service/api'
-import { useTranslation } from 'react-i18next'
 import ClientTemplateActionsMenu from './client-template-actions-menu'
 import ClientTemplateMarkers from './client-template-markers'
 
@@ -11,7 +10,6 @@ const ClientTemplate = ({
   template: ClientTemplateResponse
   onEdit: (template: ClientTemplateResponse) => void
 }) => {
-  const { t } = useTranslation()
   const templateTypeLabel = template.template_type.replace(/_/g, ' ')
 
   return (

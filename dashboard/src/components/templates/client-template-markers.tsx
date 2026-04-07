@@ -1,6 +1,6 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { Shield, Star } from 'lucide-react'
+import { Crown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface ClientTemplateMarkersProps {
@@ -18,35 +18,27 @@ export default function ClientTemplateMarkers({ isDefault, isSystem, className }
     return null
   }
 
+  const isDefaultSystem = isDefault && isSystem
+  const label = isDefaultSystem
+    ? t('clientTemplates.defaultSystem', { defaultValue: 'Default System' })
+    : isDefault
+      ? t('clientTemplates.default', { defaultValue: 'Default' })
+      : t('clientTemplates.system', { defaultValue: 'System' })
+
   return (
     <TooltipProvider delayDuration={120}>
       <div className={cn('flex items-center gap-1', className)}>
-        {isDefault && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                aria-label={t('default', { defaultValue: 'Default' })}
-                className={cn(baseMarkerClassName, 'border-border/60 bg-muted/70 text-foreground/80')}
-              >
-                <Star className="h-3 w-3 fill-current" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{t('default', { defaultValue: 'Default' })}</TooltipContent>
-          </Tooltip>
-        )}
-        {isSystem && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                aria-label={t('system', { defaultValue: 'System' })}
-                className={cn(baseMarkerClassName, 'border-border/60 bg-background text-muted-foreground')}
-              >
-                <Shield className="h-3 w-3" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{t('system', { defaultValue: 'System' })}</TooltipContent>
-          </Tooltip>
-        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              aria-label={label}
+              className={cn(baseMarkerClassName, 'border-border/60 bg-muted/70 text-foreground/80')}
+            >
+              <Crown className="h-3 w-3 fill-current" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
       </div>
     </TooltipProvider>
   )

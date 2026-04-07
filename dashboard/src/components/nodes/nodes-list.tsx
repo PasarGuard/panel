@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
-import { useGetNodes, useModifyNode, NodeResponse, NodeStatus, NodeModify } from '@/service/api'
+import { useGetNodes, useModifyNode, useGetCoresSimple, NodeResponse, NodeStatus, NodeModify } from '@/service/api'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
@@ -77,6 +77,8 @@ export default function NodesList() {
       refetchOnWindowFocus: true,
     },
   })
+
+  const { data: coresData } = useGetCoresSimple({ all: true })
 
   const totalNodesFromResponse = nodesResponse?.total || 0
   const shouldUseLocalSearch = totalNodesFromResponse > 0 && totalNodesFromResponse <= NODES_PER_PAGE && !filters.search
@@ -267,7 +269,7 @@ export default function NodesList() {
     }
   }, [calculatedTotalPages, currentPage])
 
-  const listColumns = useNodeListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus })
+  const listColumns = useNodeListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus, coresData })
 
   const handleAdvanceSearchSubmit = (values: NodeAdvanceSearchFormValue) => {
     setFilters(prev => ({
@@ -332,7 +334,7 @@ export default function NodesList() {
               showEmptyState={false}
               gridClassName="transform-gpu animate-slide-up"
               gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-              renderGridItem={node => <Node node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />}
+              renderGridItem={node => <Node node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} coresData={coresData} />}
               renderGridSkeleton={i => (
                 <Card key={i} className="group relative h-full p-4">
                   <div className="flex items-center gap-3">
@@ -364,7 +366,7 @@ export default function NodesList() {
             />
           )}
 
-                  {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !hasActiveFilters && totalNodes === 0 && (
+          {!showLoadingSpinner && !showPageLoadingSkeletons && nodesData.length === 0 && !hasActiveFilters && totalNodes === 0 && (
             <Card className="mb-12">
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">
@@ -409,6 +411,10 @@ export default function NodesList() {
           editingNode={!!editingNode}
           editingNodeId={editingNode?.id}
           initialNodeData={editingNode || undefined}
+          coresData={coresData}
+          onSuccess={() => {
+            setTimeout(() => refetch(), 2500)
+          }}
         />
 
         <NodeAdvanceSearchModal

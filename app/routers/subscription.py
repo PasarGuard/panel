@@ -69,5 +69,9 @@ async def user_subscription_with_client_type(
 ):
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
     return await subscription_operator.user_subscription_with_client_type(
-        db, token=token, client_type=client_type, request_url=str(request.url)
+        db,
+        token=token,
+        client_type=client_type,
+        request_url=str(request.url),
+        accept_header=request.headers.get("Accept", ""),
     )

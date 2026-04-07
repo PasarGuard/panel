@@ -275,17 +275,17 @@ export default function CleanupSettings() {
   const filteredAdmins = admins.filter(admin => admin.username !== 'system')
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
       {/* Delete Expired Users Section */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold sm:text-lg">
             <Database className="h-5 w-5" />
             {t('settings.cleanup.expiredUsers.title')}
           </CardTitle>
-          <CardDescription>{t('settings.cleanup.expiredUsers.description')}</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">{t('settings.cleanup.expiredUsers.description')}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:px-6">
           <div className="relative mb-3 w-full max-w-xs sm:mb-4 sm:max-w-sm lg:max-w-md" dir={dir}>
             <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
               <PopoverTrigger asChild>
@@ -354,21 +354,21 @@ export default function CleanupSettings() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">{t('settings.cleanup.expiredUsers.target')}</label>
+            <label className="text-xs font-medium sm:text-sm">{t('settings.cleanup.expiredUsers.target')}</label>
             <Select value={deleteTarget} onValueChange={value => setDeleteTarget(value as CleanupDeleteTarget)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-xs sm:text-sm">
                 <SelectValue placeholder={t('settings.cleanup.expiredUsers.targetPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="expired">{t('settings.cleanup.expiredUsers.targets.expired')}</SelectItem>
-                <SelectItem value="limited">{t('settings.cleanup.expiredUsers.targets.limited')}</SelectItem>
+                <SelectItem value="expired" className="text-xs sm:text-sm">{t('settings.cleanup.expiredUsers.targets.expired')}</SelectItem>
+                <SelectItem value="limited" className="text-xs sm:text-sm">{t('settings.cleanup.expiredUsers.targets.limited')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {deleteTarget === 'expired' ? (
             <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <DatePicker
                     mode="single"
@@ -381,6 +381,7 @@ export default function CleanupSettings() {
                     formatDate={formatDate}
                     side={"bottom"}
                     align={"center"}
+                    className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
                   />
                 </div>
 
@@ -396,14 +397,15 @@ export default function CleanupSettings() {
                     formatDate={formatDate}
                     side={"bottom"}
                     align={"center"}
+                    className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
                   />
                 </div>
               </div>
 
-              <div className="text-sm text-muted-foreground">{t('settings.cleanup.expiredUsers.selectDateRange')}</div>
+              <div className="text-xs text-muted-foreground sm:text-sm">{t('settings.cleanup.expiredUsers.selectDateRange')}</div>
             </>
           ) : (
-            <div className="text-sm text-muted-foreground">{t('settings.cleanup.expiredUsers.selectLimitedInfo')}</div>
+            <div className="text-xs text-muted-foreground sm:text-sm">{t('settings.cleanup.expiredUsers.selectLimitedInfo')}</div>
           )}
 
           <AlertDialog>
@@ -425,7 +427,7 @@ export default function CleanupSettings() {
                     ? t('settings.cleanup.expiredUsers.confirmDeleteLimited')
                     : t('settings.cleanup.expiredUsers.confirmDelete')}
                 </AlertDialogTitle>
-                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-sm')}>
+                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-xs sm:text-sm')}>
                   {deleteTarget === 'limited'
                     ? t('settings.cleanup.expiredUsers.confirmDeleteLimitedMessage')
                     : t('settings.cleanup.expiredUsers.confirmDeleteMessage')}
@@ -446,23 +448,23 @@ export default function CleanupSettings() {
 
       {/* Clear Usage Data Section */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold sm:text-lg">
             <Server className="h-5 w-5" />
             {t('settings.cleanup.clearUsageData.title')}
           </CardTitle>
-          <CardDescription>{t('settings.cleanup.clearUsageData.description')}</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">{t('settings.cleanup.clearUsageData.description')}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:px-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium">{t('settings.cleanup.clearUsageData.selectTable')}</label>
+            <label className="text-xs font-medium sm:text-sm">{t('settings.cleanup.clearUsageData.selectTable')}</label>
             <Select value={selectedTable} onValueChange={setSelectedTable}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full text-xs sm:text-sm">
                 <SelectValue placeholder={t('settings.cleanup.clearUsageData.selectTablePlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 {usageDataTables.map(table => (
-                  <SelectItem key={table.value} value={table.value}>
+                  <SelectItem key={table.value} value={table.value} className="text-xs sm:text-sm">
                     {table.label}
                   </SelectItem>
                 ))}
@@ -470,7 +472,7 @@ export default function CleanupSettings() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <DatePicker
                 mode="single"
@@ -481,6 +483,7 @@ export default function CleanupSettings() {
                 minDate={new Date('1900-01-01')}
                 maxDate={new Date()}
                 formatDate={formatDate}
+                className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
               />
             </div>
 
@@ -494,15 +497,16 @@ export default function CleanupSettings() {
                 minDate={new Date('1900-01-01')}
                 maxDate={new Date()}
                 formatDate={formatDate}
+                className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
               />
             </div>
           </div>
 
-          <div className="text-sm text-muted-foreground">{t('settings.cleanup.clearUsageData.selectDateRange')}</div>
+          <div className="text-xs text-muted-foreground sm:text-sm">{t('settings.cleanup.clearUsageData.selectDateRange')}</div>
 
-          <Alert>
+          <Alert className="p-3 sm:p-4">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{t('settings.cleanup.clearUsageData.warning')}</AlertDescription>
+            <AlertDescription className="text-xs sm:text-sm">{t('settings.cleanup.clearUsageData.warning')}</AlertDescription>
           </Alert>
 
           <AlertDialog>
@@ -518,7 +522,7 @@ export default function CleanupSettings() {
                   <AlertTriangle className="h-5 w-5 text-destructive" />
                   {t('settings.cleanup.clearUsageData.confirmClear')}
                 </AlertDialogTitle>
-                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left')}>
+                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-xs sm:text-sm')}>
                   {t('settings.cleanup.clearUsageData.confirmClearMessage', { table: selectedTable })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -535,17 +539,17 @@ export default function CleanupSettings() {
 
       {/* Reset Usage Section */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold sm:text-lg">
             <RotateCcw className="h-5 w-5" />
             {t('settings.cleanup.resetUsage.title')}
           </CardTitle>
-          <CardDescription>{t('settings.cleanup.resetUsage.description')}</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">{t('settings.cleanup.resetUsage.description')}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert>
+        <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:px-6">
+          <Alert className="p-3 sm:p-4">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{t('settings.cleanup.resetUsage.warning')}</AlertDescription>
+            <AlertDescription className="text-xs sm:text-sm">{t('settings.cleanup.resetUsage.warning')}</AlertDescription>
           </Alert>
 
           <AlertDialog>
@@ -561,7 +565,9 @@ export default function CleanupSettings() {
                   <AlertTriangle className="h-5 w-5 text-destructive" />
                   {t('settings.cleanup.resetUsage.confirmReset')}
                 </AlertDialogTitle>
-                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left')}>{t('settings.cleanup.resetUsage.confirmResetMessage')}</AlertDialogDescription>
+                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-xs sm:text-sm')}>
+                  {t('settings.cleanup.resetUsage.confirmResetMessage')}
+                </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>

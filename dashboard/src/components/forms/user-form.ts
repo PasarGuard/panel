@@ -23,11 +23,17 @@ export const shadowsocksSettingsSchema = z.object({
 export const hysteriaSettingsSchema = z.object({
   auth: z.string().uuid().optional(),
 })
+export const wireguardSettingsSchema = z.object({
+  private_key: z.string().nullable().optional(),
+  public_key: z.string().nullable().optional(),
+  peer_ips: z.array(z.string()).optional(),
+})
 export const proxyTableInputSchema = z.object({
   vmess: vMessSettingsSchema.optional(),
   vless: vlessSettingsSchema.optional(),
   trojan: trojanSettingsSchema.optional(),
   shadowsocks: shadowsocksSettingsSchema.optional(),
+  wireguard: wireguardSettingsSchema.optional(),
   hysteria: hysteriaSettingsSchema.optional(),
 })
 
@@ -41,64 +47,48 @@ export const nextPlanModelSchema = z.object({
   add_remaining_traffic: z.boolean().optional(),
 })
 
-export const userCreateSchema = z.object({
+const onHoldExpireDurationSchema = z
+  .number()
+  .nullable()
+  .optional()
+  .superRefine((val, ctx) => {
+    const status = (ctx.path.length > 0 ? ctx.path[0] : 'status') as string
+    if (status === 'on_hold' && (!val || val < 1)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'validation.required',
+      })
+    }
+  })
+
+const userSharedSchemaShape = {
   username: z.string().min(3, 'validation.minLength').max(128, 'validation.maxLength'),
-  status: userStatusCreateEnum.optional(),
   group_ids: z.array(z.number()).min(1, { message: 'validation.required' }),
   data_limit: z.number().min(0),
   expire: z.union([z.string(), z.number(), z.null()]).optional(),
   note: z.string().optional(),
   proxy_settings: proxyTableInputSchema.optional(),
   data_limit_reset_strategy: userDataLimitResetStrategyEnum.optional(),
-  on_hold_expire_duration: z
-    .number()
-    .nullable()
-    .optional()
-    .superRefine((val, ctx) => {
-      const status = (ctx.path.length > 0 ? ctx.path[0] : 'status') as string
-      if (status === 'on_hold' && (!val || val < 1)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'validation.required',
-        })
-      }
-    }),
+  on_hold_expire_duration: onHoldExpireDurationSchema,
   on_hold_timeout: z.union([z.string(), z.number(), z.null()]).optional(),
   auto_delete_in_days: z.number().optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
+} satisfies z.ZodRawShape
+
+export const userCreateSchema = z.object({
+  ...userSharedSchemaShape,
+  status: userStatusCreateEnum.optional(),
 })
 
 export const userEditSchema = z.object({
-  username: z.string().min(3, 'validation.minLength').max(128, 'validation.maxLength'),
+  ...userSharedSchemaShape,
   status: userStatusEditEnum.optional(),
-  group_ids: z.array(z.number()).min(1, { message: 'validation.required' }),
-  data_limit: z.number().min(0),
-  expire: z.union([z.string(), z.number(), z.null()]).optional(),
-  note: z.string().optional(),
-  proxy_settings: proxyTableInputSchema.optional(),
-  data_limit_reset_strategy: userDataLimitResetStrategyEnum.optional(),
-  on_hold_expire_duration: z
-    .number()
-    .nullable()
-    .optional()
-    .superRefine((val, ctx) => {
-      const status = (ctx.path.length > 0 ? ctx.path[0] : 'status') as string
-      if (status === 'on_hold' && (!val || val < 1)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'validation.required',
-        })
-      }
-    }),
-  on_hold_timeout: z.union([z.string(), z.number(), z.null()]).optional(),
-  auto_delete_in_days: z.number().optional(),
-  next_plan: nextPlanModelSchema.optional(),
-  template_id: z.number().optional(),
 })
 
-export type UseEditFormValues = z.infer<typeof userEditSchema>
-export type UseFormValues = z.infer<typeof userCreateSchema>
+export type UserFormValues = z.infer<typeof userEditSchema>
+export type UseEditFormValues = UserFormValues
+export type UseFormValues = UserFormValues
 
 export const getDefaultUserForm = async () => {
   return {
@@ -122,6 +112,11 @@ export const getDefaultUserForm = async () => {
       shadowsocks: {
         password: undefined,
         method: DEFAULT_SHADOWSOCKS_METHOD,
+      },
+      wireguard: {
+        private_key: undefined,
+        public_key: undefined,
+        peer_ips: [],
       },
       hysteria: {
         auth: undefined,

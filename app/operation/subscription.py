@@ -2,6 +2,8 @@ import re
 from json import dumps as json_dumps
 from datetime import datetime as dt
 from typing import Any
+import io
+import zipfile
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
@@ -27,6 +29,7 @@ client_config = {
     ConfigFormat.links_base64: {"config_format": "links", "media_type": "text/plain", "as_base64": True},
     ConfigFormat.links: {"config_format": "links", "media_type": "text/plain", "as_base64": False},
     ConfigFormat.outline: {"config_format": "outline", "media_type": "application/json", "as_base64": False},
+    ConfigFormat.wireguard: {"config_format": "wireguard", "media_type": "text/plain", "as_base64": False},
     ConfigFormat.xray: {"config_format": "xray", "media_type": "application/json", "as_base64": False},
 }
 
@@ -174,9 +177,7 @@ class SubscriptionOperation(BaseOperation):
         # Only include headers that have values
         return {k: v for k, v in headers.items() if v}
 
-    async def fetch_config(
-        self, user: UsersResponseWithInbounds, client_type: ConfigFormat
-    ) -> tuple[str, str]:
+    async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str, str]:
         # Get client configuration
         config = client_config.get(client_type)
         sub_settings = await subscription_settings()
@@ -274,8 +275,56 @@ class SubscriptionOperation(BaseOperation):
 
         return format_variables
 
+    async def _generate_wireguard_zip(
+        self, user: UsersResponseWithInbounds, request_url: str, sub_settings: SubSettings
+    ):
+        """Generate a zip file containing individual .conf files for each WireGuard host."""
+        from app.subscription.share import setup_format_variables
+        from app.subscription import WireGuardConfiguration
+        from app.core.hosts import host_manager
+        from app.subscription.share import filter_hosts, process_host
+
+        format_variables = setup_format_variables(user)
+        proxy_settings = user.proxy_settings.dict()
+        user_inbounds = user.inbounds or []
+        hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+
+        wireguard_hosts = [h for h in hosts if h.protocol == "wireguard"]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for host_data in wireguard_hosts:
+                result = await process_host(host_data, format_variables, user_inbounds, proxy_settings)
+                if not result:
+                    continue
+
+                inbound_copy, settings = result
+
+                remark = inbound_copy.remark.format_map(format_variables)
+                address = inbound_copy.address
+                if isinstance(address, list):
+                    address = address[0] if address else ""
+                formatted_address = address.format_map(format_variables) if isinstance(address, str) else str(address)
+
+                wireguard_conf = WireGuardConfiguration()
+                wireguard_conf.add(remark=remark, address=formatted_address, inbound=inbound_copy, settings=settings)
+
+                config_content = wireguard_conf.render()
+
+                hostname = remark.replace(" ", "_").replace("/", "_")
+                filename = f"{hostname}.conf"
+                zip_file.writestr(filename, config_content)
+
+        zip_buffer.seek(0)
+        zip_content = zip_buffer.getvalue()
+
+        response_headers = self.create_response_headers(user, request_url, sub_settings)
+        response_headers["content-disposition"] = f'attachment; filename="{user.username}.zip"'
+
+        return Response(content=zip_content, media_type="application/zip", headers=response_headers)
+
     async def user_subscription_with_client_type(
-        self, db: AsyncSession, token: str, client_type: ConfigFormat, request_url: str = ""
+        self, db: AsyncSession, token: str, client_type: ConfigFormat, request_url: str = "", accept_header: str = ""
     ):
         """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
         sub_settings: SubSettings = await subscription_settings()
@@ -284,6 +333,11 @@ class SubscriptionOperation(BaseOperation):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token)
         user = await self.validated_user(db_user)
+
+        is_browser_request = "text/html" in accept_header
+
+        if client_type == ConfigFormat.wireguard and is_browser_request:
+            return await self._generate_wireguard_zip(user, request_url, sub_settings)
 
         response_headers = self.create_response_headers(user, request_url, sub_settings)
         conf, media_type = await self.fetch_config(user, client_type)

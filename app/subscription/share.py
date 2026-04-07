@@ -20,6 +20,7 @@ from . import (
     OutlineConfiguration,
     SingBoxConfiguration,
     StandardLinks,
+    WireGuardConfiguration,
     XrayConfiguration,
 )
 
@@ -34,10 +35,20 @@ STATUS_EMOJIS = {
     "on_hold": "🔌",
 }
 
+
 def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],
-) -> StandardLinks | XrayConfiguration | SingBoxConfiguration | ClashConfiguration | ClashMetaConfiguration | OutlineConfiguration | None:
+) -> (
+    StandardLinks
+    | XrayConfiguration
+    | SingBoxConfiguration
+    | ClashConfiguration
+    | ClashMetaConfiguration
+    | OutlineConfiguration
+    | WireGuardConfiguration
+    | None
+):
     common_kwargs = {
         "user_agent_template_content": client_templates["USER_AGENT_TEMPLATE"],
         "grpc_user_agent_template_content": client_templates["GRPC_USER_AGENT_TEMPLATE"],
@@ -45,7 +56,12 @@ def _build_subscription_config(
 
     if config_format == "links":
         return StandardLinks(**common_kwargs)
-    if config_format in ("clash", "clash_meta"):
+    if config_format == "clash":
+        return ClashConfiguration(
+            clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
+            **common_kwargs,
+        )
+    if config_format == "clash_meta":
         return ClashMetaConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
             **common_kwargs,
@@ -57,6 +73,8 @@ def _build_subscription_config(
         )
     if config_format == "outline":
         return OutlineConfiguration()
+    if config_format == "wireguard":
+        return WireGuardConfiguration()
     if config_format == "xray":
         return XrayConfiguration(
             xray_template_content=client_templates["XRAY_SUBSCRIPTION_TEMPLATE"],
@@ -286,7 +304,8 @@ async def _prepare_download_settings(
     | SingBoxConfiguration
     | ClashConfiguration
     | ClashMetaConfiguration
-    | OutlineConfiguration,
+    | OutlineConfiguration
+    | WireGuardConfiguration,
 ) -> SubscriptionInboundData | dict | None:
     result = await process_host(download_data, format_variables, inbounds, proxies)
 
@@ -317,7 +336,8 @@ async def process_inbounds_and_tags(
     | SingBoxConfiguration
     | ClashConfiguration
     | ClashMetaConfiguration
-    | OutlineConfiguration,
+    | OutlineConfiguration
+    | WireGuardConfiguration,
     client_templates: dict[str, str],
     reverse=False,
     randomize_order: bool = False,

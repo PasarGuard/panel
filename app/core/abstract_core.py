@@ -12,6 +12,11 @@ class AbstractCore(ABC):
 
     @property
     @abstractmethod
+    def type(self) -> str:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def inbounds_by_tag(self) -> dict:
         raise NotImplementedError
 

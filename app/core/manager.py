@@ -9,10 +9,11 @@ from nats.js.kv import KeyValue
 
 from app import on_shutdown, on_startup
 from app.core.abstract_core import AbstractCore
+from app.core.wireguard import WireGuardConfig
 from app.core.xray import XRayConfig
 from app.db import GetDB
 from app.db.crud.core import get_core_configs
-from app.db.models import CoreConfig
+from app.db.models import CoreConfig, CoreType
 from app.nats import is_nats_enabled
 from app.nats.client import setup_nats_kv
 from app.nats.message import MessageTopic
@@ -24,6 +25,10 @@ from config import ROLE
 class CoreManager:
     STATE_CACHE_KEY = "state"
     KV_BUCKET_NAME = "core_manager_state"
+    CORE_CLASSES = {
+        CoreType.xray: XRayConfig,
+        CoreType.wg: WireGuardConfig,
+    }
 
     def __init__(self):
         self._cores: dict[int, AbstractCore] = {}
@@ -87,8 +92,7 @@ class CoreManager:
             cores = {}
             for core_id, core_data in cached_state.get("cores", {}).items():
                 try:
-                    # Currently we only support XRayConfig, but this could be dynamic based on type
-                    cores[int(core_id)] = XRayConfig.from_json(core_data)
+                    cores[int(core_id)] = self._core_from_json(core_data)
                 except Exception:
                     self._logger.warning(f"Failed to reconstruct core {core_id} from JSON")
                     continue
@@ -113,14 +117,31 @@ class CoreManager:
     def _core_payload_from_db(self, db_core_config: CoreConfig) -> dict:
         return {
             "id": db_core_config.id,
+            "type": db_core_config.type,
             "config": db_core_config.config,
             "exclude_inbound_tags": list(db_core_config.exclude_inbound_tags or []),
             "fallbacks_inbound_tags": list(db_core_config.fallbacks_inbound_tags or []),
         }
 
+    @classmethod
+    def _normalize_type(cls, type: CoreType | None) -> CoreType:
+        if not type:
+            return CoreType.xray
+        return type
+
+    def _get_core_class(self, type: CoreType | None):
+        normalized_type = self._normalize_type(type)
+        return self.CORE_CLASSES[normalized_type]
+
+    def _core_from_json(self, data: dict) -> AbstractCore:
+        type = data.get("type")
+        core_class = self._get_core_class(type)
+        return core_class.from_json(data)
+
     async def _apply_core_payload(self, payload: dict):
         try:
             core_id = payload["id"]
+            type = payload.get("type", CoreType.xray)
             config = payload["config"]
         except Exception:
             await self._reload_from_cache()
@@ -130,13 +151,14 @@ class CoreManager:
         fallback_tags = set(payload.get("fallbacks_inbound_tags") or [])
 
         class _PayloadCore:
-            def __init__(self, cid, cfg, exclude, fallbacks):
+            def __init__(self, cid, cfg, type, exclude, fallbacks):
                 self.id = cid
                 self.config = cfg
+                self.type = type
                 self.exclude_inbound_tags = exclude
                 self.fallbacks_inbound_tags = fallbacks
 
-        await self._update_core_local(_PayloadCore(core_id, config, exclude_tags, fallback_tags))
+        await self._update_core_local(_PayloadCore(core_id, config, type, exclude_tags, fallback_tags))
 
     async def _handle_core_message(self, data: dict):
         """Handle incoming core messages from router."""
@@ -160,13 +182,17 @@ class CoreManager:
         """Publish core update message via global router."""
         await router.publish(MessageTopic.CORE, message)
 
-    @staticmethod
     def validate_core(
-        config: dict, exclude_inbounds: set[str] | None = None, fallbacks_inbounds: set[str] | None = None
+        self,
+        config: dict,
+        exclude_inbounds: set[str] | None = None,
+        fallbacks_inbounds: set[str] | None = None,
+        type: CoreType | None = None,
     ):
         exclude_inbounds = exclude_inbounds or set()
         fallbacks_inbounds = fallbacks_inbounds or set()
-        return XRayConfig(config, exclude_inbounds.copy(), fallbacks_inbounds.copy())
+        core_class = self._get_core_class(type)
+        return core_class(config, exclude_inbounds.copy(), fallbacks_inbounds.copy())
 
     async def initialize(self, db):
         # Register handler with global router
@@ -181,15 +207,18 @@ class CoreManager:
             return
 
         core_configs, _ = await get_core_configs(db)
-        backends: dict[int, AbstractCore] = {}
+        cores: dict[int, AbstractCore] = {}
         for config in core_configs:
-            backend_config = self.validate_core(
-                config.config, config.exclude_inbound_tags, config.fallbacks_inbound_tags
+            core_config = self.validate_core(
+                config.config,
+                config.exclude_inbound_tags,
+                config.fallbacks_inbound_tags,
+                config.type,
             )
-            backends[config.id] = backend_config
+            cores[config.id] = core_config
 
         async with self._lock:
-            self._cores = backends
+            self._cores = cores
 
         await self.update_inbounds()
         await self._persist_state()
@@ -207,12 +236,15 @@ class CoreManager:
             await self.get_inbounds_by_tag.cache.clear()
 
     async def _update_core_local(self, db_core_config: CoreConfig):
-        backend_config = self.validate_core(
-            db_core_config.config, db_core_config.exclude_inbound_tags, db_core_config.fallbacks_inbound_tags
+        core_config = self.validate_core(
+            db_core_config.config,
+            db_core_config.exclude_inbound_tags,
+            db_core_config.fallbacks_inbound_tags,
+            db_core_config.type,
         )
 
         async with self._lock:
-            self._cores.update({db_core_config.id: backend_config})
+            self._cores.update({db_core_config.id: core_config})
 
         await self.update_inbounds()
         await self._persist_state()
@@ -224,7 +256,10 @@ class CoreManager:
 
         # Validate payload before publishing the broadcast message.
         self.validate_core(
-            db_core_config.config, db_core_config.exclude_inbound_tags, db_core_config.fallbacks_inbound_tags
+            db_core_config.config,
+            db_core_config.exclude_inbound_tags,
+            db_core_config.fallbacks_inbound_tags,
+            db_core_config.type,
         )
         try:
             await self._publish_invalidation({"action": "update", "core": self._core_payload_from_db(db_core_config)})
