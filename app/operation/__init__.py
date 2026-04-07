@@ -1,5 +1,7 @@
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from enum import IntEnum
+import re
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -36,8 +38,46 @@ class OperatorType(IntEnum):
 
 
 class BaseOperation:
+    _HTTP_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+
     def __init__(self, operator_type: OperatorType):
         self.operator_type = operator_type
+
+    @classmethod
+    def sanitize_response_headers(cls, headers: dict[str, Any] | None) -> dict[str, str]:
+        """
+        Validate and normalize HTTP response headers to avoid runtime encoding failures.
+        """
+        if not headers:
+            return {}
+
+        cleaned_headers: dict[str, str] = {}
+        for raw_name, raw_value in headers.items():
+            if raw_value is None:
+                continue
+
+            header_name = str(raw_name)
+            header_value = str(raw_value)
+
+            if not header_name or header_name != header_name.strip():
+                raise ValueError("Invalid response header name: empty or whitespace wrapped")
+            if not cls._HTTP_HEADER_NAME_PATTERN.fullmatch(header_name):
+                raise ValueError(f'Invalid response header name "{header_name}"')
+
+            if "\r" in header_value or "\n" in header_value or "\x00" in header_value:
+                raise ValueError(f'Invalid response header "{header_name}": value contains forbidden control characters')
+
+            try:
+                header_name.encode("latin-1")
+                header_value.encode("latin-1")
+            except UnicodeEncodeError as exc:
+                raise ValueError(
+                    f'Invalid response header "{header_name}": value contains non latin-1 characters'
+                ) from exc
+
+            cleaned_headers[header_name] = header_value
+
+        return cleaned_headers
 
     async def raise_error(self, message: str, code: int, db: AsyncSession | None = None):
         """Raise an error based on the operator type."""

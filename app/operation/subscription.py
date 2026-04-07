@@ -296,11 +296,18 @@ class SubscriptionOperation(BaseOperation):
                 request_url,
                 sub_settings,
                 inline=inline_view,
-                extra_headers=self._format_rule_response_headers(
-                    matched_rule, await self._get_rule_response_header_variables(user, client_type)
-                ),
+                extra_headers={},
                 extension=client_config.get(client_type, {}).get("extension", "") if client_type else "",
             )
+            try:
+                response_headers.update(
+                    self._format_rule_response_headers(
+                        matched_rule, await self._get_rule_response_header_variables(user, client_type)
+                    )
+                )
+                response_headers = self.sanitize_response_headers(response_headers)
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=400)
 
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
@@ -338,6 +345,10 @@ class SubscriptionOperation(BaseOperation):
         response_headers = self.create_response_headers(
             user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
         )
+        try:
+            response_headers = self.sanitize_response_headers(response_headers)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400)
         conf, media_type = await self.fetch_config(user, client_type)
 
         # Create response headers
@@ -350,6 +361,10 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
 
         response_headers = self.create_info_response_headers(user, sub_settings)
+        try:
+            response_headers = self.sanitize_response_headers(response_headers)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400)
         user_response = SubscriptionUserResponse.model_validate(db_user)
 
         return user_response, response_headers
