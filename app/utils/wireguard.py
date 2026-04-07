@@ -10,7 +10,7 @@ from app.db import GetDB
 from app.db.crud.user import get_users_with_proxy_settings
 from app.models.proxy import ProxyTable
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
-from app.utils.ip_pool import allocate_from_global_pool, validate_peer_ips_globally
+from app.utils.ip_pool import validate_peer_ips_globally
 
 
 async def get_wireguard_tags(tags: Iterable[str]) -> list[str]:
@@ -72,8 +72,6 @@ async def prepare_wireguard_proxy_settings(
 
     if peer_ips:
         await validate_peer_ips_globally(db, peer_ips, exclude_user_id=exclude_user_id)
-    else:
-        peer_ips = []
 
     proxy_settings.wireguard.peer_ips = peer_ips
     return proxy_settings

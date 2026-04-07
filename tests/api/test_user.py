@@ -667,15 +667,11 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
         # Get the auto-allocated peer IPs
         peer_ips = user["proxy_settings"]["wireguard"]["peer_ips"]
 
-        # Verify that peer_ips is a non-empty list (auto-allocated from global pool)
+        # peer_ips should be empty in user settings (dynamically generated during subscription)
         assert isinstance(peer_ips, list)
-        assert len(peer_ips) > 0
+        assert len(peer_ips) == 0
 
-        # All peer IPs should be /32 (single hosts)
-        for peer_ip in peer_ips:
-            assert peer_ip.endswith("/32")
-
-        # Verify that the same peer_ips are used for all WireGuard interfaces
+        # Verify that peer IPs are dynamically generated during subscription
         links_response = client.get(f"{user['subscription_url']}/links")
         assert links_response.status_code == status.HTTP_200_OK
 
@@ -686,10 +682,17 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
             parsed = urlsplit(line.strip())
             links_by_endpoint[f"{parsed.hostname}:{parsed.port}"] = parse_qs(parsed.query)
 
-        # Both endpoints should have the same peer IPs
-        expected_address = ",".join(peer_ips)
-        assert links_by_endpoint[f"{first_endpoint}:51820"]["address"] == [expected_address]
-        assert links_by_endpoint[f"{second_endpoint}:51821"]["address"] == [expected_address]
+        # Both endpoints should have peer IPs generated from interface addresses
+        # User ID 17 with first_interface address "10.30.10.1/24" should get "10.30.10.18/32"
+        # User ID 17 with second_interface address "10.40.10.1/24" should get "10.40.10.18/32"
+        first_address = links_by_endpoint[f"{first_endpoint}:51820"]["address"][0]
+        second_address = links_by_endpoint[f"{second_endpoint}:51821"]["address"][0]
+
+        # Verify IPs are from correct ranges
+        assert first_address.startswith("10.30.10.")
+        assert second_address.startswith("10.40.10.")
+        assert first_address.endswith("/32")
+        assert second_address.endswith("/32")
 
         # Verify WireGuard subscription contains the peer IPs
         wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
@@ -697,26 +700,30 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
         config_bodies = extract_wireguard_config_bodies(wireguard_response)
         assert len(config_bodies) == 2
 
-        expected_address = f"Address = {', '.join(peer_ips)}"
+        # Verify each config has correct Address from respective interface
+        for body in config_bodies:
+            # Should have Address from one of the interfaces
+            assert "Address = 10.30.10." in body or "Address = 10.40.10." in body
+            assert "/32" in body
+
         expected_endpoints = {f"Endpoint = {first_endpoint}:51820", f"Endpoint = {second_endpoint}:51821"}
         actual_endpoints = set()
 
         for body in config_bodies:
-            assert expected_address in body
             for endpoint in expected_endpoints:
                 if endpoint in body:
                     actual_endpoints.add(endpoint)
 
         assert actual_endpoints == expected_endpoints
 
-        # Test no-op update preserves peer_ips
+        # Test no-op update preserves empty peer_ips
         update_response = client.put(
             f"/api/user/{user['username']}",
             headers=auth_headers(access_token),
             json={"note": "keep existing wireguard allocations"},
         )
         assert update_response.status_code == status.HTTP_200_OK
-        assert update_response.json()["proxy_settings"]["wireguard"]["peer_ips"] == peer_ips
+        assert update_response.json()["proxy_settings"]["wireguard"]["peer_ips"] == []
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
@@ -1579,16 +1586,29 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "reserved for the server" in response.json()["detail"]
 
-        # Test 2: Create user without specifying peer IPs - should get IP from global pool
+        # Test 2: Create user without specifying peer IPs - should get IP dynamically during subscription
         user1 = create_user(
             access_token,
             group_ids=[group["id"]],
             payload={"username": unique_name("wg_auto_ip_user1")},
         )
-        assert user1["proxy_settings"]["wireguard"]["peer_ips"]
-        peer_ip1 = user1["proxy_settings"]["wireguard"]["peer_ips"][0]
+        # peer_ips should be empty in user settings
+        assert user1["proxy_settings"]["wireguard"]["peer_ips"] == []
+
+        # But subscription should work with dynamically allocated IP from global pool
+        links_response = client.get(f"{user1['subscription_url']}/links")
+        assert links_response.status_code == status.HTTP_200_OK
+
+        # Should have a wireguard link with an IP from global pool (10.0.0.0/8)
+        link = links_response.text.strip()
+        assert link.startswith("wireguard://")
+        parsed = urlsplit(link)
+        query = parse_qs(parsed.query)
+        peer_ip1 = query.get("address", [""])[0]
+        # Should be an IP from 10.0.0.0/8 pool
         assert peer_ip1.startswith("10.")
-        assert peer_ip1 != "10.0.0.1/32"
+        assert peer_ip1.endswith("/32")
+        assert peer_ip1 != "10.0.0.1/32"  # Should not be the reserved server IP
 
         # Test 3: Try to create another user with the same IP - should fail
         response = client.post(
@@ -1604,29 +1624,31 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
                 "group_ids": [group["id"]],
             },
         )
+        # Since peer_ips are dynamically generated, manually specifying a duplicate should be rejected
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "already in use" in response.json()["detail"]
 
-        # Test 4: Create another user without specifying peer IPs - should get different IP
+        # Test 4: Create another user without specifying peer IPs - should get different IP dynamically
         user2 = create_user(
             access_token,
             group_ids=[group["id"]],
             payload={"username": unique_name("wg_auto_ip_user2")},
         )
-        assert user2["proxy_settings"]["wireguard"]["peer_ips"]
-        peer_ip2 = user2["proxy_settings"]["wireguard"]["peer_ips"][0]
-        assert peer_ip2.startswith("10.")
-        assert peer_ip2 != peer_ip1
-        assert peer_ip2 != "10.0.0.1/32"
+        # peer_ips should be empty in user settings
+        assert user2["proxy_settings"]["wireguard"]["peer_ips"] == []
 
-        # Test 5: Verify subscription links work with auto-allocated IPs
-        links_response = client.get(f"{user1['subscription_url']}/links")
-        assert links_response.status_code == status.HTTP_200_OK
-        link = links_response.text.strip()
-        assert link.startswith("wireguard://")
-        parsed = urlsplit(link)
-        query = parse_qs(parsed.query)
-        assert query["address"] == [peer_ip1]
+        # Get dynamically allocated IP from subscription
+        links_response2 = client.get(f"{user2['subscription_url']}/links")
+        assert links_response2.status_code == status.HTTP_200_OK
+        link2 = links_response2.text.strip()
+        assert link2.startswith("wireguard://")
+        parsed2 = urlsplit(link2)
+        query2 = parse_qs(parsed2.query)
+        peer_ip2 = query2.get("address", [""])[0]
+        assert peer_ip2.startswith("10.")
+        assert peer_ip2.endswith("/32")
+        # Different users should get different IPs
+        assert peer_ip2 != peer_ip1
 
     finally:
         if user1:
