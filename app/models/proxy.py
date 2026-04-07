@@ -1,41 +1,12 @@
 import json
 from enum import StrEnum
 from ipaddress import ip_network
-from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key, validate_wireguard_key
 from app.utils.system import random_password
-
-
-def get_wireguard_peer_ips_for_inbound(settings: dict[str, Any] | None, inbound_tag: str) -> list[str]:
-    if not settings:
-        return []
-
-    peer_ips_by_inbound = settings.get("peer_ips_by_inbound") or {}
-    if isinstance(peer_ips_by_inbound, dict) and peer_ips_by_inbound:
-        return WireGuardPeerIPs.model_validate({"peer_ips": peer_ips_by_inbound.get(inbound_tag) or []}).peer_ips
-
-    return WireGuardPeerIPs.model_validate({"peer_ips": settings.get("peer_ips") or []}).peer_ips
-
-
-def get_all_wireguard_peer_ips(settings: dict[str, Any] | None) -> list[str]:
-    if not settings:
-        return []
-
-    peer_ips_by_inbound = settings.get("peer_ips_by_inbound") or {}
-    if isinstance(peer_ips_by_inbound, dict) and peer_ips_by_inbound:
-        aggregated: list[str] = []
-        for peer_ips in peer_ips_by_inbound.values():
-            validated_peer_ips = WireGuardPeerIPs.model_validate({"peer_ips": peer_ips}).peer_ips
-            for peer_ip in validated_peer_ips:
-                if peer_ip not in aggregated:
-                    aggregated.append(peer_ip)
-        return aggregated
-
-    return WireGuardPeerIPs.model_validate({"peer_ips": settings.get("peer_ips") or []}).peer_ips
 
 
 class VMessSettings(BaseModel):
@@ -103,7 +74,6 @@ class WireGuardSettings(BaseModel):
     private_key: str | None = None
     public_key: str | None = None
     peer_ips: list[str] = Field(default_factory=list)
-    peer_ips_by_inbound: dict[str, list[str]] = Field(default_factory=dict)
 
     @field_validator("private_key", mode="before")
     @classmethod
@@ -125,24 +95,6 @@ class WireGuardSettings(BaseModel):
     @classmethod
     def validate_peer_ips(cls, value):
         return WireGuardPeerIPs.model_validate({"peer_ips": value}).peer_ips
-
-    @field_validator("peer_ips_by_inbound", mode="before")
-    @classmethod
-    def validate_peer_ips_by_inbound(cls, value):
-        if not value or not isinstance(value, dict):
-            return {}
-
-        normalized: dict[str, list[str]] = {}
-        for inbound_tag, peer_ips in value.items():
-            if not isinstance(inbound_tag, str):
-                continue
-
-            normalized_tag = inbound_tag.strip()
-            if not normalized_tag:
-                continue
-
-            normalized[normalized_tag] = WireGuardPeerIPs.model_validate({"peer_ips": peer_ips}).peer_ips
-        return normalized
 
     @model_validator(mode="after")
     def handle_keys(self):

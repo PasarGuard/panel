@@ -597,16 +597,18 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
     user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_multi_user")})
 
     try:
-        peer_ips_by_inbound = user["proxy_settings"]["wireguard"]["peer_ips_by_inbound"]
-        first_peer_ips = peer_ips_by_inbound[first_interface]
-        second_peer_ips = peer_ips_by_inbound[second_interface]
+        # Get the auto-allocated peer IPs
+        peer_ips = user["proxy_settings"]["wireguard"]["peer_ips"]
 
-        assert user["proxy_settings"]["wireguard"]["peer_ips"] == []
-        assert first_peer_ips and second_peer_ips
-        assert first_peer_ips != second_peer_ips
-        assert all(peer_ip.startswith("10.30.10.") for peer_ip in first_peer_ips)
-        assert all(peer_ip.startswith("10.40.10.") for peer_ip in second_peer_ips)
+        # Verify that peer_ips is a non-empty list (auto-allocated from global pool)
+        assert isinstance(peer_ips, list)
+        assert len(peer_ips) > 0
 
+        # All peer IPs should be /32 (single hosts)
+        for peer_ip in peer_ips:
+            assert peer_ip.endswith("/32")
+
+        # Verify that the same peer_ips are used for all WireGuard interfaces
         links_response = client.get(f"{user['subscription_url']}/links")
         assert links_response.status_code == status.HTTP_200_OK
 
@@ -617,24 +619,27 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
             parsed = urlsplit(line.strip())
             links_by_endpoint[f"{parsed.hostname}:{parsed.port}"] = parse_qs(parsed.query)
 
-        assert links_by_endpoint[f"{first_endpoint}:51820"]["address"] == [",".join(first_peer_ips)]
-        assert links_by_endpoint[f"{second_endpoint}:51821"]["address"] == [",".join(second_peer_ips)]
+        # Both endpoints should have the same peer IPs
+        expected_address = ",".join(peer_ips)
+        assert links_by_endpoint[f"{first_endpoint}:51820"]["address"] == [expected_address]
+        assert links_by_endpoint[f"{second_endpoint}:51821"]["address"] == [expected_address]
 
+        # Verify WireGuard subscription contains the peer IPs
         wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
         assert wireguard_response.status_code == status.HTTP_200_OK
         body = wireguard_response.text
-        assert f"Address = {', '.join(first_peer_ips)}" in body
+        assert f"Address = {', '.join(peer_ips)}" in body
         assert f"Endpoint = {first_endpoint}:51820" in body
-        assert f"Address = {', '.join(second_peer_ips)}" in body
         assert f"Endpoint = {second_endpoint}:51821" in body
 
+        # Test no-op update preserves peer_ips
         update_response = client.put(
             f"/api/user/{user['username']}",
             headers=auth_headers(access_token),
             json={"note": "keep existing wireguard allocations"},
         )
         assert update_response.status_code == status.HTTP_200_OK
-        assert update_response.json()["proxy_settings"]["wireguard"]["peer_ips_by_inbound"] == peer_ips_by_inbound
+        assert update_response.json()["proxy_settings"]["wireguard"]["peer_ips"] == peer_ips
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
@@ -728,11 +733,35 @@ def test_shared_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
             },
         )
 
+        # With simplified model, peer_ips are stored directly
         wireguard_settings = user["proxy_settings"]["wireguard"]
-        assert wireguard_settings["peer_ips"] == []
-        assert wireguard_settings["peer_ips_by_inbound"][first_interface] == shared_peer_ips
-        assert wireguard_settings["peer_ips_by_inbound"][second_interface] == shared_peer_ips
+        assert wireguard_settings["peer_ips"] == shared_peer_ips
 
+        # Verify WireGuard links use the shared peer IPs
+        links_response = client.get(f"{user['subscription_url']}/links")
+        assert links_response.status_code == status.HTTP_200_OK
+
+        links_by_endpoint: dict[str, dict[str, list[str]]] = {}
+        for line in links_response.text.splitlines():
+            if not line.startswith("wireguard://"):
+                continue
+            parsed = urlsplit(line.strip())
+            links_by_endpoint[f"{parsed.hostname}:{parsed.port}"] = parse_qs(parsed.query)
+
+        # Both endpoints should have the same peer IPs
+        expected_address = ",".join(shared_peer_ips)
+        assert links_by_endpoint[f"{first_endpoint}:51820"]["address"] == [expected_address]
+        assert links_by_endpoint[f"{second_endpoint}:51821"]["address"] == [expected_address]
+
+        # Verify WireGuard subscription contains the shared peer IPs
+        wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
+        assert wireguard_response.status_code == status.HTTP_200_OK
+        body = wireguard_response.text
+        assert f"Address = {', '.join(shared_peer_ips)}" in body
+        assert f"Endpoint = {first_endpoint}:51820" in body
+        assert f"Endpoint = {second_endpoint}:51821" in body
+
+        # Test updating with new peer_ips
         updated_proxy_settings = deepcopy(user["proxy_settings"])
         updated_proxy_settings["wireguard"]["peer_ips"] = updated_shared_peer_ips
         update_response = client.put(
@@ -743,9 +772,22 @@ def test_shared_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
         assert update_response.status_code == status.HTTP_200_OK
 
         updated_wireguard = update_response.json()["proxy_settings"]["wireguard"]
-        assert updated_wireguard["peer_ips"] == []
-        assert updated_wireguard["peer_ips_by_inbound"][first_interface] == updated_shared_peer_ips
-        assert updated_wireguard["peer_ips_by_inbound"][second_interface] == updated_shared_peer_ips
+        assert updated_wireguard["peer_ips"] == updated_shared_peer_ips
+
+        # Verify the updated peer IPs are used in subscription links
+        links_response = client.get(f"{user['subscription_url']}/links")
+        assert links_response.status_code == status.HTTP_200_OK
+
+        links_by_endpoint = {}
+        for line in links_response.text.splitlines():
+            if not line.startswith("wireguard://"):
+                continue
+            parsed = urlsplit(line.strip())
+            links_by_endpoint[f"{parsed.hostname}:{parsed.port}"] = parse_qs(parsed.query)
+
+        expected_updated_address = ",".join(updated_shared_peer_ips)
+        assert links_by_endpoint[f"{first_endpoint}:51820"]["address"] == [expected_updated_address]
+        assert links_by_endpoint[f"{second_endpoint}:51821"]["address"] == [expected_updated_address]
     finally:
         if user:
             delete_user(access_token, user["username"])

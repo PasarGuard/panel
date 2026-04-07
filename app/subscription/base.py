@@ -6,9 +6,8 @@ from enum import Enum
 from typing import Any, Literal
 from urllib.parse import quote, urlencode
 
-from app.models.proxy import get_wireguard_peer_ips_for_inbound
-from app.templates import render_template_string
 from app.models.subscription import SubscriptionInboundData
+from app.templates import render_template_string
 
 
 class BaseSubscription:
@@ -189,7 +188,7 @@ class BaseSubscription:
 
     @staticmethod
     def _get_wireguard_peer_ips(settings: dict, inbound_tag: str) -> list[str]:
-        return get_wireguard_peer_ips_for_inbound(settings, inbound_tag)
+        return settings.get("peer_ips") or []
 
     def _build_wireguard_components(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
