@@ -93,4 +93,4 @@ async def validate_peer_ips_globally(
 
         candidate_ip = ip_address(candidate.network_address)
         if candidate_ip in SERVER_RESERVED:
-            raise ValueError(f"peer IP '{peer_ip}' is reserved for server use")
+            raise ValueError(f"peer IP '{peer_ip}' is reserved for the server")

@@ -37,6 +37,12 @@ def cleanup_groups(access_token: str, core: dict, groups: list[dict]):
     delete_core(access_token, core["id"])
 
 
+def extract_wireguard_config_bodies(response) -> list[str]:
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
+        config_files = [name for name in zip_file.namelist() if name.endswith(".conf")]
+        return [zip_file.read(name).decode("utf-8") for name in config_files]
+
+
 def test_user_create_active(access_token):
     """Test that the user create active route is accessible."""
     core, groups = setup_groups(access_token, 2)
@@ -349,13 +355,10 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert query["allowedips"] == ["0.0.0.0/0,::/0"]
         assert unquote(parsed.fragment) == expected_remark
 
-        zip_bytes = wireguard_response.content
-        zip_file = zipfile.ZipFile(io.BytesIO(zip_bytes))
+        config_bodies = extract_wireguard_config_bodies(wireguard_response)
+        assert len(config_bodies) == 1
 
-        config_files = [name for name in zip_file.namelist() if name.endswith(".conf")]
-        assert len(config_files) == 1
-
-        body = zip_file.read(config_files[0]).decode("utf-8")
+        body = config_bodies[0]
         assert f"PrivateKey = {user['proxy_settings']['wireguard']['private_key']}" in body
         assert f"Address = {', '.join(user['proxy_settings']['wireguard']['peer_ips'])}" in body
         assert f"PublicKey = {interface_public_key}" in body
@@ -634,10 +637,20 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
         # Verify WireGuard subscription contains the peer IPs
         wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
         assert wireguard_response.status_code == status.HTTP_200_OK
-        body = wireguard_response.text
-        assert f"Address = {', '.join(peer_ips)}" in body
-        assert f"Endpoint = {first_endpoint}:51820" in body
-        assert f"Endpoint = {second_endpoint}:51821" in body
+        config_bodies = extract_wireguard_config_bodies(wireguard_response)
+        assert len(config_bodies) == 2
+
+        expected_address = f"Address = {', '.join(peer_ips)}"
+        expected_endpoints = {f"Endpoint = {first_endpoint}:51820", f"Endpoint = {second_endpoint}:51821"}
+        actual_endpoints = set()
+
+        for body in config_bodies:
+            assert expected_address in body
+            for endpoint in expected_endpoints:
+                if endpoint in body:
+                    actual_endpoints.add(endpoint)
+
+        assert actual_endpoints == expected_endpoints
 
         # Test no-op update preserves peer_ips
         update_response = client.put(
@@ -763,10 +776,20 @@ def test_shared_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
         # Verify WireGuard subscription contains the shared peer IPs
         wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
         assert wireguard_response.status_code == status.HTTP_200_OK
-        body = wireguard_response.text
-        assert f"Address = {', '.join(shared_peer_ips)}" in body
-        assert f"Endpoint = {first_endpoint}:51820" in body
-        assert f"Endpoint = {second_endpoint}:51821" in body
+        config_bodies = extract_wireguard_config_bodies(wireguard_response)
+        assert len(config_bodies) == 2
+
+        expected_address = f"Address = {', '.join(shared_peer_ips)}"
+        expected_endpoints = {f"Endpoint = {first_endpoint}:51820", f"Endpoint = {second_endpoint}:51821"}
+        actual_endpoints = set()
+
+        for body in config_bodies:
+            assert expected_address in body
+            for endpoint in expected_endpoints:
+                if endpoint in body:
+                    actual_endpoints.add(endpoint)
+
+        assert actual_endpoints == expected_endpoints
 
         # Test updating with new peer_ips
         updated_proxy_settings = deepcopy(user["proxy_settings"])
