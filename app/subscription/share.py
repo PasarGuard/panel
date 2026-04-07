@@ -353,6 +353,16 @@ async def process_inbounds_and_tags(
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
+    def _resolve_host_xray_template_content(inbound: SubscriptionInboundData) -> str | None:
+        if xray_template_overrides is None:
+            return None
+        if not isinstance(inbound.subscription_templates, dict):
+            return None
+        template_id = inbound.subscription_templates.get("xray")
+        if not isinstance(template_id, int):
+            return None
+        return xray_template_overrides.get(template_id)
+
     for host_data in hosts:
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
         if not result:
@@ -379,14 +389,7 @@ async def process_inbounds_and_tags(
                 inbound_copy.transport_config.download_settings = processed_download_settings
 
         if isinstance(conf, XrayConfiguration):
-            template_content = None
-            if (
-                xray_template_overrides is not None
-                and isinstance(inbound_copy.subscription_templates, dict)
-                and isinstance((template_id := inbound_copy.subscription_templates.get("xray")), int)
-            ):
-                template_content = xray_template_overrides.get(template_id)
-
+            template_content = _resolve_host_xray_template_content(inbound_copy)
             conf.add(
                 remark=remark,
                 address=formatted_address,

@@ -828,21 +828,18 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           </PopoverContent>
                         </Popover>
                       </div>
-                      <Select
-                        dir={dir}
-                        value={field.value != null ? String(field.value) : '__default__'}
-                        onValueChange={value => field.onChange(value === '__default__' ? undefined : Number.parseInt(value, 10))}
-                        disabled={isLoadingXrayTemplates}
-                      >
+                        <Select
+                          dir={dir}
+                          value={field.value != null ? String(field.value) : ''}
+                          onValueChange={value => field.onChange(value ? Number.parseInt(value, 10) : undefined)}
+                          disabled={isLoadingXrayTemplates}
+                        >
                         <FormControl>
                           <SelectTrigger className="py-5">
                             <SelectValue placeholder={isLoadingXrayTemplates ? t('loading', { defaultValue: 'Loading...' }) : t('hostsDialog.selectXrayTemplate')} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent dir={dir}>
-                          <SelectItem className="cursor-pointer px-4" value="__default__">
-                            {t('hostsDialog.inboundDefault')}
-                          </SelectItem>
                           {isLoadingXrayTemplates ? (
                             <SelectItem className="px-4" value="__loading_xray_templates__" disabled>
                               <span className="flex items-center gap-2">
