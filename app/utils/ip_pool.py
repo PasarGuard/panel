@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.crud.user import get_users_with_proxy_settings
 
 
 GLOBAL_IP_POOL = IPv4Network("10.0.0.0/8")
@@ -16,15 +16,7 @@ async def get_global_used_networks(
     *,
     exclude_user_id: int | None = None,
 ) -> set[IPv4Network | IPv6Network]:
-    from sqlalchemy import select
-
-    from app.db.models import User
-
-    stmt = select(User)
-    if exclude_user_id is not None:
-        stmt = stmt.where(User.id != exclude_user_id)
-    result = await db.execute(stmt)
-    users = result.scalars().all()
+    users = await get_users_with_proxy_settings(db, exclude_user_id=exclude_user_id)
 
     used_ips: set[IPv4Network | IPv6Network] = set()
     for user in users:

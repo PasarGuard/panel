@@ -186,6 +186,22 @@ async def get_existing_usernames(db: AsyncSession, usernames: Sequence[str]) -> 
     return set(result.scalars().all())
 
 
+async def get_users_with_proxy_settings(
+    db: AsyncSession,
+    *,
+    exclude_user_id: int | None = None,
+) -> list[User]:
+    """
+    Retrieve users for proxy-settings related operations without eager-loading relations.
+    """
+    stmt = select(User)
+    if exclude_user_id is not None:
+        stmt = stmt.where(User.id != exclude_user_id)
+
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 UsersSortingOptions = Enum(
     "UsersSortingOptions",
     {

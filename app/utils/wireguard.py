@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import on_startup
 from app.core.manager import core_manager
 from app.db import GetDB
-from app.db.models import User
+from app.db.crud.user import get_users_with_proxy_settings
 from app.models.proxy import ProxyTable
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.ip_pool import allocate_from_global_pool, validate_peer_ips_globally
@@ -89,7 +88,7 @@ async def prepare_wireguard_proxy_settings(
 async def ensure_users_have_wireguard_keypairs():
     """Startup hook to ensure all users have WireGuard keypairs."""
     async with GetDB() as db:
-        users = (await db.execute(select(User))).scalars().all()
+        users = await get_users_with_proxy_settings(db)
         updated = False
 
         for db_user in users:
