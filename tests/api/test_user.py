@@ -1,3 +1,5 @@
+import io
+import zipfile
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -347,13 +349,18 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert query["allowedips"] == ["0.0.0.0/0,::/0"]
         assert unquote(parsed.fragment) == expected_remark
 
-        body = wireguard_response.text
+        zip_bytes = wireguard_response.content
+        zip_file = zipfile.ZipFile(io.BytesIO(zip_bytes))
+
+        config_files = [name for name in zip_file.namelist() if name.endswith(".conf")]
+        assert len(config_files) == 1
+
+        body = zip_file.read(config_files[0]).decode("utf-8")
         assert f"PrivateKey = {user['proxy_settings']['wireguard']['private_key']}" in body
         assert f"Address = {', '.join(user['proxy_settings']['wireguard']['peer_ips'])}" in body
         assert f"PublicKey = {interface_public_key}" in body
         assert "AllowedIPs = 0.0.0.0/0, ::/0" in body
         assert f"Endpoint = {endpoint}:51820" in body
-        assert f"# URI: {link}" in body
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
@@ -622,11 +629,28 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
 
         wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
         assert wireguard_response.status_code == status.HTTP_200_OK
-        body = wireguard_response.text
-        assert f"Address = {', '.join(first_peer_ips)}" in body
-        assert f"Endpoint = {first_endpoint}:51820" in body
-        assert f"Address = {', '.join(second_peer_ips)}" in body
-        assert f"Endpoint = {second_endpoint}:51821" in body
+
+        zip_bytes = wireguard_response.content
+        zip_file = zipfile.ZipFile(io.BytesIO(zip_bytes))
+
+        config_files = [name for name in zip_file.namelist() if name.endswith(".conf")]
+        assert len(config_files) == 2
+
+        configs = {}
+        for config_file in config_files:
+            content = zip_file.read(config_file).decode("utf-8")
+            configs[config_file] = content
+
+        first_config = next((content for name, content in configs.items() if "Multi_A" in name), None)
+        second_config = next((content for name, content in configs.items() if "Multi_B" in name), None)
+
+        assert first_config is not None
+        assert second_config is not None
+
+        assert f"Address = {', '.join(first_peer_ips)}" in first_config
+        assert f"Endpoint = {first_endpoint}:51820" in first_config
+        assert f"Address = {', '.join(second_peer_ips)}" in second_config
+        assert f"Endpoint = {second_endpoint}:51821" in second_config
 
         update_response = client.put(
             f"/api/user/{user['username']}",
