@@ -291,23 +291,14 @@ class SubscriptionOperation(BaseOperation):
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
             inline_view = sub_settings.disable_sub_template and is_browser_request
-            rule_format_variables = await self._get_rule_response_header_variables(
-                user, client_type, sub_settings, request_url=request_url
-            )
-            formatted_rule_headers = self._format_rule_response_headers(matched_rule, rule_format_variables)
-            if not formatted_rule_headers and matched_rule and matched_rule.response_headers:
-                formatted_rule_headers = {
-                    str(raw_name).strip(): str(raw_value).strip()
-                    for raw_name, raw_value in matched_rule.response_headers.items()
-                    if raw_name and raw_value is not None
-                }
-
             response_headers = self.create_response_headers(
                 user,
                 request_url,
                 sub_settings,
                 inline=inline_view,
-                extra_headers=formatted_rule_headers,
+                extra_headers=self._format_rule_response_headers(
+                    matched_rule, await self._get_rule_response_header_variables(user, client_type)
+                ),
                 extension=client_config.get(client_type, {}).get("extension", "") if client_type else "",
             )
 
@@ -327,19 +318,9 @@ class SubscriptionOperation(BaseOperation):
         return format_variables
 
     async def _get_rule_response_header_variables(
-        self,
-        user: UsersResponseWithInbounds,
-        client_format: ConfigFormat,
-        sub_settings: SubSettings,
-        request_url: str = "",
+        self, user: UsersResponseWithInbounds, client_format: ConfigFormat
     ) -> dict[str, str | int | float]:
-        format_variables = setup_format_variables(user)
-        formatted_title = SubscriptionOperation._format_profile_title(user, format_variables, sub_settings)
-        format_variables.update({"PROFILE_TITLE": formatted_title})
-        if request_url:
-            format_variables.update({"url": request_url})
-        else:
-            format_variables.update({"url": await UserOperation.generate_subscription_url(user)})
+        format_variables = await self.get_format_variables(user)
         format_variables.update({"format": client_format.value})
         return format_variables
 

@@ -14,7 +14,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
-import AdvanceSearchModal from '@/components/dialogs/advance-search-modal.tsx'
+import AdvanceSearchModal from '@/components/dialogs/advance-search-modal'
 import type { AdvanceSearchFormValue } from '@/components/forms/advance-search-form'
 import { Card, CardContent } from '@/components/ui/card'
 
