@@ -909,6 +909,7 @@
       "transport": "روش انتقال پروکسی (مثال: ws)",
       "profile_title": "عنوان پروفایل",
       "url": "آدرس اشتراک",
+      "format": "فرمت اشتراک منطبق‌شده (مثلاً links یا sing_box)",
       "admin_username": "نام کاربری ادمین"
     },
     "advancedOptions": "تنظیمات پیشرفته",

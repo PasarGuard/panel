@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { VariablesPopover } from '@/components/ui/variables-popover'
+import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import { type SubRule as ApiSubRule } from '@/service/api'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable'
@@ -18,7 +19,7 @@ import {
   ArrowUpWideNarrow, Cat, CircleOff,
   Clock, Code, ExternalLink, FileCode2,
   FileText, Globe, GlobeLock, GripVertical,
-  HelpCircle, Link, ListTree, Megaphone, Plus,
+  HelpCircle, Info, Link, ListTree, Megaphone, Plus,
   RotateCcw, Settings, Shuffle, Trash2, User
 } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
@@ -28,6 +29,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { useSettingsContext } from './_dashboard.settings'
 
 // Enhanced validation schema for subscription settings
@@ -347,7 +349,10 @@ interface SortableRuleProps {
 function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const isMobile = useIsMobile()
   const isRtl = dir === 'rtl'
+  const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
+  const infoPopoverAlign = isMobile ? 'center' : 'start'
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const [isHeadersOpen, setIsHeadersOpen] = useState(false)
   const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
@@ -356,9 +361,9 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
   const responseHeaderPreview =
     responseHeaderCount > 0
       ? responseHeaderEntries
-        .slice(0, 2)
-        .map(([headerKey]) => headerKey)
-        .join(', ')
+          .slice(0, 2)
+          .map(([headerKey]) => headerKey)
+          .join(', ')
       : t('settings.subscriptions.rules.responseHeadersDescription')
 
   const addResponseHeader = () => {
@@ -505,39 +510,67 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
       </div>
 
       <Dialog open={isHeadersOpen} onOpenChange={setIsHeadersOpen}>
-        <DialogContent className="max-w-xl" onOpenAutoFocus={e => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>{t('settings.subscriptions.rules.responseHeaders')}</DialogTitle>
-            <DialogDescription>{t('settings.subscriptions.rules.responseHeadersDescription')}</DialogDescription>
+        <DialogContent className="max-h-[100dvh] w-screen max-w-full gap-0 overflow-hidden p-0 sm:max-w-2xl" onOpenAutoFocus={e => e.preventDefault()}>
+          <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-base sm:text-lg">{t('settings.subscriptions.rules.responseHeaders')}</DialogTitle>
+                <DialogDescription className="mt-1 text-xs sm:text-sm">{t('settings.subscriptions.rules.responseHeadersDescription')}</DialogDescription>
+              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" className="mt-0.5 h-4 w-4 shrink-0 p-0 hover:bg-transparent">
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                  <div className="space-y-1.5">
+                    <h4 className="mb-2 text-[12px] font-medium">{t('hostsDialog.variables.title')}</h4>
+                    <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">
+                      <VariablesList includeProfileTitle={true} includeFormat={true} />
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={addResponseHeader}>
-                <Plus className="mr-1 h-3.5 w-3.5" />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex justify-end pb-3 sm:pb-4">
+              <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={addResponseHeader}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
                 {t('settings.subscriptions.rules.addHeader')}
               </Button>
             </div>
 
-            <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
               {responseHeaderCount > 0 ? (
                 responseHeaderEntries.map(([headerKey, headerValue]) => (
-                  <div key={`${id}-${headerKey}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
-                    <Input
-                      value={headerKey}
-                      onChange={e => updateResponseHeaderName(headerKey, e.target.value)}
-                      placeholder={t('settings.subscriptions.rules.headerName')}
-                      className="h-7 border-muted bg-background/60 font-mono text-xs"
-                    />
-                    <Input
+                  <div key={`${id}-${headerKey}`} className="space-y-2 rounded-lg border bg-card/50 p-3">
+                    <div className="flex items-start gap-2">
+                      <Input
+                        value={headerKey}
+                        onChange={e => updateResponseHeaderName(headerKey, e.target.value)}
+                        placeholder={t('settings.subscriptions.rules.headerName')}
+                        className="h-8 flex-1 border-muted bg-background/60 font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10"
+                        onClick={() => removeResponseHeader(headerKey)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Textarea
                       value={headerValue}
                       onChange={e => updateResponseHeaderValue(headerKey, e.target.value)}
                       placeholder={t('settings.subscriptions.rules.headerValue')}
-                      className="h-7 border-muted bg-background/60 font-mono text-xs"
+                      className="min-h-[60px] resize-none border-muted bg-background/60 font-mono text-xs"
+                      rows={2}
                     />
-                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive hover:bg-destructive/10" onClick={() => removeResponseHeader(headerKey)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
                   </div>
                 ))
               ) : (
@@ -546,6 +579,14 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
                   <p className="mt-1 text-xs text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="shrink-0 border-t bg-background px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setIsHeadersOpen(false)} className="w-full sm:w-auto">
+                {t('close', { defaultValue: 'Close' })}
+              </Button>
             </div>
           </div>
         </DialogContent>

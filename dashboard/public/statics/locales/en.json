@@ -1031,6 +1031,7 @@
       "transport": "Proxy transport method (e.g. ws)",
       "profile_title": "Profile title",
       "url": "Subscription URL",
+      "format": "Matched subscription format (e.g. links, sing_box)",
       "admin_username": "Admin username"
     },
     "advancedOptions": "Advanced Options",

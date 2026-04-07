@@ -10,6 +10,8 @@ interface VariablesPopoverProps {
   includeProtocolTransport?: boolean
   /** Whether to show profile title variable (default: false) */
   includeProfileTitle?: boolean
+  /** Whether to show format variable (default: false) */
+  includeFormat?: boolean
   /** Popover side placement (default: "right") */
   side?: 'top' | 'right' | 'bottom' | 'left'
   /** Popover alignment (default: "start") */
@@ -18,7 +20,14 @@ interface VariablesPopoverProps {
   sideOffset?: number
 }
 
-export function VariablesPopover({ includeProtocolTransport = false, includeProfileTitle = false, side = 'bottom', align = 'start', sideOffset = 0 }: VariablesPopoverProps) {
+export function VariablesPopover({
+  includeProtocolTransport = false,
+  includeProfileTitle = false,
+  includeFormat = false,
+  side = 'bottom',
+  align = 'start',
+  sideOffset = 0,
+}: VariablesPopoverProps) {
   const { t } = useTranslation()
   const { copy } = useClipboard()
 
@@ -46,6 +55,7 @@ export function VariablesPopover({ includeProtocolTransport = false, includeProf
           <VariableItem variable="{url}" translationKey="hostsDialog.variables.url" />
         </>
       )}
+      {includeFormat && <VariableItem variable="{format}" translationKey="hostsDialog.variables.format" />}
       <VariableItem variable="{SERVER_IP}" translationKey="hostsDialog.variables.server_ip" />
       <VariableItem variable="{SERVER_IPV6}" translationKey="hostsDialog.variables.server_ipv6" />
       <VariableItem variable="{USERNAME}" translationKey="hostsDialog.variables.username" />
@@ -86,7 +96,15 @@ export function VariablesPopover({ includeProtocolTransport = false, includeProf
 }
 
 /** Component that renders just the variables list (without popover wrapper) - for use in ArrayInput */
-export function VariablesList({ includeProtocolTransport = false, includeProfileTitle = false }: { includeProtocolTransport?: boolean; includeProfileTitle?: boolean }) {
+export function VariablesList({
+  includeProtocolTransport = false,
+  includeProfileTitle = false,
+  includeFormat = false,
+}: {
+  includeProtocolTransport?: boolean
+  includeProfileTitle?: boolean
+  includeFormat?: boolean
+}) {
   const { t } = useTranslation()
   const { copy } = useClipboard()
 
@@ -114,6 +132,7 @@ export function VariablesList({ includeProtocolTransport = false, includeProfile
           <VariableItem variable="{url}" translationKey="hostsDialog.variables.url" />
         </>
       )}
+      {includeFormat && <VariableItem variable="{format}" translationKey="hostsDialog.variables.format" />}
       <VariableItem variable="{SERVER_IP}" translationKey="hostsDialog.variables.server_ip" />
       <VariableItem variable="{SERVER_IPV6}" translationKey="hostsDialog.variables.server_ipv6" />
       <VariableItem variable="{USERNAME}" translationKey="hostsDialog.variables.username" />

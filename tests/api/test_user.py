@@ -254,6 +254,7 @@ def test_user_subscription_applies_rule_response_headers(access_token):
                 "target": "links",
                 "response_headers": {
                     "x-subheader": "Hello {USERNAME}",
+                    "x-format": "Format {format}",
                     "profile-title": "Rule Profile {USERNAME}",
                 },
             },
@@ -284,6 +285,8 @@ def test_user_subscription_applies_rule_response_headers(access_token):
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.text
+        assert response.headers["x-subheader"] == f"Hello {user['username']}"
+        assert response.headers["x-format"] == "Format links"
     finally:
         restore_response = client.put(
             "/api/settings",
@@ -834,13 +837,15 @@ def test_format_rule_response_headers_supports_strings_and_json():
         target=ConfigFormat.links,
         response_headers={
             "x-subheader": "Hello {USERNAME}",
+            "x-format": "Format {format}",
             "x-json": {"enabled": True, "count": 2},
         },
     )
 
-    headers = SubscriptionOperation._format_rule_response_headers(rule, {"USERNAME": "alice"})
+    headers = SubscriptionOperation._format_rule_response_headers(rule, {"USERNAME": "alice", "format": "links"})
 
     assert headers["x-subheader"] == "Hello alice"
+    assert headers["x-format"] == "Format links"
     assert headers["x-json"] == '{"enabled":true,"count":2}'
 
 

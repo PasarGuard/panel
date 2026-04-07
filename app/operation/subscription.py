@@ -296,7 +296,9 @@ class SubscriptionOperation(BaseOperation):
                 request_url,
                 sub_settings,
                 inline=inline_view,
-                extra_headers=self._format_rule_response_headers(matched_rule, setup_format_variables(user)),
+                extra_headers=self._format_rule_response_headers(
+                    matched_rule, await self._get_rule_response_header_variables(user, client_type)
+                ),
                 extension=client_config.get(client_type, {}).get("extension", "") if client_type else "",
             )
 
@@ -313,6 +315,13 @@ class SubscriptionOperation(BaseOperation):
         format_variables.update({"PROFILE_TITLE": formatted_title})
         format_variables.update({"url": sub_url})
 
+        return format_variables
+
+    async def _get_rule_response_header_variables(
+        self, user: UsersResponseWithInbounds, client_format: ConfigFormat
+    ) -> dict[str, str | int | float]:
+        format_variables = await self.get_format_variables(user)
+        format_variables.update({"format": client_format.value})
         return format_variables
 
     async def user_subscription_with_client_type(
