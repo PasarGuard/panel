@@ -177,7 +177,7 @@ def test_get_cores_simple_basic(access_token):
         assert "total" in data
 
         for core in data["cores"]:
-            assert set(core.keys()) == {"id", "name"}
+            assert set(core.keys()) == {"id", "name", "type"}
 
         response_names = [c["name"] for c in data["cores"]]
         for name in created_names:
