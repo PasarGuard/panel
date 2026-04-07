@@ -64,6 +64,10 @@ def _serialize_user_for_node(id: int, username: str, user_settings: dict, inboun
         "hysteria_auth": hysteria_settings.get("auth"),
     }
 
+    vless_flow = vless_settings.get("flow")
+    if vless_flow == "xtls-rprx-vision-udp443":
+        vless_flow = "xtls-rprx-vision"
+
     return create_user(
         f"{id}.{username}",
         create_proxy(**{key: value for key, value in proxy_kwargs.items() if key in _CREATE_PROXY_PARAMS}),

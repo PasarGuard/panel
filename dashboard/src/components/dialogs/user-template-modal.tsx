@@ -565,6 +565,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                         <SelectContent>
                           <SelectItem value="null">{t('userDialog.proxySettings.flow.none', { defaultValue: 'None' })}</SelectItem>
                           <SelectItem value={XTLSFlows['xtls-rprx-vision']}>xtls-rprx-vision</SelectItem>
+                          <SelectItem value={XTLSFlows['xtls-rprx-vision-udp443']}>xtls-rprx-vision-udp443</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -588,4 +589,3 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
     </Dialog>
   )
 }
-

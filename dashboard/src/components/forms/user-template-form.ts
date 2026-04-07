@@ -12,7 +12,7 @@ export const userTemplateFormSchema = z.object({
   method: z
     .enum([ShadowsocksMethods['aes-128-gcm'], ShadowsocksMethods['aes-256-gcm'], ShadowsocksMethods['chacha20-ietf-poly1305'], ShadowsocksMethods['xchacha20-poly1305']])
     .default(ShadowsocksMethods['chacha20-ietf-poly1305']),
-  flow: z.enum([XTLSFlows[''], XTLSFlows['xtls-rprx-vision']]).default(XTLSFlows['']),
+  flow: z.enum([XTLSFlows[''], XTLSFlows['xtls-rprx-vision'], XTLSFlows['xtls-rprx-vision-udp443']]).default(XTLSFlows['']),
   groups: z.array(z.number()).min(1, 'Groups is required'),
   data_limit_reset_strategy: z
     .enum([

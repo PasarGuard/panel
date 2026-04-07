@@ -317,6 +317,7 @@ export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 export const XTLSFlows = {
   '': '',
   'xtls-rprx-vision': 'xtls-rprx-vision',
+  'xtls-rprx-vision-udp443': 'xtls-rprx-vision-udp443',
 } as const
 
 export type XMuxSettingsOutputHKeepAlivePeriod = number | null
