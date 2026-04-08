@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 from enum import Enum
+from ipaddress import ip_network
 from typing import Any, Literal
 from urllib.parse import quote, urlencode
 
@@ -187,16 +188,37 @@ class BaseSubscription:
         return obfs_password, quic_params
 
     @staticmethod
-    def _get_wireguard_peer_ips(settings: dict, _inbound: SubscriptionInboundData) -> list[str]:
-        """Return persisted panel peer IPs only.
-
-        Subscription output must match the node and database. Ephemeral allocation here
-        previously diverged from persisted settings when peer_ips were empty.
-        """
+    def _get_wireguard_peer_ips(settings: dict, inbound: SubscriptionInboundData) -> list[str]:
+        """Return persisted peer IPs that belong to this inbound's WireGuard interface subnet(s)."""
         peer_ips = settings.get("peer_ips") or []
-        if peer_ips:
-            return peer_ips
-        return []
+        if not peer_ips:
+            return []
+        local_addrs = inbound.wireguard_local_address or []
+        if not local_addrs:
+            return list(peer_ips)
+
+        networks: list = []
+        for cidr in local_addrs:
+            if not isinstance(cidr, str) or not cidr.strip():
+                continue
+            try:
+                networks.append(ip_network(cidr.strip(), strict=False))
+            except ValueError:
+                continue
+        if not networks:
+            return list(peer_ips)
+
+        out: list[str] = []
+        for peer_ip in peer_ips:
+            if not isinstance(peer_ip, str) or not peer_ip.strip():
+                continue
+            try:
+                pn = ip_network(peer_ip.strip(), strict=False)
+            except ValueError:
+                continue
+            if any(pn.version == n.version and pn.subnet_of(n) for n in networks):
+                out.append(str(pn))
+        return out
 
     def _build_wireguard_components(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict

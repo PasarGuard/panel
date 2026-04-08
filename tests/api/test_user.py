@@ -2,6 +2,7 @@ import io
 import json
 import zipfile
 from copy import deepcopy
+from ipaddress import ip_network
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -745,16 +746,17 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
     user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_multi_user")})
 
     try:
-        # Get the auto-allocated peer IPs
+        # Get the auto-allocated peer IPs (one per distinct WG interface subnet)
         peer_ips = user["proxy_settings"]["wireguard"]["peer_ips"]
 
-        # peer_ips should be persisted in user settings for node sync
         assert isinstance(peer_ips, list)
-        assert len(peer_ips) == 1
-        assert peer_ips[0].startswith("10.")
-        assert peer_ips[0].endswith("/32")
+        assert len(peer_ips) == 2
+        for ip in peer_ips:
+            assert ip.startswith("10.")
+            assert ip.endswith("/32")
+        assert ip_network(peer_ips[0], strict=False) != ip_network(peer_ips[1], strict=False)
 
-        # Verify that WireGuard links use the persisted peer IPs
+        # Verify that WireGuard links use the peer IP matching each host's interface subnet
         links_response = client.get(f"{user['subscription_url']}/links")
         assert links_response.status_code == status.HTTP_200_OK
 
@@ -765,22 +767,26 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
             parsed = urlsplit(line.strip())
             links_by_endpoint[f"{parsed.hostname}:{parsed.port}"] = parse_qs(parsed.query)
 
-        # Both endpoints should have the same persisted peer IPs
         first_address = links_by_endpoint[f"{first_endpoint}:51820"]["address"][0]
         second_address = links_by_endpoint[f"{second_endpoint}:51821"]["address"][0]
-        expected_address = ",".join(peer_ips)
-        assert first_address == expected_address
-        assert second_address == expected_address
+        net_a = ip_network("10.30.10.1/24", strict=False)
+        net_b = ip_network("10.40.10.1/24", strict=False)
+        assert ip_network(first_address, strict=False).subnet_of(net_a)
+        assert ip_network(second_address, strict=False).subnet_of(net_b)
 
-        # Verify WireGuard subscription contains the peer IPs
+        # Verify WireGuard subscription: each config Address matches that endpoint's subnet
         wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
         assert wireguard_response.status_code == status.HTTP_200_OK
         config_bodies = extract_wireguard_config_bodies(wireguard_response)
         assert len(config_bodies) == 2
 
-        # Verify each config has the same persisted Address
         for body in config_bodies:
-            assert f"Address = {', '.join(peer_ips)}" in body
+            if f"Endpoint = {first_endpoint}:51820" in body:
+                assert ip_network(first_address, strict=False).subnet_of(net_a)
+                assert f"Address = {first_address}" in body
+            elif f"Endpoint = {second_endpoint}:51821" in body:
+                assert ip_network(second_address, strict=False).subnet_of(net_b)
+                assert f"Address = {second_address}" in body
 
         expected_endpoints = {f"Endpoint = {first_endpoint}:51820", f"Endpoint = {second_endpoint}:51821"}
         actual_endpoints = set()
