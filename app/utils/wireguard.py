@@ -157,7 +157,8 @@ async def prepare_wireguard_proxy_settings(
     1. Generates missing WireGuard keypairs
     2. Allocates one peer IP per distinct WireGuard interface subnet (core `address`),
        falling back to the global pool when a subnet is missing or full
-    3. Fills any extra subnets when the user gains interfaces or had a legacy single IP
+    3. When peer_ips were left empty (panel auto-allocation), fills every WG subnet; explicit
+       client-supplied peer_ips are not extended
     4. Validates globally unique peer IPs
     """
     wireguard_tags = await get_wireguard_tags_from_groups(groups)
@@ -210,17 +211,18 @@ async def prepare_wireguard_proxy_settings(
                 peer_ips.append(candidate)
                 used_networks.add(ip_network(candidate, strict=False))
 
-    # Fill missing subnets (e.g. user gained a second WG group, or legacy single global IP).
-    for network, server_ip in net_rows:
-        if _peer_ip_covers_network(peer_ips, network):
-            continue
-        candidate = _allocate_peer_in_network(network, server_ip, used_networks)
-        if candidate is None:
-            candidate = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
-        if candidate is None:
-            raise ValueError("unable to allocate wireguard peer IP for additional interface subnet")
-        peer_ips.append(candidate)
-        used_networks.add(ip_network(candidate, strict=False))
+    # Do not add IPs when the user explicitly set peer_ips (e.g. one shared /32 across hosts).
+    if not requested_peer_ips:
+        for network, server_ip in net_rows:
+            if _peer_ip_covers_network(peer_ips, network):
+                continue
+            candidate = _allocate_peer_in_network(network, server_ip, used_networks)
+            if candidate is None:
+                candidate = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
+            if candidate is None:
+                raise ValueError("unable to allocate wireguard peer IP for additional interface subnet")
+            peer_ips.append(candidate)
+            used_networks.add(ip_network(candidate, strict=False))
 
     await validate_peer_ips_globally(db, peer_ips, exclude_user_id=exclude_user_id)
 

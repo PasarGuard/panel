@@ -189,7 +189,12 @@ class BaseSubscription:
 
     @staticmethod
     def _get_wireguard_peer_ips(settings: dict, inbound: SubscriptionInboundData) -> list[str]:
-        """Return persisted peer IPs that belong to this inbound's WireGuard interface subnet(s)."""
+        """Return peer IPs for this inbound, preferring addresses in the interface subnet.
+
+        When the user has several peer_ips (one per subnet), only those inside this inbound's
+        core `address` ranges are used. If none match but peer_ips is non-empty, the full list
+        is returned so a single explicit /32 can be reused on every WireGuard link (shared mode).
+        """
         peer_ips = settings.get("peer_ips") or []
         if not peer_ips:
             return []
@@ -218,7 +223,9 @@ class BaseSubscription:
                 continue
             if any(pn.version == n.version and pn.subnet_of(n) for n in networks):
                 out.append(str(pn))
-        return out
+        if out:
+            return out
+        return list(peer_ips)
 
     def _build_wireguard_components(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
