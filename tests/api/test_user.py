@@ -1737,3 +1737,60 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
         delete_group(access_token, group["id"])
         client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])
+
+
+def test_wireguard_rejects_manual_peer_ip_outside_interface_subnet(access_token):
+    """Manual peer IPs must fall within a core WireGuard interface address range."""
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_subnet_val")
+    endpoint = "198.51.100.40"
+
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_subnet_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.88.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "WG Subnet Val {USERNAME}",
+            "address": [endpoint],
+            "port": 51820,
+            "inbound_tag": interface_name,
+            "priority": 1,
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+
+    group = create_group(access_token, name=unique_name("wg_subnet_val_group"), inbound_tags=[interface_name])
+
+    try:
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(access_token),
+            json={
+                "username": unique_name("wg_bad_subnet_user"),
+                "proxy_settings": {
+                    "wireguard": {
+                        "peer_ips": ["172.16.0.50/32"],
+                    }
+                },
+                "group_ids": [group["id"]],
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "not within any WireGuard interface address range" in response.json()["detail"]
+    finally:
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
