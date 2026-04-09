@@ -234,6 +234,11 @@ def _create_final_filter(bulk_model: BulkUser | BulkUsersProxy):
     other_conditions = []
     if hasattr(bulk_model, "status") and bulk_model.status:
         other_conditions.append(User.status.in_([i.value for i in bulk_model.status]))
+        if UserStatus.expired in bulk_model.status:
+            if bulk_model.expired_after:
+                other_conditions.append(User.expire >= bulk_model.expired_after)
+            if bulk_model.expired_before:
+                other_conditions.append(User.expire <= bulk_model.expired_before)
     if bulk_model.admins:
         other_conditions.append(User.admin_id.in_([i for i in bulk_model.admins]))
     if bulk_model.group_ids:

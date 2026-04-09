@@ -211,6 +211,8 @@ class BulkUser(BaseModel):
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
     status: set[UserStatus] = Field(default_factory=set)
+    expired_after: dt | None = Field(default=None)
+    expired_before: dt | None = Field(default=None)
 
 
 class BulkUsersProxy(BaseModel):
