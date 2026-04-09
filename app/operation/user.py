@@ -2,7 +2,6 @@ import asyncio
 import re
 import secrets
 from collections import Counter
-from copy import deepcopy
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from typing import Literal
 
@@ -69,7 +68,7 @@ from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from app.utils.wireguard import get_wireguard_tags_from_groups, prepare_wireguard_proxy_settings
+from app.utils.wireguard import prepare_wireguard_proxy_settings
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")

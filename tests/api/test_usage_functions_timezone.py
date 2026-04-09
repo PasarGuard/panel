@@ -150,19 +150,19 @@ class TestGetNodesUsageTimezone:
 
             # Validate each period has exact expected values
             for i, stat in enumerate(stats):
-                assert (
-                    stat.period_start >= start
-                ), f"Period {i}: period_start {stat.period_start} is before start {start}"
+                assert stat.period_start >= start, (
+                    f"Period {i}: period_start {stat.period_start} is before start {start}"
+                )
                 assert stat.period_start < end, f"Period {i}: period_start {stat.period_start} is at or after end {end}"
 
                 # STRICT: Check exact values
                 expected_uplink, expected_downlink = expected_values[i]
-                assert (
-                    stat.uplink == expected_uplink
-                ), f"Period {i}: Expected uplink={expected_uplink}, got {stat.uplink}"
-                assert (
-                    stat.downlink == expected_downlink
-                ), f"Period {i}: Expected downlink={expected_downlink}, got {stat.downlink}"
+                assert stat.uplink == expected_uplink, (
+                    f"Period {i}: Expected uplink={expected_uplink}, got {stat.uplink}"
+                )
+                assert stat.downlink == expected_downlink, (
+                    f"Period {i}: Expected downlink={expected_downlink}, got {stat.downlink}"
+                )
 
             # Verify stats are in chronological order
             for i in range(len(stats) - 1):
@@ -232,12 +232,12 @@ class TestGetNodesUsageTimezone:
                 assert stat.downlink > 0, f"Downlink should be > 0, got {stat.downlink}"
 
             # STRICT: Total traffic must match expected sum from in-range records
-            assert (
-                total_uplink == expected_uplink_sum
-            ), f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
-            assert (
-                total_downlink == expected_downlink_sum
-            ), f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
+            assert total_uplink == expected_uplink_sum, (
+                f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
+            )
+            assert total_downlink == expected_downlink_sum, (
+                f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
+            )
 
     @pytest.mark.asyncio
     async def test_day_period_does_not_include_previous_day_tehran(self):
@@ -394,9 +394,9 @@ class TestGetNodesUsageTimezone:
 
             # Core validation: NO data from before start should be included
             for stat in stats:
-                assert (
-                    stat.period_start >= start_utc
-                ), f"BUG: Got data from before start! period_start {stat.period_start} < start {start_utc}"
+                assert stat.period_start >= start_utc, (
+                    f"BUG: Got data from before start! period_start {stat.period_start} < start {start_utc}"
+                )
 
                 # Validate traffic values - should be from in-range only
                 assert stat.uplink > 0, f"Uplink should be > 0, got {stat.uplink}"
@@ -411,12 +411,12 @@ class TestGetNodesUsageTimezone:
                 total_downlink += stat.downlink
 
             # STRICT: Total must match exactly in-range sum
-            assert (
-                total_uplink == expected_uplink_sum
-            ), f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
-            assert (
-                total_downlink == expected_downlink_sum
-            ), f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
+            assert total_uplink == expected_uplink_sum, (
+                f"Expected total_uplink={expected_uplink_sum}, got {total_uplink}"
+            )
+            assert total_downlink == expected_downlink_sum, (
+                f"Expected total_downlink={expected_downlink_sum}, got {total_downlink}"
+            )
 
 
 class TestGetUserUsagesTimezone:
@@ -487,15 +487,15 @@ class TestGetUserUsagesTimezone:
                 assert stat.period_start < end
 
                 # STRICT: Validate exact per-bucket traffic
-                assert (
-                    stat.total_traffic == expected_bucket_totals[i]
-                ), f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
+                assert stat.total_traffic == expected_bucket_totals[i], (
+                    f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
+                )
                 total_traffic += stat.total_traffic
 
             # STRICT: Total must match exactly all in-range records
-            assert (
-                total_traffic == expected_total_traffic
-            ), f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            assert total_traffic == expected_total_traffic, (
+                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("period", [Period.hour, Period.day, Period.month])
@@ -617,25 +617,25 @@ class TestGetAllUsersUsagesTimezone:
                 if isinstance(user_stats, dict):
                     for stats_list in user_stats.values():
                         for stat in stats_list:
-                            assert (
-                                stat.period_start >= start
-                            ), f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
+                            assert stat.period_start >= start, (
+                                f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
+                            )
                             # STRICT: Validate traffic
                             assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
                             total_traffic += stat.total_traffic
                 elif isinstance(user_stats, list):
                     for stat in user_stats:
-                        assert (
-                            stat.period_start >= start
-                        ), f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
+                        assert stat.period_start >= start, (
+                            f"BUG: Got data from before start! period_start {stat.period_start} < start {start}"
+                        )
                         # STRICT: Validate traffic
                         assert stat.total_traffic > 0, f"Traffic should be > 0, got {stat.total_traffic}"
                         total_traffic += stat.total_traffic
 
             # STRICT: Total must match in-range records
-            assert (
-                total_traffic == expected_total_traffic
-            ), f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            assert total_traffic == expected_total_traffic, (
+                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            )
 
 
 class TestGetAdminUsagesTimezone:
@@ -724,15 +724,15 @@ class TestGetAdminUsagesTimezone:
                 assert stat.period_start < end
 
                 # STRICT: Validate exact per-bucket traffic
-                assert (
-                    stat.total_traffic == expected_bucket_totals[i]
-                ), f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
+                assert stat.total_traffic == expected_bucket_totals[i], (
+                    f"Period {i}: expected total_traffic={expected_bucket_totals[i]}, got {stat.total_traffic}"
+                )
                 total_traffic += stat.total_traffic
 
             # STRICT: Total must match exactly all in-range records
-            assert (
-                total_traffic == expected_total_traffic
-            ), f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            assert total_traffic == expected_total_traffic, (
+                f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("period", [Period.hour, Period.day])

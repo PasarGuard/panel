@@ -353,6 +353,7 @@ async def process_inbounds_and_tags(
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
+
     def _resolve_host_xray_template_content(inbound: SubscriptionInboundData) -> str | None:
         if xray_template_overrides is None:
             return None

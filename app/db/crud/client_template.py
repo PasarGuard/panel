@@ -69,9 +69,7 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
     return values
 
 
-async def get_client_template_contents_by_type(
-    db: AsyncSession, template_type: ClientTemplateType
-) -> dict[int, str]:
+async def get_client_template_contents_by_type(db: AsyncSession, template_type: ClientTemplateType) -> dict[int, str]:
     rows = (
         await db.execute(
             select(ClientTemplate.id, ClientTemplate.content).where(ClientTemplate.template_type == template_type.value)

@@ -135,10 +135,7 @@ async def validate_manual_peer_ips_within_wireguard_subnets(
             pn = ip_network(peer_ip, strict=False)
         except ValueError as exc:
             raise ValueError(f"invalid IP/network format: '{peer_ip}'") from exc
-        if not any(
-            pn.version == iface.version and pn.subnet_of(iface)
-            for iface in networks
-        ):
+        if not any(pn.version == iface.version and pn.subnet_of(iface) for iface in networks):
             raise ValueError(
                 f"peer IP '{peer_ip}' is not within any WireGuard interface address range for this user's groups"
             )
