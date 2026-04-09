@@ -48,6 +48,8 @@ async def serialize_user(user: User) -> ProtoUser:
 def _serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None) -> ProtoUser:
     vmess_settings = user_settings.get("vmess", {})
     vless_settings = user_settings.get("vless", {})
+    if vless_settings.get("flow") == "xtls-rprx-vision-udp443":
+        vless_settings["flow"] = "xtls-rprx-vision"
     trojan_settings = user_settings.get("trojan", {})
     shadowsocks_settings = user_settings.get("shadowsocks", {})
     wireguard_settings = user_settings.get("wireguard", {})
@@ -63,10 +65,6 @@ def _serialize_user_for_node(id: int, username: str, user_settings: dict, inboun
         "wireguard_peer_ips": wireguard_settings.get("peer_ips") or [],
         "hysteria_auth": hysteria_settings.get("auth"),
     }
-
-    vless_flow = vless_settings.get("flow")
-    if vless_flow == "xtls-rprx-vision-udp443":
-        vless_flow = "xtls-rprx-vision"
 
     return create_user(
         f"{id}.{username}",
