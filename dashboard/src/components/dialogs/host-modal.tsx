@@ -1112,6 +1112,18 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             </FormItem>
                           )}
                         />
+                        <FormField
+                          control={form.control}
+                          name="wireguard_overrides.dns"
+                          render={({ field }) => (
+                            <ArrayInput
+                              field={{ ...field, value: field.value ?? [] }}
+                              placeholder="1.1.1.1"
+                              label={t('hostsDialog.wireguard.dns')}
+                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.dnsHint')}</p>}
+                            />
+                          )}
+                        />
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -1149,7 +1161,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           render={({ field }) => (
                             <FormItem>
                               <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.path')}</FormLabel>
+                                <FormLabel className="text-xs">{t('hostsDialog.path')}</FormLabel>
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">

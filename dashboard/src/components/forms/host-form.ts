@@ -92,6 +92,7 @@ export interface HostFormValues {
     mtu?: number
     reserved?: string
     keepalive_seconds?: number
+    dns?: string[]
   }
   subscription_templates?: {
     xray?: number
@@ -440,6 +441,7 @@ export const HostFormSchema = z.object({
       mtu: z.number().min(576).max(9000).optional(),
       reserved: z.string().max(64).optional(),
       keepalive_seconds: z.number().min(0).max(86400).optional(),
+      dns: z.array(z.string()).optional(),
     })
     .optional(),
   subscription_templates: z

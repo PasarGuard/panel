@@ -47,6 +47,8 @@ class WireGuardConfiguration(BaseSubscription):
             config_data["Interface"]["MTU"] = str(mtu)
         if reserved := payload.get("reserved"):
             config_data["Interface"]["Reserved"] = str(reserved)
+        if dns_servers := payload.get("dns"):
+            config_data["Interface"]["DNS"] = ", ".join(dns_servers)
 
         # Optional Peer settings
         if preshared_key := payload.get("presharedkey"):

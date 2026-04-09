@@ -1129,7 +1129,9 @@
       "mtu": "MTU",
       "keepalive": "持久 Keepalive（秒）",
       "keepalivePlaceholder": "入站默认值",
-      "reserved": "Reserved（例如 0,0,0）"
+      "reserved": "Reserved（例如 0,0,0）",
+      "dns": "DNS 服务器",
+      "dnsHint": "留空使用系统 DNS"
     }
   },
   "inbound": "入站",

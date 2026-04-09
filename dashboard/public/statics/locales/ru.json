@@ -1312,7 +1312,9 @@
       "mtu": "MTU",
       "keepalive": "Постоянный keepalive (сек)",
       "keepalivePlaceholder": "По умолчанию inbound",
-      "reserved": "Reserved (например 0,0,0)"
+      "reserved": "Reserved (например 0,0,0)",
+      "dns": "DNS серверы",
+      "dnsHint": "Оставьте пустым для использования системного DNS"
     }
   },
   "enable": "Включить",

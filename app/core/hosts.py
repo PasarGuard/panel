@@ -71,6 +71,8 @@ async def _prepare_subscription_inbound_data(
 
         reserved = wg_over.reserved.strip() if wg_over.reserved else None
 
+        dns = list(wg_over.dns) if wg_over.dns else None
+
         return SubscriptionInboundData(
             remark=host.remark,
             inbound_tag=host.inbound_tag,
@@ -88,6 +90,7 @@ async def _prepare_subscription_inbound_data(
             wireguard_keepalive=keepalive,
             wireguard_mtu=wg_over.mtu,
             wireguard_reserved=reserved,
+            wireguard_dns=dns,
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)

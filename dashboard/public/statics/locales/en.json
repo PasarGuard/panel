@@ -1154,7 +1154,9 @@
       "mtu": "MTU",
       "keepalive": "Persistent keepalive (seconds)",
       "keepalivePlaceholder": "Inbound default",
-      "reserved": "Reserved (e.g. 0,0,0)"
+      "reserved": "Reserved (e.g. 0,0,0)",
+      "dns": "DNS servers",
+      "dnsHint": "Leave empty to use system DNS"
     }
   },
   "inbound": "Inbound",

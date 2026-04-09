@@ -246,6 +246,7 @@ class SubscriptionInboundData(BaseModel):
     wireguard_keepalive: int | None = Field(default=None)
     wireguard_mtu: int | None = Field(default=None)
     wireguard_reserved: str | None = Field(default=None)
+    wireguard_dns: list[str] | None = Field(default=None)
 
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")

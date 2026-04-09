@@ -1020,7 +1020,9 @@
       "mtu": "MTU",
       "keepalive": "نگه‌داشت زنده (ثانیه)",
       "keepalivePlaceholder": "پیش‌فرض inbound",
-      "reserved": "Reserved (مثلاً 0,0,0)"
+      "reserved": "Reserved (مثلاً 0,0,0)",
+      "dns": "سرور DNS",
+      "dnsHint": "خالی بگذارید تا از DNS سیستم استفاده شود"
     }
   },
   "inbound": "ورودی",

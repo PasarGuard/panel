@@ -228,6 +228,7 @@ class WireGuardHostOverrides(BaseModel):
     mtu: int | None = Field(default=None, ge=576, le=9000)
     reserved: str | None = Field(default=None, max_length=64)
     keepalive_seconds: int | None = Field(default=None, ge=0, le=86400)
+    dns: list[str] | None = Field(default=None)
 
     @field_validator("reserved", mode="before")
     @classmethod
