@@ -45,6 +45,8 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
 export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, onEdit }: DataTableProps<TData, TValue>) => {
   const { t } = useTranslation()
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
+  /** CSS :hover can stick after closing portaled menus; drive md+ row bg with pointer events instead. */
+  const [hoveredRowId, setHoveredRowId] = useState<number | null>(null)
   const dir = useDirDetection()
   const isRTL = dir === 'rtl'
 
@@ -138,7 +140,13 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
               ? table.getRowModel().rows.map(row => (
                   <React.Fragment key={row.id}>
                     <TableRow
-                      className={cn('cursor-pointer border-b hover:!bg-inherit md:cursor-default md:hover:!bg-muted/50', expandedRow === row.original.id && 'border-transparent')}
+                      className={cn(
+                        'cursor-pointer border-b md:cursor-default max-md:hover:!bg-inherit',
+                        hoveredRowId === row.original.id ? 'md:!bg-muted/50' : 'md:hover:!bg-inherit',
+                        expandedRow === row.original.id && 'border-transparent',
+                      )}
+                      onMouseEnter={() => setHoveredRowId(row.original.id)}
+                      onMouseLeave={() => setHoveredRowId(null)}
                       onClick={e => handleEditModal(e, row.original)}
                       data-state={row.getIsSelected() && 'selected'}
                     >
