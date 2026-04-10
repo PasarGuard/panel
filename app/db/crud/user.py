@@ -1051,6 +1051,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     else:
         await db_user.next_plan.awaitable_attrs.user_template
         await db_user.next_plan.user_template.awaitable_attrs.groups
+        await db_user.awaitable_attrs.groups
         db_user.groups = db_user.next_plan.user_template.groups
         db_user.data_limit = db_user.next_plan.user_template.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
