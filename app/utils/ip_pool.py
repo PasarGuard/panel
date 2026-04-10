@@ -98,7 +98,7 @@ def allocate_one_from_pool_sync(used_networks: set[IPv4Network | IPv6Network]) -
     for raw_candidate in range(start, end + 1):
         candidate = ip_address(raw_candidate)
 
-        if candidate in WIREGUARD_RESERVED:
+        if any(candidate in net for net in WIREGUARD_RESERVED):
             continue
 
         if candidate == pool.broadcast_address:
@@ -144,5 +144,5 @@ async def validate_peer_ips_globally(
             raise ValueError(f"peer IP/network '{peer_ip}' is already in use by an existing user's peer network")
 
         candidate_ip = ip_address(candidate.network_address)
-        if candidate_ip in WIREGUARD_RESERVED:
+        if any(candidate_ip in net for net in WIREGUARD_RESERVED):
             raise ValueError(f"peer IP '{peer_ip}' is reserved")
