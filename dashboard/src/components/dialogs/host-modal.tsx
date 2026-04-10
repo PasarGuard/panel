@@ -274,9 +274,9 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
                 <Info className="h-4 w-4 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={isMobile ? 'bottom' : 'top'} align={isMobile ? 'center' : 'start'} sideOffset={5}>
+            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={isMobile ? 'bottom' : 'top'} align={dir === 'rtl' ? 'end' : 'start'} sideOffset={5}>
               <div className="space-y-1.5">
-                <h4 className="mb-2 text-[12px] font-medium">{t('hostsDialog.variables.title')}</h4>
+                <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.variables.title')}</h4>
                 <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">{infoContent}</div>
               </div>
             </PopoverContent>
@@ -295,8 +295,8 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
         }}
       >
         <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" className="h-auto w-full min-w-0 p-2 text-left" title={displayValue || placeholder}>
-            <span className={`max-w-[100px] flex-1 truncate sm:max-w-none ${displayValue ? 'text-foreground' : 'text-muted-foreground'}`} title={displayValue || placeholder}>
+          <Button variant="outline" role="combobox" className="h-auto w-full min-w-0 justify-between p-2 text-left" title={displayValue || placeholder}>
+            <span className={`min-w-0 flex-1 truncate text-start max-w-[100px] sm:max-w-none ${displayValue ? 'text-foreground' : 'text-muted-foreground'}`} title={displayValue || placeholder}>
               {displayValue || placeholder}
             </span>
             <div className="ml-2 flex shrink-0 items-center gap-1">
@@ -321,7 +321,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
                 className="min-w-0 flex-1 text-sm"
                 autoFocus={isPopoverOpen}
               />
-              <Button type="button" size="sm" variant="default" onClick={addItem} disabled={!inputValue.trim()} className="h-8 w-full shrink-0 px-3 py-1 sm:w-auto" title={t('arrayInput.addButton')}>
+              <Button type="button" size="sm" variant="default" onClick={addItem} disabled={!inputValue.trim()} className="h-8 w-full shrink-0 justify-start px-3 py-1 sm:w-auto sm:justify-center" title={t('arrayInput.addButton')}>
                 <Plus className="h-4 w-4" />
                 <span className="ml-1 sm:hidden">{t('arrayInput.addButton')}</span>
               </Button>
@@ -433,7 +433,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
               </div>
             )}
 
-            {(!field.value || field.value.length === 0) && <div className="py-6 text-center text-sm text-muted-foreground">{t('arrayInput.noItems')}</div>}
+            {(!field.value || field.value.length === 0) && <div className="py-6 text-start text-sm text-muted-foreground">{t('arrayInput.noItems')}</div>}
           </div>
         </PopoverContent>
       </Popover>
@@ -1045,7 +1045,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               field={{ ...field, value: field.value ?? [] }}
                               placeholder="0.0.0.0/0"
                               label={t('hostsDialog.wireguard.allowedIps')}
-                              infoContent={<p className="text-muted-foreground">{t('hostsDialog.wireguard.allowedIpsHint')}</p>}
+                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.allowedIpsHint')}</p>}
                             />
                           )}
                         />
@@ -1120,7 +1120,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               field={{ ...field, value: field.value ?? [] }}
                               placeholder="1.1.1.1"
                               label={t('hostsDialog.wireguard.dns')}
-                              infoContent={<p className="text-muted-foreground">{t('hostsDialog.wireguard.dnsHint')}</p>}
+                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.dnsHint')}</p>}
                             />
                           )}
                         />

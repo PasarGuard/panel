@@ -87,7 +87,7 @@ export function VariablesPopover({
       </PopoverTrigger>
       <PopoverContent className="w-[280px] p-3 sm:w-[320px]" side={side} align={align} sideOffset={sideOffset}>
         <div className="space-y-1.5">
-          <h4 className="mb-2 text-[12px] font-medium">{t('hostsDialog.variables.title')}</h4>
+          <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.variables.title')}</h4>
           <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">{variablesList}</div>
         </div>
       </PopoverContent>

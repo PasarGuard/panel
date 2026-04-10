@@ -976,7 +976,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     </PopoverTrigger>
                     <PopoverContent className="w-[280px] p-3 sm:w-[340px]" side="top" align="start" sideOffset={5}>
                       <div className="space-y-1.5">
-                        <h4 className="mb-2 text-[12px] font-medium">{t('coreConfigModal.vlessEncryptionInfoTitle')}</h4>
+                        <h4 className="mb-2 text-[11px] font-medium">{t('coreConfigModal.vlessEncryptionInfoTitle')}</h4>
                         <p className="text-[11px] text-muted-foreground">{t('coreConfigModal.vlessEncryptionHint')}</p>
                         <p className="text-[11px] text-muted-foreground">• {t('coreConfigModal.vlessEncryptionNativeInfo')}</p>
                         <p className="text-[11px] text-muted-foreground">• {t('coreConfigModal.vlessEncryptionXorpubInfo')}</p>
