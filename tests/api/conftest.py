@@ -1,11 +1,43 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiorwlock import RWLock
+from sqlalchemy import select
 
-from app.db.models import Settings
+from app.db.models import ClientTemplate, Settings
+from app.subscription.client_templates import refresh_client_templates_cache
+from app.models.client_template import ClientTemplateType
 
 from . import GetTestDB, TestSession, client
+
+_DEFAULT_CLIENT_TEMPLATES: list[dict[str, str | bool]] = [
+    {
+        "name": "Default Clash Subscription",
+        "template_type": ClientTemplateType.clash_subscription.value,
+        "content": "proxies: []\nproxy-groups: []\nrules: []\n",
+    },
+    {
+        "name": "Default Xray Subscription",
+        "template_type": ClientTemplateType.xray_subscription.value,
+        "content": '{"log":{"loglevel":"warning"},"inbounds":[],"outbounds":[{"protocol":"freedom","tag":"direct"}]}',
+    },
+    {
+        "name": "Default Singbox Subscription",
+        "template_type": ClientTemplateType.singbox_subscription.value,
+        "content": '{"log":{"level":"warn"},"inbounds":[],"outbounds":[{"type":"direct","tag":"direct"}]}',
+    },
+    {
+        "name": "Default User-Agent Template",
+        "template_type": ClientTemplateType.user_agent.value,
+        "content": '{"list":["Mozilla/5.0"]}',
+    },
+    {
+        "name": "Default gRPC User-Agent Template",
+        "template_type": ClientTemplateType.grpc_user_agent.value,
+        "content": '{"list":["grpc-go/1.58.1"]}',
+    },
+]
 
 
 @pytest.fixture(autouse=True)
@@ -437,6 +469,29 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr("app.settings.get_settings", settings_mock)
     return settings
+
+
+@pytest.fixture(autouse=True)
+def ensure_default_client_templates():
+    async def _ensure_templates():
+        async with TestSession() as session:
+            existing_types = set((await session.execute(select(ClientTemplate.template_type))).scalars().all())
+            for template in _DEFAULT_CLIENT_TEMPLATES:
+                if template["template_type"] in existing_types:
+                    continue
+                session.add(
+                    ClientTemplate(
+                        name=template["name"],
+                        template_type=template["template_type"],
+                        content=template["content"],
+                        is_default=True,
+                        is_system=True,
+                    )
+                )
+            await session.commit()
+
+    asyncio.run(_ensure_templates())
+    asyncio.run(refresh_client_templates_cache())
 
 
 @pytest.fixture

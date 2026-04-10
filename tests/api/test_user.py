@@ -1,17 +1,21 @@
+import asyncio
 import io
 import json
 import zipfile
 from copy import deepcopy
-from ipaddress import ip_network
 from datetime import datetime, timedelta, timezone
+from ipaddress import ip_network
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
+from sqlalchemy import select
 
+from app.db.models import User
 from app.models.settings import ConfigFormat, SubRule
 from app.operation.subscription import SubscriptionOperation
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
-from tests.api import client
+from app.utils.proxy_settings import WIREGUARD_AUTO_PEER_IPS_BY_SUBNET_KEY
+from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
     create_client_template,
@@ -46,6 +50,64 @@ def extract_wireguard_config_bodies(response) -> list[str]:
     with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
         config_files = [name for name in zip_file.namelist() if name.endswith(".conf")]
         return [zip_file.read(name).decode("utf-8") for name in config_files]
+
+
+def get_stored_proxy_settings(username: str) -> dict:
+    async def _fetch() -> dict:
+        async with TestSession() as session:
+            result = await session.execute(select(User.proxy_settings).where(User.username == username))
+            return result.scalar_one()
+
+    return asyncio.run(_fetch())
+
+
+def get_stored_wireguard_auto_map(username: str) -> dict | None:
+    wireguard_settings = get_stored_proxy_settings(username).get("wireguard") or {}
+    return wireguard_settings.get(WIREGUARD_AUTO_PEER_IPS_BY_SUBNET_KEY)
+
+
+def create_wireguard_setup(
+    access_token: str,
+    *,
+    subnet: str,
+    endpoint: str,
+    interface_name: str | None = None,
+    port: int = 51820,
+    core_name: str = "wireguard_test_core",
+    group_name: str = "wireguard_test_group",
+) -> tuple[dict, dict, int, str]:
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = interface_name or unique_name("wg_test")
+
+    core = create_core(
+        access_token,
+        name=unique_name(core_name),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": port,
+            "address": [subnet],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": f"WG Host {interface_name} {{USERNAME}}",
+            "address": [endpoint],
+            "port": port,
+            "inbound_tag": interface_name,
+            "priority": 1,
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+
+    group = create_group(access_token, name=unique_name(group_name), inbound_tags=[interface_name])
+    return core, group, host_id, interface_name
 
 
 def test_user_create_active(access_token):
@@ -748,12 +810,16 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
     try:
         # Get the auto-allocated peer IPs (one per distinct WG interface subnet)
         peer_ips = user["proxy_settings"]["wireguard"]["peer_ips"]
+        stored_auto_map = get_stored_wireguard_auto_map(user["username"])
 
         assert isinstance(peer_ips, list)
         assert len(peer_ips) == 2
+        assert stored_auto_map is not None
+        assert len(stored_auto_map) == 2
         for ip in peer_ips:
             assert ip.startswith("10.")
             assert ip.endswith("/32")
+            assert ip in stored_auto_map.values()
         assert ip_network(peer_ips[0], strict=False) != ip_network(peer_ips[1], strict=False)
 
         # Verify that WireGuard links use the peer IP matching each host's interface subnet
@@ -902,6 +968,7 @@ def test_shared_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
         # With simplified model, peer_ips are stored directly
         wireguard_settings = user["proxy_settings"]["wireguard"]
         assert wireguard_settings["peer_ips"] == shared_peer_ips
+        assert get_stored_wireguard_auto_map(user["username"]) is None
 
         # Verify WireGuard links use the shared peer IPs
         links_response = client.get(f"{user['subscription_url']}/links")
@@ -972,6 +1039,349 @@ def test_shared_wireguard_peer_ips_can_be_applied_to_multiple_interfaces(access_
         client.delete(f"/api/host/{second_host_id}", headers=auth_headers(access_token))
         delete_core(access_token, first_core["id"])
         delete_core(access_token, second_core["id"])
+
+
+def test_wireguard_auto_peer_ips_persist_internal_auto_map(access_token):
+    core, group, host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.82.0.1/24",
+        endpoint="198.51.100.82",
+        core_name="wireguard_auto_persist_core",
+        group_name="wireguard_auto_persist_group",
+    )
+    user = create_user(
+        access_token,
+        group_ids=[group["id"]],
+        payload={"username": unique_name("wg_auto_persist_user")},
+    )
+
+    try:
+        peer_ips = user["proxy_settings"]["wireguard"]["peer_ips"]
+        assert len(peer_ips) == 1
+        assert ip_network(peer_ips[0], strict=False).subnet_of(ip_network("10.82.0.1/24", strict=False))
+
+        stored_proxy_settings = get_stored_proxy_settings(user["username"])
+        stored_auto_map = get_stored_wireguard_auto_map(user["username"])
+        assert stored_auto_map == {"10.82.0.0/24": peer_ips[0]}
+        assert WIREGUARD_AUTO_PEER_IPS_BY_SUBNET_KEY not in user["proxy_settings"]["wireguard"]
+        assert stored_proxy_settings["wireguard"]["peer_ips"] == peer_ips
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_wireguard_modify_user_from_manual_to_auto_persists_peer_ips(access_token):
+    manual_peer_ips = ["10.83.0.50/32"]
+    core, group, host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.83.0.1/24",
+        endpoint="198.51.100.83",
+        core_name="wireguard_manual_to_auto_core",
+        group_name="wireguard_manual_to_auto_group",
+    )
+    user = create_user(
+        access_token,
+        group_ids=[group["id"]],
+        payload={
+            "username": unique_name("wg_manual_to_auto_user"),
+            "proxy_settings": {"wireguard": {"peer_ips": manual_peer_ips}},
+        },
+    )
+
+    try:
+        assert get_stored_wireguard_auto_map(user["username"]) is None
+
+        updated_proxy_settings = deepcopy(user["proxy_settings"])
+        updated_proxy_settings["wireguard"]["peer_ips"] = []
+        response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+            json={"proxy_settings": updated_proxy_settings},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        updated_user = response.json()
+        updated_peer_ips = updated_user["proxy_settings"]["wireguard"]["peer_ips"]
+        assert len(updated_peer_ips) == 1
+        assert updated_peer_ips != manual_peer_ips
+        assert ip_network(updated_peer_ips[0], strict=False).subnet_of(ip_network("10.83.0.1/24", strict=False))
+        assert get_stored_wireguard_auto_map(user["username"]) == {"10.83.0.0/24": updated_peer_ips[0]}
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_wireguard_group_modify_updates_only_auto_users(access_token):
+    manual_peer_ips = ["10.84.0.60/32"]
+    first_core, first_group, first_host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.84.0.1/24",
+        endpoint="198.51.100.84",
+        interface_name=unique_name("wg_group_modify_a"),
+        core_name="wireguard_group_modify_core_a",
+        group_name="wireguard_group_modify_group_a",
+    )
+    second_core, second_group, second_host_id, second_interface = create_wireguard_setup(
+        access_token,
+        subnet="10.85.0.1/24",
+        endpoint="198.51.100.85",
+        interface_name=unique_name("wg_group_modify_b"),
+        core_name="wireguard_group_modify_core_b",
+        group_name="wireguard_group_modify_group_b",
+    )
+    auto_user = create_user(
+        access_token,
+        group_ids=[first_group["id"]],
+        payload={"username": unique_name("wg_group_modify_auto_user")},
+    )
+    manual_user = create_user(
+        access_token,
+        group_ids=[first_group["id"]],
+        payload={
+            "username": unique_name("wg_group_modify_manual_user"),
+            "proxy_settings": {"wireguard": {"peer_ips": manual_peer_ips}},
+        },
+    )
+
+    try:
+        response = client.put(
+            f"/api/group/{first_group['id']}",
+            headers=auth_headers(access_token),
+            json={
+                "name": first_group["name"],
+                "inbound_tags": [second_interface],
+                "is_disabled": False,
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        auto_after = client.get(f"/api/user/{auto_user['username']}", headers=auth_headers(access_token)).json()
+        manual_after = client.get(f"/api/user/{manual_user['username']}", headers=auth_headers(access_token)).json()
+
+        auto_peer_ips = auto_after["proxy_settings"]["wireguard"]["peer_ips"]
+        assert len(auto_peer_ips) == 1
+        assert ip_network(auto_peer_ips[0], strict=False).subnet_of(ip_network("10.85.0.1/24", strict=False))
+        assert get_stored_wireguard_auto_map(auto_user["username"]) == {"10.85.0.0/24": auto_peer_ips[0]}
+
+        assert manual_after["proxy_settings"]["wireguard"]["peer_ips"] == manual_peer_ips
+        assert get_stored_wireguard_auto_map(manual_user["username"]) is None
+    finally:
+        delete_user(access_token, auto_user["username"])
+        delete_user(access_token, manual_user["username"])
+        delete_group(access_token, first_group["id"])
+        delete_group(access_token, second_group["id"])
+        client.delete(f"/api/host/{first_host_id}", headers=auth_headers(access_token))
+        client.delete(f"/api/host/{second_host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, first_core["id"])
+        delete_core(access_token, second_core["id"])
+
+
+def test_wireguard_bulk_group_add_remove_updates_only_auto_users(access_token):
+    manual_peer_ips = ["10.86.0.70/32"]
+    core, group, host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.86.0.1/24",
+        endpoint="198.51.100.86",
+        core_name="wireguard_bulk_group_core",
+        group_name="wireguard_bulk_group",
+    )
+    auto_user = create_user(access_token, payload={"username": unique_name("wg_bulk_auto_user")})
+    manual_user = create_user(
+        access_token,
+        payload={
+            "username": unique_name("wg_bulk_manual_user"),
+            "proxy_settings": {"wireguard": {"peer_ips": manual_peer_ips}},
+        },
+    )
+
+    try:
+        response = client.post(
+            "/api/groups/bulk/add",
+            headers=auth_headers(access_token),
+            json={"users": [auto_user["id"], manual_user["id"]], "group_ids": [group["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        auto_after_add = client.get(f"/api/user/{auto_user['username']}", headers=auth_headers(access_token)).json()
+        manual_after_add = client.get(f"/api/user/{manual_user['username']}", headers=auth_headers(access_token)).json()
+
+        auto_peer_ips = auto_after_add["proxy_settings"]["wireguard"]["peer_ips"]
+        assert len(auto_peer_ips) == 1
+        assert ip_network(auto_peer_ips[0], strict=False).subnet_of(ip_network("10.86.0.1/24", strict=False))
+        assert get_stored_wireguard_auto_map(auto_user["username"]) == {"10.86.0.0/24": auto_peer_ips[0]}
+
+        assert manual_after_add["proxy_settings"]["wireguard"]["peer_ips"] == manual_peer_ips
+        assert get_stored_wireguard_auto_map(manual_user["username"]) is None
+
+        response = client.post(
+            "/api/groups/bulk/remove",
+            headers=auth_headers(access_token),
+            json={"users": [auto_user["id"], manual_user["id"]], "group_ids": [group["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        auto_after_remove = client.get(
+            f"/api/user/{auto_user['username']}",
+            headers=auth_headers(access_token),
+        ).json()
+        manual_after_remove = client.get(
+            f"/api/user/{manual_user['username']}",
+            headers=auth_headers(access_token),
+        ).json()
+
+        assert auto_after_remove["proxy_settings"]["wireguard"]["peer_ips"] == []
+        assert get_stored_wireguard_auto_map(auto_user["username"]) == {}
+        assert manual_after_remove["proxy_settings"]["wireguard"]["peer_ips"] == manual_peer_ips
+        assert get_stored_wireguard_auto_map(manual_user["username"]) is None
+    finally:
+        delete_user(access_token, auto_user["username"])
+        delete_user(access_token, manual_user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_wireguard_active_next_plan_updates_auto_peer_ips(access_token):
+    first_core, first_group, first_host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.87.0.1/24",
+        endpoint="198.51.100.87",
+        core_name="wireguard_active_next_core_a",
+        group_name="wireguard_active_next_group_a",
+    )
+    second_core, second_group, second_host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.88.0.1/24",
+        endpoint="198.51.100.88",
+        core_name="wireguard_active_next_core_b",
+        group_name="wireguard_active_next_group_b",
+    )
+    template = create_user_template(
+        access_token,
+        group_ids=[second_group["id"]],
+        reset_usages=False,
+    )
+    user = create_user(
+        access_token,
+        group_ids=[first_group["id"]],
+        payload={"username": unique_name("wg_active_next_user")},
+    )
+
+    try:
+        response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+            json={"next_plan": {"user_template_id": template["id"], "add_remaining_traffic": False}},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        response = client.post(
+            f"/api/user/{user['username']}/active_next",
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        activated_user = response.json()
+        peer_ips = activated_user["proxy_settings"]["wireguard"]["peer_ips"]
+        assert len(peer_ips) == 1
+        assert ip_network(peer_ips[0], strict=False).subnet_of(ip_network("10.88.0.1/24", strict=False))
+        assert get_stored_wireguard_auto_map(user["username"]) == {"10.88.0.0/24": peer_ips[0]}
+        assert activated_user["group_ids"] == [second_group["id"]]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
+        delete_group(access_token, first_group["id"])
+        delete_group(access_token, second_group["id"])
+        client.delete(f"/api/host/{first_host_id}", headers=auth_headers(access_token))
+        client.delete(f"/api/host/{second_host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, first_core["id"])
+        delete_core(access_token, second_core["id"])
+
+
+def test_wireguard_core_modify_and_delete_update_only_auto_users(access_token):
+    manual_peer_ips = ["10.89.0.90/32"]
+    interface_name = unique_name("wg_core_change")
+    core, group, host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.89.0.1/24",
+        endpoint="198.51.100.89",
+        interface_name=interface_name,
+        core_name="wireguard_core_change_core",
+        group_name="wireguard_core_change_group",
+    )
+    auto_user = create_user(
+        access_token,
+        group_ids=[group["id"]],
+        payload={"username": unique_name("wg_core_change_auto_user")},
+    )
+    manual_user = create_user(
+        access_token,
+        group_ids=[group["id"]],
+        payload={
+            "username": unique_name("wg_core_change_manual_user"),
+            "proxy_settings": {"wireguard": {"peer_ips": manual_peer_ips}},
+        },
+    )
+    core_deleted = False
+
+    try:
+        response = client.put(
+            f"/api/core/{core['id']}",
+            headers=auth_headers(access_token),
+            params={"restart_nodes": False},
+            json={
+                "name": core["name"],
+                "type": "wg",
+                "config": {
+                    "interface_name": interface_name,
+                    "private_key": core["config"]["private_key"],
+                    "listen_port": 51820,
+                    "address": ["10.90.0.1/24"],
+                },
+                "exclude_inbound_tags": [],
+                "fallbacks_inbound_tags": [],
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        auto_after_modify = client.get(f"/api/user/{auto_user['username']}", headers=auth_headers(access_token)).json()
+        manual_after_modify = client.get(
+            f"/api/user/{manual_user['username']}",
+            headers=auth_headers(access_token),
+        ).json()
+
+        auto_peer_ips = auto_after_modify["proxy_settings"]["wireguard"]["peer_ips"]
+        assert len(auto_peer_ips) == 1
+        assert ip_network(auto_peer_ips[0], strict=False).subnet_of(ip_network("10.90.0.1/24", strict=False))
+        assert get_stored_wireguard_auto_map(auto_user["username"]) == {"10.90.0.0/24": auto_peer_ips[0]}
+
+        assert manual_after_modify["proxy_settings"]["wireguard"]["peer_ips"] == manual_peer_ips
+        assert get_stored_wireguard_auto_map(manual_user["username"]) is None
+
+        delete_core(access_token, core["id"])
+        core_deleted = True
+
+        auto_after_delete = client.get(f"/api/user/{auto_user['username']}", headers=auth_headers(access_token)).json()
+        manual_after_delete = client.get(
+            f"/api/user/{manual_user['username']}",
+            headers=auth_headers(access_token),
+        ).json()
+
+        assert auto_after_delete["proxy_settings"]["wireguard"]["peer_ips"] == []
+        assert get_stored_wireguard_auto_map(auto_user["username"]) == {}
+        assert manual_after_delete["proxy_settings"]["wireguard"]["peer_ips"] == manual_peer_ips
+        assert get_stored_wireguard_auto_map(manual_user["username"]) is None
+    finally:
+        delete_user(access_token, auto_user["username"])
+        delete_user(access_token, manual_user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        if not core_deleted:
+            delete_core(access_token, core["id"])
 
 
 def test_format_rule_response_headers_supports_strings_and_json():
@@ -1099,22 +1509,34 @@ def test_reset_by_next_user_usage(access_token):
 
 
 def test_revoke_user_subscription(access_token):
-    """Test revoke user subscription info."""
-    core, groups = setup_groups(access_token, 1)
+    """Revoke-subscription rewrites must preserve the internal auto marker."""
+    core, group, host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.91.0.1/24",
+        endpoint="198.51.100.91",
+        core_name="wireguard_revoke_core",
+        group_name="wireguard_revoke_group",
+    )
     user = create_user(
         access_token,
-        group_ids=[groups[0]["id"]],
+        group_ids=[group["id"]],
         payload={"username": unique_name("test_user_revoke")},
     )
     try:
+        stored_auto_map = get_stored_wireguard_auto_map(user["username"])
+        assert stored_auto_map is not None
+
         response = client.post(
             f"/api/user/{user['username']}/revoke_sub",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
+        assert get_stored_wireguard_auto_map(user["username"]) == stored_auto_map
     finally:
         delete_user(access_token, user["username"])
-        cleanup_groups(access_token, core, groups)
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
 
 
 def test_user_delete(access_token):
@@ -1612,15 +2034,15 @@ def test_get_users_simple_search_and_sort(access_token):
             delete_user(access_token, username)
 
 
-def test_wireguard_peer_ip_global_pool_and_validation(access_token):
-    """Test that peer IPs are allocated from global pool and server IP is rejected."""
+def test_wireguard_does_not_fallback_outside_interface_subnets(access_token):
+    """Auto mode should stay empty when the interface exposes no subnet addresses."""
     interface_private_key, _ = generate_wireguard_keypair()
-    interface_name = unique_name("wg_global_pool")
+    interface_name = unique_name("wg_no_subnet")
     endpoint = "198.51.100.30"
 
     core = create_core(
         access_token,
-        name=unique_name("wireguard_global_pool_core"),
+        name=unique_name("wireguard_no_subnet_core"),
         config={
             "interface_name": interface_name,
             "private_key": interface_private_key,
@@ -1645,14 +2067,11 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
     assert host_response.status_code == status.HTTP_201_CREATED
     host_id = host_response.json()["id"]
 
-    group = create_group(access_token, name=unique_name("wg_global_pool_group"), inbound_tags=[interface_name])
+    group = create_group(access_token, name=unique_name("wg_no_subnet_group"), inbound_tags=[interface_name])
 
-    user1 = None
-    user2 = None
-    duplicate_user = None
+    user = None
 
     try:
-        # Test 1: Try to create user with server IP (10.0.0.1) - should fail
         response = client.post(
             "/api/user",
             headers=auth_headers(access_token),
@@ -1669,77 +2088,17 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "reserved for the server" in response.json()["detail"]
 
-        # Test 2: Create user without specifying peer IPs - should get persisted auto-allocation
-        user1 = create_user(
+        user = create_user(
             access_token,
             group_ids=[group["id"]],
-            payload={"username": unique_name("wg_auto_ip_user1")},
+            payload={"username": unique_name("wg_no_subnet_user")},
         )
-        peer_ips1 = user1["proxy_settings"]["wireguard"]["peer_ips"]
-        assert isinstance(peer_ips1, list)
-        assert len(peer_ips1) == 1
-        assert peer_ips1[0].startswith("10.")
-        assert peer_ips1[0].endswith("/32")
-        assert peer_ips1[0] != "10.0.0.1/32"  # Should not be the reserved server IP
-
-        # Subscription should use persisted allocation
-        links_response = client.get(f"{user1['subscription_url']}/links")
-        assert links_response.status_code == status.HTTP_200_OK
-
-        # Should have a wireguard link with the persisted IP
-        link = links_response.text.strip()
-        assert link.startswith("wireguard://")
-        parsed = urlsplit(link)
-        query = parse_qs(parsed.query)
-        peer_ip1 = query.get("address", [""])[0]
-        assert peer_ip1 == peer_ips1[0]
-
-        # Test 3: Manual peer_ip is validated against stored peer_ips, including auto-allocated ones.
-        response = client.post(
-            "/api/user",
-            headers=auth_headers(access_token),
-            json={
-                "username": unique_name("wg_duplicate_ip_user"),
-                "proxy_settings": {
-                    "wireguard": {
-                        "peer_ips": [peer_ip1],
-                    }
-                },
-                "group_ids": [group["id"]],
-            },
-        )
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "already in use" in response.json()["detail"]
-
-        # Test 4: Create another user without specifying peer IPs - should get different persisted IP
-        user2 = create_user(
-            access_token,
-            group_ids=[group["id"]],
-            payload={"username": unique_name("wg_auto_ip_user2")},
-        )
-        peer_ips2 = user2["proxy_settings"]["wireguard"]["peer_ips"]
-        assert isinstance(peer_ips2, list)
-        assert len(peer_ips2) == 1
-
-        # Get allocated IP from subscription
-        links_response2 = client.get(f"{user2['subscription_url']}/links")
-        assert links_response2.status_code == status.HTTP_200_OK
-        link2 = links_response2.text.strip()
-        assert link2.startswith("wireguard://")
-        parsed2 = urlsplit(link2)
-        query2 = parse_qs(parsed2.query)
-        peer_ip2 = query2.get("address", [""])[0]
-        assert peer_ip2 == peer_ips2[0]
-        # Different users should get different IPs
-        assert peer_ip2 != peer_ip1
+        assert user["proxy_settings"]["wireguard"]["peer_ips"] == []
+        assert get_stored_wireguard_auto_map(user["username"]) == {}
 
     finally:
-        if user1:
-            delete_user(access_token, user1["username"])
-        if user2:
-            delete_user(access_token, user2["username"])
-        if duplicate_user:
-            delete_user(access_token, duplicate_user["username"])
+        if user:
+            delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
         client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])

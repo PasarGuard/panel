@@ -68,7 +68,8 @@ from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from app.utils.wireguard import prepare_wireguard_proxy_settings
+from app.utils.proxy_settings import dump_proxy_settings_for_storage, load_proxy_settings, normalize_proxy_settings_storage
+from app.utils.wireguard import prepare_wireguard_proxy_settings_input, reconcile_wireguard_peer_ips_for_users
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
@@ -216,6 +217,7 @@ class UserOperation(BaseOperation):
             )
 
         db_users = await create_users_bulk(db, users_to_create, groups, db_admin)
+        await reconcile_wireguard_peer_ips_for_users(db, db_users)
 
         subscription_urls: list[str] = []
         for db_user in db_users:
@@ -250,7 +252,7 @@ class UserOperation(BaseOperation):
         exclude_user_id: int | None = None,
     ) -> ProxyTable:
         try:
-            return await prepare_wireguard_proxy_settings(
+            return await prepare_wireguard_proxy_settings_input(
                 db,
                 proxy_settings,
                 groups,
@@ -258,6 +260,22 @@ class UserOperation(BaseOperation):
             )
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400, db=db)
+
+    @staticmethod
+    def _build_proxy_settings_storage(
+        proxy_settings: ProxyTable,
+        *,
+        existing_storage: dict | None = None,
+        preserve_existing_wireguard_mode: bool = False,
+    ) -> dict:
+        if preserve_existing_wireguard_mode:
+            return dump_proxy_settings_for_storage(proxy_settings, existing_storage)
+
+        return dump_proxy_settings_for_storage(
+            proxy_settings,
+            existing_storage,
+            auto_peer_ips_by_subnet={} if not proxy_settings.wireguard.peer_ips else None,
+        )
 
     async def create_user(self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails) -> UserResponse:
         if new_user.next_plan is not None and new_user.next_plan.user_template_id is not None:
@@ -272,6 +290,7 @@ class UserOperation(BaseOperation):
         except IntegrityError:
             await self.raise_error(message="User already exists", code=409, db=db)
 
+        await reconcile_wireguard_peer_ips_for_users(db, [db_user])
         user = await self.update_user(db_user)
 
         logger.info(f'New user "{db_user.username}" with id "{db_user.id}" added by admin "{admin.username}"')
@@ -281,7 +300,13 @@ class UserOperation(BaseOperation):
         return user
 
     async def _modify_user(
-        self, db: AsyncSession, db_user: User, modified_user: UserModify, admin: AdminDetails
+        self,
+        db: AsyncSession,
+        db_user: User,
+        modified_user: UserModify,
+        admin: AdminDetails,
+        *,
+        preserve_existing_wireguard_mode: bool = False,
     ) -> UserResponse:
         validated_groups = None
         if modified_user.group_ids:
@@ -293,12 +318,14 @@ class UserOperation(BaseOperation):
         old_status = db_user.status
 
         effective_groups = validated_groups if validated_groups is not None else db_user.groups
-        current_proxy_settings = ProxyTable.model_validate(db_user.proxy_settings)
+        current_proxy_settings_storage = normalize_proxy_settings_storage(db_user.proxy_settings)
+        current_proxy_settings = load_proxy_settings(current_proxy_settings_storage)
         current_proxy_settings_data = current_proxy_settings.dict()
+        proxy_settings_storage = None
         proxy_settings_to_prepare = (
             ProxyTable.model_validate(modified_user.proxy_settings.dict())
             if modified_user.proxy_settings is not None
-            else ProxyTable.model_validate(current_proxy_settings_data)
+            else load_proxy_settings(current_proxy_settings_storage)
         )
         prepared_proxy_settings = await self._prepare_user_proxy_settings(
             db,
@@ -306,10 +333,28 @@ class UserOperation(BaseOperation):
             proxy_settings_to_prepare,
             exclude_user_id=db_user.id,
         )
-        if modified_user.proxy_settings is not None or prepared_proxy_settings.dict() != current_proxy_settings_data:
+        if modified_user.proxy_settings is not None:
+            proxy_settings_storage = self._build_proxy_settings_storage(
+                prepared_proxy_settings,
+                existing_storage=current_proxy_settings_storage,
+                preserve_existing_wireguard_mode=preserve_existing_wireguard_mode,
+            )
             modified_user.proxy_settings = prepared_proxy_settings
+        elif prepared_proxy_settings.dict() != current_proxy_settings_data:
+            modified_user.proxy_settings = prepared_proxy_settings
+            proxy_settings_storage = dump_proxy_settings_for_storage(
+                prepared_proxy_settings,
+                current_proxy_settings_storage,
+            )
 
-        db_user = await modify_user(db, db_user, modified_user, groups=validated_groups)
+        db_user = await modify_user(
+            db,
+            db_user,
+            modified_user,
+            groups=validated_groups,
+            proxy_settings_storage=proxy_settings_storage,
+        )
+        await reconcile_wireguard_peer_ips_for_users(db, [db_user])
         user = await self.update_user(db_user)
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
@@ -398,6 +443,7 @@ class UserOperation(BaseOperation):
         old_status = db_user.status
 
         db_user = await reset_user_by_next(db=db, db_user=db_user)
+        await reconcile_wireguard_peer_ips_for_users(db, [db_user])
 
         user = await self.update_user(db_user)
 
@@ -753,7 +799,13 @@ class UserOperation(BaseOperation):
                 emit_status_change_notification=not suppress_reset_status_change,
             )
 
-        return await self._modify_user(db, db_user, modify_user, admin)
+        return await self._modify_user(
+            db,
+            db_user,
+            modify_user,
+            admin,
+            preserve_existing_wireguard_mode=True,
+        )
 
     async def bulk_create_users_from_template(
         self, db: AsyncSession, bulk_users: BulkUsersFromTemplate, admin: AdminDetails

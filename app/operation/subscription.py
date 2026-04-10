@@ -15,6 +15,7 @@ from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
+from app.utils.wireguard import reconcile_wireguard_peer_ips_for_users
 from config import SUBSCRIPTION_PAGE_TEMPLATE
 
 from . import BaseOperation
@@ -247,6 +248,7 @@ class SubscriptionOperation(BaseOperation):
         # Handle HTML request (subscription page)
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token)
+        await reconcile_wireguard_peer_ips_for_users(db, [db_user], include_legacy_empty_peer_ips=True)
         user = await self.validated_user(db_user)
 
         is_browser_request = "text/html" in accept_header
@@ -340,6 +342,7 @@ class SubscriptionOperation(BaseOperation):
         if client_type == ConfigFormat.block or not getattr(sub_settings.manual_sub_request, client_type):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token)
+        await reconcile_wireguard_peer_ips_for_users(db, [db_user], include_legacy_empty_peer_ips=True)
         user = await self.validated_user(db_user)
 
         response_headers = self.create_response_headers(
@@ -358,6 +361,7 @@ class SubscriptionOperation(BaseOperation):
         """Retrieves detailed information about the user's subscription."""
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token=token)
+        await reconcile_wireguard_peer_ips_for_users(db, [db_user], include_legacy_empty_peer_ips=True)
         user = await self.validated_user(db_user)
 
         response_headers = self.create_info_response_headers(user, sub_settings)

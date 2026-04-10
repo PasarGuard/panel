@@ -12,15 +12,29 @@ from app.db.crud.core import (
     modify_core_config,
     remove_core_config,
 )
+from app.db.crud.user import get_users_by_inbound_tags
 from app.models.admin import AdminDetails
 from app.models.core import CoreCreate, CoreResponse, CoreResponseList, CoreSimple, CoresSimpleResponse
+from app.node.sync import sync_users
 from app.operation import BaseOperation
 from app.utils.logger import get_logger
+from app.utils.wireguard import reconcile_wireguard_peer_ips_for_users
 
 logger = get_logger("core-operation")
 
 
 class CoreOperation(BaseOperation):
+    @staticmethod
+    def _core_inbound_tags(db_core) -> list[str]:
+        return list(
+            core_manager.validate_core(
+                db_core.config,
+                db_core.exclude_inbound_tags,
+                db_core.fallbacks_inbound_tags,
+                db_core.type,
+            ).inbounds
+        )
+
     async def create_core(self, db: AsyncSession, new_core: CoreCreate, admin: AdminDetails) -> CoreResponse:
         try:
             core_manager.validate_core(
@@ -84,6 +98,7 @@ class CoreOperation(BaseOperation):
         self, db: AsyncSession, core_id: int, modified_core: CoreCreate, admin: AdminDetails
     ) -> CoreResponse:
         db_core = await self.get_validated_core_config(db, core_id)
+        old_inbound_tags = self._core_inbound_tags(db_core)
         try:
             core_manager.validate_core(
                 modified_core.config,
@@ -96,6 +111,12 @@ class CoreOperation(BaseOperation):
             await self.raise_error(message=e, code=400, db=db)
 
         await core_manager.update_core(db_core)
+        affected_users = await get_users_by_inbound_tags(
+            db,
+            list(dict.fromkeys([*old_inbound_tags, *self._core_inbound_tags(db_core)])),
+        )
+        await reconcile_wireguard_peer_ips_for_users(db, affected_users)
+        await sync_users(affected_users)
 
         logger.info(f'Core config "{db_core.name}" modified by admin "{admin.username}"')
 
@@ -111,9 +132,13 @@ class CoreOperation(BaseOperation):
             return await self.raise_error(message="Cannot delete default core config", code=403)
 
         db_core = await self.get_validated_core_config(db, core_id)
+        affected_inbound_tags = self._core_inbound_tags(db_core)
 
         await remove_core_config(db, db_core)
         await core_manager.remove_core(db_core.id)
+        affected_users = await get_users_by_inbound_tags(db, affected_inbound_tags)
+        await reconcile_wireguard_peer_ips_for_users(db, affected_users)
+        await sync_users(affected_users)
 
         asyncio.create_task(notification.remove_core(db_core.id, admin.username))
 

@@ -12,7 +12,7 @@ from app.db.crud.group import (
     GroupsSortingOptionsSimple,
 )
 from app.db.crud.user import get_users
-from app.db.models import Admin, UserStatus
+from app.db.models import Admin
 from app.models.group import (
     BulkGroup,
     Group,
@@ -26,6 +26,7 @@ from app.models.group import (
 from app.node.sync import sync_users
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
+from app.utils.wireguard import reconcile_wireguard_peer_ips_for_users
 
 logger = get_logger("group-operation")
 
@@ -90,7 +91,8 @@ class GroupOperation(BaseOperation):
             await self.check_inbound_tags(modified_group.inbound_tags)
         db_group = await modify_group(db, db_group, modified_group)
 
-        users = await get_users(db, group_ids=[db_group.id], status=[UserStatus.active, UserStatus.on_hold])
+        users = await get_users(db, group_ids=[db_group.id])
+        await reconcile_wireguard_peer_ips_for_users(db, users)
         await sync_users(users)
 
         group = GroupResponse.model_validate(db_group)
@@ -109,6 +111,7 @@ class GroupOperation(BaseOperation):
         await remove_group(db, db_group)
 
         users = await get_users(db, usernames=username_list)
+        await reconcile_wireguard_peer_ips_for_users(db, users)
         await sync_users(users)
 
         logger.info(f'Group "{db_group.name}" deleted by admin "{admin.username}"')
@@ -119,6 +122,7 @@ class GroupOperation(BaseOperation):
         await self.validate_all_groups(db, bulk_model)
 
         users, users_count = await add_groups_to_users(db, bulk_model)
+        await reconcile_wireguard_peer_ips_for_users(db, users)
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
@@ -129,6 +133,7 @@ class GroupOperation(BaseOperation):
         await self.validate_all_groups(db, bulk_model)
 
         users, users_count = await remove_groups_from_users(db, bulk_model)
+        await reconcile_wireguard_peer_ips_for_users(db, users)
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):

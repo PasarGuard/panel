@@ -17,16 +17,19 @@ from app.db.models import (
     NextPlan,
     NodeUserUsage,
     NotificationReminder,
+    ProxyInbound,
     ReminderType,
     User,
     UserStatus,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
+    inbounds_groups_association,
     users_groups_association,
 )
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
+from app.utils.proxy_settings import dump_proxy_settings_for_storage
 from config import USERS_AUTODELETE_DAYS
 
 from .general import (
@@ -200,6 +203,37 @@ async def get_users_with_proxy_settings(
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def get_users_by_inbound_tags(
+    db: AsyncSession,
+    tags: list[str],
+    *,
+    statuses: list[UserStatus] | None = None,
+) -> list[User]:
+    if not tags:
+        return []
+
+    stmt = (
+        select(User)
+        .join(users_groups_association, User.id == users_groups_association.c.user_id)
+        .join(Group, users_groups_association.c.groups_id == Group.id)
+        .join(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
+        .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+        .where(ProxyInbound.tag.in_(tags))
+        .options(
+            selectinload(User.admin),
+            selectinload(User.next_plan),
+            selectinload(User.usage_logs),
+            selectinload(User.groups),
+        )
+    )
+
+    if statuses:
+        stmt = stmt.where(User.status.in_(statuses))
+
+    result = await db.execute(stmt)
+    return list(result.unique().scalars().all())
 
 
 UsersSortingOptions = Enum(
@@ -674,7 +708,14 @@ async def get_users_count_by_status(
     return all_statuses
 
 
-async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group], admin: Admin) -> User:
+async def create_user(
+    db: AsyncSession,
+    new_user: UserCreate,
+    groups: list[Group],
+    admin: Admin,
+    *,
+    proxy_settings_storage: dict | None = None,
+) -> User:
     """
     Creates a new user.
 
@@ -694,7 +735,14 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     db_user.groups = groups
     db_user.expire = new_user.expire or None
     db_user.on_hold_timeout = new_user.on_hold_timeout or None
-    db_user.proxy_settings = new_user.proxy_settings.dict()
+    db_user.proxy_settings = (
+        proxy_settings_storage
+        if proxy_settings_storage is not None
+        else dump_proxy_settings_for_storage(
+            new_user.proxy_settings,
+            auto_peer_ips_by_subnet={} if not new_user.proxy_settings.wireguard.peer_ips else None,
+        )
+    )
 
     db.add(db_user)
     await db.flush()
@@ -708,7 +756,12 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
 
 
 async def create_users_bulk(
-    db: AsyncSession, new_users: list[UserCreate], groups: list[Group], admin: Admin
+    db: AsyncSession,
+    new_users: list[UserCreate],
+    groups: list[Group],
+    admin: Admin,
+    *,
+    proxy_settings_storage_list: list[dict] | None = None,
 ) -> list[User]:
     """
     Creates multiple users in a single commit for better performance.
@@ -717,7 +770,7 @@ async def create_users_bulk(
         return []
 
     db_users: list[User] = []
-    for new_user in new_users:
+    for index, new_user in enumerate(new_users):
         db_user = User(
             **new_user.model_dump(exclude={"group_ids", "expire", "proxy_settings", "next_plan", "on_hold_timeout"})
         )
@@ -725,7 +778,14 @@ async def create_users_bulk(
         db_user.groups = list(groups)
         db_user.expire = new_user.expire or None
         db_user.on_hold_timeout = new_user.on_hold_timeout or None
-        db_user.proxy_settings = new_user.proxy_settings.dict()
+        db_user.proxy_settings = (
+            proxy_settings_storage_list[index]
+            if proxy_settings_storage_list is not None
+            else dump_proxy_settings_for_storage(
+                new_user.proxy_settings,
+                auto_peer_ips_by_subnet={} if not new_user.proxy_settings.wireguard.peer_ips else None,
+            )
+        )
         db_users.append(db_user)
 
     db.add_all(db_users)
@@ -797,6 +857,7 @@ async def modify_user(
     modify: UserModify,
     *,
     groups: list[Group] | None = None,
+    proxy_settings_storage: dict | None = None,
 ) -> User:
     """
     Modify a user's information.
@@ -813,7 +874,14 @@ async def modify_user(
     remove_expiration_reminder = False
 
     if modify.proxy_settings is not None:
-        db_user.proxy_settings = modify.proxy_settings.dict()
+        db_user.proxy_settings = (
+            proxy_settings_storage
+            if proxy_settings_storage is not None
+            else dump_proxy_settings_for_storage(
+                modify.proxy_settings,
+                db_user.proxy_settings,
+            )
+        )
     if modify.group_ids:
         db_user.groups = groups or await get_groups_by_ids(db, modify.group_ids, load_users=False, load_inbounds=True)
 
@@ -1040,7 +1108,7 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
         "method", "chacha20-ietf-poly1305"
     )
     proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
-    db_user.proxy_settings = proxy_settings.dict()
+    db_user.proxy_settings = dump_proxy_settings_for_storage(proxy_settings, db_user.proxy_settings)
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user

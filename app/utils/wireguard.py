@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_interface, ip_network
 from typing import Iterable
 
@@ -9,12 +10,31 @@ from app import on_startup
 from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.user import get_users_with_proxy_settings
-from app.models.proxy import ProxyTable
+from app.models.proxy import ProxyTable, WireGuardPeerIPs
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
-from app.utils.ip_pool import allocate_from_global_pool, get_global_used_networks, validate_peer_ips_globally
+from app.utils.ip_pool import validate_peer_ips_globally
 from app.utils.logger import get_logger
+from app.utils.proxy_settings import (
+    dump_proxy_settings_for_storage,
+    get_wireguard_auto_peer_ips_by_subnet,
+    load_proxy_settings,
+    normalize_proxy_settings_storage,
+    update_wireguard_peer_ip_storage,
+)
 
 _logger = get_logger("wireguard-utils")
+
+_IPNetwork = IPv4Network | IPv6Network
+_NetworkRow = tuple[_IPNetwork, object]
+
+
+@dataclass
+class _WireGuardReconcileState:
+    user: object
+    raw_proxy_settings: dict
+    current_peer_ips: list[str]
+    current_auto_map: dict[str, str] | None
+    required_rows: list[_NetworkRow]
 
 
 async def get_wireguard_tags(tags: Iterable[str]) -> list[str]:
@@ -43,10 +63,34 @@ async def get_wireguard_tags_from_groups(groups: Iterable) -> list[str]:
     return await get_wireguard_tags(tags)
 
 
-async def _wireguard_interface_networks_for_tags(wireguard_tags: list[str]) -> list[IPv4Network | IPv6Network]:
+async def _wireguard_tags_from_groups(groups: Iterable, inbounds_by_tag: dict) -> list[str]:
+    wireguard_tags: list[str] = []
+    seen: set[str] = set()
+    for group in groups:
+        if getattr(group, "is_disabled", False):
+            continue
+        if hasattr(group, "awaitable_attrs"):
+            await group.awaitable_attrs.inbounds
+        for inbound in group.inbounds:
+            if inbound.tag in seen:
+                continue
+            if inbounds_by_tag.get(inbound.tag, {}).get("protocol") != "wireguard":
+                continue
+            seen.add(inbound.tag)
+            wireguard_tags.append(inbound.tag)
+    return wireguard_tags
+
+
+async def _wireguard_interface_networks_for_tags(
+    wireguard_tags: list[str],
+    *,
+    inbounds_by_tag: dict | None = None,
+) -> list[_IPNetwork]:
     """Collect `address` CIDR networks from core WireGuard inbounds for the given tags."""
-    inbounds_by_tag = await core_manager.get_inbounds_by_tag()
-    networks: list[IPv4Network | IPv6Network] = []
+    if inbounds_by_tag is None:
+        inbounds_by_tag = await core_manager.get_inbounds_by_tag()
+
+    networks: list[_IPNetwork] = []
     for tag in wireguard_tags:
         inbound = inbounds_by_tag.get(tag) or {}
         addresses = inbound.get("address") or []
@@ -65,10 +109,10 @@ async def _wireguard_interface_networks_for_tags(wireguard_tags: list[str]) -> l
 def _distinct_wireguard_networks_with_server(
     wireguard_tags: list[str],
     inbounds_by_tag: dict,
-) -> list[tuple[IPv4Network | IPv6Network, object]]:
+) -> list[_NetworkRow]:
     """One row per distinct interface subnet (deduped), with server IP from core `address` line."""
     seen: set[str] = set()
-    rows: list[tuple[IPv4Network | IPv6Network, object]] = []
+    rows: list[_NetworkRow] = []
     for tag in wireguard_tags:
         inbound = inbounds_by_tag.get(tag) or {}
         addresses = inbound.get("address") or []
@@ -89,10 +133,21 @@ def _distinct_wireguard_networks_with_server(
                 continue
             seen.add(key)
             rows.append((network, iface.ip))
-    return rows
+    return _sort_network_rows(rows)
 
 
-def _peer_ip_covers_network(peer_ips: list[str], network: IPv4Network | IPv6Network) -> bool:
+def _sort_network_rows(rows: list[_NetworkRow]) -> list[_NetworkRow]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            row[0].version,
+            int(row[0].network_address),
+            row[0].prefixlen,
+        ),
+    )
+
+
+def _peer_ip_covers_network(peer_ips: list[str], network: _IPNetwork) -> bool:
     for peer_ip in peer_ips:
         try:
             pn = ip_network(peer_ip, strict=False)
@@ -104,9 +159,9 @@ def _peer_ip_covers_network(peer_ips: list[str], network: IPv4Network | IPv6Netw
 
 
 def _allocate_peer_in_network(
-    network: IPv4Network | IPv6Network,
+    network: _IPNetwork,
     server_ip: object,
-    used_networks: set[IPv4Network | IPv6Network],
+    used_networks: set[_IPNetwork],
 ) -> str | None:
     """Pick first free host in `network` excluding `server_ip` and `used_networks`."""
     for host_ip in network.hosts():
@@ -119,14 +174,80 @@ def _allocate_peer_in_network(
     return None
 
 
+def _normalize_peer_ips(peer_ips: list[str] | None) -> list[str]:
+    return WireGuardPeerIPs.model_validate({"peer_ips": peer_ips}).peer_ips
+
+
+def _peer_networks(peer_ips: list[str]) -> set[_IPNetwork]:
+    networks: set[_IPNetwork] = set()
+    for peer_ip in peer_ips:
+        try:
+            networks.add(ip_network(peer_ip, strict=False))
+        except ValueError:
+            continue
+    return networks
+
+
+def _peer_ip_fits_required_subnet(peer_ip: str, network: _IPNetwork) -> bool:
+    try:
+        peer_network = ip_network(peer_ip, strict=False)
+    except ValueError:
+        return False
+    return peer_network.version == network.version and peer_network.subnet_of(network)
+
+
+def _stored_auto_state_matches_required_subnets(
+    proxy_settings: dict,
+    current_auto_map: dict[str, str],
+    required_rows: list[_NetworkRow],
+) -> bool:
+    required_subnets = [str(network) for network, _ in required_rows]
+    if set(current_auto_map.keys()) != set(required_subnets):
+        return False
+
+    ordered_auto_peer_ips: list[str] = []
+    for network, _ in required_rows:
+        subnet_key = str(network)
+        peer_ip = current_auto_map.get(subnet_key)
+        if not peer_ip or not _peer_ip_fits_required_subnet(peer_ip, network):
+            return False
+        ordered_auto_peer_ips.append(peer_ip)
+
+    normalized_auto_peer_ips = _normalize_peer_ips(ordered_auto_peer_ips)
+    if len(normalized_auto_peer_ips) != len(ordered_auto_peer_ips):
+        return False
+
+    stored_peer_ips = _normalize_peer_ips((proxy_settings.get("wireguard") or {}).get("peer_ips") or [])
+    return sorted(stored_peer_ips) == sorted(normalized_auto_peer_ips)
+
+
+def wireguard_peer_ips_need_reconcile(
+    proxy_settings: dict | None,
+    required_rows: list[_NetworkRow],
+    *,
+    include_legacy_empty_peer_ips: bool = False,
+) -> bool:
+    raw_proxy_settings = normalize_proxy_settings_storage(proxy_settings)
+    current_auto_map = get_wireguard_auto_peer_ips_by_subnet(raw_proxy_settings)
+    current_peer_ips = _normalize_peer_ips((raw_proxy_settings.get("wireguard") or {}).get("peer_ips") or [])
+
+    if current_auto_map is None:
+        return include_legacy_empty_peer_ips and not current_peer_ips and bool(required_rows)
+
+    return not _stored_auto_state_matches_required_subnets(raw_proxy_settings, current_auto_map, required_rows)
+
+
 async def validate_manual_peer_ips_within_wireguard_subnets(
     peer_ips: list[str],
     wireguard_tags: list[str],
+    *,
+    inbounds_by_tag: dict | None = None,
 ) -> None:
     """Reject manual peer IPs that are not contained in any core WireGuard interface network."""
     if not peer_ips:
         return
-    networks = await _wireguard_interface_networks_for_tags(wireguard_tags)
+
+    networks = await _wireguard_interface_networks_for_tags(wireguard_tags, inbounds_by_tag=inbounds_by_tag)
     if not networks:
         return
 
@@ -141,30 +262,7 @@ async def validate_manual_peer_ips_within_wireguard_subnets(
             )
 
 
-async def prepare_wireguard_proxy_settings(
-    db: AsyncSession,
-    proxy_settings: ProxyTable,
-    groups: Iterable,
-    *,
-    exclude_user_id: int | None = None,
-) -> ProxyTable:
-    """Prepare WireGuard proxy settings with key generation and IP allocation.
-
-    This function:
-    1. Generates missing WireGuard keypairs
-    2. Allocates one peer IP per distinct WireGuard interface subnet (core `address`),
-       falling back to the global pool when a subnet is missing or full
-    3. When peer_ips were left empty (panel auto-allocation), fills every WG subnet; explicit
-       client-supplied peer_ips are not extended
-    4. Validates globally unique peer IPs
-    """
-    wireguard_tags = await get_wireguard_tags_from_groups(groups)
-    if not wireguard_tags:
-        return proxy_settings
-
-    requested_peer_ips = list(proxy_settings.wireguard.peer_ips or [])
-
-    # Key generation
+def _ensure_wireguard_keys(proxy_settings: ProxyTable) -> None:
     if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:
         raise ValueError("wireguard private_key is required when user is assigned to a WireGuard interface")
 
@@ -175,56 +273,139 @@ async def prepare_wireguard_proxy_settings(
     elif not proxy_settings.wireguard.public_key:
         proxy_settings.wireguard.public_key = get_wireguard_public_key(proxy_settings.wireguard.private_key)
 
-    inbounds_by_tag = await core_manager.get_inbounds_by_tag()
-    net_rows = _distinct_wireguard_networks_with_server(wireguard_tags, inbounds_by_tag)
-    used_networks: set[IPv4Network | IPv6Network] = set(
-        await get_global_used_networks(db, exclude_user_id=exclude_user_id)
-    )
 
-    peer_ips = list(requested_peer_ips)
+async def prepare_wireguard_proxy_settings_input(
+    db: AsyncSession,
+    proxy_settings: ProxyTable,
+    groups: Iterable,
+    *,
+    exclude_user_id: int | None = None,
+) -> ProxyTable:
+    """Prepare WireGuard user input without allocating peer IPs."""
+    _ensure_wireguard_keys(proxy_settings)
 
-    if requested_peer_ips:
-        await validate_manual_peer_ips_within_wireguard_subnets(peer_ips, wireguard_tags)
-        for p in peer_ips:
-            try:
-                used_networks.add(ip_network(p, strict=False))
-            except ValueError:
-                pass
-    elif not peer_ips:
-        # Allocate one /32 (or /128) per distinct WireGuard subnet the user can reach.
-        if not net_rows:
-            candidate = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
-            if candidate is None:
-                raise ValueError("unable to allocate wireguard peer IP")
-            peer_ips = [candidate]
-            used_networks.add(ip_network(candidate, strict=False))
-        else:
-            for network, server_ip in net_rows:
-                candidate = _allocate_peer_in_network(network, server_ip, used_networks)
-                if candidate is None:
-                    candidate = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
-                if candidate is None:
-                    raise ValueError("unable to allocate wireguard peer IP for interface subnet")
-                peer_ips.append(candidate)
-                used_networks.add(ip_network(candidate, strict=False))
+    manual_peer_ips = list(proxy_settings.wireguard.peer_ips or [])
+    if not manual_peer_ips:
+        return proxy_settings
 
-    # Do not add IPs when the user explicitly set peer_ips (e.g. one shared /32 across hosts).
-    if not requested_peer_ips:
-        for network, server_ip in net_rows:
-            if _peer_ip_covers_network(peer_ips, network):
-                continue
-            candidate = _allocate_peer_in_network(network, server_ip, used_networks)
-            if candidate is None:
-                candidate = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
-            if candidate is None:
-                raise ValueError("unable to allocate wireguard peer IP for additional interface subnet")
-            peer_ips.append(candidate)
-            used_networks.add(ip_network(candidate, strict=False))
-
-    await validate_peer_ips_globally(db, peer_ips, exclude_user_id=exclude_user_id)
-
-    proxy_settings.wireguard.peer_ips = peer_ips
+    wireguard_tags = await get_wireguard_tags_from_groups(groups)
+    if wireguard_tags:
+        await validate_manual_peer_ips_within_wireguard_subnets(manual_peer_ips, wireguard_tags)
+    await validate_peer_ips_globally(db, manual_peer_ips, exclude_user_id=exclude_user_id)
     return proxy_settings
+
+
+async def reconcile_wireguard_peer_ips_for_users(
+    db: AsyncSession,
+    users: Iterable,
+    *,
+    include_legacy_empty_peer_ips: bool = False,
+) -> list:
+    deduped_users: dict[int, object] = {}
+    for user in users:
+        user_id = getattr(user, "id", None)
+        if user_id is None:
+            continue
+        deduped_users[user_id] = user
+
+    if not deduped_users:
+        return []
+
+    inbounds_by_tag = await core_manager.get_inbounds_by_tag()
+    reconcile_states: list[_WireGuardReconcileState] = []
+
+    for user in sorted(deduped_users.values(), key=lambda item: item.id):
+        await user.awaitable_attrs.groups
+        required_tags = await _wireguard_tags_from_groups(user.groups, inbounds_by_tag)
+        required_rows = _distinct_wireguard_networks_with_server(required_tags, inbounds_by_tag)
+
+        raw_proxy_settings = normalize_proxy_settings_storage(user.proxy_settings)
+        if not wireguard_peer_ips_need_reconcile(
+            raw_proxy_settings,
+            required_rows,
+            include_legacy_empty_peer_ips=include_legacy_empty_peer_ips,
+        ):
+            continue
+
+        reconcile_states.append(
+            _WireGuardReconcileState(
+                user=user,
+                raw_proxy_settings=raw_proxy_settings,
+                current_peer_ips=_normalize_peer_ips((raw_proxy_settings.get("wireguard") or {}).get("peer_ips") or []),
+                current_auto_map=get_wireguard_auto_peer_ips_by_subnet(raw_proxy_settings),
+                required_rows=required_rows,
+            )
+        )
+
+    if not reconcile_states:
+        return []
+
+    mutable_user_ids = {state.user.id for state in reconcile_states}
+    all_users = await get_users_with_proxy_settings(db)
+    used_networks: set[_IPNetwork] = set()
+    for user in all_users:
+        if user.id in mutable_user_ids:
+            continue
+        used_networks.update(_peer_networks(_normalize_peer_ips((user.proxy_settings.get("wireguard") or {}).get("peer_ips"))))
+
+    changed_users: list = []
+    for state in reconcile_states:
+        current_networks = _peer_networks(state.current_peer_ips)
+        candidate_auto_map = state.current_auto_map or {}
+        temp_used_networks = set(used_networks)
+        proposed_auto_map: dict[str, str] = {}
+        allocation_failed = False
+
+        for network, _ in state.required_rows:
+            subnet_key = str(network)
+            current_peer_ip = candidate_auto_map.get(subnet_key)
+            if not current_peer_ip or not _peer_ip_fits_required_subnet(current_peer_ip, network):
+                continue
+            peer_network = ip_network(current_peer_ip, strict=False)
+            if any(peer_network.overlaps(used) for used in temp_used_networks):
+                continue
+            proposed_auto_map[subnet_key] = str(peer_network)
+            temp_used_networks.add(peer_network)
+
+        for network, server_ip in state.required_rows:
+            subnet_key = str(network)
+            if subnet_key in proposed_auto_map:
+                continue
+            candidate_peer_ip = _allocate_peer_in_network(network, server_ip, temp_used_networks)
+            if candidate_peer_ip is None:
+                allocation_failed = True
+                break
+            peer_network = ip_network(candidate_peer_ip, strict=False)
+            proposed_auto_map[subnet_key] = candidate_peer_ip
+            temp_used_networks.add(peer_network)
+
+        if allocation_failed:
+            used_networks.update(current_networks)
+            _logger.warning(
+                'Skipping WireGuard peer IP reconcile for user "%s" (id=%s): no free address in one or more interface subnets',
+                state.user.username,
+                state.user.id,
+            )
+            continue
+
+        proposed_peer_ips = list(proposed_auto_map.values())
+        desired_proxy_settings = update_wireguard_peer_ip_storage(
+            state.raw_proxy_settings,
+            peer_ips=proposed_peer_ips,
+            auto_peer_ips_by_subnet=proposed_auto_map,
+        )
+        if desired_proxy_settings == state.raw_proxy_settings:
+            used_networks = temp_used_networks
+            continue
+
+        state.user.proxy_settings = desired_proxy_settings
+        changed_users.append(state.user)
+        used_networks = temp_used_networks
+
+    if changed_users:
+        await db.commit()
+
+    return changed_users
 
 
 @on_startup
@@ -235,76 +416,18 @@ async def ensure_users_have_wireguard_keypairs():
         updated = False
 
         for db_user in users:
-            proxy_settings = ProxyTable.model_validate(db_user.proxy_settings or {})
-            wireguard_settings = proxy_settings.wireguard
-
-            if not wireguard_settings.private_key:
-                private_key, public_key = generate_wireguard_keypair()
-                wireguard_settings.private_key = private_key
-                wireguard_settings.public_key = public_key
-                db_user.proxy_settings = proxy_settings.dict()
-                updated = True
+            original_storage = normalize_proxy_settings_storage(db_user.proxy_settings)
+            wireguard_settings = original_storage.get("wireguard") or {}
+            needs_keypair_update = not wireguard_settings.get("private_key") or not wireguard_settings.get("public_key")
+            if not needs_keypair_update:
                 continue
 
-            if not wireguard_settings.public_key:
-                wireguard_settings.public_key = get_wireguard_public_key(wireguard_settings.private_key)
-                db_user.proxy_settings = proxy_settings.dict()
-                updated = True
+            proxy_settings = load_proxy_settings(original_storage)
+
+            _ensure_wireguard_keys(proxy_settings)
+
+            db_user.proxy_settings = dump_proxy_settings_for_storage(proxy_settings, original_storage)
+            updated = True
 
         if updated:
             await db.commit()
-
-
-@on_startup
-async def ensure_users_have_wireguard_peer_ips():
-    """Persist auto-allocated peer IPs for WireGuard users and sync them to nodes (fixes empty DB vs subscription drift)."""
-    from app.node.sync import sync_user
-
-    async with GetDB() as db:
-        users = await get_users_with_proxy_settings(db)
-        updated_users: list = []
-
-        for db_user in users:
-            proxy_settings = ProxyTable.model_validate(db_user.proxy_settings or {})
-
-            await db_user.awaitable_attrs.groups
-            groups = [g for g in db_user.groups if not g.is_disabled]
-            if not groups:
-                continue
-
-            wireguard_tags = await get_wireguard_tags_from_groups(groups)
-            if not wireguard_tags:
-                continue
-
-            old_peer_ips = list(proxy_settings.wireguard.peer_ips or [])
-
-            try:
-                prepared = await prepare_wireguard_proxy_settings(
-                    db, proxy_settings, groups, exclude_user_id=db_user.id
-                )
-            except ValueError as exc:
-                _logger.warning(
-                    'Skipping WireGuard peer IP backfill for user "%s" (id=%s): %s',
-                    db_user.username,
-                    db_user.id,
-                    exc,
-                )
-                continue
-
-            new_settings = prepared.dict()
-            new_wireguard = new_settings.get("wireguard") or {}
-            new_peer_ips = list(new_wireguard.get("peer_ips") or [])
-            if not new_peer_ips:
-                continue
-            if sorted(new_peer_ips) == sorted(old_peer_ips):
-                continue
-
-            db_user.proxy_settings = new_settings
-            updated_users.append(db_user)
-
-        if not updated_users:
-            return
-
-        await db.commit()
-        for db_user in updated_users:
-            await sync_user(db_user)
