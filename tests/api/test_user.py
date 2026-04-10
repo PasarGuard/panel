@@ -357,7 +357,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert query["publickey"] == [interface_public_key]
         assert "address" in query
         dynamic_address = query["address"][0]
-        assert dynamic_address.startswith("10.30.0.")
+        assert dynamic_address == user["proxy_settings"]["wireguard"]["peer_ips"][0]
         assert dynamic_address.endswith("/32")
         assert query["allowedips"] == ["0.0.0.0/0,::/0"]
         assert unquote(parsed.fragment) == expected_remark
@@ -438,7 +438,8 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
         settings = outbound["settings"]
         assert settings["secretKey"] == user["proxy_settings"]["wireguard"]["private_key"]
         assert settings["address"]
-        assert settings["address"][0].startswith("10.30.0.")
+        assert settings["address"][0] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert settings["address"][0].startswith("10.")
         assert settings["address"][0].endswith("/32")
         assert settings["domainStrategy"] == "ForceIP"
         assert "mtu" not in settings
@@ -640,7 +641,8 @@ def test_singbox_subscription_includes_wireguard_outbound(access_token):
         assert wireguard_outbound["interface_name"] == "wg0"
         assert wireguard_outbound["mtu"] == 1408
         assert wireguard_outbound["local_address"]
-        assert wireguard_outbound["local_address"][0].startswith("10.30.0.")
+        assert wireguard_outbound["local_address"][0] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert wireguard_outbound["local_address"][0].startswith("10.")
         assert wireguard_outbound["local_address"][0].endswith("/32")
         assert wireguard_outbound["private_key"] == user["proxy_settings"]["wireguard"]["private_key"]
         assert wireguard_outbound["server"] == endpoint
