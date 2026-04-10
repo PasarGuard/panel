@@ -254,8 +254,8 @@ const UsersTable = memo(() => {
     isFetching,
   } = useGetUsers(filters, {
     query: {
-      staleTime: 0,
-      gcTime: 0,
+      staleTime: 10_000,
+      gcTime: 5 * 60_000,
       retry: 1,
     },
   })

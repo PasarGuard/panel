@@ -194,7 +194,27 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
 
   // Refresh user data function (only for delete operations)
   const refreshUserData = () => {
-    queryClient.invalidateQueries({ queryKey: ['/api/users'] })
+    // Optimistically remove the user from the cache to avoid full refetch & scroll reset
+    queryClient.setQueriesData<UsersResponse>(
+      {
+        queryKey: ['/api/users'],
+        exact: false,
+      },
+      oldData => {
+        if (!oldData) return oldData
+        const updatedUsers = oldData.users.filter(u => u.username !== user.username)
+        return {
+          ...oldData,
+          users: updatedUsers,
+          total: Math.max(0, oldData.total - 1),
+        }
+      },
+    )
+    // Invalidate stats/usage queries since counts changed
+    queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
+    queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
+    queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
+    queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
   }
 
   // Handlers for menu items

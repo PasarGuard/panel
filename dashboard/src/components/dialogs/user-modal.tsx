@@ -539,8 +539,21 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
       queryClient.invalidateQueries({ queryKey: ['getUserOnlineStats'] })
     } else {
-      // When creating, invalidate and refetch all users
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] })
+      // When creating, optimistically prepend the new user to the cache
+      queryClient.setQueriesData<UsersResponse>(
+        {
+          queryKey: ['/api/users'],
+          exact: false,
+        },
+        oldData => {
+          if (!oldData) return oldData
+          return {
+            ...oldData,
+            users: [user, ...oldData.users],
+            total: oldData.total + 1,
+          }
+        },
+      )
       queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
       queryClient.invalidateQueries({ queryKey: ['getUserStats'] })
       queryClient.invalidateQueries({ queryKey: ['getInboundStats'] })
