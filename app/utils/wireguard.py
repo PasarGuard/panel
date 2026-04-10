@@ -14,12 +14,6 @@ from app.models.proxy import ProxyTable
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.ip_pool import validate_peer_ips_globally
 from app.utils.logger import get_logger
-from app.utils.proxy_settings import (
-    dump_proxy_settings_for_storage,
-    load_proxy_settings,
-    normalize_proxy_settings_storage,
-)
-
 _logger = get_logger("wireguard-utils")
 
 _IPNetwork = IPv4Network | IPv6Network
@@ -132,31 +126,6 @@ async def prepare_wireguard_proxy_settings_input(
         await validate_manual_peer_ips_within_wireguard_subnets(manual_peer_ips, wireguard_tags)
     await validate_peer_ips_globally(db, manual_peer_ips, exclude_user_id=exclude_user_id)
     return proxy_settings
-
-
-@on_startup
-async def ensure_users_have_wireguard_keypairs():
-    """Startup hook to ensure all users have WireGuard keypairs."""
-    async with GetDB() as db:
-        users = await get_users_with_proxy_settings(db)
-        updated = False
-
-        for db_user in users:
-            original_storage = normalize_proxy_settings_storage(db_user.proxy_settings)
-            wireguard_settings = original_storage.get("wireguard") or {}
-            needs_keypair_update = not wireguard_settings.get("private_key") or not wireguard_settings.get("public_key")
-            if not needs_keypair_update:
-                continue
-
-            proxy_settings = load_proxy_settings(original_storage)
-
-            _ensure_wireguard_keys(proxy_settings)
-
-            db_user.proxy_settings = dump_proxy_settings_for_storage(proxy_settings, original_storage)
-            updated = True
-
-        if updated:
-            await db.commit()
 
 
 @on_startup
