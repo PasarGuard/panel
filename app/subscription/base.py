@@ -186,17 +186,11 @@ class BaseSubscription:
 
         return obfs_password, quic_params
 
-    @staticmethod
-    def _get_wireguard_peer_ips(settings: dict, inbound: SubscriptionInboundData) -> list[str]:
-        """Return stored peer IPs for subscription output"""
-        del inbound  
-        return list(settings.get("peer_ips") or [])
-
     def _build_wireguard_components(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
     ) -> dict | None:
         private_key = settings.get("private_key", "")
-        peer_ips = self._get_wireguard_peer_ips(settings, inbound)
+        peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
         if not private_key or not peer_ips or not public_key:
             return None
