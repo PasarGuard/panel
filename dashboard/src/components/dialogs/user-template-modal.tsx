@@ -7,6 +7,7 @@ import { LoaderButton } from '@/components/ui/loader-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import {
   DataLimitResetStrategy,
@@ -21,12 +22,12 @@ import {
 } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client.ts'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ChevronDown, FileUser, Pencil } from 'lucide-react'
-import type { UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
+import { userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 
 interface UserTemplatesModalprops {
   isDialogOpen: boolean
@@ -122,6 +123,7 @@ const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) 
 }
 
 export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, editingUserTemplate, editingUserTemplateId }: UserTemplatesModalprops) {
+  const dir = useDirDetection()
   const { t } = useTranslation()
   const addUserTemplateMutation = useCreateUserTemplate()
   const handleError = useDynamicErrorHandler()
@@ -129,6 +131,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const [timeType, setTimeType] = useState<'seconds' | 'hours' | 'days'>('seconds')
   const [loading, setLoading] = useState(false)
   const dataLimitInputRef = React.useRef<string>('')
+  const expireDurationInputRef = React.useRef<string>('')
+  const prevStatusForSyncRef = React.useRef<string | undefined>(undefined)
 
   useEffect(() => {
     if (!isDialogOpen) return
@@ -136,6 +140,64 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       queryKey: getGetGroupsSimpleQueryKey({ all: true }),
     })
   }, [isDialogOpen])
+
+  useEffect(() => {
+    if (!isDialogOpen || editingUserTemplate) return
+    form.reset(userTemplateFormDefaultValues)
+    dataLimitInputRef.current = ''
+    expireDurationInputRef.current = ''
+    setTimeType('seconds')
+    prevStatusForSyncRef.current = undefined
+  }, [isDialogOpen, editingUserTemplate, form])
+
+  useEffect(() => {
+    if (!isDialogOpen) {
+      dataLimitInputRef.current = ''
+      expireDurationInputRef.current = ''
+    }
+  }, [isDialogOpen])
+
+  /** Keep display refs aligned with form when opening the dialog or switching which template is edited (refs are not part of RHF state). */
+  useLayoutEffect(() => {
+    if (!isDialogOpen) return
+    const daySec = 24 * 60 * 60
+    const dl = form.getValues('data_limit')
+    if (dl == null || dl === undefined || Number(dl) <= 0) {
+      dataLimitInputRef.current = ''
+    } else {
+      dataLimitInputRef.current = String(dl)
+    }
+    const ed = form.getValues('expire_duration')
+    if (ed == null || ed === undefined || Number(ed) <= 0) {
+      expireDurationInputRef.current = ''
+    } else {
+      expireDurationInputRef.current = String(Number(ed) / daySec)
+    }
+  }, [isDialogOpen, editingUserTemplateId])
+
+  const status = form.watch('status')
+
+  useEffect(() => {
+    if (!isDialogOpen) {
+      prevStatusForSyncRef.current = undefined
+      return
+    }
+    if (prevStatusForSyncRef.current === undefined) {
+      prevStatusForSyncRef.current = status
+      return
+    }
+    if (prevStatusForSyncRef.current === status) return
+    prevStatusForSyncRef.current = status
+    if (status === UserStatusCreate.on_hold) {
+      form.clearErrors('on_hold_timeout')
+      void form.trigger('expire_duration')
+    } else {
+      form.setValue('on_hold_timeout', undefined)
+      form.clearErrors('on_hold_timeout')
+      form.clearErrors('expire_duration')
+      void form.trigger('expire_duration')
+    }
+  }, [status, form, isDialogOpen])
 
   const onSubmit = async (values: UserTemplatesFromValueInput) => {
     setLoading(true)
@@ -267,39 +329,15 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
 
                 <FormField
                   control={form.control}
-                  name="username_prefix"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('templates.prefix')}</FormLabel>
-                      <FormControl>
-                        <Input type="text" placeholder={t('templates.prefix')} {...field} onChange={e => field.onChange(e.target.value)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="username_suffix"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('templates.suffix')}</FormLabel>
-                      <FormControl>
-                        <Input type="text" placeholder={t('templates.suffix')} {...field} onChange={e => field.onChange(e.target.value)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name="data_limit"
                   render={({ field }) => {
                     if (dataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
                       dataLimitInputRef.current = String(field.value)
-                    } else if ((field.value === null || field.value === undefined) && dataLimitInputRef.current !== '') {
+                    } else if (
+                      (field.value === null || field.value === undefined || field.value === 0) &&
+                      dataLimitInputRef.current !== '' &&
+                      !dataLimitInputRef.current.endsWith('.')
+                    ) {
                       dataLimitInputRef.current = ''
                     }
 
@@ -376,7 +414,6 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                   control={form.control}
                   name="data_limit_reset_strategy"
                   render={({ field }) => {
-                    // Only show if data_limit is set and greater than 0
                     const datalimit = form.watch('data_limit')
                     const normalizedDataLimitGb = Number(datalimit ?? 0)
                     const hasDataLimit = Number.isFinite(normalizedDataLimitGb) && normalizedDataLimitGb > 0
@@ -386,7 +423,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                     return (
                       <FormItem className="flex-1">
                         <FormLabel>{t('templates.userDataLimitStrategy')}</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder={t('userDialog.resetStrategyNo', { defaultValue: 'No' })} />
@@ -400,6 +437,107 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                             <SelectItem value={DataLimitResetStrategy['year']}>{t('userDialog.resetStrategyAnnually')}</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+                <FormField
+                  control={form.control}
+                  name="expire_duration"
+                  render={({ field }) => {
+                    const daySec = 24 * 60 * 60
+                    if (
+                      expireDurationInputRef.current === '' &&
+                      field.value != null &&
+                      field.value !== undefined &&
+                      field.value > 0
+                    ) {
+                      expireDurationInputRef.current = String(field.value / daySec)
+                    } else if (
+                      (field.value === null || field.value === undefined || field.value === 0) &&
+                      expireDurationInputRef.current !== '' &&
+                      !expireDurationInputRef.current.endsWith('.')
+                    ) {
+                      expireDurationInputRef.current = ''
+                    }
+
+                    const displayValue =
+                      expireDurationInputRef.current !== ''
+                        ? expireDurationInputRef.current
+                        : field.value != null && field.value !== undefined && field.value > 0
+                          ? String(field.value / daySec)
+                          : ''
+
+                    return (
+                      <FormItem className="flex-1">
+                        <FormLabel className="text-left">{t('templates.expire')}</FormLabel>
+                        <FormControl>
+                          <div className="relative" dir="ltr">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder={t('templates.expire')}
+                              value={displayValue}
+                              onChange={e => {
+                                const rawValue = e.target.value.trim()
+                                expireDurationInputRef.current = rawValue
+
+                                if (rawValue === '') {
+                                  field.onChange(0)
+                                  void form.trigger('expire_duration')
+                                  return
+                                }
+
+                                const validNumberPattern = /^-?\d*\.?\d*$/
+                                if (!validNumberPattern.test(rawValue)) return
+
+                                if (rawValue.endsWith('.') && rawValue.length > 1) {
+                                  const prevSeconds =
+                                    field.value != null && field.value !== undefined ? field.value : 0
+                                  field.onChange(prevSeconds)
+                                  void form.trigger('expire_duration')
+                                } else if (rawValue === '.') {
+                                  field.onChange(0)
+                                  void form.trigger('expire_duration')
+                                } else {
+                                  const numValue = parseFloat(rawValue)
+                                  if (!isNaN(numValue) && numValue >= 0) {
+                                    field.onChange(numValue * daySec)
+                                    void form.trigger('expire_duration')
+                                  }
+                                }
+                              }}
+                              onBlur={() => {
+                                const rawValue = expireDurationInputRef.current.trim()
+                                if (rawValue === '' || rawValue === '.' || rawValue === '0') {
+                                  expireDurationInputRef.current = ''
+                                  field.onChange(0)
+                                  void form.trigger('expire_duration')
+                                } else {
+                                  const numValue = parseFloat(rawValue)
+                                  if (!isNaN(numValue) && numValue >= 0) {
+                                    const finalDays = numValue
+                                    const finalSeconds = finalDays * daySec
+                                    expireDurationInputRef.current = finalDays > 0 ? String(finalDays) : ''
+                                    field.onChange(finalSeconds)
+                                    void form.trigger('expire_duration')
+                                  } else {
+                                    expireDurationInputRef.current = ''
+                                    field.onChange(0)
+                                    void form.trigger('expire_duration')
+                                  }
+                                }
+                              }}
+                              className={dir === 'rtl' ? 'pl-14' : 'pr-14'}
+                            />
+                            <span
+                              className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground ${dir === 'rtl' ? 'start-3' : 'end-3'}`}
+                            >
+                              {t('time.days', { defaultValue: 'Days' })}
+                            </span>
+                          </div>
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )
@@ -425,52 +563,25 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                 />
                 <FormField
                   control={form.control}
-                  name="expire_duration"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>{t('templates.expire')}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            placeholder={t('templates.expire')}
-                            {...field}
-                            onChange={e => {
-                              const value = parseInt(e.target.value)
-                              field.onChange(value ? value * 24 * 60 * 60 : 0)
-                            }}
-                            value={field.value ? Math.round(field.value / (24 * 60 * 60)) : ''}
-                            className="pr-14"
-                            min="0"
-                          />
-                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{t('time.days', { defaultValue: 'Days' })}</span>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name="on_hold_timeout"
                   render={({ field }) => {
                     const convertToDisplayValue = (value: number | undefined) => {
-                      if (!value) return ''
+                      if (value == null || value === 0) return ''
                       switch (timeType) {
                         case 'seconds':
                           return value
                         case 'hours':
-                          return Math.round(value / 60 / 60)
+                          return value / (60 * 60)
                         case 'days':
-                          return Math.round(value / 60 / 60 / 24)
+                          return value / (24 * 60 * 60)
                         default:
                           return value
                       }
                     }
 
                     const convertToSeconds = (inputValue: string, type: string) => {
-                      const numValue = parseInt(inputValue)
-                      if (isNaN(numValue)) return undefined
+                      const numValue = parseFloat(inputValue)
+                      if (isNaN(numValue) || numValue < 0) return undefined
                       switch (type) {
                         case 'seconds':
                           return numValue
@@ -483,8 +594,6 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                       }
                     }
 
-                    // Only show if status is on_hold
-                    const status = form.watch('status')
                     if (status !== UserStatusCreate.on_hold) {
                       return <></>
                     }
@@ -496,6 +605,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                             <div className="flex-[3]">
                               <Input
                                 type="number"
+                                step="any"
+                                min="0"
                                 placeholder={t('templates.onHoldTimeout')}
                                 value={convertToDisplayValue(field.value)}
                                 onChange={e => {
@@ -506,7 +617,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                               />
                             </div>
                             <div className="flex-[2]">
-                              <Select value={timeType} onValueChange={v => setTimeType(v as any)}>
+                              <Select value={timeType} onValueChange={v => setTimeType(v as 'seconds' | 'hours' | 'days')}>
                                 <SelectTrigger className="w-full rounded-none border-0 focus:ring-0 focus:ring-offset-0">
                                   <SelectValue placeholder={t('time.seconds', { defaultValue: 'Seconds' })} />
                                 </SelectTrigger>
@@ -523,6 +634,34 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                       </FormItem>
                     )
                   }}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="username_prefix"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('templates.prefix')}</FormLabel>
+                      <FormControl>
+                        <Input type="text" placeholder={t('templates.prefix')} {...field} onChange={e => field.onChange(e.target.value)} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="username_suffix"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('templates.suffix')}</FormLabel>
+                      <FormControl>
+                        <Input type="text" placeholder={t('templates.suffix')} {...field} onChange={e => field.onChange(e.target.value)} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
               <div className="w-full flex-1 space-y-4">
