@@ -1,4 +1,4 @@
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, TooltipProps } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/card'
 import { ChartConfig, ChartContainer, ChartTooltip } from '../ui/chart'
 import { formatBytes } from '@/utils/formatByte'
@@ -65,7 +65,19 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-function CustomBarTooltip({ active, payload, period }: TooltipProps<number, string> & { period?: Period }) {
+type BarTooltipDatum = {
+  date: string
+  traffic: number
+  period_start?: string
+}
+
+interface CustomBarTooltipProps {
+  active?: boolean
+  payload?: Array<{ payload: BarTooltipDatum }>
+  period?: Period
+}
+
+function CustomBarTooltip({ active, payload, period }: CustomBarTooltipProps) {
   const { t, i18n } = useTranslation()
   if (!active || !payload || !payload.length) return null
   const data = payload[0].payload
@@ -259,8 +271,9 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                 data={chartData}
                 margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
                 onMouseMove={state => {
-                  if (state.activeTooltipIndex !== activeIndex) {
-                    setActiveIndex(state.activeTooltipIndex !== undefined ? state.activeTooltipIndex : null)
+                  const idx = typeof state.activeTooltipIndex === 'number' ? state.activeTooltipIndex : null
+                  if (idx !== activeIndex) {
+                    setActiveIndex(idx)
                   }
                 }}
                 onMouseLeave={() => {
@@ -306,8 +319,9 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
                 margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
                 barCategoryGap="10%"
                 onMouseMove={state => {
-                  if (state.activeTooltipIndex !== activeIndex) {
-                    setActiveIndex(state.activeTooltipIndex !== undefined ? state.activeTooltipIndex : null)
+                  const idx = typeof state.activeTooltipIndex === 'number' ? state.activeTooltipIndex : null
+                  if (idx !== activeIndex) {
+                    setActiveIndex(idx)
                   }
                 }}
                 onMouseLeave={() => {

@@ -1045,7 +1045,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               field={{ ...field, value: field.value ?? [] }}
                               placeholder="0.0.0.0/0"
                               label={t('hostsDialog.wireguard.allowedIps')}
-                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.allowedIpsHint')}</p>}
+                              infoContent={<p className="text-muted-foreground">{t('hostsDialog.wireguard.allowedIpsHint')}</p>}
                             />
                           )}
                         />
@@ -1055,7 +1055,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             name="wireguard_overrides.mtu"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs">{t('hostsDialog.wireguard.mtu')}</FormLabel>
+                                <FormLabel>{t('hostsDialog.wireguard.mtu')}</FormLabel>
                                 <FormControl>
                                   <Input
                                     type="number"
@@ -1079,7 +1079,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             name="wireguard_overrides.keepalive_seconds"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs">{t('hostsDialog.wireguard.keepalive')}</FormLabel>
+                                <FormLabel>{t('hostsDialog.wireguard.keepalive')}</FormLabel>
                                 <FormControl>
                                   <Input
                                     type="number"
@@ -1104,7 +1104,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           name="wireguard_overrides.reserved"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-xs">{t('hostsDialog.wireguard.reserved')}</FormLabel>
+                              <FormLabel>{t('hostsDialog.wireguard.reserved')}</FormLabel>
                               <FormControl>
                                 <Input className="font-mono text-xs" dir="ltr" placeholder="0,0,0" {...field} />
                               </FormControl>
@@ -1120,7 +1120,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               field={{ ...field, value: field.value ?? [] }}
                               placeholder="1.1.1.1"
                               label={t('hostsDialog.wireguard.dns')}
-                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.dnsHint')}</p>}
+                              infoContent={<p className="text-muted-foreground">{t('hostsDialog.wireguard.dnsHint')}</p>}
                             />
                           )}
                         />
@@ -1161,7 +1161,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           render={({ field }) => (
                             <FormItem>
                               <div className="flex items-center gap-2">
-                                <FormLabel className="text-xs">{t('hostsDialog.path')}</FormLabel>
+                                <FormLabel>{t('hostsDialog.path')}</FormLabel>
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">

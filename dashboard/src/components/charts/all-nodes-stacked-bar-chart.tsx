@@ -471,7 +471,7 @@ export function AllNodesStackedBarChart() {
         <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
           <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
             <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-              <CardTitle>{t('statistics.trafficUsage')}</CardTitle>
+              <CardTitle className='mb-0.5'>{t('statistics.trafficUsage')}</CardTitle>
               <CardDescription>{t('statistics.trafficUsageDescription')}</CardDescription>
             </div>
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
@@ -573,7 +573,17 @@ export function AllNodesStackedBarChart() {
                         width={32}
                         tickMargin={2}
                       />
-                      <ChartTooltip cursor={false} content={<CustomTooltip chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
+                      <ChartTooltip
+                        cursor={false}
+                        content={props => (
+                          <CustomTooltip
+                            {...(props as TooltipProps<number, string>)}
+                            chartConfig={chartConfig}
+                            dir={dir}
+                            period={activePeriod}
+                          />
+                        )}
+                      />
                       {nodeList.map((node, index) => (
                         <Area
                           key={node.id}
@@ -606,7 +616,17 @@ export function AllNodesStackedBarChart() {
                         width={32}
                         tickMargin={2}
                       />
-                      <ChartTooltip cursor={false} content={<CustomTooltip chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
+                      <ChartTooltip
+                        cursor={false}
+                        content={props => (
+                          <CustomTooltip
+                            {...(props as TooltipProps<number, string>)}
+                            chartConfig={chartConfig}
+                            dir={dir}
+                            period={activePeriod}
+                          />
+                        )}
+                      />
                       {nodeList.map((node, index) => (
                         <Bar
                           key={node.id}
@@ -624,7 +644,10 @@ export function AllNodesStackedBarChart() {
                 ) : chartData.length > 0 && chartView === 'pie' ? (
                   pieData.length > 0 ? (
                     <PieChart>
-                      <ChartTooltip cursor={false} content={<NodePieTooltip />} />
+                      <ChartTooltip
+                        cursor={false}
+                        content={props => <NodePieTooltip {...(props as TooltipProps<number, string>)} />}
+                      />
                       <Pie data={pieData} dataKey="bytes" nameKey="name" innerRadius="45%" outerRadius="88%" paddingAngle={piePaddingAngle} strokeWidth={1.5}>
                         {pieData.map(point => (
                           <Cell key={point.name} fill={point.fill} />

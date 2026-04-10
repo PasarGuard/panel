@@ -251,8 +251,8 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
       <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
         <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
           <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-            <CardTitle className="text-sm sm:text-base">{t('statistics.trafficUsage')}</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">{t('statistics.trafficUsageDescription')}</CardDescription>
+            <CardTitle className='mb-0.5'>{t('statistics.trafficUsage')}</CardTitle>
+            <CardDescription>{t('statistics.trafficUsageDescription')}</CardDescription>
           </div>
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
             <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
@@ -339,7 +339,12 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                       width={28}
                       tickMargin={2}
                     />
-                    <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
+                    <ChartTooltip
+                      cursor={false}
+                      content={props => (
+                        <CustomBarTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} />
+                      )}
+                    />
                     <Area dataKey="usage" type="monotone" fill="url(#usageGradient)" stroke="var(--color-usage)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 ) : (
@@ -372,7 +377,12 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                       width={28}
                       tickMargin={2}
                     />
-                    <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
+                    <ChartTooltip
+                      cursor={false}
+                      content={props => (
+                        <CustomBarTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} />
+                      )}
+                    />
                     <Bar dataKey="usage" fill="var(--color-usage)" radius={6} />
                   </BarChart>
                 )

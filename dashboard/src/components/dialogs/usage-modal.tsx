@@ -59,7 +59,7 @@ const useWindowSize = () => {
   return windowSize
 }
 
-function CustomBarTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<any, any> & { chartConfig?: ChartConfig; dir: string; period: Period }) {
+function CustomBarTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<number, string> & { chartConfig?: ChartConfig; dir: string; period: Period }) {
   const { t, i18n } = useTranslation()
   const [isMobile, setIsMobile] = useState(false)
 
@@ -732,7 +732,10 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                 <ChartContainer config={allNodesSelected && chartView === 'pie' ? pieChartConfig : chartConfig} dir={'ltr'} className="h-[200px] w-full sm:h-[320px]">
                   {allNodesSelected && chartView === 'pie' ? (
                     <RechartsPieChart>
-                      <ChartTooltip cursor={false} content={<NodePieTooltip />} />
+                      <ChartTooltip
+                        cursor={false}
+                        content={props => <NodePieTooltip {...(props as TooltipProps<number, string>)} />}
+                      />
                       <Pie data={pieData} dataKey="usage" nameKey="name" innerRadius="45%" outerRadius="88%" paddingAngle={piePaddingAngle} strokeWidth={1.5}>
                         {pieData.map(point => (
                           <Cell key={point.name} fill={point.fill} />
@@ -776,7 +779,17 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                           width={32}
                           tickMargin={2}
                         />
-                        <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
+                        <ChartTooltip
+                          cursor={false}
+                          content={props => (
+                            <CustomBarTooltip
+                              {...(props as TooltipProps<number, string>)}
+                              chartConfig={chartConfig}
+                              dir={dir}
+                              period={backendPeriod}
+                            />
+                          )}
+                        />
                         {allNodesSelected ? (
                           nodeList.map((node, idx) => (
                             <Area
@@ -822,7 +835,17 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                           width={32}
                           tickMargin={2}
                         />
-                        <ChartTooltip cursor={false} content={<CustomBarTooltip chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
+                        <ChartTooltip
+                          cursor={false}
+                          content={props => (
+                            <CustomBarTooltip
+                              {...(props as TooltipProps<number, string>)}
+                              chartConfig={chartConfig}
+                              dir={dir}
+                              period={backendPeriod}
+                            />
+                          )}
+                        />
                         {allNodesSelected ? (
                           // All nodes selected for sudo admins - render stacked bars
                           nodeList.map((node, idx) => (

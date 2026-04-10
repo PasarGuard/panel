@@ -246,12 +246,12 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
   }
 
   return (
-    <Card className="flex flex-1 flex-col">
+    <Card className="flex flex-1 flex-col pt-2">
       <CardHeader className="flex flex-col space-y-4 p-4 md:p-6">
         <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <div className="flex items-center space-x-3">
             <div className="flex items-center gap-x-2">
-              <CardTitle className="text-lg md:text-xl">{viewMode === 'realtime' ? t('statistics.realTimeData') : t('statistics.historicalData')}</CardTitle>
+              <CardTitle className='mb-1'>{viewMode === 'realtime' ? t('statistics.realTimeData') : t('statistics.historicalData')}</CardTitle>
             </div>
           </div>
 
@@ -272,7 +272,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
           )}
         </div>
 
-        <CardDescription className="text-sm text-muted-foreground sm:!mt-0">{viewMode === 'realtime' ? t('statistics.realtimeDescription') : t('statistics.historicalDescription')}</CardDescription>
+        <CardDescription className="text-sm text-muted-foreground !mt-0">{viewMode === 'realtime' ? t('statistics.realtimeDescription') : t('statistics.historicalDescription')}</CardDescription>
         <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2 sm:gap-6">
           <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">
             <div className="flex items-center gap-2">
@@ -388,7 +388,12 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
                 />
 
                 <Tooltip
-                  content={<CustomTooltip period={viewMode === 'historical' ? periodOption.period : Period.hour} />}
+                  content={props => (
+                    <CustomTooltip
+                      {...(props as TooltipProps<number, string>)}
+                      period={viewMode === 'historical' ? periodOption.period : Period.hour}
+                    />
+                  )}
                   cursor={{
                     stroke: 'hsl(var(--border))',
                     strokeWidth: 1,
