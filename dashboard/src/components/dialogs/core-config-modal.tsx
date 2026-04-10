@@ -1507,8 +1507,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                               <SelectContent>
                                 <SelectItem value="xray">Xray</SelectItem>
                                 <SelectItem value="wg">WireGuard</SelectItem>
-                                <SelectItem value="mtproto">MTProto</SelectItem>
-                                <SelectItem value="singbox">SingBox</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>
