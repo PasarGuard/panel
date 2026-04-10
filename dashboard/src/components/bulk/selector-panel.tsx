@@ -122,7 +122,7 @@ export const SelectorPanel = memo(function SelectorPanel({
             <span className="truncate block min-w-0" title={title}>{title}</span>
             {isRequired && <span className="text-destructive flex-shrink-0 ml-0.5">*</span>}
           </CardTitle>
-          <Badge variant={selected.length > 0 ? "default" : "secondary"} className="text-xs sm:text-sm flex-shrink-0 min-w-[2.5rem] sm:min-w-[2.75rem] text-center tabular-nums px-2 py-0.5">
+          <Badge dir='ltr' variant={selected.length > 0 ? "default" : "secondary"} className="text-xs sm:text-sm flex-shrink-0 min-w-[2.5rem] sm:min-w-[2.75rem] text-center tabular-nums px-2 py-0.5">
             {selected.length}
           </Badge>
         </div>

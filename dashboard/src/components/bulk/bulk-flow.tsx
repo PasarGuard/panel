@@ -221,6 +221,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   }
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [wireguardPendingAction, setWireguardPendingAction] = useState<'preview' | 'apply' | null>(null)
 
   const confirmApply = () => {
     const basePayload = {
@@ -288,6 +289,10 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       }
     })()
 
+    if (operationType === 'wireguard') {
+      setWireguardPendingAction('apply')
+    }
+
     mutation.mutate(
       { data: payload as any },
       {
@@ -345,6 +350,11 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           })
           setShowConfirmDialog(false)
         },
+        onSettled: () => {
+          if (operationType === 'wireguard') {
+            setWireguardPendingAction(null)
+          }
+        },
       },
     )
   }
@@ -363,6 +373,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       confirm: false,
       replace_all: replaceAllPeerIps,
     }
+    setWireguardPendingAction('preview')
     wireguardPeerIpsMutation.mutate(
       { data: payload },
       {
@@ -381,6 +392,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             description: error?.message || JSON.stringify(error, null, 2),
           })
         },
+        onSettled: () => setWireguardPendingAction(null),
       },
     )
   }
@@ -1059,7 +1071,10 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
         </CardContent>
       </Card>
 
-      <div className={cn('flex flex-col-reverse gap-2 px-2 sm:flex-row sm:px-0', currentStep === 1 ? 'justify-end' : 'justify-between')}>
+      <div
+        dir={dir}
+        className={cn('flex flex-col-reverse gap-2 px-2 sm:flex-row sm:px-0', currentStep === 1 ? 'justify-end' : 'justify-between')}
+      >
         {currentStep > 1 && (
           <Button variant="outline" onClick={prevStep} size="sm" className="w-full sm:w-auto">
             <ChevronLeft className={cn('h-4 w-4', isRTL ? 'ml-1.5 rotate-180' : 'mr-1.5')} />
@@ -1073,14 +1088,14 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <ChevronRight className={cn('h-4 w-4', isRTL ? 'mr-1.5 rotate-180' : 'ml-1.5')} />
           </Button>
         ) : operationType === 'wireguard' ? (
-          <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:justify-end">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end sm:gap-2">
             <LoaderButton
               type="button"
               variant="outline"
               onClick={handleWireguardPreview}
               disabled={!canProceedToNext() || wireguardPeerIpsMutation.isPending}
-              isLoading={wireguardPeerIpsMutation.isPending}
-              loadingText={t('bulk.wireguardPreviewing', { defaultValue: '…' })}
+              isLoading={wireguardPendingAction === 'preview'}
+              loadingText={t('bulk.wireguardPreviewing', { defaultValue: 'Previewing…' })}
               size="sm"
               className="w-full sm:w-auto"
             >
@@ -1092,7 +1107,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <LoaderButton
               onClick={handleApply}
               disabled={!canProceedToNext() || wireguardPeerIpsMutation.isPending}
-              isLoading={wireguardPeerIpsMutation.isPending}
+              isLoading={wireguardPendingAction === 'apply'}
               loadingText={t('applying', { defaultValue: 'Applying...' })}
               size="sm"
               className="w-full sm:w-auto"
