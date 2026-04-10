@@ -1053,6 +1053,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
         await db_user.next_plan.user_template.awaitable_attrs.groups
         await db_user.awaitable_attrs.groups
         db_user.groups = db_user.next_plan.user_template.groups
+        await db.flush()
         db_user.data_limit = db_user.next_plan.user_template.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
         )
@@ -1095,7 +1096,14 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     if next_plan_applies_template:
         from app.utils.wireguard_reconcile import reconcile_wireguard_peer_ips_for_users
 
-        await reconcile_wireguard_peer_ips_for_users(db, [db_user], include_legacy_empty_peer_ips=True)
+        # Force reconcile: template next plan can change WG groups; users without
+        # __auto_peer_ips_by_subnet (legacy) would otherwise skip reconcile when peer_ips is non-empty.
+        await reconcile_wireguard_peer_ips_for_users(
+            db,
+            [db_user],
+            include_legacy_empty_peer_ips=True,
+            force_user_ids={db_user.id},
+        )
     return db_user
 
 

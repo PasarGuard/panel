@@ -168,6 +168,7 @@ async def reconcile_wireguard_peer_ips_for_users(
     users: Iterable,
     *,
     include_legacy_empty_peer_ips: bool = False,
+    force_user_ids: set[int] | None = None,
 ) -> list:
     deduped_users: dict[int, object] = {}
     for user in users:
@@ -188,7 +189,12 @@ async def reconcile_wireguard_peer_ips_for_users(
         required_rows = _distinct_wireguard_networks_with_server(required_tags, inbounds_by_tag)
 
         raw_proxy_settings = normalize_proxy_settings_storage(user.proxy_settings)
-        if not wireguard_peer_ips_need_reconcile(
+        force = (
+            force_user_ids is not None
+            and user.id in force_user_ids
+            and bool(required_rows)
+        )
+        if not force and not wireguard_peer_ips_need_reconcile(
             raw_proxy_settings,
             required_rows,
             include_legacy_empty_peer_ips=include_legacy_empty_peer_ips,
