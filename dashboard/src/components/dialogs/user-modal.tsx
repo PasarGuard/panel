@@ -1690,7 +1690,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                     />
                                   </FormControl>
                                   {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                    <p className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
+                                    <p dir="ltr" className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
                                   )}
                                   <FormMessage />
                                 </FormItem>

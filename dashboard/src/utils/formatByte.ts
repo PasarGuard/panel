@@ -38,6 +38,20 @@ export const toPersianNumerals = (num: number | string): string => {
 }
 
 /**
+ * Converts API `data_limit` (bytes) to gigabytes for user forms.
+ * Two-decimal rounding alone would collapse small limits (under ~5.37 MB) to 0; this keeps enough precision to round-trip with {@link gbToBytes}.
+ */
+export function bytesToFormGigabytes(bytes: number | null | undefined): number {
+  if (bytes === undefined || bytes === null || !Number(bytes)) return 0
+  const gb = Number(bytes) / (1024 * 1024 * 1024)
+  const rounded2 = Math.round(gb * 100) / 100
+  if (rounded2 === 0 && gb > 0) {
+    return Number(gb.toFixed(9))
+  }
+  return rounded2
+}
+
+/**
  * Converts GB to bytes
  * @param gb - The value in GB (can be string, number, null, or undefined)
  * @returns The value in bytes as a number, or undefined if input is invalid
