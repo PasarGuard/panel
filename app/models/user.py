@@ -221,7 +221,7 @@ class BulkUsersProxy(BaseModel):
 
 
 class BulkWireGuardPeerIPs(BaseModel):
-    """Re-seat WireGuard peer IPs (same scoping fields as bulk proxy: users, admins, group_ids)."""
+    """Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status)."""
 
     confirm: bool = False
     dry_run: bool = False
@@ -229,6 +229,7 @@ class BulkWireGuardPeerIPs(BaseModel):
     group_ids: set[int] = Field(default_factory=set)
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
+    status: set[UserStatus] = Field(default_factory=set)
 
 
 class WireGuardPeerIPsReallocateResponse(BaseModel):

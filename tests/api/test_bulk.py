@@ -173,3 +173,20 @@ def test_update_users_proxy_settings(access_token):
         assert listed[users[1]["username"]]["proxy_settings"]["vless"]["flow"] == "xtls-rprx-vision"
     finally:
         cleanup(access_token, core, groups, users)
+
+
+def test_bulk_wireguard_reallocate_peer_ips_accepts_status_filter(access_token):
+    """Dry-run accepts optional status filter like other bulk user actions."""
+    response = client.post(
+        "/api/users/bulk/wireguard/reallocate-peer-ips",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "dry_run": True,
+            "confirm": False,
+            "status": ["active", "disabled"],
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["dry_run"] is True
+    assert "candidates" in data

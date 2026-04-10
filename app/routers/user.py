@@ -445,7 +445,7 @@ async def bulk_modify_users_proxy_settings(
     "s/bulk/wireguard/reallocate-peer-ips",
     response_model=WireGuardPeerIPsReallocateResponse,
     summary="Bulk reallocate WireGuard peer IPs",
-    description="Same scoping as other bulk user actions (users, admins, group_ids). Non-sudo admins only affect their own users.",
+    description="Same scoping as other bulk user actions (users, admins, group_ids, optional status filter). Non-sudo admins only affect their own users.",
 )
 async def bulk_reallocate_wireguard_peer_ips(
     body: BulkWireGuardPeerIPs,

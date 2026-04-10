@@ -188,8 +188,8 @@ class BaseSubscription:
 
     @staticmethod
     def _get_wireguard_peer_ips(settings: dict, inbound: SubscriptionInboundData) -> list[str]:
-        """Return stored peer IPs for subscription output (global pool; inbound is not used for filtering)."""
-        del inbound  # API compatibility with callers; selection is per-user, not per-core subnet
+        """Return stored peer IPs for subscription output"""
+        del inbound  
         return list(settings.get("peer_ips") or [])
 
     def _build_wireguard_components(
