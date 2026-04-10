@@ -48,6 +48,7 @@ from app.models.user import (
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
+    BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ModifyUserByTemplate,
     RemoveUsersResponse,
@@ -62,6 +63,7 @@ from app.models.user import (
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateList,
+    WireGuardPeerIPsReallocateResponse,
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
@@ -830,6 +832,30 @@ class UserOperation(BaseOperation):
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
+
+    async def bulk_reallocate_wireguard_peer_ips(
+        self, db: AsyncSession, body: BulkWireGuardPeerIPs, admin: AdminDetails
+    ) -> WireGuardPeerIPsReallocateResponse:
+        from types import SimpleNamespace
+
+        from sqlalchemy import and_, select
+
+        from app.db.crud.bulk import _create_final_filter
+        from app.db.crud.user import load_user_attrs
+        from app.utils.wireguard import bulk_reallocate_wireguard_peer_ips as run_wg_bulk
+
+        scope = SimpleNamespace(group_ids=body.group_ids, admins=body.admins, users=body.users)
+        final_filter = _create_final_filter(scope)
+        if not admin.is_sudo:
+            final_filter = and_(final_filter, User.admin_id == admin.id)
+
+        result = await db.execute(select(User).where(final_filter))
+        users = list(result.scalars().all())
+        for u in users:
+            await load_user_attrs(u, load_usage_logs=False)
+
+        out = await run_wg_bulk(db, users, dry_run=body.dry_run, replace_all=body.replace_all)
+        return WireGuardPeerIPsReallocateResponse(**out)
 
     async def get_users_sub_update_list(
         self, db: AsyncSession, username: str, admin: AdminDetails, offset: int = 0, limit: int = 10

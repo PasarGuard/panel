@@ -3,7 +3,6 @@ import hashlib
 import json
 import re
 from enum import Enum
-from ipaddress import ip_network
 from typing import Any, Literal
 from urllib.parse import quote, urlencode
 
@@ -187,51 +186,11 @@ class BaseSubscription:
 
         return obfs_password, quic_params
 
-    @staticmethod
-    def _get_wireguard_peer_ips(settings: dict, inbound: SubscriptionInboundData) -> list[str]:
-        """Return peer IPs for this inbound, preferring addresses in the interface subnet.
-
-        When the user has several peer_ips (one per subnet), only those inside this inbound's
-        core `address` ranges are used. If none match but peer_ips is non-empty, the full list
-        is returned so a single explicit /32 can be reused on every WireGuard link (shared mode).
-        """
-        peer_ips = settings.get("peer_ips") or []
-        if not peer_ips:
-            return []
-        local_addrs = inbound.wireguard_local_address or []
-        if not local_addrs:
-            return list(peer_ips)
-
-        networks: list = []
-        for cidr in local_addrs:
-            if not isinstance(cidr, str) or not cidr.strip():
-                continue
-            try:
-                networks.append(ip_network(cidr.strip(), strict=False))
-            except ValueError:
-                continue
-        if not networks:
-            return list(peer_ips)
-
-        out: list[str] = []
-        for peer_ip in peer_ips:
-            if not isinstance(peer_ip, str) or not peer_ip.strip():
-                continue
-            try:
-                pn = ip_network(peer_ip.strip(), strict=False)
-            except ValueError:
-                continue
-            if any(pn.version == n.version and pn.subnet_of(n) for n in networks):
-                out.append(str(pn))
-        if out:
-            return out
-        return list(peer_ips)
-
     def _build_wireguard_components(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
     ) -> dict | None:
         private_key = settings.get("private_key", "")
-        peer_ips = self._get_wireguard_peer_ips(settings, inbound)
+        peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
         if not private_key or not peer_ips or not public_key:
             return None

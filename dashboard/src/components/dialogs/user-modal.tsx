@@ -2244,7 +2244,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                   <Textarea
                                     dir="ltr"
                                     value={Array.isArray(field.value) ? field.value.join('\n') : ''}
-                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.8.0.2/32' })}
+                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.0.0.10/32' })}
                                     onChange={e => {
                                       const peerIps = parseWireGuardPeerIps(e.target.value)
                                       field.onChange(peerIps)
