@@ -200,8 +200,8 @@ const UsersTable = memo(() => {
       next_plan: selectedUser?.next_plan
         ? {
             user_template_id: selectedUser?.next_plan.user_template_id ? Number(selectedUser?.next_plan.user_template_id) : undefined,
-            data_limit: selectedUser?.next_plan.data_limit ? Number(selectedUser?.next_plan.data_limit) : undefined,
-            expire: selectedUser?.next_plan.expire ? Number(selectedUser?.next_plan.expire) : undefined,
+            data_limit: selectedUser?.next_plan.data_limit ? Math.round(Number(selectedUser?.next_plan.data_limit)) : undefined,
+            expire: selectedUser?.next_plan.expire ? Math.round(Number(selectedUser?.next_plan.expire)) : undefined,
             add_remaining_traffic: selectedUser?.next_plan.add_remaining_traffic || false,
           }
         : undefined,
@@ -224,8 +224,8 @@ const UsersTable = memo(() => {
         next_plan: selectedUser.next_plan
           ? {
               user_template_id: selectedUser.next_plan.user_template_id ? Number(selectedUser.next_plan.user_template_id) : undefined,
-              data_limit: selectedUser.next_plan.data_limit ? Number(selectedUser.next_plan.data_limit) : undefined,
-              expire: selectedUser.next_plan.expire ? Number(selectedUser.next_plan.expire) : undefined,
+              data_limit: selectedUser.next_plan.data_limit ? Math.round(Number(selectedUser.next_plan.data_limit)) : undefined,
+              expire: selectedUser.next_plan.expire ? Math.round(Number(selectedUser.next_plan.expire)) : undefined,
               add_remaining_traffic: selectedUser.next_plan.add_remaining_traffic || false,
             }
           : undefined,

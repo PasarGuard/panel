@@ -278,8 +278,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       next_plan: user.next_plan
         ? {
           user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-          data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
-          expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
+          data_limit: user.next_plan.data_limit ? Math.round(Number(user.next_plan.data_limit)) : 0,
+          expire: user.next_plan.expire ? Math.round(Number(user.next_plan.expire)) : 0,
           add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
         }
         : undefined,
@@ -302,8 +302,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       next_plan: user.next_plan
         ? {
           user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-          data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
-          expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
+          data_limit: user.next_plan.data_limit ? Math.round(Number(user.next_plan.data_limit)) : 0,
+          expire: user.next_plan.expire ? Math.round(Number(user.next_plan.expire)) : 0,
           add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
         }
         : undefined,
@@ -386,8 +386,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       next_plan: latestUser.next_plan
         ? {
           user_template_id: latestUser.next_plan.user_template_id ? Number(latestUser.next_plan.user_template_id) : undefined,
-          data_limit: latestUser.next_plan.data_limit ? Number(latestUser.next_plan.data_limit) : 0,
-          expire: latestUser.next_plan.expire ? Number(latestUser.next_plan.expire) : 0,
+          data_limit: latestUser.next_plan.data_limit ? Math.round(Number(latestUser.next_plan.data_limit)) : 0,
+          expire: latestUser.next_plan.expire ? Math.round(Number(latestUser.next_plan.expire)) : 0,
           add_remaining_traffic: latestUser.next_plan.add_remaining_traffic || false,
         }
         : undefined,

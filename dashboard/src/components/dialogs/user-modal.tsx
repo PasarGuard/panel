@@ -36,7 +36,7 @@ import {
 } from '@/service/api'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
-import { formatBytes, gbToBytes } from '@/utils/formatByte'
+import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -1060,10 +1060,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               add_remaining_traffic: nextPlan.add_remaining_traffic ?? false,
             }
           } else {
-            // No template - send expire and data_limit with defaults
+            // No template - send expire and data_limit with defaults (integers; GB→bytes must not send floats)
             sendValues.next_plan = {
-              expire: nextPlan.expire ?? 0,
-              data_limit: nextPlan.data_limit ?? 0,
+              expire: Math.round(Number(nextPlan.expire ?? 0)),
+              data_limit: Math.round(Number(nextPlan.data_limit ?? 0)),
               add_remaining_traffic: nextPlan.add_remaining_traffic ?? false,
             }
           }
@@ -1433,8 +1433,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         nextPlanExpireInputRef.current = String(days)
       }
       if (nextPlan?.data_limit !== undefined && nextPlan?.data_limit !== null && nextPlan.data_limit > 0) {
-        const gb = Math.round(nextPlan.data_limit / (1024 * 1024 * 1024))
-        nextPlanDataLimitInputRef.current = String(gb)
+        nextPlanDataLimitInputRef.current = String(bytesToFormGigabytes(nextPlan.data_limit))
       }
     }
   }, [isDialogOpen, editingUser, nextPlanEnabled, form])
@@ -2391,13 +2390,13 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                 name="next_plan.data_limit"
                                 render={({ field }) => {
                                   if (nextPlanDataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
-                                    nextPlanDataLimitInputRef.current = String(Math.round(field.value / (1024 * 1024 * 1024)))
+                                    nextPlanDataLimitInputRef.current = String(bytesToFormGigabytes(field.value))
                                   }
                                   const displayValue =
                                     nextPlanDataLimitInputRef.current !== ''
                                       ? nextPlanDataLimitInputRef.current
                                       : field.value !== null && field.value !== undefined && field.value > 0
-                                        ? String(Math.round(field.value / (1024 * 1024 * 1024)))
+                                        ? String(bytesToFormGigabytes(field.value))
                                         : ''
                                   return (
                                     <FormItem>
@@ -2431,7 +2430,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                                     field.onChange(0)
                                                     handleFieldChange('next_plan.data_limit', 0)
                                                   } else {
-                                                    const bytesValue = numValue * 1024 * 1024 * 1024
+                                                    const bytesValue = gbToBytes(numValue) ?? 0
                                                     field.onChange(bytesValue)
                                                     handleFieldChange('next_plan.data_limit', bytesValue)
                                                   }
@@ -2450,7 +2449,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                               if (!isNaN(numValue) && numValue >= 0) {
                                                 const finalValue = numValue
                                                 nextPlanDataLimitInputRef.current = String(finalValue)
-                                                const bytesValue = finalValue * 1024 * 1024 * 1024
+                                                const bytesValue = gbToBytes(finalValue) ?? 0
                                                 field.onChange(bytesValue)
                                                 handleFieldChange('next_plan.data_limit', bytesValue)
                                               } else {
