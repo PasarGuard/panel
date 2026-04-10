@@ -550,20 +550,25 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                         <FormItem className={'min-h-[100px]'}>
                           <FormLabel>{t('nodeModal.apiKey')}</FormLabel>
                           <FormControl>
-                            <div className="flex items-center gap-2">
+                            <div className={cn('flex w-full min-w-0 items-stretch gap-0', dir === 'rtl' && 'flex-row-reverse')}>
                               <Input
                                 isError={!!form.formState.errors.api_key}
                                 type="text"
                                 placeholder={t('nodeModal.apiKeyPlaceholder')}
                                 autoComplete="off"
+                                className="min-w-0 rounded-e-none border-e-0 shadow-none focus-visible:z-10"
                                 {...field}
                                 onChange={e => field.onChange(e.target.value)}
                               />
-                              <div className={cn('flex items-center gap-0', dir === 'rtl' && 'flex-row-reverse')}>
-                                <Button type="button" variant="outline" onClick={generateUUID} className="h-10 rounded-l-none px-3">
-                                  <RefreshCw className="h-3 w-3" />
-                                </Button>
-                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={generateUUID}
+                                className="shrink-0 rounded-s-none px-3 focus-visible:z-10"
+                              >
+                                <RefreshCw className="!h-4 !w-4" aria-hidden />
+                              </Button>
                             </div>
                           </FormControl>
                           <FormMessage />

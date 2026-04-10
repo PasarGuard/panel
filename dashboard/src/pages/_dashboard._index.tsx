@@ -90,6 +90,14 @@ const Dashboard = () => {
   const queryClient = useQueryClient()
   const { copy } = useClipboard()
 
+  /** Match nodes list: delayed refetch so backend can settle after create/update (see nodes-list NodeModal onSuccess). */
+  const handleNodeModalSuccess = () => {
+    setTimeout(() => {
+      void queryClient.refetchQueries({ queryKey: ['/api/nodes'] })
+      void queryClient.refetchQueries({ queryKey: ['/api/nodes/simple'] })
+    }, 2500)
+  }
+
   const refreshAllUserData = () => {
     queryClient.invalidateQueries({ queryKey: ['getUsers'] })
     queryClient.invalidateQueries({ queryKey: ['getUsersUsage'] })
@@ -265,7 +273,7 @@ const Dashboard = () => {
       {/* Only render NodeModal for sudo admins */}
       {is_sudo && isNodeModalOpen && (
         <Suspense fallback={<div />}>
-          <NodeModal isDialogOpen={isNodeModalOpen} onOpenChange={setNodeModalOpen} form={nodeForm} editingNode={false} />
+          <NodeModal isDialogOpen={isNodeModalOpen} onOpenChange={setNodeModalOpen} form={nodeForm} editingNode={false} onSuccess={handleNodeModalSuccess} />
         </Suspense>
       )}
       {/* Only render AdminModal for sudo admins */}
