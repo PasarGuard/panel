@@ -443,7 +443,6 @@ class UserOperation(BaseOperation):
         old_status = db_user.status
 
         db_user = await reset_user_by_next(db=db, db_user=db_user)
-        await reconcile_wireguard_peer_ips_for_users(db, [db_user])
 
         user = await self.update_user(db_user)
 

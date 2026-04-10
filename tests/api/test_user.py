@@ -1302,6 +1302,134 @@ def test_wireguard_active_next_plan_updates_auto_peer_ips(access_token):
         delete_core(access_token, second_core["id"])
 
 
+def test_wireguard_reset_user_by_next_updates_auto_peer_ips_multi_subnet(access_token):
+    """Scheduler path calls reset_user_by_next without /active_next; WG auto IPs must still expand."""
+    first_core, first_group, first_host_id, _ = create_wireguard_setup(
+        access_token,
+        subnet="10.91.0.1/24",
+        endpoint="198.51.100.91",
+        core_name="wireguard_reset_next_core_a",
+        group_name="wireguard_reset_next_group_a",
+    )
+    first_private_key, _ = generate_wireguard_keypair()
+    second_private_key, _ = generate_wireguard_keypair()
+    first_interface = unique_name("wg_reset_next_a")
+    second_interface = unique_name("wg_reset_next_b")
+    second_core = create_core(
+        access_token,
+        name=unique_name("wireguard_reset_next_core_b"),
+        config={
+            "interface_name": first_interface,
+            "private_key": first_private_key,
+            "listen_port": 51820,
+            "address": ["10.91.10.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    third_core = create_core(
+        access_token,
+        name=unique_name("wireguard_reset_next_core_c"),
+        config={
+            "interface_name": second_interface,
+            "private_key": second_private_key,
+            "listen_port": 51821,
+            "address": ["10.91.20.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    host_b_resp = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "WG reset next B {USERNAME}",
+            "address": ["198.51.100.92"],
+            "port": 51820,
+            "inbound_tag": first_interface,
+            "priority": 1,
+        },
+    )
+    assert host_b_resp.status_code == status.HTTP_201_CREATED
+    second_host_id = host_b_resp.json()["id"]
+    host_c_resp = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "WG reset next C {USERNAME}",
+            "address": ["198.51.100.93"],
+            "port": 51821,
+            "inbound_tag": second_interface,
+            "priority": 2,
+        },
+    )
+    assert host_c_resp.status_code == status.HTTP_201_CREATED
+    third_host_id = host_c_resp.json()["id"]
+
+    multi_group = create_group(
+        access_token,
+        name=unique_name("wg_reset_next_multi_group"),
+        inbound_tags=[first_interface, second_interface],
+    )
+    template = create_user_template(
+        access_token,
+        group_ids=[multi_group["id"]],
+        reset_usages=False,
+    )
+    username = unique_name("wg_reset_next_user")
+    user = create_user(
+        access_token,
+        group_ids=[first_group["id"]],
+        payload={"username": username},
+    )
+
+    try:
+        assert len(user["proxy_settings"]["wireguard"]["peer_ips"]) == 1
+
+        response = client.put(
+            f"/api/user/{username}",
+            headers=auth_headers(access_token),
+            json={"next_plan": {"user_template_id": template["id"], "add_remaining_traffic": False}},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        from sqlalchemy import select
+
+        from app.db.crud.user import reset_user_by_next
+        from app.db.models import User
+        from tests.api import TestSession
+
+        async def _reset_via_next() -> None:
+            async with TestSession() as session:
+                result = await session.execute(select(User).where(User.username == username))
+                db_user = result.scalar_one()
+                await db_user.awaitable_attrs.next_plan
+                await reset_user_by_next(session, db_user)
+
+        asyncio.run(_reset_via_next())
+
+        stored = get_stored_proxy_settings(username)
+        peer_ips = stored["wireguard"]["peer_ips"]
+        auto_map = get_stored_wireguard_auto_map(username)
+        assert len(peer_ips) == 2
+        assert auto_map is not None and len(auto_map) == 2
+        net_a = ip_network("10.91.10.0/24", strict=False)
+        net_b = ip_network("10.91.20.0/24", strict=False)
+        assert auto_map[str(net_a)] in peer_ips
+        assert auto_map[str(net_b)] in peer_ips
+    finally:
+        delete_user(access_token, username)
+        delete_user_template(access_token, template["id"])
+        delete_group(access_token, first_group["id"])
+        delete_group(access_token, multi_group["id"])
+        client.delete(f"/api/host/{first_host_id}", headers=auth_headers(access_token))
+        client.delete(f"/api/host/{second_host_id}", headers=auth_headers(access_token))
+        client.delete(f"/api/host/{third_host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, first_core["id"])
+        delete_core(access_token, second_core["id"])
+        delete_core(access_token, third_core["id"])
+
+
 def test_wireguard_core_modify_and_delete_update_only_auto_users(access_token):
     manual_peer_ips = ["10.89.0.90/32"]
     interface_name = unique_name("wg_core_change")

@@ -1040,7 +1040,8 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
         User: The updated user object.
     """
     remaining_traffic = (db_user.data_limit or 0) - db_user.used_traffic
-    if db_user.next_plan.user_template_id is None:
+    next_plan_applies_template = db_user.next_plan.user_template_id is not None
+    if not next_plan_applies_template:
         db_user.data_limit = db_user.next_plan.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
         )
@@ -1087,6 +1088,13 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
 
     await db.commit()
     await refresh_and_load_user(db, db_user)
+
+    # Template-based next plan can change groups / WG interfaces; reconcile auto peer_ips (scheduler had no reconcile).
+    # Next plan without a template only changes limits/dates — groups unchanged, subnets unchanged.
+    if next_plan_applies_template:
+        from app.utils.wireguard import reconcile_wireguard_peer_ips_for_users
+
+        await reconcile_wireguard_peer_ips_for_users(db, [db_user], include_legacy_empty_peer_ips=True)
     return db_user
 
 
