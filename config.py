@@ -129,4 +129,4 @@ STOP_NODES_ON_SHUTDOWN = config("STOP_NODES_ON_SHUTDOWN", cast=bool, default=Tru
 
 # WireGuard client pool (strings; parsed in app.utils.wireguard_pool)
 WIREGUARD_GLOBAL_POOL = config("WIREGUARD_GLOBAL_POOL", default="10.0.0.0/8")
-WIREGUARD_RESERVED_IPV4 = config("WIREGUARD_RESERVED_IPV4", default="10.0.0.0,10.0.0.1")
+WIREGUARD_RESERVED = config("WIREGUARD_RESERVED", default="10.0.0.0,10.0.0.1")

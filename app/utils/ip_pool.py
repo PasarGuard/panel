@@ -5,11 +5,11 @@ from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.user import get_users_with_proxy_settings
-from .wireguard_pool import WIREGUARD_GLOBAL_POOL, WIREGUARD_RESERVED_IPV4
+from .wireguard_pool import WIREGUARD_GLOBAL_POOL, WIREGUARD_RESERVED
 
 # Backward-compatible names
 GLOBAL_IP_POOL = WIREGUARD_GLOBAL_POOL
-SERVER_RESERVED = WIREGUARD_RESERVED_IPV4
+SERVER_RESERVED = WIREGUARD_RESERVED
 
 
 def peer_ipv4_network_in_global_pool(net: IPv4Network | IPv6Network) -> bool:
@@ -98,7 +98,7 @@ def allocate_one_from_pool_sync(used_networks: set[IPv4Network | IPv6Network]) -
     for raw_candidate in range(start, end + 1):
         candidate = ip_address(raw_candidate)
 
-        if candidate in WIREGUARD_RESERVED_IPV4:
+        if candidate in WIREGUARD_RESERVED:
             continue
 
         if candidate == pool.broadcast_address:
@@ -144,5 +144,5 @@ async def validate_peer_ips_globally(
             raise ValueError(f"peer IP/network '{peer_ip}' is already in use by an existing user's peer network")
 
         candidate_ip = ip_address(candidate.network_address)
-        if candidate_ip in WIREGUARD_RESERVED_IPV4:
+        if candidate_ip in WIREGUARD_RESERVED:
             raise ValueError(f"peer IP '{peer_ip}' is reserved")
