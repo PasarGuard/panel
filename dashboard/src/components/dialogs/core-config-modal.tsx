@@ -139,7 +139,7 @@ const defaultWireGuardConfig = JSON.stringify(
     interface_name: 'wg0',
     private_key: 'REPLACE_WITH_SERVER_PRIVATE_KEY',
     listen_port: 51820,
-    address: ['10.8.0.1/24'],
+    address: ['10.0.0.1/8'],
   },
   null,
   2,
@@ -1507,8 +1507,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                               <SelectContent>
                                 <SelectItem value="xray">Xray</SelectItem>
                                 <SelectItem value="wg">WireGuard</SelectItem>
-                                <SelectItem value="mtproto">MTProto</SelectItem>
-                                <SelectItem value="singbox">SingBox</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>

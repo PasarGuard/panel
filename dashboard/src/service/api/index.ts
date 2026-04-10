@@ -275,16 +275,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -304,11 +304,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsInput {
+export interface XrayMuxSettingsOutput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -463,6 +463,18 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -486,17 +498,10 @@ export interface XHttpSettingsInput {
   download_settings?: XHttpSettingsInputDownloadSettings
 }
 
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
 
 export type WorkerHealthError = string | null
 
@@ -508,11 +513,6 @@ export interface WorkerHealth {
   error?: WorkerHealthError
 }
 
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
-}
-
 export type WireGuardSettingsPublicKey = string | null
 
 export type WireGuardSettingsPrivateKey = string | null
@@ -522,6 +522,16 @@ export interface WireGuardSettings {
   public_key?: WireGuardSettingsPublicKey
   peer_ips?: string[]
 }
+
+export interface WireGuardPeerIPsReallocateResponse {
+  wireguard_inbound_tags: number
+  candidates: number
+  updated: number
+  dry_run: boolean
+  sample_usernames: string[]
+}
+
+export type WireGuardHostOverridesDns = string[] | null
 
 export type WireGuardHostOverridesKeepaliveSeconds = number | null
 
@@ -539,6 +549,7 @@ export interface WireGuardHostOverrides {
   mtu?: WireGuardHostOverridesMtu
   reserved?: WireGuardHostOverridesReserved
   keepalive_seconds?: WireGuardHostOverridesKeepaliveSeconds
+  dns?: WireGuardHostOverridesDns
 }
 
 export interface WebhookInfo {
@@ -932,6 +943,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -942,13 +960,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -1025,8 +1036,6 @@ export interface TransportSettingsOutput {
 
 export type TransportSettingsInputWebsocketSettings = WebSocketSettings | null
 
-export type TransportSettingsInputTcpSettings = TcpSettings | null
-
 export type TransportSettingsInputKcpSettings = KCPSettings | null
 
 export type TransportSettingsInputGrpcSettings = GRPCSettings | null
@@ -1078,6 +1087,8 @@ export interface TcpSettings {
   request?: TcpSettingsRequest
   response?: TcpSettingsResponse
 }
+
+export type TransportSettingsInputTcpSettings = TcpSettings | null
 
 export type SystemStatsCpuUsage = number | null
 
@@ -1149,6 +1160,12 @@ export interface SubscriptionUserResponse {
   created_at: string
   edit_at?: SubscriptionUserResponseEditAt
   online_at?: SubscriptionUserResponseOnlineAt
+}
+
+export type SubscriptionTemplatesXray = number | null
+
+export interface SubscriptionTemplates {
+  xray?: SubscriptionTemplatesXray
 }
 
 export type SubRuleResponseHeaders = { [key: string]: unknown }
@@ -1641,8 +1658,6 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
-export type NodeModifyConnectionType = NodeConnectionType | null
-
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1686,6 +1701,8 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
+
+export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -2006,6 +2023,8 @@ export interface CreateUserFromTemplate {
   username: string
 }
 
+export type CreateHostSubscriptionTemplates = SubscriptionTemplates | null
+
 export type CreateHostWireguardOverrides = WireGuardHostOverrides | null
 
 export type CreateHostVerifyPeerCertByName = string[] | null
@@ -2028,14 +2047,6 @@ export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
 
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
 export type CreateHostPath = string | null
 
 export type CreateHostHost = string[] | null
@@ -2047,14 +2058,6 @@ export type CreateHostPort = number | null
 export type CreateHostInboundTag = string | null
 
 export type CreateHostId = number | null
-
-export type HostSubscriptionTemplatesXray = number | null
-
-export interface HostSubscriptionTemplates {
-  xray?: HostSubscriptionTemplatesXray
-}
-
-export type CreateHostSubscriptionTemplates = HostSubscriptionTemplates | null
 
 export interface CreateHost {
   id?: CreateHostId
@@ -2088,6 +2091,22 @@ export interface CreateHost {
   subscription_templates?: CreateHostSubscriptionTemplates
 }
 
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
+}
+
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2098,21 +2117,15 @@ export const CoreType = {
   singbox: 'singbox',
 } as const
 
+export type CoreSimpleType = CoreType | null
+
 /**
  * Lightweight core model with only id, name and type for performance.
  */
 export interface CoreSimple {
   id: number
   name: string
-  type?: CoreType | null
-}
-
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
+  type?: CoreSimpleType
 }
 
 export interface CoreResponseList {
@@ -2248,6 +2261,19 @@ export interface ClashMuxSettings {
   only_tcp?: boolean
 }
 
+/**
+ * Re-seat WireGuard peer IPs (same scoping fields as bulk proxy: users, admins, group_ids).
+ */
+export interface BulkWireGuardPeerIPs {
+  confirm?: boolean
+  dry_run?: boolean
+  replace_all?: boolean
+  group_ids?: number[]
+  admins?: number[]
+  users?: number[]
+  status?: UserStatus[]
+}
+
 export type BulkUsersProxyMethod = ShadowsocksMethods | null
 
 export type BulkUsersProxyFlow = XTLSFlows | null
@@ -2329,6 +2355,8 @@ export interface BaseNotificationEnable {
   delete?: boolean
 }
 
+export type BaseHostSubscriptionTemplates = SubscriptionTemplates | null
+
 export type BaseHostWireguardOverrides = WireGuardHostOverrides | null
 
 export type BaseHostVerifyPeerCertByName = string[] | null
@@ -2350,8 +2378,6 @@ export type BaseHostFragmentSettings = FragmentSettings | null
 export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
-
-export type BaseHostSubscriptionTemplates = HostSubscriptionTemplates | null
 
 export interface BaseHost {
   id?: BaseHostId
@@ -7730,6 +7756,62 @@ export const useBulkModifyUsersProxySettings = <
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersProxy> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<BulkUsersProxy> }, TContext> => {
   const mutationOptions = getBulkModifyUsersProxySettingsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Same scoping as other bulk user actions (users, admins, group_ids). Non-sudo admins only affect their own users.
+ * @summary Bulk reallocate WireGuard peer IPs
+ */
+export const bulkReallocateWireguardPeerIps = (bulkWireGuardPeerIPs: BodyType<BulkWireGuardPeerIPs>, signal?: AbortSignal) => {
+  return orvalFetcher<WireGuardPeerIPsReallocateResponse>({
+    url: `/api/users/bulk/wireguard/reallocate-peer-ips`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bulkWireGuardPeerIPs,
+    signal,
+  })
+}
+
+export const getBulkReallocateWireguardPeerIpsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>,
+  TError = ErrorType<Unauthorized | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
+}) => {
+  const mutationKey = ['bulkReallocateWireguardPeerIps']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>, { data: BodyType<BulkWireGuardPeerIPs> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkReallocateWireguardPeerIps(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
+}
+
+export type BulkReallocateWireguardPeerIpsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>>
+export type BulkReallocateWireguardPeerIpsMutationBody = BodyType<BulkWireGuardPeerIPs>
+export type BulkReallocateWireguardPeerIpsMutationError = ErrorType<Unauthorized | HTTPValidationError>
+
+/**
+ * @summary Bulk reallocate WireGuard peer IPs
+ */
+export const useBulkReallocateWireguardPeerIps = <
+  TData = Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>,
+  TError = ErrorType<Unauthorized | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext> => {
+  const mutationOptions = getBulkReallocateWireguardPeerIpsMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

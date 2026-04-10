@@ -28,7 +28,7 @@ def test_wireguard_core_create(access_token):
         "interface_name": unique_name("wg"),
         "private_key": private_key,
         "listen_port": 51820,
-        "address": ["10.8.0.1/24"],
+        "address": ["10.0.0.1/8"],
         "peer_keepalive_seconds": 25,
     }
 

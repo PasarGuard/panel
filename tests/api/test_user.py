@@ -2,7 +2,6 @@ import io
 import json
 import zipfile
 from copy import deepcopy
-from ipaddress import ip_network
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -358,7 +357,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert query["publickey"] == [interface_public_key]
         assert "address" in query
         dynamic_address = query["address"][0]
-        assert dynamic_address.startswith("10.30.0.")
+        assert dynamic_address == user["proxy_settings"]["wireguard"]["peer_ips"][0]
         assert dynamic_address.endswith("/32")
         assert query["allowedips"] == ["0.0.0.0/0,::/0"]
         assert unquote(parsed.fragment) == expected_remark
@@ -439,7 +438,8 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
         settings = outbound["settings"]
         assert settings["secretKey"] == user["proxy_settings"]["wireguard"]["private_key"]
         assert settings["address"]
-        assert settings["address"][0].startswith("10.30.0.")
+        assert settings["address"][0] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert settings["address"][0].startswith("10.")
         assert settings["address"][0].endswith("/32")
         assert settings["domainStrategy"] == "ForceIP"
         assert "mtu" not in settings
@@ -641,7 +641,8 @@ def test_singbox_subscription_includes_wireguard_outbound(access_token):
         assert wireguard_outbound["interface_name"] == "wg0"
         assert wireguard_outbound["mtu"] == 1408
         assert wireguard_outbound["local_address"]
-        assert wireguard_outbound["local_address"][0].startswith("10.30.0.")
+        assert wireguard_outbound["local_address"][0] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert wireguard_outbound["local_address"][0].startswith("10.")
         assert wireguard_outbound["local_address"][0].endswith("/32")
         assert wireguard_outbound["private_key"] == user["proxy_settings"]["wireguard"]["private_key"]
         assert wireguard_outbound["server"] == endpoint
@@ -746,17 +747,14 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
     user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_multi_user")})
 
     try:
-        # Get the auto-allocated peer IPs (one per distinct WG interface subnet)
+        # Single global-pool allocation; same peer address on every WG inbound
         peer_ips = user["proxy_settings"]["wireguard"]["peer_ips"]
 
         assert isinstance(peer_ips, list)
-        assert len(peer_ips) == 2
-        for ip in peer_ips:
-            assert ip.startswith("10.")
-            assert ip.endswith("/32")
-        assert ip_network(peer_ips[0], strict=False) != ip_network(peer_ips[1], strict=False)
+        assert len(peer_ips) == 1
+        assert peer_ips[0].startswith("10.")
+        assert peer_ips[0].endswith("/32")
 
-        # Verify that WireGuard links use the peer IP matching each host's interface subnet
         links_response = client.get(f"{user['subscription_url']}/links")
         assert links_response.status_code == status.HTTP_200_OK
 
@@ -767,35 +765,23 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
             parsed = urlsplit(line.strip())
             links_by_endpoint[f"{parsed.hostname}:{parsed.port}"] = parse_qs(parsed.query)
 
-        first_address = links_by_endpoint[f"{first_endpoint}:51820"]["address"][0]
-        second_address = links_by_endpoint[f"{second_endpoint}:51821"]["address"][0]
-        net_a = ip_network("10.30.10.1/24", strict=False)
-        net_b = ip_network("10.40.10.1/24", strict=False)
-        assert ip_network(first_address, strict=False).subnet_of(net_a)
-        assert ip_network(second_address, strict=False).subnet_of(net_b)
+        expected_addr = ",".join(peer_ips)
+        assert links_by_endpoint[f"{first_endpoint}:51820"]["address"] == [expected_addr]
+        assert links_by_endpoint[f"{second_endpoint}:51821"]["address"] == [expected_addr]
 
-        # Verify WireGuard subscription: each config Address matches that endpoint's subnet
         wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
         assert wireguard_response.status_code == status.HTTP_200_OK
         config_bodies = extract_wireguard_config_bodies(wireguard_response)
         assert len(config_bodies) == 2
 
-        for body in config_bodies:
-            if f"Endpoint = {first_endpoint}:51820" in body:
-                assert ip_network(first_address, strict=False).subnet_of(net_a)
-                assert f"Address = {first_address}" in body
-            elif f"Endpoint = {second_endpoint}:51821" in body:
-                assert ip_network(second_address, strict=False).subnet_of(net_b)
-                assert f"Address = {second_address}" in body
-
+        addr_line = f"Address = {', '.join(peer_ips)}"
         expected_endpoints = {f"Endpoint = {first_endpoint}:51820", f"Endpoint = {second_endpoint}:51821"}
         actual_endpoints = set()
-
         for body in config_bodies:
+            assert addr_line in body
             for endpoint in expected_endpoints:
                 if endpoint in body:
                     actual_endpoints.add(endpoint)
-
         assert actual_endpoints == expected_endpoints
 
         # Test no-op update preserves allocated peer_ips
@@ -1667,7 +1653,7 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
             },
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "reserved for the server" in response.json()["detail"]
+        assert "reserved" in response.json()["detail"]
 
         # Test 2: Create user without specifying peer IPs - should get persisted auto-allocation
         user1 = create_user(
@@ -1745,8 +1731,8 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
         delete_core(access_token, core["id"])
 
 
-def test_wireguard_rejects_manual_peer_ip_outside_interface_subnet(access_token):
-    """Manual peer IPs must fall within a core WireGuard interface address range."""
+def test_wireguard_rejects_manual_peer_ip_outside_global_pool(access_token):
+    """Manual peer IPv4 must fall within WIREGUARD_GLOBAL_POOL."""
     interface_private_key, _ = generate_wireguard_keypair()
     interface_name = unique_name("wg_subnet_val")
     endpoint = "198.51.100.40"
@@ -1795,7 +1781,7 @@ def test_wireguard_rejects_manual_peer_ip_outside_interface_subnet(access_token)
             },
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "not within any WireGuard interface address range" in response.json()["detail"]
+        assert "outside WIREGUARD_GLOBAL_POOL" in response.json()["detail"]
     finally:
         delete_group(access_token, group["id"])
         client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))

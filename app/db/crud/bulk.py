@@ -16,7 +16,7 @@ from app.db.models import (
     users_groups_association,
 )
 from app.models.group import BulkGroup
-from app.models.user import BulkUser, BulkUsersProxy
+from app.models.user import BulkUser, BulkUsersProxy, BulkWireGuardPeerIPs
 
 from .general import get_datetime_add_expression
 from .user import load_user_attrs
@@ -229,7 +229,7 @@ async def remove_groups_from_users(
     return users, count_effctive_users
 
 
-def _create_final_filter(bulk_model: BulkUser | BulkUsersProxy):
+def _create_final_filter(bulk_model: BulkUser | BulkUsersProxy | BulkWireGuardPeerIPs):
     """Create a comprehensive SQLAlchemy filter condition from a bulk model."""
     other_conditions = []
     if hasattr(bulk_model, "status") and bulk_model.status:

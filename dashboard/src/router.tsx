@@ -15,6 +15,7 @@ const BulkDataPage = lazy(() => import('./pages/_dashboard.bulk.data'))
 const BulkExpirePage = lazy(() => import('./pages/_dashboard.bulk.expire'))
 const BulkGroupsPage = lazy(() => import('./pages/_dashboard.bulk.groups'))
 const BulkProxyPage = lazy(() => import('./pages/_dashboard.bulk.proxy'))
+const BulkWireguardPage = lazy(() => import('./pages/_dashboard.bulk.wireguard'))
 const Groups = lazy(() => import('./pages/_dashboard.groups'))
 const Hosts = lazy(() => import('./pages/_dashboard.hosts'))
 const Nodes = lazy(() => import('./pages/_dashboard.nodes'))
@@ -320,6 +321,14 @@ export const router = createHashRouter([
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <BulkDataPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/bulk/wireguard',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <BulkWireguardPage />
               </Suspense>
             ),
           },

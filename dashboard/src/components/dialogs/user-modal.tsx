@@ -1206,11 +1206,21 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     [form, handleFieldChange],
   )
 
+  /** Preserves blank lines so Enter works in the textarea; empty entries are stripped on save via cleanProxySettings. */
   const parseWireGuardPeerIps = React.useCallback((value: string) => {
-    return value
-      .split(/[\n,]+/)
-      .map(item => item.trim())
-      .filter(Boolean)
+    const lines = value.split('\n')
+    const result: string[] = []
+    for (const line of lines) {
+      const parts = line.split(',').map(s => s.trim()).filter(Boolean)
+      if (parts.length === 0) {
+        if (line.trim() === '') {
+          result.push('')
+        }
+        continue
+      }
+      result.push(...parts)
+    }
+    return result
   }, [])
 
   const hasMeaningfulProxyValue = React.useCallback((value: unknown): boolean => {
@@ -2144,14 +2154,12 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                               const error = formState.errors.proxy_settings?.hysteria?.auth
                               return (
                                 <FormItem className="mb-2">
-                                  <FormLabel>
-                                    {t('userDialog.proxySettings.hysteria')} {t('userDialog.proxySettings.auth')}
-                                  </FormLabel>
+                                  <FormLabel>{t('userDialog.proxySettings.hysteriaAuth')}</FormLabel>
                                   <FormControl>
                                     <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
                                       <Input
                                         {...field}
-                                        placeholder={t('userDialog.proxySettings.auth')}
+                                        placeholder={t('userDialog.proxySettings.hysteriaAuth')}
                                         onChange={e => {
                                           field.onChange(e)
                                           form.trigger('proxy_settings.hysteria.auth')
@@ -2244,7 +2252,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                   <Textarea
                                     dir="ltr"
                                     value={Array.isArray(field.value) ? field.value.join('\n') : ''}
-                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.8.0.2/32' })}
+                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.0.0.10/32' })}
                                     onChange={e => {
                                       const peerIps = parseWireGuardPeerIps(e.target.value)
                                       field.onChange(peerIps)
@@ -2254,7 +2262,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                   />
                                 </FormControl>
                                 <p className="text-xs text-muted-foreground">
-                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to let the panel auto-allocate peer IPs for each assigned WireGuard interface.' })}
+                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. Manual entries must fall within that pool.' })}
                                 </p>
                                 <FormMessage />
                               </FormItem>

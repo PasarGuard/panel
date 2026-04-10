@@ -220,6 +220,26 @@ class BulkUsersProxy(BaseModel):
     users: set[int] = Field(default_factory=set)
 
 
+class BulkWireGuardPeerIPs(BaseModel):
+    """Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status)."""
+
+    confirm: bool = False
+    dry_run: bool = False
+    replace_all: bool = False
+    group_ids: set[int] = Field(default_factory=set)
+    admins: set[int] = Field(default_factory=set)
+    users: set[int] = Field(default_factory=set)
+    status: set[UserStatus] = Field(default_factory=set)
+
+
+class WireGuardPeerIPsReallocateResponse(BaseModel):
+    wireguard_inbound_tags: int
+    candidates: int
+    updated: int
+    dry_run: bool
+    sample_usernames: list[str]
+
+
 class UsernameGenerationStrategy(str, Enum):
     random = "random"
     sequence = "sequence"

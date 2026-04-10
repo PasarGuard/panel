@@ -39,6 +39,7 @@ import {
   Lock,
   Logs,
   MessageCircle,
+  Network,
   Palette,
   PieChart,
   RssIcon,
@@ -224,6 +225,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 url: '/bulk/proxy',
                 icon: Lock,
               },
+              {
+                title: 'bulk.wireguardPeerIps',
+                url: '/bulk/wireguard',
+                icon: Network,
+              },
             ],
           },
           {
@@ -284,6 +290,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: 'bulk.createUsers',
                 url: '/bulk',
                 icon: UserPlus,
+              },
+              {
+                title: 'bulk.wireguardPeerIps',
+                url: '/bulk/wireguard',
+                icon: Network,
               },
             ],
           },
