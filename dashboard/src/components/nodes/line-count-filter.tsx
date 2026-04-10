@@ -20,7 +20,7 @@ export function LineCountFilter({ value, onValueChange }: LineCountFilterProps) 
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 w-full sm:w-3/5 md:w-2/6 lg:w-2/8">
       <span className="text-sm text-muted-foreground whitespace-nowrap">{t('nodes.logs.linesLabel')}</span>
       <Select dir={dir} value={value.toString()} onValueChange={value => onValueChange(Number(value))}>
         <SelectTrigger className="h-9">

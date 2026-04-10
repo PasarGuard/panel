@@ -15,6 +15,21 @@ import { TerminalLine } from '@/components/nodes/terminal-line'
 import { LineCountFilter } from '@/components/nodes/line-count-filter'
 import { SinceLogsFilter, type TimeFilter } from '@/components/nodes/since-logs-filter'
 import { StatusLogsFilter } from '@/components/nodes/status-logs-filter'
+
+/** Max raw SSE chunks kept in memory; display "lines" is sliced client-side (no reconnect). */
+const RAW_LOG_BUFFER_MAX = 10000
+
+const SINCE_DURATION_MS: Record<Exclude<TimeFilter, 'all'>, number> = {
+  '1m': 60 * 1000,
+  '5m': 5 * 60 * 1000,
+  '15m': 15 * 60 * 1000,
+  '30m': 30 * 60 * 1000,
+  '1h': 60 * 60 * 1000,
+  '2h': 2 * 60 * 60 * 1000,
+  '6h': 6 * 60 * 60 * 1000,
+  '12h': 12 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+}
 import { parseLogs, getLogType, type LogLine } from '@/utils/logsUtils'
 import { EventSource } from 'eventsource'
 
@@ -42,9 +57,8 @@ export default function NodeLogs() {
   const dir = useDirDetection()
   const [selectedNode, setSelectedNode] = useState<number>(0)
   const [rawLogs, setRawLogs] = React.useState<string[]>([])
-  const [filteredLogs, setFilteredLogs] = React.useState<LogLine[]>([])
   const [autoScroll, setAutoScroll] = React.useState(true)
-  const [lines, setLines] = React.useState<number>(100)
+  const [lines, setLines] = React.useState<number>(1000)
   const [search, setSearch] = React.useState<string>('')
   const [showTimestamp, setShowTimestamp] = React.useState(true)
   const [since, setSince] = React.useState<TimeFilter>('all')
@@ -92,17 +106,11 @@ export default function NodeLogs() {
     setSearch(e.target.value || '')
   }
 
-  const handleLines = (lines: number) => {
-    setRawLogs([])
-    setFilteredLogs([])
-    setMessageBuffer([])
-    setLines(lines)
+  const handleLines = (nextLines: number) => {
+    setLines(nextLines)
   }
 
   const handleSince = (value: TimeFilter) => {
-    setRawLogs([])
-    setFilteredLogs([])
-    setMessageBuffer([])
     setSince(value)
   }
 
@@ -112,7 +120,7 @@ export default function NodeLogs() {
       if (messageBuffer.length > 0) {
         setRawLogs(prev => {
           const combined = [...prev, ...messageBuffer]
-          return combined.slice(-lines)
+          return combined.slice(-RAW_LOG_BUFFER_MAX)
         })
         setMessageBuffer([])
       }
@@ -126,7 +134,6 @@ export default function NodeLogs() {
   const handleNodeChange = (nodeId: number) => {
     setSelectedNode(nodeId)
     setRawLogs([])
-    setFilteredLogs([])
     setMessageBuffer([])
     setIsPaused(false)
     isPausedRef.current = false
@@ -146,7 +153,6 @@ export default function NodeLogs() {
     let noDataTimeout: NodeJS.Timeout
     setIsLoading(true)
     setRawLogs([])
-    setFilteredLogs([])
     setMessageBuffer([])
     // Reset pause state when container changes
     setIsPaused(false)
@@ -199,7 +205,7 @@ export default function NodeLogs() {
         // When not paused, display messages normally
         setRawLogs(prev => {
           const updated = [...prev, e.data]
-          return updated.slice(-lines)
+          return updated.slice(-RAW_LOG_BUFFER_MAX)
         })
       }
 
@@ -217,57 +223,41 @@ export default function NodeLogs() {
     return () => {
       isCurrentConnection = false
       if (noDataTimeout) clearTimeout(noDataTimeout)
-      if (eventSource.readyState === EventSource.OPEN) {
-        eventSource.close()
-      }
+      eventSource.close()
     }
-  }, [selectedNode, lines])
-
-  const handleFilter = (logs: LogLine[]) => {
-    return logs.filter(log => {
-      const logType = getLogType(log.message).type
-
-      // Filter by type
-      if (typeFilter.length > 0 && !typeFilter.includes(logType)) {
-        return false
-      }
-
-      // Filter by search term
-      if (search && !log.message.toLowerCase().includes(search.toLowerCase())) {
-        return false
-      }
-
-      return true
-    })
-  }
+  }, [selectedNode])
 
   // Sync isPausedRef with isPaused state
   useEffect(() => {
     isPausedRef.current = isPaused
   }, [isPaused])
 
-  useEffect(() => {
-    setRawLogs([])
-    setFilteredLogs([])
-    setMessageBuffer([])
-  }, [selectedNode])
-
-  useEffect(() => {
+  const filteredLogs = useMemo(() => {
     const logs = parseLogs(rawLogs.join('\n'))
 
-    // Sort logs by their extracted timestamps (not SSE arrival time)
-    const sortedLogs = logs.sort((a, b) => {
-      // Logs without timestamps go to the end
+    const sortedLogs = [...logs].sort((a, b) => {
       if (!a.timestamp && !b.timestamp) return 0
       if (!a.timestamp) return 1
       if (!b.timestamp) return -1
-
-      // Sort by actual log timestamp
       return a.timestamp.getTime() - b.timestamp.getTime()
     })
 
-    const filtered = handleFilter(sortedLogs)
-    setFilteredLogs(filtered)
+    const cutoffMs = since === 'all' ? null : Date.now() - SINCE_DURATION_MS[since]
+
+    return sortedLogs
+      .filter(log => {
+        if (typeFilter.length > 0 && !typeFilter.includes(getLogType(log.message).type)) {
+          return false
+        }
+        if (search && !log.message.toLowerCase().includes(search.toLowerCase())) {
+          return false
+        }
+        if (cutoffMs !== null && log.timestamp && log.timestamp.getTime() < cutoffMs) {
+          return false
+        }
+        return true
+      })
+      .slice(-lines)
   }, [rawLogs, search, lines, since, typeFilter])
 
   useEffect(() => {
