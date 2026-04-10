@@ -1183,7 +1183,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                         <Textarea
                           dir="ltr"
                           placeholder={t('nodeModal.certificatePlaceholder')}
-                          className={cn('h-[200px] font-mono text-xs lg:h-5/6', !!form.formState.errors.server_ca && 'border-destructive')}
+                          className={cn('h-[200px] font-mono text-xs lg:h-[92%]', !!form.formState.errors.server_ca && 'border-destructive')}
                           {...field}
                         />
                       </FormControl>

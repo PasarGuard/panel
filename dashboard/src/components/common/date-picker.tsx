@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input'
 import { useTranslation } from 'react-i18next'
 import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
-import { formatDateByLocale, formatDateShort, isDateDisabled } from '@/utils/datePickerUtils'
+import { formatDateByLocale, formatDateShort, isDateDisabled, isPersianLocaleLanguage } from '@/utils/datePickerUtils'
 import { formatOffsetDateTime, parseDateInput, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { useTheme } from '@/components/common/theme-provider'
 import { DATE_PICKER_PREFERENCE_KEY, getDatePickerPreference, type DatePickerPreference } from '@/utils/userPreferenceStorage'
@@ -182,7 +182,9 @@ export function DatePicker({
   const isRTL = dir === 'rtl'
   const handleSingleDateChange = onDateChange ?? (() => undefined)
   const [datePreference, setDatePreference] = useState<DatePickerPreference>('locale')
-  const isPersianCalendar = datePreference === 'persian' || (datePreference === 'locale' && i18n.language === 'fa')
+  const isPersianCalendar =
+    datePreference === 'persian' ||
+    (datePreference === 'locale' && isPersianLocaleLanguage(i18n.resolvedLanguage ?? i18n.language))
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
   const [internalOpen, setInternalOpen] = useState(false)

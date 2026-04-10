@@ -295,7 +295,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
         }}
       >
         <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" className="h-auto w-full min-w-0 justify-between p-2 text-left" title={displayValue || placeholder}>
+          <Button dir='ltr' variant="outline" role="combobox" className="h-auto w-full min-w-0 justify-between p-2 text-left" title={displayValue || placeholder}>
             <span className={`min-w-0 flex-1 truncate text-start max-w-[100px] sm:max-w-none ${displayValue ? 'text-foreground' : 'text-muted-foreground'}`} title={displayValue || placeholder}>
               {displayValue || placeholder}
             </span>

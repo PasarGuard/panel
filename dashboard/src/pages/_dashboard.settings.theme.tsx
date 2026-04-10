@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Switch } from '@/components/ui/switch'
 import { getDatePickerPreference, getChartViewTypePreference, setDatePickerPreference, setChartViewTypePreference, type DatePickerPreference, type ChartViewType } from '@/utils/userPreferenceStorage'
+import { isPersianLocaleLanguage } from '@/utils/datePickerUtils'
 
 const colorThemeData = [
   { name: 'default', label: 'theme.default', dot: '#2563eb' },
@@ -52,7 +53,11 @@ export default function ThemeSettings() {
   const [datePickerPreference, setDatePickerPreferenceState] = useState<DatePickerPreference>('locale')
   const [chartViewType, setChartViewTypeState] = useState<ChartViewType>('bar')
   const isDatePickerFollowingLocale = datePickerPreference === 'locale'
-  const defaultManualDatePreference: Exclude<DatePickerPreference, 'locale'> = i18n.language === 'fa' ? 'persian' : 'gregorian'
+  const defaultManualDatePreference: Exclude<DatePickerPreference, 'locale'> = isPersianLocaleLanguage(
+    i18n.resolvedLanguage ?? i18n.language,
+  )
+    ? 'persian'
+    : 'gregorian'
   const datePickerModeCopy: Record<DatePickerPreference, string> = {
     locale: t('theme.datePickerModeLocale'),
     gregorian: t('theme.datePickerModeGregorian'),
@@ -327,9 +332,6 @@ export default function ThemeSettings() {
           <div className="mt-3 flex items-center justify-start gap-2 text-xs text-muted-foreground sm:mt-0">
             <Languages className="h-3.5 w-3.5 text-primary" />
             <span className="font-medium text-foreground">{datePickerModeCopy[datePickerPreference]}</span>
-            {isDatePickerFollowingLocale && (
-              <span className="hidden text-muted-foreground sm:inline">{t('theme.datePickerModeLocale')}</span>
-            )}
           </div>
         </div>
       </section>
