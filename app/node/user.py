@@ -3,12 +3,9 @@ import inspect
 from PasarGuardNodeBridge import create_proxy, create_user
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import and_, func, select
-from sqlalchemy.ext.asyncio import async_object_session
-from sqlalchemy.orm import selectinload
 
 from app.db import AsyncSession
 from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
-from app.utils.wireguard import reconcile_wireguard_peer_ips_for_users
 
 _CREATE_PROXY_PARAMS = set(inspect.signature(create_proxy).parameters)
 
@@ -34,10 +31,6 @@ def _inbounds_from_loaded_groups(user: User) -> list[str] | None:
 
 
 async def serialize_user(user: User) -> ProtoUser:
-    session = async_object_session(user)
-    if session is not None:
-        await reconcile_wireguard_peer_ips_for_users(session, [user], include_legacy_empty_peer_ips=True)
-
     user_settings = user.proxy_settings
     inbounds = None
     status = user.__dict__.get("status")
@@ -81,13 +74,6 @@ def _serialize_user_for_node(id: int, username: str, user_settings: dict, inboun
 
 
 async def core_users(db: AsyncSession):
-    active_users = (
-        await db.execute(
-            select(User).options(selectinload(User.groups)).where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
-        )
-    ).unique().scalars().all()
-    await reconcile_wireguard_peer_ips_for_users(db, active_users, include_legacy_empty_peer_ips=True)
-
     dialect = db.bind.dialect.name
 
     # Use dialect-specific aggregation and grouping
@@ -129,11 +115,6 @@ async def core_users(db: AsyncSession):
 
 
 async def serialize_users_for_node(users: list[User]) -> list[ProtoUser]:
-    if users:
-        session = async_object_session(users[0])
-        if session is not None:
-            await reconcile_wireguard_peer_ips_for_users(session, users, include_legacy_empty_peer_ips=True)
-
     bridge_users: list = []
 
     for user in users:

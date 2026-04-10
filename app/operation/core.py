@@ -18,7 +18,7 @@ from app.models.core import CoreCreate, CoreResponse, CoreResponseList, CoreSimp
 from app.node.sync import sync_users
 from app.operation import BaseOperation
 from app.utils.logger import get_logger
-from app.utils.wireguard import reconcile_wireguard_peer_ips_for_users
+from app.utils.wireguard_reconcile import reconcile_wireguard_peer_ips_for_users
 
 logger = get_logger("core-operation")
 

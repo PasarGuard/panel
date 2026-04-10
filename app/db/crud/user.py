@@ -1092,7 +1092,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     # Template-based next plan can change groups / WG interfaces; reconcile auto peer_ips (scheduler had no reconcile).
     # Next plan without a template only changes limits/dates — groups unchanged, subnets unchanged.
     if next_plan_applies_template:
-        from app.utils.wireguard import reconcile_wireguard_peer_ips_for_users
+        from app.utils.wireguard_reconcile import reconcile_wireguard_peer_ips_for_users
 
         await reconcile_wireguard_peer_ips_for_users(db, [db_user], include_legacy_empty_peer_ips=True)
     return db_user

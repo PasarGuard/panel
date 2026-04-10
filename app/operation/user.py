@@ -69,7 +69,8 @@ from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
 from app.utils.proxy_settings import dump_proxy_settings_for_storage, load_proxy_settings, normalize_proxy_settings_storage
-from app.utils.wireguard import prepare_wireguard_proxy_settings_input, reconcile_wireguard_peer_ips_for_users
+from app.utils.wireguard import prepare_wireguard_proxy_settings_input
+from app.utils.wireguard_reconcile import reconcile_wireguard_peer_ips_for_users
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
