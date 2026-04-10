@@ -13,6 +13,9 @@ from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import get_admin
 from app.db.crud.bulk import (
+    count_bulk_datalimit_targets,
+    count_bulk_expire_targets,
+    count_bulk_proxy_targets,
     reset_all_users_data_usage,
     update_users_datalimit,
     update_users_expire,
@@ -44,6 +47,7 @@ from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
+    BulkOperationDryRunResponse,
     BulkUser,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
@@ -810,6 +814,9 @@ class UserOperation(BaseOperation):
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
+        if bulk_model.dry_run:
+            n = await count_bulk_expire_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_expire(db, bulk_model)
         await sync_users(users)
 
@@ -818,6 +825,9 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
+        if bulk_model.dry_run:
+            n = await count_bulk_datalimit_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_datalimit(db, bulk_model)
         await sync_users(users)
 
@@ -826,6 +836,9 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
+        if bulk_model.dry_run:
+            n = await count_bulk_proxy_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_proxy_settings(db, bulk_model)
         await sync_users(users)
 

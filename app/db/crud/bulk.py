@@ -229,6 +229,32 @@ async def remove_groups_from_users(
     return users, count_effctive_users
 
 
+async def count_bulk_expire_targets(db: AsyncSession, bulk_model: BulkUser) -> int:
+    final_filter = _create_final_filter(bulk_model)
+    return (
+        await db.execute(select(func.count(User.id)).where(and_(final_filter, User.expire.isnot(None))))
+    ).scalar_one_or_none() or 0
+
+
+async def count_bulk_datalimit_targets(db: AsyncSession, bulk_model: BulkUser) -> int:
+    final_filter = _create_final_filter(bulk_model)
+    return (
+        await db.execute(
+            select(func.count(User.id)).where(and_(final_filter, User.data_limit.isnot(None), User.data_limit != 0))
+        )
+    ).scalar_one_or_none() or 0
+
+
+async def count_bulk_proxy_targets(db: AsyncSession, bulk_model: BulkUsersProxy) -> int:
+    final_filter = _create_final_filter(bulk_model)
+    return (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
+
+
+async def count_bulk_group_scope(db: AsyncSession, bulk_model: BulkGroup) -> int:
+    final_filter = _create_group_filter(bulk_model)
+    return (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
+
+
 def _create_final_filter(bulk_model: BulkUser | BulkUsersProxy | BulkWireGuardPeerIPs):
     """Create a comprehensive SQLAlchemy filter condition from a bulk model."""
     other_conditions = []

@@ -206,6 +206,7 @@ class CreateUserFromTemplate(ModifyUserByTemplate):
 
 class BulkUser(BaseModel):
     amount: int
+    dry_run: bool = False
     group_ids: set[int] = Field(default_factory=set)
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
@@ -215,6 +216,7 @@ class BulkUser(BaseModel):
 class BulkUsersProxy(BaseModel):
     flow: XTLSFlows | None = Field(default=None)
     method: ShadowsocksMethods | None = Field(default=None)
+    dry_run: bool = False
     group_ids: set[int] = Field(default_factory=set)
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
@@ -232,12 +234,20 @@ class BulkWireGuardPeerIPs(BaseModel):
     status: set[UserStatus] = Field(default_factory=set)
 
 
+class BulkOperationDryRunResponse(BaseModel):
+    """Preview for bulk user/group operations (no DB writes)."""
+
+    dry_run: bool = True
+    affected_users: int
+
+
 class WireGuardPeerIPsReallocateResponse(BaseModel):
     wireguard_inbound_tags: int
     candidates: int
     updated: int
     dry_run: bool
     sample_usernames: list[str]
+    affected_users: int
 
 
 class UsernameGenerationStrategy(str, Enum):

@@ -130,6 +130,7 @@ async def bulk_reallocate_wireguard_peer_ips(
             "updated": 0,
             "dry_run": dry_run,
             "sample_usernames": [],
+            "affected_users": 0,
         }
 
     users = list(target_users)
@@ -157,12 +158,14 @@ async def bulk_reallocate_wireguard_peer_ips(
             sample.append(user.username)
 
     if dry_run:
+        n = len(to_touch)
         return {
             "wireguard_inbound_tags": len(wg_tags),
-            "candidates": len(to_touch),
+            "candidates": n,
             "updated": 0,
             "dry_run": True,
             "sample_usernames": sample,
+            "affected_users": n,
         }
 
     updated = 0
@@ -189,4 +192,5 @@ async def bulk_reallocate_wireguard_peer_ips(
         "updated": updated,
         "dry_run": False,
         "sample_usernames": sample,
+        "affected_users": updated,
     }

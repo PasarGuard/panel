@@ -529,6 +529,7 @@ export interface WireGuardPeerIPsReallocateResponse {
   updated: number
   dry_run: boolean
   sample_usernames: string[]
+  affected_users: number
 }
 
 export type WireGuardHostOverridesDns = string[] | null
@@ -2281,6 +2282,7 @@ export type BulkUsersProxyFlow = XTLSFlows | null
 export interface BulkUsersProxy {
   flow?: BulkUsersProxyFlow
   method?: BulkUsersProxyMethod
+  dry_run?: boolean
   group_ids?: number[]
   admins?: number[]
   users?: number[]
@@ -2315,10 +2317,17 @@ export interface BulkUsersCreateResponse {
 
 export interface BulkUser {
   amount: number
+  dry_run?: boolean
   group_ids?: number[]
   admins?: number[]
   users?: number[]
   status?: UserStatus[]
+}
+
+/** Preview-only response for bulk expire, data limit, proxy, and group operations. */
+export interface BulkOperationDryRunResponse {
+  dry_run: boolean
+  affected_users: number
 }
 
 export interface BulkGroup {
@@ -2326,6 +2335,7 @@ export interface BulkGroup {
   has_group_ids?: number[]
   admins?: number[]
   users?: number[]
+  dry_run?: boolean
 }
 
 export interface Brutal {

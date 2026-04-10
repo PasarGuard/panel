@@ -14,7 +14,6 @@ import {
   XTLSFlows,
   ShadowsocksMethods,
   UserStatus,
-  type WireGuardPeerIPsReallocateResponse,
 } from '@/service/api'
 import { Button } from '@/components/ui/button'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -221,7 +220,33 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   }
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-  const [wireguardPendingAction, setWireguardPendingAction] = useState<'preview' | 'apply' | null>(null)
+  const [pendingBulkAction, setPendingBulkAction] = useState<'preview' | 'apply' | null>(null)
+
+  const isCurrentBulkMutationPending =
+    (operationType === 'proxy' && proxyMutation.isPending) ||
+    (operationType === 'data' && dataMutation.isPending) ||
+    (operationType === 'expire' && expireMutation.isPending) ||
+    (operationType === 'groups' && (groupsOperation === 'add' ? addGroupsMutation.isPending : removeGroupsMutation.isPending)) ||
+    (operationType === 'wireguard' && wireguardPeerIpsMutation.isPending)
+
+  const bulkPreviewDescription = (response: unknown) => {
+    if (!response || typeof response !== 'object') return ''
+    const r = response as Record<string, unknown>
+    const count = typeof r.affected_users === 'number' ? r.affected_users : undefined
+    if (count === undefined) return ''
+    const inbounds = typeof r.wireguard_inbound_tags === 'number' ? r.wireguard_inbound_tags : undefined
+    if (inbounds !== undefined && inbounds > 0) {
+      return t('bulk.previewToastWithInbounds', {
+        count,
+        inbounds,
+        defaultValue: '{{count}} would be affected · {{inbounds}} inbounds (dry run)',
+      })
+    }
+    return t('bulk.previewToast', {
+      count,
+      defaultValue: '{{count}} would be affected (dry run)',
+    })
+  }
 
   const confirmApply = () => {
     const basePayload = {
@@ -238,6 +263,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             ...basePayload,
             flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
             method: selectedMethod,
+            dry_run: false,
           }
         case 'data':
           const dataLimitBytes = gbToBytes(dataLimit!)
@@ -245,12 +271,14 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             ...basePayload,
             ...statusPayload,
             amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
+            dry_run: false,
           }
         case 'expire':
           return {
             ...basePayload,
             ...statusPayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
+            dry_run: false,
           }
         case 'groups':
           return {
@@ -258,6 +286,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             has_group_ids: selectedHasGroups.length > 0 ? selectedHasGroups : [],
             users: selectedUsers.length ? selectedUsers : [],
             admins: selectedAdmins.length ? selectedAdmins : [],
+            dry_run: false,
           }
         case 'wireguard':
           return {
@@ -289,21 +318,26 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       }
     })()
 
-    if (operationType === 'wireguard') {
-      setWireguardPendingAction('apply')
-    }
+    setPendingBulkAction('apply')
 
     mutation.mutate(
       { data: payload as any },
       {
         onSuccess: response => {
-          if (operationType === 'wireguard' && response && typeof response === 'object' && 'wireguard_inbound_tags' in response) {
-            const r = response as WireGuardPeerIPsReallocateResponse
+          if (
+            response &&
+            typeof response === 'object' &&
+            'wireguard_inbound_tags' in response &&
+            'dry_run' in response &&
+            (response as { dry_run?: boolean }).dry_run === false
+          ) {
+            const r = response as { affected_users?: number; updated?: number; wireguard_inbound_tags: number }
+            const n = typeof r.affected_users === 'number' ? r.affected_users : r.updated ?? 0
             toast.success(t('operationSuccess', { defaultValue: 'Done' }), {
-              description: t('bulk.wireguardApplySummary', {
-                updated: r.updated,
+              description: t('bulk.applySuccessWithInbounds', {
+                count: n,
                 inbounds: r.wireguard_inbound_tags,
-                defaultValue: '{{updated}} updated · {{inbounds}} inbounds',
+                defaultValue: '{{count}} updated · {{inbounds}} inbounds',
               }),
             })
             setCurrentStep(1)
@@ -350,41 +384,88 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           })
           setShowConfirmDialog(false)
         },
-        onSettled: () => {
-          if (operationType === 'wireguard') {
-            setWireguardPendingAction(null)
-          }
-        },
+        onSettled: () => setPendingBulkAction(null),
       },
     )
   }
 
-  const handleWireguardPreview = () => {
+  const handlePreview = () => {
     const basePayload = {
       group_ids: selectedGroups.length ? selectedGroups : [],
       users: selectedUsers.length ? selectedUsers : [],
       admins: selectedAdmins.length ? selectedAdmins : [],
     }
     const statusPayload = selectedStatuses.length ? { status: selectedStatuses } : {}
-    const payload = {
-      ...basePayload,
-      ...statusPayload,
-      dry_run: true,
-      confirm: false,
-      replace_all: replaceAllPeerIps,
-    }
-    setWireguardPendingAction('preview')
-    wireguardPeerIpsMutation.mutate(
-      { data: payload },
+
+    const payload = (() => {
+      switch (operationType) {
+        case 'proxy':
+          return {
+            ...basePayload,
+            flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
+            method: selectedMethod,
+            dry_run: true,
+          }
+        case 'data': {
+          const dataLimitBytes = gbToBytes(dataLimit!)
+          return {
+            ...basePayload,
+            ...statusPayload,
+            amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
+            dry_run: true,
+          }
+        }
+        case 'expire':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
+            dry_run: true,
+          }
+        case 'groups':
+          return {
+            group_ids: selectedGroups,
+            has_group_ids: selectedHasGroups.length > 0 ? selectedHasGroups : [],
+            users: selectedUsers.length ? selectedUsers : [],
+            admins: selectedAdmins.length ? selectedAdmins : [],
+            dry_run: true,
+          }
+        case 'wireguard':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            dry_run: true,
+            confirm: false,
+            replace_all: replaceAllPeerIps,
+          }
+      }
+    })()
+
+    const mutation = (() => {
+      switch (operationType) {
+        case 'proxy':
+          return proxyMutation
+        case 'data':
+          return dataMutation
+        case 'expire':
+          return expireMutation
+        case 'groups':
+          return groupsOperation === 'add' ? addGroupsMutation : removeGroupsMutation
+        case 'wireguard':
+          return wireguardPeerIpsMutation
+        default:
+          return proxyMutation
+      }
+    })()
+
+    setPendingBulkAction('preview')
+    mutation.mutate(
+      { data: payload as any },
       {
         onSuccess: response => {
-          const r = response as WireGuardPeerIPsReallocateResponse
-          toast.success(t('bulk.wireguardPreviewTitle', { defaultValue: 'Preview' }), {
-            description: t('bulk.wireguardPreviewSummary', {
-              candidates: r.candidates,
-              inbounds: r.wireguard_inbound_tags,
-              defaultValue: '{{candidates}} would be updated · {{inbounds}} inbounds (dry run)',
-            }),
+          const description = bulkPreviewDescription(response)
+          toast.success(t('bulk.previewTitle', { defaultValue: 'Preview' }), {
+            description: description || t('bulk.previewNoCount', { defaultValue: 'Dry run completed.' }),
           })
         },
         onError: error => {
@@ -392,7 +473,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             description: error?.message || JSON.stringify(error, null, 2),
           })
         },
-        onSettled: () => setWireguardPendingAction(null),
+        onSettled: () => setPendingBulkAction(null),
       },
     )
   }
@@ -1087,27 +1168,27 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <span>{t('next', { defaultValue: 'Next' })}</span>
             <ChevronRight className={cn('h-4 w-4', isRTL ? 'mr-1.5 rotate-180' : 'ml-1.5')} />
           </Button>
-        ) : operationType === 'wireguard' ? (
+        ) : (
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end sm:gap-2">
             <LoaderButton
               type="button"
               variant="outline"
-              onClick={handleWireguardPreview}
-              disabled={!canProceedToNext() || wireguardPeerIpsMutation.isPending}
-              isLoading={wireguardPendingAction === 'preview'}
-              loadingText={t('bulk.wireguardPreviewing', { defaultValue: 'Previewing…' })}
+              onClick={handlePreview}
+              disabled={!canProceedToNext() || isCurrentBulkMutationPending}
+              isLoading={pendingBulkAction === 'preview'}
+              loadingText={t('bulk.previewing', { defaultValue: 'Previewing…' })}
               size="sm"
               className="w-full sm:w-auto"
             >
               <div className="flex items-center gap-1.5">
                 <Eye className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
-                <span>{t('bulk.wireguardPreview', { defaultValue: 'Preview' })}</span>
+                <span>{t('bulk.preview', { defaultValue: 'Preview' })}</span>
               </div>
             </LoaderButton>
             <LoaderButton
               onClick={handleApply}
-              disabled={!canProceedToNext() || wireguardPeerIpsMutation.isPending}
-              isLoading={wireguardPendingAction === 'apply'}
+              disabled={!canProceedToNext() || isCurrentBulkMutationPending}
+              isLoading={pendingBulkAction === 'apply'}
               loadingText={t('applying', { defaultValue: 'Applying...' })}
               size="sm"
               className="w-full sm:w-auto"
@@ -1118,20 +1199,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
               </div>
             </LoaderButton>
           </div>
-        ) : (
-          <LoaderButton
-            onClick={handleApply}
-            disabled={!canProceedToNext()}
-            isLoading={proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending}
-            loadingText={t('applying', { defaultValue: 'Applying...' })}
-            size="sm"
-            className="w-full sm:w-auto"
-          >
-            <div className="flex items-center gap-1.5">
-              <CheckCircle className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
-              <span>{t('bulk.applyOperation', { defaultValue: 'Apply Operation' })}</span>
-            </div>
-          </LoaderButton>
         )}
       </div>
 

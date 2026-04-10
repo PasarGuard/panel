@@ -175,6 +175,19 @@ def test_update_users_proxy_settings(access_token):
         cleanup(access_token, core, groups, users)
 
 
+def test_bulk_expire_dry_run(access_token):
+    """Dry-run returns affected user count without modifying users."""
+    response = client.post(
+        "/api/users/bulk/expire",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"amount": 3600, "dry_run": True},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["dry_run"] is True
+    assert "affected_users" in data
+
+
 def test_bulk_wireguard_reallocate_peer_ips_accepts_status_filter(access_token):
     """Dry-run accepts optional status filter like other bulk user actions."""
     response = client.post(
@@ -190,3 +203,4 @@ def test_bulk_wireguard_reallocate_peer_ips_accepts_status_filter(access_token):
     data = response.json()
     assert data["dry_run"] is True
     assert "candidates" in data
+    assert "affected_users" in data
