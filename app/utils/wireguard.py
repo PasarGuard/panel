@@ -5,16 +5,10 @@ from typing import Iterable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import on_startup
 from app.core.manager import core_manager
-from app.db import GetDB
-from app.db.crud.user import get_users_with_proxy_settings
-from app.db.models import UserStatus
 from app.models.proxy import ProxyTable
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.ip_pool import validate_peer_ips_globally
-from app.utils.logger import get_logger
-_logger = get_logger("wireguard-utils")
 
 _IPNetwork = IPv4Network | IPv6Network
 _NetworkRow = tuple[_IPNetwork, object]
@@ -126,20 +120,3 @@ async def prepare_wireguard_proxy_settings_input(
         await validate_manual_peer_ips_within_wireguard_subnets(manual_peer_ips, wireguard_tags)
     await validate_peer_ips_globally(db, manual_peer_ips, exclude_user_id=exclude_user_id)
     return proxy_settings
-
-
-@on_startup
-async def ensure_users_have_wireguard_peer_ips():
-    """Startup hook: reconcile auto peer IPs for all active WireGuard users."""
-    from app.utils.wireguard_reconcile import reconcile_wireguard_peer_ips_for_users
-
-    async with GetDB() as db:
-        users = await get_users_with_proxy_settings(db)
-        active_users = [u for u in users if u.status in (UserStatus.active, UserStatus.on_hold)]
-        if not active_users:
-            return
-        changed = await reconcile_wireguard_peer_ips_for_users(
-            db, active_users, include_legacy_empty_peer_ips=True,
-        )
-        if changed:
-            _logger.info("Startup: reconciled WireGuard peer IPs for %d users", len(changed))
