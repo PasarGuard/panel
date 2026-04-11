@@ -131,7 +131,7 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
   return (
     <>
       <div ref={setNodeRef} style={style} className="cursor-default" dir="ltr">
-        <div className="group relative flex flex-col gap-2 rounded-md border bg-card p-2 transition-colors hover:bg-accent/20 sm:flex-row sm:items-start sm:gap-3 sm:p-3">
+        <div className="group relative flex flex-col gap-2 rounded-md border bg-card p-2 transition-colors hover:bg-accent/20 sm:flex-row sm:items-center sm:gap-3 sm:p-3">
           <div className="flex min-w-0 flex-1 flex-row gap-1 sm:gap-1.5">
             <button
               type="button"

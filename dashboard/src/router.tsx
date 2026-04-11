@@ -59,6 +59,7 @@ const fetchAdminLoader = async (): Promise<any> => {
 // Wrap all route elements in <Suspense fallback={<LoadingSpinner />}>
 export const router = createHashRouter([
   {
+    hydrateFallbackElement: <LoadingSpinner />,
     element: (
       <Suspense fallback={<LoadingSpinner />}>
         <DashboardLayout />
@@ -346,6 +347,7 @@ export const router = createHashRouter([
   },
   {
     path: '/login',
+    hydrateFallbackElement: <LoadingSpinner />,
     element: (
       <Suspense fallback={<LoadingSpinner />}>
         <Login />
