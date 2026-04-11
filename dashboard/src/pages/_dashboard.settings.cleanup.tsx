@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { useClearUsageData, useDeleteExpiredUsers, useGetAdmins, useGetCurrentAdmin, useResetUsersDataUsage, type AdminDetails, type UsageTable } from '@/service/api'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { AlertTriangle, Check, ChevronDown, Database, Loader2, RotateCcw, Server, Trash2, UserCog, UserRound } from 'lucide-react'
+import { endOfDay, startOfDay } from 'date-fns'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -118,8 +119,8 @@ export default function CleanupSettings() {
     const target = deleteTarget
     const params: any = { target }
     if (target === 'expired') {
-      if (expiredAfter) params.expired_after = expiredAfter.toISOString()
-      if (expiredBefore) params.expired_before = expiredBefore.toISOString()
+      if (expiredAfter) params.expired_after = startOfDay(expiredAfter).toISOString()
+      if (expiredBefore) params.expired_before = endOfDay(expiredBefore).toISOString()
     }
     if (selectedAdmin) params.admin_username = selectedAdmin.username
 

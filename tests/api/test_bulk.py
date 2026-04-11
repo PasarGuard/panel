@@ -1,13 +1,14 @@
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta as td, timezone as tz
+
 from fastapi import status
 
 from tests.api import client
 from tests.api.helpers import (
     create_core,
-    delete_core,
     create_group,
-    delete_group,
     create_user,
+    delete_core,
+    delete_group,
     delete_user,
     unique_name,
 )
@@ -173,6 +174,71 @@ def test_update_users_proxy_settings(access_token):
         assert listed[users[1]["username"]]["proxy_settings"]["vless"]["flow"] == "xtls-rprx-vision"
     finally:
         cleanup(access_token, core, groups, users)
+
+
+def test_bulk_expire_with_range(access_token):
+    # Setup
+    core = create_core(access_token)
+    group = create_group(access_token, name=unique_name("bulk_range_group"))
+
+    # Create two users, both expired, but at different times
+    # User 1: expired 2 days ago
+    # User 2: expired 10 days ago
+
+    now = dt.now(tz.utc).replace(microsecond=0)
+    expire1 = now - td(days=2)
+    expire2 = now - td(days=10)
+
+    user1 = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("exp_range1")})
+    user2 = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("exp_range2")})
+
+    # Manually set them to expired status by setting expire date in the past
+    # Note: the API might return slightly different formatted strings, so we use isoformat
+    client.put(
+        f"/api/user/{user1['username']}",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"expire": expire1.isoformat()},
+    )
+    client.put(
+        f"/api/user/{user2['username']}",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"expire": expire2.isoformat()},
+    )
+
+    try:
+        # Bulk modify expire for those expired between 1 and 3 days ago (should only target user1)
+        expired_after = now - td(days=3)
+        expired_before = now - td(days=1)
+
+        response = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "amount": 3600,  # Add 1 hour
+                "status": ["expired"],
+                "expired_after": expired_after.isoformat(),
+                "expired_before": expired_before.isoformat(),
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        # Verify user1 was updated
+        resp1 = client.get(f"/api/user/{user1['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        new_expire1 = dt.fromisoformat(resp1.json()["expire"].replace("Z", "+00:00"))
+        # Should be approximately expire1 + 1 hour
+        assert (new_expire1 - expire1).total_seconds() == 3600
+
+        # Verify user2 was NOT updated
+        resp2 = client.get(f"/api/user/{user2['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        new_expire2 = dt.fromisoformat(resp2.json()["expire"].replace("Z", "+00:00"))
+        # Should be exactly expire2 (or very close)
+        assert abs((new_expire2 - expire2).total_seconds()) < 1
+
+    finally:
+        delete_user(access_token, user1["username"])
+        delete_user(access_token, user2["username"])
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
 
 
 def test_bulk_expire_dry_run(access_token):
