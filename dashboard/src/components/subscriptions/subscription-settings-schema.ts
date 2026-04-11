@@ -47,7 +47,6 @@ export const subscriptionSchema = z.object({
       pattern: z.string().min(1, 'Pattern is required'),
       target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
       response_headers: z.record(z.string()).optional(),
-      singbox_profile: z.enum(['v1_11']).nullable().optional(),
     }),
   ),
   applications: z.array(subscriptionApplicationSchema).optional(),

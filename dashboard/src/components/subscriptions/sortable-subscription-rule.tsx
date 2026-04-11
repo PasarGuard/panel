@@ -24,7 +24,6 @@ function RuleActionButtons({
   onRemove,
   advancedSheetItemCount,
   responseHeaderCount,
-  singboxLegacyActive,
   onAdvancedOpen,
   advancedLabel,
   className,
@@ -33,7 +32,6 @@ function RuleActionButtons({
   onRemove: (index: number) => void
   advancedSheetItemCount: number
   responseHeaderCount: number
-  singboxLegacyActive: boolean
   onAdvancedOpen: () => void
   advancedLabel: string
   className?: string
@@ -51,10 +49,8 @@ function RuleActionButtons({
           onClick={() => onAdvancedOpen()}
           aria-label={advancedLabel}
           title={
-            advancedSheetItemCount > 0
-              ? [responseHeaderCount > 0 && t('settings.subscriptions.rules.advancedHeadersHint', { count: responseHeaderCount }), singboxLegacyActive && t('settings.subscriptions.rules.singboxProfileHintV111')]
-                .filter(Boolean)
-                .join(' · ')
+            advancedSheetItemCount > 0 && responseHeaderCount > 0
+              ? t('settings.subscriptions.rules.advancedHeadersHint', { count: responseHeaderCount })
               : undefined
           }
         >
@@ -92,10 +88,7 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
   const responseHeaderCount = Object.keys(responseHeaders).length
-  const ruleTarget = form.watch(`rules.${index}.target`)
-  const singboxProfileValue = form.watch(`rules.${index}.singbox_profile`)
-  const singboxLegacyActive = ruleTarget === 'sing_box' && singboxProfileValue === 'v1_11'
-  const advancedSheetItemCount = responseHeaderCount + (singboxLegacyActive ? 1 : 0)
+  const advancedSheetItemCount = responseHeaderCount
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -111,19 +104,11 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
       ? `${t('settings.subscriptions.rules.advanced')} (${advancedSheetItemCount})`
       : t('settings.subscriptions.rules.advanced')
 
-  const singBoxSelectTitle =
-    ruleTarget === 'sing_box'
-      ? singboxProfileValue === 'v1_11'
-        ? `${t('settings.subscriptions.rules.singboxProfileTitleV111')} — ${t('settings.subscriptions.rules.singboxProfileHintV111')}`
-        : t('settings.subscriptions.rules.singboxProfileTitleDefault')
-      : undefined
-
   const actionProps = {
     index,
     onRemove,
     advancedSheetItemCount,
     responseHeaderCount,
-    singboxLegacyActive,
     onAdvancedOpen: () => setIsAdvancedOpen(true),
     advancedLabel,
   }
@@ -170,18 +155,9 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
                   render={({ field }) => (
                     <FormItem className="min-w-0 flex-1 space-y-0 sm:w-[13.5rem] sm:shrink-0 sm:space-y-1">
                       <FormLabel className="sr-only">{t('settings.subscriptions.rules.target')}</FormLabel>
-                      <Select
-                        onValueChange={v => {
-                          field.onChange(v)
-                          if (v !== 'sing_box') {
-                            form.setValue(`rules.${index}.singbox_profile`, null, { shouldDirty: true })
-                          }
-                        }}
-                        value={field.value}
-                      >
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger
-                            title={ruleTarget === 'sing_box' ? singBoxSelectTitle : undefined}
                             dir="ltr"
                             className="h-8 w-full min-w-0 border-muted bg-background/60 px-2.5 text-[11px] focus:bg-background sm:h-8 sm:px-3 sm:text-xs"
                           >
@@ -217,7 +193,6 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
       <SubscriptionRuleAdvancedSheet
         form={form}
         ruleIndex={index}
-        ruleTarget={ruleTarget}
         rowId={id}
         open={isAdvancedOpen}
         onOpenChange={setIsAdvancedOpen}

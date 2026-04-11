@@ -1171,14 +1171,10 @@ export interface SubscriptionTemplates {
 
 export type SubRuleResponseHeaders = { [key: string]: unknown }
 
-export type SingBoxProfile = 'latest' | 'v1_11'
-
 export interface SubRule {
   pattern: string
   target: ConfigFormat
   response_headers?: SubRuleResponseHeaders
-  /** When target is sing_box, optional JSON compatibility profile for older sing-box cores (e.g. iOS). */
-  singbox_profile?: SingBoxProfile | null
 }
 
 export interface SubFormatEnable {

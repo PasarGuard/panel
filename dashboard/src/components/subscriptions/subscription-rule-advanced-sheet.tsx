@@ -1,9 +1,6 @@
 import { Button } from '@/components/ui/button'
-import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import type { SubscriptionFormData } from './subscription-settings-schema'
@@ -18,7 +15,6 @@ import { useTranslation } from 'react-i18next'
 export interface SubscriptionRuleAdvancedSheetProps {
   form: UseFormReturn<SubscriptionFormData>
   ruleIndex: number
-  ruleTarget: string
   rowId: string
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -27,7 +23,6 @@ export interface SubscriptionRuleAdvancedSheetProps {
 export function SubscriptionRuleAdvancedSheet({
   form,
   ruleIndex,
-  ruleTarget,
   rowId,
   open,
   onOpenChange,
@@ -92,35 +87,6 @@ export function SubscriptionRuleAdvancedSheet({
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
-          {ruleTarget === 'sing_box' && (
-            <FormField
-              control={form.control}
-              name={`rules.${ruleIndex}.singbox_profile`}
-              render={({ field }) => (
-                <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.rules.singboxProfile')}</FormLabel>
-                  <Select onValueChange={v => field.onChange(v === '__default__' ? null : v)} value={field.value ?? '__default__'}>
-                    <FormControl>
-                      <SelectTrigger className="h-9 border-muted bg-background/60 text-xs focus:bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="scrollbar-thin z-[60]">
-                      <SelectItem value="__default__">{t('settings.subscriptions.rules.singboxProfileDefault')}</SelectItem>
-                      <SelectItem value="v1_11">{t('settings.subscriptions.rules.singboxProfileV111')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription className="text-[11px] text-muted-foreground">
-                    {t('settings.subscriptions.rules.singboxProfileDescription')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
-
-          {ruleTarget === 'sing_box' && <Separator />}
-
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
