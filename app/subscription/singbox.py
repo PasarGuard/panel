@@ -70,7 +70,6 @@ class SingBoxConfiguration(BaseSubscription):
             "tuic",
             "http",
             "ssh",
-            "wireguard",
             "urltest",
         ]
         selector_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in selector_types]
@@ -104,10 +103,13 @@ class SingBoxConfiguration(BaseSubscription):
         if not handler:
             return
 
-        # Build outbound
-        outbound = handler(remark=remark, address=address, inbound=inbound, settings=settings)
-        if outbound:
-            self.add_outbound(outbound)
+        # Build outbound or WireGuard endpoint (sing-box 1.11+)
+        built = handler(remark=remark, address=address, inbound=inbound, settings=settings)
+        if built:
+            if inbound.protocol == "wireguard":
+                self.add_endpoint(built)
+            else:
+                self.add_outbound(built)
 
     # ========== Transport Handlers ==========
 
@@ -187,7 +189,7 @@ class SingBoxConfiguration(BaseSubscription):
         }
 
         if config.random_user_agent:
-            transport["headers"]["User-Agent"] = choice(self.user_agent_list)
+            transport["headers"]["User-Agent"] = [choice(self.user_agent_list)]
 
         return self._normalize_and_remove_none_values(transport)
 
@@ -260,7 +262,7 @@ class SingBoxConfiguration(BaseSubscription):
             remark=remark,
             address=address,
             inbound=inbound,
-            user_settings={"uuid": str(settings["id"]), "alterId": 0},
+            user_settings={"uuid": str(settings["id"]), "alter_id": 0},
         )
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
@@ -331,12 +333,21 @@ class SingBoxConfiguration(BaseSubscription):
                 "type": "salamander",
                 "password": obfs_password,
             }
-        config["server_ports"] = [quic_params.get("udpHop", {}).get("ports", "")]
-        config["hop_interval"] = (
-            f"{quic_params.get('udpHop', {}).get('hopInterval', '')}s"
-            if quic_params.get("udpHop", {}).get("interval")
-            else None
-        )
+        udp_hop = quic_params.get("udpHop") or {}
+        hop_ports = udp_hop.get("ports")
+        if hop_ports:
+            config["server_ports"] = [hop_ports] if isinstance(hop_ports, str) else hop_ports
+        hop_iv = udp_hop.get("hopInterval") or udp_hop.get("interval")
+        if hop_iv:
+            hop_iv = str(hop_iv).rstrip("s")
+            config["hop_interval"] = f"{hop_iv}s"
+        hop_max = udp_hop.get("hopIntervalMax") or udp_hop.get("hop_interval_max")
+        if hop_max:
+            hop_max = str(hop_max).rstrip("s")
+            config["hop_interval_max"] = f"{hop_max}s"
+        bbr_profile = quic_params.get("bbrProfile") or quic_params.get("bbr_profile")
+        if bbr_profile:
+            config["bbr_profile"] = bbr_profile
         config["brutal_debug"] = quic_params.get("debug", False)
         up = re.search(pattern, str(quic_params.get("brutalUp")))
         down = re.search(pattern, str(quic_params.get("brutalDown")))
@@ -352,7 +363,7 @@ class SingBoxConfiguration(BaseSubscription):
     def _build_wireguard(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
     ) -> dict | None:
-        """Build WireGuard outbound for sing-box subscriptions."""
+        """Build WireGuard endpoint for sing-box subscriptions (replaces deprecated outbound)."""
         private_key = settings.get("private_key", "")
         peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
@@ -364,8 +375,8 @@ class SingBoxConfiguration(BaseSubscription):
         reserved = self._parse_wireguard_reserved(inbound.wireguard_reserved)
 
         peer = {
-            "server": address,
-            "server_port": selected_port,
+            "address": address,
+            "port": selected_port,
             "public_key": public_key,
             "pre_shared_key": inbound.wireguard_pre_shared_key or None,
             "allowed_ips": allowed_ips,
@@ -373,25 +384,18 @@ class SingBoxConfiguration(BaseSubscription):
             "reserved": reserved,
         }
 
-        outbound = {
+        endpoint = {
             "type": "wireguard",
             "tag": remark,
-            "server": address,
-            "server_port": selected_port,
-            "system_interface": True,
-            "gso": True,
-            "interface_name": "wg0",
+            "system": True,
+            "name": "wg0",
             "mtu": inbound.wireguard_mtu,
-            "local_address": peer_ips,
+            "address": peer_ips,
             "private_key": private_key,
-            "peer_public_key": public_key,
-            "pre_shared_key": inbound.wireguard_pre_shared_key or None,
-            "reserved": reserved,
             "peers": [self._normalize_and_remove_none_values(peer)],
-            "workers": 4,
         }
 
-        return self._normalize_and_remove_none_values(outbound)
+        return self._normalize_and_remove_none_values(endpoint)
 
     def _build_outbound(
         self,
