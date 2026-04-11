@@ -584,7 +584,7 @@ def test_xray_subscription_template_override_isolated_per_host(access_token):
         delete_core(access_token, core["id"])
 
 
-def test_singbox_subscription_includes_wireguard_outbound(access_token):
+def test_singbox_subscription_includes_wireguard_endpoint(access_token):
     interface_private_key, interface_public_key = generate_wireguard_keypair()
     pre_shared_key, _ = generate_wireguard_keypair()
     interface_name = unique_name("wg_singbox_subscription")
@@ -632,30 +632,26 @@ def test_singbox_subscription_includes_wireguard_outbound(access_token):
         assert response.status_code == status.HTTP_200_OK
 
         config = response.json()
-        wireguard_outbound = next(
-            (outbound for outbound in config.get("outbounds", []) if outbound.get("type") == "wireguard"), None
+        wireguard_ep = next(
+            (ep for ep in config.get("endpoints", []) if ep.get("type") == "wireguard"),
+            None,
         )
-        assert wireguard_outbound is not None
-        assert wireguard_outbound["tag"] == expected_tag
-        assert wireguard_outbound["system_interface"] is True
-        assert wireguard_outbound["interface_name"] == "wg0"
-        assert wireguard_outbound["mtu"] == 1408
-        assert wireguard_outbound["local_address"]
-        assert wireguard_outbound["local_address"][0] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
-        assert wireguard_outbound["local_address"][0].startswith("10.")
-        assert wireguard_outbound["local_address"][0].endswith("/32")
-        assert wireguard_outbound["private_key"] == user["proxy_settings"]["wireguard"]["private_key"]
-        assert wireguard_outbound["server"] == endpoint
-        assert wireguard_outbound["server_port"] == 10001
-        assert wireguard_outbound["peer_public_key"] == interface_public_key
-        assert wireguard_outbound["pre_shared_key"] == pre_shared_key
-        assert wireguard_outbound["reserved"] == [0, 0, 0]
+        assert wireguard_ep is not None
+        assert wireguard_ep["tag"] == expected_tag
+        assert wireguard_ep["system"] is True
+        assert wireguard_ep["name"] == "wg0"
+        assert wireguard_ep["mtu"] == 1408
+        assert wireguard_ep["address"]
+        assert wireguard_ep["address"][0] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert wireguard_ep["address"][0].startswith("10.")
+        assert wireguard_ep["address"][0].endswith("/32")
+        assert wireguard_ep["private_key"] == user["proxy_settings"]["wireguard"]["private_key"]
 
-        peers = wireguard_outbound["peers"]
+        peers = wireguard_ep["peers"]
         assert len(peers) == 1
         peer = peers[0]
-        assert peer["server"] == endpoint
-        assert peer["server_port"] == 10001
+        assert peer["address"] == endpoint
+        assert peer["port"] == 10001
         assert peer["public_key"] == interface_public_key
         assert peer["pre_shared_key"] == pre_shared_key
         assert peer["allowed_ips"] == ["0.0.0.0/0", "::/0"]

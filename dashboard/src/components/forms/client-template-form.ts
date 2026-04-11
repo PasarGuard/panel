@@ -126,20 +126,14 @@ rules:
       dns: {
         servers: [
           {
+            type: 'udp',
             tag: 'dns-remote',
-            address: '1.1.1.2',
+            server: '1.1.1.2',
             detour: 'proxy',
           },
           {
+            type: 'local',
             tag: 'dns-local',
-            address: 'local',
-            detour: 'direct',
-          },
-        ],
-        rules: [
-          {
-            outbound: 'any',
-            server: 'dns-local',
           },
         ],
         final: 'dns-remote',
@@ -187,7 +181,7 @@ rules:
         override_android_vpn: true,
       },
       experimental: {
-        cache_file: { enabled: true, store_rdrc: true },
+        cache_file: { enabled: true, store_dns: true },
       },
     },
     null,

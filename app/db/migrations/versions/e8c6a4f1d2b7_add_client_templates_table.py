@@ -150,20 +150,14 @@ DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE = """{
   "dns": {
     "servers": [
       {
+        "type": "udp",
         "tag": "dns-remote",
-        "address": "1.1.1.2",
+        "server": "1.1.1.2",
         "detour": "proxy"
       },
       {
-        "tag": "dns-local",
-        "address": "local",
-        "detour": "direct"
-      }
-    ],
-    "rules": [
-      {
-        "outbound": "any",
-        "server": "dns-local"
+        "type": "local",
+        "tag": "dns-local"
       }
     ],
     "final": "dns-remote"
@@ -223,7 +217,7 @@ DEFAULT_SINGBOX_SUBSCRIPTION_TEMPLATE = """{
   "experimental": {
     "cache_file": {
       "enabled": true,
-      "store_rdrc": true
+      "store_dns": true
     }
   }
 }"""
