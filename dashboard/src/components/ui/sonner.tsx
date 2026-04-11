@@ -13,7 +13,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={resolvedTheme as ToasterProps['theme']}
       className="toaster group font-body"
       dir={dir}
-      position={dir === 'rtl' ? 'top-right' : 'top-left'}
+      position="top-center"
       toastOptions={{
         style: { borderRadius: radius },
         classNames: {
