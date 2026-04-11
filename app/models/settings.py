@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.models.client_template import ClientTemplateType
 from app.models.proxy import ShadowsocksMethods, XTLSFlows
 
 from .notification_enable import NotificationEnable
@@ -196,10 +197,26 @@ class ConfigFormat(str, Enum):
     block = "block"
 
 
+def client_template_type_for_sub_rule_target(target: ConfigFormat) -> ClientTemplateType | None:
+    """Return expected client template type for a rule target, or None if overrides are not allowed."""
+    if target in (ConfigFormat.outline, ConfigFormat.wireguard, ConfigFormat.block):
+        return None
+    mapping: dict[ConfigFormat, ClientTemplateType] = {
+        ConfigFormat.clash: ClientTemplateType.clash_subscription,
+        ConfigFormat.clash_meta: ClientTemplateType.clash_subscription,
+        ConfigFormat.sing_box: ClientTemplateType.singbox_subscription,
+        ConfigFormat.xray: ClientTemplateType.xray_subscription,
+        ConfigFormat.links: ClientTemplateType.user_agent,
+        ConfigFormat.links_base64: ClientTemplateType.user_agent,
+    }
+    return mapping.get(target)
+
+
 class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
     response_headers: dict[str, Any] = Field(default_factory=dict)
+    client_template_id: int | None = None
 
 
 class SubFormatEnable(BaseModel):

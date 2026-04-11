@@ -235,8 +235,13 @@
         "noRules": "No rules configured. Add rules to customize subscription behavior for different clients.",
         "advanced": "Advanced rule options",
         "advancedTitle": "Rule options",
-        "advancedDescription": "Configure optional response headers when this rule matches.",
-        "advancedHeadersHint": "{{count}} custom response header(s) — click to edit"
+        "advancedDescription": "Configure optional subscription template and response headers when this rule matches.",
+        "advancedHeadersHint": "{{count}} custom response header(s) — click to edit",
+        "clientTemplate": "Subscription template",
+        "clientTemplateDescription": "Override the default client template for this format when this rule matches. For Xray, per-host templates still take priority.",
+        "clientTemplatePlaceholder": "Select template",
+        "clientTemplateDefault": "Use global default",
+        "clientTemplateUnsupported": "This target format does not support a subscription template override."
       },
       "formats": {
         "title": "Manual Subscription Formats",

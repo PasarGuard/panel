@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import datetime as dt
 from json import dumps as json_dumps
@@ -7,9 +8,17 @@ from fastapi import Response
 from fastapi.responses import HTMLResponse
 
 from app.db import AsyncSession
+from app.db.crud.client_template import TEMPLATE_TYPE_TO_LEGACY_KEY, get_client_template_by_id
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
-from app.models.settings import Application, ConfigFormat, SubRule, Subscription as SubSettings
+from app.models.client_template import ClientTemplateType
+from app.models.settings import (
+    Application,
+    ConfigFormat,
+    SubRule,
+    Subscription as SubSettings,
+    client_template_type_for_sub_rule_target,
+)
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import subscription_settings
@@ -19,6 +28,8 @@ from config import SUBSCRIPTION_PAGE_TEMPLATE
 
 from . import BaseOperation
 from .user import UserOperation
+
+logger = logging.getLogger(__name__)
 
 client_config = {
     ConfigFormat.clash_meta: {
@@ -216,11 +227,50 @@ class SubscriptionOperation(BaseOperation):
         # Only include headers that have values
         return {k: v for k, v in headers.items() if v}
 
-    async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str, str]:
+    @staticmethod
+    async def _template_overrides_for_matched_rule(
+        db: AsyncSession | None, matched_rule: SubRule | None
+    ) -> dict[str, str] | None:
+        if not matched_rule or matched_rule.client_template_id is None or db is None:
+            return None
+        tpl = await get_client_template_by_id(db, matched_rule.client_template_id)
+        if tpl is None:
+            logger.warning(
+                "Client template id %s referenced by a subscription rule was not found; using defaults",
+                matched_rule.client_template_id,
+            )
+            return None
+        expected = client_template_type_for_sub_rule_target(matched_rule.target)
+        try:
+            ct = ClientTemplateType(tpl.template_type)
+        except ValueError:
+            logger.warning("Invalid client template type on template id %s", matched_rule.client_template_id)
+            return None
+        if expected is None or ct != expected:
+            logger.warning(
+                "Client template id %s type mismatch for rule target %s; using defaults",
+                matched_rule.client_template_id,
+                matched_rule.target,
+            )
+            return None
+        legacy_key = TEMPLATE_TYPE_TO_LEGACY_KEY.get(ct)
+        if not legacy_key:
+            return None
+        return {legacy_key: tpl.content}
+
+    async def fetch_config(
+        self,
+        user: UsersResponseWithInbounds,
+        client_type: ConfigFormat,
+        *,
+        matched_rule: SubRule | None = None,
+        db: AsyncSession | None = None,
+    ) -> tuple[str, str]:
         # Get client configuration
         config = client_config.get(client_type)
         sub_settings = await subscription_settings()
         randomize_order = sub_settings.randomize_order
+        template_overrides = await self._template_overrides_for_matched_rule(db, matched_rule)
 
         # Generate subscription content
         return (
@@ -229,6 +279,7 @@ class SubscriptionOperation(BaseOperation):
                 config_format=config["config_format"],
                 as_base64=config["as_base64"],
                 randomize_order=randomize_order,
+                template_overrides=template_overrides,
             ),
             config["media_type"],
         )
@@ -287,7 +338,7 @@ class SubscriptionOperation(BaseOperation):
 
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent)
-            conf, media_type = await self.fetch_config(user, client_type)
+            conf, media_type = await self.fetch_config(user, client_type, matched_rule=matched_rule, db=db)
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
             inline_view = sub_settings.disable_sub_template and is_browser_request

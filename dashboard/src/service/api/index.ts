@@ -1175,6 +1175,7 @@ export interface SubRule {
   pattern: string
   target: ConfigFormat
   response_headers?: SubRuleResponseHeaders
+  client_template_id?: number | null
 }
 
 export interface SubFormatEnable {

@@ -301,6 +301,64 @@ def test_user_subscription_applies_rule_response_headers(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_settings_rejects_subscription_rule_client_template_wrong_type(access_token):
+    """Rule target must match the client template type (e.g. clash rule cannot reference an xray template)."""
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+
+    xray_tpl = create_client_template(access_token, template_type="xray_subscription")
+    try:
+        updated_subscription = {
+            **original_subscription,
+            "rules": [
+                {
+                    "pattern": r"^WrongTypeRule$",
+                    "target": "clash",
+                    "response_headers": {},
+                    "client_template_id": xray_tpl["id"],
+                },
+                *original_subscription["rules"],
+            ],
+        }
+
+        update_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": updated_subscription},
+        )
+        assert update_response.status_code == status.HTTP_400_BAD_REQUEST
+    finally:
+        delete_client_template(access_token, xray_tpl["id"])
+
+
+def test_settings_rejects_subscription_rule_client_template_for_unsupported_target(access_token):
+    """outline / wireguard / block targets cannot set client_template_id."""
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+
+    updated_subscription = {
+        **original_subscription,
+        "rules": [
+            {
+                "pattern": r"^OutlineRule$",
+                "target": "outline",
+                "response_headers": {},
+                "client_template_id": 1,
+            },
+            *original_subscription["rules"],
+        ],
+    }
+
+    update_response = client.put(
+        "/api/settings",
+        headers=auth_headers(access_token),
+        json={"subscription": updated_subscription},
+    )
+    assert update_response.status_code == status.HTTP_400_BAD_REQUEST
+
+
 def test_wireguard_subscription_outputs_are_consistent(access_token):
     interface_private_key, _ = generate_wireguard_keypair()
     interface_public_key = get_wireguard_public_key(interface_private_key)

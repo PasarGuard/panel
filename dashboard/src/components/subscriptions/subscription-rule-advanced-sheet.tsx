@@ -1,13 +1,17 @@
 import { Button } from '@/components/ui/button'
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import type { SubscriptionFormData } from './subscription-settings-schema'
+import { clientTemplateTypeForRuleTarget } from '@/components/subscriptions/subscription-rule-client-template'
 import { VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { useGetClientTemplatesSimple } from '@/service/api'
 import { Info, Plus, Trash2 } from 'lucide-react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -32,6 +36,14 @@ export function SubscriptionRuleAdvancedSheet({
   const isMobile = useIsMobile()
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
   const infoPopoverAlign = isMobile ? 'center' : 'start'
+
+  const ruleTarget = form.watch(`rules.${ruleIndex}.target`)
+  const templateTypeFilter = clientTemplateTypeForRuleTarget(ruleTarget)
+  const { data: templatesSimple } = useGetClientTemplatesSimple(
+    templateTypeFilter ? { template_type: templateTypeFilter } : undefined,
+    { query: { enabled: !!templateTypeFilter } },
+  )
+  const templateOptions = templatesSimple?.templates ?? []
 
   const responseHeaders = (form.watch(`rules.${ruleIndex}.response_headers`) || {}) as Record<string, string>
   const responseHeaderEntries = Object.entries(responseHeaders)
@@ -88,6 +100,42 @@ export function SubscriptionRuleAdvancedSheet({
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
           <div className="space-y-4">
+            {templateTypeFilter ? (
+              <FormField
+                control={form.control}
+                name={`rules.${ruleIndex}.client_template_id`}
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel className="text-sm font-medium">{t('settings.subscriptions.rules.clientTemplate')}</FormLabel>
+                    <p className="text-sm text-muted-foreground">{t('settings.subscriptions.rules.clientTemplateDescription')}</p>
+                    <Select
+                      value={field.value != null ? String(field.value) : 'default'}
+                      onValueChange={v => field.onChange(v === 'default' ? null : Number(v))}
+                    >
+                      <FormControl>
+                        <SelectTrigger dir="ltr" className="font-mono text-xs">
+                          <SelectValue placeholder={t('settings.subscriptions.rules.clientTemplatePlaceholder')} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent dir="ltr">
+                        <SelectItem value="default">{t('settings.subscriptions.rules.clientTemplateDefault')}</SelectItem>
+                        {templateOptions.map(tpl => (
+                          <SelectItem key={tpl.id} value={String(tpl.id)}>
+                            {tpl.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <div className="rounded-lg border border-dashed border-border/70 px-4 py-3 text-sm text-muted-foreground">
+                {t('settings.subscriptions.rules.clientTemplateUnsupported')}
+              </div>
+            )}
+
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>

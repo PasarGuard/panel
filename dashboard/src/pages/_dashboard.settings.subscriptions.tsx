@@ -130,6 +130,7 @@ export default function SubscriptionSettings() {
             response_headers: Object.fromEntries(
               Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
             ),
+            client_template_id: rule.client_template_id ?? null,
           })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
@@ -156,6 +157,7 @@ export default function SubscriptionSettings() {
             .map(([key, value]) => [key.trim(), value.trim()] as const)
             .filter(([key, value]) => key && value),
         ),
+        client_template_id: rule.client_template_id ?? null,
       }))
 
       const rawApps = (data.applications || [])
@@ -277,6 +279,7 @@ export default function SubscriptionSettings() {
             response_headers: Object.fromEntries(
               Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]),
             ),
+            client_template_id: rule.client_template_id ?? null,
           })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
@@ -310,7 +313,7 @@ export default function SubscriptionSettings() {
   }
 
   const addRule = () => {
-    appendRule({ pattern: '', target: 'links', response_headers: {} })
+    appendRule({ pattern: '', target: 'links', response_headers: {}, client_template_id: null })
   }
 
   const addApplication = () => {

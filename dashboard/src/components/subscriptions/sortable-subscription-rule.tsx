@@ -1,6 +1,8 @@
 import { configFormatOptions } from '@/components/subscriptions/config-format-options'
+import { clientTemplateTypeForRuleTarget } from '@/components/subscriptions/subscription-rule-client-template'
 import { SubscriptionRuleAdvancedSheet } from '@/components/subscriptions/subscription-rule-advanced-sheet'
 import type { SubscriptionFormData } from '@/components/subscriptions/subscription-settings-schema'
+import type { ConfigFormat } from '@/service/api'
 import { Button } from '@/components/ui/button'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -88,7 +90,8 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
   const responseHeaderCount = Object.keys(responseHeaders).length
-  const advancedSheetItemCount = responseHeaderCount
+  const clientTemplateId = form.watch(`rules.${index}.client_template_id`)
+  const advancedSheetItemCount = responseHeaderCount + (clientTemplateId != null ? 1 : 0)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -155,7 +158,16 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
                   render={({ field }) => (
                     <FormItem className="min-w-0 flex-1 space-y-0 sm:w-[13.5rem] sm:shrink-0 sm:space-y-1">
                       <FormLabel className="sr-only">{t('settings.subscriptions.rules.target')}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={next => {
+                          const prev = field.value as ConfigFormat
+                          field.onChange(next)
+                          if (clientTemplateTypeForRuleTarget(prev) !== clientTemplateTypeForRuleTarget(next as ConfigFormat)) {
+                            form.setValue(`rules.${index}.client_template_id`, null, { shouldDirty: true })
+                          }
+                        }}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger
                             dir="ltr"

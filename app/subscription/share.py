@@ -88,8 +88,11 @@ async def generate_subscription(
     config_format: str,
     as_base64: bool,
     randomize_order: bool = False,
+    template_overrides: dict[str, str] | None = None,
 ) -> str | bytes:
-    client_templates = await subscription_client_templates()
+    client_templates = dict(await subscription_client_templates())
+    if template_overrides:
+        client_templates.update(template_overrides)
     xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
     conf = _build_subscription_config(config_format, client_templates)
     if conf is None:

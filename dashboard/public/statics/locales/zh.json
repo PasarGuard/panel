@@ -214,8 +214,13 @@
         "headerValue": "头值",
         "advanced": "高级规则选项",
         "advancedTitle": "规则选项",
-        "advancedDescription": "在此规则匹配时配置可选响应头。",
-        "advancedHeadersHint": "{{count}} 个自定义响应头 — 点击编辑"
+        "advancedDescription": "在此规则匹配时配置可选的订阅模板和响应头。",
+        "advancedHeadersHint": "{{count}} 个自定义响应头 — 点击编辑",
+        "clientTemplate": "订阅模板",
+        "clientTemplateDescription": "在此规则匹配时覆盖该格式的默认客户端模板。对于 Xray，仍优先使用各主机上的模板。",
+        "clientTemplatePlaceholder": "选择模板",
+        "clientTemplateDefault": "使用全局默认",
+        "clientTemplateUnsupported": "此目标格式不支持订阅模板覆盖。"
       },
       "formats": {
         "title": "手动订阅格式",
