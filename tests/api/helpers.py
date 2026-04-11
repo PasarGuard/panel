@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from typing import Any, Iterable
 from uuid import uuid4
@@ -78,18 +79,40 @@ def delete_core(access_token: str, core_id: int) -> None:
     assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN)
 
 
+def _default_client_template_content(template_type: str) -> str:
+    """Valid minimal content per type; must satisfy app.operation.client_template validation."""
+    if template_type == "clash_subscription":
+        return "proxies: []\nproxy-groups: []\nrules: []\n"
+    if template_type in ("xray_subscription", "singbox_subscription"):
+        return json.dumps(
+            {
+                "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+                "outbounds": [{"tag": "direct", "protocol": "freedom", "settings": {}}],
+            }
+        )
+    if template_type in ("user_agent", "grpc_user_agent"):
+        return json.dumps({"list": ["TestAgent/1.0"]})
+    return json.dumps(
+        {
+            "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+            "outbounds": [{"tag": "direct", "protocol": "freedom", "settings": {}}],
+        }
+    )
+
+
 def create_client_template(
     access_token: str,
     *,
     name: str | None = None,
     template_type: str = "xray_subscription",
-    content: str = '{"outbounds": [{"tag":"direct","protocol":"freedom","settings":{}}],"inbounds":[{"tag":"proxy","protocol":"vmess","settings":{"clients":[{"id":"uuid","alterId":0,"email":"}',
+    content: str | None = None,
     is_default: bool = False,
 ) -> dict:
+    resolved_content = content if content is not None else _default_client_template_content(template_type)
     payload = {
         "name": name or unique_name("client_template"),
         "template_type": template_type,
-        "content": content,
+        "content": resolved_content,
         "is_default": is_default,
     }
     response = client.post("/api/client_template", headers=auth_headers(access_token), json=payload)
