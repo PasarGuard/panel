@@ -173,9 +173,11 @@ class BaseSubscription:
         parts[2] = route
         return "-".join(parts)
 
-    def _get_hysteria_data_from_finalmask(self, finalmask: dict) -> tuple[Any | Literal[""], Any | dict]:
+    def _get_hysteria_data_from_finalmask(self, finalmask: dict | None) -> tuple[Any | Literal[""], Any | dict]:
         """Extract Hysteria obfuscation password and QUIC parameters from finalmask"""
 
+        if finalmask is None:
+            finalmask = {}
         obfs_password = ""
         quic_params: dict = finalmask.get("quicParams", {})
         if udp := finalmask.get("udp"):

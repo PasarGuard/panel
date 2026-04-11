@@ -569,8 +569,8 @@ class XrayConfiguration(BaseSubscription):
                 "tag": "proxy",
                 "settings": {
                     "version": 2,
-                    "address": inbound.address,
-                    "port": inbound.port,
+                    "address": address,
+                    "port": self._select_port(inbound.port),
                 },
             }
 
