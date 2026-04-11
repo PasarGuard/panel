@@ -1,6 +1,6 @@
 # PasarGuard CLI
 
-A modern, type-safe command-line interface for managing PasarGuard, built with Typer.
+A modern, type-safe command-line interface for managing PasarGuard, built with Typer. PasarGuard supports both [Xray-core](https://github.com/XTLS/Xray-core) and [WireGuard](https://www.wireguard.com/).
 
 ## Features
 

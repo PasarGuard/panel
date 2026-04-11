@@ -1,6 +1,6 @@
 # PasarGuard TUI
 
-A modern, interactive command-line interface for managing PasarGuard, built with Textual.
+A modern, interactive command-line interface for managing PasarGuard, built with Textual. PasarGuard supports both [Xray-core](https://github.com/XTLS/Xray-core) and [WireGuard](https://www.wireguard.com/).
 
 ## Features
 

@@ -78,7 +78,7 @@
 
 > **什么是 PasarGuard？**
 
-PasarGuard 是一个强大的代理管理工具，为处理数百个代理账户提供直观高效的界面。使用 Python 和 React.js 构建，它结合了性能、可扩展性和易用性，简化大规模代理管理。它由 [Xray-core](https://github.com/XTLS/Xray-core) 提供支持，以实现最大性能。
+PasarGuard 是一个强大的代理管理工具，为处理数百个代理账户提供直观高效的界面。使用 Python 和 React.js 构建，它结合了性能、可扩展性和易用性，简化大规模代理管理。它同时支持 [Xray-core](https://github.com/XTLS/Xray-core) 与 [WireGuard](https://www.wireguard.com/)，以实现最大性能。
 
 ---
 

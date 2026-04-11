@@ -1,5 +1,7 @@
 # Dashboard UI for pasarguard
 
+Web UI for [PasarGuard](https://github.com/PasarGuard/panel): large-scale proxy management that supports both [Xray-core](https://github.com/XTLS/Xray-core) and [WireGuard](https://www.wireguard.com/).
+
 ## Requirements
 
 For development, you will only need Node.js installed on your environement.
