@@ -152,7 +152,7 @@ const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = 
         },
         {
           name: 'SingBox',
-          logo: 'https://raw.githubusercontent.com/SagerNet/sing-box/refs/heads/dev-next/docs/assets/icon.svg',
+          logo: 'https://sing-box.sagernet.org/assets/icon.svg',
           description: 'A client that provides a platform for routing traffic securely.',
           faDescription: 'Sing-box یک کلاینت برای مسیریابی امن ترافیک فراهم می‌کند.',
           ruDescription: 'Клиент, обеспечивающий безопасную маршрутизацию трафика.',
@@ -186,7 +186,7 @@ const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = 
         },
         {
           name: 'SingBox',
-          logo: 'https://raw.githubusercontent.com/SagerNet/sing-box/refs/heads/dev-next/docs/assets/icon.svg',
+          logo: 'https://sing-box.sagernet.org/assets/icon.svg',
           description: 'A client that provides a platform for routing traffic securely.',
           faDescription: 'Sing-box یک کلاینت برای مسیریابی امن ترافیک فراهم می‌کند.',
           ruDescription: 'Клиент, обеспечивающий безопасную маршрутизацию трафика.',
@@ -233,7 +233,7 @@ const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = 
         },
         {
           name: 'SingBox',
-          logo: 'https://raw.githubusercontent.com/SagerNet/sing-box/refs/heads/dev-next/docs/assets/icon.svg',
+          logo: 'https://sing-box.sagernet.org/assets/icon.svg',
           description: 'A client that provides a platform for routing traffic securely.',
           faDescription: 'Sing-box یک کلاینت برای مسیریابی امن ترافیک فراهم می‌کند.',
           ruDescription: 'Клиент, обеспечивающий безопасную маршрутизацию трафика.',
