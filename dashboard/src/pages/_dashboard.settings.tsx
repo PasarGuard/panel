@@ -217,7 +217,7 @@ export default function Settings() {
         <PageHeader title={t(`settings.${activeTab}.title`)} description="manageSettings" />
 
         <div className="relative w-full">
-          <div className="flex border-b">
+          <div className="flex">
             <div className="w-full">
               <div className="scrollbar-hide flex overflow-x-auto border-b px-4 lg:flex-wrap">
                 {tabs.map(tab => {

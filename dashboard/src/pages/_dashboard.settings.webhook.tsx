@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useEffect } from 'react'
+import { SubscriptionFormActions } from '@/components/subscriptions/subscription-form-actions'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -151,9 +152,6 @@ export default function WebhookSettings() {
   const addUsagePercent = () => {
     appendUsagePercent(80 as any)
   }
-
-  // Check if save button should be disabled
-  const isSaveDisabled = isSaving
 
   if (isLoading) {
     return (
@@ -453,18 +451,7 @@ export default function WebhookSettings() {
             )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="mt-3 flex flex-col gap-2 border-t pt-3 sm:mt-6 sm:flex-row sm:gap-3 sm:pt-6">
-            <div className="flex-1"></div>
-            <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row sm:gap-3">
-              <Button type="button" variant="outline" onClick={handleCancel} disabled={isSaving} className="w-full sm:w-auto">
-                {t('cancel')}
-              </Button>
-              <Button type="submit" disabled={isSaveDisabled} isLoading={isSaving} loadingText={t('saving')} className="w-full sm:w-auto">
-                {t('save')}
-              </Button>
-            </div>
-          </div>
+          <SubscriptionFormActions onCancel={handleCancel} isSaving={isSaving} />
         </form>
       </Form>
     </div>

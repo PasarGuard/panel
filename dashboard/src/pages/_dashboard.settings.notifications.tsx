@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
-import { Button } from '@/components/ui/button'
+import { SubscriptionFormActions } from '@/components/subscriptions/subscription-form-actions'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
@@ -253,14 +253,14 @@ const channelTargets: Array<{
   translationKey: string
   icon: React.ComponentType<{ className?: string }>
 }> = [
-  { key: 'admin', translationKey: 'admin', icon: UserCog },
-  { key: 'core', translationKey: 'core', icon: Settings },
-  { key: 'group', translationKey: 'group', icon: Group },
-  { key: 'host', translationKey: 'host', icon: ListTodo },
-  { key: 'node', translationKey: 'node', icon: Share2Icon },
-  { key: 'user', translationKey: 'user', icon: Users },
-  { key: 'user_template', translationKey: 'userTemplate', icon: LayoutTemplate },
-]
+    { key: 'admin', translationKey: 'admin', icon: UserCog },
+    { key: 'core', translationKey: 'core', icon: Settings },
+    { key: 'group', translationKey: 'group', icon: Group },
+    { key: 'host', translationKey: 'host', icon: ListTodo },
+    { key: 'node', translationKey: 'node', icon: Share2Icon },
+    { key: 'user', translationKey: 'user', icon: Users },
+    { key: 'user_template', translationKey: 'userTemplate', icon: LayoutTemplate },
+  ]
 
 const createDefaultChannelValues = (): Record<ChannelTargetKey, NotificationChannelFormState> =>
   channelTargets.reduce(
@@ -426,20 +426,20 @@ export default function NotificationSettings() {
         // Only include Telegram settings if Telegram is enabled
         ...(telegramEnabled
           ? {
-              telegram_api_token: data.notification_settings?.telegram_api_token || '',
-              telegram_chat_id: data.notification_settings?.telegram_chat_id ?? null,
-              telegram_topic_id: data.notification_settings?.telegram_topic_id ?? null,
-            }
+            telegram_api_token: data.notification_settings?.telegram_api_token || '',
+            telegram_chat_id: data.notification_settings?.telegram_chat_id ?? null,
+            telegram_topic_id: data.notification_settings?.telegram_topic_id ?? null,
+          }
           : {
-              telegram_api_token: null,
-              telegram_chat_id: null,
-              telegram_topic_id: null,
-            }),
+            telegram_api_token: null,
+            telegram_chat_id: null,
+            telegram_topic_id: null,
+          }),
         // Only include Discord settings if Discord is enabled
         ...(discordEnabled
           ? {
-              discord_webhook_url: data.notification_settings?.discord_webhook_url?.trim() || null,
-            }
+            discord_webhook_url: data.notification_settings?.discord_webhook_url?.trim() || null,
+          }
           : { discord_webhook_url: null }),
         // Only include proxy if either Telegram or Discord is enabled AND proxy URL is not empty. If both disabled, clear the proxy.
         ...(telegramEnabled || discordEnabled
@@ -1079,15 +1079,7 @@ export default function NotificationSettings() {
             </>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:justify-end sm:gap-3">
-            <Button type="button" variant="outline" onClick={handleCancel} className="w-full sm:w-auto" disabled={isSaving}>
-              {t('cancel')}
-            </Button>
-            <Button type="submit" disabled={isSaving} isLoading={isSaving} loadingText={t('saving')} className="w-full sm:w-auto">
-              {t('save')}
-            </Button>
-          </div>
+          <SubscriptionFormActions onCancel={handleCancel} isSaving={isSaving} />
         </form>
       </Form>
     </div>

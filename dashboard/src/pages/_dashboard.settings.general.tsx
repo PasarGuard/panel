@@ -1,4 +1,5 @@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { SubscriptionFormActions } from '@/components/subscriptions/subscription-form-actions'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -100,9 +101,6 @@ export default function General() {
       })
     }
   }
-
-  // Check if save button should be disabled
-  const isSaveDisabled = isSaving
 
   // TODO: skeleton needs to be improved
   if (isLoading) {
@@ -286,18 +284,7 @@ export default function General() {
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Action Buttons */}
-          <div className="mt-auto flex flex-col gap-2 pt-3 sm:flex-row sm:gap-3 sm:pt-6">
-            <div className="flex-1"></div>
-            <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row sm:gap-3">
-              <Button type="button" variant="outline" onClick={handleCancel} className="w-full min-w-[100px] sm:w-auto" disabled={isSaving}>
-                {t('cancel')}
-              </Button>
-              <Button type="submit" disabled={isSaveDisabled} isLoading={isSaving} loadingText={t('saving')} className="w-full min-w-[100px] sm:w-auto">
-                {t('save')}
-              </Button>
-            </div>
-          </div>
+          <SubscriptionFormActions onCancel={handleCancel} isSaving={isSaving} className="mt-auto sm:mt-auto" />
         </form>
       </Form>
     </div>
