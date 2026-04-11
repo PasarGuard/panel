@@ -23,9 +23,11 @@ def build_api_interface():
 
 
 def build():
+    # Match Vite `base` to FastAPI mount so asset and PWA URLs resolve under DASHBOARD_PATH.
+    vite_base = DASHBOARD_PATH.rstrip("/") + "/" if DASHBOARD_PATH else "/"
     proc = subprocess.Popen(
         ["bun", "run", "build", "--outDir", build_dir, "--assetsDir", "statics"],
-        env={**os.environ, "VITE_BASE_API": VITE_BASE_API},
+        env={**os.environ, "VITE_BASE_API": VITE_BASE_API, "BASE_URL": vite_base},
         cwd=base_dir,
     )
     proc.wait()

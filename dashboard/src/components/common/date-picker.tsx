@@ -11,12 +11,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input'
 import { useTranslation } from 'react-i18next'
 import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
-import { formatDateByLocale, formatDateShort, isDateDisabled } from '@/utils/datePickerUtils'
+import { formatDateByLocale, formatDateShort, isDateDisabled, isPersianLocaleLanguage } from '@/utils/datePickerUtils'
 import { formatOffsetDateTime, parseDateInput, toUnixSeconds } from '@/utils/dateTimeParsing'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { useTheme } from '@/components/common/theme-provider'
 import { DATE_PICKER_PREFERENCE_KEY, getDatePickerPreference, type DatePickerPreference } from '@/utils/userPreferenceStorage'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export type DatePickerMode = 'single' | 'range'
 
@@ -78,13 +78,23 @@ interface BaseDatePickerProps {
    */
   onFieldChange?: (fieldName: string, value: any) => void
   /**
-   * Alignment of the popover
+   * Alignment of the popover (overrides responsive defaults when set)
    */
   align?: DatePickerAlign
   /**
-   * Side of the popover
+   * Side of the popover (overrides responsive defaults when set)
    */
   side?: DatePickerSide
+  /**
+   * When `align` is unset: alignment on viewports wider than mobile (mobile uses `end`).
+   * @default 'end'
+   */
+  popoverAlignDesktop?: DatePickerAlign
+  /**
+   * When `side` is unset: side on viewports wider than mobile (mobile uses `bottom`).
+   * @default 'left'
+   */
+  popoverSideDesktop?: DatePickerSide
 }
 
 export type SingleDatePickerProps = BaseDatePickerProps & {
@@ -164,13 +174,17 @@ export function DatePicker({
   onFieldChange,
   align,
   side,
+  popoverAlignDesktop = 'end',
+  popoverSideDesktop = 'left',
 }: DatePickerProps) {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const isRTL = dir === 'rtl'
   const handleSingleDateChange = onDateChange ?? (() => undefined)
   const [datePreference, setDatePreference] = useState<DatePickerPreference>('locale')
-  const isPersianCalendar = datePreference === 'persian' || (datePreference === 'locale' && i18n.language === 'fa')
+  const isPersianCalendar =
+    datePreference === 'persian' ||
+    (datePreference === 'locale' && isPersianLocaleLanguage(i18n.resolvedLanguage ?? i18n.language))
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
   const [internalOpen, setInternalOpen] = useState(false)
@@ -370,9 +384,10 @@ export function DatePicker({
           <PopoverTrigger asChild>
             <Button
               dir="ltr"
-              variant="outline"
-              className={cn('w-full justify-start font-normal', isRTL ? 'text-right' : 'text-left', !displayDate && 'text-muted-foreground')}
               type="button"
+              variant="outline"
+              size="sm"
+              className={cn('w-full justify-start font-normal', isRTL ? 'text-right' : 'text-left', !displayDate && 'text-muted-foreground')}
             >
               {displayDate ? formatDate(displayDate) : <span>{placeholder || label || t('timeSelector.pickDate')}</span>}
               <div className="flex items-center gap-1 ml-auto">
@@ -393,9 +408,11 @@ export function DatePicker({
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-auto p-0"
-            align={align ? align : "end"}
-            side={side ? side : isMobile ? 'bottom' : 'left'}
+            className={cn('w-auto p-0', isMobile && 'max-w-[calc(100vw-1.5rem)]')}
+            align={align ? align : isMobile ? 'end' : popoverAlignDesktop}
+            side={side ? side : isMobile ? 'bottom' : popoverSideDesktop}
+            sideOffset={4}
+            collisionPadding={isMobile ? 20 : 12}
             onInteractOutside={() => {
               setIsOpen(false)
             }}
@@ -493,7 +510,7 @@ export function DatePicker({
       {label && <label className="text-sm font-medium">{label}</label>}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
-          <Button id="date" variant="outline" className={cn('w-full justify-start overflow-hidden text-left font-normal', !displayRange && 'text-muted-foreground')}>
+          <Button id="date" type="button" variant="outline" size="sm" className={cn('w-full justify-start overflow-hidden text-left font-normal', !displayRange && 'text-muted-foreground')}>
             <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
             {displayRange?.from ? (
               displayRange.to ? (

@@ -348,8 +348,8 @@ export default function TelegramSettings() {
                               </PopoverTrigger>
                               <PopoverContent className="w-72 sm:w-80" side="top" align="end">
                                 <div className="space-y-2">
-                                  <p className="text-xs font-medium sm:text-sm">{t('settings.telegram.general.usePanelUrl')}</p>
-                                  <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.telegram.general.usePanelUrlDescription')}</p>
+                                  <p className="text-[11px] font-medium">{t('settings.telegram.general.usePanelUrl')}</p>
+                                  <p className="text-[11px] text-muted-foreground">{t('settings.telegram.general.usePanelUrlDescription')}</p>
                                 </div>
                               </PopoverContent>
                             </Popover>

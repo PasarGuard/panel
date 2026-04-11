@@ -65,7 +65,9 @@ class BaseOperation:
                 raise ValueError(f'Invalid response header name "{header_name}"')
 
             if "\r" in header_value or "\n" in header_value or "\x00" in header_value:
-                raise ValueError(f'Invalid response header "{header_name}": value contains forbidden control characters')
+                raise ValueError(
+                    f'Invalid response header "{header_name}": value contains forbidden control characters'
+                )
 
             try:
                 header_name.encode("latin-1")

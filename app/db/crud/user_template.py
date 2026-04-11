@@ -151,7 +151,7 @@ async def get_user_templates(
     Returns:
         List[UserTemplate]: A list of user template objects.
     """
-    query = select(UserTemplate)
+    query = select(UserTemplate).order_by(UserTemplate.id.asc())
     if offset:
         query = query.offset(offset)
     if limit:
@@ -201,6 +201,8 @@ async def get_user_templates_simple(
             else:
                 sort_list.append(s.value)
         stmt = stmt.order_by(*sort_list)
+    else:
+        stmt = stmt.order_by(UserTemplate.id.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())

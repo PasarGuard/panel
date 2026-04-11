@@ -1,9 +1,30 @@
+/**
+ * Service worker script URL must live under the same path prefix the app is mounted at.
+ * When the bundle was built with `base: '/'` but the app is served under e.g. `/dashboard/`,
+ * `import.meta.env.BASE_URL` is wrong; infer the mount prefix from `location.pathname`
+ * (hash routes do not change pathname, only the hash).
+ */
+function getServiceWorkerBasePath(): string {
+  const raw = import.meta.env.BASE_URL || '/'
+  const fromBuild = raw.endsWith('/') ? raw : `${raw}/`
+
+  if (fromBuild !== '/') {
+    return fromBuild
+  }
+
+  const segments = window.location.pathname.split('/').filter(Boolean)
+  if (segments.length === 0) {
+    return '/'
+  }
+  return `/${segments[0]}/`
+}
+
 export function registerSW() {
   if ('serviceWorker' in navigator) {
-    const baseUrl = import.meta.env.BASE_URL || '/'
+    const basePath = getServiceWorkerBasePath()
 
     navigator.serviceWorker
-      .register(`${baseUrl}sw.js`)
+      .register(`${basePath}sw.js`)
       .then(registration => {
         setInterval(
           () => {

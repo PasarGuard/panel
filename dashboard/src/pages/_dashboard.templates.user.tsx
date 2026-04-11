@@ -3,10 +3,13 @@ import { useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import UserTemplateModal from '@/components/dialogs/user-template-modal'
-import { userTemplateFormDefaultValues, userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
+import {
+  createUserTemplateFormResolver,
+  userTemplateFormDefaultValues,
+  type UserTemplatesFromValueInput,
+} from '@/components/forms/user-template-form'
 import { useState, useMemo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { queryClient } from '@/utils/query-client.ts'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +22,7 @@ import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useUserTemplatesListColumns } from '@/components/templates/use-user-templates-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { bytesToFormGigabytes } from '@/utils/formatByte'
 
 export default function UserTemplates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -26,11 +30,11 @@ export default function UserTemplates() {
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:templates')
   const { data: userTemplates, isLoading, isFetching, refetch } = useGetUserTemplates()
+  const { t } = useTranslation()
   const form = useForm<UserTemplatesFromValueInput>({
-    resolver: zodResolver(userTemplateFormSchema),
+    resolver: useMemo(() => createUserTemplateFormResolver(t), [t]),
     defaultValues: userTemplateFormDefaultValues,
   })
-  const { t } = useTranslation()
   const modifyUserTemplateMutation = useModifyUserTemplate()
   const dir = useDirDetection()
 
@@ -49,7 +53,7 @@ export default function UserTemplates() {
     form.reset({
       name: userTemplate.name || undefined,
       status: userTemplate.status || undefined,
-      data_limit: userTemplate.data_limit || undefined,
+      data_limit: bytesToFormGigabytes(userTemplate.data_limit),
       expire_duration: userTemplate.expire_duration || undefined,
       method: userTemplate.extra_settings?.method || undefined,
       flow: userTemplate.extra_settings?.flow || undefined,

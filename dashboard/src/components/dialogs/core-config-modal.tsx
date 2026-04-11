@@ -139,7 +139,7 @@ const defaultWireGuardConfig = JSON.stringify(
     interface_name: 'wg0',
     private_key: 'REPLACE_WITH_SERVER_PRIVATE_KEY',
     listen_port: 51820,
-    address: ['10.8.0.1/24'],
+    address: ['10.0.0.1/8'],
   },
   null,
   2,
@@ -976,7 +976,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     </PopoverTrigger>
                     <PopoverContent className="w-[280px] p-3 sm:w-[340px]" side="top" align="start" sideOffset={5}>
                       <div className="space-y-1.5">
-                        <h4 className="mb-2 text-[12px] font-medium">{t('coreConfigModal.vlessEncryptionInfoTitle')}</h4>
+                        <h4 className="mb-2 text-[11px] font-medium">{t('coreConfigModal.vlessEncryptionInfoTitle')}</h4>
                         <p className="text-[11px] text-muted-foreground">{t('coreConfigModal.vlessEncryptionHint')}</p>
                         <p className="text-[11px] text-muted-foreground">• {t('coreConfigModal.vlessEncryptionNativeInfo')}</p>
                         <p className="text-[11px] text-muted-foreground">• {t('coreConfigModal.vlessEncryptionXorpubInfo')}</p>
@@ -1507,8 +1507,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                               <SelectContent>
                                 <SelectItem value="xray">Xray</SelectItem>
                                 <SelectItem value="wg">WireGuard</SelectItem>
-                                <SelectItem value="mtproto">MTProto</SelectItem>
-                                <SelectItem value="singbox">SingBox</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>

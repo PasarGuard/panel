@@ -10,13 +10,14 @@ permissions:
 
 env:
   IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   generate-changelog:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -48,7 +49,7 @@ jobs:
           gh release edit "${{ github.event.release.tag_name }}" --notes-file CHANGELOG.md
 
       - name: Upload changelog artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: changelog
           path: CHANGELOG.md
@@ -59,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -74,7 +75,7 @@ jobs:
         run: ./build_dashboard.sh
         
       - name: Upload dashboard build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dashboard-build
           path: ./dashboard/build/
@@ -95,32 +96,32 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download dashboard build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dashboard-build
           path: ./dashboard/build/
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push ${{ matrix.arch }} image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -137,48 +138,51 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Create tagged manifest
-        uses: int128/docker-manifest-create-action@v2
-        with:
-          tags: ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-          sources: |
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64
+        run: |
+          docker buildx imagetools create \
+            -t "${{ env.IMAGE_NAME }}:${{ github.ref_name }}" \
+            "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
+            "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
+          docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
 
       - name: Create tagged manifest for GitHub
-        uses: int128/docker-manifest-create-action@v2
-        with:
-          tags: ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-          sources: |
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64
+        run: |
+          docker buildx imagetools create \
+            -t "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}" \
+            "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
+            "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
+          docker buildx imagetools inspect "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
 
       - name: Create latest manifest if not prerelease
         if: ${{ github.event.release.prerelease != true }}
-        uses: int128/docker-manifest-create-action@v2
-        with:
-          tags: ${{ env.IMAGE_NAME }}:latest
-          sources: |
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64
+        run: |
+          docker buildx imagetools create \
+            -t "${{ env.IMAGE_NAME }}:latest" \
+            "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
+            "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
+          docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:latest"
 
       - name: Create latest manifest for GitHub if not prerelease
         if: ${{ github.event.release.prerelease != true }}
-        uses: int128/docker-manifest-create-action@v2
-        with:
-          tags: ghcr.io/${{ env.IMAGE_NAME }}:latest
-          sources: |
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64
+        run: |
+          docker buildx imagetools create \
+            -t "ghcr.io/${{ env.IMAGE_NAME }}:latest" \
+            "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
+            "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
+          docker buildx imagetools inspect "ghcr.io/${{ env.IMAGE_NAME }}:latest"

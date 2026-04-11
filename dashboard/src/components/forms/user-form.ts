@@ -47,20 +47,6 @@ export const nextPlanModelSchema = z.object({
   add_remaining_traffic: z.boolean().optional(),
 })
 
-const onHoldExpireDurationSchema = z
-  .number()
-  .nullable()
-  .optional()
-  .superRefine((val, ctx) => {
-    const status = (ctx.path.length > 0 ? ctx.path[0] : 'status') as string
-    if (status === 'on_hold' && (!val || val < 1)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'validation.required',
-      })
-    }
-  })
-
 const userSharedSchemaShape = {
   username: z.string().min(3, 'validation.minLength').max(128, 'validation.maxLength'),
   group_ids: z.array(z.number()).min(1, { message: 'validation.required' }),
@@ -69,22 +55,40 @@ const userSharedSchemaShape = {
   note: z.string().optional(),
   proxy_settings: proxyTableInputSchema.optional(),
   data_limit_reset_strategy: userDataLimitResetStrategyEnum.optional(),
-  on_hold_expire_duration: onHoldExpireDurationSchema,
+  on_hold_expire_duration: z.number().nullable().optional(),
   on_hold_timeout: z.union([z.string(), z.number(), z.null()]).optional(),
   auto_delete_in_days: z.number().optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
 } satisfies z.ZodRawShape
 
-export const userCreateSchema = z.object({
+function refineOnHoldExpireDuration(data: { status?: string | null; on_hold_expire_duration?: number | null }, ctx: z.RefinementCtx) {
+  if (data.status !== 'on_hold') return
+  const v = data.on_hold_expire_duration
+  const sec = v == null || v === undefined ? 0 : Number(v)
+  if (!Number.isFinite(sec) || sec <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'validation.required',
+      path: ['on_hold_expire_duration'],
+    })
+  }
+}
+
+/** Base shapes (no cross-field refine) — use `.partial()` for touched-field validation; full schemas use `userCreateSchema` / `userEditSchema`. */
+export const userCreateObjectSchema = z.object({
   ...userSharedSchemaShape,
   status: userStatusCreateEnum.optional(),
 })
 
-export const userEditSchema = z.object({
+export const userEditObjectSchema = z.object({
   ...userSharedSchemaShape,
   status: userStatusEditEnum.optional(),
 })
+
+export const userCreateSchema = userCreateObjectSchema.superRefine(refineOnHoldExpireDuration)
+
+export const userEditSchema = userEditObjectSchema.superRefine(refineOnHoldExpireDuration)
 
 export type UserFormValues = z.infer<typeof userEditSchema>
 export type UseEditFormValues = UserFormValues

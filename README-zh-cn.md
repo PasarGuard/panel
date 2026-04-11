@@ -100,7 +100,7 @@ PasarGuard 是一个用户友好、功能丰富且可靠的代理管理工具。
 - **多节点** 支持用于基础设施分发
 
 **🔐 协议和安全**
-- 支持 **Vmess**、**VLESS**、**Trojan** 和 **Shadowsocks**
+- 支持 **Vmess**、**VLESS**、**Trojan**、**Shadowsocks**、**WireGuard** 与 **Hysteria2**
 - **TLS** 和 **REALITY** 支持
 - 单个用户的 **多协议**
 

@@ -93,7 +93,7 @@ PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool.
 - **Multi-Node** support for infrastructure distribution
 
 **🔐 Protocols & Security**
-- Supports **Vmess**, **VLESS**, **Trojan** and **Shadowsocks**
+- Supports **Vmess**, **VLESS**, **Trojan**, **Shadowsocks**, **WireGuard** and **Hysteria2**
 - **TLS** and **REALITY** support
 - **Multi-protocol** for a single user
 

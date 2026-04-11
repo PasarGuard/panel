@@ -7,6 +7,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useGetUsers, UserResponse, UserStatus, UsersResponse } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
 import { getUsersPerPageLimitSize, getUsersShowCreatedBy, setUsersPerPageLimitSize, setUsersShowCreatedBy } from '@/utils/userPreferenceStorage'
+import { bytesToFormGigabytes } from '@/utils/formatByte'
 import { normalizeExpireForEditForm } from '@/utils/userEditDateUtils'
 import { useQueryClient } from '@tanstack/react-query'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -188,7 +189,7 @@ const UsersTable = memo(() => {
     defaultValues: {
       username: selectedUser?.username,
       status: selectedUser?.status === 'active' || selectedUser?.status === 'on_hold' || selectedUser?.status === 'disabled' ? selectedUser?.status : 'active',
-      data_limit: selectedUser?.data_limit ? Math.round((Number(selectedUser?.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : undefined,
+      data_limit: selectedUser?.data_limit ? bytesToFormGigabytes(Number(selectedUser.data_limit)) : undefined,
       expire: normalizeExpireForEditForm(selectedUser?.expire),
       note: selectedUser?.note || '',
       data_limit_reset_strategy: selectedUser?.data_limit_reset_strategy || undefined,
@@ -199,8 +200,8 @@ const UsersTable = memo(() => {
       next_plan: selectedUser?.next_plan
         ? {
             user_template_id: selectedUser?.next_plan.user_template_id ? Number(selectedUser?.next_plan.user_template_id) : undefined,
-            data_limit: selectedUser?.next_plan.data_limit ? Number(selectedUser?.next_plan.data_limit) : undefined,
-            expire: selectedUser?.next_plan.expire ? Number(selectedUser?.next_plan.expire) : undefined,
+            data_limit: selectedUser?.next_plan.data_limit ? Math.round(Number(selectedUser?.next_plan.data_limit)) : undefined,
+            expire: selectedUser?.next_plan.expire ? Math.round(Number(selectedUser?.next_plan.expire)) : undefined,
             add_remaining_traffic: selectedUser?.next_plan.add_remaining_traffic || false,
           }
         : undefined,
@@ -212,7 +213,7 @@ const UsersTable = memo(() => {
       const values: UseEditFormValues = {
         username: selectedUser.username,
         status: selectedUser.status === 'active' || selectedUser.status === 'on_hold' || selectedUser.status === 'disabled' ? selectedUser.status : 'active',
-        data_limit: selectedUser.data_limit ? Math.round((Number(selectedUser.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
+        data_limit: selectedUser.data_limit ? bytesToFormGigabytes(Number(selectedUser.data_limit)) : 0,
         expire: normalizeExpireForEditForm(selectedUser.expire),
         note: selectedUser.note || '',
         data_limit_reset_strategy: selectedUser.data_limit_reset_strategy || undefined,
@@ -223,8 +224,8 @@ const UsersTable = memo(() => {
         next_plan: selectedUser.next_plan
           ? {
               user_template_id: selectedUser.next_plan.user_template_id ? Number(selectedUser.next_plan.user_template_id) : undefined,
-              data_limit: selectedUser.next_plan.data_limit ? Number(selectedUser.next_plan.data_limit) : undefined,
-              expire: selectedUser.next_plan.expire ? Number(selectedUser.next_plan.expire) : undefined,
+              data_limit: selectedUser.next_plan.data_limit ? Math.round(Number(selectedUser.next_plan.data_limit)) : undefined,
+              expire: selectedUser.next_plan.expire ? Math.round(Number(selectedUser.next_plan.expire)) : undefined,
               add_remaining_traffic: selectedUser.next_plan.add_remaining_traffic || false,
             }
           : undefined,

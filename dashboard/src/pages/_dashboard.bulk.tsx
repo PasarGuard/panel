@@ -2,7 +2,7 @@ import PageHeader from '@/components/layout/page-header'
 import { useAdmin } from '@/hooks/use-admin'
 import PageTransition from '@/components/layout/page-transition'
 import { getDocsUrl } from '@/utils/docs-url'
-import { ArrowUpDown, Calendar, Lock, Group, UserPlus } from 'lucide-react'
+import { ArrowUpDown, Calendar, Lock, Group, Network, UserPlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
@@ -13,9 +13,13 @@ const sudoTabs = [
   { id: 'expire', label: 'bulk.expireDate', icon: Calendar, url: '/bulk/expire' },
   { id: 'data', label: 'bulk.dataLimit', icon: ArrowUpDown, url: '/bulk/data' },
   { id: 'proxy', label: 'bulk.proxySettings', icon: Lock, url: '/bulk/proxy' },
+  { id: 'wireguard', label: 'bulk.wireguardPeerIps', icon: Network, url: '/bulk/wireguard' },
 ]
 
-const nonSudoTabs = [{ id: 'create', label: 'bulk.createUsers', icon: UserPlus, url: '/bulk' }]
+const nonSudoTabs = [
+  { id: 'create', label: 'bulk.createUsers', icon: UserPlus, url: '/bulk' },
+  { id: 'wireguard', label: 'bulk.wireguardPeerIps', icon: Network, url: '/bulk/wireguard' },
+]
 
 const BulkPage = () => {
   const { t } = useTranslation()
@@ -51,6 +55,7 @@ const BulkPage = () => {
       '/bulk/expire': { title: 'bulk.expireDate', description: 'bulk.expireDateDesc' },
       '/bulk/data': { title: 'bulk.dataLimit', description: 'bulk.dataLimitDesc' },
       '/bulk/proxy': { title: 'bulk.proxySettings', description: 'bulk.proxySettingsDesc' },
+      '/bulk/wireguard': { title: 'bulk.wireguardPeerIps', description: 'bulk.wireguardPeerIpsDesc' },
     }
 
     const header = pathToHeader[location.pathname] || pathToHeader['/bulk']

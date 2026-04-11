@@ -54,7 +54,7 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus }: UseUserT
             {!template.expire_duration || template.expire_duration === 0 ? (
               <Infinity className="inline h-4 w-4" />
             ) : (
-              `${template.expire_duration / 60 / 60 / 24} ${t('dateInfo.day')}`
+              `${template.expire_duration / 60 / 60 / 24} ${t('time.days', { defaultValue: 'days' })}`
             )}
           </span>
         ),

@@ -19,7 +19,6 @@ export function getDocsUrl(pagePath: string): string {
     return `${DOCUMENTATION}/${normalizedLocale}/node/`
   }
   if (pagePath.startsWith('/settings')) {
-    console.log(normalizedLocale)
     return `${DOCUMENTATION}/${normalizedLocale}/panel/settings`
   }
   // Map route paths to documentation paths

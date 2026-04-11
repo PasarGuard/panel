@@ -77,6 +77,8 @@ class NodeCreate(Node):
             ip_address(v)
             return v
         except ValueError:
+            if v.lower() == "localhost":
+                return v
             # Regex for domain validation
             if re.match(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,14}$", v):
                 return v

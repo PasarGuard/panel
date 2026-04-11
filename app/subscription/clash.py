@@ -150,13 +150,13 @@ class ClashConfiguration(BaseSubscription):
     def _transport_xhttp(self, config: XHTTPTransportConfig, path: str, random_user_agent: bool = False):
         """Build XHTTP transport config for Clash Meta"""
         host = config.host if isinstance(config.host, str) else ""
-        http_headers = config.http_headers or {}
+        http_headers = {k: v for k, v in (config.http_headers or {}).items() if k not in ("Host", "host")}
 
         result = {
             "path": path or "/",
             "host": host,
             "mode": config.mode or "auto",
-            "headers": {**http_headers, "Host": host} if http_headers else ({"Host": host} if host else None),
+            "headers": http_headers if http_headers else None,
             "no-grpc-header": config.no_grpc_header,
             "x-padding-bytes": config.x_padding_bytes,
             "download-settings": config.download_settings,
@@ -310,7 +310,7 @@ class ClashConfiguration(BaseSubscription):
     ) -> dict | None:
         """Build WireGuard node for Clash Premium userspace WireGuard."""
         private_key = settings.get("private_key", "")
-        peer_ips = self._get_wireguard_peer_ips(settings, inbound)
+        peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
         if not private_key or not peer_ips or not public_key:
             return None
@@ -495,7 +495,7 @@ class ClashMetaConfiguration(ClashConfiguration):
     ) -> dict | None:
         """Build WireGuard node using Clash.Meta's documented fields."""
         private_key = settings.get("private_key", "")
-        peer_ips = self._get_wireguard_peer_ips(settings, inbound)
+        peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
         if not private_key or not peer_ips or not public_key:
             return None

@@ -2,7 +2,7 @@ import asyncio
 
 from app import notification
 from app.db import AsyncSession
-from app.db.crud.bulk import add_groups_to_users, remove_groups_from_users
+from app.db.crud.bulk import add_groups_to_users, count_bulk_group_scope, remove_groups_from_users
 from app.db.crud.group import (
     create_group,
     get_group,
@@ -23,6 +23,7 @@ from app.models.group import (
     GroupSimple,
     GroupsSimpleResponse,
 )
+from app.models.user import BulkOperationDryRunResponse
 from app.node.sync import sync_users
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
@@ -117,6 +118,9 @@ class GroupOperation(BaseOperation):
 
     async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup):
         await self.validate_all_groups(db, bulk_model)
+        if bulk_model.dry_run:
+            n = await count_bulk_group_scope(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await add_groups_to_users(db, bulk_model)
         await sync_users(users)
@@ -127,6 +131,9 @@ class GroupOperation(BaseOperation):
 
     async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup):
         await self.validate_all_groups(db, bulk_model)
+        if bulk_model.dry_run:
+            n = await count_bulk_group_scope(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await remove_groups_from_users(db, bulk_model)
         await sync_users(users)

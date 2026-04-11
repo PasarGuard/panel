@@ -13,7 +13,7 @@ import { nodeFormDefaultValues, nodeFormSchema, type NodeFormValues } from '@/co
 import QuickActionsModal from '@/components/dialogs/shortcuts-modal'
 import UserModal from '@/components/dialogs/user-modal'
 import UserTemplateModal from '@/components/dialogs/user-template-modal'
-import { userTemplateFormDefaultValues, userTemplateFormSchema, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
+import { createUserTemplateFormResolver, userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 import { HostFormSchema, hostFormDefaultValues, type HostFormValues } from '@/components/forms/host-form'
 import { Separator } from '@/components/ui/separator'
 import { useAdmin } from '@/hooks/use-admin'
@@ -24,7 +24,7 @@ import { getInboundDetails } from '@/service/api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bookmark } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { type Resolver, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -49,6 +49,7 @@ const Dashboard = () => {
   const [isQuickActionsModalOpen, setQuickActionsModalOpen] = useState(false)
   const { admin: currentAdmin } = useAdmin()
   const is_sudo = currentAdmin?.is_sudo || false
+  const { t } = useTranslation()
 
   const [selectedAdmin, setSelectedAdmin] = useState<AdminDetails | undefined>(totalAdmin)
 
@@ -72,7 +73,7 @@ const Dashboard = () => {
   })
 
   const templateForm = useForm<UserTemplatesFromValueInput>({
-    resolver: zodResolver(userTemplateFormSchema),
+    resolver: useMemo(() => createUserTemplateFormResolver(t), [t]),
     defaultValues: userTemplateFormDefaultValues,
   })
 
@@ -87,8 +88,15 @@ const Dashboard = () => {
   })
 
   const queryClient = useQueryClient()
-  const { t } = useTranslation()
   const { copy } = useClipboard()
+
+  /** Match nodes list: delayed refetch so backend can settle after create/update (see nodes-list NodeModal onSuccess). */
+  const handleNodeModalSuccess = () => {
+    setTimeout(() => {
+      void queryClient.refetchQueries({ queryKey: ['/api/nodes'] })
+      void queryClient.refetchQueries({ queryKey: ['/api/nodes/simple'] })
+    }, 2500)
+  }
 
   const refreshAllUserData = () => {
     queryClient.invalidateQueries({ queryKey: ['getUsers'] })
@@ -131,7 +139,7 @@ const Dashboard = () => {
   }
 
   const handleCreateTemplate = () => {
-    templateForm.reset()
+    templateForm.reset(userTemplateFormDefaultValues)
     setTemplateModalOpen(true)
   }
 
@@ -265,7 +273,7 @@ const Dashboard = () => {
       {/* Only render NodeModal for sudo admins */}
       {is_sudo && isNodeModalOpen && (
         <Suspense fallback={<div />}>
-          <NodeModal isDialogOpen={isNodeModalOpen} onOpenChange={setNodeModalOpen} form={nodeForm} editingNode={false} />
+          <NodeModal isDialogOpen={isNodeModalOpen} onOpenChange={setNodeModalOpen} form={nodeForm} editingNode={false} onSuccess={handleNodeModalSuccess} />
         </Suspense>
       )}
       {/* Only render AdminModal for sudo admins */}

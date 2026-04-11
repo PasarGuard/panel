@@ -100,7 +100,7 @@
 - پشتیبانی از **Multi-Node** برای توزیع زیرساخت
 
 **🔐 پروتکل‌ها و امنیت**
-- پشتیبانی از **Vmess**، **VLESS**، **Trojan** و **Shadowsocks**
+- پشتیبانی از **Vmess**، **VLESS**، **Trojan**، **Shadowsocks**، **WireGuard** و **Hysteria2**
 - پشتیبانی از **TLS** و **REALITY**
 - **چند پروتکل** برای یک کاربر
 

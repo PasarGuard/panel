@@ -10,6 +10,7 @@ import {
   useBulkModifyUsersExpire,
   useBulkAddGroupsToUsers,
   useBulkRemoveUsersFromGroups,
+  useBulkReallocateWireguardPeerIps,
   XTLSFlows,
   ShadowsocksMethods,
   UserStatus,
@@ -27,7 +28,24 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Settings, Group, User, Shield, CheckCircle, AlertTriangle, Plus, Minus, X, HardDrive, Calendar, Network, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  Settings,
+  Group,
+  User,
+  Shield,
+  CheckCircle,
+  AlertTriangle,
+  Plus,
+  Minus,
+  X,
+  HardDrive,
+  Calendar,
+  Network,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+} from 'lucide-react'
 import { SelectorPanel } from '@/components/bulk/selector-panel'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
@@ -36,7 +54,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 
 const PAGE_SIZE = 50
 
-type BulkOperationType = 'proxy' | 'data' | 'expire' | 'groups'
+type BulkOperationType = 'proxy' | 'data' | 'expire' | 'groups' | 'wireguard'
 type ExpiryUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'months'
 
 interface BulkFlowProps {
@@ -63,6 +81,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const [expireOperation, setExpireOperation] = useState<'add' | 'subtract'>('add')
 
   const [groupsOperation, setGroupsOperation] = useState<'add' | 'remove'>('add')
+
+  const [replaceAllPeerIps, setReplaceAllPeerIps] = useState(false)
 
   const [selectedGroups, setSelectedGroups] = useState<number[]>([])
   const [selectedUsers, setSelectedUsers] = useState<number[]>([])
@@ -135,6 +155,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const expireMutation = useBulkModifyUsersExpire()
   const addGroupsMutation = useBulkAddGroupsToUsers()
   const removeGroupsMutation = useBulkRemoveUsersFromGroups()
+  const wireguardPeerIpsMutation = useBulkReallocateWireguardPeerIps()
 
   const nextStep = () => {
     if (currentStep < 3) setCurrentStep((currentStep + 1) as 1 | 2 | 3)
@@ -147,6 +168,9 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const canProceedToNext = () => {
     switch (currentStep) {
       case 1:
+        if (operationType === 'wireguard') {
+          return true
+        }
         if (operationType === 'proxy') {
           return selectedFlow || selectedMethod
         }
@@ -171,6 +195,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           case 'groups':
             // Allow proceeding even if no targets selected - will apply to all users
             return true
+          case 'wireguard':
+            return true
           default:
             return false
         }
@@ -194,6 +220,33 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   }
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [pendingBulkAction, setPendingBulkAction] = useState<'preview' | 'apply' | null>(null)
+
+  const isCurrentBulkMutationPending =
+    (operationType === 'proxy' && proxyMutation.isPending) ||
+    (operationType === 'data' && dataMutation.isPending) ||
+    (operationType === 'expire' && expireMutation.isPending) ||
+    (operationType === 'groups' && (groupsOperation === 'add' ? addGroupsMutation.isPending : removeGroupsMutation.isPending)) ||
+    (operationType === 'wireguard' && wireguardPeerIpsMutation.isPending)
+
+  const bulkPreviewDescription = (response: unknown) => {
+    if (!response || typeof response !== 'object') return ''
+    const r = response as Record<string, unknown>
+    const count = typeof r.affected_users === 'number' ? r.affected_users : undefined
+    if (count === undefined) return ''
+    const inbounds = typeof r.wireguard_inbound_tags === 'number' ? r.wireguard_inbound_tags : undefined
+    if (inbounds !== undefined && inbounds > 0) {
+      return t('bulk.previewToastWithInbounds', {
+        count,
+        inbounds,
+        defaultValue: '{{count}} would be affected · {{inbounds}} inbounds (dry run)',
+      })
+    }
+    return t('bulk.previewToast', {
+      count,
+      defaultValue: '{{count}} would be affected (dry run)',
+    })
+  }
 
   const confirmApply = () => {
     const basePayload = {
@@ -210,6 +263,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             ...basePayload,
             flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
             method: selectedMethod,
+            dry_run: false,
           }
         case 'data':
           const dataLimitBytes = gbToBytes(dataLimit!)
@@ -217,12 +271,14 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             ...basePayload,
             ...statusPayload,
             amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
+            dry_run: false,
           }
         case 'expire':
           return {
             ...basePayload,
             ...statusPayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
+            dry_run: false,
           }
         case 'groups':
           return {
@@ -230,6 +286,15 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             has_group_ids: selectedHasGroups.length > 0 ? selectedHasGroups : [],
             users: selectedUsers.length ? selectedUsers : [],
             admins: selectedAdmins.length ? selectedAdmins : [],
+            dry_run: false,
+          }
+        case 'wireguard':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            confirm: true,
+            dry_run: false,
+            replace_all: replaceAllPeerIps,
           }
         default:
           return basePayload
@@ -246,15 +311,46 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return expireMutation
         case 'groups':
           return groupsOperation === 'add' ? addGroupsMutation : removeGroupsMutation
+        case 'wireguard':
+          return wireguardPeerIpsMutation
         default:
           return proxyMutation
       }
     })()
 
+    setPendingBulkAction('apply')
+
     mutation.mutate(
       { data: payload as any },
       {
         onSuccess: response => {
+          if (
+            response &&
+            typeof response === 'object' &&
+            'wireguard_inbound_tags' in response &&
+            'dry_run' in response &&
+            (response as { dry_run?: boolean }).dry_run === false
+          ) {
+            const r = response as { affected_users?: number; updated?: number; wireguard_inbound_tags: number }
+            const n = typeof r.affected_users === 'number' ? r.affected_users : r.updated ?? 0
+            toast.success(t('operationSuccess', { defaultValue: 'Done' }), {
+              description: t('bulk.applySuccessWithInbounds', {
+                count: n,
+                inbounds: r.wireguard_inbound_tags,
+                defaultValue: '{{count}} updated · {{inbounds}} inbounds',
+              }),
+            })
+            setCurrentStep(1)
+            setReplaceAllPeerIps(false)
+            setSelectedGroups([])
+            setSelectedUsers([])
+            setSelectedAdmins([])
+            setSelectedHasGroups([])
+            setSelectedStatuses([])
+            setShowConfirmDialog(false)
+            return
+          }
+
           const detail = typeof response === 'object' && response && 'detail' in response ? response.detail : undefined
           let description = ''
           if (detail) {
@@ -288,6 +384,96 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           })
           setShowConfirmDialog(false)
         },
+        onSettled: () => setPendingBulkAction(null),
+      },
+    )
+  }
+
+  const handlePreview = () => {
+    const basePayload = {
+      group_ids: selectedGroups.length ? selectedGroups : [],
+      users: selectedUsers.length ? selectedUsers : [],
+      admins: selectedAdmins.length ? selectedAdmins : [],
+    }
+    const statusPayload = selectedStatuses.length ? { status: selectedStatuses } : {}
+
+    const payload = (() => {
+      switch (operationType) {
+        case 'proxy':
+          return {
+            ...basePayload,
+            flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
+            method: selectedMethod,
+            dry_run: true,
+          }
+        case 'data': {
+          const dataLimitBytes = gbToBytes(dataLimit!)
+          return {
+            ...basePayload,
+            ...statusPayload,
+            amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
+            dry_run: true,
+          }
+        }
+        case 'expire':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
+            dry_run: true,
+          }
+        case 'groups':
+          return {
+            group_ids: selectedGroups,
+            has_group_ids: selectedHasGroups.length > 0 ? selectedHasGroups : [],
+            users: selectedUsers.length ? selectedUsers : [],
+            admins: selectedAdmins.length ? selectedAdmins : [],
+            dry_run: true,
+          }
+        case 'wireguard':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            dry_run: true,
+            confirm: false,
+            replace_all: replaceAllPeerIps,
+          }
+      }
+    })()
+
+    const mutation = (() => {
+      switch (operationType) {
+        case 'proxy':
+          return proxyMutation
+        case 'data':
+          return dataMutation
+        case 'expire':
+          return expireMutation
+        case 'groups':
+          return groupsOperation === 'add' ? addGroupsMutation : removeGroupsMutation
+        case 'wireguard':
+          return wireguardPeerIpsMutation
+        default:
+          return proxyMutation
+      }
+    })()
+
+    setPendingBulkAction('preview')
+    mutation.mutate(
+      { data: payload as any },
+      {
+        onSuccess: response => {
+          const description = bulkPreviewDescription(response)
+          toast.success(t('bulk.previewTitle', { defaultValue: 'Preview' }), {
+            description: description || t('bulk.previewNoCount', { defaultValue: 'Dry run completed.' }),
+          })
+        },
+        onError: error => {
+          toast.error(t('operationFailed', { defaultValue: 'Operation failed!' }), {
+            description: error?.message || JSON.stringify(error, null, 2),
+          })
+        },
+        onSettled: () => setPendingBulkAction(null),
       },
     )
   }
@@ -295,7 +481,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   // For groups operation, groups are the operation target, not user targets
   // So isApplyToAll should only check users, admins, and hasGroups
   const totalTargets = selectedUsers.length + selectedAdmins.length + (operationType === 'groups' ? selectedHasGroups.length : selectedGroups.length)
-  const hasStatusFilter = (operationType === 'data' || operationType === 'expire') && selectedStatuses.length > 0
+  const hasStatusFilter =
+    (operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && selectedStatuses.length > 0
   const statusTargetCount = hasStatusFilter ? selectedStatuses.length : 0
   const displayTargetCount = totalTargets + statusTargetCount
   const isApplyToAll = totalTargets === 0 && !hasStatusFilter
@@ -652,6 +839,28 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   </div>
                 </div>
               )}
+
+              {operationType === 'wireguard' && (
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="replace-all-wg"
+                    checked={replaceAllPeerIps}
+                    onCheckedChange={v => setReplaceAllPeerIps(v === true)}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="replace-all-wg" className="cursor-pointer text-sm font-medium leading-snug">
+                      {t('bulk.replaceAllPeerIps', { defaultValue: 'Replace all IPs' })}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t('bulk.replaceAllPeerIpsHint', {
+                        defaultValue:
+                          'When enabled, every affected user gets a new peer IP from the pool. When disabled, only invalid or missing peer IPs are updated.',
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -671,7 +880,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   </div>
                 )}
               </div>
-              {(operationType === 'data' || operationType === 'expire') && (
+              {(operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && (
                 <Card>
                   <CardContent className="p-3 sm:p-4">
                     <div className="space-y-2">
@@ -837,8 +1046,20 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                       {operationType === 'data' && t('bulk.dataLimit')}
                       {operationType === 'expire' && t('bulk.expireDate')}
                       {operationType === 'groups' && t('bulk.groups')}
+                      {operationType === 'wireguard' && t('bulk.wireguardPeerIps')}
                     </Badge>
                   </div>
+
+                  {operationType === 'wireguard' && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
+                      <span className="text-sm">
+                        {replaceAllPeerIps
+                          ? t('bulk.replaceAllPeerIps', { defaultValue: 'Replace all IPs' })
+                          : t('bulk.replaceInvalidPeerIpsOnly', { defaultValue: 'Invalid or missing IPs only' })}
+                      </span>
+                    </div>
+                  )}
 
                   {operationType === 'proxy' && (
                     <div className="flex items-center justify-between">
@@ -867,7 +1088,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                     </div>
                   )}
 
-                  {(operationType === 'data' || operationType === 'expire') && selectedStatuses.length > 0 && (
+                  {(operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') &&
+                    selectedStatuses.length > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('status', { defaultValue: 'Status' })}:</span>
                       <span className="text-sm">
@@ -930,7 +1152,10 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
         </CardContent>
       </Card>
 
-      <div className={cn('flex flex-col-reverse gap-2 px-2 sm:flex-row sm:px-0', currentStep === 1 ? 'justify-end' : 'justify-between')}>
+      <div
+        dir={dir}
+        className={cn('flex flex-col-reverse gap-2 px-2 sm:flex-row sm:px-0', currentStep === 1 ? 'justify-end' : 'justify-between')}
+      >
         {currentStep > 1 && (
           <Button variant="outline" onClick={prevStep} size="sm" className="w-full sm:w-auto">
             <ChevronLeft className={cn('h-4 w-4', isRTL ? 'ml-1.5 rotate-180' : 'mr-1.5')} />
@@ -944,19 +1169,36 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <ChevronRight className={cn('h-4 w-4', isRTL ? 'mr-1.5 rotate-180' : 'ml-1.5')} />
           </Button>
         ) : (
-          <LoaderButton
-            onClick={handleApply}
-            disabled={!canProceedToNext()}
-            isLoading={proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending}
-            loadingText={t('applying', { defaultValue: 'Applying...' })}
-            size="sm"
-            className="w-full sm:w-auto"
-          >
-            <div className="flex items-center gap-1.5">
-              <CheckCircle className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
-              <span>{t('bulk.applyOperation', { defaultValue: 'Apply Operation' })}</span>
-            </div>
-          </LoaderButton>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end sm:gap-2">
+            <LoaderButton
+              type="button"
+              variant="outline"
+              onClick={handlePreview}
+              disabled={!canProceedToNext() || isCurrentBulkMutationPending}
+              isLoading={pendingBulkAction === 'preview'}
+              loadingText={t('bulk.previewing', { defaultValue: 'Previewing…' })}
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <div className="flex items-center gap-1.5">
+                <Eye className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
+                <span>{t('bulk.preview', { defaultValue: 'Preview' })}</span>
+              </div>
+            </LoaderButton>
+            <LoaderButton
+              onClick={handleApply}
+              disabled={!canProceedToNext() || isCurrentBulkMutationPending}
+              isLoading={pendingBulkAction === 'apply'}
+              loadingText={t('applying', { defaultValue: 'Applying...' })}
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <div className="flex items-center gap-1.5">
+                <CheckCircle className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
+                <span>{t('bulk.applyOperation', { defaultValue: 'Apply Operation' })}</span>
+              </div>
+            </LoaderButton>
+          </div>
         )}
       </div>
 
@@ -974,9 +1216,21 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <AlertDialogCancel>{t('cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmApply}
-              disabled={proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending}
+              disabled={
+                proxyMutation.isPending ||
+                dataMutation.isPending ||
+                expireMutation.isPending ||
+                addGroupsMutation.isPending ||
+                removeGroupsMutation.isPending ||
+                wireguardPeerIpsMutation.isPending
+              }
             >
-              {proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending
+              {proxyMutation.isPending ||
+              dataMutation.isPending ||
+              expireMutation.isPending ||
+              addGroupsMutation.isPending ||
+              removeGroupsMutation.isPending ||
+              wireguardPeerIpsMutation.isPending
                 ? t('applying', { defaultValue: 'Applying...' })
                 : t('confirm', { defaultValue: 'Confirm' })}
             </AlertDialogAction>

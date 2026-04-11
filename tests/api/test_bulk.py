@@ -239,3 +239,34 @@ def test_bulk_expire_with_range(access_token):
         delete_user(access_token, user2["username"])
         delete_group(access_token, group["id"])
         delete_core(access_token, core["id"])
+
+
+def test_bulk_expire_dry_run(access_token):
+    """Dry-run returns affected user count without modifying users."""
+    response = client.post(
+        "/api/users/bulk/expire",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"amount": 3600, "dry_run": True},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["dry_run"] is True
+    assert "affected_users" in data
+
+
+def test_bulk_wireguard_reallocate_peer_ips_accepts_status_filter(access_token):
+    """Dry-run accepts optional status filter like other bulk user actions."""
+    response = client.post(
+        "/api/users/bulk/wireguard/reallocate-peer-ips",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "dry_run": True,
+            "confirm": False,
+            "status": ["active", "disabled"],
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["dry_run"] is True
+    assert "candidates" in data
+    assert "affected_users" in data

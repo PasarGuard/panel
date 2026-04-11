@@ -13,6 +13,8 @@ CoreSortingOptionsSimple = Enum(
         "-id": CoreConfig.id.desc(),
         "name": CoreConfig.name.asc(),
         "-name": CoreConfig.name.desc(),
+        "created_at": CoreConfig.created_at.asc(),
+        "-created_at": CoreConfig.created_at.desc(),
     },
 )
 
@@ -105,7 +107,7 @@ async def get_core_configs(db: AsyncSession, offset: int = None, limit: int = No
             - list[CoreConfig]: A list of CoreConfig objects
             - int: The total count of core configurations
     """
-    query = select(CoreConfig)
+    query = select(CoreConfig).order_by(CoreConfig.created_at.asc())
     if offset:
         query = query.offset(offset)
     if limit:
@@ -150,6 +152,8 @@ async def get_cores_simple(
             else:
                 sort_list.append(s.value)
         stmt = stmt.order_by(*sort_list)
+    else:
+        stmt = stmt.order_by(CoreConfig.created_at.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())

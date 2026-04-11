@@ -2,7 +2,6 @@ import asyncio
 import re
 import secrets
 from collections import Counter
-from copy import deepcopy
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from typing import Literal
 
@@ -14,6 +13,9 @@ from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import get_admin
 from app.db.crud.bulk import (
+    count_bulk_datalimit_targets,
+    count_bulk_expire_targets,
+    count_bulk_proxy_targets,
     reset_all_users_data_usage,
     update_users_datalimit,
     update_users_expire,
@@ -45,10 +47,12 @@ from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
+    BulkOperationDryRunResponse,
     BulkUser,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
+    BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ModifyUserByTemplate,
     RemoveUsersResponse,
@@ -63,13 +67,14 @@ from app.models.user import (
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateList,
+    WireGuardPeerIPsReallocateResponse,
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from app.utils.wireguard import get_wireguard_tags_from_groups, prepare_wireguard_proxy_settings
+from app.utils.wireguard import prepare_wireguard_proxy_settings
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
@@ -809,6 +814,9 @@ class UserOperation(BaseOperation):
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
+        if bulk_model.dry_run:
+            n = await count_bulk_expire_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_expire(db, bulk_model)
         await sync_users(users)
 
@@ -817,6 +825,9 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
+        if bulk_model.dry_run:
+            n = await count_bulk_datalimit_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_datalimit(db, bulk_model)
         await sync_users(users)
 
@@ -825,12 +836,36 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
+        if bulk_model.dry_run:
+            n = await count_bulk_proxy_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_proxy_settings(db, bulk_model)
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
+
+    async def bulk_reallocate_wireguard_peer_ips(
+        self, db: AsyncSession, body: BulkWireGuardPeerIPs, admin: AdminDetails
+    ) -> WireGuardPeerIPsReallocateResponse:
+        from sqlalchemy import and_, select
+
+        from app.db.crud.bulk import _create_final_filter
+        from app.db.crud.user import load_user_attrs
+        from app.utils.wireguard import bulk_reallocate_wireguard_peer_ips as run_wg_bulk
+
+        final_filter = _create_final_filter(body)
+        if not admin.is_sudo:
+            final_filter = and_(final_filter, User.admin_id == admin.id)
+
+        result = await db.execute(select(User).where(final_filter))
+        users = list(result.scalars().all())
+        for u in users:
+            await load_user_attrs(u, load_usage_logs=False)
+
+        out = await run_wg_bulk(db, users, dry_run=body.dry_run, replace_all=body.replace_all)
+        return WireGuardPeerIPsReallocateResponse(**out)
 
     async def get_users_sub_update_list(
         self, db: AsyncSession, username: str, admin: AdminDetails, offset: int = 0, limit: int = 10

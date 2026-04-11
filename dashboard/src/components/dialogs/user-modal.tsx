@@ -1,9 +1,9 @@
-import { DatePicker } from '@/components/common/date-picker'
+import { DatePicker, type DatePickerAlign, type DatePickerSide } from '@/components/common/date-picker'
 import GroupsSelector from '@/components/common/groups-selector'
 import UsageModal from '@/components/dialogs/usage-modal'
 import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
-import { type UseEditFormValues, type UseFormValues, userCreateSchema, userEditSchema } from '@/components/forms/user-form'
+import { type UseEditFormValues, type UseFormValues, userCreateObjectSchema, userCreateSchema, userEditObjectSchema, userEditSchema } from '@/components/forms/user-form'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
@@ -36,11 +36,11 @@ import {
 } from '@/service/api'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
-import { formatBytes, gbToBytes } from '@/utils/formatByte'
+import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, User, Users, Pencil } from 'lucide-react'
+import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Group, Users, Pencil, UserRoundPlus } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -82,6 +82,8 @@ const ExpiryDateField = ({
   label,
   useUtcTimestamp = false,
   fieldName = 'expire',
+  popoverAlignDesktop,
+  popoverSideDesktop,
 }: {
   field: any
   displayDate: Date | null
@@ -91,6 +93,8 @@ const ExpiryDateField = ({
   label: string
   useUtcTimestamp?: boolean
   fieldName?: string
+  popoverAlignDesktop?: DatePickerAlign
+  popoverSideDesktop?: DatePickerSide
 }) => {
   const { t } = useTranslation()
   const expireInfo = useRelativeExpiryDate(displayDate ? Math.floor(displayDate.getTime() / 1000) : null)
@@ -141,9 +145,9 @@ const ExpiryDateField = ({
   ]
 
   return (
-    <FormItem className="flex flex-1 flex-col">
-      <FormLabel className="mb-0.5">{label}</FormLabel>
-      <div className="space-y-2 lg:!mt-0">
+    <FormItem className="min-w-0 flex-1">
+      <FormLabel>{label}</FormLabel>
+      <div className="flex flex-col gap-2">
         <div dir="ltr" className="flex flex-wrap items-center gap-1 lg:hidden">
           {shortcuts.map(({ label, days }) => (
             <Button
@@ -176,6 +180,8 @@ const ExpiryDateField = ({
             onOpenChange={setCalendarOpen}
             fieldName={fieldName}
             onFieldChange={handleFieldChange}
+            popoverAlignDesktop={popoverAlignDesktop}
+            popoverSideDesktop={popoverSideDesktop}
           />
           {displayDate && expireInfo?.time && (
             <p
@@ -294,7 +300,7 @@ const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) 
   )
 }
 
-export default function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserId, editingUserData, onSuccessCallback }: UserModalProps) {
+function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserId, editingUserData, onSuccessCallback }: UserModalProps) {
   const { t, i18n } = useTranslation()
   const { admin } = useAdmin()
   const isSudo = admin?.is_sudo ?? false
@@ -304,7 +310,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const status = form.watch('status')
   const [activeTab, setActiveTab] = useState<'groups' | 'templates'>('groups')
   const tabs = [
-    { id: 'groups', label: 'groups', icon: Users },
+    { id: 'groups', label: 'groups', icon: Group },
     { id: 'templates', label: 'templates.title', icon: Layers },
   ]
   const [nextPlanEnabled, setNextPlanEnabled] = useState(false)
@@ -384,6 +390,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [isFormValid, setIsFormValid] = useState(false)
   const dataLimitInputRef = React.useRef<string>('')
+  const onHoldExpireDurationInputRef = React.useRef<string>('')
   const nextPlanExpireInputRef = React.useRef<string>('')
   const nextPlanDataLimitInputRef = React.useRef<string>('')
 
@@ -409,6 +416,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         setNextPlanEnabled(false)
         setNextPlanManuallyDisabled(false)
         dataLimitInputRef.current = ''
+        onHoldExpireDurationInputRef.current = ''
         nextPlanExpireInputRef.current = ''
         nextPlanDataLimitInputRef.current = ''
       }
@@ -623,26 +631,16 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
   useEffect(() => {
     if (status === 'on_hold') {
-      // Set default on_hold_expire_duration if not set
-      const duration = form.getValues('on_hold_expire_duration')
-      const touched = touchedFields['on_hold_expire_duration']
-      // Only set default if the field hasn't been touched by user and has no value
-      if (!touched && (!duration || duration < 1)) {
-        const defaultDuration = 30 * 24 * 60 * 60 // 7 days in seconds
-        form.setValue('on_hold_expire_duration', defaultDuration)
-        handleFieldChange('on_hold_expire_duration', defaultDuration)
-      }
-      // Clear expire field when switching to on_hold status
       form.setValue('expire', undefined)
       form.clearErrors('expire')
     } else {
-      // Clear on_hold fields when switching away from on_hold status
+      onHoldExpireDurationInputRef.current = ''
       form.setValue('on_hold_expire_duration', undefined)
       form.clearErrors('on_hold_expire_duration')
       form.setValue('on_hold_timeout', undefined)
       form.clearErrors('on_hold_timeout')
     }
-  }, [status, form, t, handleFieldChange, touchedFields])
+  }, [status, form])
 
   useEffect(() => {
     if (!nextPlanEnabled) {
@@ -781,16 +779,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           return false
         }
 
-        // On hold specific validation
-        if (currentValues.status === 'on_hold') {
-          if (!currentValues.on_hold_expire_duration || currentValues.on_hold_expire_duration <= 0) {
-            form.setError('on_hold_expire_duration', {
-              type: 'manual',
-              message: t('validation.required', { field: t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }) }),
-            })
-            return false
-          }
-        }
       }
 
       // Special case for Next Plan enabled - if Next Plan is enabled and no other fields are touched,
@@ -807,11 +795,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       const fieldsToValidate = isSubmit
         ? currentValues
         : Object.keys(touchedFields).reduce((acc, key) => {
-            if (touchedFields[key]) {
-              acc[key] = currentValues[key]
-            }
-            return acc
-          }, {} as any)
+          if (touchedFields[key]) {
+            acc[key] = currentValues[key]
+          }
+          return acc
+        }, {} as any)
 
       // If no fields are touched, clear errors and return true
       if (!isSubmit && Object.keys(fieldsToValidate).length === 0) {
@@ -827,11 +815,14 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
 
       // Validate only touched fields using the selected schema
       if (isSubmit) {
-        // On submit, validate the full schema
         schema.parse(fieldsToValidate)
       } else {
-        // For non-submit validation, validate only touched fields
-        schema.partial().parse(fieldsToValidate)
+        // ZodEffects from .superRefine() has no .partial(); use base object schemas for touched-field validation
+        if (selectedTemplateId) {
+          ; (editingUser ? templateModifySchema : templateUserSchema).partial().parse(fieldsToValidate)
+        } else {
+          ; (editingUser ? userEditObjectSchema : userCreateObjectSchema).partial().parse(fieldsToValidate)
+        }
       }
 
       return true
@@ -854,6 +845,8 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
             }
             if (fieldName === 'group_ids') {
               message = t('validation.required', { field: t('groups', { defaultValue: 'Groups' }) })
+            } else if (fieldName === 'on_hold_expire_duration') {
+              message = t('validation.required', { field: t('templates.expire') })
             }
             form.setError(fieldName as any, {
               type: 'manual',
@@ -993,8 +986,11 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               missingFields.push(t('status', { defaultValue: 'Status' }))
             }
 
-            if (values.status === 'on_hold' && (!values.on_hold_expire_duration || values.on_hold_expire_duration <= 0)) {
-              missingFields.push(t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }))
+            if (
+              values.status === 'on_hold' &&
+              (!values.on_hold_expire_duration || !Number.isFinite(Number(values.on_hold_expire_duration)) || Number(values.on_hold_expire_duration) <= 0)
+            ) {
+              missingFields.push(t('templates.expire'))
             }
 
             if (missingFields.length > 0) {
@@ -1019,7 +1015,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
           data_limit: typeof values.data_limit === 'string' ? parseFloat(values.data_limit) : values.data_limit,
           on_hold_expire_duration: values.on_hold_expire_duration
             ? typeof values.on_hold_expire_duration === 'string'
-              ? parseInt(values.on_hold_expire_duration, 10)
+              ? parseFloat(values.on_hold_expire_duration)
               : values.on_hold_expire_duration
             : undefined,
           expire: status === 'on_hold' ? undefined : normalizeExpire(values.expire),
@@ -1060,10 +1056,10 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
               add_remaining_traffic: nextPlan.add_remaining_traffic ?? false,
             }
           } else {
-            // No template - send expire and data_limit with defaults
+            // No template - send expire and data_limit with defaults (integers; GB→bytes must not send floats)
             sendValues.next_plan = {
-              expire: nextPlan.expire ?? 0,
-              data_limit: nextPlan.data_limit ?? 0,
+              expire: Math.round(Number(nextPlan.expire ?? 0)),
+              data_limit: Math.round(Number(nextPlan.data_limit ?? 0)),
               add_remaining_traffic: nextPlan.add_remaining_traffic ?? false,
             }
           }
@@ -1167,7 +1163,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     const arr = password.split('')
     for (let i = arr.length - 1; i > 0; i--) {
       const j = getRandomInt(i + 1)
-      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+        ;[arr[i], arr[j]] = [arr[j], arr[i]]
     }
     return arr.join('')
   }
@@ -1210,11 +1206,21 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     [form, handleFieldChange],
   )
 
+  /** Preserves blank lines so Enter works in the textarea; empty entries are stripped on save via cleanProxySettings. */
   const parseWireGuardPeerIps = React.useCallback((value: string) => {
-    return value
-      .split(/[\n,]+/)
-      .map(item => item.trim())
-      .filter(Boolean)
+    const lines = value.split('\n')
+    const result: string[] = []
+    for (const line of lines) {
+      const parts = line.split(',').map(s => s.trim()).filter(Boolean)
+      if (parts.length === 0) {
+        if (line.trim() === '') {
+          result.push('')
+        }
+        continue
+      }
+      result.push(...parts)
+    }
+    return result
   }, [])
 
   const hasMeaningfulProxyValue = React.useCallback((value: unknown): boolean => {
@@ -1402,20 +1408,6 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
   }
 
   useEffect(() => {
-    // Log form state when dialog opens
-    if (isDialogOpen) {
-      // Initialize on_hold_expire_duration if status is on_hold
-      if (status === 'on_hold' && editingUser) {
-        const currentDuration = form.getValues('on_hold_expire_duration')
-        if (currentDuration === undefined || currentDuration === null || Number(currentDuration) === 0) {
-          // Only set default if there's no value at all
-          form.setValue('on_hold_expire_duration', 0)
-        }
-      }
-    }
-  }, [isDialogOpen, form, editingUser, status])
-
-  useEffect(() => {
     if (isDialogOpen && editingUser && dataLimitValue !== null && dataLimitValue !== undefined) {
       if (dataLimitValue > 0) {
         dataLimitInputRef.current = String(dataLimitValue)
@@ -1433,8 +1425,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
         nextPlanExpireInputRef.current = String(days)
       }
       if (nextPlan?.data_limit !== undefined && nextPlan?.data_limit !== null && nextPlan.data_limit > 0) {
-        const gb = Math.round(nextPlan.data_limit / (1024 * 1024 * 1024))
-        nextPlanDataLimitInputRef.current = String(gb)
+        nextPlanDataLimitInputRef.current = String(bytesToFormGigabytes(nextPlan.data_limit))
       }
     }
   }, [isDialogOpen, editingUser, nextPlanEnabled, form])
@@ -1469,7 +1460,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
       <DialogContent className={`h-auto lg:min-w-[900px]`}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {editingUser ? <Pencil className="h-5 w-5" /> : <User className="h-5 w-5" />}
+            {editingUser ? <Pencil className="h-5 w-5" /> : <UserRoundPlus className="h-5 w-5" />}
             <span>{editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">{editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}</DialogDescription>
@@ -1613,7 +1604,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                   </div>
                   {/* Data limit and expire fields - show data_limit only when no template is selected */}
                   {activeTab === 'groups' && (
-                    <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end">
+                    <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
                       {!selectedTemplateId && (
                         <>
                           <FormField
@@ -1690,7 +1681,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                     />
                                   </FormControl>
                                   {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                    <p className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
+                                    <p dir="ltr" className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
                                   )}
                                   <FormMessage />
                                 </FormItem>
@@ -1731,59 +1722,111 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                           )}
                         </>
                       )}
-                      <div className="flex h-full items-start gap-4 lg:w-52">
+                      <div className="flex h-full w-full items-start gap-4 lg:w-52">
                         {status === 'on_hold' ? (
                           <FormField
                             control={form.control}
                             name="on_hold_expire_duration"
                             render={({ field }) => {
-                              const hasError = !!form.formState.errors.on_hold_expire_duration
-                              const fieldValue = field.value ? Math.round(field.value / (24 * 60 * 60)) : ''
-                              const isZeroOrEmpty = fieldValue === 0 || fieldValue === ''
-                              const isTouched = touchedFields['on_hold_expire_duration']
+                              const daySec = 24 * 60 * 60
+                              if (
+                                onHoldExpireDurationInputRef.current === '' &&
+                                field.value != null &&
+                                field.value !== undefined &&
+                                field.value > 0
+                              ) {
+                                onHoldExpireDurationInputRef.current = String(field.value / daySec)
+                              } else if (
+                                (field.value === null || field.value === undefined) &&
+                                onHoldExpireDurationInputRef.current !== ''
+                              ) {
+                                onHoldExpireDurationInputRef.current = ''
+                              }
+
+                              const displayValue =
+                                onHoldExpireDurationInputRef.current !== ''
+                                  ? onHoldExpireDurationInputRef.current
+                                  : field.value != null && field.value !== undefined && field.value > 0
+                                    ? String(field.value / daySec)
+                                    : ''
 
                               return (
-                                <FormItem className="flex-1">
-                                  <FormLabel>{t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration (days)' })}</FormLabel>
+                                <FormItem className="min-w-0 flex-1">
+                                  <FormLabel className="text-left">{t('templates.expire')}</FormLabel>
                                   <FormControl>
-                                    <Input
-                                      type="number"
-                                      min="1"
-                                      isError={hasError || (isTouched && isZeroOrEmpty)}
-                                      placeholder={t('userDialog.onHoldExpireDurationPlaceholder', { defaultValue: 'e.g. 7' })}
-                                      {...field}
-                                      value={fieldValue ? fieldValue : ''}
-                                      onChange={e => {
-                                        // Allow empty string for deletion
-                                        if (e.target.value === '') {
-                                          field.onChange(0)
-                                          handleFieldChange('on_hold_expire_duration', 0)
-                                          // Mark field as touched to prevent auto-default
-                                          setTouchedFields(prev => ({ ...prev, on_hold_expire_duration: true }))
-                                        } else {
-                                          const value = parseInt(e.target.value, 10)
-                                          if (!isNaN(value) && value >= 0) {
-                                            field.onChange(value ? value * (24 * 60 * 60) : 0)
-                                            handleFieldChange('on_hold_expire_duration', value)
-                                            // Mark field as touched
-                                            setTouchedFields(prev => ({ ...prev, on_hold_expire_duration: true }))
+                                    <div className="relative" dir="ltr">
+                                      <Input
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder={t('templates.expire')}
+                                        value={displayValue}
+                                        onChange={e => {
+                                          const rawValue = e.target.value.trim()
+                                          onHoldExpireDurationInputRef.current = rawValue
+
+                                          if (rawValue === '') {
+                                            field.onChange(0)
+                                            handleFieldChange('on_hold_expire_duration', 0)
+                                            void form.trigger('on_hold_expire_duration')
+                                            return
                                           }
-                                        }
-                                      }}
-                                      onBlur={() => {
-                                        handleFieldBlur('on_hold_expire_duration')
-                                        // Set validation error if value is 0 or empty
-                                        if (fieldValue === 0 || fieldValue === '') {
-                                          form.setError('on_hold_expire_duration', {
-                                            type: 'manual',
-                                            message: t('validation.required', { field: t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }) }),
-                                          })
-                                        } else {
-                                          // Clear error if value is valid
-                                          form.clearErrors('on_hold_expire_duration')
-                                        }
-                                      }}
-                                    />
+
+                                          const validNumberPattern = /^-?\d*\.?\d*$/
+                                          if (!validNumberPattern.test(rawValue)) return
+
+                                          if (rawValue.endsWith('.') && rawValue.length > 1) {
+                                            const prevSeconds =
+                                              field.value != null && field.value !== undefined ? field.value : 0
+                                            field.onChange(prevSeconds)
+                                            handleFieldChange('on_hold_expire_duration', prevSeconds)
+                                            void form.trigger('on_hold_expire_duration')
+                                          } else if (rawValue === '.') {
+                                            field.onChange(0)
+                                            handleFieldChange('on_hold_expire_duration', 0)
+                                            void form.trigger('on_hold_expire_duration')
+                                          } else {
+                                            const numValue = parseFloat(rawValue)
+                                            if (!isNaN(numValue) && numValue >= 0) {
+                                              const seconds = numValue * daySec
+                                              field.onChange(seconds)
+                                              handleFieldChange('on_hold_expire_duration', seconds)
+                                              void form.trigger('on_hold_expire_duration')
+                                            }
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          const rawValue = onHoldExpireDurationInputRef.current.trim()
+                                          if (rawValue === '' || rawValue === '.' || rawValue === '0') {
+                                            onHoldExpireDurationInputRef.current = ''
+                                            field.onChange(0)
+                                            handleFieldChange('on_hold_expire_duration', 0)
+                                            void form.trigger('on_hold_expire_duration')
+                                          } else {
+                                            const numValue = parseFloat(rawValue)
+                                            if (!isNaN(numValue) && numValue >= 0) {
+                                              const finalDays = numValue
+                                              const finalSeconds = finalDays * daySec
+                                              onHoldExpireDurationInputRef.current =
+                                                finalDays > 0 ? String(finalDays) : ''
+                                              field.onChange(finalSeconds)
+                                              handleFieldChange('on_hold_expire_duration', finalSeconds)
+                                              void form.trigger('on_hold_expire_duration')
+                                            } else {
+                                              onHoldExpireDurationInputRef.current = ''
+                                              field.onChange(0)
+                                              handleFieldChange('on_hold_expire_duration', 0)
+                                              void form.trigger('on_hold_expire_duration')
+                                            }
+                                          }
+                                        }}
+                                        className={dir === 'rtl' ? 'pl-14' : 'pr-14'}
+                                      />
+                                      <span
+                                        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground ${dir === 'rtl' ? 'start-3' : 'end-3'}`}
+                                      >
+                                        {t('time.days', { defaultValue: 'Days' })}
+                                      </span>
+                                    </div>
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -1823,6 +1866,8 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                           handleFieldChange={handleFieldChange}
                           label={t('userDialog.timeOutDate', { defaultValue: 'Expire date' })}
                           fieldName="on_hold_timeout"
+                          popoverAlignDesktop="start"
+                          popoverSideDesktop={dir === 'rtl' ? 'left' : 'right'}
                         />
                       )}
                     />
@@ -2109,14 +2154,12 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                               const error = formState.errors.proxy_settings?.hysteria?.auth
                               return (
                                 <FormItem className="mb-2">
-                                  <FormLabel>
-                                    {t('userDialog.proxySettings.hysteria')} {t('userDialog.proxySettings.auth')}
-                                  </FormLabel>
+                                  <FormLabel>{t('userDialog.proxySettings.hysteriaAuth')}</FormLabel>
                                   <FormControl>
                                     <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
                                       <Input
                                         {...field}
-                                        placeholder={t('userDialog.proxySettings.auth')}
+                                        placeholder={t('userDialog.proxySettings.hysteriaAuth')}
                                         onChange={e => {
                                           field.onChange(e)
                                           form.trigger('proxy_settings.hysteria.auth')
@@ -2209,7 +2252,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                   <Textarea
                                     dir="ltr"
                                     value={Array.isArray(field.value) ? field.value.join('\n') : ''}
-                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.8.0.2/32' })}
+                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.0.0.10/32' })}
                                     onChange={e => {
                                       const peerIps = parseWireGuardPeerIps(e.target.value)
                                       field.onChange(peerIps)
@@ -2219,7 +2262,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                   />
                                 </FormControl>
                                 <p className="text-xs text-muted-foreground">
-                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to let the panel auto-allocate peer IPs for each assigned WireGuard interface.' })}
+                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. Manual entries must fall within that pool.' })}
                                 </p>
                                 <FormMessage />
                               </FormItem>
@@ -2391,13 +2434,13 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                 name="next_plan.data_limit"
                                 render={({ field }) => {
                                   if (nextPlanDataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
-                                    nextPlanDataLimitInputRef.current = String(Math.round(field.value / (1024 * 1024 * 1024)))
+                                    nextPlanDataLimitInputRef.current = String(bytesToFormGigabytes(field.value))
                                   }
                                   const displayValue =
                                     nextPlanDataLimitInputRef.current !== ''
                                       ? nextPlanDataLimitInputRef.current
                                       : field.value !== null && field.value !== undefined && field.value > 0
-                                        ? String(Math.round(field.value / (1024 * 1024 * 1024)))
+                                        ? String(bytesToFormGigabytes(field.value))
                                         : ''
                                   return (
                                     <FormItem>
@@ -2431,7 +2474,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                                     field.onChange(0)
                                                     handleFieldChange('next_plan.data_limit', 0)
                                                   } else {
-                                                    const bytesValue = numValue * 1024 * 1024 * 1024
+                                                    const bytesValue = gbToBytes(numValue) ?? 0
                                                     field.onChange(bytesValue)
                                                     handleFieldChange('next_plan.data_limit', bytesValue)
                                                   }
@@ -2450,7 +2493,7 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                                               if (!isNaN(numValue) && numValue >= 0) {
                                                 const finalValue = numValue
                                                 nextPlanDataLimitInputRef.current = String(finalValue)
-                                                const bytesValue = finalValue * 1024 * 1024 * 1024
+                                                const bytesValue = gbToBytes(finalValue) ?? 0
                                                 field.onChange(bytesValue)
                                                 handleFieldChange('next_plan.data_limit', bytesValue)
                                               } else {
@@ -2502,9 +2545,8 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                          className={`relative flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                            activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                          }`}
+                          className={`relative flex-1 px-3 py-2 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                            }`}
                           type="button"
                         >
                           <div className="flex items-center justify-center gap-1.5">
@@ -2693,8 +2735,13 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
                           missingFields.push(t('status', { defaultValue: 'Status' }))
                         }
 
-                        if (currentValues.status === 'on_hold' && (!currentValues.on_hold_expire_duration || currentValues.on_hold_expire_duration <= 0)) {
-                          missingFields.push(t('userDialog.onHoldExpireDuration', { defaultValue: 'On Hold Expire Duration' }))
+                        if (
+                          currentValues.status === 'on_hold' &&
+                          (!currentValues.on_hold_expire_duration ||
+                            !Number.isFinite(Number(currentValues.on_hold_expire_duration)) ||
+                            Number(currentValues.on_hold_expire_duration) <= 0)
+                        ) {
+                          missingFields.push(t('templates.expire'))
                         }
 
                         if (missingFields.length > 0) {
@@ -2760,3 +2807,5 @@ export default function UserModal({ isDialogOpen, onOpenChange, form, editingUse
     </Dialog>
   )
 }
+
+export default UserModal

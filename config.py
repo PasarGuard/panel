@@ -126,3 +126,7 @@ JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL = config("JOB_CLEANUP_SUBSCRIPTION_UPD
 
 ## Experimental featueres
 STOP_NODES_ON_SHUTDOWN = config("STOP_NODES_ON_SHUTDOWN", cast=bool, default=True)
+
+# WireGuard client pool (strings; CIDRs parsed in app.utils.wireguard_pool)
+WIREGUARD_GLOBAL_POOL = config("WIREGUARD_GLOBAL_POOL", default="10.0.0.0/8")
+WIREGUARD_RESERVED = config("WIREGUARD_RESERVED", default="10.0.0.0/31")

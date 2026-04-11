@@ -30,8 +30,14 @@ export default function Node({ node, onEdit, onToggleStatus, coresData }: NodePr
     },
   })
   const coreVersion = node.core_version ?? node.xray_version
-  const isXrayBackend = (coreConfig?.type || 'xray') === 'xray'
+  const resolvedCoreType =
+    coreConfig?.type ?? coresData?.cores?.find((c) => c.id === node.core_config_id)?.type ?? null
+  const isWireGuardCore = resolvedCoreType === 'wg'
+  const isXrayBackend =
+    resolvedCoreType === 'xray' || (resolvedCoreType === null && (coreConfig?.type || 'xray') === 'xray')
   const hasCoreUpdate = !!(isXrayBackend && coreVersion && latestXrayVersion && hasXrayUpdate(coreVersion))
+  const hasNodeVersionUpdate =
+    !isWireGuardCore && !!latestNodeVersion && !!node.node_version && hasNodeUpdate(node.node_version)
 
   const getStatusConfig = () => {
     switch (node.status) {
@@ -168,18 +174,18 @@ export default function Node({ node, onEdit, onToggleStatus, coresData }: NodePr
                         <Server
                           className={cn(
                             'h-3 w-3 shrink-0 transition-colors sm:h-3.5 sm:w-3.5',
-                            latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground',
+                            hasNodeVersionUpdate ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground',
                           )}
                         />
                         <span
                           className={cn(
                             'font-mono text-[10px] font-medium sm:text-[11px]',
-                            latestNodeVersion && hasNodeUpdate(node.node_version) ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground',
+                            hasNodeVersionUpdate ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground',
                           )}
                         >
                           {node.node_version}
                         </span>
-                        {latestNodeVersion && hasNodeUpdate(node.node_version) && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
+                        {hasNodeVersionUpdate && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
@@ -190,7 +196,7 @@ export default function Node({ node, onEdit, onToggleStatus, coresData }: NodePr
                             <span>{t('version.currentVersion', { defaultValue: 'Current' })}</span>
                             <span className="font-mono font-medium">{node.node_version}</span>
                           </div>
-                          {latestNodeVersion && (
+                          {!isWireGuardCore && latestNodeVersion && (
                             <div className="flex items-center justify-between gap-4">
                               <span>{t('version.latestVersion', { defaultValue: 'Latest' })}</span>
                               <span className="font-mono font-medium">{latestNodeVersion}</span>

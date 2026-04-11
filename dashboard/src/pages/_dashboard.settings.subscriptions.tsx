@@ -525,7 +525,7 @@ function SortableRule({ index, onRemove, form, id }: SortableRuleProps) {
                 </PopoverTrigger>
                 <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                   <div className="space-y-1.5">
-                    <h4 className="mb-2 text-[12px] font-medium">{t('hostsDialog.variables.title')}</h4>
+                    <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.variables.title')}</h4>
                     <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">
                       <VariablesList includeProfileTitle={true} includeFormat={true} />
                     </div>

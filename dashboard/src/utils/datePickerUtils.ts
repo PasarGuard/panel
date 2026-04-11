@@ -2,6 +2,10 @@ import { DateRange } from 'react-day-picker'
 import { Period } from '@/service/api'
 import { format } from 'date-fns'
 
+/** True when the app language is Persian (e.g. `fa`, `fa-IR` from i18next or the browser). */
+export const isPersianLocaleLanguage = (language: string | undefined): boolean =>
+  (language ?? '').toLowerCase().startsWith('fa')
+
 /**
  * Determines the appropriate period (hour or day) based on the date range
  * @param range - The date range to analyze
