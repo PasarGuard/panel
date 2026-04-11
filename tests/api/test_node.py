@@ -23,7 +23,7 @@ from app.db.models import (
     User,
 )
 from app.models.core import CoreCreate
-from app.models.node import NodeCreate, NodeResponse, NodeSettings, NodesResponse
+from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.stats import (
     NodeRealtimeStats,
     NodeStats,
@@ -210,6 +210,16 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         setattr(operator, name, AsyncMock(name=name))
     monkeypatch.setattr("app.routers.node.node_operator", operator)
     return operator
+
+
+def test_node_create_accepts_localhost_address():
+    node = NodeCreate(**node_create_payload(address="localhost"))
+    assert node.address == "localhost"
+    assert NodeCreate(**node_create_payload(address="LOCALHOST")).address == "LOCALHOST"
+
+
+def test_node_modify_accepts_localhost_address():
+    assert NodeModify(address="localhost").address == "localhost"
 
 
 def test_get_node_settings_returns_defaults(access_token):
