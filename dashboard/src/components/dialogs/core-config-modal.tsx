@@ -134,18 +134,17 @@ const defaultXrayConfig = JSON.stringify(
   2,
 )
 
-const defaultWireGuardConfig = JSON.stringify(
-  {
-    interface_name: 'wg0',
-    private_key: 'REPLACE_WITH_SERVER_PRIVATE_KEY',
-    listen_port: 51820,
-    address: ['10.0.0.1/8'],
-  },
-  null,
-  2,
-)
-
-const getDefaultCoreConfigString = (backendType: CoreBackendType) => (backendType === 'wg' ? defaultWireGuardConfig : defaultXrayConfig)
+const createWireGuardCoreConfigJson = (keyPair: { privateKey: string; publicKey: string }) =>
+  JSON.stringify(
+    {
+      interface_name: 'wg0',
+      private_key: keyPair.privateKey,
+      listen_port: 51820,
+      address: ['10.0.0.1/8'],
+    },
+    null,
+    2,
+  )
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
 const MobileJsonAceEditor = lazy(() => import('@/components/common/mobile-json-ace-editor'))
@@ -509,7 +508,14 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   }
 
   const applyBackendTemplate = useCallback((nextBackendType: CoreBackendType) => {
-    const defaultTemplate = getDefaultCoreConfigString(nextBackendType)
+    let defaultTemplate: string
+    if (nextBackendType === 'wg') {
+      const keyPair = generateWireGuardKeyPair()
+      setGeneratedWireGuardKeyPair(keyPair)
+      defaultTemplate = createWireGuardCoreConfigJson(keyPair)
+    } else {
+      defaultTemplate = defaultXrayConfig
+    }
     form.setValue('config', defaultTemplate, { shouldDirty: true, shouldValidate: true })
     validateJsonContent(defaultTemplate)
     debouncedConfigChange(defaultTemplate)
@@ -689,7 +695,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         form.reset({
           name: '',
           type: 'xray',
-          config: getDefaultCoreConfigString('xray'),
+          config: defaultXrayConfig,
           excluded_inbound_ids: [],
           fallback_id: [],
           restart_nodes: true,
@@ -1124,7 +1130,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
   const CodeBlock = ({ value }: { value: string }) => (
     <div dir="ltr" className="group relative min-w-0 flex-1 rounded-md border bg-background/80 backdrop-blur-sm">
-      <code className="block w-full overflow-x-auto whitespace-nowrap px-3 py-2.5 font-mono text-xs leading-relaxed">{value}</code>
+      <code className="block w-full min-w-0 overflow-x-auto whitespace-nowrap px-3 py-2.5 font-mono text-xs leading-relaxed">{value}</code>
     </div>
   )
 
@@ -1134,9 +1140,15 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         <StatusIndicator color={statusColor} />
         <SectionLabel>{label}</SectionLabel>
       </div>
-      <div dir="ltr" className="flex min-w-0 items-start gap-2">
+      <div dir="ltr" className="flex min-w-0 items-center gap-2">
         <CodeBlock value={value} />
-        <CopyButton value={value} icon="copy" copiedMessage={copiedMessage} defaultMessage={defaultMessage} className="h-8 w-full shrink-0 text-xs sm:h-9 sm:w-auto sm:px-3 sm:text-sm" />
+        <CopyButton
+          value={value}
+          icon="copy"
+          copiedMessage={copiedMessage}
+          defaultMessage={defaultMessage}
+          className="h-8 w-8 shrink-0 text-xs sm:h-9 sm:w-9 sm:text-sm"
+        />
       </div>
     </div>
   )
@@ -1263,14 +1275,14 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
     return (
       <Dialog open={isResultsDialogOpen} onOpenChange={setIsResultsDialogOpen}>
-        <DialogContent className="max-h-[95vh] w-[95vw] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[95vh] w-[95vw] max-w-2xl min-w-0 overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary sm:h-5 sm:w-5" />
+              <Sparkles className="h-3.5 w-3.5 shrink-0 sm:h-5 sm:w-5" />
               <span className="truncate">{t('coreConfigModal.result', { defaultValue: 'Result' })}</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1 sm:space-y-4">{renderContent()}</div>
+          <div className="max-h-[70vh] min-w-0 space-y-3 overflow-y-auto overflow-x-hidden pr-1 sm:space-y-4">{renderContent()}</div>
           <DialogFooter>
             <div className="flex w-full gap-2 sm:w-auto">
               <Button

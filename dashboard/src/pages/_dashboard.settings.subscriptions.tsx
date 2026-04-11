@@ -16,7 +16,7 @@ import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useS
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
-  ArrowUpWideNarrow, Cat, CircleOff,
+  Cat, CircleOff,
   Clock, Code, ExternalLink, FileCode2,
   FileText, Globe, GlobeLock, GripVertical,
   HelpCircle, Info, Link, ListTree, Megaphone, Plus,
@@ -1279,7 +1279,6 @@ export default function SubscriptionSettings() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="space-y-1 min-w-0 flex-1">
                   <h3 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
-                    <ArrowUpWideNarrow className="h-5 w-5 text-primary shrink-0" />
                     {t('settings.subscriptions.rules.title')}
                     {ruleFields.length > 0 && (
                       <Badge variant="secondary" className="ml-2 shrink-0">
