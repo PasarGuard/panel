@@ -498,6 +498,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       }
 
       setGeneratedVLESS(resultData)
+      setIsVlessAdvancedModalOpen(false)
       showResultDialog('vlessEncryption', resultData)
       toast.success(t('coreConfigModal.vlessEncryptionGenerated'))
     } catch (error) {
