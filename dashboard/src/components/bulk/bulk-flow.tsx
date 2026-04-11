@@ -45,12 +45,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Loader2,
 } from 'lucide-react'
+import { BulkExpiredDateFilters } from '@/components/bulk/bulk-expired-date-filters'
 import { SelectorPanel } from '@/components/bulk/selector-panel'
+import { formatDateByLocale } from '@/utils/datePickerUtils'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { endOfDay, startOfDay } from 'date-fns'
 
 const PAGE_SIZE = 50
 
@@ -62,8 +66,10 @@ interface BulkFlowProps {
 }
 
 export default function BulkFlow({ operationType }: BulkFlowProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const dir = useDirDetection()
+  const isPersianLocale = i18n.language === 'fa'
+  const formatExpiryFilterDate = (d: Date) => formatDateByLocale(d, isPersianLocale, false)
   const isRTL = dir === 'rtl'
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
@@ -89,6 +95,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const [selectedAdmins, setSelectedAdmins] = useState<number[]>([])
   const [selectedHasGroups, setSelectedHasGroups] = useState<number[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<UserStatus[]>([])
+  const [expiredAfter, setExpiredAfter] = useState<Date | undefined>()
+  const [expiredBefore, setExpiredBefore] = useState<Date | undefined>()
 
   const [groupCommandSearch, setGroupCommandSearch] = useState('')
 
@@ -125,9 +133,26 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
     setExpireSeconds(seconds)
   }, [expireAmount, expireUnit])
 
+  useEffect(() => {
+    if (!selectedStatuses.includes('expired')) {
+      setExpiredAfter(undefined)
+      setExpiredBefore(undefined)
+    }
+  }, [selectedStatuses])
+
   const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ limit: PAGE_SIZE, offset: 0, all: true })
   const { data: usersData, isLoading: usersLoading } = useGetUsersSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedUserSearch || undefined })
   const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedAdminSearch || undefined })
+
+  // Backend: expire >= expired_after AND expire <= expired_before. Sending the same midnight for both
+  // would only match that instant; use start/end of local calendar day so one day in both fields is a full day.
+  const expiredStatusDatePayload =
+    (operationType === 'data' || operationType === 'expire') && selectedStatuses.includes('expired')
+      ? {
+          ...(expiredAfter ? { expired_after: startOfDay(expiredAfter).toISOString() } : {}),
+          ...(expiredBefore ? { expired_before: endOfDay(expiredBefore).toISOString() } : {}),
+        }
+      : {}
 
   const statusOptions: { value: UserStatus; label: string }[] = [
     { value: 'active', label: t('status.active', { defaultValue: 'Active' }) },
@@ -270,6 +295,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             ...basePayload,
             ...statusPayload,
+            ...expiredStatusDatePayload,
             amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
             dry_run: false,
           }
@@ -277,6 +303,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             ...basePayload,
             ...statusPayload,
+            ...expiredStatusDatePayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
             dry_run: false,
           }
@@ -347,6 +374,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             setSelectedAdmins([])
             setSelectedHasGroups([])
             setSelectedStatuses([])
+            setExpiredAfter(undefined)
+            setExpiredBefore(undefined)
             setShowConfirmDialog(false)
             return
           }
@@ -376,6 +405,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           setSelectedAdmins([])
           setSelectedHasGroups([])
           setSelectedStatuses([])
+          setExpiredAfter(undefined)
+          setExpiredBefore(undefined)
           setShowConfirmDialog(false)
         },
         onError: error => {
@@ -411,6 +442,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             ...basePayload,
             ...statusPayload,
+            ...expiredStatusDatePayload,
             amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
             dry_run: true,
           }
@@ -419,6 +451,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             ...basePayload,
             ...statusPayload,
+            ...expiredStatusDatePayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
             dry_run: true,
           }
@@ -672,9 +705,16 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                               }
                             }
                           }}
-                          className="pr-12"
+                          className={cn(isRTL ? 'pl-12 pr-3' : 'pr-12 pl-3')}
                         />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">GB</span>
+                        <span
+                          className={cn(
+                            'pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm text-muted-foreground',
+                            isRTL ? 'left-3' : 'right-3',
+                          )}
+                        >
+                          GB
+                        </span>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -719,10 +759,16 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                           }}
                           step="1"
                           min="1"
-                          className="pr-20"
+                          dir="ltr"
+                          className={cn(isRTL ? 'pl-20 pr-3' : 'pr-20 pl-3')}
                         />
                         <Select value={expireUnit} onValueChange={v => setExpireUnit(v as ExpiryUnit)}>
-                          <SelectTrigger className="pointer-events-auto absolute right-0 top-0 h-full w-20 rounded-l-none border-l-0">
+                          <SelectTrigger
+                            className={cn(
+                              'pointer-events-auto absolute top-0 h-full w-20',
+                              isRTL ? 'left-0 rounded-r-none border-r-0' : 'right-0 rounded-l-none border-l-0',
+                            )}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -775,7 +821,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
                         {groupsOperation === 'add' ? t('bulk.groupsToAdd', { defaultValue: 'Groups to Add' }) : t('bulk.groupsToRemove', { defaultValue: 'Groups to Remove' })}
                       </Label>
-                      {filteredGroups.length > 0 && (
+                      {!groupsLoading && filteredGroups.length > 0 && (
                         <Button
                           type="button"
                           variant="ghost"
@@ -795,29 +841,43 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                       )}
                     </div>
                     <Command className="rounded-md border">
-                      <CommandInput placeholder={t('bulk.searchGroups', { defaultValue: 'Search groups...' })} value={groupCommandSearch} onValueChange={setGroupCommandSearch} />
-                      <CommandEmpty>{t('noResults', { defaultValue: 'No results found.' })}</CommandEmpty>
-                      <CommandGroup dir="ltr" className="max-h-40 overflow-auto">
-                        {filteredGroups
-                          .filter(group => !groupCommandSearch || group.name.toLowerCase().includes(groupCommandSearch.toLowerCase()))
-                          .map(group => (
-                            <CommandItem
-                              key={group.id}
-                              onSelect={() => {
-                                if (selectedGroups.includes(group.id)) {
-                                  setSelectedGroups(selectedGroups.filter(id => id !== group.id))
-                                } else {
-                                  setSelectedGroups([...selectedGroups, group.id])
-                                }
-                              }}
-                            >
-                              <div className={cn('mr-2 flex h-4 w-4 items-center justify-center rounded-sm border', selectedGroups.includes(group.id) ? 'border-primary bg-primary' : 'border-muted')}>
-                                {selectedGroups.includes(group.id) && <CheckCircle className="h-3 w-3 text-primary-foreground" />}
-                              </div>
-                              {group.name}
-                            </CommandItem>
-                          ))}
-                      </CommandGroup>
+                      <CommandInput
+                        placeholder={t('bulk.searchGroups', { defaultValue: 'Search groups...' })}
+                        value={groupCommandSearch}
+                        onValueChange={setGroupCommandSearch}
+                        disabled={groupsLoading}
+                      />
+                      {groupsLoading ? (
+                        <div className="flex min-h-[10rem] flex-col items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                          <Loader2 className="h-5 w-5 animate-spin sm:h-6 sm:w-6" aria-hidden />
+                          <span>{t('loading', { defaultValue: 'Loading...' })}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <CommandEmpty>{t('noResults', { defaultValue: 'No results found.' })}</CommandEmpty>
+                          <CommandGroup dir="ltr" className="max-h-40 overflow-auto">
+                            {filteredGroups
+                              .filter(group => !groupCommandSearch || group.name.toLowerCase().includes(groupCommandSearch.toLowerCase()))
+                              .map(group => (
+                                <CommandItem
+                                  key={group.id}
+                                  onSelect={() => {
+                                    if (selectedGroups.includes(group.id)) {
+                                      setSelectedGroups(selectedGroups.filter(id => id !== group.id))
+                                    } else {
+                                      setSelectedGroups([...selectedGroups, group.id])
+                                    }
+                                  }}
+                                >
+                                  <div className={cn('mr-2 flex h-4 w-4 items-center justify-center rounded-sm border', selectedGroups.includes(group.id) ? 'border-primary bg-primary' : 'border-muted')}>
+                                    {selectedGroups.includes(group.id) && <CheckCircle className="h-3 w-3 text-primary-foreground" />}
+                                  </div>
+                                  {group.name}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        </>
+                      )}
                     </Command>
                     {selectedGroups.length > 0 && (
                       <div className="flex flex-wrap gap-2 pt-1 sm:gap-2.5">
@@ -945,6 +1005,18 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         </Button>
                       )}
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+              {(operationType === 'data' || operationType === 'expire') && selectedStatuses.includes('expired') && (
+                <Card>
+                  <CardContent className="p-3 sm:p-4">
+                    <BulkExpiredDateFilters
+                      expiredAfter={expiredAfter}
+                      expiredBefore={expiredBefore}
+                      onExpiredAfterChange={setExpiredAfter}
+                      onExpiredBeforeChange={setExpiredBefore}
+                    />
                   </CardContent>
                 </Card>
               )}
@@ -1081,7 +1153,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   {operationType === 'expire' && expireSeconds && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
-                      <span>
+                      <span dir="ltr">
                         {expireOperation === 'add' ? '+' : '-'}
                         {formatTime(expireSeconds)}
                       </span>
@@ -1097,6 +1169,29 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                       </span>
                     </div>
                   )}
+
+                  {(operationType === 'data' || operationType === 'expire') &&
+                    selectedStatuses.includes('expired') &&
+                    (expiredAfter || expiredBefore) && (
+                      <div className="space-y-1.5 text-sm">
+                        {expiredAfter && (
+                          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                            <span className="text-muted-foreground">{t('bulk.expiredFilterAfter')}:</span>
+                            <span className="sm:text-end">
+                              {formatExpiryFilterDate(expiredAfter)}
+                            </span>
+                          </div>
+                        )}
+                        {expiredBefore && (
+                          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                            <span className="text-muted-foreground">{t('bulk.expiredFilterBefore')}:</span>
+                            <span className="sm:text-end" dir="ltr">
+                              {formatExpiryFilterDate(expiredBefore)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                   {operationType === 'groups' && (
                     <>
@@ -1209,7 +1304,10 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <AlertDialogDescription>
               {isApplyToAll
                 ? t('bulk.confirmApplyAll', { defaultValue: 'Are you sure you want to apply this operation to ALL users, admins, and groups?' })
-                : t('bulk.confirmApplyTargets', { count: totalTargets, defaultValue: 'Are you sure you want to apply this operation to {{count}} target(s)?' })}
+                : t('bulk.confirmApplyTargets', {
+                    count: displayTargetCount,
+                    defaultValue: 'Are you sure you want to apply this operation to {{count}} target(s)?',
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

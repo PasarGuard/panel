@@ -275,16 +275,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
+
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -304,11 +304,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsOutput {
+export interface XrayMuxSettingsInput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -1037,6 +1037,8 @@ export interface TransportSettingsOutput {
 
 export type TransportSettingsInputWebsocketSettings = WebSocketSettings | null
 
+export type TransportSettingsInputTcpSettings = TcpSettings | null
+
 export type TransportSettingsInputKcpSettings = KCPSettings | null
 
 export type TransportSettingsInputGrpcSettings = GRPCSettings | null
@@ -1088,8 +1090,6 @@ export interface TcpSettings {
   request?: TcpSettingsRequest
   response?: TcpSettingsResponse
 }
-
-export type TransportSettingsInputTcpSettings = TcpSettings | null
 
 export type SystemStatsCpuUsage = number | null
 
@@ -1458,19 +1458,6 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1484,6 +1471,19 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1659,6 +1659,8 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
+export type NodeModifyConnectionType = NodeConnectionType | null
+
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1702,8 +1704,6 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
-
-export type NodeModifyConnectionType = NodeConnectionType | null
 
 export interface NodeCreate {
   name: string
@@ -2048,6 +2048,14 @@ export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
 
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
 export type CreateHostPath = string | null
 
 export type CreateHostHost = string[] | null
@@ -2091,14 +2099,6 @@ export interface CreateHost {
   wireguard_overrides?: CreateHostWireguardOverrides
   subscription_templates?: CreateHostSubscriptionTemplates
 }
-
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
 
 /**
  * Response model for lightweight core list.
@@ -2242,8 +2242,6 @@ export interface ClientTemplateCreate {
   is_default?: boolean
 }
 
-export type ClashMuxSettingsBrutal = Brutal | null
-
 export type ClashMuxSettingsMinStreams = number | null
 
 export type ClashMuxSettingsMaxStreams = number | null
@@ -2263,7 +2261,7 @@ export interface ClashMuxSettings {
 }
 
 /**
- * Re-seat WireGuard peer IPs (same scoping fields as bulk proxy: users, admins, group_ids).
+ * Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status).
  */
 export interface BulkWireGuardPeerIPs {
   confirm?: boolean
@@ -2315,6 +2313,10 @@ export interface BulkUsersCreateResponse {
   created?: number
 }
 
+export type BulkUserExpiredBefore = string | null
+
+export type BulkUserExpiredAfter = string | null
+
 export interface BulkUser {
   amount: number
   dry_run?: boolean
@@ -2322,12 +2324,8 @@ export interface BulkUser {
   admins?: number[]
   users?: number[]
   status?: UserStatus[]
-}
-
-/** Preview-only response for bulk expire, data limit, proxy, and group operations. */
-export interface BulkOperationDryRunResponse {
-  dry_run: boolean
-  affected_users: number
+  expired_after?: BulkUserExpiredAfter
+  expired_before?: BulkUserExpiredBefore
 }
 
 export interface BulkGroup {
@@ -2343,6 +2341,8 @@ export interface Brutal {
   up_mbps: number
   down_mbps: number
 }
+
+export type ClashMuxSettingsBrutal = Brutal | null
 
 export type BodyAdminTokenApiAdminTokenPostClientSecret = string | null
 
@@ -7625,6 +7625,8 @@ export const useModifyUserWithTemplate = <TData = Awaited<ReturnType<typeof modi
 - **admins**: Optional list of admin IDs — their users will be targeted
 - **status**: Optional status to filter users (e.g., "expired", "active"), Empty means no filtering
 - **group_ids**: Optional list of group IDs to filter users by their group membership
+- **expired_after**: Optional UTC datetime to filter users who expired after this date (works only if "expired" status is selected)
+- **expired_before**: Optional UTC datetime to filter users who expired before this date (works only if "expired" status is selected)
  * @summary Bulk sum/sub to expire of users
  */
 export const bulkModifyUsersExpire = (bulkUser: BodyType<BulkUser>, signal?: AbortSignal) => {
@@ -7677,6 +7679,8 @@ export const useBulkModifyUsersExpire = <TData = Awaited<ReturnType<typeof bulkM
 - **admins**: Optional list of admin IDs — their users will be targeted
 - **status**: Optional status to filter users (e.g., "expired", "active"), Empty means no filtering
 - **group_ids**: Optional list of group IDs to filter users by their group membership
+- **expired_after**: Optional UTC datetime to filter users who expired after this date (works only if "expired" status is selected)
+- **expired_before**: Optional UTC datetime to filter users who expired before this date (works only if "expired" status is selected)
  * @summary Bulk sum/sub to data limit of users
  */
 export const bulkModifyUsersDatalimit = (bulkUser: BodyType<BulkUser>, signal?: AbortSignal) => {
@@ -7771,7 +7775,7 @@ export const useBulkModifyUsersProxySettings = <
 }
 
 /**
- * Same scoping as other bulk user actions (users, admins, group_ids). Non-sudo admins only affect their own users.
+ * Same scoping as other bulk user actions (users, admins, group_ids, optional status filter). Non-sudo admins only affect their own users.
  * @summary Bulk reallocate WireGuard peer IPs
  */
 export const bulkReallocateWireguardPeerIps = (bulkWireGuardPeerIPs: BodyType<BulkWireGuardPeerIPs>, signal?: AbortSignal) => {

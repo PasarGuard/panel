@@ -171,7 +171,7 @@ export const SelectorPanel = memo(function SelectorPanel({
           </>
         ) : (
           <>
-            <div className="relative flex-shrink-0" dir="ltr">
+            <div className="relative flex-shrink-0 mt-1.5" dir="ltr">
               <Search className="absolute left-3 sm:left-3 top-1/2 h-4 w-4 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder={searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} className="h-9 sm:h-10 pl-10 sm:pl-10 text-sm sm:text-sm w-full" />
             </div>
