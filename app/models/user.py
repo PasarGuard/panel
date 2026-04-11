@@ -214,6 +214,13 @@ class BulkUser(BaseModel):
     expired_after: dt | None = Field(default=None)
     expired_before: dt | None = Field(default=None)
 
+    @field_validator("expired_after", "expired_before", check_fields=False)
+    @classmethod
+    def validator_datetime(cls, value):
+        if not value:
+            return value
+        return fix_datetime_timezone(value)
+
 
 class BulkUsersProxy(BaseModel):
     flow: XTLSFlows | None = Field(default=None)
