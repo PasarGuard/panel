@@ -64,7 +64,11 @@ class ClientTemplateOperation(BaseOperation):
                     raise ValueError("User-Agent template content must contain a 'list' field with an array of strings")
                 if not _list:
                     raise ValueError("User-Agent template content must contain at least one User-Agent string")
-            if template_type in (ClientTemplateType.xray_subscription, ClientTemplateType.singbox_subscription):
+            if template_type in (
+                ClientTemplateType.xray_subscription,
+                ClientTemplateType.singbox_subscription,
+                ClientTemplateType.singbox_legacy_subscription,
+            ):
                 if not isinstance(parsed, dict):
                     raise ValueError("Subscription template content must render to a JSON object")
                 if (inb := parsed.get("inbounds")) is None or not isinstance(inb, list):

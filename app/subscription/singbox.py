@@ -15,7 +15,7 @@ from app.utils.helpers import UUIDEncoder
 from . import BaseSubscription
 
 
-class SingBoxConfiguration(BaseSubscription):
+class SingBoxLegacyConfiguration(BaseSubscription):
     def __init__(
         self,
         singbox_template_content: str | None = None,
@@ -107,7 +107,10 @@ class SingBoxConfiguration(BaseSubscription):
         # Build outbound
         outbound = handler(remark=remark, address=address, inbound=inbound, settings=settings)
         if outbound:
-            self.add_outbound(outbound)
+            self._store_protocol_entry(inbound.protocol, outbound)
+
+    def _store_protocol_entry(self, protocol: str, entry: dict) -> None:
+        self.add_outbound(entry)
 
     # ========== Transport Handlers ==========
 
@@ -187,7 +190,7 @@ class SingBoxConfiguration(BaseSubscription):
         }
 
         if config.random_user_agent:
-            transport["headers"]["User-Agent"] = choice(self.user_agent_list)
+            transport["headers"]["User-Agent"] = [choice(self.user_agent_list)]
 
         return self._normalize_and_remove_none_values(transport)
 
@@ -331,12 +334,21 @@ class SingBoxConfiguration(BaseSubscription):
                 "type": "salamander",
                 "password": obfs_password,
             }
-        config["server_ports"] = [quic_params.get("udpHop", {}).get("ports", "")]
-        config["hop_interval"] = (
-            f"{quic_params.get('udpHop', {}).get('hopInterval', '')}s"
-            if quic_params.get("udpHop", {}).get("interval")
-            else None
-        )
+        udp_hop = quic_params.get("udpHop") or {}
+        hop_ports = udp_hop.get("ports")
+        if hop_ports:
+            config["server_ports"] = [hop_ports] if isinstance(hop_ports, str) else hop_ports
+        hop_iv = udp_hop.get("hopInterval") or udp_hop.get("interval")
+        if hop_iv:
+            hop_iv = str(hop_iv).rstrip("s")
+            config["hop_interval"] = f"{hop_iv}s"
+        hop_max = udp_hop.get("hopIntervalMax") or udp_hop.get("hop_interval_max")
+        if hop_max:
+            hop_max = str(hop_max).rstrip("s")
+            config["hop_interval_max"] = f"{hop_max}s"
+        bbr_profile = quic_params.get("bbrProfile") or quic_params.get("bbr_profile")
+        if bbr_profile:
+            config["bbr_profile"] = bbr_profile
         config["brutal_debug"] = quic_params.get("debug", False)
         up = re.search(pattern, str(quic_params.get("brutalUp")))
         down = re.search(pattern, str(quic_params.get("brutalDown")))
@@ -349,10 +361,9 @@ class SingBoxConfiguration(BaseSubscription):
 
         return self._normalize_and_remove_none_values(config)
 
-    def _build_wireguard(
-        self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
+    def _build_wireguard_components(
+        self, address: str, inbound: SubscriptionInboundData, settings: dict
     ) -> dict | None:
-        """Build WireGuard outbound for sing-box subscriptions."""
         private_key = settings.get("private_key", "")
         peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
@@ -373,21 +384,39 @@ class SingBoxConfiguration(BaseSubscription):
             "reserved": reserved,
         }
 
+        return {
+            "selected_port": selected_port,
+            "peer_ips": peer_ips,
+            "private_key": private_key,
+            "public_key": public_key,
+            "pre_shared_key": inbound.wireguard_pre_shared_key or None,
+            "reserved": reserved,
+            "peer": self._normalize_and_remove_none_values(peer),
+        }
+
+    def _build_wireguard(
+        self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
+    ) -> dict | None:
+        """Build WireGuard outbound for legacy sing-box subscriptions."""
+        wireguard_data = self._build_wireguard_components(address=address, inbound=inbound, settings=settings)
+        if not wireguard_data:
+            return None
+
         outbound = {
             "type": "wireguard",
             "tag": remark,
             "server": address,
-            "server_port": selected_port,
+            "server_port": wireguard_data["selected_port"],
             "system_interface": True,
             "gso": True,
             "interface_name": "wg0",
             "mtu": inbound.wireguard_mtu,
-            "local_address": peer_ips,
-            "private_key": private_key,
-            "peer_public_key": public_key,
-            "pre_shared_key": inbound.wireguard_pre_shared_key or None,
-            "reserved": reserved,
-            "peers": [self._normalize_and_remove_none_values(peer)],
+            "local_address": wireguard_data["peer_ips"],
+            "private_key": wireguard_data["private_key"],
+            "peer_public_key": wireguard_data["public_key"],
+            "pre_shared_key": wireguard_data["pre_shared_key"],
+            "reserved": wireguard_data["reserved"],
+            "peers": [wireguard_data["peer"]],
             "workers": 4,
         }
 
@@ -493,3 +522,43 @@ class SingBoxConfiguration(BaseSubscription):
                 return None
 
         return values or None
+
+
+class SingBoxConfiguration(SingBoxLegacyConfiguration):
+    def _store_protocol_entry(self, protocol: str, entry: dict) -> None:
+        if protocol == "wireguard":
+            self.add_endpoint(entry)
+            return
+        super()._store_protocol_entry(protocol, entry)
+
+    def _build_wireguard(
+        self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
+    ) -> dict | None:
+        """Build WireGuard endpoint for sing-box 1.11+ subscriptions."""
+        wireguard_data = self._build_wireguard_components(address=address, inbound=inbound, settings=settings)
+        if not wireguard_data:
+            return None
+
+        peer = wireguard_data["peer"]
+        endpoint_peer = {
+            "address": peer["server"],
+            "port": peer["server_port"],
+            "public_key": peer["public_key"],
+            "pre_shared_key": peer.get("pre_shared_key"),
+            "allowed_ips": peer["allowed_ips"],
+            "persistent_keepalive_interval": peer.get("persistent_keepalive_interval"),
+            "reserved": peer.get("reserved"),
+        }
+
+        endpoint = {
+            "type": "wireguard",
+            "tag": remark,
+            "system": True,
+            "name": "wg0",
+            "mtu": inbound.wireguard_mtu,
+            "address": wireguard_data["peer_ips"],
+            "private_key": wireguard_data["private_key"],
+            "peers": [self._normalize_and_remove_none_values(endpoint_peer)],
+        }
+
+        return self._normalize_and_remove_none_values(endpoint)

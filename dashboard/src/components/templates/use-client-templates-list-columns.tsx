@@ -10,6 +10,7 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   clash_subscription: 'Clash',
   xray_subscription: 'Xray',
   singbox_subscription: 'SingBox',
+  singbox_legacy_subscription: 'SingBox Legacy',
   user_agent: 'User Agent',
   grpc_user_agent: 'gRPC UA',
 }

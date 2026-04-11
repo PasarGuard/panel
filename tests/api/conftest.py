@@ -110,7 +110,7 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
                 {"pattern": "^([Cc]lash|[Ss]tash)", "target": "clash"},
                 {
                     "pattern": "^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\\-b]?ox.*",
-                    "target": "sing_box",
+                    "target": "sing_box_legacy",
                 },
                 {"pattern": "^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)", "target": "outline"},
                 {"pattern": "^v2rayN", "target": "links_base64"},
@@ -126,6 +126,7 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
                 "xray": True,
                 "wireguard": True,
                 "sing_box": True,
+                "sing_box_legacy": True,
                 "clash": True,
                 "clash_meta": True,
                 "outline": True,

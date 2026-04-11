@@ -27,6 +27,7 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   [ClientTemplateType.clash_subscription]: 'Clash Subscription',
   [ClientTemplateType.xray_subscription]: 'Xray Subscription',
   [ClientTemplateType.singbox_subscription]: 'SingBox Subscription',
+  [ClientTemplateType.singbox_legacy_subscription]: 'SingBox Legacy Subscription',
   [ClientTemplateType.user_agent]: 'User Agent',
   [ClientTemplateType.grpc_user_agent]: 'gRPC User Agent',
 }

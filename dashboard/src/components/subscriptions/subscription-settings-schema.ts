@@ -45,7 +45,7 @@ export const subscriptionSchema = z.object({
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),
-      target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
+      target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'sing_box_legacy', 'clash', 'clash_meta', 'outline', 'block']),
       response_headers: z.record(z.string()).optional(),
     }),
   ),
@@ -57,6 +57,7 @@ export const subscriptionSchema = z.object({
       xray: z.boolean().optional(),
       wireguard: z.boolean().optional(),
       sing_box: z.boolean().optional(),
+      sing_box_legacy: z.boolean().optional(),
       clash: z.boolean().optional(),
       clash_meta: z.boolean().optional(),
       outline: z.boolean().optional(),
@@ -80,7 +81,7 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
   },
   {
     pattern: '^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\\-b]?ox.*',
-    target: 'sing_box',
+    target: 'sing_box_legacy',
   },
   {
     pattern: '^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)',

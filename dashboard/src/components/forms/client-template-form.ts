@@ -7,6 +7,7 @@ export const clientTemplateFormSchema = z.object({
     ClientTemplateType.clash_subscription,
     ClientTemplateType.xray_subscription,
     ClientTemplateType.singbox_subscription,
+    ClientTemplateType.singbox_legacy_subscription,
     ClientTemplateType.user_agent,
     ClientTemplateType.grpc_user_agent,
   ]),
@@ -118,6 +119,78 @@ rules:
   ),
 
   [ClientTemplateType.singbox_subscription]: JSON.stringify(
+    {
+      log: {
+        level: 'warn',
+        timestamp: false,
+      },
+      dns: {
+        servers: [
+          {
+            type: 'udp',
+            tag: 'dns-remote',
+            server: '1.1.1.2',
+            detour: 'proxy',
+          },
+          {
+            type: 'local',
+            tag: 'dns-local',
+          },
+        ],
+        final: 'dns-remote',
+      },
+      inbounds: [
+        {
+          type: 'tun',
+          tag: 'tun-in',
+          interface_name: 'sing-tun',
+          address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
+          auto_route: true,
+          route_exclude_address: ['192.168.0.0/16', '10.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', 'fe80::/10', 'fc00::/7'],
+        },
+      ],
+      outbounds: [
+        {
+          type: 'selector',
+          tag: 'proxy',
+          outbounds: null,
+          interrupt_exist_connections: true,
+        },
+        {
+          type: 'urltest',
+          tag: 'Best Latency',
+          outbounds: null,
+        },
+        {
+          type: 'direct',
+          tag: 'direct',
+        },
+      ],
+      route: {
+        rules: [
+          {
+            inbound: 'tun-in',
+            action: 'sniff',
+          },
+          {
+            protocol: 'dns',
+            action: 'hijack-dns',
+          },
+        ],
+        final: 'proxy',
+        auto_detect_interface: true,
+        override_android_vpn: true,
+        default_domain_resolver: 'dns-local',
+      },
+      experimental: {
+        cache_file: { enabled: true, store_rdrc: true },
+      },
+    },
+    null,
+    2,
+  ),
+
+  [ClientTemplateType.singbox_legacy_subscription]: JSON.stringify(
     {
       log: {
         level: 'warn',

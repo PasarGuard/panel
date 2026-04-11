@@ -37,7 +37,7 @@ export interface SubscribeLink {
   icon: React.ComponentType<{ className?: string }>
 }
 
-const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'wireguard']
+const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'sing-box legacy', 'wireguard']
 
 type ActionButtonsModalState = {
   subscribeUrl: string
@@ -335,6 +335,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
         { protocol: 'clash', link: `${subURL}/clash`, icon: Cat },
         { protocol: 'clash-meta', link: `${subURL}/clash_meta`, icon: MihomoIcon },
         { protocol: 'outline', link: `${subURL}/outline`, icon: GlobeLock },
+        { protocol: 'sing-box legacy', link: `${subURL}/sing_box_legacy`, icon: SingboxIcon },
         { protocol: 'sing-box', link: `${subURL}/sing_box`, icon: SingboxIcon },
       ]
       setSubscribeLinks(links)

@@ -54,6 +54,17 @@ def test_client_template_can_switch_default(access_token):
     assert second_after["is_default"] is True
 
 
+def test_client_template_accepts_singbox_legacy_type(access_token):
+    created = create_client_template(
+        access_token,
+        name=unique_name("tmpl_sb_legacy"),
+        template_type="singbox_legacy_subscription",
+        content='{"outbounds": [{"type": "direct", "tag": "a"}],"inbounds":[{"type": "socks5","tag":"b","settings":{"clients":[{"username":"user","password":"pass"}]}}]}',
+    )
+
+    assert created["template_type"] == "singbox_legacy_subscription"
+
+
 def test_client_template_cannot_delete_first_template(access_token):
     response = client.get(
         "/api/client_templates",

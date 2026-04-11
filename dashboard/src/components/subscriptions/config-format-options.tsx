@@ -7,6 +7,7 @@ export const configFormatOptions = [
   { value: 'xray', label: 'settings.subscriptions.configFormats.xray', icon: XrayIcon },
   { value: 'wireguard', label: 'settings.subscriptions.configFormats.wireguard', icon: WireguardIcon },
   { value: 'sing_box', label: 'settings.subscriptions.configFormats.sing_box', icon: SingboxIcon },
+  { value: 'sing_box_legacy', label: 'settings.subscriptions.configFormats.sing_box_legacy', icon: SingboxIcon },
   { value: 'clash', label: 'settings.subscriptions.configFormats.clash', icon: Cat },
   { value: 'clash_meta', label: 'settings.subscriptions.configFormats.clash_meta', icon: MihomoIcon },
   { value: 'outline', label: 'settings.subscriptions.configFormats.outline', icon: GlobeLock },

@@ -19,6 +19,7 @@ from . import (
     ClashMetaConfiguration,
     OutlineConfiguration,
     SingBoxConfiguration,
+    SingBoxLegacyConfiguration,
     StandardLinks,
     WireGuardConfiguration,
     XrayConfiguration,
@@ -43,6 +44,7 @@ def _build_subscription_config(
     StandardLinks
     | XrayConfiguration
     | SingBoxConfiguration
+    | SingBoxLegacyConfiguration
     | ClashConfiguration
     | ClashMetaConfiguration
     | OutlineConfiguration
@@ -69,6 +71,13 @@ def _build_subscription_config(
     if config_format == "sing_box":
         return SingBoxConfiguration(
             singbox_template_content=client_templates["SINGBOX_SUBSCRIPTION_TEMPLATE"],
+            **common_kwargs,
+        )
+    if config_format == "sing_box_legacy":
+        return SingBoxLegacyConfiguration(
+            singbox_template_content=client_templates.get(
+                "SINGBOX_LEGACY_SUBSCRIPTION_TEMPLATE", client_templates["SINGBOX_SUBSCRIPTION_TEMPLATE"]
+            ),
             **common_kwargs,
         )
     if config_format == "outline":
@@ -308,6 +317,7 @@ async def _prepare_download_settings(
     conf: StandardLinks
     | XrayConfiguration
     | SingBoxConfiguration
+    | SingBoxLegacyConfiguration
     | ClashConfiguration
     | ClashMetaConfiguration
     | OutlineConfiguration
@@ -340,6 +350,7 @@ async def process_inbounds_and_tags(
     conf: StandardLinks
     | XrayConfiguration
     | SingBoxConfiguration
+    | SingBoxLegacyConfiguration
     | ClashConfiguration
     | ClashMetaConfiguration
     | OutlineConfiguration

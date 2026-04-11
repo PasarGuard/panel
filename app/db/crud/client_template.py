@@ -12,6 +12,7 @@ TEMPLATE_TYPE_TO_LEGACY_KEY: dict[ClientTemplateType, str] = {
     ClientTemplateType.clash_subscription: "CLASH_SUBSCRIPTION_TEMPLATE",
     ClientTemplateType.xray_subscription: "XRAY_SUBSCRIPTION_TEMPLATE",
     ClientTemplateType.singbox_subscription: "SINGBOX_SUBSCRIPTION_TEMPLATE",
+    ClientTemplateType.singbox_legacy_subscription: "SINGBOX_LEGACY_SUBSCRIPTION_TEMPLATE",
     ClientTemplateType.user_agent: "USER_AGENT_TEMPLATE",
     ClientTemplateType.grpc_user_agent: "GRPC_USER_AGENT_TEMPLATE",
 }
@@ -65,6 +66,13 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
 
         if selected_content:
             values[legacy_key] = selected_content
+
+    new_singbox = values.get("SINGBOX_SUBSCRIPTION_TEMPLATE")
+    legacy_singbox = values.get("SINGBOX_LEGACY_SUBSCRIPTION_TEMPLATE")
+    if new_singbox and not legacy_singbox:
+        values["SINGBOX_LEGACY_SUBSCRIPTION_TEMPLATE"] = new_singbox
+    elif legacy_singbox and not new_singbox:
+        values["SINGBOX_SUBSCRIPTION_TEMPLATE"] = legacy_singbox
 
     return values
 

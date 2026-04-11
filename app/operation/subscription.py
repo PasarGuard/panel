@@ -39,6 +39,12 @@ client_config = {
         "as_base64": False,
         "extension": ".json",
     },
+    ConfigFormat.sing_box_legacy: {
+        "config_format": "sing_box_legacy",
+        "media_type": "application/json",
+        "as_base64": False,
+        "extension": ".json",
+    },
     ConfigFormat.links_base64: {
         "config_format": "links",
         "media_type": "text/plain",

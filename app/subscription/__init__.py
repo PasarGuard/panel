@@ -1,7 +1,7 @@
 from .base import BaseSubscription
 from .links import StandardLinks
 from .xray import XrayConfiguration
-from .singbox import SingBoxConfiguration
+from .singbox import SingBoxConfiguration, SingBoxLegacyConfiguration
 from .outline import OutlineConfiguration
 from .clash import ClashConfiguration, ClashMetaConfiguration
 from .wireguard import WireGuardConfiguration
@@ -11,6 +11,7 @@ __all__ = [
     "XrayConfiguration",
     "StandardLinks",
     "SingBoxConfiguration",
+    "SingBoxLegacyConfiguration",
     "OutlineConfiguration",
     "ClashConfiguration",
     "ClashMetaConfiguration",

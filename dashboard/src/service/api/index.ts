@@ -1183,6 +1183,7 @@ export interface SubFormatEnable {
   xray?: boolean
   wireguard?: boolean
   sing_box?: boolean
+  sing_box_legacy?: boolean
   clash?: boolean
   clash_meta?: boolean
   outline?: boolean
@@ -2179,6 +2180,7 @@ export const ConfigFormat = {
   xray: 'xray',
   wireguard: 'wireguard',
   sing_box: 'sing_box',
+  sing_box_legacy: 'sing_box_legacy',
   clash: 'clash',
   clash_meta: 'clash_meta',
   outline: 'outline',
@@ -2192,6 +2194,7 @@ export const ClientTemplateType = {
   clash_subscription: 'clash_subscription',
   xray_subscription: 'xray_subscription',
   singbox_subscription: 'singbox_subscription',
+  singbox_legacy_subscription: 'singbox_legacy_subscription',
   user_agent: 'user_agent',
   grpc_user_agent: 'grpc_user_agent',
 } as const

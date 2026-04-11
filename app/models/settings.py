@@ -190,6 +190,7 @@ class ConfigFormat(str, Enum):
     xray = "xray"
     wireguard = "wireguard"
     sing_box = "sing_box"
+    sing_box_legacy = "sing_box_legacy"
     clash = "clash"
     clash_meta = "clash_meta"
     outline = "outline"
@@ -208,6 +209,7 @@ class SubFormatEnable(BaseModel):
     xray: bool = Field(default=True)
     wireguard: bool = Field(default=True)
     sing_box: bool = Field(default=True)
+    sing_box_legacy: bool = Field(default=True)
     clash: bool = Field(default=True)
     clash_meta: bool = Field(default=True)
     outline: bool = Field(default=True)

@@ -118,6 +118,25 @@ export function SubscriptionManualFormatsSection({ form }: SubscriptionManualFor
 
         <FormField
           control={form.control}
+          name="manual_sub_request.sing_box_legacy"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
+                  <SingboxIcon className="h-4 w-4" />
+                  {t('settings.subscriptions.formats.singBoxLegacy')}
+                </FormLabel>
+                <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.formats.singBoxLegacyDescription')}</FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="manual_sub_request.clash"
           render={({ field }) => (
             <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
