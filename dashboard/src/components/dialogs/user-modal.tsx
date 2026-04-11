@@ -2150,8 +2150,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                           <FormField
                             control={form.control}
                             name="proxy_settings.hysteria.auth"
-                            render={({ field, formState }) => {
-                              const error = formState.errors.proxy_settings?.hysteria?.auth
+                            render={({ field }) => {
                               return (
                                 <FormItem className="mb-2">
                                   <FormLabel>{t('userDialog.proxySettings.hysteriaAuth')}</FormLabel>
@@ -2178,13 +2177,13 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                           form.trigger('proxy_settings.hysteria.auth')
                                           handleFieldChange('proxy_settings.hysteria.auth', newVal)
                                         }}
-                                        title="Generate UUID"
+                                        title="Generate auth"
                                       >
                                         <RefreshCcw className="h-3 w-3" />
                                       </Button>
                                     </div>
                                   </FormControl>
-                                  <FormMessage>{error?.message === 'Invalid uuid' && t('validation.invalidUuid', { defaultValue: 'Invalid UUID format' })}</FormMessage>
+                                  <FormMessage />
                                 </FormItem>
                               )
                             }}

@@ -21,7 +21,7 @@ export const shadowsocksSettingsSchema = z.object({
   method: shadowsocksMethodsEnum.optional(),
 })
 export const hysteriaSettingsSchema = z.object({
-  auth: z.string().uuid().optional(),
+  auth: z.string().min(1).optional(),
 })
 export const wireguardSettingsSchema = z.object({
   private_key: z.string().nullable().optional(),
