@@ -340,10 +340,12 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
     """
     final_filter = _create_final_filter(bulk_model)
 
+    extra_condition = [User.data_limit.isnot(None), User.data_limit != 0]
+    if bulk_model.amount < 0:
+        extra_condition.append(User.data_limit > bulk_model.amount * -1)
+
     count_effctive_users = (
-        await db.execute(
-            select(func.count(User.id)).where(and_(final_filter, User.data_limit.isnot(None), User.data_limit != 0))
-        )
+        await db.execute(select(func.count(User.id)).where(and_(final_filter, *extra_condition)))
     ).scalar_one_or_none() or 0
 
     # First, get the users that will have status changes BEFORE updating
@@ -374,7 +376,7 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
 
     await db.execute(
         update(User)
-        .where(and_(final_filter, User.data_limit.isnot(None), User.data_limit != 0))
+        .where(and_(final_filter, *extra_condition))
         .values(data_limit=User.data_limit + bulk_model.amount, status=case(*status_cases, else_=User.status))
     )
 
