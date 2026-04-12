@@ -37,7 +37,7 @@
         },
         "remote.localPortHost": "allInterfaces",
         "[javascript]": {
-            "javascript.autoClosingTags": true,
+            "js/ts.autoClosingTags.enabled": true,
             "editor.codeActionsOnSave": {
                 "source.fixAll": "never",
                 "source.fixAll.eslint": "explicit",
@@ -46,6 +46,7 @@
             "editor.defaultFormatter": "esbenp.prettier-vscode"
         },
         "[javascriptreact]": {
+            "js/ts.autoClosingTags.enabled": true,
             "editor.codeActionsOnSave": {
                 "source.fixAll": "never",
                 "source.fixAll.eslint": "explicit",
@@ -54,8 +55,8 @@
             "editor.defaultFormatter": "esbenp.prettier-vscode"
         },
         "[typescript]": {
-            "typescript.autoClosingTags": true,
-            "typescript.suggest.enabled": true,
+            "js/ts.autoClosingTags.enabled": true,
+            "js/ts.suggest.enabled": true,
             "editor.codeActionsOnSave": {
                 "source.fixAll": "never",
                 "source.fixAll.eslint": "explicit",
