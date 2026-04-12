@@ -22,7 +22,7 @@ dependencies = [
     "python-dateutil>=2.8.2",
     "python-decouple>=3.6",
     "python-dotenv>=0.21.1",
-    "python-multipart>=0.0.7",
+    "python-multipart>=0.0.26",
     "qrcode>=8.1",
     "rich>=14.2.0",
     "uvicorn==0.43.0",
