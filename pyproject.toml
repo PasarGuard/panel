@@ -24,7 +24,7 @@ dependencies = [
     "python-dotenv>=0.21.1",
     "python-multipart>=0.0.26",
     "qrcode>=8.1",
-    "rich>=14.2.0",
+    "rich>=15.0.0",
     "uvicorn==0.44.0",
     "sse-starlette>=3.0.3",
     "httpx>=0.28.1",
