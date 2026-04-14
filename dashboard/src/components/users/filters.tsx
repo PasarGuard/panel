@@ -336,7 +336,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
                 <LoaderCircle className="h-2 w-2 animate-spin text-primary-foreground" />
               </div>
             ) : (
-              autoRefreshInterval > 0 && <div className="h-2 w-2 rounded-full bg-primary transition-all duration-200 ease-in-out" />
+              autoRefreshInterval > 0 && <div className="h-2 w-2 rounded-full bg-primary transition-all duration-200 ease-in-out z-50" />
             )}
           </div>
         </Button>
@@ -352,20 +352,20 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
               <ChevronDown className="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel className="flex flex-col gap-0.5 px-1.5 py-1 text-[10px] text-muted-foreground">
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel className="flex flex-col gap-0.5 px-2 py-1.5 text-[11px] text-muted-foreground">
               <span>{t('autoRefresh.label')}</span>
-              <span className="text-[9px]">{t('autoRefresh.currentSelection', { value: currentAutoRefreshDescription })}</span>
+              <span className="text-[10px]">{t('autoRefresh.currentSelection', { value: currentAutoRefreshDescription })}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => void handleRefreshClick()}
               disabled={isRefreshing || isFetching}
-              className={cn('flex items-center gap-1.5 px-1.5 py-1 text-[11px] transition-opacity duration-200', (isRefreshing || isFetching) && 'opacity-70')}
+              className={cn('flex items-center gap-2 px-2 py-1.5 text-xs transition-opacity duration-200', (isRefreshing || isFetching) && 'opacity-70')}
             >
-              <RefreshCw className="h-2.5 w-2.5 flex-shrink-0" />
+              <RefreshCw className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{t('autoRefresh.refreshNow')}</span>
-              {(isRefreshing || isFetching) && <LoaderCircle className="ml-auto h-2.5 w-2.5 animate-spin text-primary" />}
+              {(isRefreshing || isFetching) && <LoaderCircle className="ml-auto h-3 w-3 animate-spin text-primary" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {autoRefreshOptions.map(option => {
@@ -374,10 +374,10 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
                 <DropdownMenuItem
                   key={option.value}
                   onSelect={() => handleAutoRefreshChange(option.value)}
-                  className={cn('flex items-center gap-1.5 whitespace-nowrap px-1.5 py-1 text-[11px]', isActive && 'bg-accent')}
+                  className={cn('flex items-center gap-2 whitespace-nowrap px-2 py-1.5 text-xs', isActive && 'bg-accent')}
                 >
                   <span>{t(option.labelKey)}</span>
-                  {isActive && <Check className="ml-auto h-2.5 w-2.5 flex-shrink-0" />}
+                  {isActive && <Check className="ml-auto h-3 w-3 flex-shrink-0" />}
                 </DropdownMenuItem>
               )
             })}
