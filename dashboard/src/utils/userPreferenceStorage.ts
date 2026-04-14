@@ -7,7 +7,7 @@ const DEFAULT_USERS_AUTO_REFRESH_INTERVAL_SECONDS = 15
 const USERS_SHOW_CREATED_BY_KEY = 'pasarguard-users-show-created-by'
 const DEFAULT_USERS_SHOW_CREATED_BY = true
 const USERS_SHOW_SELECTION_CHECKBOX_KEY = 'pasarguard-users-show-selection-checkbox'
-const DEFAULT_USERS_SHOW_SELECTION_CHECKBOX = false
+const DEFAULT_USERS_SHOW_SELECTION_CHECKBOX = true
 const CHART_VIEW_TYPE_KEY = 'pasarguard-chart-view-type'
 
 export const DATE_PICKER_PREFERENCE_KEY = 'pasarguard-date-picker-preference'

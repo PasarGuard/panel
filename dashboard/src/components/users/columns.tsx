@@ -30,34 +30,47 @@ export const setupColumns = ({
   showSelectionCheckbox: boolean
 }): ColumnDef<UserResponse>[] => [
     ...(showSelectionCheckbox
-      ? [{
-        id: 'select',
-        header: ({ table }: { table: Table<UserResponse> }) => (
-          <div className="flex h-5 items-center justify-center">
-            <Checkbox
-              aria-label={t('selectAll')}
-              className="h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary"
-              checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && 'indeterminate')}
-              onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
-              onClick={e => e.stopPropagation()}
-            />
-          </div>
-        ),
-        cell: ({ row }: { row: Row<UserResponse> }) => (
-          <div className="flex h-5 items-center justify-center">
-            <Checkbox
-              aria-label={t('select')}
-              className="h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary"
-              checked={row.getIsSelected()}
-              onCheckedChange={value => row.toggleSelected(!!value)}
-              onClick={e => e.stopPropagation()}
-            />
-          </div>
-        ),
-        enableSorting: false,
-        enableHiding: false,
-        size: 40,
-      }] : []),
+      ? (() => {
+        const selectionCheckboxClassName =
+          'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 bg-background data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground'
+        const stopSelectionEvent = (event: { stopPropagation: () => void }) => {
+          event.stopPropagation()
+        }
+
+        return [{
+          id: 'select',
+          header: ({ table }: { table: Table<UserResponse> }) => (
+            <div className="flex h-5 items-center justify-center">
+              <Checkbox
+                aria-label={t('selectAll')}
+                className="h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary"
+                checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && 'indeterminate')}
+                onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
+                onClick={stopSelectionEvent}
+                onPointerDown={stopSelectionEvent}
+                onKeyDown={stopSelectionEvent}
+              />
+            </div>
+          ),
+          cell: ({ row }: { row: Row<UserResponse> }) => (
+            <div className="flex h-5 items-center justify-center">
+              <Checkbox
+                aria-label={t('select')}
+                className={selectionCheckboxClassName}
+                checked={row.getIsSelected()}
+                onCheckedChange={value => row.toggleSelected(!!value)}
+                onClick={stopSelectionEvent}
+                onPointerDown={stopSelectionEvent}
+                onKeyDown={stopSelectionEvent}
+              />
+            </div>
+          ),
+          enableSorting: false,
+          enableHiding: false,
+          size: 40,
+        }]
+      })()
+      : []),
     {
       accessorKey: 'username',
       header: () => (

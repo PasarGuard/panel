@@ -6,7 +6,6 @@ import CoreConfigModal from '@/components/dialogs/core-config-modal'
 import { coreConfigFormDefaultValues, coreConfigFormSchema, type CoreConfigFormValues } from '@/components/forms/core-config-form'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { queryClient } from '@/utils/query-client'
@@ -175,7 +174,6 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
           <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
       </div>
-      <ScrollArea dir={dir} className="h-[calc(100vh-8rem)]">
         {(isLoading || filteredCores.length > 0) && (
           <ListGenerator
             data={filteredCores}
@@ -209,7 +207,6 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
             )}
           />
         )}
-      </ScrollArea>
 
       {shouldRenderLocalModal && <CoreConfigModal isDialogOpen={!!isDialogOpen} onOpenChange={handleModalClose} form={form} editingCore={!!editingCore} editingCoreId={editingCore?.id} />}
     </div>

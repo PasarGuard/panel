@@ -12,20 +12,22 @@ function isoToTimestamp(isoString: string): number {
   return Math.floor(new Date(isoString).getTime() / 1000)
 }
 
-export const useRelativeExpiryDate = (expiryDate: string | number | null | undefined) => {
+export const useRelativeExpiryDate = (expiryDate: string | number | null | undefined, referenceStatus?: string | null) => {
   const { t } = useTranslation()
-  const dateInfo = { status: '', time: '' }
+  const dateInfo: { status: '' | 'expires' | 'expired'; time: string } = { status: '', time: '' }
 
   if (!expiryDate) return dateInfo
 
   const target = dateUtils.toDayjs(expiryDate)
   const now = dayjs()
+  const rawDiffSeconds = target.diff(now, 'second', true)
+  const shouldClampExpiredSkew = referenceStatus === 'expired' && rawDiffSeconds > 0 && rawDiffSeconds <= 300
 
-  const isAfter = target.isAfter(now)
-  dateInfo.status = isAfter ? t('expires') : t('expired')
+  const isAfter = shouldClampExpiredSkew ? false : target.isAfter(now)
+  dateInfo.status = isAfter ? 'expires' : 'expired'
 
   // Nearest-unit duration for concise "time left" text.
-  const diffSeconds = Math.abs(target.diff(now, 'second'))
+  const diffSeconds = shouldClampExpiredSkew ? 0 : Math.abs(rawDiffSeconds)
   const daySeconds = 24 * 60 * 60
   const hourSeconds = 60 * 60
   const minuteSeconds = 60

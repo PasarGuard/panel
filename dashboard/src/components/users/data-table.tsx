@@ -167,18 +167,19 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
           {isLoadingData
             ? LoadingState
             : table.getRowModel().rows?.length
-              ? table.getRowModel().rows.map(row => (
+              ? table.getRowModel().rows.map(row => {
+                  const isRowSelected = row.getIsSelected()
+
+                  return (
                   <React.Fragment key={row.id}>
               <TableRow
                 className={cn(
-                  'cursor-pointer border-b md:cursor-default max-md:hover:!bg-inherit',
-                  row.getIsSelected()
-                    ? '!bg-primary/10'
-                    : 'md:hover:!bg-muted/50',
+                  'cursor-pointer border-b md:cursor-default',
+                  
                   expandedRow === row.original.id && 'border-transparent',
                 )}
                       onClick={e => handleEditModal(e, row.original)}
-                      data-state={row.getIsSelected() && 'selected'}
+                      data-state={isRowSelected ? 'selected' : undefined}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell
@@ -190,6 +191,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
                             cell.column.id === 'details' && 'md:whitespace-nowrap',
                             cell.column.id !== 'details' && 'py-1.5',
                             cell.column.id === 'username' && cn('max-w-[calc(100vw-50px-32px-100px-60px)]', hasSelectionColumn && '!px-0'),
+                            cell.column.id === "status" && '!px-0',
                             cell.column.id === 'details' && 'max-w-full !px-1 md:w-[450px]',
                             cell.column.id === 'select' && 'w-8 !px-1',
                             cell.column.id === 'chevron' && 'w-4 !p-0',
@@ -215,14 +217,14 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
                       ))}
                     </TableRow>
                     {expandedRow === row.original.id && (
-                      <TableRow className="border-b hover:!bg-inherit md:hidden">
-                        <TableCell colSpan={columns.length} className="p-0 text-sm">
+                      <TableRow className={cn('border-b md:hidden',  'border-transparent')} data-state={isRowSelected ? 'selected' : undefined}>
+                        <TableCell colSpan={columns.length} className={cn('p-0 text-sm', )}>
                           <ExpandedRowContent row={row} />
                         </TableCell>
                       </TableRow>
                     )}
                   </React.Fragment>
-                ))
+                )})
               : EmptyState}
         </TableBody>
       </Table>

@@ -179,6 +179,7 @@ const Sidebar = React.forwardRef<
   }
 >(({ side = 'left', variant = 'sidebar', collapsible = 'offcanvas', className, children, ...props }, ref) => {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const mobileContentRef = React.useRef<HTMLDivElement>(null)
 
   if (collapsible === 'none') {
     return (
@@ -192,9 +193,14 @@ const Sidebar = React.forwardRef<
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetContent
+          ref={mobileContentRef}
           data-sidebar="sidebar"
           data-mobile="true"
-          className="w-[--sidebar-width] max-w-[90vw] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden top-0 h-[100svh] before:absolute before:inset-x-0 before:top-0 before:h-[env(safe-area-inset-top)] before:bg-sidebar before:content-['']"
+          tabIndex={-1}
+          className="top-0 h-[100dvh] max-h-[100dvh] w-[--sidebar-width] max-w-[90vw] bg-sidebar p-0 text-sidebar-foreground outline-none focus:outline-none [&>button]:hidden before:absolute before:inset-x-0 before:top-0 before:h-[env(safe-area-inset-top)] before:bg-sidebar before:content-['']"
+          onOpenAutoFocus={event => {
+            event.preventDefault()
+          }}
           style={
             {
               '--sidebar-width': SIDEBAR_WIDTH_MOBILE,

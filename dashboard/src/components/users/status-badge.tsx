@@ -32,7 +32,7 @@ export const StatusBadge: FC<UserStatusProps> = ({ expiryDate = null, status: us
   }
   const unixTime = convertDateFormat(expiryDate)
 
-  const dateInfo = useRelativeExpiryDate(unixTime)
+  const dateInfo = useRelativeExpiryDate(unixTime, userStatus)
   const StatusIcon = statusColors[userStatus]?.icon
 
   if (showOnlyExpiry) {

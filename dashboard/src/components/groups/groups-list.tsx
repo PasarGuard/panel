@@ -6,7 +6,6 @@ import GroupModal from '@/components/dialogs/group-modal'
 import { groupFormDefaultValues, groupFormSchema, type GroupFormValues } from '@/components/forms/group-form'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { queryClient } from '@/utils/query-client'
@@ -150,32 +149,30 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
         </Card>
       )}
       {(isCurrentlyLoading || (!isEmpty && !isSearchEmpty)) && (
-        <ScrollArea dir={dir} className="h-[calc(100vh-8rem)]">
-          <ListGenerator
-            data={filteredGroups || []}
-            columns={listColumns}
-            getRowId={group => group.id}
-            isLoading={isCurrentlyLoading}
-            loadingRows={6}
-            className="gap-3"
-            onRowClick={handleEdit}
-            mode={viewMode}
-            showEmptyState={false}
-            renderGridItem={group => <Group group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />}
-            renderGridSkeleton={i => (
-              <Card key={i} className="px-4 py-5">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-5 w-24 sm:w-32" />
-                    <Skeleton className="h-4 w-20 sm:w-24" />
-                  </div>
-                  <Skeleton className="h-8 w-8 shrink-0" />
+        <ListGenerator
+          data={filteredGroups || []}
+          columns={listColumns}
+          getRowId={group => group.id}
+          isLoading={isCurrentlyLoading}
+          loadingRows={6}
+          className="gap-3"
+          onRowClick={handleEdit}
+          mode={viewMode}
+          showEmptyState={false}
+          renderGridItem={group => <Group group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />}
+          renderGridSkeleton={i => (
+            <Card key={i} className="px-4 py-5">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-5 w-24 sm:w-32" />
+                  <Skeleton className="h-4 w-20 sm:w-24" />
                 </div>
-              </Card>
-            )}
-          />
-        </ScrollArea>
+                <Skeleton className="h-8 w-8 shrink-0" />
+              </div>
+            </Card>
+          )}
+        />
       )}
 
       <GroupModal
