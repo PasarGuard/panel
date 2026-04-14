@@ -113,21 +113,21 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
           <DropdownMenuItem
             onSelect={e => {
               e.stopPropagation()
-              onToggleStatus(template)
-            }}
-          >
-            <Power className="h-4 w-4" />
-            {template.is_disabled ? t('enable') : t('disable')}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
               onEdit(template)
             }}
           >
             <Pen className="h-4 w-4" />
             <span>{t('edit')}</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={e => {
+              e.stopPropagation()
+              onToggleStatus(template)
+            }}
+          >
+            <Power className="h-4 w-4" />
+            {template.is_disabled ? t('enable') : t('disable')}
           </DropdownMenuItem>
           <DropdownMenuItem
             dir={dir}
