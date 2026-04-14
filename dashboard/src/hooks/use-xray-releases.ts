@@ -73,11 +73,12 @@ async function fetchXrayReleases(): Promise<Release[]> {
 
     const data = await response.json()
     const releases: Release[] = data
+      .filter((release: any) => !release.prerelease && !release.draft)
       .map((release: any) => ({
         version: release.tag_name?.replace(/^v/, '') || '',
         url: release.html_url || '',
       }))
-      .filter((r: Release) => r.version)
+      .filter((r: Release) => r.version);
 
     if (releases.length > 0) setCache(releases)
     return releases
