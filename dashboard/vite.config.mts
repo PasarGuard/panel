@@ -148,6 +148,9 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Monaco is loaded lazily in editor dialogs, so its largest chunks
+        // should stay network-fetched instead of bloating the app shell precache.
+        globIgnores: ['statics/editor.api*.js', 'statics/ts.worker*.js'],
         skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [
