@@ -19,7 +19,7 @@ import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-const MonacoEditor = lazy(() => import('@monaco-editor/react'))
+const MonacoEditor = lazy(() => import('@/components/common/monaco-editor'))
 const MobileJsonAceEditor = lazy(() => import('@/components/common/mobile-json-ace-editor'))
 const MobileYamlAceEditor = lazy(() => import('@/components/common/mobile-yaml-ace-editor'))
 

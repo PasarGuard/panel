@@ -21,6 +21,7 @@ import {
   PeriodOption,
   toChartQueryEndDate,
 } from '@/utils/chart-period-utils'
+import useDirDetection from '@/hooks/use-dir-detection'
 
 type DataPoint = {
   time: string
@@ -76,7 +77,7 @@ const isNodeRealtimeStats = (stats: SystemStats | NodeRealtimeStats): stats is N
 export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCostumeChartProps) {
   const { t, i18n } = useTranslation()
   const { resolvedTheme } = useTheme()
-
+  const dir = useDirDetection()
   const [realtimeHistory, setRealtimeHistory] = useState<DataPoint[]>([])
   const [realtimeError, setRealtimeError] = useState<Error | null>(null)
   const [viewMode, setViewMode] = useState<'realtime' | 'historical'>('realtime')
@@ -309,10 +310,10 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
                 }
               }}
             >
-              <SelectTrigger className="h-9 w-full text-xs sm:w-32">
+              <SelectTrigger className="h-9 w-full text-xs sm:w-32" dir={dir}>
                 <SelectValue>{periodOption.label}</SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent dir={dir}>
                 {PERIOD_OPTIONS.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}

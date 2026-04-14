@@ -1,7 +1,7 @@
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { useGetSystemStats } from '@/service/api'
-import { Users, Wifi } from 'lucide-react'
+import { UserCheck, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardTitle } from '@/components/ui/card'
@@ -73,7 +73,7 @@ const UsersStatistics = () => {
             />
             <CardTitle className="relative z-10 flex min-w-0 items-center justify-between gap-x-4 overflow-hidden">
               <div className="flex min-w-0 flex-1 items-center gap-x-4 overflow-hidden min-h-8">
-                <Wifi className="h-5 w-5 shrink-0" />
+                <UserCheck className="h-5 w-5 shrink-0" />
                 <span>{t('statistics.activeUsers')}</span>
               </div>
               <span className={cn('mx-2 shrink-0 text-3xl transition-all duration-500', isIncreased.active_users ? 'animate-zoom-out' : '')} style={{ animationDuration: '400ms' }}>

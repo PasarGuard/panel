@@ -146,7 +146,7 @@ const createWireGuardCoreConfigJson = (keyPair: { privateKey: string; publicKey:
     2,
   )
 
-const MonacoEditor = lazy(() => import('@monaco-editor/react'))
+const MonacoEditor = lazy(() => import('@/components/common/monaco-editor'))
 const MobileJsonAceEditor = lazy(() => import('@/components/common/mobile-json-ace-editor'))
 
 export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, editingCore, editingCoreId }: CoreConfigModalProps) {
