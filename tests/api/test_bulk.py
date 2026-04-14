@@ -1,12 +1,18 @@
+import asyncio
 from datetime import datetime as dt, timedelta as td, timezone as tz
 
 from fastapi import status
+from sqlalchemy import select
 
+from app.db.models import User
+from tests.api import TestSession
 from tests.api import client
 from tests.api.helpers import (
+    create_admin,
     create_core,
     create_group,
     create_user,
+    delete_admin,
     delete_core,
     delete_group,
     delete_user,
@@ -26,6 +32,27 @@ def cleanup(access_token: str, core: dict, groups: list[dict], users: list[dict]
     for group in groups:
         delete_group(access_token, group["id"])
     delete_core(access_token, core["id"])
+
+
+def set_user_used_traffic(username: str, used_traffic: int) -> None:
+    async def _set_usage():
+        async with TestSession() as session:
+            result = await session.execute(select(User).where(User.username == username))
+            db_user = result.scalar_one()
+            db_user.used_traffic = used_traffic
+            await session.commit()
+
+    asyncio.run(_set_usage())
+
+
+def get_user_sub_revoked_at(username: str):
+    async def _get_revoked_at():
+        async with TestSession() as session:
+            result = await session.execute(select(User).where(User.username == username))
+            db_user = result.scalar_one()
+            return db_user.sub_revoked_at
+
+    return asyncio.run(_get_revoked_at())
 
 
 def test_add_groups_to_users(access_token):
@@ -252,6 +279,105 @@ def test_bulk_expire_dry_run(access_token):
     data = response.json()
     assert data["dry_run"] is True
     assert "affected_users" in data
+
+
+def test_bulk_delete_users_by_ids(access_token):
+    core, groups = setup_groups(access_token, 1)
+    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_delete")}) for _ in range(2)]
+    try:
+        response = client.post(
+            "/api/users/bulk/delete",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [user["id"] for user in users]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == len(users)
+
+        lookup = client.get(
+            "/api/users",
+            params={"username": [user["username"] for user in users]},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert lookup.status_code == status.HTTP_200_OK
+        assert lookup.json()["users"] == []
+    finally:
+        cleanup(access_token, core, groups, [])
+
+
+def test_bulk_reset_users_usage_by_ids(access_token):
+    core, groups = setup_groups(access_token, 1)
+    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_reset")}) for _ in range(2)]
+    try:
+        for index, user in enumerate(users, start=1):
+            set_user_used_traffic(user["username"], index * 1024)
+
+        response = client.post(
+            "/api/users/bulk/reset",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [user["id"] for user in users]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == len(users)
+
+        for user in users:
+            user_response = client.get(
+                f"/api/user/{user['username']}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["used_traffic"] == 0
+    finally:
+        cleanup(access_token, core, groups, users)
+
+
+def test_bulk_revoke_users_subscription_by_ids(access_token):
+    core, groups = setup_groups(access_token, 1)
+    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_revoke")}) for _ in range(2)]
+    try:
+        response = client.post(
+            "/api/users/bulk/revoke_sub",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [user["id"] for user in users]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == len(users)
+        for user in users:
+            assert get_user_sub_revoked_at(user["username"]) is not None
+    finally:
+        cleanup(access_token, core, groups, users)
+
+
+def test_bulk_set_owner_by_ids(access_token):
+    core, groups = setup_groups(access_token, 1)
+    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_owner")}) for _ in range(2)]
+    new_owner = create_admin(access_token, is_sudo=False)
+    try:
+        response = client.put(
+            "/api/users/bulk/set_owner",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [user["id"] for user in users], "admin_username": new_owner["username"]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == len(users)
+
+        for user in users:
+            user_response = client.get(
+                f"/api/user/{user['username']}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["admin"]["username"] == new_owner["username"]
+    finally:
+        cleanup(access_token, core, groups, users)
+        delete_admin(access_token, new_owner["username"])
 
 
 def test_bulk_wireguard_reallocate_peer_ips_accepts_status_filter(access_token):

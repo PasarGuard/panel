@@ -190,6 +190,29 @@ class RemoveUsersResponse(BaseModel):
     count: int
 
 
+class BulkUsersActionResponse(BaseModel):
+    users: list[str]
+    count: int
+
+
+class BulkUsersSelection(BaseModel):
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(v, "user")
+
+
+class BulkUsersSetOwner(BulkUsersSelection):
+    admin_username: str
+
+    @field_validator("admin_username", check_fields=False)
+    @classmethod
+    def validate_admin_username(cls, v):
+        return UserValidator.validate_username(v)
+
+
 class ModifyUserByTemplate(BaseModel):
     user_template_id: int
     note: str | None = Field(max_length=500, default=None)

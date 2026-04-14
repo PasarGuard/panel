@@ -23,10 +23,10 @@ const UsageSliderCompact: React.FC<UsageSliderProps> = ({ used, total = 0, statu
     <div className={cn('flex w-full flex-col justify-between gap-y-1 text-left text-xs font-medium text-muted-foreground', isRTL ? 'md:text-end' : 'md:text-start')}>
       <Progress indicatorClassName={color} value={progressValue} className={cn(isMobile ? 'block' : 'hidden md:block')} />
       <div className="flex w-full items-center justify-between">
-        <span className={isMobile ? 'hidden' : 'w-full'} dir="ltr">
+        <span className={cn(isMobile ? 'hidden' : 'w-full', 'leading-tight')} dir="ltr">
           {formatBytes(used)} / {isUnlimited ? <span className="font-system-ui">∞</span> : formatBytes(total)}
         </span>
-        <div className={cn(isMobile ? 'block' : 'hidden md:block')}>
+        <div className={cn(isMobile ? 'block' : 'hidden md:block', 'leading-tight')}>
           <span>{t('usersTable.total')}:</span> <span dir="ltr">{formatBytes(totalUsedTraffic || 0)}</span>
         </div>
       </div>

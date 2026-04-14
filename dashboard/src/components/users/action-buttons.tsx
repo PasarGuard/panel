@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Cat, Check, Copy, Cpu, EllipsisVertical, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
+import { Cat, Check, Copy, Cpu, EllipsisVertical, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
 import { Code } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -704,7 +704,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               {/* Set Owner: only for sudo admins */}
               {currentAdmin?.is_sudo && (
                 <DropdownMenuItem onSelect={handleSetOwner}>
-                  <User className="mr-2 h-4 w-4" />
+                  <UserCog className="mr-2 h-4 w-4" />
                   <span>{t('setOwnerModal.title')}</span>
                 </DropdownMenuItem>
               )}

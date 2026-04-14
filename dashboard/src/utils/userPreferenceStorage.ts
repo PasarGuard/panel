@@ -6,6 +6,8 @@ const USERS_AUTO_REFRESH_INTERVAL_KEY = 'pasarguard-users-auto-refresh-interval'
 const DEFAULT_USERS_AUTO_REFRESH_INTERVAL_SECONDS = 15
 const USERS_SHOW_CREATED_BY_KEY = 'pasarguard-users-show-created-by'
 const DEFAULT_USERS_SHOW_CREATED_BY = true
+const USERS_SHOW_SELECTION_CHECKBOX_KEY = 'pasarguard-users-show-selection-checkbox'
+const DEFAULT_USERS_SHOW_SELECTION_CHECKBOX = false
 const CHART_VIEW_TYPE_KEY = 'pasarguard-chart-view-type'
 
 export const DATE_PICKER_PREFERENCE_KEY = 'pasarguard-date-picker-preference'
@@ -56,6 +58,18 @@ export const getUsersShowCreatedBy = () => {
 export const setUsersShowCreatedBy = (value: boolean) => {
   if (typeof localStorage === 'undefined') return
   localStorage.setItem(USERS_SHOW_CREATED_BY_KEY, value ? 'true' : 'false')
+}
+
+export const getUsersShowSelectionCheckbox = () => {
+  if (typeof localStorage === 'undefined') return DEFAULT_USERS_SHOW_SELECTION_CHECKBOX
+  const storedValue = localStorage.getItem(USERS_SHOW_SELECTION_CHECKBOX_KEY)
+  if (storedValue === null) return DEFAULT_USERS_SHOW_SELECTION_CHECKBOX
+  return storedValue === 'true'
+}
+
+export const setUsersShowSelectionCheckbox = (value: boolean) => {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(USERS_SHOW_SELECTION_CHECKBOX_KEY, value ? 'true' : 'false')
 }
 
 export const getDatePickerPreference = (): DatePickerPreference => {

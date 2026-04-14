@@ -1932,8 +1932,24 @@
     "selectAdmin": "Select new owner",
     "confirm": "Set Owner",
     "success": "User {{username}}'s owner changed to {{admin}} successfully.",
+    "bulkDescription": "Select a new owner for {{count}} selected users.",
+    "bulkSuccess": "Owner for {{count}} users changed to {{admin}} successfully.",
     "error": "Failed to change owner of user {{username}} to {{admin}}.",
     "loadError": "Failed to load admins."
+  },
+  "bulkUserActions": {
+    "deleteTitle": "Delete Selected Users",
+    "deletePrompt": "Are you sure you want to delete {{count}} selected users? This action cannot be undone.",
+    "deleteSuccess": "{{count}} users deleted successfully.",
+    "deleteError": "Failed to delete selected users.",
+    "resetTitle": "Reset Selected Users Usage",
+    "resetPrompt": "Are you sure you want to reset usage for {{count}} selected users?",
+    "resetSuccess": "Usage reset for {{count}} users.",
+    "resetError": "Failed to reset usage for selected users.",
+    "revokeTitle": "Revoke Selected Users Subscription",
+    "revokePrompt": "Are you sure you want to revoke subscriptions for {{count}} selected users?",
+    "revokeSuccess": "Subscriptions revoked for {{count}} users.",
+    "revokeError": "Failed to revoke subscriptions for selected users."
   },
   "bulk": {
     "title": "Bulk",
@@ -2096,6 +2112,7 @@
     "byUsername": "Username and Notes",
     "byProtocol": "Protocol Data",
     "showCreatedBy": "Show created by",
+    "showSelectionCheckbox": "Show selection checkbox",
     "byStatus": "Status",
     "byAdmin": "Admin",
     "byGroup": "Group",

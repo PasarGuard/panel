@@ -24,6 +24,9 @@ from app.db.crud.bulk import (
 from app.db.crud.user import (
     UsersSortingOptions,
     UsersSortingOptionsSimple,
+    bulk_reset_user_data_usage,
+    bulk_revoke_user_sub,
+    bulk_set_owner,
     create_user,
     create_users_bulk,
     get_all_users_usages,
@@ -49,9 +52,12 @@ from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
     BulkOperationDryRunResponse,
     BulkUser,
+    BulkUsersActionResponse,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
+    BulkUsersSelection,
+    BulkUsersSetOwner,
     BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ModifyUserByTemplate,
@@ -350,6 +356,52 @@ class UserOperation(BaseOperation):
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
         return {}
 
+    async def _get_validated_users_by_ids(
+        self,
+        db: AsyncSession,
+        user_ids: list[int] | set[int],
+        admin: AdminDetails,
+        *,
+        load_admin: bool = True,
+        load_next_plan: bool = True,
+        load_usage_logs: bool = True,
+        load_groups: bool = True,
+    ) -> list[User]:
+        users: list[User] = []
+        for user_id in user_ids:
+            users.append(
+                await self.get_validated_user_by_id(
+                    db,
+                    user_id,
+                    admin,
+                    load_admin=load_admin,
+                    load_next_plan=load_next_plan,
+                    load_usage_logs=load_usage_logs,
+                    load_groups=load_groups,
+                )
+            )
+        return users
+
+    @staticmethod
+    def _build_bulk_action_response(users: list[User | UserNotificationResponse]) -> BulkUsersActionResponse:
+        usernames = [user.username for user in users]
+        return BulkUsersActionResponse(users=usernames, count=len(usernames))
+
+    async def bulk_remove_users(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> RemoveUsersResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin)
+        users = [await self.validate_user(db_user, include_subscription_url=False) for db_user in db_users]
+
+        await remove_users(db, db_users)
+
+        for user in users:
+            await sync_remove_user(user)
+            asyncio.create_task(notification.remove_user(user, admin))
+            logger.info(f'User "{user.username}" with id "{user.id}" deleted by admin "{admin.username}"')
+
+        return RemoveUsersResponse(users=[user.username for user in users], count=len(users))
+
     async def _reset_user_data_usage(
         self,
         db: AsyncSession,
@@ -377,6 +429,24 @@ class UserOperation(BaseOperation):
 
         return await self._reset_user_data_usage(db, db_user, admin)
 
+    async def bulk_reset_user_data_usage(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        old_statuses = {user.id: user.status for user in db_users}
+
+        db_users = await bulk_reset_user_data_usage(db, db_users)
+        await sync_users(db_users)
+
+        users = [await self.validate_user(db_user) for db_user in db_users]
+        for user in users:
+            if user.status != old_statuses[user.id]:
+                asyncio.create_task(notification.user_status_change(user, admin))
+            asyncio.create_task(notification.reset_user_data_usage(user, admin))
+            logger.info(f'User "{user.username}" usage was reset by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(users)
+
     async def revoke_user_sub(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
 
@@ -388,6 +458,21 @@ class UserOperation(BaseOperation):
         logger.info(f'User "{db_user.username}" subscription was revoked by admin "{admin.username}"')
 
         return user
+
+    async def bulk_revoke_user_sub(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+
+        db_users = await bulk_revoke_user_sub(db, db_users)
+        await sync_users(db_users)
+
+        users = [await self.validate_user(db_user) for db_user in db_users]
+        for user in users:
+            asyncio.create_task(notification.user_subscription_revoked(user, admin))
+            logger.info(f'User "{user.username}" subscription was revoked by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(users)
 
     async def reset_users_data_usage(self, db: AsyncSession, admin: AdminDetails):
         """Reset all users data usage"""
@@ -428,6 +513,19 @@ class UserOperation(BaseOperation):
         logger.info(f'{user.username}"owner successfully set to{new_admin.username} by admin "{admin.username}"')
 
         return user
+
+    async def bulk_set_owner(
+        self, db: AsyncSession, bulk_users: BulkUsersSetOwner, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        new_admin = await self.get_validated_admin(db, username=bulk_users.admin_username)
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+
+        db_users = await bulk_set_owner(db, db_users, new_admin)
+        users = [await self.validate_user(db_user) for db_user in db_users]
+        for user in users:
+            logger.info(f'User "{user.username}" owner successfully set to "{new_admin.username}" by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(users)
 
     async def get_user_usage(
         self,

@@ -9,9 +9,12 @@ from app.models.admin import AdminDetails
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
     BulkUser,
+    BulkUsersActionResponse,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
+    BulkUsersSelection,
+    BulkUsersSetOwner,
     BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ModifyUserByTemplate,
@@ -347,6 +350,62 @@ async def delete_expired_users(
     return await user_operator.delete_expired_users(
         db, admin, expired_after, expired_before, admin_username=admin_username, target=target
     )
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveUsersResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_users(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Delete selected users by ID."""
+    return await user_operator.bulk_remove_users(db, bulk_users, admin)
+
+
+@router.post(
+    "s/bulk/reset",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_reset_users_data_usage(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Reset usage for selected users by ID."""
+    return await user_operator.bulk_reset_user_data_usage(db, bulk_users, admin)
+
+
+@router.post(
+    "s/bulk/revoke_sub",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_revoke_users_subscription(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Revoke subscriptions for selected users by ID."""
+    return await user_operator.bulk_revoke_user_sub(db, bulk_users, admin)
+
+
+@router.put(
+    "s/bulk/set_owner",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_set_owner(
+    bulk_users: BulkUsersSetOwner,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Set a new owner for selected users by ID."""
+    return await user_operator.bulk_set_owner(db, bulk_users, admin)
 
 
 @router.post("/from_template", status_code=status.HTTP_201_CREATED, response_model=UserResponse)

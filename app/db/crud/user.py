@@ -960,6 +960,16 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
     return users
 
 
+def _build_revoked_proxy_settings(db_user: User) -> dict:
+    proxy_settings = ProxyTable()
+    proxy_settings.vless.flow = db_user.proxy_settings.get("vless", {}).get("flow", "")
+    proxy_settings.shadowsocks.method = db_user.proxy_settings.get("shadowsocks", {}).get(
+        "method", "chacha20-ietf-poly1305"
+    )
+    proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
+    return proxy_settings.dict()
+
+
 async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     """
     Resets the data usage of a user based on next user.
@@ -1034,16 +1044,32 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
         User: The updated user object.
     """
     db_user.sub_revoked_at = datetime.now(timezone.utc)
-    proxy_settings = ProxyTable()
-    proxy_settings.vless.flow = db_user.proxy_settings.get("vless", {}).get("flow", "")
-    proxy_settings.shadowsocks.method = db_user.proxy_settings.get("shadowsocks", {}).get(
-        "method", "chacha20-ietf-poly1305"
-    )
-    proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
-    db_user.proxy_settings = proxy_settings.dict()
+    db_user.proxy_settings = _build_revoked_proxy_settings(db_user)
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user
+
+
+async def bulk_revoke_user_sub(db: AsyncSession, users: list[User]) -> list[User]:
+    """
+    Revoke subscriptions for multiple users in a single transaction.
+
+    Args:
+        db (AsyncSession): Database session.
+        users (list[User]): Users whose subscriptions should be revoked.
+
+    Returns:
+        list[User]: The refreshed users.
+    """
+    revoked_at = datetime.now(timezone.utc)
+    for user in users:
+        user.sub_revoked_at = revoked_at
+        user.proxy_settings = _build_revoked_proxy_settings(user)
+
+    await db.commit()
+    for user in users:
+        await refresh_and_load_user(db, user)
+    return users
 
 
 async def user_sub_update(db: AsyncSession, user_id: User, user_agent: str) -> User:
@@ -1280,6 +1306,27 @@ async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user
+
+
+async def bulk_set_owner(db: AsyncSession, users: list[User], admin: Admin) -> list[User]:
+    """
+    Set the same owner for multiple users in a single transaction.
+
+    Args:
+        db (AsyncSession): Database session.
+        users (list[User]): Users to update.
+        admin (Admin): Admin that should become the owner.
+
+    Returns:
+        list[User]: The refreshed users.
+    """
+    for user in users:
+        user.admin = admin
+
+    await db.commit()
+    for user in users:
+        await refresh_and_load_user(db, user)
+    return users
 
 
 async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:

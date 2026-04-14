@@ -19,10 +19,11 @@ interface AdvanceSearchModalProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
   form: UseFormReturn<AdvanceSearchFormValue>
-  onSubmit: (values: AdvanceSearchFormValue) => void
+  onSubmit: (values: AdvanceSearchFormValue) => void | Promise<void>
   isSudo?: boolean
+  isApplying?: boolean
 }
-export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, onSubmit, isSudo }: AdvanceSearchModalProps) {
+export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, onSubmit, isSudo, isApplying = false }: AdvanceSearchModalProps) {
   const dir = useDirDetection()
   const { t } = useTranslation()
 
@@ -115,6 +116,26 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                     }}
                   />
                 )}
+                <FormField
+                  control={form.control}
+                  name="show_selection_checkbox"
+                  render={({ field }) => {
+                    return (
+                      <FormItem className="flex w-full flex-1 items-center justify-between">
+                        <FormLabel>{t('advanceSearch.showSelectionCheckbox', { defaultValue: 'Show selection checkbox' })}</FormLabel>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={checked => {
+                              field.onChange(checked)
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
                 <FormField
                   control={form.control}
                   name="group"
@@ -235,14 +256,10 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isApplying}>
                 {t('cancel')}
               </Button>
-              <LoaderButton
-                type="submit"
-                // isLoading={addAdminMutation.isPending || modifyAdminMutation.isPending}
-                // loadingText={editingAdmin ? t('modifying') : t('creating')}
-              >
+              <LoaderButton type="submit" isLoading={isApplying} loadingText={t('applying')}>
                 {t('apply')}
               </LoaderButton>
             </div>
@@ -252,4 +269,3 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
     </Dialog>
   )
 }
-

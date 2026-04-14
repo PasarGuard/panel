@@ -4,19 +4,21 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, UserCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSetOwner, UserResponse } from '@/service/api'
+import { useSetOwner, useSetUsersOwnerByIds, UserResponse } from '@/service/api'
 import { toast } from 'sonner'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
 
 interface SetOwnerModalProps {
   open: boolean
   onClose: () => void
-  username: string
+  username?: string
+  userIds?: number[]
+  selectedCount?: number
   currentOwner?: string | null
   onSuccess?: (user?: UserResponse) => void
 }
 
-export default function SetOwnerModal({ open, onClose, username, currentOwner, onSuccess }: SetOwnerModalProps) {
+export default function SetOwnerModal({ open, onClose, username, userIds, selectedCount, currentOwner, onSuccess }: SetOwnerModalProps) {
   const { t } = useTranslation()
   const [selectedAdmin, setSelectedAdmin] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -24,6 +26,8 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
   const [admins, setAdmins] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isError, setIsError] = useState(false)
+  const isBulkMode = Boolean(userIds?.length)
+  const bulkCount = selectedCount ?? userIds?.length ?? 0
   const setOwnerMutation = useSetOwner({
     mutation: {
       onSuccess: (updatedUser) => {
@@ -33,6 +37,7 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
       },
     },
   })
+  const bulkSetOwnerMutation = useSetUsersOwnerByIds()
   const handleDynamicError = useDynamicErrorHandler()
 
   useEffect(() => {
@@ -70,8 +75,19 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
     if (!selectedAdmin) return
     setSubmitting(true)
     try {
-      await setOwnerMutation.mutateAsync({ username, params: { admin_username: selectedAdmin } })
-      toast.success(t('setOwnerModal.success', { username, admin: selectedAdmin }))
+      if (isBulkMode) {
+        await bulkSetOwnerMutation.mutateAsync({
+          data: {
+            ids: userIds ?? [],
+            admin_username: selectedAdmin,
+          },
+        })
+        toast.success(t('setOwnerModal.bulkSuccess', { count: bulkCount, admin: selectedAdmin }))
+        onSuccess?.()
+      } else if (username) {
+        await setOwnerMutation.mutateAsync({ username, params: { admin_username: selectedAdmin } })
+        toast.success(t('setOwnerModal.success', { username, admin: selectedAdmin }))
+      }
       onClose()
     } catch (error: any) {
       handleDynamicError({
@@ -96,10 +112,19 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
         </DialogHeader>
         <div className="mt-2 flex flex-col gap-4">
           <div>
-            <div className="mb-3 text-sm text-muted-foreground">
-              {t('setOwnerModal.currentOwner', { defaultValue: 'Current owner:' })}
-              <span className="ml-4 font-bold">{currentOwner || t('setOwnerModal.none', { defaultValue: 'None' })}</span>
-            </div>
+            {isBulkMode ? (
+              <div className="mb-3 text-sm text-muted-foreground">
+                {t('setOwnerModal.bulkDescription', {
+                  defaultValue: 'Select a new owner for {{count}} selected users.',
+                  count: bulkCount,
+                })}
+              </div>
+            ) : (
+              <div className="mb-3 text-sm text-muted-foreground">
+                {t('setOwnerModal.currentOwner', { defaultValue: 'Current owner:' })}
+                <span className="ml-4 font-bold">{currentOwner || t('setOwnerModal.none', { defaultValue: 'None' })}</span>
+              </div>
+            )}
             {isLoading ? (
               <div className="flex items-center justify-center p-2">
                 <Loader2 className="animate-spin" />
@@ -120,9 +145,7 @@ export default function SetOwnerModal({ open, onClose, username, currentOwner, o
                 </SelectContent>
               </Select>
             ) : (
-              <Button type="button" onClick={() => setFetchAdmins(true)} className="w-full">
-                {t('setOwnerModal.loadAdmins', { defaultValue: 'Load Admins' })}
-              </Button>
+              <div className="p-2 text-sm text-muted-foreground">{t('noAdminsFound')}</div>
             )}
           </div>
           <div className="mt-4 flex justify-end gap-2">

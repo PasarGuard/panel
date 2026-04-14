@@ -1,5 +1,5 @@
-import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import React, { useState, useCallback, useMemo, memo } from 'react'
+import { ColumnDef, RowSelectionState, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import React, { useState, useCallback, useMemo, memo, useEffect } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,8 @@ interface DataTableProps<TData extends UserResponse, TValue> {
   isLoading?: boolean
   isFetching?: boolean
   onEdit?: (user: UserResponse) => void
+  onSelectionChange?: (selectedIds: number[]) => void
+  resetSelectionKey?: number
 }
 
 const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) => (
@@ -42,13 +44,29 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
   </div>
 ))
 
-export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, onEdit }: DataTableProps<TData, TValue>) => {
+export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, onEdit, onSelectionChange, resetSelectionKey = 0 }: DataTableProps<TData, TValue>) => {
   const { t } = useTranslation()
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
   /** CSS :hover can stick after closing portaled menus; drive md+ row bg with pointer events instead. */
-  const [hoveredRowId, setHoveredRowId] = useState<number | null>(null)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const dir = useDirDetection()
   const isRTL = dir === 'rtl'
+  const hasSelectionColumn = useMemo(() => columns.some(column => column.id === 'select'), [columns])
+
+  const handleRowSelectionChange = useCallback(
+    (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+      setRowSelection(prev => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        onSelectionChange?.(
+          Object.entries(next)
+            .filter(([, selected]) => selected)
+            .map(([rowId]) => Number(rowId)),
+        )
+        return next
+      })
+    },
+    [onSelectionChange],
+  )
 
   // Memoize table configuration to prevent unnecessary re-renders
   const tableConfig = useMemo(
@@ -57,11 +75,21 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
       columns,
       getRowId: (row: TData) => String(row.id),
       getCoreRowModel: getCoreRowModel(),
+      enableRowSelection: hasSelectionColumn,
+      onRowSelectionChange: handleRowSelectionChange,
+      state: {
+        rowSelection,
+      },
     }),
-    [data, columns],
+    [columns, data, handleRowSelectionChange, hasSelectionColumn, rowSelection],
   )
 
   const table = useReactTable(tableConfig)
+
+  useEffect(() => {
+    setRowSelection({})
+    onSelectionChange?.([])
+  }, [resetSelectionKey])
 
   const handleRowToggle = useCallback((rowId: number) => {
     setExpandedRow(prev => (prev === rowId ? null : rowId))
@@ -70,6 +98,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
   const handleEditModal = useCallback(
     (e: React.MouseEvent, user: UserResponse) => {
       if ((e.target as HTMLElement).closest('.chevron')) return
+      if ((e.target as HTMLElement).closest('[data-role="row-selector"]')) return
       if (window.innerWidth < 768) {
         handleRowToggle(user.id)
         return
@@ -114,16 +143,17 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
         <TableHeader>
           {table.getHeaderGroups().map(headerGroup => (
             <TableRow key={headerGroup.id} className="uppercase">
-              {headerGroup.headers.map((header, index) => (
+              {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
                   className={cn(
                     'sticky z-10 bg-background text-xs',
                     isRTL && 'text-right',
-                    index === 0 && 'w-[200px] sm:w-[270px] md:w-auto',
-                    index === 1 && 'max-w-[70px] !px-0 md:w-auto',
-                    index === 2 && 'min-w-[100px] px-1 md:w-[450px]',
-                    index >= 3 && 'hidden md:table-cell',
+                    header.id === 'select' && 'w-8 !px-1 py-1.5',
+                    header.id === 'username' && 'w-auto md:w-auto',
+                    header.id === 'status' && 'max-w-[70px] !px-0 md:w-auto',
+                    header.id === 'details' && 'px-1 md:w-[450px]',
+                    !['select', 'username', 'status', 'details', 'chevron'].includes(header.id) && 'hidden md:table-cell',
                     header.id === 'chevron' && 'table-cell md:hidden',
                   )}
                 >
@@ -139,32 +169,33 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
             : table.getRowModel().rows?.length
               ? table.getRowModel().rows.map(row => (
                   <React.Fragment key={row.id}>
-                    <TableRow
-                      className={cn(
-                        'cursor-pointer border-b md:cursor-default max-md:hover:!bg-inherit',
-                        hoveredRowId === row.original.id ? 'md:!bg-muted/50' : 'md:hover:!bg-inherit',
-                        expandedRow === row.original.id && 'border-transparent',
-                      )}
-                      onMouseEnter={() => setHoveredRowId(row.original.id)}
-                      onMouseLeave={() => setHoveredRowId(null)}
+              <TableRow
+                className={cn(
+                  'cursor-pointer border-b md:cursor-default max-md:hover:!bg-inherit',
+                  row.getIsSelected()
+                    ? '!bg-primary/10'
+                    : 'md:hover:!bg-muted/50',
+                  expandedRow === row.original.id && 'border-transparent',
+                )}
                       onClick={e => handleEditModal(e, row.original)}
                       data-state={row.getIsSelected() && 'selected'}
                     >
-                      {row.getVisibleCells().map((cell, index) => (
+                      {row.getVisibleCells().map((cell) => (
                         <TableCell
                           key={cell.id}
+                          data-role={cell.column.id === 'select' ? 'row-selector' : undefined}
                           className={cn(
                             'text-sm',
-                            index !== 2 && 'whitespace-nowrap',
-                            index === 2 && 'md:whitespace-nowrap',
-                            index !== 2 && 'py-1.5',
-                            index <= 1 && 'max-w-[calc(100vw-50px-32px-100px-60px)] md:py-2',
-                            index === 2 && 'min-w-[100px] max-w-full md:w-[450px]',
-                            index === 3 && 'w-8',
-                            index === 3 && '!p-0',
-                            index >= 4 && 'hidden !p-0 md:table-cell',
+                            cell.column.id !== 'details' && 'whitespace-nowrap',
+                            cell.column.id === 'details' && 'md:whitespace-nowrap',
+                            cell.column.id !== 'details' && 'py-1.5',
+                            cell.column.id === 'username' && cn('max-w-[calc(100vw-50px-32px-100px-60px)]', hasSelectionColumn && '!px-0'),
+                            cell.column.id === 'details' && 'max-w-full !px-1 md:w-[450px]',
+                            cell.column.id === 'select' && 'w-8 !px-1',
+                            cell.column.id === 'chevron' && 'w-4 !p-0',
+                            !['select', 'username', 'status', 'details', 'chevron'].includes(cell.column.id) && 'hidden !p-0 md:table-cell',
                             cell.column.id === 'chevron' && 'table-cell md:hidden',
-                            index !== 2 && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
+                            !['details', 'select', 'chevron'].includes(cell.column.id) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
                           )}
                         >
                           {cell.column.id === 'chevron' ? (
@@ -175,7 +206,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
                                 handleRowToggle(row.original.id)
                               }}
                             >
-                              <ChevronDown className={cn('h-4 w-4', expandedRow === row.original.id && 'rotate-180')} />
+                              <ChevronDown className={cn('h-3 w-3', expandedRow === row.original.id && 'rotate-180')} />
                             </div>
                           ) : (
                             flexRender(cell.column.columnDef.cell, cell.getContext())

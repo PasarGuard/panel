@@ -1,22 +1,43 @@
 import { setupColumns } from '@/components/users/columns'
 import { ActionButtonsModalHost } from '@/components/users/action-buttons'
+import SetOwnerModal from '@/components/dialogs/set-owner-modal'
 import { DataTable } from '@/components/users/data-table'
 import { Filters } from '@/components/users/filters'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { useGetUsers, UserResponse, UserStatus, UsersResponse } from '@/service/api'
+import {
+  deleteUsersByIds,
+  getGetUsersQueryOptions,
+  resetUsersUsageByIds,
+  revokeUsersSubscriptionByIds,
+  useGetUsers,
+  UserResponse,
+  UserStatus,
+  UsersResponse,
+} from '@/service/api'
+
 import { useAdmin } from '@/hooks/use-admin'
-import { getUsersPerPageLimitSize, getUsersShowCreatedBy, setUsersPerPageLimitSize, setUsersShowCreatedBy } from '@/utils/userPreferenceStorage'
+import {
+  getUsersPerPageLimitSize,
+  getUsersShowCreatedBy,
+  getUsersShowSelectionCheckbox,
+  setUsersPerPageLimitSize,
+  setUsersShowCreatedBy,
+  setUsersShowSelectionCheckbox,
+} from '@/utils/userPreferenceStorage'
 import { bytesToFormGigabytes } from '@/utils/formatByte'
 import { normalizeExpireForEditForm } from '@/utils/userEditDateUtils'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/components/dialogs/advance-search-modal'
 import type { AdvanceSearchFormValue } from '@/components/forms/advance-search-form'
+import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 import { Card, CardContent } from '@/components/ui/card'
 
 // Helper function to get URL search params from hash
@@ -104,9 +125,15 @@ const UsersTable = memo(() => {
   const [isChangingPage, setIsChangingPage] = useState(false)
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
+  const [resetSelectionKey, setResetSelectionKey] = useState(0)
+  const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | null>(null)
+  const [isBulkSetOwnerModalOpen, setIsBulkSetOwnerModalOpen] = useState(false)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
+  const [isAdvanceSearchApplying, setIsAdvanceSearchApplying] = useState(false)
   const [isSorting, setIsSorting] = useState(false)
   const [showCreatedBy, setShowCreatedBy] = useState(getUsersShowCreatedBy())
+  const [showSelectionCheckbox, setShowSelectionCheckbox] = useState(getUsersShowSelectionCheckbox())
   
   const [filters, setFilters] = useState<{
     limit: number
@@ -175,6 +202,7 @@ const UsersTable = memo(() => {
       is_username: !urlParams.isProtocol,
       is_protocol: urlParams.isProtocol,
       show_created_by: getUsersShowCreatedBy(),
+      show_selection_checkbox: getUsersShowSelectionCheckbox(),
       admin: urlParams.admin || [],
       group: urlParams.group || [],
       status: urlParams.status || '0',
@@ -249,8 +277,9 @@ const UsersTable = memo(() => {
       advanceSearchForm.setValue('admin', filters.admin || [])
       advanceSearchForm.setValue('group', filters.group || [])
       advanceSearchForm.setValue('show_created_by', showCreatedBy)
+      advanceSearchForm.setValue('show_selection_checkbox', showSelectionCheckbox)
     }
-  }, [isAdvanceSearchOpen, filters.status, filters.admin, filters.group, showCreatedBy, advanceSearchForm])
+  }, [isAdvanceSearchOpen, filters.status, filters.admin, filters.group, showCreatedBy, showSelectionCheckbox, advanceSearchForm])
 
   const {
     data: usersData,
@@ -413,14 +442,88 @@ const UsersTable = memo(() => {
 
   const handleManualRefresh = async () => {
     isAutoRefreshingRef.current = false
-    queryClient.invalidateQueries({ queryKey: ['getUsers'] })
+    queryClient.invalidateQueries({ queryKey: ['/api/users'] })
     return refetch()
   }
 
   const handleAutoRefresh = async () => {
     isAutoRefreshingRef.current = true
-    queryClient.invalidateQueries({ queryKey: ['getUsers'] })
+    queryClient.invalidateQueries({ queryKey: ['/api/users'] })
     return refetch()
+  }
+
+  const clearSelection = useCallback(() => {
+    setResetSelectionKey(prev => prev + 1)
+    setSelectedUserIds([])
+  }, [])
+
+  const invalidateUsers = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['/api/users'] })
+  }, [queryClient])
+
+  const selectedCount = selectedUserIds.length
+
+  useEffect(() => {
+    if (!showSelectionCheckbox && selectedUserIds.length > 0) {
+      clearSelection()
+    }
+  }, [clearSelection, selectedUserIds.length, showSelectionCheckbox])
+
+  const deleteMutation = useMutation({
+    mutationFn: (ids: number[]) => deleteUsersByIds({ ids }),
+    onSuccess: response => {
+      invalidateUsers()
+      clearSelection()
+      toast.success(t('bulkUserActions.deleteSuccess', { count: response.count }))
+    },
+    onError: (error: any) => {
+      toast.error(t('bulkUserActions.deleteError'), {
+        description: error?.data?.detail || error?.message || '',
+      })
+    },
+  })
+
+  const resetUsageMutation = useMutation({
+    mutationFn: (ids: number[]) => resetUsersUsageByIds({ ids }),
+    onSuccess: response => {
+      invalidateUsers()
+      clearSelection()
+      toast.success(t('bulkUserActions.resetSuccess', { count: response.count }))
+    },
+    onError: (error: any) => {
+      toast.error(t('bulkUserActions.resetError'), {
+        description: error?.data?.detail || error?.message || '',
+      })
+    },
+  })
+
+  const revokeSubscriptionMutation = useMutation({
+    mutationFn: (ids: number[]) => revokeUsersSubscriptionByIds({ ids }),
+    onSuccess: response => {
+      invalidateUsers()
+      clearSelection()
+      toast.success(t('bulkUserActions.revokeSuccess', { count: response.count }))
+    },
+    onError: (error: any) => {
+      toast.error(t('bulkUserActions.revokeError'), {
+        description: error?.data?.detail || error?.message || '',
+      })
+    },
+  })
+
+  const handleBulkDelete = async () => {
+    if (!selectedUserIds.length) return
+    await deleteMutation.mutateAsync(selectedUserIds)
+  }
+
+  const handleBulkResetUsage = async () => {
+    if (!selectedUserIds.length) return
+    await resetUsageMutation.mutateAsync(selectedUserIds)
+  }
+
+  const handleBulkRevokeSubscription = async () => {
+    if (!selectedUserIds.length) return
+    await revokeSubscriptionMutation.mutateAsync(selectedUserIds)
   }
 
   const handlePageChange = (newPage: number) => {
@@ -475,27 +578,81 @@ const UsersTable = memo(() => {
     t,
     dir,
     showCreatedBy: isSudo && showCreatedBy,
+    showSelectionCheckbox,
     handleSort,
     filters: filters as { sort: string; status?: UserStatus | null; [key: string]: unknown },
     handleStatusFilter,
   })
 
-  const handleAdvanceSearchSubmit = (values: AdvanceSearchFormValue) => {
-    if (isSudo) {
-      setShowCreatedBy(values.show_created_by)
-      setUsersShowCreatedBy(values.show_created_by)
-    }
-    setFilters(prev => ({
-      ...prev,
+  const handleAdvanceSearchSubmit = async (values: AdvanceSearchFormValue) => {
+    if (isAdvanceSearchApplying) return
+
+    const nextFilters = {
+      ...filters,
       admin: values.admin && values.admin.length > 0 ? values.admin : undefined,
       group: values.group && values.group.length > 0 ? values.group : undefined,
       status: values.status && values.status !== '0' ? values.status : undefined,
       is_protocol: values.is_protocol,
       offset: 0,
+    }
+
+    setIsAdvanceSearchApplying(true)
+
+    try {
+      try {
+        await queryClient.fetchQuery(
+          getGetUsersQueryOptions(nextFilters, {
+            query: {
+              staleTime: 0,
+              gcTime: 0,
+              retry: 1,
+            },
+          }),
+        )
+      } catch {
+        // Preserve previous behavior: apply filters even if the eager fetch fails.
+      }
+
+      if (isSudo) {
+        setShowCreatedBy(values.show_created_by)
+        setUsersShowCreatedBy(values.show_created_by)
+      }
+      setShowSelectionCheckbox(values.show_selection_checkbox)
+      setUsersShowSelectionCheckbox(values.show_selection_checkbox)
+      if (!values.show_selection_checkbox) {
+        clearSelection()
+      }
+      setFilters(() => ({
+        ...nextFilters,
+      }))
+      setCurrentPage(0)
+      setIsAdvanceSearchOpen(false)
+      advanceSearchForm.reset(values)
+    } finally {
+      setIsAdvanceSearchApplying(false)
+    }
+  }
+
+  const handleClearAdvanceSearch = () => {
+    if (isAdvanceSearchApplying) return
+
+    advanceSearchForm.reset({
+      is_username: true,
+      is_protocol: false,
+      show_created_by: showCreatedBy,
+      show_selection_checkbox: showSelectionCheckbox,
+      admin: [],
+      group: [],
+      status: '0',
+    })
+    setFilters(prev => ({
+      ...prev,
+      admin: undefined,
+      group: undefined,
+      status: undefined,
+      offset: 0,
     }))
     setCurrentPage(0)
-    setIsAdvanceSearchOpen(false)
-    advanceSearchForm.reset(values)
   }
 
   const totalUsers = usersData?.total || 0
@@ -516,24 +673,15 @@ const UsersTable = memo(() => {
         refetch={handleManualRefresh}
         autoRefetch={handleAutoRefresh}
         handleSort={handleSort}
-        onClearAdvanceSearch={() => {
-          advanceSearchForm.reset({
-            is_username: true,
-            is_protocol: false,
-            show_created_by: showCreatedBy,
-            admin: [],
-            group: [],
-            status: '0',
-          })
-          setFilters(prev => ({
-            ...prev,
-            admin: undefined,
-            group: undefined,
-            status: undefined,
-            offset: 0,
-          }))
-          setCurrentPage(0)
-        }}
+        onClearAdvanceSearch={handleClearAdvanceSearch}
+      />
+      <BulkActionsBar
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        onDelete={selectedCount > 0 ? () => setBulkAction('delete') : undefined}
+        onResetUsage={selectedCount > 0 ? () => setBulkAction('reset') : undefined}
+        onRevokeSub={selectedCount > 0 ? () => setBulkAction('revoke') : undefined}
+        onChangeOwner={isSudo && selectedCount > 0 ? () => setIsBulkSetOwnerModalOpen(true) : undefined}
       />
       {isEmpty && (
         <Card className="mb-12">
@@ -562,6 +710,8 @@ const UsersTable = memo(() => {
           isLoading={true}
           isFetching={false}
           onEdit={handleEdit}
+          onSelectionChange={setSelectedUserIds}
+          resetSelectionKey={resetSelectionKey}
         />
       )}
       {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
@@ -571,6 +721,8 @@ const UsersTable = memo(() => {
           isLoading={false}
           isFetching={isFetching && !isFirstLoadRef.current && !isAutoRefreshingRef.current}
           onEdit={handleEdit}
+          onSelectionChange={setSelectedUserIds}
+          resetSelectionKey={resetSelectionKey}
         />
       )}
       <PaginationControls
@@ -597,19 +749,57 @@ const UsersTable = memo(() => {
         <AdvanceSearchModal
           isDialogOpen={isAdvanceSearchOpen}
           onOpenChange={open => {
+            if (isAdvanceSearchApplying && !open) return
             setIsAdvanceSearchOpen(open)
             if (!open) advanceSearchForm.reset()
           }}
           form={advanceSearchForm}
           onSubmit={handleAdvanceSearchSubmit}
           isSudo={isSudo}
+          isApplying={isAdvanceSearchApplying}
         />
       )}
+      <BulkActionAlertDialog
+        open={bulkAction === 'delete'}
+        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+        title={t('bulkUserActions.deleteTitle')}
+        description={t('bulkUserActions.deletePrompt', { count: selectedCount })}
+        actionLabel={t('usersTable.delete')}
+        onConfirm={handleBulkDelete}
+        isPending={deleteMutation.isPending}
+        destructive
+      />
+      <BulkActionAlertDialog
+        open={bulkAction === 'reset'}
+        onOpenChange={open => setBulkAction(open ? 'reset' : null)}
+        title={t('bulkUserActions.resetTitle')}
+        description={t('bulkUserActions.resetPrompt', { count: selectedCount })}
+        actionLabel={t('usersTable.resetUsageSubmit')}
+        onConfirm={handleBulkResetUsage}
+        isPending={resetUsageMutation.isPending}
+      />
+      <BulkActionAlertDialog
+        open={bulkAction === 'revoke'}
+        onOpenChange={open => setBulkAction(open ? 'revoke' : null)}
+        title={t('bulkUserActions.revokeTitle')}
+        description={t('bulkUserActions.revokePrompt', { count: selectedCount })}
+        actionLabel={t('revokeUserSub.title')}
+        onConfirm={handleBulkRevokeSubscription}
+        isPending={revokeSubscriptionMutation.isPending}
+      />
+      <SetOwnerModal
+        open={isBulkSetOwnerModalOpen}
+        onClose={() => setIsBulkSetOwnerModalOpen(false)}
+        userIds={selectedUserIds}
+        selectedCount={selectedCount}
+        onSuccess={() => {
+          invalidateUsers()
+          clearSelection()
+        }}
+      />
       <ActionButtonsModalHost />
     </div>
   )
 })
 
 export default UsersTable
-
-
