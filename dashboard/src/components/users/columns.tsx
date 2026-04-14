@@ -224,9 +224,9 @@ export const setupColumns = ({
         )
       },
       cell: ({ row }: { row: Row<UserResponse> }) => (
-        <div className="flex max-w-[420px] py-1 items-center justify-between gap-1">
+        <div className="flex py-1 items-center justify-between gap-1">
           <UsageSliderCompact total={row.original.data_limit} used={row.original.used_traffic} totalUsedTraffic={row.original.lifetime_used_traffic} status={row.original.status} />
-          <div className="hidden w-[188px] px-2 py-1 md:block">
+          <div className="hidden w-[215px] px-2 py-1 md:block">
             <ActionButtons user={row.original} isModalHost={false} />
           </div>
         </div>

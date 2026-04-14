@@ -22,23 +22,23 @@ interface DataTableProps<TData extends UserResponse, TValue> {
 }
 
 const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) => (
-  <div className="flex flex-col gap-y-4 p-4">
+  <div className="flex flex-col gap-y-4 p-4 border-b">
     <UsageSliderCompact isMobile status={row.original.status} total={row.original.data_limit} totalUsedTraffic={row.original.lifetime_used_traffic} used={row.original.used_traffic} />
     <div className="flex flex-col gap-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <StatusBadge showOnlyExpiry expiryDate={row.original.expire} status={row.original.status} showExpiry />
-        </div>
+      <div className="flex items-center justify-end">
         <div onClick={e => e.stopPropagation()}>
           <ActionButtons user={row.original} isModalHost={false} />
         </div>
       </div>
-      <div className="flex items-center gap-x-1">
-        <span className="flex items-center gap-x-0.5">
-          <Rss className="h-3 w-3 text-muted-foreground" />
-          <span className="text-muted-foreground">:</span>
-        </span>
-        <OnlineStatus lastOnline={row.original.online_at} />
+      <div className="flex flex-col gap-1.5">
+        <StatusBadge showOnlyExpiry expiryDate={row.original.expire} status={row.original.status} showExpiry />
+        <div className="flex items-center gap-x-1">
+          <span className="flex items-center gap-x-0.5">
+            <Rss className="h-3 w-3 text-muted-foreground" />
+            <span className="text-muted-foreground">:</span>
+          </span>
+          <OnlineStatus lastOnline={row.original.online_at} />
+        </div>
       </div>
     </div>
   </div>
@@ -152,7 +152,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
                     header.id === 'select' && 'w-8 !px-1 py-1.5',
                     header.id === 'username' && 'w-auto md:w-auto',
                     header.id === 'status' && 'max-w-[70px] !px-0 md:w-auto',
-                    header.id === 'details' && 'px-1 md:w-[450px]',
+                    header.id === 'details' && 'px-1 md:w-[440px]',
                     !['select', 'username', 'status', 'details', 'chevron'].includes(header.id) && 'hidden md:table-cell',
                     header.id === 'chevron' && 'table-cell md:hidden',
                   )}
@@ -168,16 +168,16 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
             ? LoadingState
             : table.getRowModel().rows?.length
               ? table.getRowModel().rows.map(row => {
-                  const isRowSelected = row.getIsSelected()
+                const isRowSelected = row.getIsSelected()
 
-                  return (
+                return (
                   <React.Fragment key={row.id}>
-              <TableRow
-                className={cn(
-                  'cursor-pointer border-b md:cursor-default',
-                  
-                  expandedRow === row.original.id && 'border-transparent',
-                )}
+                    <TableRow
+                      className={cn(
+                        'cursor-pointer border-b md:cursor-default',
+
+                        expandedRow === row.original.id && 'border-transparent',
+                      )}
                       onClick={e => handleEditModal(e, row.original)}
                       data-state={isRowSelected ? 'selected' : undefined}
                     >
@@ -192,8 +192,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
                             cell.column.id !== 'details' && 'py-1.5',
                             cell.column.id === 'username' && cn('max-w-[calc(100vw-50px-32px-100px-60px)]', hasSelectionColumn && '!px-0'),
                             cell.column.id === "status" && '!px-0',
-                            cell.column.id === 'details' && 'max-w-full !px-1 md:w-[450px]',
-                            cell.column.id === 'select' && 'w-8 !px-1',
+                            cell.column.id === 'select' && 'w-8 !px-1 !py-5',
                             cell.column.id === 'chevron' && 'w-4 !p-0',
                             !['select', 'username', 'status', 'details', 'chevron'].includes(cell.column.id) && 'hidden !p-0 md:table-cell',
                             cell.column.id === 'chevron' && 'table-cell md:hidden',
@@ -208,7 +207,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
                                 handleRowToggle(row.original.id)
                               }}
                             >
-                              <ChevronDown className={cn('h-3 w-3', expandedRow === row.original.id && 'rotate-180')} />
+                              <ChevronDown className={cn('h-3.5 w-3.5', expandedRow === row.original.id && 'rotate-180')} />
                             </div>
                           ) : (
                             flexRender(cell.column.columnDef.cell, cell.getContext())
@@ -217,14 +216,15 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
                       ))}
                     </TableRow>
                     {expandedRow === row.original.id && (
-                      <TableRow className={cn('border-b md:hidden',  'border-transparent')} data-state={isRowSelected ? 'selected' : undefined}>
-                        <TableCell colSpan={columns.length} className={cn('p-0 text-sm', )}>
+                      <TableRow className={cn('border-b md:hidden', 'border-transparent')} data-state={isRowSelected ? 'selected' : undefined}>
+                        <TableCell colSpan={columns.length} className={cn('p-0 text-sm',)}>
                           <ExpandedRowContent row={row} />
                         </TableCell>
                       </TableRow>
                     )}
                   </React.Fragment>
-                )})
+                )
+              })
               : EmptyState}
         </TableBody>
       </Table>

@@ -676,6 +676,18 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               </DropdownMenu>
               <TooltipContent>{copied ? t('usersTable.copied') : t('usersTable.copyConfigs')}</TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Button type="button" size="icon" variant="ghost" aria-label={t('qrcodeDialog.title')} onClick={onOpenSubscriptionModal}>
+                    <QrCode className='h-4 w-4' />
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('qrcodeDialog.title')}
+              </TooltipContent>
+            </Tooltip>
           </TooltipProvider>
           <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
             <DropdownMenuTrigger asChild>
@@ -693,12 +705,6 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               <DropdownMenuItem className="hidden md:flex" onSelect={handleEdit}>
                 <Pencil className="mr-2 h-4 w-4" />
                 <span>{t('edit')}</span>
-              </DropdownMenuItem>
-
-              {/* QR Code */}
-              <DropdownMenuItem onSelect={onOpenSubscriptionModal}>
-                <QrCode className="mr-2 h-4 w-4" />
-                <span>{t('qrcodeDialog.title')}</span>
               </DropdownMenuItem>
 
               {/* Set Owner: only for sudo admins */}
