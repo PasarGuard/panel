@@ -1206,21 +1206,8 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     [form, handleFieldChange],
   )
 
-  /** Preserves blank lines so Enter works in the textarea; empty entries are stripped on save via cleanProxySettings. */
   const parseWireGuardPeerIps = React.useCallback((value: string) => {
-    const lines = value.split('\n')
-    const result: string[] = []
-    for (const line of lines) {
-      const parts = line.split(',').map(s => s.trim()).filter(Boolean)
-      if (parts.length === 0) {
-        if (line.trim() === '') {
-          result.push('')
-        }
-        continue
-      }
-      result.push(...parts)
-    }
-    return result
+    return value.split('\n')
   }, [])
 
   const hasMeaningfulProxyValue = React.useCallback((value: unknown): boolean => {
@@ -1246,7 +1233,18 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
           const cleanedProtocolSettings = Object.entries(settings as Record<string, unknown>).reduce(
             (protocolAcc, [key, value]) => {
               if (Array.isArray(value)) {
-                const cleanedList = value.map(item => (typeof item === 'string' ? item.trim() : item)).filter(item => hasMeaningfulProxyValue(item))
+                const cleanedList = value
+                  .flatMap(item => {
+                    if (typeof item !== 'string') {
+                      return [item]
+                    }
+                    if (protocol === 'wireguard' && key === 'peer_ips') {
+                      return item.split(',')
+                    }
+                    return [item]
+                  })
+                  .map(item => (typeof item === 'string' ? item.trim() : item))
+                  .filter(item => hasMeaningfulProxyValue(item))
 
                 if (cleanedList.length > 0) {
                   protocolAcc[key] = cleanedList
