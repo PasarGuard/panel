@@ -2724,67 +2724,6 @@ export function useBase<TData = Awaited<ReturnType<typeof base>>, TError = Error
 }
 
 /**
- * Dynamic PWA manifest generator
- * @summary Get Manifest
- */
-export const getManifest = (params?: GetManifestParams, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/manifest.json`, method: 'GET', params, signal })
-}
-
-export const getGetManifestQueryKey = (params?: GetManifestParams) => {
-  return [`/manifest.json`, ...(params ? [params] : [])] as const
-}
-
-export const getGetManifestQueryOptions = <TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params?: GetManifestParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> },
-) => {
-  const { query: queryOptions } = options ?? {}
-
-  const queryKey = queryOptions?.queryKey ?? getGetManifestQueryKey(params)
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getManifest>>> = ({ signal }) => getManifest(params, signal)
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetManifestQueryResult = NonNullable<Awaited<ReturnType<typeof getManifest>>>
-export type GetManifestQueryError = ErrorType<HTTPValidationError>
-
-export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params: undefined | GetManifestParams,
-  options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>, 'initialData'>
-  },
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params?: GetManifestParams,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> & Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>, 'initialData'>
-  },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params?: GetManifestParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Get Manifest
- */
-
-export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params?: GetManifestParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetManifestQueryOptions(params, options)
-
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-  query.queryKey = queryOptions.queryKey
-
-  return query
-}
-
-/**
  * @summary Health
  */
 export const health = (signal?: AbortSignal) => {
