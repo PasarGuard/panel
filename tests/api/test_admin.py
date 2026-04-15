@@ -1,10 +1,11 @@
 import asyncio
+import os
+import re
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-from fastapi import status
+from fastapi import HTTPException, status
 from sqlalchemy import select
 
 from app.db.crud.admin import get_admin_by_telegram_id
@@ -14,13 +15,35 @@ from app.routers.authentication import validate_mini_app_admin
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
-    create_admin,
+    create_admin as _create_admin,
     create_user,
     delete_admin,
     delete_user,
-    unique_name,
     strong_password,
+    unique_name,
 )
+
+
+def _admin_slug(value: str, max_length: int, default: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+    return slug[:max_length] or default
+
+
+def admin_username(label: str = "admin") -> str:
+    current_test = os.environ.get("PYTEST_CURRENT_TEST", "tests/api/test_admin.py::test_admin")
+    test_name = current_test.split("::")[-1].split(" ")[0].removeprefix("test_")
+    return unique_name(f"{_admin_slug(test_name, 12, 'test')}_{_admin_slug(label, 12, 'admin')}")
+
+
+def create_admin(
+    access_token: str, *, username: str | None = None, password: str | None = None, is_sudo: bool = False
+) -> dict:
+    return _create_admin(
+        access_token,
+        username=username or admin_username("admin"),
+        password=password,
+        is_sudo=is_sudo,
+    )
 
 
 def set_admin_sudo(username: str, is_sudo: bool) -> None:
@@ -73,7 +96,7 @@ def test_get_admin(access_token):
 def test_admin_create(access_token):
     """Test that the admin create route is accessible."""
 
-    username = unique_name("testadmincreate")
+    username = admin_username("create")
     password = strong_password("TestAdmincreate")
     admin = create_admin(access_token, username=username, password=password)
     assert admin["username"] == username
@@ -83,7 +106,7 @@ def test_admin_create(access_token):
 
 def test_admin_create_sudo_forbidden_via_api(access_token):
     """Creating sudo admin via API should be forbidden."""
-    username = unique_name("forbiddensudo")
+    username = admin_username("forbidden")
     password = strong_password("ForbiddenSudo")
 
     response = client.post(
@@ -98,7 +121,7 @@ def test_admin_create_sudo_forbidden_via_api(access_token):
 def test_admin_create_with_note(access_token):
     """Test that admin note can be set during creation."""
 
-    username = unique_name("testadminnote")
+    username = admin_username("note")
     password = strong_password("TestAdminNote")
     note = "created via api"
 
@@ -118,7 +141,7 @@ def test_admin_create_with_note(access_token):
 def test_admin_create_duplicate_telegram_id_conflict(access_token):
     telegram_id = 9988776655
     admin_a = create_admin(access_token)
-    admin_b_username = unique_name("tgdup")
+    admin_b_username = admin_username("tgdup")
     admin_b_password = strong_password("TestAdminDup")
     try:
         response_a = client.put(
@@ -363,7 +386,7 @@ def test_get_admins(access_token):
 def test_get_admins_returns_admin_note(access_token):
     """Test that /api/admins compact response includes admin note."""
 
-    username = unique_name("adminnote")
+    username = admin_username("list_note")
     password = strong_password("TestAdminNote")
     note = "visible in admins list"
 
@@ -456,12 +479,7 @@ def test_admin_delete_all_users_endpoint(access_token):
         )
         assert user_check.status_code == status.HTTP_200_OK
         assert user_check.json()["users"] == []
-
-    cleanup = client.delete(
-        url=f"/api/admin/{admin_username}",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-    assert cleanup.status_code == status.HTTP_204_NO_CONTENT
+    delete_admin(access_token, admin_username)
 
 
 def test_admin_delete(access_token):
@@ -507,39 +525,44 @@ def test_reset_admin_usage_keeps_lifetime_traffic(access_token):
 
 @pytest.mark.asyncio
 async def test_admin_usage_returns_stats_for_admin(access_token):
-    admin = create_admin(access_token)
-    login_response = client.post(
-        url="/api/admin/token",
-        data={"username": admin["username"], "password": admin["password"], "grant_type": "password"},
-    )
-    assert login_response.status_code == status.HTTP_200_OK
-    admin_token = login_response.json()["access_token"]
+    try:
+        admin = create_admin(access_token)
+        login_response = client.post(
+            url="/api/admin/token",
+            data={"username": admin["username"], "password": admin["password"], "grant_type": "password"},
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        admin_token = login_response.json()["access_token"]
 
-    user = create_user(admin_token, payload={"username": unique_name("admin_usage_user")})
-    now = datetime.now(timezone.utc)
-    usages = [
-        NodeUserUsage(user_id=user["id"], node_id=None, created_at=now - timedelta(hours=2), used_traffic=123),
-        NodeUserUsage(user_id=user["id"], node_id=None, created_at=now - timedelta(hours=1), used_traffic=456),
-    ]
+        user = create_user(admin_token, payload={"username": unique_name("admin_usage_user")})
+        now = datetime.now(timezone.utc)
+        usages = [
+            NodeUserUsage(user_id=user["id"], node_id=None, created_at=now - timedelta(hours=2), used_traffic=123),
+            NodeUserUsage(user_id=user["id"], node_id=None, created_at=now - timedelta(hours=1), used_traffic=456),
+        ]
 
-    async with TestSession() as session:
-        session.add_all(usages)
-        await session.commit()
+        async with TestSession() as session:
+            session.add_all(usages)
+            await session.commit()
 
-    response = client.get(
-        f"/api/admin/{admin['username']}/usage",
-        headers=auth_headers(admin_token),
-        params={"period": "hour"},
-    )
-    assert response.status_code == status.HTTP_200_OK
-    data = response.json()
-    assert data["period"] == "hour"
-    assert "-1" in data["stats"]
-    total = sum(item["total_traffic"] for item in data["stats"]["-1"])
-    assert total == 579
-
-    delete_user(admin_token, user["username"])
-    delete_admin(access_token, admin["username"])
+        response = client.get(
+            f"/api/admin/{admin['username']}/usage",
+            headers=auth_headers(admin_token),
+            params={"period": "hour"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["period"] == "hour"
+        assert "-1" in data["stats"]
+        total = sum(item["total_traffic"] for item in data["stats"]["-1"])
+        assert total == 579
+    finally:
+        delete_user(admin_token, user["username"])
+        delete_admin(access_token, admin["username"])
+        async with TestSession() as session:
+            for u in usages:
+                await session.delete(u)
+                await session.commit()
 
 
 @pytest.mark.asyncio
@@ -565,11 +588,11 @@ async def test_admin_usage_forbidden_for_other_admin(access_token):
 
 
 @pytest.mark.asyncio
-async def test_get_admin_by_telegram_id_handles_duplicate_rows():
+async def test_get_admin_by_telegram_id_handles_duplicate_rows(access_token):
     telegram_id = 7766554433
     async with TestSession() as session:
-        admin_a = Admin(username=unique_name("tg_read_a"), hashed_password="secret", telegram_id=telegram_id)
-        admin_b = Admin(username=unique_name("tg_read_b"), hashed_password="secret", telegram_id=telegram_id)
+        admin_a = Admin(username=admin_username("tg_read_a"), hashed_password="secret", telegram_id=telegram_id)
+        admin_b = Admin(username=admin_username("tg_read_b"), hashed_password="secret", telegram_id=telegram_id)
         session.add_all([admin_a, admin_b])
         await session.commit()
 
@@ -577,18 +600,20 @@ async def test_get_admin_by_telegram_id_handles_duplicate_rows():
         assert loaded is not None
         assert loaded.telegram_id == telegram_id
         assert loaded.username == admin_a.username
+    delete_admin(access_token, admin_a.username)
+    delete_admin(access_token, admin_b.username)
 
 
 @pytest.mark.asyncio
-async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(monkeypatch: pytest.MonkeyPatch):
+async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(access_token, monkeypatch: pytest.MonkeyPatch):
     telegram_id = 6655443322
+    admin_a = Admin(username=admin_username("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id)
+    admin_b = Admin(username=admin_username("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id)
     async with TestSession() as session:
-        session.add_all(
-            [
-                Admin(username=unique_name("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id),
-                Admin(username=unique_name("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id),
-            ]
-        )
+        session.add_all([
+            admin_a,
+            admin_b,
+        ])
         await session.commit()
 
         async def fake_telegram_settings():
@@ -611,6 +636,9 @@ async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(monkeypatc
         assert exc_info.value.status_code == status.HTTP_409_CONFLICT
         assert exc_info.value.detail == "Telegram ID is assigned to multiple admins. Please contact support."
 
+    delete_admin(access_token, admin_a.username)
+    delete_admin(access_token, admin_b.username)
+
 
 # Tests for /api/admins/simple endpoint
 
@@ -620,8 +648,8 @@ def test_get_admins_simple_basic(access_token):
     created_admins = []
     try:
         # Create 2 admins
-        admin1 = create_admin(access_token, username=unique_name("admin_1"))
-        admin2 = create_admin(access_token, username=unique_name("admin_2"))
+        admin1 = create_admin(access_token, username=admin_username("admin_1"))
+        admin2 = create_admin(access_token, username=admin_username("admin_2"))
         created_admins = [admin1["username"], admin2["username"]]
 
         # Execute
@@ -654,9 +682,9 @@ def test_get_admins_simple_search(access_token):
     created_admins = []
     try:
         # Create 3 admins with specific names
-        admin1 = create_admin(access_token, username="admin_alpha_search")
-        admin2 = create_admin(access_token, username="admin_beta_search")
-        admin3 = create_admin(access_token, username="other_admin_search")
+        admin1 = create_admin(access_token, username=admin_username("alpha_search"))
+        admin2 = create_admin(access_token, username=admin_username("beta_search"))
+        admin3 = create_admin(access_token, username=admin_username("other_search"))
         created_admins = [admin1["username"], admin2["username"], admin3["username"]]
 
         # Execute search for "alpha"
@@ -670,7 +698,7 @@ def test_get_admins_simple_search(access_token):
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert len(data["admins"]) >= 1
-        assert any(a["username"] == "admin_alpha_search" for a in data["admins"])
+        assert any(a["username"] == admin1["username"] for a in data["admins"])
     finally:
         for username in created_admins:
             delete_admin(access_token, username)
@@ -681,9 +709,9 @@ def test_get_admins_simple_sort_ascending(access_token):
     created_admins = []
     try:
         # Create 3 admins with specific names for ordering
-        admin1 = create_admin(access_token, username="admin_c_sort")
-        admin2 = create_admin(access_token, username="admin_a_sort")
-        admin3 = create_admin(access_token, username="admin_b_sort")
+        admin1 = create_admin(access_token, username=admin_username("c_sort"))
+        admin2 = create_admin(access_token, username=admin_username("a_sort"))
+        admin3 = create_admin(access_token, username=admin_username("b_sort"))
         created_admins = [admin1["username"], admin2["username"], admin3["username"]]
 
         # Execute with ascending sort
@@ -710,9 +738,9 @@ def test_get_admins_simple_sort_descending(access_token):
     created_admins = []
     try:
         # Create 3 admins with specific names for ordering
-        admin1 = create_admin(access_token, username="admin_a_desc")
-        admin2 = create_admin(access_token, username="admin_b_desc")
-        admin3 = create_admin(access_token, username="admin_c_desc")
+        admin1 = create_admin(access_token, username=admin_username("a_desc"))
+        admin2 = create_admin(access_token, username=admin_username("b_desc"))
+        admin3 = create_admin(access_token, username=admin_username("c_desc"))
         created_admins = [admin1["username"], admin2["username"], admin3["username"]]
 
         # Execute with descending sort
@@ -740,7 +768,7 @@ def test_get_admins_simple_pagination(access_token):
     try:
         # Create 5 admins
         for i in range(5):
-            admin = create_admin(access_token, username=unique_name(f"admin_pag_{i}"))
+            admin = create_admin(access_token, username=admin_username(f"pag_{i}"))
             created_admins.append(admin["username"])
 
         # Execute first request
@@ -781,7 +809,7 @@ def test_get_admins_simple_skip_pagination(access_token):
     try:
         # Create 8 admins
         for i in range(8):
-            admin = create_admin(access_token, username=unique_name(f"admin_all_{i}"))
+            admin = create_admin(access_token, username=admin_username(f"all_{i}"))
             created_admins.append(admin["username"])
 
         # Execute with all=true
@@ -835,7 +863,7 @@ def test_get_admins_simple_empty_search(access_token):
     created_admins = []
     try:
         # Create 1 admin
-        admin = create_admin(access_token, username="known_admin_search")
+        admin = create_admin(access_token, username=admin_username("known_search"))
         created_admins = [admin["username"]]
 
         # Execute search for non-existent admin
