@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from app.db import AsyncSession, get_db
 from app.db.crud.admin import find_admins_by_telegram_id, get_admin as get_admin_by_username, get_admin_by_telegram_id
-from app.db.models import User
+from app.db.models import AdminUsageLogs, User, UserUsageResetLogs
 from app.models.admin import AdminDetails, AdminValidationResult, verify_password
 from app.models.settings import Telegram
 from app.settings import telegram_settings
@@ -27,7 +27,18 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     if db_admin:
         total_users = await db.scalar(select(func.count(User.id)).where(User.admin_id == db_admin.id))
         users_used_traffic = await db.scalar(select(func.coalesce(func.sum(User.used_traffic), 0)).where(User.admin_id == db_admin.id))
-        lifetime_used_traffic = int(getattr(db_admin, "lifetime_used_traffic", 0) or 0)
+        # Avoid accessing hybrid properties that may lazy-load relationships here.
+        admin_reset_usage = await db.scalar(
+            select(func.coalesce(func.sum(AdminUsageLogs.used_traffic_at_reset), 0)).where(AdminUsageLogs.admin_id == db_admin.id)
+        )
+
+        users_reset_usage = await db.scalar(
+            select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0))
+            .select_from(UserUsageResetLogs)
+            .join(User, User.id == UserUsageResetLogs.user_id)
+            .where(User.admin_id == db_admin.id)
+        )
+        lifetime_used_traffic = int((users_reset_usage or 0) + (users_used_traffic or 0))
 
         if db_admin.password_reset_at:
             if not payload.get("created_at"):

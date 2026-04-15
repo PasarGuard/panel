@@ -119,13 +119,14 @@ class HostOperation(BaseOperation):
             else:
                 await modify_host(db, old_host, host)
 
-        await host_manager.add_hosts(db, modified_hosts)
+        db_hosts = await get_hosts(db=db)
+        await host_manager.add_hosts(db, db_hosts)
 
         logger.info(f'Host\'s has been modified by admin "{admin.username}"')
 
         asyncio.create_task(notification.modify_hosts(admin.username))
 
-        return await get_hosts(db=db)
+        return db_hosts
 
     async def bulk_remove_hosts(
         self, db: AsyncSession, bulk_hosts: BulkHostSelection, admin: AdminDetails

@@ -458,8 +458,27 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
 
 
 def test_xray_subscription_uses_host_specific_template_override(access_token):
-    core = create_core(access_token)
-    inbound = get_inbounds(access_token)[0]
+    # Use a unique inbound tag so other tests' hosts can't affect config count.
+    unique_inbound = unique_name("xray_override_inbound")
+    core = create_core(
+        access_token,
+        config={
+            "log": {"loglevel": "info"},
+            "inbounds": [
+                {
+                    "tag": unique_inbound,
+                    "listen": "0.0.0.0",
+                    "port": 2087,
+                    "protocol": "vmess",
+                    "settings": {"clients": []},
+                    "streamSettings": {"network": "ws", "wsSettings": {"path": "/yourpath"}, "security": "none"},
+                }
+            ],
+            "outbounds": [{"protocol": "freedom", "tag": "DIRECT"}, {"protocol": "blackhole", "tag": "BLOCK"}],
+        },
+        fallbacks=[],
+    )
+    inbound = unique_inbound
     override_template = create_client_template(
         access_token,
         name=unique_name("xray_host_override_template"),
@@ -498,15 +517,10 @@ def test_xray_subscription_uses_host_specific_template_override(access_token):
 
         configs = response.json()
         assert isinstance(configs, list)
-        assert len(configs) >= 1
+        assert len(configs) == 1
 
-        marker_count = 0
-        for config in configs:
-            outbounds = config.get("outbounds", [])
-            if any(outbound.get("tag") == "template-marker" for outbound in outbounds):
-                marker_count += 1
-
-        assert marker_count == 1
+        outbounds = configs[0]["outbounds"]
+        assert any(outbound["tag"] == "template-marker" for outbound in outbounds)
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
@@ -516,8 +530,27 @@ def test_xray_subscription_uses_host_specific_template_override(access_token):
 
 
 def test_xray_subscription_template_override_isolated_per_host(access_token):
-    core = create_core(access_token)
-    inbound = get_inbounds(access_token)[0]
+    # Use a unique inbound tag so other tests' hosts can't affect config count.
+    unique_inbound = unique_name("xray_isolated_inbound")
+    core = create_core(
+        access_token,
+        config={
+            "log": {"loglevel": "info"},
+            "inbounds": [
+                {
+                    "tag": unique_inbound,
+                    "listen": "0.0.0.0",
+                    "port": 2087,
+                    "protocol": "vmess",
+                    "settings": {"clients": []},
+                    "streamSettings": {"network": "ws", "wsSettings": {"path": "/yourpath"}, "security": "none"},
+                }
+            ],
+            "outbounds": [{"protocol": "freedom", "tag": "DIRECT"}, {"protocol": "blackhole", "tag": "BLOCK"}],
+        },
+        fallbacks=[],
+    )
+    inbound = unique_inbound
     override_template = create_client_template(
         access_token,
         name=unique_name("xray_host_isolated_template"),
@@ -571,7 +604,7 @@ def test_xray_subscription_template_override_isolated_per_host(access_token):
 
         configs = response.json()
         assert isinstance(configs, list)
-        assert len(configs) >= 2
+        assert len(configs) == 2
 
         marker_count = 0
         for config in configs:
