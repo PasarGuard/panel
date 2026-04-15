@@ -46,7 +46,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex h-full flex-col justify-between space-y-4">
-            <div className="-mr-4 max-h-[78dvh] overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
+            <div className="-mr-4 max-h-[80dvh] overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
               <div className="flex w-full flex-1 flex-col gap-4 pb-4">
                 <section className="w-full space-y-4">
                   <div className="space-y-1">

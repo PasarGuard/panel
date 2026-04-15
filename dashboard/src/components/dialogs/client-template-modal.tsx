@@ -347,7 +347,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
         <Form {...form}>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="-mr-4 max-h-[78dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh] pb-2">
+            <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh] pb-2">
               <div className="grid grid-cols-1 gap-4 md:h-full md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
                 <div className="flex flex-col">
                   <div className="flex flex-col space-y-4 md:h-full">

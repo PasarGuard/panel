@@ -289,7 +289,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
-            <div className="-mr-4 flex max-h-[78dvh] flex-col items-start gap-4 overflow-y-auto px-2 pb-6 pr-4 sm:max-h-[75dvh] sm:flex-row">
+            <div className="-mr-4 flex max-h-[80dvh] flex-col items-start gap-4 overflow-y-auto px-2 pb-6 pr-4 sm:max-h-[75dvh] sm:flex-row">
               <div className="w-full flex-1 space-y-4">
                 <div className="flex w-full flex-row gap-2">
                   <FormField
