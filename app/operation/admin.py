@@ -382,19 +382,21 @@ class AdminOperation(BaseOperation):
         for db_admin in db_admins:
             await self._ensure_can_change_admin_status(db_admin, current_admin, is_disabled=is_disabled)
 
-        for db_admin in db_admins:
+        admins_to_update = [db_admin for db_admin in db_admins if db_admin.is_disabled != is_disabled]
+
+        for db_admin in admins_to_update:
             db_admin.is_disabled = is_disabled
 
         await db.commit()
 
-        for db_admin in db_admins:
+        for db_admin in admins_to_update:
             modified_admin = AdminDetails.model_validate(db_admin)
             asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
             logger.info(
                 f'Admin "{db_admin.username}" bulk {"disabled" if is_disabled else "enabled"} by admin "{current_admin.username}"'
             )
 
-        return self._build_bulk_action_response(db_admins)
+        return self._build_bulk_action_response(admins_to_update)
 
     async def bulk_reset_admins_usage(
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails

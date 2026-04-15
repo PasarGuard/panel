@@ -152,12 +152,14 @@ class UserTemplateOperation(BaseOperation):
         for template_id in bulk_templates.ids:
             db_templates.append(await self.get_validated_user_template(db, template_id))
 
-        for db_template in db_templates:
+        templates_to_update = [db_template for db_template in db_templates if db_template.is_disabled != is_disabled]
+
+        for db_template in templates_to_update:
             db_template.is_disabled = is_disabled
 
         await db.commit()
 
-        for db_template in db_templates:
+        for db_template in templates_to_update:
             await db.refresh(db_template)
             await load_user_template_attrs(db_template)
             user_template = UserTemplateResponse.model_validate(db_template)
@@ -166,4 +168,4 @@ class UserTemplateOperation(BaseOperation):
                 f'User template "{db_template.name}" bulk {"disabled" if is_disabled else "enabled"} by admin "{admin.username}"'
             )
 
-        return self._build_bulk_action_response(db_templates)
+        return self._build_bulk_action_response(templates_to_update)

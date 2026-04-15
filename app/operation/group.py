@@ -199,27 +199,30 @@ class GroupOperation(BaseOperation):
         for group_id in bulk_groups.ids:
             db_groups.append(await self.get_validated_group(db, group_id))
 
-        for db_group in db_groups:
+        groups_to_update = [db_group for db_group in db_groups if db_group.is_disabled != is_disabled]
+
+        for db_group in groups_to_update:
             db_group.is_disabled = is_disabled
 
         await db.commit()
 
-        for db_group in db_groups:
+        for db_group in groups_to_update:
             await db.refresh(db_group)
             await load_group_attrs(db_group)
 
-        users = await get_users(
-            db,
-            group_ids=[group.id for group in db_groups],
-            status=[UserStatus.active, UserStatus.on_hold],
-        )
-        await sync_users(users)
+        if groups_to_update:
+            users = await get_users(
+                db,
+                group_ids=[group.id for group in groups_to_update],
+                status=[UserStatus.active, UserStatus.on_hold],
+            )
+            await sync_users(users)
 
-        for db_group in db_groups:
+        for db_group in groups_to_update:
             group = GroupResponse.model_validate(db_group)
             asyncio.create_task(notification.modify_group(group, admin.username))
             logger.info(
                 f'Group "{db_group.name}" bulk {"disabled" if is_disabled else "enabled"} by admin "{admin.username}"'
             )
 
-        return self._build_bulk_action_response(db_groups)
+        return self._build_bulk_action_response(groups_to_update)

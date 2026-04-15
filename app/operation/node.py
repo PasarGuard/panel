@@ -954,17 +954,18 @@ class NodeOperation(BaseOperation):
         status: NodeStatus,
     ) -> BulkNodesActionResponse:
         db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
+        nodes_to_update = [db_node for db_node in db_nodes if db_node.status != status]
 
-        for db_node in db_nodes:
+        for db_node in nodes_to_update:
             payload = self._build_node_modify_payload(db_node)
             payload.status = status
             await self.modify_node(db, node_id=db_node.id, modified_node=payload, admin=admin)
 
         action = "enabled" if status != NodeStatus.disabled else "disabled"
-        for db_node in db_nodes:
+        for db_node in nodes_to_update:
             logger.info(f'Node "{db_node.name}" bulk {action} by admin "{admin.username}"')
 
-        return self._build_bulk_action_response(db_nodes)
+        return self._build_bulk_action_response(nodes_to_update)
 
     async def bulk_reset_nodes_usage(
         self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails

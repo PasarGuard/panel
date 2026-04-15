@@ -167,16 +167,18 @@ class HostOperation(BaseOperation):
         for host_id in bulk_hosts.ids:
             db_hosts.append(await self.get_validated_host(db, host_id))
 
-        for db_host in db_hosts:
+        hosts_to_update = [db_host for db_host in db_hosts if db_host.is_disabled != is_disabled]
+
+        for db_host in hosts_to_update:
             db_host.is_disabled = is_disabled
 
         await db.commit()
 
-        for db_host in db_hosts:
+        for db_host in hosts_to_update:
             await db.refresh(db_host)
             host = BaseHost.model_validate(db_host)
             asyncio.create_task(notification.modify_host(host, admin.username))
             await host_manager.add_host(db, db_host)
             logger.info(f'Host "{db_host.id}" bulk {"disabled" if is_disabled else "enabled"} by admin "{admin.username}"')
 
-        return self._build_bulk_action_response(db_hosts)
+        return self._build_bulk_action_response(hosts_to_update)
