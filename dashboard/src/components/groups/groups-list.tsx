@@ -146,12 +146,12 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedGroupIds.length) return
+    if (!selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableGroupsMutation.mutateAsync({
         data: {
-          ids: selectedGroupIds,
+          ids: selectedDisableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -171,12 +171,12 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedGroupIds.length) return
+    if (!selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableGroupsMutation.mutateAsync({
         data: {
-          ids: selectedGroupIds,
+          ids: selectedEnableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -200,6 +200,11 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     onToggleStatus: handleToggleStatus,
   })
   const selectedCount = selectedGroupIds.length
+  const selectedGroups = (groupsData?.groups || []).filter(group => selectedGroupIds.includes(group.id))
+  const selectedEnableEligibleIds = selectedGroups.filter(group => group.is_disabled).map(group => group.id)
+  const selectedDisableEligibleIds = selectedGroups.filter(group => !group.is_disabled).map(group => group.id)
+  const enableEligibleCount = selectedEnableEligibleIds.length
+  const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
         {
@@ -239,7 +244,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     enable: {
       title: t('group.bulkEnableTitle', { defaultValue: 'Enable Selected Groups' }),
       description: t('group.bulkEnablePrompt', {
-        count: selectedCount,
+        count: enableEligibleCount,
         defaultValue: 'Are you sure you want to enable {{count}} selected groups?',
       }),
       actionLabel: t('enable'),
@@ -249,7 +254,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     disable: {
       title: t('group.bulkDisableTitle', { defaultValue: 'Disable Selected Groups' }),
       description: t('group.bulkDisablePrompt', {
-        count: selectedCount,
+        count: disableEligibleCount,
         defaultValue: 'Are you sure you want to disable {{count}} selected groups?',
       }),
       actionLabel: t('disable'),

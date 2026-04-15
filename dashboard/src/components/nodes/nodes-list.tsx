@@ -376,12 +376,12 @@ export default function NodesList() {
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedNodeIds.length) return
+    if (!selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableNodesMutation.mutateAsync({
         data: {
-          ids: selectedNodeIds,
+          ids: selectedDisableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -401,12 +401,12 @@ export default function NodesList() {
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedNodeIds.length) return
+    if (!selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableNodesMutation.mutateAsync({
         data: {
-          ids: selectedNodeIds,
+          ids: selectedEnableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -501,6 +501,16 @@ export default function NodesList() {
   }
 
   const selectedCount = selectedNodeIds.length
+  const nodeCandidates = (nodesResponse?.nodes || []).concat(allNodes || [])
+  const selectedNodesMap = new Map<number, NodeResponse>()
+  nodeCandidates.forEach(node => {
+    if (selectedNodeIds.includes(node.id)) selectedNodesMap.set(node.id, node)
+  })
+  const selectedNodes = Array.from(selectedNodesMap.values())
+  const selectedEnableEligibleIds = selectedNodes.filter(node => node.status === 'disabled').map(node => node.id)
+  const selectedDisableEligibleIds = selectedNodes.filter(node => node.status !== 'disabled').map(node => node.id)
+  const enableEligibleCount = selectedEnableEligibleIds.length
+  const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
         {
@@ -559,7 +569,7 @@ export default function NodesList() {
     enable: {
       title: t('nodes.bulkEnableTitle', { defaultValue: 'Enable Selected Nodes' }),
       description: t('nodes.bulkEnablePrompt', {
-        count: selectedCount,
+        count: enableEligibleCount,
         defaultValue: 'Are you sure you want to enable {{count}} selected nodes?',
       }),
       actionLabel: t('enable'),
@@ -569,7 +579,7 @@ export default function NodesList() {
     disable: {
       title: t('nodes.bulkDisableTitle', { defaultValue: 'Disable Selected Nodes' }),
       description: t('nodes.bulkDisablePrompt', {
-        count: selectedCount,
+        count: disableEligibleCount,
         defaultValue: 'Are you sure you want to disable {{count}} selected nodes?',
       }),
       actionLabel: t('disable'),

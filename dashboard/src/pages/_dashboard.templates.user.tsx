@@ -169,12 +169,12 @@ export default function UserTemplates() {
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedTemplateIds.length) return
+    if (!selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableUserTemplatesMutation.mutateAsync({
         data: {
-          ids: selectedTemplateIds,
+          ids: selectedDisableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -196,12 +196,12 @@ export default function UserTemplates() {
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedTemplateIds.length) return
+    if (!selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableUserTemplatesMutation.mutateAsync({
         data: {
-          ids: selectedTemplateIds,
+          ids: selectedEnableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -226,6 +226,11 @@ export default function UserTemplates() {
   const isEmpty = !isCurrentlyLoading && (!filteredTemplates || filteredTemplates.length === 0) && !searchQuery.trim()
   const isSearchEmpty = !isCurrentlyLoading && (!filteredTemplates || filteredTemplates.length === 0) && searchQuery.trim() !== ''
   const selectedCount = selectedTemplateIds.length
+  const selectedTemplates = (userTemplates || []).filter(template => selectedTemplateIds.includes(template.id))
+  const selectedEnableEligibleIds = selectedTemplates.filter(template => template.is_disabled).map(template => template.id)
+  const selectedDisableEligibleIds = selectedTemplates.filter(template => !template.is_disabled).map(template => template.id)
+  const enableEligibleCount = selectedEnableEligibleIds.length
+  const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
         {
@@ -265,7 +270,7 @@ export default function UserTemplates() {
     enable: {
       title: t('templates.bulkEnableTitle', { defaultValue: 'Enable Selected User Templates' }),
       description: t('templates.bulkEnablePrompt', {
-        count: selectedCount,
+        count: enableEligibleCount,
         defaultValue: 'Are you sure you want to enable {{count}} selected user templates?',
       }),
       actionLabel: t('enable'),
@@ -275,7 +280,7 @@ export default function UserTemplates() {
     disable: {
       title: t('templates.bulkDisableTitle', { defaultValue: 'Disable Selected User Templates' }),
       description: t('templates.bulkDisablePrompt', {
-        count: selectedCount,
+        count: disableEligibleCount,
         defaultValue: 'Are you sure you want to disable {{count}} selected user templates?',
       }),
       actionLabel: t('disable'),

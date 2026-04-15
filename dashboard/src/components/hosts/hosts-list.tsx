@@ -452,12 +452,12 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedHostIds.length) return
+    if (!selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableHostsMutation.mutateAsync({
         data: {
-          ids: selectedHostIds,
+          ids: selectedDisableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -477,12 +477,12 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedHostIds.length) return
+    if (!selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableHostsMutation.mutateAsync({
         data: {
-          ids: selectedHostIds,
+          ids: selectedEnableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -791,6 +791,11 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !hasSearch && !hasActiveAdvanceFilters && sortedHosts.length === 0
   const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && (hasSearch || hasActiveAdvanceFilters)
   const selectedCount = selectedHostIds.length
+  const selectedHosts = (hosts || []).filter(host => typeof host.id === 'number' && selectedHostIds.includes(host.id))
+  const selectedEnableEligibleIds = selectedHosts.filter(host => Boolean(host.is_disabled)).map(host => host.id as number)
+  const selectedDisableEligibleIds = selectedHosts.filter(host => !Boolean(host.is_disabled)).map(host => host.id as number)
+  const enableEligibleCount = selectedEnableEligibleIds.length
+  const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
         {
@@ -830,7 +835,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     enable: {
       title: t('host.bulkEnableTitle', { defaultValue: 'Enable Selected Hosts' }),
       description: t('host.bulkEnablePrompt', {
-        count: selectedCount,
+        count: enableEligibleCount,
         defaultValue: 'Are you sure you want to enable {{count}} selected hosts?',
       }),
       actionLabel: t('enable'),
@@ -840,7 +845,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     disable: {
       title: t('host.bulkDisableTitle', { defaultValue: 'Disable Selected Hosts' }),
       description: t('host.bulkDisablePrompt', {
-        count: selectedCount,
+        count: disableEligibleCount,
         defaultValue: 'Are you sure you want to disable {{count}} selected hosts?',
       }),
       actionLabel: t('disable'),

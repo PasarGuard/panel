@@ -242,6 +242,9 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   })
 
   const adminsData = adminsResponse?.admins || []
+  const selectedAdmins = adminsData.filter(admin => selectedAdminUsernames.includes(admin.username))
+  const selectedEnableEligibleUsernames = selectedAdmins.filter(admin => admin.is_disabled).map(admin => admin.username)
+  const selectedDisableEligibleUsernames = selectedAdmins.filter(admin => !admin.is_disabled).map(admin => admin.username)
 
   // Expose counts to parent component for statistics
   useEffect(() => {
@@ -533,12 +536,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedAdminUsernames.length) return
+    if (!selectedDisableEligibleUsernames.length) return
 
     try {
       const response = await bulkDisableAdminsMutation.mutateAsync({
         data: {
-          usernames: selectedAdminUsernames,
+          usernames: selectedDisableEligibleUsernames,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -558,12 +561,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedAdminUsernames.length) return
+    if (!selectedEnableEligibleUsernames.length) return
 
     try {
       const response = await bulkEnableAdminsMutation.mutateAsync({
         data: {
-          usernames: selectedAdminUsernames,
+          usernames: selectedEnableEligibleUsernames,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -658,6 +661,8 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const selectedCount = selectedAdminUsernames.length
+  const enableEligibleCount = selectedEnableEligibleUsernames.length
+  const disableEligibleCount = selectedDisableEligibleUsernames.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
       {
@@ -732,7 +737,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     enable: {
       title: t('admins.bulkEnableTitle', { defaultValue: 'Enable Selected Admins' }),
       description: t('admins.bulkEnablePrompt', {
-        count: selectedCount,
+        count: enableEligibleCount,
         defaultValue: 'Are you sure you want to enable {{count}} selected admins?',
       }),
       actionLabel: t('enable'),
@@ -742,7 +747,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     disable: {
       title: t('admins.bulkDisableTitle', { defaultValue: 'Disable Selected Admins' }),
       description: t('admins.bulkDisablePrompt', {
-        count: selectedCount,
+        count: disableEligibleCount,
         defaultValue: 'Are you sure you want to disable {{count}} selected admins?',
       }),
       actionLabel: t('disable'),

@@ -5,7 +5,18 @@ import { DataTable } from '@/components/users/data-table'
 import { Filters } from '@/components/users/filters'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { getGetUsersQueryOptions, bulkDeleteUsers, bulkResetUsersDataUsage, bulkRevokeUsersSubscription, useGetUsers, UserResponse, UserStatus, UsersResponse } from '@/service/api'
+import {
+  getGetUsersQueryOptions,
+  bulkDeleteUsers,
+  bulkDisableUsers,
+  bulkEnableUsers,
+  bulkResetUsersDataUsage,
+  bulkRevokeUsersSubscription,
+  useGetUsers,
+  UserResponse,
+  UserStatus,
+  UsersResponse,
+} from '@/service/api'
 
 import { useAdmin } from '@/hooks/use-admin'
 import {
@@ -23,7 +34,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Link2Off, RefreshCcw, Trash2, UserCog } from 'lucide-react'
+import { Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog } from 'lucide-react'
 import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/components/dialogs/advance-search-modal'
@@ -119,7 +130,7 @@ const UsersTable = memo(() => {
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
   const [resetSelectionKey, setResetSelectionKey] = useState(0)
-  const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | null>(null)
+  const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | 'disable' | 'enable' | null>(null)
   const [isBulkSetOwnerModalOpen, setIsBulkSetOwnerModalOpen] = useState(false)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [isAdvanceSearchApplying, setIsAdvanceSearchApplying] = useState(false)
@@ -456,6 +467,11 @@ const UsersTable = memo(() => {
   }, [queryClient])
 
   const selectedCount = selectedUserIds.length
+  const selectedUsers = (usersData?.users || []).filter(user => selectedUserIds.includes(user.id))
+  const selectedDisableEligibleIds = selectedUsers.filter(user => user.status !== 'disabled').map(user => user.id)
+  const selectedEnableEligibleIds = selectedUsers.filter(user => user.status === 'disabled').map(user => user.id)
+  const disableEligibleCount = selectedDisableEligibleIds.length
+  const enableEligibleCount = selectedEnableEligibleIds.length
 
   useEffect(() => {
     if (!showSelectionCheckbox && selectedUserIds.length > 0) {
@@ -505,6 +521,34 @@ const UsersTable = memo(() => {
     },
   })
 
+  const disableUsersMutation = useMutation({
+    mutationFn: (ids: number[]) => bulkDisableUsers({ ids }),
+    onSuccess: response => {
+      invalidateUsers()
+      clearSelection()
+      toast.success(t('bulkUserActions.disableSuccess', { count: response.count, defaultValue: '{{count}} users disabled successfully.' }))
+    },
+    onError: (error: any) => {
+      toast.error(t('bulkUserActions.disableError', { defaultValue: 'Failed to disable selected users.' }), {
+        description: error?.data?.detail || error?.message || '',
+      })
+    },
+  })
+
+  const enableUsersMutation = useMutation({
+    mutationFn: (ids: number[]) => bulkEnableUsers({ ids }),
+    onSuccess: response => {
+      invalidateUsers()
+      clearSelection()
+      toast.success(t('bulkUserActions.enableSuccess', { count: response.count, defaultValue: '{{count}} users enabled successfully.' }))
+    },
+    onError: (error: any) => {
+      toast.error(t('bulkUserActions.enableError', { defaultValue: 'Failed to enable selected users.' }), {
+        description: error?.data?.detail || error?.message || '',
+      })
+    },
+  })
+
   const handleBulkDelete = async () => {
     if (!selectedUserIds.length) return
     await deleteMutation.mutateAsync(selectedUserIds)
@@ -520,39 +564,61 @@ const UsersTable = memo(() => {
     await revokeSubscriptionMutation.mutateAsync(selectedUserIds)
   }
 
+  const handleBulkDisableUsers = async () => {
+    if (!selectedDisableEligibleIds.length) return
+    await disableUsersMutation.mutateAsync(selectedDisableEligibleIds)
+  }
+
+  const handleBulkEnableUsers = async () => {
+    if (!selectedEnableEligibleIds.length) return
+    await enableUsersMutation.mutateAsync(selectedEnableEligibleIds)
+  }
+
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
-        {
-          key: 'delete',
-          label: t('usersTable.delete'),
-          icon: Trash2,
-          onClick: () => setBulkAction('delete'),
-          direct: true,
-          destructive: true,
-        },
-        {
-          key: 'reset',
-          label: t('userDialog.resetUsage'),
-          icon: RefreshCcw,
-          onClick: () => setBulkAction('reset'),
-        },
-        {
-          key: 'revoke',
-          label: t('userDialog.revokeSubscription'),
-          icon: Link2Off,
-          onClick: () => setBulkAction('revoke'),
-        },
-        ...(isSudo
-          ? [
-              {
-                key: 'owner',
-                label: t('setOwnerModal.title'),
-                icon: UserCog,
-                onClick: () => setIsBulkSetOwnerModalOpen(true),
-              } as BulkActionItem,
-            ]
-          : []),
-      ]
+      {
+        key: 'delete',
+        label: t('usersTable.delete'),
+        icon: Trash2,
+        onClick: () => setBulkAction('delete'),
+        direct: true,
+        destructive: true,
+      },
+      {
+        key: 'reset',
+        label: t('userDialog.resetUsage'),
+        icon: RefreshCcw,
+        onClick: () => setBulkAction('reset'),
+      },
+      {
+        key: 'revoke',
+        label: t('userDialog.revokeSubscription'),
+        icon: Link2Off,
+        onClick: () => setBulkAction('revoke'),
+      },
+      ...(isSudo
+        ? [
+          {
+            key: 'owner',
+            label: t('setOwnerModal.title'),
+            icon: UserCog,
+            onClick: () => setIsBulkSetOwnerModalOpen(true),
+          } as BulkActionItem,
+        ]
+        : []),
+      {
+        key: 'enable',
+        label: t('enable'),
+        icon: Power,
+        onClick: () => setBulkAction('enable'),
+      },
+      {
+        key: 'disable',
+        label: t('disable'),
+        icon: PowerOff,
+        onClick: () => setBulkAction('disable'),
+      }
+    ]
     : []
 
   const handlePageChange = (newPage: number) => {
@@ -804,6 +870,30 @@ const UsersTable = memo(() => {
         actionLabel={t('revokeUserSub.title')}
         onConfirm={handleBulkRevokeSubscription}
         isPending={revokeSubscriptionMutation.isPending}
+      />
+      <BulkActionAlertDialog
+        open={bulkAction === 'disable'}
+        onOpenChange={open => setBulkAction(open ? 'disable' : null)}
+        title={t('bulkUserActions.disableTitle', { defaultValue: 'Disable Selected Users' })}
+        description={t('bulkUserActions.disablePrompt', {
+          count: disableEligibleCount,
+          defaultValue: 'Are you sure you want to disable {{count}} selected users?',
+        })}
+        actionLabel={t('disable')}
+        onConfirm={handleBulkDisableUsers}
+        isPending={disableUsersMutation.isPending}
+      />
+      <BulkActionAlertDialog
+        open={bulkAction === 'enable'}
+        onOpenChange={open => setBulkAction(open ? 'enable' : null)}
+        title={t('bulkUserActions.enableTitle', { defaultValue: 'Enable Selected Users' })}
+        description={t('bulkUserActions.enablePrompt', {
+          count: enableEligibleCount,
+          defaultValue: 'Are you sure you want to enable {{count}} selected users?',
+        })}
+        actionLabel={t('enable')}
+        onConfirm={handleBulkEnableUsers}
+        isPending={enableUsersMutation.isPending}
       />
       <SetOwnerModal
         open={isBulkSetOwnerModalOpen}
