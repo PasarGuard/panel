@@ -9,12 +9,14 @@ from app.db.crud.user_template import (
     create_user_template,
     get_user_templates,
     get_user_templates_simple,
+    load_user_template_attrs,
     modify_user_template,
     remove_user_template,
     remove_user_templates,
 )
 from app.operation import BaseOperation
 from app.models.user_template import (
+    BulkUserTemplatesActionResponse,
     BulkUserTemplateSelection,
     RemoveUserTemplatesResponse,
     UserTemplateCreate,
@@ -132,3 +134,36 @@ class UserTemplateOperation(BaseOperation):
             asyncio.create_task(notification.remove_user_template(name, admin.username))
 
         return RemoveUserTemplatesResponse(templates=template_names, count=len(db_templates))
+
+    @staticmethod
+    def _build_bulk_action_response(templates: list) -> BulkUserTemplatesActionResponse:
+        names = [template.name for template in templates]
+        return BulkUserTemplatesActionResponse(templates=names, count=len(names))
+
+    async def bulk_set_user_templates_disabled(
+        self,
+        db: AsyncSession,
+        bulk_templates: BulkUserTemplateSelection,
+        admin: Admin,
+        *,
+        is_disabled: bool,
+    ) -> BulkUserTemplatesActionResponse:
+        db_templates = []
+        for template_id in bulk_templates.ids:
+            db_templates.append(await self.get_validated_user_template(db, template_id))
+
+        for db_template in db_templates:
+            db_template.is_disabled = is_disabled
+
+        await db.commit()
+
+        for db_template in db_templates:
+            await db.refresh(db_template)
+            await load_user_template_attrs(db_template)
+            user_template = UserTemplateResponse.model_validate(db_template)
+            asyncio.create_task(notification.modify_user_template(user_template, admin.username))
+            logger.info(
+                f'User template "{db_template.name}" bulk {"disabled" if is_disabled else "enabled"} by admin "{admin.username}"'
+            )
+
+        return self._build_bulk_action_response(db_templates)

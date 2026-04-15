@@ -78,3 +78,10 @@ class RemoveGroupsResponse(BaseModel):
 
     groups: list[str]
     count: int
+
+
+class BulkGroupsActionResponse(BaseModel):
+    """Response model for bulk group actions."""
+
+    groups: list[str]
+    count: int

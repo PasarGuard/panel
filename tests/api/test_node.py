@@ -199,6 +199,10 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "create_node",
         "get_validated_node",
         "modify_node",
+        "bulk_set_nodes_status",
+        "bulk_reset_nodes_usage",
+        "bulk_restart_nodes",
+        "bulk_update_nodes",
         "reset_node_usage",
         "restart_node",
         "sync_node_users",
@@ -386,6 +390,83 @@ def test_remove_node(access_token, node_operator_mock):
     assert response.status_code == status.HTTP_204_NO_CONTENT
     awaited_kwargs = node_operator_mock.remove_node.await_args.kwargs
     assert awaited_kwargs["node_id"] == 6
+
+
+def test_bulk_disable_nodes(access_token, node_operator_mock):
+    node_operator_mock.bulk_set_nodes_status.return_value = {"nodes": ["node-a", "node-b"], "count": 2}
+
+    response = client.post(
+        "/api/nodes/bulk/disable",
+        headers=auth_headers(access_token),
+        json={"ids": [1, 2]},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"nodes": ["node-a", "node-b"], "count": 2}
+    await_args = node_operator_mock.bulk_set_nodes_status.await_args
+    assert await_args.args[1].ids == [1, 2]
+    assert await_args.kwargs["status"] == NodeStatus.disabled
+
+
+def test_bulk_enable_nodes(access_token, node_operator_mock):
+    node_operator_mock.bulk_set_nodes_status.return_value = {"nodes": ["node-a"], "count": 1}
+
+    response = client.post(
+        "/api/nodes/bulk/enable",
+        headers=auth_headers(access_token),
+        json={"ids": [3]},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"nodes": ["node-a"], "count": 1}
+    await_args = node_operator_mock.bulk_set_nodes_status.await_args
+    assert await_args.args[1].ids == [3]
+    assert await_args.kwargs["status"] == NodeStatus.connected
+
+
+def test_bulk_reset_nodes_usage(access_token, node_operator_mock):
+    node_operator_mock.bulk_reset_nodes_usage.return_value = {"nodes": ["node-a"], "count": 1}
+
+    response = client.post(
+        "/api/nodes/bulk/reset",
+        headers=auth_headers(access_token),
+        json={"ids": [4]},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"nodes": ["node-a"], "count": 1}
+    await_args = node_operator_mock.bulk_reset_nodes_usage.await_args
+    assert await_args.args[1].ids == [4]
+
+
+def test_bulk_reconnect_nodes(access_token, node_operator_mock):
+    node_operator_mock.bulk_restart_nodes.return_value = {"nodes": ["node-a"], "count": 1}
+
+    response = client.post(
+        "/api/nodes/bulk/reconnect",
+        headers=auth_headers(access_token),
+        json={"ids": [5]},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"nodes": ["node-a"], "count": 1}
+    await_args = node_operator_mock.bulk_restart_nodes.await_args
+    assert await_args.args[1].ids == [5]
+
+
+def test_bulk_update_nodes(access_token, node_operator_mock):
+    node_operator_mock.bulk_update_nodes.return_value = {"nodes": ["node-a"], "count": 1}
+
+    response = client.post(
+        "/api/nodes/bulk/update",
+        headers=auth_headers(access_token),
+        json={"ids": [6]},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"nodes": ["node-a"], "count": 1}
+    await_args = node_operator_mock.bulk_update_nodes.await_args
+    assert await_args.args[1].ids == [6]
 
 
 def test_get_node_stats(access_token, node_operator_mock):

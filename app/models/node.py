@@ -289,3 +289,10 @@ class RemoveNodesResponse(BaseModel):
 
     nodes: list[str]
     count: int
+
+
+class BulkNodesActionResponse(BaseModel):
+    """Response model for bulk node actions."""
+
+    nodes: list[str]
+    count: int

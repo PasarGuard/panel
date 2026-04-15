@@ -21,8 +21,10 @@ from app.db.crud.admin import (
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
+from app.db.models import Admin
 from app.models.admin import (
     AdminCreate,
+    BulkAdminsActionResponse,
     AdminDetails,
     AdminModify,
     AdminSimple,
@@ -324,3 +326,124 @@ class AdminOperation(BaseOperation):
                 asyncio.create_task(notification.remove_admin(username, admin.username))
 
         return RemoveAdminsResponse(admins=usernames, count=len(db_admins))
+
+    @staticmethod
+    def _build_bulk_action_response(admins: list[AdminDetails | AdminSimple | Admin]) -> BulkAdminsActionResponse:
+        usernames = [admin.username for admin in admins]
+        return BulkAdminsActionResponse(admins=usernames, count=len(usernames))
+
+    async def _get_validated_bulk_admins(
+        self,
+        db: AsyncSession,
+        usernames: list[str] | set[str],
+    ) -> list[Admin]:
+        db_admins: list[Admin] = []
+        for username in usernames:
+            db_admins.append(await self.get_validated_admin(db, username=username))
+        return db_admins
+
+    async def _ensure_can_change_admin_status(
+        self,
+        db_admin: Admin,
+        current_admin: AdminDetails,
+        *,
+        is_disabled: bool,
+    ) -> None:
+        if self.operator_type != OperatorType.CLI and db_admin.is_sudo and db_admin.username != current_admin.username:
+            await self.raise_error(
+                message="You're not allowed to modify sudoer's account. Use pasarguard cli  / tui instead.",
+                code=403,
+            )
+
+        if is_disabled and db_admin.username == current_admin.username:
+            await self.raise_error(message="You're not allowed to disable your own account.", code=403)
+
+    async def _ensure_can_manage_admin_users(self, db_admin: Admin, *, action: str) -> None:
+        if not db_admin.is_sudo:
+            return
+
+        messages = {
+            "disable": "You're not allowed to disable sudo admin users.",
+            "activate": "You're not allowed to enable sudo admin users.",
+            "remove": "You're not allowed to delete sudo admin users.",
+        }
+        await self.raise_error(message=messages[action], code=403)
+
+    async def bulk_set_admins_disabled(
+        self,
+        db: AsyncSession,
+        bulk_admins: BulkAdminSelection,
+        current_admin: AdminDetails,
+        *,
+        is_disabled: bool,
+    ) -> BulkAdminsActionResponse:
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+
+        for db_admin in db_admins:
+            await self._ensure_can_change_admin_status(db_admin, current_admin, is_disabled=is_disabled)
+
+        for db_admin in db_admins:
+            db_admin.is_disabled = is_disabled
+
+        await db.commit()
+
+        for db_admin in db_admins:
+            modified_admin = AdminDetails.model_validate(db_admin)
+            asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
+            logger.info(
+                f'Admin "{db_admin.username}" bulk {"disabled" if is_disabled else "enabled"} by admin "{current_admin.username}"'
+            )
+
+        return self._build_bulk_action_response(db_admins)
+
+    async def bulk_reset_admins_usage(
+        self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
+    ) -> BulkAdminsActionResponse:
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+
+        for db_admin in db_admins:
+            db_admin = await reset_admin_usage(db, db_admin=db_admin)
+            reseted_admin = AdminDetails.model_validate(db_admin)
+            asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
+            logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(db_admins)
+
+    async def bulk_disable_all_active_users_for_admins(
+        self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
+    ) -> BulkAdminsActionResponse:
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+
+        for db_admin in db_admins:
+            await self._ensure_can_manage_admin_users(db_admin, action="disable")
+
+        for db_admin in db_admins:
+            await self.disable_all_active_users(db, username=db_admin.username, admin=admin)
+
+        return self._build_bulk_action_response(db_admins)
+
+    async def bulk_activate_all_disabled_users_for_admins(
+        self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
+    ) -> BulkAdminsActionResponse:
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+
+        for db_admin in db_admins:
+            await self._ensure_can_manage_admin_users(db_admin, action="activate")
+
+        for db_admin in db_admins:
+            await self.activate_all_disabled_users(db, username=db_admin.username, admin=admin)
+
+        return self._build_bulk_action_response(db_admins)
+
+    async def bulk_remove_all_users_for_admins(
+        self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
+    ) -> BulkAdminsActionResponse:
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+
+        for db_admin in db_admins:
+            await self._ensure_can_manage_admin_users(db_admin, action="remove")
+
+        for db_admin in db_admins:
+            await self.remove_all_users(db, username=db_admin.username, admin=admin)
+
+        return self._build_bulk_action_response(db_admins)

@@ -113,3 +113,10 @@ class RemoveUserTemplatesResponse(BaseModel):
 
     templates: list[str]
     count: int
+
+
+class BulkUserTemplatesActionResponse(BaseModel):
+    """Response model for bulk user template actions."""
+
+    templates: list[str]
+    count: int

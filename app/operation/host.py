@@ -2,9 +2,9 @@ import asyncio
 
 from app.db import AsyncSession
 from app.db.models import ProxyHost
-from app.models.client_template import ClientTemplateType
-from app.models.host import CreateHost, BaseHost, BulkHostSelection, RemoveHostsResponse
 from app.models.admin import AdminDetails
+from app.models.client_template import ClientTemplateType
+from app.models.host import BaseHost, BulkHostSelection, BulkHostsActionResponse, CreateHost, RemoveHostsResponse
 from app.operation import BaseOperation
 from app.db.crud.host import (
     create_host,
@@ -149,3 +149,34 @@ class HostOperation(BaseOperation):
             await host_manager.remove_host(host.id)
 
         return RemoveHostsResponse(hosts=[str(h.id) for h in db_hosts], count=len(db_hosts))
+
+    @staticmethod
+    def _build_bulk_action_response(hosts: list[ProxyHost]) -> BulkHostsActionResponse:
+        host_ids = [str(host.id) for host in hosts if host.id is not None]
+        return BulkHostsActionResponse(hosts=host_ids, count=len(host_ids))
+
+    async def bulk_set_hosts_disabled(
+        self,
+        db: AsyncSession,
+        bulk_hosts: BulkHostSelection,
+        admin: AdminDetails,
+        *,
+        is_disabled: bool,
+    ) -> BulkHostsActionResponse:
+        db_hosts = []
+        for host_id in bulk_hosts.ids:
+            db_hosts.append(await self.get_validated_host(db, host_id))
+
+        for db_host in db_hosts:
+            db_host.is_disabled = is_disabled
+
+        await db.commit()
+
+        for db_host in db_hosts:
+            await db.refresh(db_host)
+            host = BaseHost.model_validate(db_host)
+            asyncio.create_task(notification.modify_host(host, admin.username))
+            await host_manager.add_host(db, db_host)
+            logger.info(f'Host "{db_host.id}" bulk {"disabled" if is_disabled else "enabled"} by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(db_hosts)

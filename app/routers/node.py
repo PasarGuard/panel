@@ -10,6 +10,7 @@ from app.db import AsyncSession, get_db
 from app.db.models import NodeStatus
 from app.models.admin import AdminDetails
 from app.models.node import (
+    BulkNodesActionResponse,
     BulkNodeSelection,
     NodeCoreUpdate,
     NodeCreate,
@@ -387,3 +388,73 @@ async def bulk_delete_nodes(
 ):
     """Delete selected nodes by ID."""
     return await node_operator.bulk_remove_nodes(db, bulk_nodes, admin)
+
+
+@router.post(
+    "s/bulk/disable",
+    response_model=BulkNodesActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_disable_nodes(
+    bulk_nodes: BulkNodeSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Disable selected nodes by ID."""
+    return await node_operator.bulk_set_nodes_status(db, bulk_nodes, admin, status=NodeStatus.disabled)
+
+
+@router.post(
+    "s/bulk/enable",
+    response_model=BulkNodesActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_enable_nodes(
+    bulk_nodes: BulkNodeSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Enable selected nodes by ID."""
+    return await node_operator.bulk_set_nodes_status(db, bulk_nodes, admin, status=NodeStatus.connected)
+
+
+@router.post(
+    "s/bulk/reset",
+    response_model=BulkNodesActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_reset_nodes_usage(
+    bulk_nodes: BulkNodeSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Reset usage for selected nodes by ID."""
+    return await node_operator.bulk_reset_nodes_usage(db, bulk_nodes, admin)
+
+
+@router.post(
+    "s/bulk/reconnect",
+    response_model=BulkNodesActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_reconnect_nodes(
+    bulk_nodes: BulkNodeSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Reconnect selected nodes by ID."""
+    return await node_operator.bulk_restart_nodes(db, bulk_nodes, admin)
+
+
+@router.post(
+    "s/bulk/update",
+    response_model=BulkNodesActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_update_nodes(
+    bulk_nodes: BulkNodeSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Update selected nodes by ID."""
+    return await node_operator.bulk_update_nodes(db, bulk_nodes, admin)

@@ -184,3 +184,10 @@ class RemoveAdminsResponse(BaseModel):
 
     admins: list[str]
     count: int
+
+
+class BulkAdminsActionResponse(BaseModel):
+    """Response model for bulk admin actions."""
+
+    admins: list[str]
+    count: int

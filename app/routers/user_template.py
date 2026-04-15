@@ -4,6 +4,7 @@ from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from .authentication import check_sudo_admin, get_current
 from app.models.user_template import (
+    BulkUserTemplatesActionResponse,
     BulkUserTemplateSelection,
     RemoveUserTemplatesResponse,
     UserTemplateCreate,
@@ -120,3 +121,31 @@ async def bulk_delete_user_templates(
 ):
     """Delete selected user templates by ID."""
     return await template_operator.bulk_remove_user_templates(db, bulk_templates, admin)
+
+
+@router.post(
+    "s/bulk/disable",
+    response_model=BulkUserTemplatesActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_disable_user_templates(
+    bulk_templates: BulkUserTemplateSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Disable selected user templates by ID."""
+    return await template_operator.bulk_set_user_templates_disabled(db, bulk_templates, admin, is_disabled=True)
+
+
+@router.post(
+    "s/bulk/enable",
+    response_model=BulkUserTemplatesActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_enable_user_templates(
+    bulk_templates: BulkUserTemplateSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Enable selected user templates by ID."""
+    return await template_operator.bulk_set_user_templates_disabled(db, bulk_templates, admin, is_disabled=False)

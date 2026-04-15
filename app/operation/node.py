@@ -11,6 +11,7 @@ from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud.node import (
     NodeSortingOptionsSimple,
+    bulk_reset_node_usage,
     bulk_update_node_status,
     clear_usage_data,
     create_node,
@@ -30,6 +31,7 @@ from app.db.models import Node, NodeStatus, UserStatus
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
 from app.models.node import (
+    BulkNodesActionResponse,
     BulkNodeSelection,
     NodeCoreUpdate,
     NodeCreate,
@@ -911,3 +913,94 @@ class NodeOperation(BaseOperation):
             asyncio.create_task(notification.remove_node(node_response, admin.username))
 
         return RemoveNodesResponse(nodes=node_names, count=len(db_nodes))
+
+    async def _get_validated_nodes(self, db: AsyncSession, node_ids: list[int] | set[int]) -> list[Node]:
+        nodes: list[Node] = []
+        for node_id in node_ids:
+            nodes.append(await self.get_validated_node(db, node_id))
+        return nodes
+
+    @staticmethod
+    def _build_bulk_action_response(nodes: list[Node | NodeResponse]) -> BulkNodesActionResponse:
+        names = [node.name for node in nodes]
+        return BulkNodesActionResponse(nodes=names, count=len(names))
+
+    @staticmethod
+    def _build_node_modify_payload(node: Node) -> NodeModify:
+        return NodeModify(
+            name=node.name,
+            address=node.address,
+            port=node.port,
+            api_port=node.api_port,
+            usage_coefficient=node.usage_coefficient,
+            connection_type=node.connection_type,
+            server_ca=node.server_ca,
+            keep_alive=node.keep_alive,
+            core_config_id=node.core_config_id,
+            api_key=node.api_key,
+            data_limit=node.data_limit,
+            data_limit_reset_strategy=node.data_limit_reset_strategy,
+            reset_time=node.reset_time,
+            default_timeout=node.default_timeout,
+            internal_timeout=node.internal_timeout,
+        )
+
+    async def bulk_set_nodes_status(
+        self,
+        db: AsyncSession,
+        bulk_nodes: BulkNodeSelection,
+        admin: AdminDetails,
+        *,
+        status: NodeStatus,
+    ) -> BulkNodesActionResponse:
+        db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
+
+        for db_node in db_nodes:
+            payload = self._build_node_modify_payload(db_node)
+            payload.status = status
+            await self.modify_node(db, node_id=db_node.id, modified_node=payload, admin=admin)
+
+        action = "enabled" if status != NodeStatus.disabled else "disabled"
+        for db_node in db_nodes:
+            logger.info(f'Node "{db_node.name}" bulk {action} by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(db_nodes)
+
+    async def bulk_reset_nodes_usage(
+        self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails
+    ) -> BulkNodesActionResponse:
+        db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
+        old_usages = {node.id: (node.uplink, node.downlink) for node in db_nodes}
+
+        db_nodes = await bulk_reset_node_usage(db, db_nodes)
+
+        for db_node in db_nodes:
+            node = NodeResponse.model_validate(db_node)
+            old_uplink, old_downlink = old_usages[db_node.id]
+            asyncio.create_task(notification.reset_node_usage(node, admin.username, old_uplink, old_downlink))
+            logger.info(f'Node "{db_node.name}" usage reset by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(db_nodes)
+
+    async def bulk_restart_nodes(
+        self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails
+    ) -> BulkNodesActionResponse:
+        db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
+
+        await self.connect_nodes_bulk(db, db_nodes)
+
+        for db_node in db_nodes:
+            logger.info(f'Node "{db_node.name}" restarted by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(db_nodes)
+
+    async def bulk_update_nodes(
+        self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails
+    ) -> BulkNodesActionResponse:
+        db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
+
+        for db_node in db_nodes:
+            await self.update_node(db, db_node.id)
+            logger.info(f'Node "{db_node.name}" updated by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(db_nodes)

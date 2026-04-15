@@ -13,6 +13,7 @@ from app.models.admin import (
     Token,
     AdminsResponse,
     AdminsSimpleResponse,
+    BulkAdminsActionResponse,
     BulkAdminSelection,
     RemoveAdminsResponse,
 )
@@ -248,3 +249,87 @@ async def bulk_delete_admins(
 ):
     """Delete selected admins by username."""
     return await admin_operator.bulk_remove_admins(db, bulk_admins, admin)
+
+
+@router.post(
+    "s/bulk/reset",
+    response_model=BulkAdminsActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_reset_admins_usage(
+    bulk_admins: BulkAdminSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Reset usage for selected admins by username."""
+    return await admin_operator.bulk_reset_admins_usage(db, bulk_admins, admin)
+
+
+@router.post(
+    "s/bulk/disable",
+    response_model=BulkAdminsActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_disable_admins(
+    bulk_admins: BulkAdminSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Disable selected admins by username."""
+    return await admin_operator.bulk_set_admins_disabled(db, bulk_admins, admin, is_disabled=True)
+
+
+@router.post(
+    "s/bulk/enable",
+    response_model=BulkAdminsActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_enable_admins(
+    bulk_admins: BulkAdminSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Enable selected admins by username."""
+    return await admin_operator.bulk_set_admins_disabled(db, bulk_admins, admin, is_disabled=False)
+
+
+@router.post(
+    "s/bulk/users/disable",
+    response_model=BulkAdminsActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_disable_all_active_users(
+    bulk_admins: BulkAdminSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Disable all active users under selected admins."""
+    return await admin_operator.bulk_disable_all_active_users_for_admins(db, bulk_admins, admin)
+
+
+@router.post(
+    "s/bulk/users/activate",
+    response_model=BulkAdminsActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_activate_all_disabled_users(
+    bulk_admins: BulkAdminSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Activate all disabled users under selected admins."""
+    return await admin_operator.bulk_activate_all_disabled_users_for_admins(db, bulk_admins, admin)
+
+
+@router.delete(
+    "s/bulk/users",
+    response_model=BulkAdminsActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_remove_all_users(
+    bulk_admins: BulkAdminSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Remove all users under selected admins."""
+    return await admin_operator.bulk_remove_all_users_for_admins(db, bulk_admins, admin)

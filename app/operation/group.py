@@ -7,6 +7,7 @@ from app.db.crud.group import (
     create_group,
     get_group,
     get_groups_simple,
+    load_group_attrs,
     modify_group,
     remove_group,
     remove_groups,
@@ -15,6 +16,7 @@ from app.db.crud.group import (
 from app.db.crud.user import get_users
 from app.db.models import Admin, UserStatus
 from app.models.group import (
+    BulkGroupsActionResponse,
     BulkGroup,
     BulkGroupSelection,
     Group,
@@ -179,3 +181,45 @@ class GroupOperation(BaseOperation):
             asyncio.create_task(notification.remove_group(group_id, admin.username))
 
         return RemoveGroupsResponse(groups=group_names, count=len(db_groups))
+
+    @staticmethod
+    def _build_bulk_action_response(groups: list[Group]) -> BulkGroupsActionResponse:
+        names = [group.name for group in groups]
+        return BulkGroupsActionResponse(groups=names, count=len(names))
+
+    async def bulk_set_groups_disabled(
+        self,
+        db: AsyncSession,
+        bulk_groups: BulkGroupSelection,
+        admin: Admin,
+        *,
+        is_disabled: bool,
+    ) -> BulkGroupsActionResponse:
+        db_groups = []
+        for group_id in bulk_groups.ids:
+            db_groups.append(await self.get_validated_group(db, group_id))
+
+        for db_group in db_groups:
+            db_group.is_disabled = is_disabled
+
+        await db.commit()
+
+        for db_group in db_groups:
+            await db.refresh(db_group)
+            await load_group_attrs(db_group)
+
+        users = await get_users(
+            db,
+            group_ids=[group.id for group in db_groups],
+            status=[UserStatus.active, UserStatus.on_hold],
+        )
+        await sync_users(users)
+
+        for db_group in db_groups:
+            group = GroupResponse.model_validate(db_group)
+            asyncio.create_task(notification.modify_group(group, admin.username))
+            logger.info(
+                f'Group "{db_group.name}" bulk {"disabled" if is_disabled else "enabled"} by admin "{admin.username}"'
+            )
+
+        return self._build_bulk_action_response(db_groups)

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.host import BaseHost, CreateHost, BulkHostSelection, RemoveHostsResponse
+from app.models.host import BaseHost, BulkHostSelection, BulkHostsActionResponse, CreateHost, RemoveHostsResponse
 from app.operation import OperatorType
 from app.operation.host import HostOperation
 from app.utils import responses
@@ -97,3 +97,31 @@ async def bulk_delete_hosts(
 ):
     """Delete selected hosts by ID."""
     return await host_operator.bulk_remove_hosts(db, bulk_hosts, admin)
+
+
+@router.post(
+    "s/bulk/disable",
+    response_model=BulkHostsActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_disable_hosts(
+    bulk_hosts: BulkHostSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Disable selected hosts by ID."""
+    return await host_operator.bulk_set_hosts_disabled(db, bulk_hosts, admin, is_disabled=True)
+
+
+@router.post(
+    "s/bulk/enable",
+    response_model=BulkHostsActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_enable_hosts(
+    bulk_hosts: BulkHostSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Enable selected hosts by ID."""
+    return await host_operator.bulk_set_hosts_disabled(db, bulk_hosts, admin, is_disabled=False)

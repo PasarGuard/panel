@@ -358,3 +358,10 @@ class RemoveHostsResponse(BaseModel):
 
     hosts: list[str]
     count: int
+
+
+class BulkHostsActionResponse(BaseModel):
+    """Response model for bulk host actions."""
+
+    hosts: list[str]
+    count: int
