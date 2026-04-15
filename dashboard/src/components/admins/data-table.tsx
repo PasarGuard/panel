@@ -7,7 +7,7 @@ import { ChartPie, ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, UserC
 import { Button } from '@/components/ui/button'
 import { AdminDetails } from '@/service/api'
 import { useTranslation } from 'react-i18next'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes } from '@/utils/formatByte'
 
 interface DataTableProps<TData extends AdminDetails> {
@@ -71,12 +71,12 @@ const ExpandedRowContent = memo(
         </div>
         <div className="flex justify-end gap-1">
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(row)} title={t('edit')}>
-            <Edit2 className="h-4 w-4" />
+            <Edit2 className="!h-3.5 !w-3.5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
+                <MoreVertical className="!h-3.5 !w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -140,17 +140,20 @@ const ExpandedRowContent = memo(
                 </DropdownMenuItem>
               )}
               {!isSudoTarget && row.username !== currentAdminUsername && (
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onSelect={e => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    onDelete(row)
-                  }}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {t('delete')}
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onSelect={e => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onDelete(row)
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {t('delete')}
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>

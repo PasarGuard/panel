@@ -156,21 +156,20 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
           <DropdownMenuItem
             onSelect={e => {
               e.stopPropagation()
-              handleToggleStatus()
-            }}
-          >
-            {host?.is_disabled ? <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
-            {host?.is_disabled ? t('enable') : t('disable')}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
               onEdit(host)
             }}
           >
             <Pencil className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {t('edit')}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={e => {
+              e.stopPropagation()
+              handleToggleStatus()
+            }}
+          >
+            {host?.is_disabled ? <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
+            {host?.is_disabled ? t('enable') : t('disable')}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={e => {
@@ -181,6 +180,7 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
             <Copy className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {t('duplicate')}
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
             <Trash2 className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {t('delete')}

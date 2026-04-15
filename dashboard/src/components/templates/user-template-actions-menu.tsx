@@ -119,7 +119,6 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
             <Pen className="h-4 w-4" />
             <span>{t('edit')}</span>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={e => {
               e.stopPropagation()
@@ -140,6 +139,7 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
             <Copy className="h-4 w-4" />
             <span>{t('duplicate')}</span>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             dir={dir}
             className="template-dropdown-menu flex items-center !text-red-500"
