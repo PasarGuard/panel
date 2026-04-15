@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Activity, CircleFadingArrowUp, Loader2, Map, MoreVertical, Package, Pencil, Power, RefreshCcw, RotateCcw, Trash2, Wifi } from 'lucide-react'
+import { Activity, CircleFadingArrowUp, Loader2, Map, MoreVertical, Package, Pencil, Power, PowerOff, RefreshCcw, RotateCcw, Trash2, Wifi } from 'lucide-react'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import { CoresSimpleResponse, NodeResponse, useReconnectNode, useRemoveNode, useResetNodeUsage, useSyncNode, useUpdateNode } from '@/service/api'
@@ -232,7 +232,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
               onToggleStatus(node)
             }}
           >
-            <Power className="mr-2 h-4 w-4 shrink-0" />
+            {node.status === 'disabled' ? <Power className="mr-2 h-4 w-4 shrink-0" /> : <PowerOff className="mr-2 h-4 w-4 shrink-0" />}
             <span className="min-w-0 truncate">{node.status === 'disabled' ? t('enable') : t('disable')}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />

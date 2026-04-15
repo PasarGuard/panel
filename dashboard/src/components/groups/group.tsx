@@ -6,7 +6,7 @@ import { useRemoveGroup } from '@/service/api'
 import { toast } from 'sonner'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useState } from 'react'
-import { MoreVertical, Pencil, Power, Trash2 } from 'lucide-react'
+import { MoreVertical, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -109,7 +109,7 @@ export default function Group({ group, onEdit, onToggleStatus, selectionControl,
                       onToggleStatus(group)
                     }}
                   >
-                    <Power className="mr-2 h-4 w-4" />
+                    {group.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
                     {group.is_disabled ? t('enable') : t('disable')}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

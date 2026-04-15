@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { MoreVertical, Pencil, Power, Trash2 } from 'lucide-react'
+import { MoreVertical, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import { GroupResponse, useRemoveGroup } from '@/service/api'
@@ -80,7 +80,7 @@ export default function GroupActionsMenu({ group, onEdit, onToggleStatus, classN
       <div className={className} onClick={e => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
               <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -100,7 +100,7 @@ export default function GroupActionsMenu({ group, onEdit, onToggleStatus, classN
                 onToggleStatus(group)
               }}
             >
-              <Power className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+              {group.is_disabled ? <Power className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
               <span className="min-w-0 truncate">{group.is_disabled ? t('enable') : t('disable')}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

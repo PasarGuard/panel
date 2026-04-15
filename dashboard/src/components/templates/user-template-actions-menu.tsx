@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import { Copy, EllipsisVertical, Pen, Power, Trash2 } from 'lucide-react'
+import { Copy, EllipsisVertical, Pen, Power, PowerOff, Trash2 } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
@@ -126,7 +126,7 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
               onToggleStatus(template)
             }}
           >
-            <Power className="h-4 w-4" />
+            {template.is_disabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
             {template.is_disabled ? t('enable') : t('disable')}
           </DropdownMenuItem>
           <DropdownMenuItem

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import { Copy, MoreVertical, Pencil, Power, Trash2 } from 'lucide-react'
+import { Copy, MoreVertical, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
 import { BaseHost, modifyHost, removeHost } from '@/service/api'
 import { toast } from 'sonner'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -159,7 +159,7 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
               handleToggleStatus()
             }}
           >
-            <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+            {host?.is_disabled ? <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
             {host?.is_disabled ? t('enable') : t('disable')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
