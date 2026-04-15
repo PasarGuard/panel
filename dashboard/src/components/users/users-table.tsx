@@ -1,6 +1,7 @@
 import { setupColumns } from '@/components/users/columns'
 import { ActionButtonsModalHost } from '@/components/users/action-buttons'
 import SetOwnerModal from '@/components/dialogs/set-owner-modal'
+import ApplyTemplateModal from '@/components/dialogs/apply-template-modal'
 import { DataTable } from '@/components/users/data-table'
 import { Filters } from '@/components/users/filters'
 import { type UseEditFormValues } from '@/components/forms/user-form'
@@ -34,7 +35,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog } from 'lucide-react'
+import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog } from 'lucide-react'
 import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/components/dialogs/advance-search-modal'
@@ -130,8 +131,9 @@ const UsersTable = memo(() => {
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
   const [resetSelectionKey, setResetSelectionKey] = useState(0)
-  const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | 'disable' | 'enable' | null>(null)
+  const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | 'disable' | 'enable' | 'apply_template' | null>(null)
   const [isBulkSetOwnerModalOpen, setIsBulkSetOwnerModalOpen] = useState(false)
+  const [isBulkApplyTemplateModalOpen, setIsBulkApplyTemplateModalOpen] = useState(false)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [isAdvanceSearchApplying, setIsAdvanceSearchApplying] = useState(false)
   const [isSorting, setIsSorting] = useState(false)
@@ -596,7 +598,7 @@ const UsersTable = memo(() => {
         icon: Link2Off,
         onClick: () => setBulkAction('revoke'),
       },
-      ...(isSudo
+      ...(        isSudo
         ? [
           {
             key: 'owner',
@@ -606,6 +608,12 @@ const UsersTable = memo(() => {
           } as BulkActionItem,
         ]
         : []),
+      {
+        key: 'apply_template',
+        label: t('bulk.applyTemplate'),
+        icon: Layers,
+        onClick: () => setIsBulkApplyTemplateModalOpen(true),
+      },
       {
         key: 'enable',
         label: t('enable'),
@@ -898,6 +906,16 @@ const UsersTable = memo(() => {
       <SetOwnerModal
         open={isBulkSetOwnerModalOpen}
         onClose={() => setIsBulkSetOwnerModalOpen(false)}
+        userIds={selectedUserIds}
+        selectedCount={selectedCount}
+        onSuccess={() => {
+          invalidateUsers()
+          clearSelection()
+        }}
+      />
+      <ApplyTemplateModal
+        open={isBulkApplyTemplateModalOpen}
+        onClose={() => setIsBulkApplyTemplateModalOpen(false)}
         userIds={selectedUserIds}
         selectedCount={selectedCount}
         onSuccess={() => {

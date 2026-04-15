@@ -53,6 +53,7 @@ from app.models.user import (
     BulkOperationDryRunResponse,
     BulkUser,
     BulkUsersActionResponse,
+    BulkUsersApplyTemplate,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
@@ -936,6 +937,45 @@ class UserOperation(BaseOperation):
         subscription_urls = await self._persist_bulk_users(db, admin, db_admin, users_to_create, groups)
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
+
+    async def bulk_apply_template_to_users(
+        self,
+        db: AsyncSession,
+        body: BulkUsersApplyTemplate,
+        admin: AdminDetails,
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, body.ids, admin, load_usage_logs=False)
+        user_template = await self.get_validated_user_template(db, body.user_template_id)
+
+        if user_template.is_disabled:
+            await self.raise_error("this template is disabled", 403)
+
+        modified_users: list[UserNotificationResponse] = []
+        for db_user in db_users:
+            original_status = db_user.status
+            user_args = self.load_base_user_args(user_template)
+            user_args["proxy_settings"] = db_user.proxy_settings
+
+            try:
+                modify_user = UserModify(**user_args, note=body.note)
+            except ValidationError as e:
+                error_messages = "; ".join([f"{err['loc'][0]}: {err['msg']}" for err in e.errors()])
+                await self.raise_error(message=error_messages, code=400)
+
+            modify_user = self.apply_settings(modify_user, user_template)
+
+            if user_template.reset_usages:
+                suppress_reset_status_change = user_template.status == UserStatus.on_hold and original_status != UserStatus.active
+                await self._reset_user_data_usage(
+                    db,
+                    db_user,
+                    admin,
+                    emit_status_change_notification=not suppress_reset_status_change,
+                )
+
+            modified_users.append(await self._modify_user(db, db_user, modify_user, admin))
+
+        return self._build_bulk_action_response(modified_users)
 
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
         if bulk_model.dry_run:

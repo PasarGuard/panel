@@ -1349,6 +1349,37 @@ def test_bulk_create_users_from_template_random_with_username_rejected(access_to
         cleanup_groups(access_token, core, groups)
 
 
+def test_bulk_apply_template_to_users(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]])
+
+    user1 = create_user(access_token, username=unique_name("bulk_apply_tmpl_u1"))
+    user2 = create_user(access_token, username=unique_name("bulk_apply_tmpl_u2"))
+
+    try:
+        response = client.post(
+            "/api/users/bulk/apply_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "ids": [user1["id"], user2["id"]],
+                "user_template_id": template["id"],
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["count"] == 2
+
+        for username in (user1["username"], user2["username"]):
+            user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["data_limit"] == template["data_limit"]
+            assert user_response.json()["status"] == template["status"]
+    finally:
+        delete_user(access_token, user1["username"])
+        delete_user(access_token, user2["username"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
 # Tests for /api/users/simple endpoint
 
 

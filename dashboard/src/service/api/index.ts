@@ -2337,6 +2337,12 @@ export interface BulkUsersSelection {
   ids?: number[]
 }
 
+export interface BulkUsersApplyTemplate {
+  ids?: number[]
+  user_template_id: number
+  note?: string | null
+}
+
 export type BulkUsersProxyMethod = ShadowsocksMethods | null
 
 export type BulkUsersProxyFlow = XTLSFlows | null
@@ -8828,6 +8834,56 @@ export const useBulkEnableUsers = <
  */
 export const bulkRevokeUsersSubscription = (bulkUsersSelection: BodyType<BulkUsersSelection>, signal?: AbortSignal) => {
   return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/revoke_sub`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersSelection, signal })
+}
+
+/**
+ * Apply a user template to selected existing users by ID.
+ * @summary Bulk Apply Template To Users
+ */
+export const bulkApplyTemplateToUsers = (bulkUsersApplyTemplate: BodyType<BulkUsersApplyTemplate>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/apply_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersApplyTemplate, signal })
+}
+
+export const getBulkApplyTemplateToUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}) => {
+  const mutationKey = ['bulkApplyTemplateToUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>, { data: BodyType<BulkUsersApplyTemplate> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkApplyTemplateToUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}
+
+export type BulkApplyTemplateToUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>>
+export type BulkApplyTemplateToUsersMutationBody = BodyType<BulkUsersApplyTemplate>
+export type BulkApplyTemplateToUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Apply Template To Users
+ */
+export const useBulkApplyTemplateToUsers = <
+  TData = Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext> => {
+  const mutationOptions = getBulkApplyTemplateToUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
 }
 
 export const getBulkRevokeUsersSubscriptionMutationOptions = <

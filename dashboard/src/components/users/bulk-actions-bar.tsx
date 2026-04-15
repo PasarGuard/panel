@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { createPortal } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
-import { Link2Off, MoreHorizontal, RefreshCcw, Trash2, UserCog, X } from 'lucide-react'
+import { Link2Off, MoreHorizontal, RefreshCcw, Settings, Trash2, UserCog, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,9 +30,10 @@ interface BulkActionsBarProps {
   onResetUsage?: () => void
   onRevokeSub?: () => void
   onChangeOwner?: () => void
+  onApplyTemplate?: () => void
 }
 
-export const BulkActionsBar = memo(({ selectedCount, onClear, actions, onDelete, onResetUsage, onRevokeSub, onChangeOwner }: BulkActionsBarProps) => {
+export const BulkActionsBar = memo(({ selectedCount, onClear, actions, onDelete, onResetUsage, onRevokeSub, onChangeOwner, onApplyTemplate }: BulkActionsBarProps) => {
   const { t } = useTranslation()
   const defaultActions: Array<BulkActionItem | null> = [
     onDelete
@@ -67,6 +68,14 @@ export const BulkActionsBar = memo(({ selectedCount, onClear, actions, onDelete,
           label: t('setOwnerModal.title'),
           icon: UserCog,
           onClick: onChangeOwner,
+        }
+      : null,
+    onApplyTemplate
+      ? {
+          key: 'apply_template',
+          label: t('bulk.applyTemplate'),
+          icon: Settings,
+          onClick: onApplyTemplate,
         }
       : null,
   ]

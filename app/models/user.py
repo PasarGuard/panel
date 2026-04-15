@@ -218,6 +218,10 @@ class ModifyUserByTemplate(BaseModel):
     note: str | None = Field(max_length=500, default=None)
 
 
+class BulkUsersApplyTemplate(BulkUsersSelection, ModifyUserByTemplate):
+    """Apply a user template to a selection of existing users (by ID)."""
+
+
 class CreateUserFromTemplate(ModifyUserByTemplate):
     username: str
 

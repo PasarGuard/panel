@@ -13,6 +13,7 @@ from app.models.user import (
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
+    BulkUsersApplyTemplate,
     BulkUsersSelection,
     BulkUsersSetOwner,
     BulkWireGuardPeerIPs,
@@ -467,6 +468,20 @@ async def bulk_create_users_from_template(
     """
 
     return await user_operator.bulk_create_users_from_template(db, bulk_template_users, admin)
+
+
+@router.post(
+    "s/bulk/apply_template",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_apply_template_to_users(
+    body: BulkUsersApplyTemplate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Apply a user template to selected existing users by ID."""
+    return await user_operator.bulk_apply_template_to_users(db, body, admin)
 
 
 @router.put("/from_template/{username}", response_model=UserResponse)
