@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { queryClient } from '@/utils/query-client'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import type { GroupFormValues } from '@/components/forms/group-form'
+import { useEffect } from 'react'
 
 interface GroupModalProps {
   isDialogOpen: boolean
@@ -33,6 +34,21 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
       enabled: isDialogOpen,
     },
   })
+
+  useEffect(() => {
+    if (!isDialogOpen || isLoadingInbounds || !inbounds) return
+
+    const currentTags = form.getValues('inbound_tags') || []
+    const availableInbounds = new Set(inbounds)
+    const validTags = currentTags.filter(tag => availableInbounds.has(tag))
+
+    if (validTags.length === currentTags.length) return
+
+    form.setValue('inbound_tags', validTags, {
+      shouldDirty: false,
+      shouldValidate: true,
+    })
+  }, [form, inbounds, isDialogOpen, isLoadingInbounds])
 
   const onSubmit = async (values: GroupFormValues) => {
     try {
