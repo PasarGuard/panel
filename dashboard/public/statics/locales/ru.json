@@ -1718,7 +1718,7 @@
     "proxySettings.wireguardPublicKey": "Публичный ключ WireGuard",
     "proxySettings.wireguardPeerIps": "Peer IP-адреса WireGuard",
     "proxySettings.generateWireGuardKeyPair": "Пара ключей WireGuard",
-    "proxySettings.peerIpsHint": "Оставьте пустым для автоназначения из глобального пула peer-адресов WireGuard. Ручной ввод должен попадать в этот пул.",
+    "proxySettings.peerIpsHint": "Оставьте пустым для автоназначения из глобального пула peer-адресов WireGuard. При ручном вводе указывайте по одному CIDR в строке, и каждое значение должно входить в этот пул.",
     "proxySettings.wireguardGenerated": "Пара ключей WireGuard сгенерирована",
     "proxySettings.desc": "Настройте параметры протокола для этого пользователя.",
     "selectNode": "Выберите узел",

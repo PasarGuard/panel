@@ -1215,7 +1215,7 @@
   "userDialog.proxySettings.wireguardPublicKey": "کلید عمومی وایرگارد",
   "userDialog.proxySettings.wireguardPeerIps": "IPهای همتای وایرگارد",
   "userDialog.proxySettings.generateWireGuardKeyPair": "جفت‌کلید وایرگارد",
-  "userDialog.proxySettings.peerIpsHint": "برای تخصیص خودکار از استخر سراسری آی‌پی وایرگارد خالی بگذارید. مقادیر دستی باید داخل همان محدوده باشند.",
+  "userDialog.proxySettings.peerIpsHint": "برای تخصیص خودکار از استخر سراسری آی‌پی وایرگارد خالی بگذارید. در ورود دستی، هر CIDR را در یک خط جدا وارد کنید و همه مقادیر باید داخل همان محدوده باشند.",
   "userDialog.proxySettings.wireguardGenerated": "جفت‌کلید وایرگارد تولید شد",
   "userDialog.proxySettings.desc": "تنظیمات اختصاصی پروتکل برای این کاربر را پیکربندی کنید.",
   "userDialog.expireDate": "تاریخ انقضا",

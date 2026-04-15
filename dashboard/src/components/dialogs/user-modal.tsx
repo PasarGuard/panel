@@ -2259,7 +2259,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                   />
                                 </FormControl>
                                 <p className="text-xs text-muted-foreground">
-                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. Manual entries must fall within that pool.' })}
+                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. For manual entries, enter one CIDR per line, and keep each value within that pool.' })}
                                 </p>
                                 <FormMessage />
                               </FormItem>

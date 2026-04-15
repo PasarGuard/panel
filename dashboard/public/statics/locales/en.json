@@ -1350,7 +1350,7 @@
     "proxySettings.wireguardPublicKey": "WireGuard Public key",
     "proxySettings.wireguardPeerIps": "WireGuard Peer IPs",
     "proxySettings.generateWireGuardKeyPair": "WireGuard keypair",
-    "proxySettings.peerIpsHint": "Leave empty to auto-assign from the global WireGuard peer pool. Manual entries must fall within that pool.",
+    "proxySettings.peerIpsHint": "Leave empty to auto-assign from the global WireGuard peer pool. For manual entries, enter one CIDR per line, and keep each value within that pool.",
     "proxySettings.wireguardGenerated": "WireGuard keypair generated",
     "proxySettings.desc": "Configure protocol-specific settings for this user.",
     "selectNode": "Select Node",

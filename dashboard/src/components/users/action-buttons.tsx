@@ -159,6 +159,27 @@ const updateModalState = (userId: number, updater: (prev: ActionButtonsModalStat
   notifyGlobalListeners()
 }
 
+const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
+  username: user.username,
+  status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as UseEditFormValues['status']) : 'active',
+  data_limit: user.data_limit ? bytesToFormGigabytes(Number(user.data_limit)) : 0,
+  expire: normalizeExpireForEditForm(user.expire),
+  note: user.note || '',
+  data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
+  group_ids: user.group_ids || [],
+  on_hold_expire_duration: user.on_hold_expire_duration || undefined,
+  on_hold_timeout: user.on_hold_timeout || undefined,
+  proxy_settings: user.proxy_settings || undefined,
+  next_plan: user.next_plan
+    ? {
+      user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
+      data_limit: user.next_plan.data_limit ? Math.round(Number(user.next_plan.data_limit)) : 0,
+      expire: user.next_plan.expire ? Math.round(Number(user.next_plan.expire)) : 0,
+      add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
+    }
+    : undefined,
+})
+
 const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, renderActions = true }) => {
   const [subscribeLinks, setSubscribeLinks] = useState<SubscribeLink[]>([])
   const [isEditModalOpen, setEditModalOpen] = useState(false)
@@ -264,54 +285,16 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   // Create form for user editing
   const userForm = useForm<UseEditFormValues>({
-    defaultValues: {
-      username: user.username,
-      status: user.status === 'expired' || user.status === 'limited' ? 'active' : user.status,
-      data_limit: user.data_limit ? bytesToFormGigabytes(Number(user.data_limit)) : undefined,
-      expire: normalizeExpireForEditForm(user.expire),
-      note: user.note || '',
-      data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
-      group_ids: user.group_ids || [], // Add group_ids
-      on_hold_expire_duration: user.on_hold_expire_duration || undefined,
-      on_hold_timeout: user.on_hold_timeout || undefined,
-      proxy_settings: user.proxy_settings || undefined,
-      next_plan: user.next_plan
-        ? {
-          user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-          data_limit: user.next_plan.data_limit ? Math.round(Number(user.next_plan.data_limit)) : 0,
-          expire: user.next_plan.expire ? Math.round(Number(user.next_plan.expire)) : 0,
-          add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-        }
-        : undefined,
-    },
+    defaultValues: buildUserEditFormValues(user),
   })
 
   // Update form when user data changes
   useEffect(() => {
-    const values: UseEditFormValues = {
-      username: user.username,
-      status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as any) : 'active',
-      data_limit: user.data_limit ? bytesToFormGigabytes(Number(user.data_limit)) : 0,
-      expire: normalizeExpireForEditForm(user.expire),
-      note: user.note || '',
-      data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
-      group_ids: user.group_ids || [],
-      on_hold_expire_duration: user.on_hold_expire_duration || undefined,
-      on_hold_timeout: user.on_hold_timeout || undefined,
-      proxy_settings: user.proxy_settings || undefined,
-      next_plan: user.next_plan
-        ? {
-          user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-          data_limit: user.next_plan.data_limit ? Math.round(Number(user.next_plan.data_limit)) : 0,
-          expire: user.next_plan.expire ? Math.round(Number(user.next_plan.expire)) : 0,
-          add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-        }
-        : undefined,
-    }
+    // Keep background refreshes from clobbering an active edit session.
+    if (isEditModalOpen) return
 
-    // Update form with current values
-    userForm.reset(values)
-  }, [user, userForm])
+    userForm.reset(buildUserEditFormValues(user))
+  }, [user, userForm, isEditModalOpen])
 
   const onOpenSubscriptionModal = useCallback(() => {
     setSubscribeUrl(user.subscription_url ? user.subscription_url : '')
@@ -372,28 +355,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     }
 
     // Update form with latest user data
-    const values: UseEditFormValues = {
-      username: latestUser.username,
-      status: latestUser.status === 'active' || latestUser.status === 'on_hold' || latestUser.status === 'disabled' ? (latestUser.status as any) : 'active',
-      data_limit: latestUser.data_limit ? bytesToFormGigabytes(Number(latestUser.data_limit)) : 0,
-      expire: normalizeExpireForEditForm(latestUser.expire),
-      note: latestUser.note || '',
-      data_limit_reset_strategy: latestUser.data_limit_reset_strategy || undefined,
-      group_ids: latestUser.group_ids || [],
-      on_hold_expire_duration: latestUser.on_hold_expire_duration || undefined,
-      on_hold_timeout: latestUser.on_hold_timeout || undefined,
-      proxy_settings: latestUser.proxy_settings || undefined,
-      next_plan: latestUser.next_plan
-        ? {
-          user_template_id: latestUser.next_plan.user_template_id ? Number(latestUser.next_plan.user_template_id) : undefined,
-          data_limit: latestUser.next_plan.data_limit ? Math.round(Number(latestUser.next_plan.data_limit)) : 0,
-          expire: latestUser.next_plan.expire ? Math.round(Number(latestUser.next_plan.expire)) : 0,
-          add_remaining_traffic: latestUser.next_plan.add_remaining_traffic || false,
-        }
-        : undefined,
-    }
-
-    userForm.reset(values)
+    userForm.reset(buildUserEditFormValues(latestUser))
     setSelectedUser(latestUser)
     setEditModalOpen(true)
   }
