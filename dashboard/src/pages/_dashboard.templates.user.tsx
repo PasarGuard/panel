@@ -1,5 +1,5 @@
 import UserTemplate from '../components/templates/user-template'
-import { useBulkDeleteUserTemplates, useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from '@/service/api'
+import { useBulkDeleteUserTemplates, useBulkDisableUserTemplates, useBulkEnableUserTemplates, useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import UserTemplateModal from '@/components/dialogs/user-template-modal'
@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { RefreshCw, Search, X } from 'lucide-react'
+import { Power, PowerOff, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import ViewToggle from '@/components/common/view-toggle'
@@ -19,8 +19,19 @@ import { ListGenerator } from '@/components/common/list-generator'
 import { useUserTemplatesListColumns } from '@/components/templates/use-user-templates-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { bytesToFormGigabytes } from '@/utils/formatByte'
-import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionItem, BulkActionsBar } from '@/components/users/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
+
+type BulkUserTemplateActionType = 'delete' | 'disable' | 'enable'
+
+interface BulkActionDialogConfig {
+  title: string
+  description: string
+  actionLabel: string
+  onConfirm: () => Promise<void>
+  isPending: boolean
+  destructive?: boolean
+}
 
 export default function UserTemplates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -28,7 +39,7 @@ export default function UserTemplates() {
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:templates')
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([])
-  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
+  const [bulkAction, setBulkAction] = useState<BulkUserTemplateActionType | null>(null)
   const { data: userTemplates, isLoading, isFetching, refetch } = useGetUserTemplates()
   const { t } = useTranslation()
   const form = useForm<UserTemplatesFromValueInput>({
@@ -37,6 +48,8 @@ export default function UserTemplates() {
   })
   const modifyUserTemplateMutation = useModifyUserTemplate()
   const bulkDeleteUserTemplatesMutation = useBulkDeleteUserTemplates()
+  const bulkDisableUserTemplatesMutation = useBulkDisableUserTemplates()
+  const bulkEnableUserTemplatesMutation = useBulkEnableUserTemplates()
   const dir = useDirDetection()
 
   useEffect(() => {
@@ -155,9 +168,122 @@ export default function UserTemplates() {
     }
   }
 
+  const handleBulkDisable = async () => {
+    if (!selectedTemplateIds.length) return
+
+    try {
+      const response = await bulkDisableUserTemplatesMutation.mutateAsync({
+        data: {
+          ids: selectedTemplateIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('templates.bulkDisableSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} user templates disabled successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({
+        queryKey: ['/api/user_templates'],
+      })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('templates.bulkDisableFailed', { defaultValue: 'Failed to disable selected user templates.' }),
+      })
+    }
+  }
+
+  const handleBulkEnable = async () => {
+    if (!selectedTemplateIds.length) return
+
+    try {
+      const response = await bulkEnableUserTemplatesMutation.mutateAsync({
+        data: {
+          ids: selectedTemplateIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('templates.bulkEnableSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} user templates enabled successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({
+        queryKey: ['/api/user_templates'],
+      })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('templates.bulkEnableFailed', { defaultValue: 'Failed to enable selected user templates.' }),
+      })
+    }
+  }
+
   const isCurrentlyLoading = isLoading || (isFetching && !userTemplates)
   const isEmpty = !isCurrentlyLoading && (!filteredTemplates || filteredTemplates.length === 0) && !searchQuery.trim()
   const isSearchEmpty = !isCurrentlyLoading && (!filteredTemplates || filteredTemplates.length === 0) && searchQuery.trim() !== ''
+  const selectedCount = selectedTemplateIds.length
+  const bulkActions: BulkActionItem[] = selectedCount
+    ? [
+        {
+          key: 'delete',
+          label: t('delete'),
+          icon: Trash2,
+          onClick: () => setBulkAction('delete'),
+          direct: true,
+          destructive: true,
+        },
+        {
+          key: 'enable',
+          label: t('enable'),
+          icon: Power,
+          onClick: () => setBulkAction('enable'),
+        },
+        {
+          key: 'disable',
+          label: t('disable'),
+          icon: PowerOff,
+          onClick: () => setBulkAction('disable'),
+        },
+      ]
+    : []
+  const bulkActionConfigs: Record<BulkUserTemplateActionType, BulkActionDialogConfig> = {
+    delete: {
+      title: t('templates.bulkDeleteTitle', { defaultValue: 'Delete Selected User Templates' }),
+      description: t('templates.bulkDeletePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to delete {{count}} selected user templates? This action cannot be undone.',
+      }),
+      actionLabel: t('delete'),
+      onConfirm: handleBulkDelete,
+      isPending: bulkDeleteUserTemplatesMutation.isPending,
+      destructive: true,
+    },
+    enable: {
+      title: t('templates.bulkEnableTitle', { defaultValue: 'Enable Selected User Templates' }),
+      description: t('templates.bulkEnablePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to enable {{count}} selected user templates?',
+      }),
+      actionLabel: t('enable'),
+      onConfirm: handleBulkEnable,
+      isPending: bulkEnableUserTemplatesMutation.isPending,
+    },
+    disable: {
+      title: t('templates.bulkDisableTitle', { defaultValue: 'Disable Selected User Templates' }),
+      description: t('templates.bulkDisablePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to disable {{count}} selected user templates?',
+      }),
+      actionLabel: t('disable'),
+      onConfirm: handleBulkDisable,
+      isPending: bulkDisableUserTemplatesMutation.isPending,
+    },
+  }
+  const activeBulkActionConfig = bulkAction ? bulkActionConfigs[bulkAction] : null
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
@@ -187,7 +313,7 @@ export default function UserTemplates() {
             <ViewToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
-        <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />
+        <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
 
         {(isCurrentlyLoading || (filteredTemplates && filteredTemplates.length > 0)) && (
           <ListGenerator
@@ -261,19 +387,18 @@ export default function UserTemplates() {
         editingUserTemplate={!!editingUserTemplate}
         editingUserTemplateId={editingUserTemplate?.id}
       />
-      <BulkActionAlertDialog
-        open={bulkAction === 'delete'}
-        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
-        title={t('templates.bulkDeleteTitle', { defaultValue: 'Delete Selected User Templates' })}
-        description={t('templates.bulkDeletePrompt', {
-          count: selectedTemplateIds.length,
-          defaultValue: 'Are you sure you want to delete {{count}} selected user templates? This action cannot be undone.',
-        })}
-        actionLabel={t('delete')}
-        onConfirm={handleBulkDelete}
-        isPending={bulkDeleteUserTemplatesMutation.isPending}
-        destructive
-      />
+      {activeBulkActionConfig && (
+        <BulkActionAlertDialog
+          open={!!bulkAction}
+          onOpenChange={open => setBulkAction(open ? bulkAction : null)}
+          title={activeBulkActionConfig.title}
+          description={activeBulkActionConfig.description}
+          actionLabel={activeBulkActionConfig.actionLabel}
+          onConfirm={activeBulkActionConfig.onConfirm}
+          isPending={activeBulkActionConfig.isPending}
+          destructive={activeBulkActionConfig.destructive}
+        />
+      )}
     </div>
   )
 }

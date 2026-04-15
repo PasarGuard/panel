@@ -14,13 +14,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { RefreshCw, Search, X } from 'lucide-react'
+import { Power, PowerOff, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useGroupsListColumns } from '@/components/groups/use-groups-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { useBulkDisableGroups, useBulkEnableGroups } from '@/service/api'
+import { BulkActionItem, BulkActionsBar } from '@/components/users/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 
 interface GroupsListProps {
@@ -28,15 +29,28 @@ interface GroupsListProps {
   onOpenChange: (open: boolean) => void
 }
 
+type BulkGroupActionType = 'delete' | 'disable' | 'enable'
+
+interface BulkActionDialogConfig {
+  title: string
+  description: string
+  actionLabel: string
+  onConfirm: () => Promise<void>
+  isPending: boolean
+  destructive?: boolean
+}
+
 export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListProps) {
   const [editingGroup, setEditingGroup] = useState<GroupResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:groups')
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([])
-  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
+  const [bulkAction, setBulkAction] = useState<BulkGroupActionType | null>(null)
   const { t } = useTranslation()
   const modifyGroupMutation = useModifyGroup()
   const bulkDeleteGroupsMutation = useBulkDeleteGroups()
+  const bulkDisableGroupsMutation = useBulkDisableGroups()
+  const bulkEnableGroupsMutation = useBulkEnableGroups()
   const dir = useDirDetection()
   const { data: groupsData, isLoading, isFetching, refetch } = useGetAllGroups({})
 
@@ -131,10 +145,119 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     }
   }
 
+  const handleBulkDisable = async () => {
+    if (!selectedGroupIds.length) return
+
+    try {
+      const response = await bulkDisableGroupsMutation.mutateAsync({
+        data: {
+          ids: selectedGroupIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('group.bulkDisableSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} groups disabled successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({ queryKey: ['/api/groups'] })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('group.bulkDisableFailed', { defaultValue: 'Failed to disable selected groups.' }),
+      })
+    }
+  }
+
+  const handleBulkEnable = async () => {
+    if (!selectedGroupIds.length) return
+
+    try {
+      const response = await bulkEnableGroupsMutation.mutateAsync({
+        data: {
+          ids: selectedGroupIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('group.bulkEnableSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} groups enabled successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({ queryKey: ['/api/groups'] })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('group.bulkEnableFailed', { defaultValue: 'Failed to enable selected groups.' }),
+      })
+    }
+  }
+
   const listColumns = useGroupsListColumns({
     onEdit: handleEdit,
     onToggleStatus: handleToggleStatus,
   })
+  const selectedCount = selectedGroupIds.length
+  const bulkActions: BulkActionItem[] = selectedCount
+    ? [
+        {
+          key: 'delete',
+          label: t('delete'),
+          icon: Trash2,
+          onClick: () => setBulkAction('delete'),
+          direct: true,
+          destructive: true,
+        },
+        {
+          key: 'enable',
+          label: t('enable'),
+          icon: Power,
+          onClick: () => setBulkAction('enable'),
+        },
+        {
+          key: 'disable',
+          label: t('disable'),
+          icon: PowerOff,
+          onClick: () => setBulkAction('disable'),
+        },
+      ]
+    : []
+  const bulkActionConfigs: Record<BulkGroupActionType, BulkActionDialogConfig> = {
+    delete: {
+      title: t('group.bulkDeleteTitle', { defaultValue: 'Delete Selected Groups' }),
+      description: t('group.bulkDeletePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to delete {{count}} selected groups? This action cannot be undone.',
+      }),
+      actionLabel: t('delete'),
+      onConfirm: handleBulkDelete,
+      isPending: bulkDeleteGroupsMutation.isPending,
+      destructive: true,
+    },
+    enable: {
+      title: t('group.bulkEnableTitle', { defaultValue: 'Enable Selected Groups' }),
+      description: t('group.bulkEnablePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to enable {{count}} selected groups?',
+      }),
+      actionLabel: t('enable'),
+      onConfirm: handleBulkEnable,
+      isPending: bulkEnableGroupsMutation.isPending,
+    },
+    disable: {
+      title: t('group.bulkDisableTitle', { defaultValue: 'Disable Selected Groups' }),
+      description: t('group.bulkDisablePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to disable {{count}} selected groups?',
+      }),
+      actionLabel: t('disable'),
+      onConfirm: handleBulkDisable,
+      isPending: bulkDisableGroupsMutation.isPending,
+    },
+  }
+  const activeBulkActionConfig = bulkAction ? bulkActionConfigs[bulkAction] : null
 
   const isCurrentlyLoading = isLoading || (isFetching && !groupsData)
   const isEmpty = !isCurrentlyLoading && (!filteredGroups || filteredGroups.length === 0) && !searchQuery.trim()
@@ -168,7 +291,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
       </div>
-      <BulkActionsBar selectedCount={selectedGroupIds.length} onClear={clearSelection} onDelete={selectedGroupIds.length > 0 ? () => setBulkAction('delete') : undefined} />
+      <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
       {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
@@ -233,19 +356,18 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
         editingGroup={!!editingGroup}
         editingGroupId={editingGroup?.id}
       />
-      <BulkActionAlertDialog
-        open={bulkAction === 'delete'}
-        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
-        title={t('group.bulkDeleteTitle', { defaultValue: 'Delete Selected Groups' })}
-        description={t('group.bulkDeletePrompt', {
-          count: selectedGroupIds.length,
-          defaultValue: 'Are you sure you want to delete {{count}} selected groups? This action cannot be undone.',
-        })}
-        actionLabel={t('delete')}
-        onConfirm={handleBulkDelete}
-        isPending={bulkDeleteGroupsMutation.isPending}
-        destructive
-      />
+      {activeBulkActionConfig && (
+        <BulkActionAlertDialog
+          open={!!bulkAction}
+          onOpenChange={open => setBulkAction(open ? bulkAction : null)}
+          title={activeBulkActionConfig.title}
+          description={activeBulkActionConfig.description}
+          actionLabel={activeBulkActionConfig.actionLabel}
+          onConfirm={activeBulkActionConfig.onConfirm}
+          isPending={activeBulkActionConfig.isPending}
+          destructive={activeBulkActionConfig.destructive}
+        />
+      )}
     </div>
   )
 }

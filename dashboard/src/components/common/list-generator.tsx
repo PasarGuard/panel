@@ -163,6 +163,13 @@ export function ListGenerator<T>({
   const gridContent = (showRows || isLoading) && renderGridItem
   const selectionCheckboxClassName =
     'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 bg-background data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground'
+  const stopSelectionClick = (event: React.SyntheticEvent) => {
+    event.stopPropagation()
+  }
+  const stopSelectionPointer = (event: React.SyntheticEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
 
   const handleToggleRowSelection = (rowId: string | number, item: T) => {
     if (!enableSelection || !onSelectionChange || (isRowSelectable && !isRowSelectable(item))) {
@@ -228,9 +235,10 @@ export function ListGenerator<T>({
                 const selectionControl = canSelectRow ? (
                   <div
                     className="flex shrink-0 items-center"
-                    onClick={event => event.stopPropagation()}
-                    onPointerDown={event => event.stopPropagation()}
-                    onKeyDown={event => event.stopPropagation()}
+                    onClick={stopSelectionClick}
+                    onMouseDown={stopSelectionPointer}
+                    onPointerDown={stopSelectionPointer}
+                    onKeyDown={stopSelectionClick}
                   >
                     <Checkbox
                       aria-label={selectionLabel}
@@ -276,6 +284,10 @@ export function ListGenerator<T>({
                 className={selectionCheckboxClassName}
                 checked={isAllVisibleSelected || (isSomeVisibleSelected && 'indeterminate')}
                 onCheckedChange={value => handleToggleAllVisibleSelection(!!value)}
+                onClick={stopSelectionClick}
+                onMouseDown={stopSelectionPointer}
+                onPointerDown={stopSelectionPointer}
+                onKeyDown={stopSelectionClick}
               />
             </div>
           )}
@@ -335,9 +347,10 @@ export function ListGenerator<T>({
               {enableSelection && (
                 <div
                   className="flex items-center justify-center"
-                  onClick={event => event.stopPropagation()}
-                  onPointerDown={event => event.stopPropagation()}
-                  onKeyDown={event => event.stopPropagation()}
+                  onClick={stopSelectionClick}
+                  onMouseDown={stopSelectionPointer}
+                  onPointerDown={stopSelectionPointer}
+                  onKeyDown={stopSelectionClick}
                 >
                   {canSelectRow ? (
                     <Checkbox

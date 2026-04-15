@@ -23,11 +23,12 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Link2Off, RefreshCcw, Trash2, UserCog } from 'lucide-react'
 import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/components/dialogs/advance-search-modal'
 import type { AdvanceSearchFormValue } from '@/components/forms/advance-search-form'
-import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionItem, BulkActionsBar } from '@/components/users/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -519,6 +520,41 @@ const UsersTable = memo(() => {
     await revokeSubscriptionMutation.mutateAsync(selectedUserIds)
   }
 
+  const bulkActions: BulkActionItem[] = selectedCount
+    ? [
+        {
+          key: 'delete',
+          label: t('usersTable.delete'),
+          icon: Trash2,
+          onClick: () => setBulkAction('delete'),
+          direct: true,
+          destructive: true,
+        },
+        {
+          key: 'reset',
+          label: t('userDialog.resetUsage'),
+          icon: RefreshCcw,
+          onClick: () => setBulkAction('reset'),
+        },
+        {
+          key: 'revoke',
+          label: t('userDialog.revokeSubscription'),
+          icon: Link2Off,
+          onClick: () => setBulkAction('revoke'),
+        },
+        ...(isSudo
+          ? [
+              {
+                key: 'owner',
+                label: t('setOwnerModal.title'),
+                icon: UserCog,
+                onClick: () => setIsBulkSetOwnerModalOpen(true),
+              } as BulkActionItem,
+            ]
+          : []),
+      ]
+    : []
+
   const handlePageChange = (newPage: number) => {
     if (newPage === currentPage || isChangingPage) return
 
@@ -671,10 +707,7 @@ const UsersTable = memo(() => {
       <BulkActionsBar
         selectedCount={selectedCount}
         onClear={clearSelection}
-        onDelete={selectedCount > 0 ? () => setBulkAction('delete') : undefined}
-        onResetUsage={selectedCount > 0 ? () => setBulkAction('reset') : undefined}
-        onRevokeSub={selectedCount > 0 ? () => setBulkAction('revoke') : undefined}
-        onChangeOwner={isSudo && selectedCount > 0 ? () => setIsBulkSetOwnerModalOpen(true) : undefined}
+        actions={bulkActions}
       />
       {isEmpty && (
         <Card className="mb-12">
