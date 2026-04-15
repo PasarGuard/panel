@@ -236,15 +236,8 @@ class ClientTemplateOperation(BaseOperation):
         for template_type, templates_of_type in templates_by_type.items():
             defaults_to_replace = [t for t in templates_of_type if t.is_default]
             if defaults_to_replace:
-                # Get replacement for this type (exclude all templates being deleted)
                 exclude_ids = {t.id for t in templates_of_type}
-                replacement = await get_first_template_by_type(db, template_type, exclude_id=None)
-                # Find first non-deleted template
-                for candidate_id in [t.id for t in templates_of_type if not t.is_default]:
-                    if candidate_id not in exclude_ids:
-                        replacement = await self.get_validated_client_template(db, candidate_id)
-                        break
-
+                replacement = await get_first_template_by_type(db, template_type, exclude_ids=exclude_ids)
                 if replacement:
                     await set_default_template(db, replacement)
 

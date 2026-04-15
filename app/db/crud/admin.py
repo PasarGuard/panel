@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import and_, case, delete, func, select
+from sqlalchemy import and_, case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.general import (
@@ -560,5 +560,7 @@ async def remove_admins(db: AsyncSession, admin_ids: list[int]) -> None:
     if not admin_ids:
         return
 
+    await db.execute(update(User).where(User.admin_id.in_(admin_ids)).values(admin_id=None))
+    await db.execute(delete(AdminUsageLogs).where(AdminUsageLogs.admin_id.in_(admin_ids)))
     await db.execute(delete(Admin).where(Admin.id.in_(admin_ids)))
     await db.commit()

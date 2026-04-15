@@ -159,6 +159,7 @@ async def get_first_template_by_type(
     db: AsyncSession,
     template_type: ClientTemplateType,
     exclude_id: int | None = None,
+    exclude_ids: list[int] | set[int] | None = None,
 ) -> ClientTemplate | None:
     stmt = (
         select(ClientTemplate)
@@ -167,6 +168,8 @@ async def get_first_template_by_type(
     )
     if exclude_id is not None:
         stmt = stmt.where(ClientTemplate.id != exclude_id)
+    if exclude_ids:
+        stmt = stmt.where(ClientTemplate.id.not_in(list(exclude_ids)))
     return (await db.execute(stmt)).scalars().first()
 
 
