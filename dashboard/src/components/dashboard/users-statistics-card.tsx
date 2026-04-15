@@ -1,4 +1,4 @@
-import { ActivityIcon, UsersIcon } from 'lucide-react'
+import { UserCheck, UsersIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
@@ -30,7 +30,7 @@ const UserStatisticsCard = ({ data }: { data: SystemStats | undefined }) => {
           <span className="ms-auto font-bold text-sm md:text-base">{totalUsers}</span>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
-          <ActivityIcon className="size-5 text-muted-foreground md:size-6" />
+          <UserCheck className="size-5 text-muted-foreground md:size-6" />
           <span className="truncate text-sm md:text-base">{t('statistics.activeUsers')}</span>
           <div className="ms-auto flex items-center gap-2">
             {percentOfTotal(data?.active_users) !== null && (
@@ -54,7 +54,7 @@ const UserStatisticsCard = ({ data }: { data: SystemStats | undefined }) => {
           </div>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
-          <div className="size-2 rounded-full bg-red-600 md:size-3" />
+          <div className="size-2 rounded-full bg-orange-600 md:size-3" />
           <span className="truncate text-sm md:text-base">{t('statistics.expiredUsers')}</span>
           <div className="ms-auto flex items-center gap-2">
             {percentOfTotal(data?.expired_users) !== null && (
@@ -66,7 +66,7 @@ const UserStatisticsCard = ({ data }: { data: SystemStats | undefined }) => {
           </div>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
-          <div className="size-2 rounded-full bg-orange-600 md:size-3" />
+          <div className="size-2 rounded-full bg-red-600 md:size-3" />
           <span className="truncate text-sm md:text-base">{t('statistics.limitedUsers')}</span>
           <div className="ms-auto flex items-center gap-2">
             {percentOfTotal(data?.limited_users) !== null && (

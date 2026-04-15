@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { AdminDetails } from '@/service/api'
-import { useActivateAllDisabledUsers, useDisableAllActiveUsers, useGetAdmins, useRemoveAllUsers } from '@/service/api'
+import { useActivateAllDisabledUsers, useBulkDeleteAdmins, useDisableAllActiveUsers, useGetAdmins, useRemoveAllUsers } from '@/service/api'
 import { DataTable } from './data-table'
 import { setupColumns } from './columns'
 import { Filters } from './filters'
@@ -14,6 +14,8 @@ import { toast } from 'sonner'
 import { useAdmin } from '@/hooks/use-admin'
 import { patchAdminInAdminsCache } from '@/utils/adminsCache'
 import { useQueryClient } from '@tanstack/react-query'
+import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 
 interface AdminFilters {
   sort?: string
@@ -187,11 +189,15 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const [resetUsersUsageDialogOpen, setResetUsersUsageDialogOpen] = useState(false)
   const [bulkUsersStatusDialogOpen, setBulkUsersStatusDialogOpen] = useState(false)
   const [removeAllUsersDialogOpen, setRemoveAllUsersDialogOpen] = useState(false)
+  const [selectedAdminUsernames, setSelectedAdminUsernames] = useState<string[]>([])
+  const [resetSelectionKey, setResetSelectionKey] = useState(0)
+  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
   const [adminToDelete, setAdminToDelete] = useState<AdminDetails | null>(null)
   const [adminToToggleStatus, setAdminToToggleStatus] = useState<AdminDetails | null>(null)
   const [adminToReset, setAdminToReset] = useState<string | null>(null)
   const [bulkUsersStatusAction, setBulkUsersStatusAction] = useState<{ username: string; actionType: BulkUsersActionType } | null>(null)
   const [adminToRemoveAllUsers, setAdminToRemoveAllUsers] = useState<string | null>(null)
+  const bulkDeleteAdminsMutation = useBulkDeleteAdmins()
 
   const {
     data: adminsResponse,
@@ -277,6 +283,11 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     setDeleteDialogOpen(true)
   }
 
+  const clearSelection = () => {
+    setResetSelectionKey(prev => prev + 1)
+    setSelectedAdminUsernames([])
+  }
+
   const handleStatusToggleClick = (admin: AdminDetails) => {
     setAdminToToggleStatus(admin)
     setStatusToggleDialogOpen(true)
@@ -329,7 +340,8 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       toast.success(t('success', { defaultValue: 'Success' }), {
         description: t(actionType === 'disable' ? 'admins.disableAllActiveUsersSuccess' : 'admins.activateAllDisabledUsersSuccess', {
           name: username,
-          defaultValue: actionType === 'disable' ? `All active users under admin "${username}" have been disabled successfully` : `All disabled users under admin "${username}" have been activated successfully`,
+          defaultValue:
+            actionType === 'disable' ? `All active users under admin "${username}" have been disabled successfully` : `All disabled users under admin "${username}" have been activated successfully`,
         }),
       })
       closeBulkUsersStatusDialog()
@@ -431,6 +443,36 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     }
   }
 
+  const handleBulkDelete = async () => {
+    if (!selectedAdminUsernames.length) return
+
+    try {
+      const response = await bulkDeleteAdminsMutation.mutateAsync({
+        data: {
+          usernames: selectedAdminUsernames,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('admins.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} admins deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({ queryKey: ['/api/admins'] })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('admins.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected admins.',
+          }),
+      })
+    }
+  }
+
   const columns = setupColumns({
     t,
     handleSort,
@@ -451,6 +493,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   return (
     <div>
       <Filters filters={filters} onFilterChange={handleFilterChange} handleSort={handleSort} refetch={handleManualRefresh} />
+      <BulkActionsBar selectedCount={selectedAdminUsernames.length} onClear={clearSelection} onDelete={selectedAdminUsernames.length > 0 ? () => setBulkAction('delete') : undefined} />
       <DataTable
         columns={columns}
         data={adminsData || []}
@@ -461,6 +504,8 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         onDisableAllActiveUsers={handleDisableAllActiveUsersClick}
         onActivateAllDisabledUsers={handleActivateAllDisabledUsersClick}
         onRemoveAllUsers={handleRemoveAllUsersClick}
+        onSelectionChange={setSelectedAdminUsernames}
+        resetSelectionKey={resetSelectionKey}
         currentAdminUsername={currentAdmin?.username}
         setStatusToggleDialogOpen={setStatusToggleDialogOpen}
         isLoading={isCurrentlyLoading && isFirstLoadRef.current}
@@ -504,6 +549,19 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
           onClose={() => setRemoveAllUsersDialogOpen(false)}
         />
       )}
+      <BulkActionAlertDialog
+        open={bulkAction === 'delete'}
+        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+        title={t('admins.bulkDeleteTitle', { defaultValue: 'Delete Selected Admins' })}
+        description={t('admins.bulkDeletePrompt', {
+          count: selectedAdminUsernames.length,
+          defaultValue: 'Are you sure you want to delete {{count}} selected admins? This action cannot be undone.',
+        })}
+        actionLabel={t('delete')}
+        onConfirm={handleBulkDelete}
+        isPending={bulkDeleteAdminsMutation.isPending}
+        destructive
+      />
     </div>
   )
 }

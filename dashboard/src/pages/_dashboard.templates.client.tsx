@@ -1,5 +1,5 @@
 import ClientTemplate from '@/components/templates/client-template'
-import { useGetClientTemplates, ClientTemplateResponse } from '@/service/api'
+import { useBulkDeleteClientTemplates, useGetClientTemplates, ClientTemplateResponse } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import ClientTemplateModal from '@/components/dialogs/client-template-modal'
@@ -17,13 +17,20 @@ import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useClientTemplatesListColumns } from '@/components/templates/use-client-templates-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
+import { toast } from 'sonner'
+import { queryClient } from '@/utils/query-client'
 
 export default function ClientTemplates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<ClientTemplateResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:client-templates')
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([])
+  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
   const { data, isLoading, isFetching, refetch } = useGetClientTemplates()
+  const bulkDeleteClientTemplatesMutation = useBulkDeleteClientTemplates()
   const form = useForm<ClientTemplateFormValues>({
     resolver: zodResolver(clientTemplateFormSchema),
     defaultValues: clientTemplateFormDefaultValues as ClientTemplateFormValues,
@@ -60,6 +67,39 @@ export default function ClientTemplates() {
   }, [data, searchQuery])
 
   const listColumns = useClientTemplatesListColumns({ onEdit: handleEdit })
+  const clearSelection = () => {
+    setSelectedTemplateIds([])
+  }
+
+  const handleBulkDelete = async () => {
+    if (!selectedTemplateIds.length) return
+
+    try {
+      const response = await bulkDeleteClientTemplatesMutation.mutateAsync({
+        data: {
+          ids: selectedTemplateIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('clientTemplates.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} client templates deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({ queryKey: ['/api/client_templates'] })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('clientTemplates.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected client templates.',
+          }),
+      })
+    }
+  }
 
   const isCurrentlyLoading = isLoading || (isFetching && !data)
   const isEmpty = !isCurrentlyLoading && filteredTemplates.length === 0 && !searchQuery.trim()
@@ -73,13 +113,14 @@ export default function ClientTemplates() {
             <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
             <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+              <button type="button" onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
             <Button
+              type="button"
               size="icon-md"
               variant="ghost"
               onClick={() => refetch()}
@@ -92,6 +133,7 @@ export default function ClientTemplates() {
             <ViewToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
+        <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />
 
         {(isCurrentlyLoading || filteredTemplates.length > 0) && (
           <ListGenerator
@@ -103,6 +145,11 @@ export default function ClientTemplates() {
             className="gap-3"
             onRowClick={handleEdit}
             mode={viewMode}
+            enableSelection
+            enableGridSelection
+            selectedRowIds={selectedTemplateIds}
+            onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
+            isRowSelectable={template => !template.is_system}
             showEmptyState={false}
             gridClassName="transform-gpu animate-slide-up"
             gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
@@ -162,6 +209,19 @@ export default function ClientTemplates() {
         form={form}
         editingTemplate={!!editingTemplate}
         editingTemplateId={editingTemplate?.id}
+      />
+      <BulkActionAlertDialog
+        open={bulkAction === 'delete'}
+        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+        title={t('clientTemplates.bulkDeleteTitle', { defaultValue: 'Delete Selected Client Templates' })}
+        description={t('clientTemplates.bulkDeletePrompt', {
+          count: selectedTemplateIds.length,
+          defaultValue: 'Are you sure you want to delete {{count}} selected client templates? This action cannot be undone.',
+        })}
+        actionLabel={t('delete')}
+        onConfirm={handleBulkDelete}
+        isPending={bulkDeleteClientTemplatesMutation.isPending}
+        destructive
       />
     </div>
   )

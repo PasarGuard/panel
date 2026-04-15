@@ -104,7 +104,7 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
     <div className={cn(className)} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="template-dropdown-menu">
+          <Button type="button" variant="ghost" size="icon" className="template-dropdown-menu">
             <EllipsisVertical />
             <span className="sr-only">Template Actions</span>
           </Button>

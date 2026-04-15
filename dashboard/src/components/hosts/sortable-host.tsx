@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import HostActionsMenu from './host-actions-menu'
+import type { ReactNode } from 'react'
 
 interface SortableHostProps {
   host: BaseHost
@@ -15,9 +16,11 @@ interface SortableHostProps {
   onDuplicate: (host: BaseHost) => Promise<void>
   onDataChanged?: () => void // New callback for notifying parent about data changes
   disabled?: boolean // Disable drag and drop when updating priorities
+  selectionControl?: ReactNode
+  selected?: boolean
 }
 
-export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged, disabled = false }: SortableHostProps) {
+export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged, disabled = false, selectionControl, selected = false }: SortableHostProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   // Ensure host.id is not null before using it
@@ -40,9 +43,10 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
 
   return (
     <div ref={setNodeRef} className="cursor-default" style={style} {...attributes}>
-      <Card className="group relative h-full cursor-pointer p-4 transition-colors hover:bg-accent" onClick={() => onEdit(host)}>
-        <div className="flex items-center gap-3">
+      <Card className={cn('group relative h-full cursor-pointer p-4 transition-colors hover:bg-accent', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(host)}>
+        <div className="flex items-start gap-3">
           <button
+            type="button"
             style={{ cursor: disabled ? 'not-allowed' : cursor }}
             className={cn('touch-none transition-opacity', disabled ? 'cursor-not-allowed opacity-30' : 'opacity-50 group-hover:opacity-100')}
             {...(disabled ? {} : listeners)}
@@ -52,7 +56,8 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
             <span className="sr-only">Drag to reorder</span>
           </button>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              {selectionControl}
               <div className={cn('min-h-2 min-w-2 rounded-full', host.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
               <div className="truncate font-medium">{host.remark ?? ''}</div>
             </div>

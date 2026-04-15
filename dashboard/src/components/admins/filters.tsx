@@ -126,7 +126,7 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
         <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
         <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10" />
         {search && (
-          <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
+          <button type="button" onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
             <X className="h-4 w-4" />
           </button>
         )}
@@ -137,6 +137,7 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                type="button"
                 size="icon-md"
                 variant="ghost"
                 className="relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10"
@@ -179,7 +180,7 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
 
       {/* Refresh Button */}
       <div className="flex h-full flex-shrink-0 items-center gap-0">
-        <Button size="icon-md" onClick={handleRefreshClick} variant="ghost" className="flex items-center gap-2 border">
+        <Button type="button" size="icon-md" onClick={handleRefreshClick} variant="ghost" className="flex items-center gap-2 border">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>

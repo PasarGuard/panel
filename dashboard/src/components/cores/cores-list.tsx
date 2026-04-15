@@ -1,4 +1,4 @@
-import { useGetAllCores, useModifyCoreConfig } from '@/service/api'
+import { useBulkDeleteCores, useGetAllCores, useModifyCoreConfig } from '@/service/api'
 import { CoreResponse } from '@/service/api'
 import Core from './core'
 import { useState, useEffect, useMemo } from 'react'
@@ -20,6 +20,8 @@ import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useCoresListColumns } from '@/components/cores/use-cores-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 
 interface CoresProps {
   isDialogOpen?: boolean
@@ -34,8 +36,11 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
   const [editingCore, setEditingCore] = useState<CoreResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:cores')
+  const [selectedCoreIds, setSelectedCoreIds] = useState<number[]>([])
+  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
   const { t } = useTranslation()
   const modifyCoreMutation = useModifyCoreConfig()
+  const bulkDeleteCoresMutation = useBulkDeleteCores()
   const dir = useDirDetection()
 
   const { data: coresData, isLoading, isFetching, refetch } = useGetAllCores({})
@@ -133,12 +138,47 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
     await refetch()
   }
 
+  const clearSelection = () => {
+    setSelectedCoreIds([])
+  }
+
   const handleRowEdit = (core: CoreResponse) => {
     if (onEditCore) {
       onEditCore(core.id)
       return
     }
     handleEdit(core)
+  }
+
+  const handleBulkDelete = async () => {
+    if (!selectedCoreIds.length) return
+
+    try {
+      const response = await bulkDeleteCoresMutation.mutateAsync({
+        data: {
+          ids: selectedCoreIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('core.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} cores deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/cores/simple'] })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('core.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected cores.',
+          }),
+      })
+    }
   }
 
   const listColumns = useCoresListColumns({
@@ -155,13 +195,14 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
           <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
           <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+            <button type="button" onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <Button
+            type="button"
             size="icon-md"
             variant="ghost"
             onClick={handleRefreshClick}
@@ -174,41 +215,59 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
           <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
       </div>
-        {(isLoading || filteredCores.length > 0) && (
-          <ListGenerator
-            data={filteredCores}
-            columns={listColumns}
-            getRowId={core => core.id}
-            isLoading={isLoading}
-            loadingRows={6}
-            className="gap-3"
-            onRowClick={handleRowEdit}
-            mode={viewMode}
-            showEmptyState={false}
-            renderGridItem={core => (
-              <Core
-                core={core}
-                onEdit={onEditCore ? () => onEditCore(core.id) : () => handleEdit(core)}
-                onToggleStatus={handleToggleStatus}
-                onDuplicate={onDuplicateCore ? () => onDuplicateCore(core.id) : undefined}
-                onDelete={onDeleteCore ? () => onDeleteCore(core.name, core.id) : undefined}
-              />
-            )}
-            renderGridSkeleton={i => (
-              <Card key={i} className="px-4 py-5">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
-                  <Skeleton className="h-5 w-24 sm:w-32" />
-                  <div className="ml-auto shrink-0">
-                    <Skeleton className="h-8 w-8" />
-                  </div>
+      <BulkActionsBar selectedCount={selectedCoreIds.length} onClear={clearSelection} onDelete={selectedCoreIds.length > 0 ? () => setBulkAction('delete') : undefined} />
+      {(isLoading || filteredCores.length > 0) && (
+        <ListGenerator
+          data={filteredCores}
+          columns={listColumns}
+          getRowId={core => core.id}
+          isLoading={isLoading}
+          loadingRows={6}
+          className="gap-3"
+          onRowClick={handleRowEdit}
+          mode={viewMode}
+          enableSelection
+          enableGridSelection
+          selectedRowIds={selectedCoreIds}
+          onSelectionChange={ids => setSelectedCoreIds(ids.map(id => Number(id)))}
+          showEmptyState={false}
+          renderGridItem={core => (
+            <Core
+              core={core}
+              onEdit={onEditCore ? () => onEditCore(core.id) : () => handleEdit(core)}
+              onToggleStatus={handleToggleStatus}
+              onDuplicate={onDuplicateCore ? () => onDuplicateCore(core.id) : undefined}
+              onDelete={onDeleteCore ? () => onDeleteCore(core.name, core.id) : undefined}
+            />
+          )}
+          renderGridSkeleton={i => (
+            <Card key={i} className="px-4 py-5">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                <Skeleton className="h-5 w-24 sm:w-32" />
+                <div className="ml-auto shrink-0">
+                  <Skeleton className="h-8 w-8" />
                 </div>
-              </Card>
-            )}
-          />
-        )}
+              </div>
+            </Card>
+          )}
+        />
+      )}
 
       {shouldRenderLocalModal && <CoreConfigModal isDialogOpen={!!isDialogOpen} onOpenChange={handleModalClose} form={form} editingCore={!!editingCore} editingCoreId={editingCore?.id} />}
+      <BulkActionAlertDialog
+        open={bulkAction === 'delete'}
+        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+        title={t('core.bulkDeleteTitle', { defaultValue: 'Delete Selected Cores' })}
+        description={t('core.bulkDeletePrompt', {
+          count: selectedCoreIds.length,
+          defaultValue: 'Are you sure you want to delete {{count}} selected cores? This action cannot be undone.',
+        })}
+        actionLabel={t('delete')}
+        onConfirm={handleBulkDelete}
+        isPending={bulkDeleteCoresMutation.isPending}
+        destructive
+      />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Node from '@/components/nodes/node'
-import { useGetNodes, useModifyNode, useGetCoresSimple, NodeResponse, NodeStatus, NodeModify } from '@/service/api'
+import { useBulkDeleteNodes, useGetNodes, useModifyNode, useGetCoresSimple, NodeResponse, NodeStatus, NodeModify } from '@/service/api'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
@@ -16,6 +16,8 @@ import { nodeAdvanceSearchFormSchema, type NodeAdvanceSearchFormValue } from '@/
 import { ListGenerator } from '@/components/common/list-generator'
 import { useNodeListColumns } from '@/components/nodes/use-node-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 
 const NODES_PER_PAGE = 15
 
@@ -34,6 +36,9 @@ export default function NodesList() {
   const [localSearchTerm, setLocalSearchTerm] = useState<string>('')
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:nodes')
+  const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([])
+  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
+  const bulkDeleteNodesMutation = useBulkDeleteNodes()
 
   const [filters, setFilters] = useState<{
     limit: number
@@ -46,7 +51,7 @@ export default function NodesList() {
     offset: 0,
     search: undefined,
     status: undefined,
-    core_id: undefined
+    core_id: undefined,
   })
 
   const form = useForm<NodeFormValues>({
@@ -58,7 +63,7 @@ export default function NodesList() {
     resolver: zodResolver(nodeAdvanceSearchFormSchema),
     defaultValues: {
       status: filters.status || [],
-      core_id: filters.core_id || undefined
+      core_id: filters.core_id || undefined,
     },
   })
 
@@ -113,6 +118,10 @@ export default function NodesList() {
     window.addEventListener('openNodeDialog', handleOpenDialog)
     return () => window.removeEventListener('openNodeDialog', handleOpenDialog)
   }, [])
+
+  const clearSelection = () => {
+    setSelectedNodeIds([])
+  }
 
   const handleFilterChange = useCallback(
     (newFilters: Partial<typeof filters>) => {
@@ -171,8 +180,7 @@ export default function NodesList() {
     try {
       const shouldEnable = node.status === 'disabled'
       const newStatus = shouldEnable ? 'connected' : 'disabled'
-      const toOptional = <T,>(value: T | null | undefined): Exclude<T, null> | undefined =>
-        value === null || value === undefined ? undefined : (value as Exclude<T, null>)
+      const toOptional = <T,>(value: T | null | undefined): Exclude<T, null> | undefined => (value === null || value === undefined ? undefined : (value as Exclude<T, null>))
 
       const data: NodeModify = {
         name: node.name,
@@ -226,12 +234,7 @@ export default function NodesList() {
     return nodesResponse?.nodes || []
   }, [shouldUseLocalSearch, localSearchTerm, allNodes, nodesResponse?.nodes])
 
-  const hasActiveFilters = !!(
-    filters.search ||
-    localSearchTerm ||
-    (filters.status && filters.status.length > 0) ||
-    filters.core_id
-  )
+  const hasActiveFilters = !!(filters.search || localSearchTerm || (filters.status && filters.status.length > 0) || filters.core_id)
 
   const paginatedNodes = useMemo(() => {
     if (shouldUseLocalSearch && localSearchTerm) {
@@ -307,6 +310,41 @@ export default function NodesList() {
     setIsAdvanceSearchOpen(open)
   }
 
+  const handleBulkDelete = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkDeleteNodesMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({
+        queryKey: ['/api/nodes'],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['/api/nodes/simple'],
+      })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('nodes.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected nodes.',
+          }),
+      })
+    }
+  }
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full flex-1 space-y-4 py-4">
@@ -320,6 +358,7 @@ export default function NodesList() {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
+        <BulkActionsBar selectedCount={selectedNodeIds.length} onClear={clearSelection} onDelete={selectedNodeIds.length > 0 ? () => setBulkAction('delete') : undefined} />
         <div className="min-h-[55dvh]">
           {(showLoadingSpinner || showPageLoadingSkeletons || nodesData.length > 0) && (
             <ListGenerator
@@ -331,6 +370,10 @@ export default function NodesList() {
               className="gap-3"
               onRowClick={handleEdit}
               mode={viewMode}
+              enableSelection
+              enableGridSelection
+              selectedRowIds={selectedNodeIds}
+              onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
               showEmptyState={false}
               gridClassName="transform-gpu animate-slide-up"
               gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
@@ -388,9 +431,7 @@ export default function NodesList() {
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">{t('nodes.noFilteredResults')}</h3>
-                  <p className="mx-auto max-w-2xl text-muted-foreground">
-                    {t('nodes.noSearchResults')}
-                  </p>
+                  <p className="mx-auto max-w-2xl text-muted-foreground">{t('nodes.noSearchResults')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -417,14 +458,21 @@ export default function NodesList() {
           }}
         />
 
-        <NodeAdvanceSearchModal
-          isDialogOpen={isAdvanceSearchOpen}
-          onOpenChange={setIsAdvanceSearchOpen}
-          form={advanceSearchForm}
-          onSubmit={handleAdvanceSearchSubmit}
+        <NodeAdvanceSearchModal isDialogOpen={isAdvanceSearchOpen} onOpenChange={setIsAdvanceSearchOpen} form={advanceSearchForm} onSubmit={handleAdvanceSearchSubmit} />
+        <BulkActionAlertDialog
+          open={bulkAction === 'delete'}
+          onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+          title={t('nodes.bulkDeleteTitle', { defaultValue: 'Delete Selected Nodes' })}
+          description={t('nodes.bulkDeletePrompt', {
+            count: selectedNodeIds.length,
+            defaultValue: 'Are you sure you want to delete {{count}} selected nodes? This action cannot be undone.',
+          })}
+          actionLabel={t('delete')}
+          onConfirm={handleBulkDelete}
+          isPending={bulkDeleteNodesMutation.isPending}
+          destructive
         />
       </div>
     </div>
   )
 }
-

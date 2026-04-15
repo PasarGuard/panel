@@ -1,7 +1,7 @@
-import { useGetAllGroups, useModifyGroup } from '@/service/api'
+import { useBulkDeleteGroups, useGetAllGroups, useModifyGroup } from '@/service/api'
 import { GroupResponse } from '@/service/api'
 import Group from './group'
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import GroupModal from '@/components/dialogs/group-modal'
 import { groupFormDefaultValues, groupFormSchema, type GroupFormValues } from '@/components/forms/group-form'
 import { useForm } from 'react-hook-form'
@@ -20,6 +20,8 @@ import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { useGroupsListColumns } from '@/components/groups/use-groups-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 
 interface GroupsListProps {
   isDialogOpen: boolean
@@ -30,8 +32,11 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   const [editingGroup, setEditingGroup] = useState<GroupResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:groups')
+  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([])
+  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
   const { t } = useTranslation()
   const modifyGroupMutation = useModifyGroup()
+  const bulkDeleteGroupsMutation = useBulkDeleteGroups()
   const dir = useDirDetection()
   const { data: groupsData, isLoading, isFetching, refetch } = useGetAllGroups({})
 
@@ -92,6 +97,40 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
     await refetch()
   }
 
+  const clearSelection = () => {
+    setSelectedGroupIds([])
+  }
+
+  const handleBulkDelete = async () => {
+    if (!selectedGroupIds.length) return
+
+    try {
+      const response = await bulkDeleteGroupsMutation.mutateAsync({
+        data: {
+          ids: selectedGroupIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('group.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} groups deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({ queryKey: ['/api/groups'] })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('group.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected groups.',
+          }),
+      })
+    }
+  }
+
   const listColumns = useGroupsListColumns({
     onEdit: handleEdit,
     onToggleStatus: handleToggleStatus,
@@ -109,13 +148,14 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
           <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+            <button type="button" onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <Button
+            type="button"
             size="icon-md"
             variant="ghost"
             onClick={handleRefresh}
@@ -128,6 +168,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
       </div>
+      <BulkActionsBar selectedCount={selectedGroupIds.length} onClear={clearSelection} onDelete={selectedGroupIds.length > 0 ? () => setBulkAction('delete') : undefined} />
       {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
@@ -158,6 +199,10 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           className="gap-3"
           onRowClick={handleEdit}
           mode={viewMode}
+          enableSelection
+          enableGridSelection
+          selectedRowIds={selectedGroupIds}
+          onSelectionChange={ids => setSelectedGroupIds(ids.map(id => Number(id)))}
           showEmptyState={false}
           renderGridItem={group => <Group group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />}
           renderGridSkeleton={i => (
@@ -188,7 +233,19 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
         editingGroup={!!editingGroup}
         editingGroupId={editingGroup?.id}
       />
+      <BulkActionAlertDialog
+        open={bulkAction === 'delete'}
+        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+        title={t('group.bulkDeleteTitle', { defaultValue: 'Delete Selected Groups' })}
+        description={t('group.bulkDeletePrompt', {
+          count: selectedGroupIds.length,
+          defaultValue: 'Are you sure you want to delete {{count}} selected groups? This action cannot be undone.',
+        })}
+        actionLabel={t('delete')}
+        onConfirm={handleBulkDelete}
+        isPending={bulkDeleteGroupsMutation.isPending}
+        destructive
+      />
     </div>
   )
 }
-

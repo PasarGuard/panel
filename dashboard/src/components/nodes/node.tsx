@@ -10,15 +10,18 @@ import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { useNodeReleases } from '@/hooks/use-node-releases'
 import NodeUsageDisplay from './node-usage-display'
 import NodeActionsMenu from './node-actions-menu'
+import type { ReactNode } from 'react'
 
 interface NodeProps {
   node: NodeResponse
   onEdit: (node: NodeResponse) => void
   onToggleStatus: (node: NodeResponse) => Promise<void>
   coresData?: CoresSimpleResponse
+  selectionControl?: ReactNode
+  selected?: boolean
 }
 
-export default function Node({ node, onEdit, onToggleStatus, coresData }: NodeProps) {
+export default function Node({ node, onEdit, onToggleStatus, coresData, selectionControl, selected = false }: NodeProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const { latestVersion: latestXrayVersion, hasUpdate: hasXrayUpdate } = useXrayReleases()
@@ -91,8 +94,10 @@ export default function Node({ node, onEdit, onToggleStatus, coresData }: NodePr
 
   return (
     <TooltipProvider>
-      <Card className="group relative h-full cursor-pointer overflow-hidden border transition-colors hover:bg-accent" onClick={() => onEdit(node)}>
-        <div className="p-3">
+      <Card className={cn('group relative h-full cursor-pointer overflow-hidden border transition-colors hover:bg-accent', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(node)}>
+        <div className="flex items-start gap-3 p-3">
+          {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
+          <div className="min-w-0 flex-1">
           {/* Header */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
@@ -218,6 +223,7 @@ export default function Node({ node, onEdit, onToggleStatus, coresData }: NodePr
               <NodeUsageDisplay node={node} />
             </>
           )}
+          </div>
         </div>
       </Card>
     </TooltipProvider>

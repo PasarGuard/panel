@@ -120,7 +120,7 @@ export default function ClientTemplateActionsMenu({ template, onEdit, className 
     <div className={cn(className)} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button type="button" variant="ghost" size="icon">
             <EllipsisVertical />
             <span className="sr-only">Template Actions</span>
           </Button>

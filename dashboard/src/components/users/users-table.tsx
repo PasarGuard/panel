@@ -5,16 +5,7 @@ import { DataTable } from '@/components/users/data-table'
 import { Filters } from '@/components/users/filters'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import useDirDetection from '@/hooks/use-dir-detection'
-import {
-  deleteUsersByIds,
-  getGetUsersQueryOptions,
-  resetUsersUsageByIds,
-  revokeUsersSubscriptionByIds,
-  useGetUsers,
-  UserResponse,
-  UserStatus,
-  UsersResponse,
-} from '@/service/api'
+import { getGetUsersQueryOptions, bulkDeleteUsers, bulkResetUsersDataUsage, bulkRevokeUsersSubscription, useGetUsers, UserResponse, UserStatus, UsersResponse } from '@/service/api'
 
 import { useAdmin } from '@/hooks/use-admin'
 import {
@@ -100,7 +91,7 @@ const UsersTable = memo(() => {
   const getInitialStateFromURL = () => {
     const searchParams = getSearchParams()
     const urlParams = parseURLParams(searchParams, getUsersPerPageLimitSize())
-    
+
     return {
       page: urlParams.page,
       limit: urlParams.limit,
@@ -134,7 +125,7 @@ const UsersTable = memo(() => {
   const [isSorting, setIsSorting] = useState(false)
   const [showCreatedBy, setShowCreatedBy] = useState(getUsersShowCreatedBy())
   const [showSelectionCheckbox, setShowSelectionCheckbox] = useState(getUsersShowSelectionCheckbox())
-  
+
   const [filters, setFilters] = useState<{
     limit: number
     sort: string
@@ -160,7 +151,7 @@ const UsersTable = memo(() => {
   // After initialization, ensure URL params are written back to preserve them on refresh
   useEffect(() => {
     if (isInitializingFromURLRef.current) return
-    
+
     const searchParams = new URLSearchParams()
     if (currentPage > 0) {
       // Store page as 1-indexed in URL (what user sees), convert from 0-indexed internal value
@@ -197,7 +188,7 @@ const UsersTable = memo(() => {
   const getInitialAdvanceSearchValues = (): AdvanceSearchFormValue => {
     const searchParams = getSearchParams()
     const urlParams = parseURLParams(searchParams, getUsersPerPageLimitSize())
-    
+
     return {
       is_username: !urlParams.isProtocol,
       is_protocol: urlParams.isProtocol,
@@ -227,11 +218,11 @@ const UsersTable = memo(() => {
       proxy_settings: selectedUser?.proxy_settings || undefined,
       next_plan: selectedUser?.next_plan
         ? {
-            user_template_id: selectedUser?.next_plan.user_template_id ? Number(selectedUser?.next_plan.user_template_id) : undefined,
-            data_limit: selectedUser?.next_plan.data_limit ? Math.round(Number(selectedUser?.next_plan.data_limit)) : undefined,
-            expire: selectedUser?.next_plan.expire ? Math.round(Number(selectedUser?.next_plan.expire)) : undefined,
-            add_remaining_traffic: selectedUser?.next_plan.add_remaining_traffic || false,
-          }
+          user_template_id: selectedUser?.next_plan.user_template_id ? Number(selectedUser?.next_plan.user_template_id) : undefined,
+          data_limit: selectedUser?.next_plan.data_limit ? Math.round(Number(selectedUser?.next_plan.data_limit)) : undefined,
+          expire: selectedUser?.next_plan.expire ? Math.round(Number(selectedUser?.next_plan.expire)) : undefined,
+          add_remaining_traffic: selectedUser?.next_plan.add_remaining_traffic || false,
+        }
         : undefined,
     },
   })
@@ -251,17 +242,16 @@ const UsersTable = memo(() => {
         proxy_settings: selectedUser.proxy_settings || undefined,
         next_plan: selectedUser.next_plan
           ? {
-              user_template_id: selectedUser.next_plan.user_template_id ? Number(selectedUser.next_plan.user_template_id) : undefined,
-              data_limit: selectedUser.next_plan.data_limit ? Math.round(Number(selectedUser.next_plan.data_limit)) : undefined,
-              expire: selectedUser.next_plan.expire ? Math.round(Number(selectedUser.next_plan.expire)) : undefined,
-              add_remaining_traffic: selectedUser.next_plan.add_remaining_traffic || false,
-            }
+            user_template_id: selectedUser.next_plan.user_template_id ? Number(selectedUser.next_plan.user_template_id) : undefined,
+            data_limit: selectedUser.next_plan.data_limit ? Math.round(Number(selectedUser.next_plan.data_limit)) : undefined,
+            expire: selectedUser.next_plan.expire ? Math.round(Number(selectedUser.next_plan.expire)) : undefined,
+            add_remaining_traffic: selectedUser.next_plan.add_remaining_traffic || false,
+          }
           : undefined,
       }
       userForm.reset(values)
     }
   }, [selectedUser, userForm])
-
 
   useEffect(() => {
     setFilters(prev => ({
@@ -299,10 +289,10 @@ const UsersTable = memo(() => {
   useEffect(() => {
     const handleHashChange = () => {
       if (isInitializingFromURLRef.current) return
-      
+
       const searchParams = getSearchParams()
       const urlParams = parseURLParams(searchParams, itemsPerPage)
-      
+
       // Only update if values actually changed to avoid infinite loops
       if (urlParams.page !== currentPage) {
         setCurrentPage(urlParams.page)
@@ -411,34 +401,37 @@ const UsersTable = memo(() => {
     [advanceSearchForm],
   )
 
-  const handleFilterChange = useCallback((newFilters: Partial<typeof filters>) => {
-    setFilters(prev => {
-      let updated = { ...prev, ...newFilters }
-      if ('search' in newFilters) {
-        // Only reset offset and page if search actually changed
-        const searchChanged = newFilters.search !== prev.search && newFilters.search !== prev.proxy_id
-        if (searchChanged) {
-          if (prev.is_protocol) {
-            updated.proxy_id = newFilters.search
-            updated.search = undefined
+  const handleFilterChange = useCallback(
+    (newFilters: Partial<typeof filters>) => {
+      setFilters(prev => {
+        let updated = { ...prev, ...newFilters }
+        if ('search' in newFilters) {
+          // Only reset offset and page if search actually changed
+          const searchChanged = newFilters.search !== prev.search && newFilters.search !== prev.proxy_id
+          if (searchChanged) {
+            if (prev.is_protocol) {
+              updated.proxy_id = newFilters.search
+              updated.search = undefined
+            } else {
+              updated.search = newFilters.search
+              updated.proxy_id = undefined
+            }
+            updated.offset = 0
           } else {
-            updated.search = newFilters.search
-            updated.proxy_id = undefined
+            // Preserve current offset if search didn't change
+            updated.offset = prev.offset
           }
-          updated.offset = 0
-        } else {
-          // Preserve current offset if search didn't change
-          updated.offset = prev.offset
         }
-      }
-      return updated
-    })
+        return updated
+      })
 
-    // Only reset page if search actually changed
-    if (newFilters.search !== undefined && newFilters.search !== filters.search && newFilters.search !== filters.proxy_id) {
-      setCurrentPage(0)
-    }
-  }, [filters.search, filters.proxy_id])
+      // Only reset page if search actually changed
+      if (newFilters.search !== undefined && newFilters.search !== filters.search && newFilters.search !== filters.proxy_id) {
+        setCurrentPage(0)
+      }
+    },
+    [filters.search, filters.proxy_id],
+  )
 
   const handleManualRefresh = async () => {
     isAutoRefreshingRef.current = false
@@ -470,7 +463,7 @@ const UsersTable = memo(() => {
   }, [clearSelection, selectedUserIds.length, showSelectionCheckbox])
 
   const deleteMutation = useMutation({
-    mutationFn: (ids: number[]) => deleteUsersByIds({ ids }),
+    mutationFn: (ids: number[]) => bulkDeleteUsers({ ids }),
     onSuccess: response => {
       invalidateUsers()
       clearSelection()
@@ -484,7 +477,7 @@ const UsersTable = memo(() => {
   })
 
   const resetUsageMutation = useMutation({
-    mutationFn: (ids: number[]) => resetUsersUsageByIds({ ids }),
+    mutationFn: (ids: number[]) => bulkResetUsersDataUsage({ ids }),
     onSuccess: response => {
       invalidateUsers()
       clearSelection()
@@ -498,7 +491,7 @@ const UsersTable = memo(() => {
   })
 
   const revokeSubscriptionMutation = useMutation({
-    mutationFn: (ids: number[]) => revokeUsersSubscriptionByIds({ ids }),
+    mutationFn: (ids: number[]) => bulkRevokeUsersSubscription({ ids }),
     onSuccess: response => {
       invalidateUsers()
       clearSelection()
@@ -580,7 +573,7 @@ const UsersTable = memo(() => {
     showCreatedBy: isSudo && showCreatedBy,
     showSelectionCheckbox,
     handleSort,
-    filters: filters as { sort: string; status?: UserStatus | null; [key: string]: unknown },
+    filters: filters as { sort: string; status?: UserStatus | null;[key: string]: unknown },
     handleStatusFilter,
   })
 
@@ -704,15 +697,7 @@ const UsersTable = memo(() => {
         </Card>
       )}
       {isCurrentlyLoading && !isSearchEmpty && (
-        <DataTable
-          columns={columns}
-          data={[]}
-          isLoading={true}
-          isFetching={false}
-          onEdit={handleEdit}
-          onSelectionChange={setSelectedUserIds}
-          resetSelectionKey={resetSelectionKey}
-        />
+        <DataTable columns={columns} data={[]} isLoading={true} isFetching={false} onEdit={handleEdit} onSelectionChange={setSelectedUserIds} resetSelectionKey={resetSelectionKey} />
       )}
       {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
         <DataTable

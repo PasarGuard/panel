@@ -16,6 +16,7 @@ export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, c
   const { t } = useTranslation()
 
   const handleDeleteClick = (event: Event) => {
+    event.preventDefault()
     event.stopPropagation()
     if (onDelete) {
       onDelete()
@@ -26,7 +27,7 @@ export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, c
     <div className={className} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button type="button" variant="ghost" size="icon">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>

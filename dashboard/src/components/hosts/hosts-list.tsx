@@ -6,7 +6,7 @@ import { type HostListFilters, HostFilters } from '@/components/hosts/host-filte
 import { ListGenerator } from '@/components/common/list-generator'
 import { useHostsListColumns } from '@/components/hosts/use-hosts-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { BaseHost, CreateHost, createHost, modifyHosts, useGetInboundDetails } from '@/service/api'
+import { BaseHost, CreateHost, createHost, modifyHosts, useBulkDeleteHosts, useGetInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
@@ -17,6 +17,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
+import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 
 export interface HostsListProps {
   data?: BaseHost[]
@@ -37,7 +39,10 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:hosts')
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
+  const [selectedHostIds, setSelectedHostIds] = useState<number[]>([])
+  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
   const { t } = useTranslation()
+  const bulkDeleteHostsMutation = useBulkDeleteHosts()
 
   // Set up hosts data from props
   useEffect(() => {
@@ -84,6 +89,10 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const isRefreshing = isRefreshingProp ?? isManualRefreshing
+
+  const clearSelection = () => {
+    setSelectedHostIds([])
+  }
 
   const handleFilterChange = (newFilters: Partial<HostListFilters>) => {
     setFilters(prev => ({
@@ -398,6 +407,36 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     }
   }
 
+  const handleBulkDelete = async () => {
+    if (!selectedHostIds.length) return
+
+    try {
+      const response = await bulkDeleteHostsMutation.mutateAsync({
+        data: {
+          ids: selectedHostIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('deleteHost.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} hosts deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      await refreshHostsData()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('deleteHost.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected hosts.',
+          }),
+      })
+    }
+  }
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -409,7 +448,9 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     const { active, over } = event
 
     const hasSearchQuery = Boolean(filters.search?.trim())
-    const hasActiveFilters = Boolean((filters.status && filters.status.length > 0) || (filters.inbound_tags && filters.inbound_tags.length > 0) || filters.security || typeof filters.is_disabled === 'boolean')
+    const hasActiveFilters = Boolean(
+      (filters.status && filters.status.length > 0) || (filters.inbound_tags && filters.inbound_tags.length > 0) || filters.security || typeof filters.is_disabled === 'boolean',
+    )
     if (hasSearchQuery || hasActiveFilters) return
 
     if (!over || active.id === over.id || !hosts) return
@@ -677,7 +718,9 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     onDataChanged: refreshHostsData,
   })
 
-  const hasActiveAdvanceFilters = Boolean((filters.status && filters.status.length > 0) || (filters.inbound_tags && filters.inbound_tags.length > 0) || filters.security || typeof filters.is_disabled === 'boolean')
+  const hasActiveAdvanceFilters = Boolean(
+    (filters.status && filters.status.length > 0) || (filters.inbound_tags && filters.inbound_tags.length > 0) || filters.security || typeof filters.is_disabled === 'boolean',
+  )
   const hasSearch = Boolean(filters.search?.trim())
   const isSortingDisabled = isUpdatingPriorities || hasSearch || hasActiveAdvanceFilters
   const isCurrentlyLoading = hosts === undefined || (isRefreshing && sortedHosts.length === 0)
@@ -698,6 +741,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           onViewModeChange={setViewMode}
         />
       </div>
+      <BulkActionsBar selectedCount={selectedHostIds.length} onClear={clearSelection} onDelete={selectedHostIds.length > 0 ? () => setBulkAction('delete') : undefined} />
       {(isCurrentlyLoading || filteredHosts.length > 0) && viewMode === 'grid' && (
         <DndContext sensors={isSortingDisabled ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
@@ -709,6 +753,11 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               loadingRows={6}
               className="max-w-screen-[2000px] min-h-screen gap-3 overflow-hidden"
               mode="grid"
+              enableSelection
+              enableGridSelection
+              selectedRowIds={selectedHostIds}
+              onSelectionChange={ids => setSelectedHostIds(ids.map(id => Number(id)))}
+              isRowSelectable={host => typeof host.id === 'number'}
               showEmptyState={false}
               renderGridItem={host => (
                 <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} />
@@ -744,6 +793,10 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               loadingRows={6}
               className="max-w-screen-[2000px] min-h-screen gap-3 overflow-hidden"
               mode="list"
+              enableSelection
+              selectedRowIds={selectedHostIds}
+              onSelectionChange={ids => setSelectedHostIds(ids.map(id => Number(id)))}
+              isRowSelectable={host => typeof host.id === 'number'}
               showEmptyState={false}
               onRowClick={handleEdit}
               enableSorting
@@ -798,6 +851,19 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         editingHost={!!editingHost}
         inboundDetails={inbounds}
         isLoadingInbounds={isLoadingInbounds}
+      />
+      <BulkActionAlertDialog
+        open={bulkAction === 'delete'}
+        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+        title={t('deleteHost.bulkDeleteTitle', { defaultValue: 'Delete Selected Hosts' })}
+        description={t('deleteHost.bulkDeletePrompt', {
+          count: selectedHostIds.length,
+          defaultValue: 'Are you sure you want to delete {{count}} selected hosts? This action cannot be undone.',
+        })}
+        actionLabel={t('delete')}
+        onConfirm={handleBulkDelete}
+        isPending={bulkDeleteHostsMutation.isPending}
+        destructive
       />
     </div>
   )

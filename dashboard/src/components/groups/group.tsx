@@ -11,11 +11,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { queryClient } from '@/utils/query-client'
+import type { ReactNode } from 'react'
 
 interface GroupProps {
   group: GroupResponse
   onEdit: (group: GroupResponse) => void
   onToggleStatus: (group: GroupResponse) => Promise<void>
+  selectionControl?: ReactNode
+  selected?: boolean
 }
 
 const DeleteAlertDialog = ({ group, isOpen, onClose, onConfirm }: { group: GroupResponse; isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
@@ -42,12 +45,13 @@ const DeleteAlertDialog = ({ group, isOpen, onClose, onConfirm }: { group: Group
   )
 }
 
-export default function Group({ group, onEdit, onToggleStatus }: GroupProps) {
+export default function Group({ group, onEdit, onToggleStatus, selectionControl, selected = false }: GroupProps) {
   const { t } = useTranslation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const deleteGroupMutation = useRemoveGroup()
 
   const handleDeleteClick = (event: Event) => {
+    event.preventDefault()
     event.stopPropagation()
     setShowDeleteDialog(true)
   }
@@ -75,53 +79,56 @@ export default function Group({ group, onEdit, onToggleStatus }: GroupProps) {
 
   return (
     <>
-      <Card className="group relative cursor-pointer px-4 py-5 transition-colors hover:bg-accent" onClick={() => onEdit(group)}>
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className={cn('min-h-2 min-w-2 flex-shrink-0 rounded-full', group.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <div className="min-w-0 truncate font-medium">{group.name}</div>
-                <div className="flex-shrink-0 font-mono text-xs text-muted-foreground">({group.inbound_tags?.length || 0})</div>
+      <Card className={cn('group relative cursor-pointer px-4 py-5 transition-colors hover:bg-accent', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(group)}>
+        <div className="flex items-start gap-3">
+          {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <div className={cn('min-h-2 min-w-2 flex-shrink-0 rounded-full', group.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <div className="min-w-0 truncate font-medium">{group.name}</div>
+                  <div className="flex-shrink-0 font-mono text-xs text-muted-foreground">({group.inbound_tags?.length || 0})</div>
+                </div>
+              </div>
+              <div className="min-w-0 truncate text-sm text-muted-foreground">
+                {t('admins.total.users')}: {group.total_users || 0}
               </div>
             </div>
-            <div className="min-w-0 truncate text-sm text-muted-foreground">
-              {t('admins.total.users')}: {group.total_users || 0}
+            <div onClick={e => e.stopPropagation()}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={e => {
+                      e.stopPropagation()
+                      onToggleStatus(group)
+                    }}
+                  >
+                    <Power className="mr-2 h-4 w-4" />
+                    {group.is_disabled ? t('enable') : t('disable')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={e => {
+                      e.stopPropagation()
+                      onEdit(group)
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    {t('edit')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {t('delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </div>
-          <div onClick={e => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={e => {
-                    e.stopPropagation()
-                    onToggleStatus(group)
-                  }}
-                >
-                  <Power className="mr-2 h-4 w-4" />
-                  {group.is_disabled ? t('enable') : t('disable')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={e => {
-                    e.stopPropagation()
-                    onEdit(group)
-                  }}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  {t('edit')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {t('delete')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
       </Card>

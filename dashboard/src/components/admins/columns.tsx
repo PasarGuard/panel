@@ -1,10 +1,11 @@
 import { AdminDetails } from '@/service/api'
-import { ColumnDef } from '@tanstack/react-table'
+import { ColumnDef, Row, Table } from '@tanstack/react-table'
 import { ChartPie, ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, Trash2, User, UserCheck, UserMinus, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes } from '@/utils/formatByte.ts'
 import { AdminStatusBadge } from './admin-status-badge'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface ColumnSetupProps {
   t: (key: string) => string
@@ -36,7 +37,7 @@ const createSortButton = (
   }
 
   return (
-    <button onClick={handleClick} className="flex w-full items-center gap-1">
+    <button type="button" onClick={handleClick} className="flex w-full items-center gap-1">
       <div className="text-xs">{t(label)}</div>
       {filters.sort && (filters.sort === column || filters.sort === '-' + column) && (
         <ChevronDown size={16} className={`transition-transform duration-300 ${filters.sort === column ? 'rotate-180' : ''} ${filters.sort === '-' + column ? 'rotate-0' : ''} `} />
@@ -58,6 +59,42 @@ export const setupColumns = ({
   onActivateAllDisabledUsers,
   onRemoveAllUsers,
 }: ColumnSetupProps): ColumnDef<AdminDetails>[] => [
+  {
+    id: 'select',
+    header: ({ table }: { table: Table<AdminDetails> }) => (
+      <div className="flex h-5 items-center justify-center">
+        <Checkbox
+          aria-label={t('selectAll')}
+          className="h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary"
+          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && 'indeterminate')}
+          onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
+          onClick={event => event.stopPropagation()}
+          onPointerDown={event => event.stopPropagation()}
+          onKeyDown={event => event.stopPropagation()}
+        />
+      </div>
+    ),
+    cell: ({ row }: { row: Row<AdminDetails> }) => (
+      <div className="flex h-5 items-center justify-center">
+        {row.getCanSelect() ? (
+          <Checkbox
+            aria-label={t('select')}
+            className="h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 bg-background data-[state=checked]:border-primary data-[state=indeterminate]:border-primary data-[state=checked]:bg-primary data-[state=indeterminate]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:text-primary-foreground"
+            checked={row.getIsSelected()}
+            onCheckedChange={value => row.toggleSelected(!!value)}
+            onClick={event => event.stopPropagation()}
+            onPointerDown={event => event.stopPropagation()}
+            onKeyDown={event => event.stopPropagation()}
+          />
+        ) : (
+          <div className="h-3.5 w-3.5" />
+        )}
+      </div>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+    size: 40,
+  },
   {
     accessorKey: 'username',
     header: () => createSortButton('username', 'username', t, handleSort, filters),

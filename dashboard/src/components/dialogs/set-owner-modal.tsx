@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, UserCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSetOwner, useSetUsersOwnerByIds, UserResponse } from '@/service/api'
+import { useSetOwner, useBulkSetOwner, UserResponse } from '@/service/api'
 import { toast } from 'sonner'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
 
@@ -30,14 +30,14 @@ export default function SetOwnerModal({ open, onClose, username, userIds, select
   const bulkCount = selectedCount ?? userIds?.length ?? 0
   const setOwnerMutation = useSetOwner({
     mutation: {
-      onSuccess: (updatedUser) => {
+      onSuccess: updatedUser => {
         if (onSuccess && updatedUser) {
           onSuccess(updatedUser)
         }
       },
     },
   })
-  const bulkSetOwnerMutation = useSetUsersOwnerByIds()
+  const bulkSetOwnerMutation = useBulkSetOwner()
   const handleDynamicError = useDynamicErrorHandler()
 
   useEffect(() => {

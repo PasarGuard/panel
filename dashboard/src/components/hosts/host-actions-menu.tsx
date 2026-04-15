@@ -111,6 +111,7 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
   }
 
   const handleDeleteClick = (event: Event) => {
+    event.preventDefault()
     event.stopPropagation()
     setDeleteDialogOpen(true)
   }
@@ -147,7 +148,7 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
     <div className={cn(className)} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button type="button" variant="ghost" size="icon">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>

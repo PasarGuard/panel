@@ -1,13 +1,9 @@
 import UserTemplate from '../components/templates/user-template'
-import { useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from '@/service/api'
+import { useBulkDeleteUserTemplates, useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import UserTemplateModal from '@/components/dialogs/user-template-modal'
-import {
-  createUserTemplateFormResolver,
-  userTemplateFormDefaultValues,
-  type UserTemplatesFromValueInput,
-} from '@/components/forms/user-template-form'
+import { createUserTemplateFormResolver, userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
 import { useState, useMemo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { queryClient } from '@/utils/query-client.ts'
@@ -23,12 +19,16 @@ import { ListGenerator } from '@/components/common/list-generator'
 import { useUserTemplatesListColumns } from '@/components/templates/use-user-templates-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { bytesToFormGigabytes } from '@/utils/formatByte'
+import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 
 export default function UserTemplates() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUserTemplate, setEditingUserTemplate] = useState<UserTemplateResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:templates')
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([])
+  const [bulkAction, setBulkAction] = useState<'delete' | null>(null)
   const { data: userTemplates, isLoading, isFetching, refetch } = useGetUserTemplates()
   const { t } = useTranslation()
   const form = useForm<UserTemplatesFromValueInput>({
@@ -36,6 +36,7 @@ export default function UserTemplates() {
     defaultValues: userTemplateFormDefaultValues,
   })
   const modifyUserTemplateMutation = useModifyUserTemplate()
+  const bulkDeleteUserTemplatesMutation = useBulkDeleteUserTemplates()
   const dir = useDirDetection()
 
   useEffect(() => {
@@ -118,6 +119,41 @@ export default function UserTemplates() {
   }, [userTemplates, searchQuery])
 
   const listColumns = useUserTemplatesListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus })
+  const clearSelection = () => {
+    setSelectedTemplateIds([])
+  }
+
+  const handleBulkDelete = async () => {
+    if (!selectedTemplateIds.length) return
+
+    try {
+      const response = await bulkDeleteUserTemplatesMutation.mutateAsync({
+        data: {
+          ids: selectedTemplateIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('templates.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} user templates deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      queryClient.invalidateQueries({
+        queryKey: ['/api/user_templates'],
+      })
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('templates.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected user templates.',
+          }),
+      })
+    }
+  }
 
   const isCurrentlyLoading = isLoading || (isFetching && !userTemplates)
   const isEmpty = !isCurrentlyLoading && (!filteredTemplates || filteredTemplates.length === 0) && !searchQuery.trim()
@@ -131,13 +167,14 @@ export default function UserTemplates() {
             <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
             <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+              <button type="button" onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
             <Button
+              type="button"
               size="icon-md"
               variant="ghost"
               onClick={() => refetch()}
@@ -150,6 +187,7 @@ export default function UserTemplates() {
             <ViewToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
+        <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />
 
         {(isCurrentlyLoading || (filteredTemplates && filteredTemplates.length > 0)) && (
           <ListGenerator
@@ -161,6 +199,10 @@ export default function UserTemplates() {
             className="gap-3"
             onRowClick={handleEdit}
             mode={viewMode}
+            enableSelection
+            enableGridSelection
+            selectedRowIds={selectedTemplateIds}
+            onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
             showEmptyState={false}
             gridClassName="transform-gpu animate-slide-up"
             gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
@@ -218,6 +260,19 @@ export default function UserTemplates() {
         form={form}
         editingUserTemplate={!!editingUserTemplate}
         editingUserTemplateId={editingUserTemplate?.id}
+      />
+      <BulkActionAlertDialog
+        open={bulkAction === 'delete'}
+        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+        title={t('templates.bulkDeleteTitle', { defaultValue: 'Delete Selected User Templates' })}
+        description={t('templates.bulkDeletePrompt', {
+          count: selectedTemplateIds.length,
+          defaultValue: 'Are you sure you want to delete {{count}} selected user templates? This action cannot be undone.',
+        })}
+        actionLabel={t('delete')}
+        onConfirm={handleBulkDelete}
+        isPending={bulkDeleteUserTemplatesMutation.isPending}
+        destructive
       />
     </div>
   )

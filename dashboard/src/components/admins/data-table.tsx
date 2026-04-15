@@ -1,35 +1,16 @@
-import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { ColumnDef, RowSelectionState, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
-import React, { useState, useMemo, memo, useCallback } from 'react'
-import {
-    ChevronDown,
-    Edit2,
-    Power,
-    PowerOff,
-    RefreshCw,
-    Trash2,
-    User,
-    UserCheck,
-    UserMinus,
-    UserRound,
-    UserX,
-    LoaderCircle,
-    MoreVertical,
-} from 'lucide-react'
+import React, { useState, useMemo, memo, useCallback, useEffect } from 'react'
+import { ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, User, UserCheck, UserMinus, UserRound, UserX, LoaderCircle, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AdminDetails } from '@/service/api'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { statusColors } from '@/constants/UserSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface DataTableProps<TData extends AdminDetails> {
   columns: ColumnDef<TData, any>[]
@@ -43,6 +24,8 @@ interface DataTableProps<TData extends AdminDetails> {
   onDisableAllActiveUsers?: (adminUsername: string) => void
   onActivateAllDisabledUsers?: (adminUsername: string) => void
   onRemoveAllUsers?: (adminUsername: string) => void
+  onSelectionChange?: (selectedUsernames: string[]) => void
+  resetSelectionKey?: number
   isLoading?: boolean
   isFetching?: boolean
 }
@@ -95,90 +78,90 @@ const ExpandedRowContent = memo(
           </div>
         </div>
         <div className="flex justify-end gap-1">
-            <Button variant="ghost" size="icon" onClick={() => onEdit(row)} title={t('edit')}>
-                <Edit2 className="h-4 w-4" />
-            </Button>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                        <MoreVertical className="h-4 w-4" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    {!isSudoTarget && row.username !== currentAdminUsername && (
-                      <DropdownMenuItem
-                          onSelect={e => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              onToggleStatus(row)
-                          }}
-                      >
-                          {row.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
-                          {row.is_disabled ? t('enable') : t('disable')}
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem
-                        onSelect={e => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onResetUsage(row.username)
-                        }}
-                    >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        {t('admins.reset')}
-                    </DropdownMenuItem>
-                    {!isSudoTarget && onDisableAllActiveUsers &&
-                    <DropdownMenuItem
-                        onSelect={e => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onDisableAllActiveUsers(row.username)
-                        }}
-                    >
-                        <UserMinus className="mr-2 h-4 w-4" />
-                        {t('admins.disableAllActiveUsers')}
-                    </DropdownMenuItem>
-                    }
-                    {!isSudoTarget && onActivateAllDisabledUsers &&
-                    <DropdownMenuItem
-                        onSelect={e => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onActivateAllDisabledUsers(row.username)
-                        }}
-                    >
-                        <UserCheck className="mr-2 h-4 w-4" />
-                        {t('admins.activateAllDisabledUsers')}
-                    </DropdownMenuItem>
-                    }
-                    {!isSudoTarget && onRemoveAllUsers &&
-                    <DropdownMenuItem
-                        className="text-destructive"
-                        onSelect={e => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onRemoveAllUsers(row.username)
-                        }}
-                    >
-                        <UserX className="mr-2 h-4 w-4" />
-                        {t('admins.removeAllUsers')}
-                    </DropdownMenuItem>
-                    }
-                    {!isSudoTarget && row.username !== currentAdminUsername && (
-                      <DropdownMenuItem
-                          className="text-destructive"
-                          onSelect={e => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              onDelete(row)
-                          }}
-                      >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {t('delete')}
-                      </DropdownMenuItem>
-                    )}
-                </DropdownMenuContent>
-            </DropdownMenu>
+          <Button variant="ghost" size="icon" onClick={() => onEdit(row)} title={t('edit')}>
+            <Edit2 className="h-4 w-4" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isSudoTarget && row.username !== currentAdminUsername && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onToggleStatus(row)
+                  }}
+                >
+                  {row.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
+                  {row.is_disabled ? t('enable') : t('disable')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onResetUsage(row.username)
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {t('admins.reset')}
+              </DropdownMenuItem>
+              {!isSudoTarget && onDisableAllActiveUsers && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onDisableAllActiveUsers(row.username)
+                  }}
+                >
+                  <UserMinus className="mr-2 h-4 w-4" />
+                  {t('admins.disableAllActiveUsers')}
+                </DropdownMenuItem>
+              )}
+              {!isSudoTarget && onActivateAllDisabledUsers && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onActivateAllDisabledUsers(row.username)
+                  }}
+                >
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  {t('admins.activateAllDisabledUsers')}
+                </DropdownMenuItem>
+              )}
+              {!isSudoTarget && onRemoveAllUsers && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onRemoveAllUsers(row.username)
+                  }}
+                >
+                  <UserX className="mr-2 h-4 w-4" />
+                  {t('admins.removeAllUsers')}
+                </DropdownMenuItem>
+              )}
+              {!isSudoTarget && row.username !== currentAdminUsername && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onDelete(row)
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t('delete')}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     )
@@ -196,16 +179,40 @@ export function DataTable<TData extends AdminDetails>({
   onDisableAllActiveUsers,
   onActivateAllDisabledUsers,
   onRemoveAllUsers,
+  onSelectionChange,
+  resetSelectionKey = 0,
   isLoading = false,
   isFetching = false,
 }: DataTableProps<TData>) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const { t } = useTranslation()
+
+  const handleRowSelectionChange = useCallback(
+    (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+      setRowSelection(prev => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        onSelectionChange?.(
+          Object.entries(next)
+            .filter(([, selected]) => selected)
+            .map(([rowId]) => rowId),
+        )
+        return next
+      })
+    },
+    [onSelectionChange],
+  )
+
   const table = useReactTable({
     data,
     columns,
-    getRowId: row => String(row.id ?? row.username),
+    getRowId: row => row.username,
     getCoreRowModel: getCoreRowModel(),
+    enableRowSelection: row => !row.original.is_sudo && row.original.username !== currentAdminUsername,
+    onRowSelectionChange: handleRowSelectionChange,
+    state: {
+      rowSelection,
+    },
   })
   const dir = useDirDetection()
   const isRTL = dir === 'rtl'
@@ -236,6 +243,11 @@ export function DataTable<TData extends AdminDetails>({
     [columns.length, t],
   )
 
+  useEffect(() => {
+    setRowSelection({})
+    onSelectionChange?.([])
+  }, [onSelectionChange, resetSelectionKey])
+
   const handleRowToggle = useCallback(
     (rowId: string) => {
       setExpandedRow(expandedRow === rowId ? null : rowId)
@@ -244,9 +256,10 @@ export function DataTable<TData extends AdminDetails>({
   )
 
   const handleEditModal = useCallback(
-    (cellId: string, rowData: AdminDetails) => {
+    (cellId: string, rowData: AdminDetails, target?: HTMLElement | null) => {
       const isChevron = cellId === 'chevron'
       const isSmallScreen = window.innerWidth < 768
+      if (target?.closest('[data-role="row-selector"]')) return
       if (!isSmallScreen && !isChevron) {
         onEdit(rowData)
       }
@@ -266,13 +279,14 @@ export function DataTable<TData extends AdminDetails>({
                   className={cn(
                     'sticky z-10 overflow-visible text-xs',
                     isRTL && 'text-right',
-                    index === 0 && 'w-[270px] md:w-auto',
-                    index === 1 && 'min-w-[70px] md:w-auto',
+                    index === 0 && 'w-8 !px-1 py-1.5',
+                    index === 1 && 'w-[270px] md:w-auto',
                     index === 2 && 'min-w-[70px] md:w-auto',
                     index === 3 && 'min-w-[70px] md:w-auto',
-                    index === 4 && 'min-w-[70px] md:w-[120px]',
+                    index === 4 && 'min-w-[70px] md:w-auto',
+                    index === 5 && 'min-w-[70px] md:w-[120px]',
                     header.id === 'actions' && 'hidden md:table-cell md:w-[85px]',
-                    index >= 3 && 'hidden md:table-cell',
+                    index >= 4 && 'hidden md:table-cell',
                     header.id === 'chevron' && 'table-cell md:hidden',
                   )}
                 >
@@ -296,15 +310,17 @@ export function DataTable<TData extends AdminDetails>({
                       {row.getVisibleCells().map((cell, index) => (
                         <TableCell
                           key={cell.id}
+                          data-role={cell.column.id === 'select' ? 'row-selector' : undefined}
                           onClick={(e: any) => {
                             const target = e.target as HTMLElement
                             if (target.closest('button') || target.closest('[role="menuitem"]')) return
-                            handleEditModal(cell.column.id, row.original)
+                            handleEditModal(cell.column.id, row.original, target)
                           }}
                           className={cn(
                             'py-2 text-sm',
+                            cell.column.id === 'select' && 'w-8 !px-1',
                             cell.column.id === 'actions' && 'hidden md:w-[85px]',
-                            index >= 3 && 'hidden md:table-cell',
+                            index >= 4 && 'hidden md:table-cell',
                             cell.column.id === 'chevron' && 'table-cell md:hidden',
                             dir === 'rtl' ? 'pl-3' : 'pr-3',
                           )}
