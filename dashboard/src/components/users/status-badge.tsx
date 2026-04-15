@@ -4,6 +4,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UserStatus } from '@/service/api'
 import { useRelativeExpiryDate } from '@/utils/dateFormatter'
+import { Clock } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,9 +41,13 @@ export const StatusBadge: FC<UserStatusProps> = ({ expiryDate = null, status: us
       <div className={cn('flex flex-wrap justify-start gap-x-2')}>
         <div className={cn(!dateInfo.time && !dateInfo.status && 'hidden', showExpiry ? 'block' : 'hidden md:block')}>
           <div>
-            <span className={cn('inline-block text-xs font-medium', dir === 'rtl' ? 'mr-0.5 md:mr-2' : 'ml-0.5 md:ml-2', 'text-gray-600 dark:text-gray-400')}>
-              {t(dateInfo.status, { time: dateInfo.time })}
-            </span>
+            <div className="flex items-center gap-x-1 text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              <span className="text-sm">:</span>
+              <span className={cn('text-xs font-medium', dir === 'rtl' ? 'mr-0.5 md:mr-2' : 'ml-0.5 md:ml-2', 'text-gray-600 dark:text-gray-400')}>
+                {t(dateInfo.status, { time: dateInfo.time })}
+              </span>
+            </div>
           </div>
         </div>
       </div>

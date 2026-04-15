@@ -31,7 +31,7 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
-        <StatusBadge showOnlyExpiry expiryDate={row.original.expire} status={row.original.status} showExpiry />
+        {row.original.expire && <StatusBadge showOnlyExpiry expiryDate={row.original.expire} status={row.original.status} showExpiry />}
         <div className="flex items-center gap-x-1">
           <span className="flex items-center gap-x-0.5">
             <Rss className="h-3 w-3 text-muted-foreground" />
