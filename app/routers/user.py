@@ -381,6 +381,34 @@ async def bulk_reset_users_data_usage(
 
 
 @router.post(
+    "s/bulk/disable",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_disable_users(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Disable selected users by ID."""
+    return await user_operator.bulk_disable_users(db, bulk_users, admin)
+
+
+@router.post(
+    "s/bulk/enable",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_enable_users(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Enable selected users by ID."""
+    return await user_operator.bulk_enable_users(db, bulk_users, admin)
+
+
+@router.post(
     "s/bulk/revoke_sub",
     response_model=BulkUsersActionResponse,
     responses={400: responses._400, 403: responses._403, 404: responses._404},

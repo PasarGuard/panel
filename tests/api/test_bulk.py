@@ -353,6 +353,103 @@ def test_bulk_revoke_users_subscription_by_ids(access_token):
         cleanup(access_token, core, groups, users)
 
 
+def test_bulk_disable_users_by_ids(access_token):
+    core, groups = setup_groups(access_token, 1)
+    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_disable")}) for _ in range(2)]
+    try:
+        response = client.post(
+            "/api/users/bulk/disable",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [user["id"] for user in users]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == len(users)
+
+        for user in users:
+            user_response = client.get(
+                f"/api/user/{user['username']}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["status"] == "disabled"
+    finally:
+        cleanup(access_token, core, groups, users)
+
+
+def test_bulk_enable_users_by_ids(access_token):
+    core, groups = setup_groups(access_token, 1)
+    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_enable")}) for _ in range(2)]
+    try:
+        disable_response = client.post(
+            "/api/users/bulk/disable",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [user["id"] for user in users]},
+        )
+        assert disable_response.status_code == status.HTTP_200_OK
+
+        response = client.post(
+            "/api/users/bulk/enable",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [user["id"] for user in users]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == len(users)
+
+        for user in users:
+            user_response = client.get(
+                f"/api/user/{user['username']}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["status"] == "active"
+    finally:
+        cleanup(access_token, core, groups, users)
+
+
+def test_bulk_disable_enable_users_ignore_noops(access_token):
+    core, groups = setup_groups(access_token, 1)
+    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_noop")}) for _ in range(2)]
+    try:
+        first_user = users[0]
+        second_user = users[1]
+        disable_single_response = client.put(
+            f"/api/user/{first_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"status": "disabled"},
+        )
+        assert disable_single_response.status_code == status.HTTP_200_OK
+
+        disable_bulk_response = client.post(
+            "/api/users/bulk/disable",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [first_user["id"], second_user["id"]]},
+        )
+        assert disable_bulk_response.status_code == status.HTTP_200_OK
+        assert disable_bulk_response.json()["count"] == 1
+
+        enable_bulk_response = client.post(
+            "/api/users/bulk/enable",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [first_user["id"], second_user["id"]]},
+        )
+        assert enable_bulk_response.status_code == status.HTTP_200_OK
+        assert enable_bulk_response.json()["count"] == 2
+
+        enable_again_response = client.post(
+            "/api/users/bulk/enable",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [first_user["id"], second_user["id"]]},
+        )
+        assert enable_again_response.status_code == status.HTTP_200_OK
+        assert enable_again_response.json()["count"] == 0
+    finally:
+        cleanup(access_token, core, groups, users)
+
+
 def test_bulk_set_owner_by_ids(access_token):
     core, groups = setup_groups(access_token, 1)
     users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_owner")}) for _ in range(2)]

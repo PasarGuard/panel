@@ -474,6 +474,32 @@ class UserOperation(BaseOperation):
 
         return self._build_bulk_action_response(users)
 
+    async def bulk_disable_users(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        users_to_disable = [db_user for db_user in db_users if db_user.status != UserStatus.disabled]
+
+        users: list[UserNotificationResponse] = []
+        for db_user in users_to_disable:
+            user = await self._modify_user(db, db_user, UserModify(status=UserStatus.disabled), admin)
+            users.append(user)
+
+        return self._build_bulk_action_response(users)
+
+    async def bulk_enable_users(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        users_to_enable = [db_user for db_user in db_users if db_user.status == UserStatus.disabled]
+
+        users: list[UserNotificationResponse] = []
+        for db_user in users_to_enable:
+            user = await self._modify_user(db, db_user, UserModify(status=UserStatus.active), admin)
+            users.append(user)
+
+        return self._build_bulk_action_response(users)
+
     async def reset_users_data_usage(self, db: AsyncSession, admin: AdminDetails):
         """Reset all users data usage"""
         db_admin = await self.get_validated_admin(db, admin.username)
