@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CircleFadingArrowUp, Power, PowerOff, RefreshCcw, Trash2, Wifi } from 'lucide-react'
+import { CircleFadingArrowUp, Power, PowerOff, RefreshCcw, Trash2, WifiSync } from 'lucide-react'
 import Node from '@/components/nodes/node'
 import {
   useBulkDeleteNodes,
@@ -542,7 +542,7 @@ export default function NodesList() {
         {
           key: 'reconnect',
           label: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
-          icon: Wifi,
+          icon: WifiSync,
           onClick: () => setBulkAction('reconnect'),
         },
         {

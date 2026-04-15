@@ -622,7 +622,6 @@
     "activateAllDisabledUsersFailed": "Failed to activate all disabled users under admin «{{name}}»",
     "reset": "Reset usage",
     "discordId": "Discord ID",
-    "lifetime.used.traffic": "Total",
     "used": {
       "traffic": "Usage"
     },

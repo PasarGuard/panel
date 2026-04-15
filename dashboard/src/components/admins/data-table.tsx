@@ -63,7 +63,7 @@ const ExpandedRowContent = memo(
           </div>
           <div className="flex items-center gap-1.5 leading-none">
             <ChartPie className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">{t('admins.lifetime.used.traffic')}:</span>
+            <span className="text-muted-foreground">{t('statistics.totalUsage')}:</span>
             <span dir="ltr" className="text-foreground" style={{ unicodeBidi: 'isolate' }}>
               {formatBytes(row.lifetime_used_traffic || 0)}
             </span>

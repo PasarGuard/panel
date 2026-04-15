@@ -138,7 +138,7 @@ export const setupColumns = ({
     header: () => (
       <div className="flex items-center text-xs capitalize">
         <span className="md:hidden">{t('admins.role')}</span>
-        <span className="hidden md:inline">{t('admins.lifetime.used.traffic')}</span>
+        <span className="hidden md:inline">{t('statistics.totalUsage')}</span>
       </div>
     ),
     cell: ({ row }) => {

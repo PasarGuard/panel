@@ -622,7 +622,6 @@
     "activateAllDisabledUsersFailed": "启用管理员「{{name}}」下的所有已禁用用户失败",
     "reset": "重置使用情况",
     "discordId": "Discord ID",
-    "lifetime.used.traffic": "总计",
     "used": {
       "traffic": "使用量"
     },

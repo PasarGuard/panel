@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSidebar } from '@/components/ui/sidebar'
 import { type AdminDetails } from '@/service/api'
-import { ChevronsUpDown, LogOut, Network, Wifi, UserRoundKey, UsersIcon, UserCircle } from 'lucide-react'
+import { ChevronsUpDown, LogOut, UserRoundKey, UsersIcon, UserCircle, ChartPie, ChartNoAxesColumn } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { formatBytes } from '@/utils/formatByte'
@@ -87,7 +87,7 @@ export function NavUser({
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{t('admins.lifetime.used.traffic')}</span>
+                      <span className="text-muted-foreground">{t('statistics.totalUsage')}</span>
                       <span className="font-medium">
                         <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
                           {formatBytes(admin?.lifetime_used_traffic || 0)}
@@ -147,7 +147,7 @@ export function NavUser({
                 </div>
                 {admin && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Network className="size-3" />
+                    <ChartPie className="size-3" />
                     <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
                       {formatBytes(admin?.used_traffic || 0)}
                     </span>
@@ -183,7 +183,7 @@ export function NavUser({
                 {admin && (
                   <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                     <div className="flex items-center gap-2">
-                      <Network className="size-3" />
+                      <ChartPie className="size-3" />
                       <span>
                         {t('admins.used.traffic')}:{' '}
                         <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
@@ -192,9 +192,9 @@ export function NavUser({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Wifi className="size-3" />
+                      <ChartNoAxesColumn className="size-3" />
                       <span>
-                        {t('admins.lifetime.used.traffic')}:{' '}
+                        {t('statistics.totalUsage')}:{' '}
                         <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
                           {formatBytes(admin?.lifetime_used_traffic || 0)}
                         </span>

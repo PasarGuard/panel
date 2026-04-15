@@ -608,7 +608,6 @@
     "activateAllDisabledUsersFailed": "Не удалось активировать всех отключенных пользователей под управлением администратора «{{name}}»",
     "reset": "Сброс использования",
     "discordId": "Discord ID",
-    "lifetime.used.traffic": "Всего",
     "used": {
       "traffic": "Использование"
     },

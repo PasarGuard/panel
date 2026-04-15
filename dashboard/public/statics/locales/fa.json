@@ -512,7 +512,6 @@
     "activateAllDisabledUsersFailed": "فعال‌سازی همه کاربران غیرفعال تحت مدیریت ادمین «{{name}}» ناموفق بود",
     "reset": "بازنشانی مصرف",
     "discordId": "شناسه دیسکورد",
-    "lifetime.used.traffic": "مجموع کل",
     "used": {
       "traffic": "مصرف"
     },
