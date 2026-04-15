@@ -1302,7 +1302,14 @@ async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     Returns:
         User: The updated user object.
     """
+    old_admin = db_user.admin
     db_user.admin = admin
+
+    # Update admin traffic counters
+    if old_admin and old_admin.id != admin.id:
+        old_admin.used_traffic -= db_user.used_traffic
+        admin.used_traffic += db_user.used_traffic
+
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user
@@ -1320,8 +1327,30 @@ async def bulk_set_owner(db: AsyncSession, users: list[User], admin: Admin) -> l
     Returns:
         list[User]: The refreshed users.
     """
+    # Group users by old admin to update traffic counters
+    admin_traffic_changes = {}
+    total_traffic_to_add = 0
+
     for user in users:
+        old_admin = user.admin
+        if old_admin and old_admin.id != admin.id:
+            if old_admin.id not in admin_traffic_changes:
+                admin_traffic_changes[old_admin.id] = 0
+            admin_traffic_changes[old_admin.id] -= user.used_traffic
+        total_traffic_to_add += user.used_traffic
         user.admin = admin
+
+    # Update old admins' traffic
+    for admin_id, traffic_change in admin_traffic_changes.items():
+        await db.execute(
+            update(Admin).where(Admin.id == admin_id).values(used_traffic=Admin.used_traffic + traffic_change)
+        )
+
+    # Update new admin's traffic
+    if total_traffic_to_add > 0:
+        await db.execute(
+            update(Admin).where(Admin.id == admin.id).values(used_traffic=Admin.used_traffic + total_traffic_to_add)
+        )
 
     await db.commit()
     for user in users:

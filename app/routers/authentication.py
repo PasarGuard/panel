@@ -23,47 +23,15 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     if not payload:
         return
 
-    db_admin = await get_admin_by_username(db, payload["username"], load_users=False, load_usage_logs=False)
+    db_admin = await get_admin_by_username(db, payload["username"], load_users=True, load_usage_logs=True)
     if db_admin:
-        total_users = await db.scalar(select(func.count(User.id)).where(User.admin_id == db_admin.id))
-        users_used_traffic = await db.scalar(select(func.coalesce(func.sum(User.used_traffic), 0)).where(User.admin_id == db_admin.id))
-        # Avoid accessing hybrid properties that may lazy-load relationships here.
-        admin_reset_usage = await db.scalar(
-            select(func.coalesce(func.sum(AdminUsageLogs.used_traffic_at_reset), 0)).where(AdminUsageLogs.admin_id == db_admin.id)
-        )
-
-        users_reset_usage = await db.scalar(
-            select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0))
-            .select_from(UserUsageResetLogs)
-            .join(User, User.id == UserUsageResetLogs.user_id)
-            .where(User.admin_id == db_admin.id)
-        )
-        lifetime_used_traffic = int((users_reset_usage or 0) + (users_used_traffic or 0))
-
         if db_admin.password_reset_at:
             if not payload.get("created_at"):
                 return
             if db_admin.password_reset_at.astimezone(tz.utc) > payload.get("created_at"):
                 return
 
-        return AdminDetails(
-            id=db_admin.id,
-            username=db_admin.username,
-            is_sudo=db_admin.is_sudo,
-            total_users=int(total_users or 0),
-            used_traffic=int(users_used_traffic or 0),
-            is_disabled=db_admin.is_disabled,
-            telegram_id=db_admin.telegram_id,
-            discord_webhook=db_admin.discord_webhook,
-            sub_domain=db_admin.sub_domain,
-            profile_title=db_admin.profile_title,
-            support_url=db_admin.support_url,
-            note=db_admin.note,
-            notification_enable=db_admin.notification_enable,
-            discord_id=db_admin.discord_id,
-            sub_template=db_admin.sub_template,
-            lifetime_used_traffic=lifetime_used_traffic,
-        )
+        return AdminDetails.model_validate(db_admin)
 
     elif payload["username"] in SUDOERS and payload["is_sudo"] is True:
         return AdminDetails(username=payload["username"], is_sudo=True)
