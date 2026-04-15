@@ -3,7 +3,7 @@ import { statusColors } from '@/constants/UserSettings'
 import { cn } from '@/lib/utils'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UserRound, Shield } from 'lucide-react'
+import { UserRound, UserRoundKey } from 'lucide-react'
 
 type AdminStatusProps = {
   isSudo: boolean
@@ -25,7 +25,7 @@ export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo, isDisabled }) =
     if (isSudo) {
       return {
         color: 'bg-violet-500 text-white',
-        icon: Shield,
+        icon: UserRoundKey,
         text: t('sudo'),
       }
     }

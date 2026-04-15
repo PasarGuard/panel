@@ -1,11 +1,12 @@
 import { AdminDetails } from '@/service/api'
 import { ColumnDef, Row, Table } from '@tanstack/react-table'
-import { ChartPie, ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, Trash2, User, UserCheck, UserMinus, UserX } from 'lucide-react'
+import { ChartPie, ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, UserRoundKey, Trash2, Users, UserCheck, UserMinus, UserRound, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes } from '@/utils/formatByte.ts'
 import { AdminStatusBadge } from './admin-status-badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { cn } from '@/lib/utils'
 
 interface ColumnSetupProps {
   t: (key: string) => string
@@ -45,6 +46,8 @@ const createSortButton = (
     </button>
   )
 }
+
+const getAdminRoleIcon = (isSudo: boolean) => (isSudo ? UserRoundKey : UserRound)
 
 export const setupColumns = ({
   t,
@@ -132,14 +135,22 @@ export const setupColumns = ({
   },
   {
     accessorKey: 'lifetime_used_traffic',
-    header: () => <div className="flex items-center text-xs capitalize">{t('admins.lifetime.used.traffic')}</div>,
+    header: () => (
+      <div className="flex items-center text-xs capitalize">
+        <span className="md:hidden">{t('admins.role')}</span>
+        <span className="hidden md:inline">{t('admins.lifetime.used.traffic')}</span>
+      </div>
+    ),
     cell: ({ row }) => {
       const total = row.getValue('lifetime_used_traffic') as number | null
+      const RoleIcon = getAdminRoleIcon(!!row.original.is_sudo)
+
       return (
-        <div className="flex items-center gap-2 whitespace-nowrap">
-          <span dir="ltr" className="text-xs">
+        <div className="flex items-center justify-start gap-0 whitespace-nowrap md:justify-start md:gap-2">
+          <span dir="ltr" className="hidden text-xs md:inline">
             {formatBytes(total || 0)}
           </span>
+          <RoleIcon className={row.original.is_disabled ? 'h-4 w-4 text-muted-foreground/60 md:hidden' : cn('h-4 w-4 md:hidden', row.original.is_sudo ? 'text-violet-500' : 'text-primary')} />
         </div>
       )
     },
@@ -162,7 +173,7 @@ export const setupColumns = ({
     header: () => <div className="flex items-center text-xs capitalize">{t('admins.total.users')}</div>,
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
-        <User className="h-4 w-4" />
+        <Users className="h-4 w-4" />
         <span>{row.getValue('total_users') || 0}</span>
       </div>
     ),
@@ -173,10 +184,10 @@ export const setupColumns = ({
       const isSudoTarget = row.original.is_sudo
 
       return (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button type="button" variant="ghost" size="icon">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

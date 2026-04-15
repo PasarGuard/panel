@@ -3,14 +3,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import React, { useState, useMemo, memo, useCallback, useEffect } from 'react'
-import { ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, User, UserCheck, UserMinus, UserRound, UserX, LoaderCircle, MoreVertical } from 'lucide-react'
+import { ChartPie, ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserX, LoaderCircle, MoreVertical, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AdminDetails } from '@/service/api'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
-import { statusColors } from '@/constants/UserSettings'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { formatBytes } from '@/utils/formatByte'
 
 interface DataTableProps<TData extends AdminDetails> {
   columns: ColumnDef<TData, any>[]
@@ -53,37 +51,31 @@ const ExpandedRowContent = memo(
     currentAdminUsername?: string
   }) => {
     const { t } = useTranslation()
-    const isMobile = useIsMobile()
-    const isSudo = row.is_sudo
     const isSudoTarget = row.is_sudo
 
     return (
-      <div className="flex items-center justify-between px-2 py-4">
-        <div className="flex gap-1">
-          <div className="flex items-center gap-2">
-            <Badge
-              className={cn(
-                'pointer-events-none flex w-fit max-w-[150px] items-center justify-center gap-x-2 rounded-full px-0.5 py-0.5 sm:px-1',
-                isSudo ? statusColors['active'].statusColor : statusColors['disabled'].statusColor || 'bg-gray-400 text-white',
-                isMobile && 'h-6 px-1 py-2.5',
-              )}
-            >
-              <div>{isMobile ? <UserRound className="h-4 w-4" /> : <span className="text-nowrap text-xs font-medium capitalize">{isSudo ? t(`sudo`) : t('admin')}</span>}</div>
-            </Badge>
+      <div className="flex items-start justify-between gap-2 border-b px-3 py-3 text-xs">
+        <div className="flex min-w-0 flex-col gap-1.5 text-[11px]">
+          <div className="flex items-center gap-1.5 leading-none">
+            <Users className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="text-muted-foreground">{t('admins.total.users')}:</span>
+            <span className="text-foreground">{row.total_users || 0}</span>
           </div>
-          <span>|</span>
-          <div className="flex items-center gap-1">
-            <User className="h-4 w-4" />
-            <span>{row.total_users ? row.total_users : 0}</span>
+          <div className="flex items-center gap-1.5 leading-none">
+            <ChartPie className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="text-muted-foreground">{t('admins.lifetime.used.traffic')}:</span>
+            <span dir="ltr" className="text-foreground" style={{ unicodeBidi: 'isolate' }}>
+              {formatBytes(row.lifetime_used_traffic || 0)}
+            </span>
           </div>
         </div>
         <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" onClick={() => onEdit(row)} title={t('edit')}>
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(row)} title={t('edit')}>
             <Edit2 className="h-4 w-4" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -248,46 +240,49 @@ export function DataTable<TData extends AdminDetails>({
     onSelectionChange?.([])
   }, [onSelectionChange, resetSelectionKey])
 
-  const handleRowToggle = useCallback(
-    (rowId: string) => {
-      setExpandedRow(expandedRow === rowId ? null : rowId)
-    },
-    [expandedRow],
-  )
+  const handleRowToggle = useCallback((rowId: string) => {
+    setExpandedRow(prev => (prev === rowId ? null : rowId))
+  }, [])
 
   const handleEditModal = useCallback(
-    (cellId: string, rowData: AdminDetails, target?: HTMLElement | null) => {
-      const isChevron = cellId === 'chevron'
+    (e: React.MouseEvent, rowData: AdminDetails) => {
       const isSmallScreen = window.innerWidth < 768
-      if (target?.closest('[data-role="row-selector"]')) return
-      if (!isSmallScreen && !isChevron) {
-        onEdit(rowData)
+      const target = e.target as HTMLElement
+
+      if (target.closest('.chevron')) return
+      if (target.closest('[data-role="row-selector"]')) return
+      if (target.closest('button')) return
+      if (target.closest('[role="menu"], [role="menuitem"], [data-radix-popper-content-wrapper]')) return
+
+      if (isSmallScreen) {
+        handleRowToggle(rowData.username)
+        return
       }
+
+      onEdit(rowData)
     },
-    [onEdit],
+    [handleRowToggle, onEdit],
   )
 
   return (
-    <div className="rounded-md border">
-      <Table dir={cn(isRTL && 'rtl')}>
-        <TableHeader className="relative">
+    <div className="overflow-hidden rounded-md border">
+      <Table dir={isRTL ? 'rtl' : 'ltr'}>
+        <TableHeader>
           {table.getHeaderGroups().map(headerGroup => (
-            <TableRow className="uppercase" key={headerGroup.id}>
-              {headerGroup.headers.map((header, index) => (
+            <TableRow key={headerGroup.id} className="uppercase">
+              {headerGroup.headers.map(header => (
                 <TableHead
                   key={header.id}
                   className={cn(
-                    'sticky z-10 overflow-visible text-xs',
+                    'sticky z-10 bg-background text-xs',
                     isRTL && 'text-right',
-                    index === 0 && 'w-8 !px-1 py-1.5',
-                    index === 1 && 'w-[270px] md:w-auto',
-                    index === 2 && 'min-w-[70px] md:w-auto',
-                    index === 3 && 'min-w-[70px] md:w-auto',
-                    index === 4 && 'min-w-[70px] md:w-auto',
-                    index === 5 && 'min-w-[70px] md:w-[120px]',
-                    header.id === 'actions' && 'hidden md:table-cell md:w-[85px]',
-                    index >= 4 && 'hidden md:table-cell',
-                    header.id === 'chevron' && 'table-cell md:hidden',
+                    header.id === 'select' && 'w-8 !px-1 py-1.5',
+                    header.id === 'username' && 'w-auto md:w-auto',
+                    header.id === 'total_users' && '!px-0',
+                    header.id === 'used_traffic' && 'w-[72px] !px-0 text-center md:w-auto md:px-2 md:text-left',
+                    header.id === 'lifetime_used_traffic' && 'w-[44px] !px-0 text-center md:w-auto md:px-2 md:text-left',
+                    !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(header.id) && 'hidden md:table-cell',
+                    header.id === 'chevron' && 'w-4 !p-0 table-cell md:hidden',
                   )}
                 >
                   {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
@@ -300,34 +295,38 @@ export function DataTable<TData extends AdminDetails>({
           {isLoadingData
             ? LoadingState
             : table.getRowModel().rows?.length
-              ? table.getRowModel().rows.map(row => (
+              ? table.getRowModel().rows.map(row => {
+                const isRowSelected = row.getIsSelected()
+
+                return (
                   <React.Fragment key={row.id}>
-                    <TableRow
-                      className={cn('cursor-pointer border-b hover:!bg-inherit md:cursor-default md:hover:!bg-muted/50', expandedRow === row.id && 'border-transparent')}
-                      onClick={() => window.innerWidth < 768 && handleRowToggle(row.id)}
-                      data-state={row.getIsSelected() && 'selected'}
-                    >
-                      {row.getVisibleCells().map((cell, index) => (
+                    <TableRow className={cn('cursor-pointer border-b md:cursor-default', expandedRow === row.id && 'border-transparent')} onClick={e => handleEditModal(e, row.original)} data-state={isRowSelected ? 'selected' : undefined}>
+                      {row.getVisibleCells().map(cell => (
                         <TableCell
                           key={cell.id}
                           data-role={cell.column.id === 'select' ? 'row-selector' : undefined}
-                          onClick={(e: any) => {
-                            const target = e.target as HTMLElement
-                            if (target.closest('button') || target.closest('[role="menuitem"]')) return
-                            handleEditModal(cell.column.id, row.original, target)
-                          }}
                           className={cn(
-                            'py-2 text-sm',
-                            cell.column.id === 'select' && 'w-8 !px-1',
-                            cell.column.id === 'actions' && 'hidden md:w-[85px]',
-                            index >= 4 && 'hidden md:table-cell',
+                            'text-sm',
+                            cell.column.id !== 'username' && 'whitespace-nowrap',
+                            cell.column.id === 'select' && 'w-8 !px-1 !py-4',
+                            cell.column.id === 'username' && 'max-w-[calc(100vw-32px-72px-44px-16px-56px)] !px-0',
+                            cell.column.id === 'used_traffic' && '!px-0 text-center',
+                            cell.column.id === 'lifetime_used_traffic' && '!px-0 text-center',
+                            cell.column.id === 'chevron' && 'w-10',
+                            !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(cell.column.id) && 'hidden !p-0 md:table-cell',
                             cell.column.id === 'chevron' && 'table-cell md:hidden',
-                            dir === 'rtl' ? 'pl-3' : 'pr-3',
+                            !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(cell.column.id) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
                           )}
                         >
                           {cell.column.id === 'chevron' ? (
-                            <div className="flex cursor-pointer items-center justify-center" onClick={() => handleRowToggle(row.id)}>
-                              <ChevronDown className={cn('h-4 w-4', expandedRow === row.id && 'rotate-180')} />
+                            <div
+                              className="chevron flex cursor-pointer items-center justify-center"
+                              onClick={e => {
+                                e.stopPropagation()
+                                handleRowToggle(row.id)
+                              }}
+                            >
+                              <ChevronDown className={cn('h-3.5 w-3.5', expandedRow === row.id && 'rotate-180')} />
                             </div>
                           ) : (
                             flexRender(cell.column.columnDef.cell, cell.getContext())
@@ -336,7 +335,7 @@ export function DataTable<TData extends AdminDetails>({
                       ))}
                     </TableRow>
                     {expandedRow === row.id && (
-                      <TableRow className="border-b hover:!bg-inherit md:hidden">
+                      <TableRow className="border-b border-transparent md:hidden" data-state={isRowSelected ? 'selected' : undefined}>
                         <TableCell colSpan={columns.length} className="p-0 text-sm">
                           <ExpandedRowContent
                             row={row.original}
@@ -353,7 +352,8 @@ export function DataTable<TData extends AdminDetails>({
                       </TableRow>
                     )}
                   </React.Fragment>
-                ))
+                )
+              })
               : EmptyState}
         </TableBody>
       </Table>

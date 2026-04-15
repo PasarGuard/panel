@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSidebar } from '@/components/ui/sidebar'
 import { type AdminDetails } from '@/service/api'
-import { ChevronsUpDown, LogOut, Network, Wifi, Shield, UsersIcon, UserCircle } from 'lucide-react'
+import { ChevronsUpDown, LogOut, Network, Wifi, UserRoundKey, UsersIcon, UserCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { formatBytes } from '@/utils/formatByte'
@@ -62,7 +62,7 @@ export function NavUser({
                       <Badge variant={admin.is_sudo ? 'secondary' : 'outline'} className="h-4 px-1 py-0 text-[10px]">
                         {admin.is_sudo ? (
                           <>
-                            <Shield className="mr-1 size-3" />
+                            <UserRoundKey className="mr-1 size-3" />
                             {t('sudo')}
                           </>
                         ) : (
@@ -133,7 +133,7 @@ export function NavUser({
                     <Badge variant={admin.is_sudo ? 'secondary' : 'outline'} className="hidden h-4 px-1 py-0 text-[10px] lg:hidden">
                       {admin.is_sudo ? (
                         <>
-                          <Shield className="mr-1 size-3" />
+                          <UserRoundKey className="mr-1 size-3" />
                           {t('sudo')}
                         </>
                       ) : (
@@ -167,7 +167,7 @@ export function NavUser({
                       <Badge variant={admin.is_sudo ? 'secondary' : 'outline'} className="flex h-4 items-center gap-2 py-0 text-[10px]">
                         {admin.is_sudo ? (
                           <>
-                            <Shield className="size-3" />
+                            <UserRoundKey className="size-3" />
                             <span>{t('sudo')}</span>
                           </>
                         ) : (
