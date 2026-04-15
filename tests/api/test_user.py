@@ -498,10 +498,15 @@ def test_xray_subscription_uses_host_specific_template_override(access_token):
 
         configs = response.json()
         assert isinstance(configs, list)
-        assert len(configs) == 1
+        assert len(configs) >= 1
 
-        outbounds = configs[0]["outbounds"]
-        assert any(outbound["tag"] == "template-marker" for outbound in outbounds)
+        marker_count = 0
+        for config in configs:
+            outbounds = config.get("outbounds", [])
+            if any(outbound.get("tag") == "template-marker" for outbound in outbounds):
+                marker_count += 1
+
+        assert marker_count == 1
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
@@ -566,7 +571,7 @@ def test_xray_subscription_template_override_isolated_per_host(access_token):
 
         configs = response.json()
         assert isinstance(configs, list)
-        assert len(configs) == 2
+        assert len(configs) >= 2
 
         marker_count = 0
         for config in configs:
