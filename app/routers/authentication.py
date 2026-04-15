@@ -4,8 +4,11 @@ from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
+from sqlalchemy import func, select
+
 from app.db import AsyncSession, get_db
 from app.db.crud.admin import find_admins_by_telegram_id, get_admin as get_admin_by_username, get_admin_by_telegram_id
+from app.db.models import User
 from app.models.admin import AdminDetails, AdminValidationResult, verify_password
 from app.models.settings import Telegram
 from app.settings import telegram_settings
@@ -22,6 +25,10 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
 
     db_admin = await get_admin_by_username(db, payload["username"], load_users=False, load_usage_logs=False)
     if db_admin:
+        total_users = await db.scalar(select(func.count(User.id)).where(User.admin_id == db_admin.id))
+        users_used_traffic = await db.scalar(select(func.coalesce(func.sum(User.used_traffic), 0)).where(User.admin_id == db_admin.id))
+        lifetime_used_traffic = int(getattr(db_admin, "lifetime_used_traffic", 0) or 0)
+
         if db_admin.password_reset_at:
             if not payload.get("created_at"):
                 return
@@ -32,7 +39,8 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
             id=db_admin.id,
             username=db_admin.username,
             is_sudo=db_admin.is_sudo,
-            used_traffic=db_admin.used_traffic,
+            total_users=int(total_users or 0),
+            used_traffic=int(users_used_traffic or 0),
             is_disabled=db_admin.is_disabled,
             telegram_id=db_admin.telegram_id,
             discord_webhook=db_admin.discord_webhook,
@@ -43,6 +51,7 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
             notification_enable=db_admin.notification_enable,
             discord_id=db_admin.discord_id,
             sub_template=db_admin.sub_template,
+            lifetime_used_traffic=lifetime_used_traffic,
         )
 
     elif payload["username"] in SUDOERS and payload["is_sudo"] is True:
