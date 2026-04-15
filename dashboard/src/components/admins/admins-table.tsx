@@ -679,18 +679,26 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         icon: RefreshCw,
         onClick: () => setBulkAction('reset'),
       },
-      {
-        key: 'enable',
-        label: t('enable'),
-        icon: Power,
-        onClick: () => setBulkAction('enable'),
-      },
-      {
-        key: 'disable',
-        label: t('disable'),
-        icon: PowerOff,
-        onClick: () => setBulkAction('disable'),
-      },
+      ...(disableEligibleCount > 0
+        ? [
+          {
+            key: 'disable',
+            label: t('disable'),
+            icon: PowerOff,
+            onClick: () => setBulkAction('disable'),
+          } as BulkActionItem,
+        ]
+        : []),
+      ...(enableEligibleCount > 0
+        ? [
+          {
+            key: 'enable',
+            label: t('enable'),
+            icon: Power,
+            onClick: () => setBulkAction('enable'),
+          } as BulkActionItem,
+        ]
+        : []),
       {
         key: 'disableUsers',
         label: t('admins.disableAllActiveUsers'),

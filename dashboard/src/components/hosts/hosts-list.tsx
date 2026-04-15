@@ -806,18 +806,26 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           direct: true,
           destructive: true,
         },
-        {
-          key: 'enable',
-          label: t('enable'),
-          icon: Power,
-          onClick: () => setBulkAction('enable'),
-        },
-        {
-          key: 'disable',
-          label: t('disable'),
-          icon: PowerOff,
-          onClick: () => setBulkAction('disable'),
-        },
+        ...(disableEligibleCount > 0
+          ? [
+            {
+              key: 'disable',
+              label: t('disable'),
+              icon: PowerOff,
+              onClick: () => setBulkAction('disable'),
+            } as BulkActionItem,
+          ]
+          : []),
+        ...(enableEligibleCount > 0
+          ? [
+            {
+              key: 'enable',
+              label: t('enable'),
+              icon: Power,
+              onClick: () => setBulkAction('enable'),
+            } as BulkActionItem,
+          ]
+          : []),
       ]
     : []
   const bulkActionConfigs: Record<BulkHostActionType, BulkActionDialogConfig> = {
