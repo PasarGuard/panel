@@ -2,7 +2,7 @@ import asyncio
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import bindparam, select
+from sqlalchemy import bindparam, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy import insert
@@ -214,3 +214,18 @@ async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
     await db.delete(db_host)
     await db.commit()
     return db_host
+
+
+async def remove_hosts(db: AsyncSession, host_ids: list[int]) -> None:
+    """
+    Removes multiple hosts from the database by ID.
+
+    Args:
+        db (AsyncSession): Database session.
+        host_ids (list[int]): List of host IDs to remove.
+    """
+    if not host_ids:
+        return
+
+    await db.execute(delete(ProxyHost).where(ProxyHost.id.in_(host_ids)))
+    await db.commit()

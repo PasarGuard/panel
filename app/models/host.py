@@ -340,3 +340,21 @@ class CreateHost(BaseHost):
     @field_validator("sni", "host", mode="after")
     def validate_sets(cls, v: set):
         return StringArrayValidator.len_check(v, 1000)
+
+
+class BulkHostSelection(BaseModel):
+    """Model for bulk host selection by IDs"""
+
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(list(v), "host")
+
+
+class RemoveHostsResponse(BaseModel):
+    """Response model for bulk host deletion"""
+
+    hosts: list[str]
+    count: int

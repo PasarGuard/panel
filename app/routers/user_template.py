@@ -4,6 +4,8 @@ from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from .authentication import check_sudo_admin, get_current
 from app.models.user_template import (
+    BulkUserTemplateSelection,
+    RemoveUserTemplatesResponse,
     UserTemplateCreate,
     UserTemplateModify,
     UserTemplateResponse,
@@ -104,3 +106,17 @@ async def get_user_templates_simple(
         sort=sort,
         all=all,
     )
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveUserTemplatesResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_user_templates(
+    bulk_templates: BulkUserTemplateSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Delete selected user templates by ID."""
+    return await template_operator.bulk_remove_user_templates(db, bulk_templates, admin)

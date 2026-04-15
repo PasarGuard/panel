@@ -3,10 +3,10 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 
 import bcrypt
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .notification_enable import UserNotificationEnable
-from .validators import DiscordValidator, NumericValidatorMixin, PasswordValidator
+from .validators import DiscordValidator, ListValidator, NumericValidatorMixin, PasswordValidator
 
 BCRYPT_ROUNDS = 12
 _PASSWORD_WORKERS = max(2, min(os.cpu_count() or 1, 8))
@@ -166,3 +166,21 @@ class AdminsSimpleResponse(BaseModel):
 
     admins: list[AdminSimple]
     total: int
+
+
+class BulkAdminSelection(BaseModel):
+    """Model for bulk admin selection by usernames"""
+
+    usernames: set[str] = Field(default_factory=set)
+
+    @field_validator("usernames", mode="after")
+    @classmethod
+    def usernames_validator(cls, v):
+        return ListValidator.not_null_list(list(v), "admin")
+
+
+class RemoveAdminsResponse(BaseModel):
+    """Response model for bulk admin deletion"""
+
+    admins: list[str]
+    count: int

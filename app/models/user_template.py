@@ -95,3 +95,21 @@ class UserTemplatesSimpleResponse(BaseModel):
 
     templates: list[UserTemplateSimple]
     total: int
+
+
+class BulkUserTemplateSelection(BaseModel):
+    """Model for bulk user template selection by IDs"""
+
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(list(v), "template")
+
+
+class RemoveUserTemplatesResponse(BaseModel):
+    """Response model for bulk user template deletion"""
+
+    templates: list[str]
+    count: int

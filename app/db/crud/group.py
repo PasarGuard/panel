@@ -1,9 +1,9 @@
 from enum import Enum
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import ProxyInbound, Group
+from app.db.models import ProxyInbound, Group, users_groups_association
 from app.models.group import GroupCreate, GroupModify
 
 from .host import upsert_inbounds
@@ -243,4 +243,22 @@ async def remove_group(db: AsyncSession, dbgroup: Group):
         dbgroup (Group): The Group object to be removed.
     """
     await db.delete(dbgroup)
+    await db.commit()
+
+
+async def remove_groups(db: AsyncSession, group_ids: list[int]) -> None:
+    """
+    Removes multiple groups from the database by ID.
+
+    Args:
+        db (AsyncSession): Database session.
+        group_ids (list[int]): List of group IDs to remove.
+    """
+    if not group_ids:
+        return
+
+    # Delete user-group associations first
+    await db.execute(delete(users_groups_association).where(users_groups_association.c.groups_id.in_(group_ids)))
+    # Then delete groups
+    await db.execute(delete(Group).where(Group.id.in_(group_ids)))
     await db.commit()

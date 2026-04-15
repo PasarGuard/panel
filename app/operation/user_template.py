@@ -11,9 +11,12 @@ from app.db.crud.user_template import (
     get_user_templates_simple,
     modify_user_template,
     remove_user_template,
+    remove_user_templates,
 )
 from app.operation import BaseOperation
 from app.models.user_template import (
+    BulkUserTemplateSelection,
+    RemoveUserTemplatesResponse,
     UserTemplateCreate,
     UserTemplateModify,
     UserTemplateResponse,
@@ -107,3 +110,25 @@ class UserTemplateOperation(BaseOperation):
         templates = [UserTemplateSimple(id=row[0], name=row[1]) for row in rows]
 
         return UserTemplatesSimpleResponse(templates=templates, total=total)
+
+    async def bulk_remove_user_templates(
+        self, db: AsyncSession, bulk_templates: BulkUserTemplateSelection, admin: Admin
+    ) -> RemoveUserTemplatesResponse:
+        """Remove multiple user templates by ID"""
+        db_templates = []
+        for template_id in bulk_templates.ids:
+            db_template = await self.get_validated_user_template(db, template_id)
+            db_templates.append(db_template)
+
+        template_ids = [t.id for t in db_templates]
+        template_names = [t.name for t in db_templates]
+
+        # Batch delete using CRUD function
+        await remove_user_templates(db, template_ids)
+
+        # Log and notify
+        for name in template_names:
+            logger.info(f'User template "{name}" deleted by admin "{admin.username}"')
+            asyncio.create_task(notification.remove_user_template(name, admin.username))
+
+        return RemoveUserTemplatesResponse(templates=template_names, count=len(db_templates))

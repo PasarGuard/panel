@@ -1,7 +1,7 @@
 from typing import Union, List
 from enum import Enum
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import UserTemplate
@@ -221,3 +221,18 @@ async def get_user_templates_simple(
     rows = result.all()
 
     return rows, total
+
+
+async def remove_user_templates(db: AsyncSession, template_ids: list[int]) -> None:
+    """
+    Removes multiple user templates from the database by ID.
+
+    Args:
+        db (AsyncSession): Database session.
+        template_ids (list[int]): List of template IDs to remove.
+    """
+    if not template_ids:
+        return
+
+    await db.execute(delete(UserTemplate).where(UserTemplate.id.in_(template_ids)))
+    await db.commit()

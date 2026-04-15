@@ -2,7 +2,16 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.group import BulkGroup, GroupCreate, GroupModify, GroupResponse, GroupsResponse, GroupsSimpleResponse
+from app.models.group import (
+    BulkGroup,
+    BulkGroupSelection,
+    GroupCreate,
+    GroupModify,
+    GroupResponse,
+    GroupsResponse,
+    GroupsSimpleResponse,
+    RemoveGroupsResponse,
+)
 from app.operation import OperatorType
 from app.operation.group import GroupOperation
 from app.utils import responses
@@ -229,3 +238,17 @@ async def bulk_remove_users_from_groups(
     - Returns list of affected users (those who had groups removed)
     """
     return await group_operator.bulk_remove_groups(db, bulk_group)
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveGroupsResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_groups(
+    bulk_groups: BulkGroupSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Delete selected groups by ID."""
+    return await group_operator.bulk_remove_groups_by_id(db, bulk_groups, admin)

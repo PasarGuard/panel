@@ -60,3 +60,21 @@ class BulkGroup(BaseModel):
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
     dry_run: bool = False
+
+
+class BulkGroupSelection(BaseModel):
+    """Model for bulk group selection by IDs"""
+
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(list(v), "group")
+
+
+class RemoveGroupsResponse(BaseModel):
+    """Response model for bulk group deletion"""
+
+    groups: list[str]
+    count: int

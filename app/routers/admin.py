@@ -6,7 +6,16 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app import notification
 from app.db import AsyncSession, get_db
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, Token, AdminsResponse, AdminsSimpleResponse
+from app.models.admin import (
+    AdminCreate,
+    AdminDetails,
+    AdminModify,
+    Token,
+    AdminsResponse,
+    AdminsSimpleResponse,
+    BulkAdminSelection,
+    RemoveAdminsResponse,
+)
 from app.models.stats import Period, UserUsageStatsList
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
@@ -225,3 +234,17 @@ async def reset_admin_usage(
 ):
     """Resets usage of admin."""
     return await admin_operator.reset_admin_usage(db, username=username, admin=admin)
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveAdminsResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_admins(
+    bulk_admins: BulkAdminSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Delete selected admins by username."""
+    return await admin_operator.bulk_remove_admins(db, bulk_admins, admin)

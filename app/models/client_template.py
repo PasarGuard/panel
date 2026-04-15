@@ -2,6 +2,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .validators import ListValidator
+
 
 class ClientTemplateType(StrEnum):
     clash_subscription = "clash_subscription"
@@ -92,3 +94,21 @@ class ClientTemplateSimple(BaseModel):
 class ClientTemplatesSimpleResponse(BaseModel):
     templates: list[ClientTemplateSimple]
     total: int
+
+
+class BulkClientTemplateSelection(BaseModel):
+    """Model for bulk client template selection by IDs"""
+
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(list(v), "template")
+
+
+class RemoveClientTemplatesResponse(BaseModel):
+    """Response model for bulk client template deletion"""
+
+    templates: list[str]
+    count: int

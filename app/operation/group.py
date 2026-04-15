@@ -9,12 +9,14 @@ from app.db.crud.group import (
     get_groups_simple,
     modify_group,
     remove_group,
+    remove_groups,
     GroupsSortingOptionsSimple,
 )
 from app.db.crud.user import get_users
 from app.db.models import Admin, UserStatus
 from app.models.group import (
     BulkGroup,
+    BulkGroupSelection,
     Group,
     GroupCreate,
     GroupModify,
@@ -22,6 +24,7 @@ from app.models.group import (
     GroupsResponse,
     GroupSimple,
     GroupsSimpleResponse,
+    RemoveGroupsResponse,
 )
 from app.models.user import BulkOperationDryRunResponse
 from app.node.sync import sync_users
@@ -141,3 +144,38 @@ class GroupOperation(BaseOperation):
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
+
+    async def bulk_remove_groups_by_id(
+        self, db: AsyncSession, bulk_groups: BulkGroupSelection, admin: Admin
+    ) -> RemoveGroupsResponse:
+        """Remove multiple groups by ID"""
+        db_groups = []
+        all_affected_usernames = set()
+
+        # Validate all groups exist
+        for group_id in bulk_groups.ids:
+            db_group = await self.get_validated_group(db, group_id)
+            db_groups.append(db_group)
+
+        # Get all affected users before deletion
+        for db_group in db_groups:
+            users = await get_users(db, group_ids=[db_group.id])
+            all_affected_usernames.update(user.username for user in users)
+
+        group_ids = [g.id for g in db_groups]
+        group_names = [g.name for g in db_groups]
+
+        # Batch delete using CRUD function
+        await remove_groups(db, group_ids)
+
+        # Sync affected users
+        if all_affected_usernames:
+            users = await get_users(db, usernames=list(all_affected_usernames))
+            await sync_users(users)
+
+        # Log and notify
+        for name, group_id in zip(group_names, group_ids):
+            logger.info(f'Group "{name}" deleted by admin "{admin.username}"')
+            asyncio.create_task(notification.remove_group(group_id, admin.username))
+
+        return RemoveGroupsResponse(groups=group_names, count=len(db_groups))

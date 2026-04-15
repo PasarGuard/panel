@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.core import CoreCreate, CoreResponse, CoreResponseList, CoresSimpleResponse
+from app.models.core import (
+    BulkCoreSelection,
+    CoreCreate,
+    CoreResponse,
+    CoreResponseList,
+    CoresSimpleResponse,
+    RemoveCoresResponse,
+)
 from app.operation import OperatorType
 from app.operation.core import CoreOperation
 from app.operation.node import NodeOperation
@@ -109,3 +116,17 @@ async def restart_core(
 
     await node_operator.restart_all_node(db=db, core_id=core_id, admin=admin)
     return {}
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveCoresResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_cores(
+    bulk_cores: BulkCoreSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Delete selected cores by ID."""
+    return await core_operator.bulk_remove_cores(db, bulk_cores, admin)

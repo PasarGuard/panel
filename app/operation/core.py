@@ -11,9 +11,18 @@ from app.db.crud.core import (
     get_cores_simple,
     modify_core_config,
     remove_core_config,
+    remove_cores,
 )
 from app.models.admin import AdminDetails
-from app.models.core import CoreCreate, CoreResponse, CoreResponseList, CoreSimple, CoresSimpleResponse
+from app.models.core import (
+    BulkCoreSelection,
+    CoreCreate,
+    CoreResponse,
+    CoreResponseList,
+    CoreSimple,
+    CoresSimpleResponse,
+    RemoveCoresResponse,
+)
 from app.operation import BaseOperation
 from app.utils.logger import get_logger
 
@@ -120,3 +129,30 @@ class CoreOperation(BaseOperation):
         logger.info(f'core config "{db_core.name}" deleted by admin "{admin.username}"')
 
         await host_manager.setup_local(db)
+
+    async def bulk_remove_cores(
+        self, db: AsyncSession, bulk_cores: BulkCoreSelection, admin: AdminDetails
+    ) -> RemoveCoresResponse:
+        """Remove multiple cores by ID"""
+        db_cores = []
+        for core_id in bulk_cores.ids:
+            if core_id == 1:
+                await self.raise_error(message="Cannot delete default core config", code=403)
+            db_core = await self.get_validated_core_config(db, core_id)
+            db_cores.append(db_core)
+
+        core_ids = [c.id for c in db_cores]
+        core_names = [c.name for c in db_cores]
+
+        # Batch delete using CRUD function
+        await remove_cores(db, core_ids)
+
+        # Remove from core manager and notify
+        for core_id, core_name in zip(core_ids, core_names):
+            await core_manager.remove_core(core_id)
+            asyncio.create_task(notification.remove_core(core_id, admin.username))
+            logger.info(f'core config "{core_name}" deleted by admin "{admin.username}"')
+
+        await host_manager.setup_local(db)
+
+        return RemoveCoresResponse(cores=core_names, count=len(db_cores))

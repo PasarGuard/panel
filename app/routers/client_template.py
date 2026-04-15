@@ -3,12 +3,14 @@ from fastapi import APIRouter, Depends, status
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.client_template import (
+    BulkClientTemplateSelection,
     ClientTemplateCreate,
     ClientTemplateModify,
     ClientTemplateResponse,
     ClientTemplateResponseList,
     ClientTemplatesSimpleResponse,
     ClientTemplateType,
+    RemoveClientTemplatesResponse,
 )
 from app.operation import OperatorType
 from app.operation.client_template import ClientTemplateOperation
@@ -96,3 +98,17 @@ async def get_client_templates_simple(
         sort=sort,
         all=all,
     )
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveClientTemplatesResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_client_templates(
+    bulk_templates: BulkClientTemplateSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Delete selected client templates by ID."""
+    return await client_template_operator.bulk_remove_client_templates(db, bulk_templates, admin)

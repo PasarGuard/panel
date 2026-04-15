@@ -1,7 +1,7 @@
 from collections import defaultdict
 from enum import Enum
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -240,4 +240,19 @@ async def modify_client_template(
 
 async def remove_client_template(db: AsyncSession, db_template: ClientTemplate) -> None:
     await db.delete(db_template)
+    await db.commit()
+
+
+async def remove_client_templates(db: AsyncSession, template_ids: list[int]) -> None:
+    """
+    Removes multiple client templates from the database by ID.
+
+    Args:
+        db (AsyncSession): Database session.
+        template_ids (list[int]): List of template IDs to remove.
+    """
+    if not template_ids:
+        return
+
+    await db.execute(delete(ClientTemplate).where(ClientTemplate.id.in_(template_ids)))
     await db.commit()

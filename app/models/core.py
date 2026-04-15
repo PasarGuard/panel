@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.db.models import CoreType
 from app.utils.helpers import fix_datetime_timezone
 
-from .validators import StringArrayValidator
+from .validators import ListValidator, StringArrayValidator
 
 
 class CoreBase(BaseModel):
@@ -80,3 +80,21 @@ class CoresSimpleResponse(BaseModel):
 
     cores: list[CoreSimple]
     total: int
+
+
+class BulkCoreSelection(BaseModel):
+    """Model for bulk core selection by IDs"""
+
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(list(v), "core")
+
+
+class RemoveCoresResponse(BaseModel):
+    """Response model for bulk core deletion"""
+
+    cores: list[str]
+    count: int

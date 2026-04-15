@@ -21,6 +21,7 @@ from app.db.crud.node import (
     get_nodes_usage,
     modify_node,
     remove_node,
+    remove_nodes,
     reset_node_usage,
     update_node_status,
 )
@@ -29,6 +30,7 @@ from app.db.models import Node, NodeStatus, UserStatus
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
 from app.models.node import (
+    BulkNodeSelection,
     NodeCoreUpdate,
     NodeCreate,
     NodeGeoFilesUpdate,
@@ -38,6 +40,7 @@ from app.models.node import (
     NodeSimple,
     NodesResponse,
     NodesSimpleResponse,
+    RemoveNodesResponse,
     UsageTable,
     UserIPList,
     UserIPListAll,
@@ -879,3 +882,32 @@ class NodeOperation(BaseOperation):
             "update_geofiles",
             {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},
         )
+
+    async def bulk_remove_nodes(
+        self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails
+    ) -> RemoveNodesResponse:
+        """Remove multiple nodes by ID"""
+        db_nodes = []
+        for node_id in bulk_nodes.ids:
+            db_node = await self.get_validated_node(db, node_id)
+            db_nodes.append(db_node)
+
+        node_ids = [n.id for n in db_nodes]
+        node_names = [n.name for n in db_nodes]
+        node_responses = [NodeResponse.model_validate(n) for n in db_nodes]
+
+        # Remove nodes from RPC first
+        for node_id in node_ids:
+            await self._remove_node_impl(node_id)
+
+        # Batch delete using CRUD function
+        await remove_nodes(db, node_ids)
+
+        # Notify
+        for node_response in node_responses:
+            logger.info(
+                f'Node "{node_response.name}" with id "{node_response.id}" deleted by admin "{admin.username}"'
+            )
+            asyncio.create_task(notification.remove_node(node_response, admin.username))
+
+        return RemoveNodesResponse(nodes=node_names, count=len(db_nodes))

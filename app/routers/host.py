@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.host import BaseHost, CreateHost
+from app.models.host import BaseHost, CreateHost, BulkHostSelection, RemoveHostsResponse
 from app.operation import OperatorType
 from app.operation.host import HostOperation
 from app.utils import responses
@@ -83,3 +83,17 @@ async def modify_hosts(
     Modify proxy hosts and update the configuration.
     """
     return await host_operator.modify_hosts(db=db, modified_hosts=modified_hosts, admin=admin)
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveHostsResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_hosts(
+    bulk_hosts: BulkHostSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Delete selected hosts by ID."""
+    return await host_operator.bulk_remove_hosts(db, bulk_hosts, admin)

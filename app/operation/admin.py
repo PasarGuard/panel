@@ -15,12 +15,22 @@ from app.db.crud.admin import (
     get_admins_count,
     get_admins_simple,
     remove_admin,
+    remove_admins,
     reset_admin_usage,
     update_admin,
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
-from app.models.admin import AdminCreate, AdminDetails, AdminModify, AdminSimple, AdminsResponse, AdminsSimpleResponse
+from app.models.admin import (
+    AdminCreate,
+    AdminDetails,
+    AdminModify,
+    AdminSimple,
+    AdminsResponse,
+    AdminsSimpleResponse,
+    BulkAdminSelection,
+    RemoveAdminsResponse,
+)
 from app.node.sync import (
     sync_users,
     remove_user as sync_remove_user,
@@ -287,3 +297,30 @@ class AdminOperation(BaseOperation):
             node_id=node_id,
             group_by_node=group_by_node,
         )
+
+    async def bulk_remove_admins(
+        self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
+    ) -> RemoveAdminsResponse:
+        """Remove multiple admins by username"""
+        db_admins = []
+        for username in bulk_admins.usernames:
+            db_admin = await self.get_validated_admin(db, username)
+            if self.operator_type != OperatorType.CLI and db_admin.is_sudo:
+                await self.raise_error(
+                    message=f"You're not allowed to remove sudo admin {username}. Use pasarguard cli / tui instead.",
+                    code=403,
+                )
+            db_admins.append(db_admin)
+
+        usernames = [admin_obj.username for admin_obj in db_admins]
+        admin_ids = [admin_obj.id for admin_obj in db_admins]
+
+        # Batch delete using CRUD function
+        await remove_admins(db, admin_ids)
+
+        if self.operator_type != OperatorType.CLI:
+            for username in usernames:
+                logger.info(f'Admin "{username}" deleted by admin "{admin.username}"')
+                asyncio.create_task(notification.remove_admin(username, admin.username))
+
+        return RemoveAdminsResponse(admins=usernames, count=len(db_admins))

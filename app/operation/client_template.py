@@ -13,10 +13,12 @@ from app.db.crud.client_template import (
     get_first_template_by_type,
     modify_client_template,
     remove_client_template,
+    remove_client_templates,
     set_default_template,
 )
 from app.models.admin import AdminDetails
 from app.models.client_template import (
+    BulkClientTemplateSelection,
     ClientTemplateCreate,
     ClientTemplateModify,
     ClientTemplateResponse,
@@ -24,6 +26,7 @@ from app.models.client_template import (
     ClientTemplateSimple,
     ClientTemplatesSimpleResponse,
     ClientTemplateType,
+    RemoveClientTemplatesResponse,
 )
 from app.nats.message import MessageTopic
 from app.nats.router import router
@@ -199,3 +202,64 @@ class ClientTemplateOperation(BaseOperation):
 
         logger.info(f'Client template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"')
         await self._sync_client_template_cache()
+
+    async def bulk_remove_client_templates(
+        self, db: AsyncSession, bulk_templates: BulkClientTemplateSelection, admin: AdminDetails
+    ) -> RemoveClientTemplatesResponse:
+        """Remove multiple client templates by ID - fast batch delete"""
+        db_templates = []
+        templates_by_type = {}
+
+        # Validate all templates exist and can be deleted
+        for template_id in bulk_templates.ids:
+            db_template = await self.get_validated_client_template(db, template_id)
+            template_type = ClientTemplateType(db_template.template_type)
+
+            if db_template.is_system:
+                await self.raise_error(message=f"Cannot delete system template {db_template.name}", code=403)
+
+            # Group templates by type for efficient counting
+            if template_type not in templates_by_type:
+                templates_by_type[template_type] = []
+            templates_by_type[template_type].append(db_template)
+            db_templates.append(db_template)
+
+        # Validate we won't leave any type without templates
+        for template_type, templates_of_type in templates_by_type.items():
+            total_count = await count_client_templates_by_type(db, template_type)
+            if total_count <= len(templates_of_type):
+                await self.raise_error(
+                    message=f"Cannot delete the last template for type {template_type.value}", code=403
+                )
+
+        # Handle default template replacements
+        for template_type, templates_of_type in templates_by_type.items():
+            defaults_to_replace = [t for t in templates_of_type if t.is_default]
+            if defaults_to_replace:
+                # Get replacement for this type (exclude all templates being deleted)
+                exclude_ids = {t.id for t in templates_of_type}
+                replacement = await get_first_template_by_type(db, template_type, exclude_id=None)
+                # Find first non-deleted template
+                for candidate_id in [t.id for t in templates_of_type if not t.is_default]:
+                    if candidate_id not in exclude_ids:
+                        replacement = await self.get_validated_client_template(db, candidate_id)
+                        break
+
+                if replacement:
+                    await set_default_template(db, replacement)
+
+        # Batch delete using CRUD function (single query)
+        template_ids = [t.id for t in db_templates]
+        template_names = [t.name for t in db_templates]
+
+        await remove_client_templates(db, template_ids)
+
+        # Sync cache and log
+        await self._sync_client_template_cache()
+        for db_template in db_templates:
+            template_type = ClientTemplateType(db_template.template_type)
+            logger.info(
+                f'Client template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"'
+            )
+
+        return RemoveClientTemplatesResponse(templates=template_names, count=len(db_templates))

@@ -817,3 +817,18 @@ async def bulk_reset_node_usage(db: AsyncSession, nodes: list[Node]) -> list[Nod
         await db.refresh(node)
         await load_node_attrs(node)
     return nodes
+
+
+async def remove_nodes(db: AsyncSession, node_ids: list[int]) -> None:
+    """
+    Removes multiple nodes from the database by ID.
+
+    Args:
+        db (AsyncSession): Database session.
+        node_ids (list[int]): List of node IDs to remove.
+    """
+    if not node_ids:
+        return
+
+    await db.execute(delete(Node).where(Node.id.in_(node_ids)))
+    await db.commit()

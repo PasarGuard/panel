@@ -10,6 +10,7 @@ from app.db import AsyncSession, get_db
 from app.db.models import NodeStatus
 from app.models.admin import AdminDetails
 from app.models.node import (
+    BulkNodeSelection,
     NodeCoreUpdate,
     NodeCreate,
     NodeGeoFilesUpdate,
@@ -18,6 +19,7 @@ from app.models.node import (
     NodeSettings,
     NodesResponse,
     NodesSimpleResponse,
+    RemoveNodesResponse,
     UsageTable,
     UserIPList,
     UserIPListAll,
@@ -371,3 +373,17 @@ async def clear_usage_data(
     ⚠️ This operation is irreversible. Ensure correct usage in production environments.
     """
     return await node_operator.clear_usage_data(db, table, start, end)
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveNodesResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_nodes(
+    bulk_nodes: BulkNodeSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Delete selected nodes by ID."""
+    return await node_operator.bulk_remove_nodes(db, bulk_nodes, admin)

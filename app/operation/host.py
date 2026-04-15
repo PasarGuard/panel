@@ -3,7 +3,7 @@ import asyncio
 from app.db import AsyncSession
 from app.db.models import ProxyHost
 from app.models.client_template import ClientTemplateType
-from app.models.host import CreateHost, BaseHost
+from app.models.host import CreateHost, BaseHost, BulkHostSelection, RemoveHostsResponse
 from app.models.admin import AdminDetails
 from app.operation import BaseOperation
 from app.db.crud.host import (
@@ -12,6 +12,7 @@ from app.db.crud.host import (
     get_hosts,
     modify_host,
     remove_host,
+    remove_hosts,
 )
 from app.core.hosts import host_manager
 from app.utils.logger import get_logger
@@ -125,3 +126,26 @@ class HostOperation(BaseOperation):
         asyncio.create_task(notification.modify_hosts(admin.username))
 
         return await get_hosts(db=db)
+
+    async def bulk_remove_hosts(
+        self, db: AsyncSession, bulk_hosts: BulkHostSelection, admin: AdminDetails
+    ) -> RemoveHostsResponse:
+        """Remove multiple hosts by ID"""
+        db_hosts = []
+        for host_id in bulk_hosts.ids:
+            db_host = await self.get_validated_host(db, host_id)
+            db_hosts.append(db_host)
+
+        host_ids = [h.id for h in db_hosts]
+
+        # Batch delete using CRUD function
+        await remove_hosts(db, host_ids)
+
+        # Update host manager and notify
+        for db_host in db_hosts:
+            logger.info(f'Host "{db_host.id}" deleted by admin "{admin.username}"')
+            host = BaseHost.model_validate(db_host)
+            asyncio.create_task(notification.remove_host(host, admin.username))
+            await host_manager.remove_host(host.id)
+
+        return RemoveHostsResponse(hosts=[str(h.id) for h in db_hosts], count=len(db_hosts))
