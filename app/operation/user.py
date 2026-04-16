@@ -797,11 +797,7 @@ class UserOperation(BaseOperation):
     @staticmethod
     def apply_settings(user_args: UserCreate | UserModify, template: UserTemplate) -> dict:
         if template.extra_settings:
-            flow = template.extra_settings.get("flow", None)
             method = template.extra_settings.get("method", None)
-
-            if flow is not None:
-                user_args.proxy_settings.vless.flow = flow
 
             if method is not None:
                 user_args.proxy_settings.shadowsocks.method = method
@@ -1000,6 +996,8 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
+        if bulk_model.method is None:
+            await self.raise_error(message="No supported proxy settings were provided", code=400, db=db)
         if bulk_model.dry_run:
             n = await count_bulk_proxy_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)

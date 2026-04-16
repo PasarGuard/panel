@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.db.models import DataLimitResetStrategy, UserStatus, UserStatusCreate
 from app.models.admin import AdminBase, AdminContactInfo
-from app.models.proxy import ProxyTable, ShadowsocksMethods, XTLSFlows
+from app.models.proxy import ProxyTable, ShadowsocksMethods
 from app.utils.helpers import fix_datetime_timezone
 
 from .validators import ListValidator, NumericValidatorMixin, UserValidator
@@ -250,7 +250,6 @@ class BulkUser(BaseModel):
 
 
 class BulkUsersProxy(BaseModel):
-    flow: XTLSFlows | None = Field(default=None)
     method: ShadowsocksMethods | None = Field(default=None)
     dry_run: bool = False
     group_ids: set[int] = Field(default_factory=set)

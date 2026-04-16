@@ -167,7 +167,7 @@ async def _prepare_subscription_inbound_data(
     # Get VLESS encryption from inbound
     encryption = inbound_config.get("encryption", "none")
 
-    # Get flow from inbound (user can override later in share.py)
+    # Get flow from inbound for subscription generation.
     inbound_flow = inbound_config.get("flow", "")
     if inbound_flow == "none":
         inbound_flow = ""

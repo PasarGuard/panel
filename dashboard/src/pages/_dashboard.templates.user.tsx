@@ -70,7 +70,6 @@ export default function UserTemplates() {
       data_limit: bytesToFormGigabytes(userTemplate.data_limit),
       expire_duration: userTemplate.expire_duration || undefined,
       method: userTemplate.extra_settings?.method || undefined,
-      flow: userTemplate.extra_settings?.flow || undefined,
       groups: userTemplate.group_ids || undefined,
       username_prefix: userTemplate.username_prefix || undefined,
       username_suffix: userTemplate.username_suffix || undefined,

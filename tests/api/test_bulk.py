@@ -187,7 +187,7 @@ def test_update_users_proxy_settings(access_token):
         response = client.post(
             "/api/users/bulk/proxy_settings",
             headers={"Authorization": f"Bearer {access_token}"},
-            json={"flow": "xtls-rprx-vision"},
+            json={"method": "xchacha20-poly1305"},
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -197,8 +197,8 @@ def test_update_users_proxy_settings(access_token):
             for u in response.json()["users"]
             if u["username"] in {users[0]["username"], users[1]["username"]}
         }
-        assert listed[users[0]["username"]]["proxy_settings"]["vless"]["flow"] == "xtls-rprx-vision"
-        assert listed[users[1]["username"]]["proxy_settings"]["vless"]["flow"] == "xtls-rprx-vision"
+        assert listed[users[0]["username"]]["proxy_settings"]["shadowsocks"]["method"] == "xchacha20-poly1305"
+        assert listed[users[1]["username"]]["proxy_settings"]["shadowsocks"]["method"] == "xchacha20-poly1305"
     finally:
         cleanup(access_token, core, groups, users)
 

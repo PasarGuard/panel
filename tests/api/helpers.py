@@ -230,10 +230,11 @@ def create_user_template(
         "group_ids": list(group_ids),
         "data_limit": data_limit,
         "expire_duration": expire_duration,
-        "extra_settings": extra_settings or {"flow": "", "method": None},
         "status": status_value,
         "reset_usages": reset_usages,
     }
+    if extra_settings is not None:
+        payload["extra_settings"] = extra_settings
     if username_prefix is not None:
         payload["username_prefix"] = username_prefix
     if username_suffix is not None:

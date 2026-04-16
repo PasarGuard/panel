@@ -48,8 +48,6 @@ async def serialize_user(user: User) -> ProtoUser:
 def _serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None) -> ProtoUser:
     vmess_settings = user_settings.get("vmess", {})
     vless_settings = user_settings.get("vless", {})
-    if vless_settings.get("flow") == "xtls-rprx-vision-udp443":
-        vless_settings["flow"] = "xtls-rprx-vision"
     trojan_settings = user_settings.get("trojan", {})
     shadowsocks_settings = user_settings.get("shadowsocks", {})
     wireguard_settings = user_settings.get("wireguard", {})
@@ -57,7 +55,7 @@ def _serialize_user_for_node(id: int, username: str, user_settings: dict, inboun
     proxy_kwargs = {
         "vmess_id": vmess_settings.get("id"),
         "vless_id": vless_settings.get("id"),
-        "vless_flow": vless_settings.get("flow"),
+        "vless_flow": None,
         "trojan_password": trojan_settings.get("password"),
         "shadowsocks_password": shadowsocks_settings.get("password"),
         "shadowsocks_method": shadowsocks_settings.get("method"),

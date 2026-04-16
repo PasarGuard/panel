@@ -1,5 +1,5 @@
-from typing import Union, List
 from enum import Enum
+from typing import List, Union
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,6 @@ from app.db.models import NextPlan, UserTemplate, template_group_association
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 
 from .group import get_groups_by_ids
-
 
 UserTemplateSortingOptionsSimple = Enum(
     "UserTemplateSortingOptionsSimple",
@@ -44,7 +43,7 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
         username_prefix=user_template.username_prefix,
         username_suffix=user_template.username_suffix,
         groups=await get_groups_by_ids(db, user_template.group_ids) if user_template.group_ids else None,
-        extra_settings=user_template.extra_settings.dict() if user_template.extra_settings else None,
+        extra_settings=user_template.extra_settings,
         status=user_template.status,
         reset_usages=user_template.reset_usages,
         on_hold_timeout=user_template.on_hold_timeout,
@@ -86,7 +85,7 @@ async def modify_user_template(
     if modified_user_template.group_ids:
         db_user_template.groups = await get_groups_by_ids(db, modified_user_template.group_ids)
     if modified_user_template.extra_settings is not None:
-        db_user_template.extra_settings = modified_user_template.extra_settings.dict()
+        db_user_template.extra_settings = modified_user_template.extra_settings
     if modified_user_template.status is not None:
         db_user_template.status = modified_user_template.status
     if modified_user_template.reset_usages is not None:

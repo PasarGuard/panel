@@ -694,7 +694,7 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     db_user.groups = groups
     db_user.expire = new_user.expire or None
     db_user.on_hold_timeout = new_user.on_hold_timeout or None
-    db_user.proxy_settings = new_user.proxy_settings.dict()
+    db_user.proxy_settings = new_user.proxy_settings
 
     db.add(db_user)
     await db.flush()
@@ -725,7 +725,7 @@ async def create_users_bulk(
         db_user.groups = list(groups)
         db_user.expire = new_user.expire or None
         db_user.on_hold_timeout = new_user.on_hold_timeout or None
-        db_user.proxy_settings = new_user.proxy_settings.dict()
+        db_user.proxy_settings = new_user.proxy_settings
         db_users.append(db_user)
 
     db.add_all(db_users)
@@ -813,7 +813,7 @@ async def modify_user(
     remove_expiration_reminder = False
 
     if modify.proxy_settings is not None:
-        db_user.proxy_settings = modify.proxy_settings.dict()
+        db_user.proxy_settings = modify.proxy_settings
     if modify.group_ids:
         db_user.groups = groups or await get_groups_by_ids(db, modify.group_ids, load_users=False, load_inbounds=True)
 
@@ -962,12 +962,11 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
 
 def _build_revoked_proxy_settings(db_user: User) -> dict:
     proxy_settings = ProxyTable()
-    proxy_settings.vless.flow = db_user.proxy_settings.get("vless", {}).get("flow", "")
     proxy_settings.shadowsocks.method = db_user.proxy_settings.get("shadowsocks", {}).get(
         "method", "chacha20-ietf-poly1305"
     )
     proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
-    return proxy_settings.dict()
+    return proxy_settings
 
 
 async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
@@ -1010,11 +1009,6 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
 
         if db_user.next_plan.user_template.extra_settings:
             proxy_settings = deepcopy(db_user.proxy_settings)
-            proxy_settings["vless"]["flow"] = (
-                db_user.next_plan.user_template.extra_settings["flow"]
-                if db_user.next_plan.user_template.extra_settings["flow"]
-                else ""
-            )
             proxy_settings["shadowsocks"]["method"] = (
                 db_user.next_plan.user_template.extra_settings["method"]
                 if db_user.next_plan.user_template.extra_settings["method"]

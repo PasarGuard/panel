@@ -576,7 +576,6 @@ export interface WebSocketSettings {
 
 export interface VlessSettings {
   id?: string
-  flow?: XTLSFlows
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown }
@@ -1992,7 +1991,6 @@ export const GeoFilseRegion = {
 } as const
 
 export interface General {
-  default_flow?: XTLSFlows
   default_method?: ShadowsocksMethods
 }
 
@@ -2025,10 +2023,7 @@ export interface Forbidden {
 
 export type ExtraSettingsMethod = ShadowsocksMethods | null
 
-export type ExtraSettingsFlow = XTLSFlows | null
-
 export interface ExtraSettings {
-  flow?: ExtraSettingsFlow
   method?: ExtraSettingsMethod
 }
 
@@ -2345,10 +2340,7 @@ export interface BulkUsersApplyTemplate {
 
 export type BulkUsersProxyMethod = ShadowsocksMethods | null
 
-export type BulkUsersProxyFlow = XTLSFlows | null
-
 export interface BulkUsersProxy {
-  flow?: BulkUsersProxyFlow
   method?: BulkUsersProxyMethod
   dry_run?: boolean
   group_ids?: number[]

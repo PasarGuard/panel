@@ -11,7 +11,6 @@ import {
   useBulkAddGroupsToUsers,
   useBulkRemoveUsersFromGroups,
   useBulkReallocateWireguardPeerIps,
-  XTLSFlows,
   ShadowsocksMethods,
   UserStatus,
 } from '@/service/api'
@@ -40,7 +39,6 @@ import {
   X,
   HardDrive,
   Calendar,
-  Network,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -74,7 +72,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
 
-  const [selectedFlow, setSelectedFlow] = useState<XTLSFlows | 'none' | undefined>(undefined)
   const [selectedMethod, setSelectedMethod] = useState<ShadowsocksMethods | undefined>(undefined)
 
   const [dataLimit, setDataLimit] = useState<number | undefined>(undefined)
@@ -197,7 +194,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return true
         }
         if (operationType === 'proxy') {
-          return selectedFlow || selectedMethod
+          return selectedMethod
         }
         if (operationType === 'groups') {
           return selectedGroups.length > 0
@@ -212,7 +209,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       case 2:
         switch (operationType) {
           case 'proxy':
-            return selectedFlow || selectedMethod
+            return selectedMethod
           case 'data':
             return dataLimit !== undefined
           case 'expire':
@@ -286,7 +283,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
         case 'proxy':
           return {
             ...basePayload,
-            flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
             method: selectedMethod,
             dry_run: false,
           }
@@ -433,7 +429,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
         case 'proxy':
           return {
             ...basePayload,
-            flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
             method: selectedMethod,
             dry_run: true,
           }
@@ -587,46 +582,23 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <div className="space-y-3 sm:space-y-4">
               {operationType === 'proxy' && (
                 <div className="space-y-3 sm:space-y-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="flow" className="flex items-center gap-1.5 text-sm font-medium">
-                        <Network className="h-3.5 w-3.5 text-muted-foreground" />
-                        {t('bulk.flowLabel', { defaultValue: 'Flow' })}
-                      </Label>
-                      <Select value={selectedFlow || ''} onValueChange={value => setSelectedFlow(value as XTLSFlows | 'none')}>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('bulk.selectFlowPlaceholder', { defaultValue: 'Select flow' })} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">{t('none', { defaultValue: 'None' })}</SelectItem>
-                          {Object.values(XTLSFlows)
-                            .filter(flow => flow !== '')
-                            .map(flow => (
-                              <SelectItem key={flow} value={flow}>
-                                {flow}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="method" className="flex items-center gap-1.5 text-sm font-medium">
-                        <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-                        {t('bulk.methodLabel', { defaultValue: 'Method' })}
-                      </Label>
-                      <Select value={selectedMethod || ''} onValueChange={value => setSelectedMethod(value as ShadowsocksMethods)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('bulk.selectMethodPlaceholder', { defaultValue: 'Select method' })} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.values(ShadowsocksMethods).map(method => (
-                            <SelectItem key={method} value={method}>
-                              {method}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="method" className="flex items-center gap-1.5 text-sm font-medium">
+                      <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+                      {t('bulk.methodLabel', { defaultValue: 'Method' })}
+                    </Label>
+                    <Select value={selectedMethod || ''} onValueChange={value => setSelectedMethod(value as ShadowsocksMethods)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('bulk.selectMethodPlaceholder', { defaultValue: 'Select method' })} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(ShadowsocksMethods).map(method => (
+                          <SelectItem key={method} value={method}>
+                            {method}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               )}
@@ -1136,7 +1108,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   {operationType === 'proxy' && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
-                      <span>{t('bulk.flowMethod', { flow: selectedFlow === 'none' || !selectedFlow ? t('none') : selectedFlow, method: selectedMethod || t('none') })}</span>
+                      <span>{selectedMethod || t('none')}</span>
                     </div>
                   )}
 

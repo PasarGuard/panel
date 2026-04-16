@@ -3,7 +3,6 @@ import { z } from 'zod'
 
 export const userStatusEnum = z.enum(['active', 'disabled', 'limited', 'expired', 'on_hold'])
 export const userDataLimitResetStrategyEnum = z.enum(['no_reset', 'day', 'week', 'month', 'year'])
-export const xtlsFlowsEnum = z.enum(['', 'xtls-rprx-vision', 'xtls-rprx-vision-udp443'])
 export const shadowsocksMethodsEnum = z.enum(['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305', 'xchacha20-poly1305'])
 
 export const vMessSettingsSchema = z.object({
@@ -11,7 +10,6 @@ export const vMessSettingsSchema = z.object({
 })
 export const vlessSettingsSchema = z.object({
   id: z.string().uuid().optional(),
-  flow: xtlsFlowsEnum.optional(),
 })
 export const trojanSettingsSchema = z.object({
   password: z.string().min(2).max(32).optional(),
@@ -108,7 +106,6 @@ export const getDefaultUserForm = async () => {
       },
       vless: {
         id: undefined,
-        flow: '',
       },
       trojan: {
         password: undefined,

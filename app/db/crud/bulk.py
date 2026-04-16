@@ -414,13 +414,6 @@ async def update_users_proxy_settings(
     # Prepare the update statement
     if dialect == "postgresql":
         proxy_settings_expr = cast(User.proxy_settings, JSONB)
-        if bulk_model.flow is not None:
-            proxy_settings_expr = func.jsonb_set(
-                proxy_settings_expr,
-                text("'{vless,flow}'"),
-                cast(f"{bulk_model.flow.value}", JSONB),
-                True,
-            )
         if bulk_model.method is not None:
             proxy_settings_expr = func.jsonb_set(
                 proxy_settings_expr,
@@ -430,8 +423,6 @@ async def update_users_proxy_settings(
             )
     else:
         proxy_settings_expr = User.proxy_settings
-        if bulk_model.flow is not None:
-            proxy_settings_expr = func.json_set(proxy_settings_expr, "$.vless.flow", f"{bulk_model.flow.value}")
         if bulk_model.method is not None:
             proxy_settings_expr = func.json_set(
                 proxy_settings_expr, "$.shadowsocks.method", f"{bulk_model.method.value}"

@@ -3,13 +3,12 @@ import json
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import DataLimitResetStrategy, UserStatusCreate
-from app.models.proxy import ShadowsocksMethods, XTLSFlows
+from app.models.proxy import ShadowsocksMethods
 
 from .validators import ListValidator, UserValidator
 
 
 class ExtraSettings(BaseModel):
-    flow: XTLSFlows | None = Field(XTLSFlows.NONE)
     method: ShadowsocksMethods | None = Field(ShadowsocksMethods.CHACHA20_POLY1305)
 
     def dict(self, *, no_obj=True, **kwargs):

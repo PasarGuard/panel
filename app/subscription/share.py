@@ -239,11 +239,6 @@ async def process_host(
     if user_id is not None:
         settings["_user_id"] = user_id
 
-    # Handle flow: user settings have priority, fall back to inbound flow
-    if "flow" in settings and settings["flow"] == "":
-        # User has empty flow, use inbound flow as default
-        settings["flow"] = inbound.inbound_flow
-
     # Update format variables
     format_variables.update({"PROTOCOL": inbound.protocol})
     format_variables.update({"TRANSPORT": inbound.network})

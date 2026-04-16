@@ -35,8 +35,7 @@ def test_user_template_create(access_token):
         assert template["expire_duration"] == 3600
         assert template["reset_usages"]
         assert template["status"] == "active"
-        assert template["extra_settings"]["flow"] == ""
-        assert template["extra_settings"]["method"] is None
+        assert template["extra_settings"] is None
     finally:
         delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
@@ -80,8 +79,8 @@ def test_user_template_update(access_token):
         assert response.json()["group_ids"] == [group["id"] for group in groups]
         assert response.json()["expire_duration"] == (86400 * 30)
         assert not response.json()["reset_usages"]
-        assert response.json()["extra_settings"]["flow"] == "xtls-rprx-vision"
         assert response.json()["extra_settings"]["method"] == "xchacha20-poly1305"
+        assert "flow" not in response.json()["extra_settings"]
     finally:
         delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
