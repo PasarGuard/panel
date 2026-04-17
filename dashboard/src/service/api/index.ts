@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 3.0.0-rc.1
+ * OpenAPI spec version: 3.0.0
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -271,16 +271,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
+
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -300,11 +300,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsOutput {
+export interface XrayMuxSettingsInput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
@@ -940,6 +940,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -950,13 +957,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserCreateStatus = UserStatusCreate | null
 
@@ -1563,6 +1563,13 @@ export interface NodesResponse {
 
 export type NodeUsageStatsListPeriod = Period | null
 
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
+
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -1570,13 +1577,6 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1925,6 +1925,14 @@ export interface HTTPException {
   detail: string
 }
 
+/**
+ * Response model for lightweight group list.
+ */
+export interface GroupsSimpleResponse {
+  groups: GroupSimple[]
+  total: number
+}
+
 export interface GroupsResponse {
   groups: GroupResponse[]
   total: number
@@ -1936,14 +1944,6 @@ export interface GroupsResponse {
 export interface GroupSimple {
   id: number
   name: string
-}
-
-/**
- * Response model for lightweight group list.
- */
-export interface GroupsSimpleResponse {
-  groups: GroupSimple[]
-  total: number
 }
 
 export type GroupResponseInboundTags = string[] | null
@@ -2153,6 +2153,14 @@ export interface CreateHost {
   subscription_templates?: CreateHostSubscriptionTemplates
 }
 
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
+}
+
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2174,19 +2182,6 @@ export interface CoreSimple {
   type?: CoreSimpleType
 }
 
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
-}
-
 export type CoreResponseType = CoreType | null
 
 export type CoreResponseConfig = { [key: string]: unknown }
@@ -2199,6 +2194,11 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
+}
+
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2337,12 +2337,6 @@ export interface BulkUsersSelection {
   ids?: number[]
 }
 
-export interface BulkUsersApplyTemplate {
-  ids?: number[]
-  user_template_id: number
-  note?: string | null
-}
-
 export type BulkUsersProxyMethod = ShadowsocksMethods | null
 
 export type BulkUsersProxyFlow = XTLSFlows | null
@@ -2381,6 +2375,17 @@ export interface BulkUsersFromTemplate {
 export interface BulkUsersCreateResponse {
   subscription_urls?: string[]
   created?: number
+}
+
+export type BulkUsersApplyTemplateNote = string | null
+
+/**
+ * Apply a user template to a selection of existing users (by ID).
+ */
+export interface BulkUsersApplyTemplate {
+  user_template_id: number
+  note?: BulkUsersApplyTemplateNote
+  ids?: number[]
 }
 
 export interface BulkUsersActionResponse {
@@ -8836,56 +8841,6 @@ export const bulkRevokeUsersSubscription = (bulkUsersSelection: BodyType<BulkUse
   return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/revoke_sub`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersSelection, signal })
 }
 
-/**
- * Apply a user template to selected existing users by ID.
- * @summary Bulk Apply Template To Users
- */
-export const bulkApplyTemplateToUsers = (bulkUsersApplyTemplate: BodyType<BulkUsersApplyTemplate>, signal?: AbortSignal) => {
-  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/apply_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersApplyTemplate, signal })
-}
-
-export const getBulkApplyTemplateToUsersMutationOptions = <
-  TData = Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>,
-  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
-}) => {
-  const mutationKey = ['bulkApplyTemplateToUsers']
-  const { mutation: mutationOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } }
-
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>, { data: BodyType<BulkUsersApplyTemplate> }> = props => {
-    const { data } = props ?? {}
-
-    return bulkApplyTemplateToUsers(data)
-  }
-
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
-}
-
-export type BulkApplyTemplateToUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>>
-export type BulkApplyTemplateToUsersMutationBody = BodyType<BulkUsersApplyTemplate>
-export type BulkApplyTemplateToUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
-
-/**
- * @summary Bulk Apply Template To Users
- */
-export const useBulkApplyTemplateToUsers = <
-  TData = Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>,
-  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
-}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext> => {
-  const mutationOptions = getBulkApplyTemplateToUsersMutationOptions(options)
-
-  return useMutation(mutationOptions)
-}
-
 export const getBulkRevokeUsersSubscriptionMutationOptions = <
   TData = Awaited<ReturnType<typeof bulkRevokeUsersSubscription>>,
   TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
@@ -9075,6 +9030,56 @@ export const useBulkCreateUsersFromTemplate = <
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersFromTemplate> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<BulkUsersFromTemplate> }, TContext> => {
   const mutationOptions = getBulkCreateUsersFromTemplateMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Apply a user template to selected existing users by ID.
+ * @summary Bulk Apply Template To Users
+ */
+export const bulkApplyTemplateToUsers = (bulkUsersApplyTemplate: BodyType<BulkUsersApplyTemplate>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/apply_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersApplyTemplate, signal })
+}
+
+export const getBulkApplyTemplateToUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}) => {
+  const mutationKey = ['bulkApplyTemplateToUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>, { data: BodyType<BulkUsersApplyTemplate> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkApplyTemplateToUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}
+
+export type BulkApplyTemplateToUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>>
+export type BulkApplyTemplateToUsersMutationBody = BodyType<BulkUsersApplyTemplate>
+export type BulkApplyTemplateToUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Apply Template To Users
+ */
+export const useBulkApplyTemplateToUsers = <
+  TData = Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext> => {
+  const mutationOptions = getBulkApplyTemplateToUsersMutationOptions(options)
 
   return useMutation(mutationOptions)
 }
