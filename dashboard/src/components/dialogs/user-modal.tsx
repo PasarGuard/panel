@@ -2024,6 +2024,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                     </SelectContent>
                                   </Select>
                                 </FormControl>
+                                <p className="text-xs text-amber-600 dark:text-amber-400">{t('userDialog.proxySettings.flowDeprecated')}</p>
                                 <FormMessage />
                               </FormItem>
                             )}

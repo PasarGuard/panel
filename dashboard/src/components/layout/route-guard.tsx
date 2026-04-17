@@ -19,8 +19,12 @@ export default function RouteGuard({ children }: { children: React.ReactNode }) 
       const currentPath = location.pathname
 
       // Define allowed routes for non-sudo admins
-      const allowedRoutes = ['/', '/users', '/settings', '/settings/theme']
-      const isAllowedRoute = allowedRoutes.some(route => currentPath === route || (route === '/settings' && currentPath.startsWith('/settings/theme')))
+      const allowedRoutes = ['/', '/users', '/settings', '/settings/theme', '/bulk', '/bulk/create']
+      const isAllowedRoute = allowedRoutes.some(
+        route =>
+          currentPath === route ||
+          (route === '/settings' && currentPath.startsWith('/settings/theme')),
+      )
 
       // If current route is allowed, don't redirect
       if (isAllowedRoute) {
@@ -57,6 +61,14 @@ export default function RouteGuard({ children }: { children: React.ReactNode }) 
         // Redirecting non-sudo admin from restricted settings
         hasNavigatedRef.current = true
         navigate('/settings/theme', { replace: true })
+        return
+      }
+
+      const restrictedBulkRoutes = ['/bulk/wireguard', '/bulk/groups', '/bulk/expire', '/bulk/data', '/bulk/proxy']
+
+      if (restrictedBulkRoutes.some(route => currentPath.startsWith(route))) {
+        hasNavigatedRef.current = true
+        navigate('/bulk', { replace: true })
         return
       }
     } else {

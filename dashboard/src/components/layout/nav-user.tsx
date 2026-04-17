@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSidebar } from '@/components/ui/sidebar'
 import { type AdminDetails } from '@/service/api'
-import { ChevronsUpDown, LogOut, UserRoundKey, UsersIcon, UserCircle, ChartPie, ChartNoAxesColumn } from 'lucide-react'
+import { ChevronsUpDown, LogOut, UserRoundKey, UsersIcon, UserCircle, ChartPie, ChartNoAxesColumn, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { formatBytes } from '@/utils/formatByte'
@@ -67,7 +67,7 @@ export function NavUser({
                           </>
                         ) : (
                           <>
-                            <UsersIcon className="mr-1 size-3" />
+                            <UserRound className="mr-1 size-3" />
                             {t('admin')}
                           </>
                         )}
@@ -138,7 +138,7 @@ export function NavUser({
                         </>
                       ) : (
                         <>
-                          <UsersIcon className="mr-1 size-3" />
+                          <UserRound className="mr-1 size-3" />
                           {t('admin')}
                         </>
                       )}
@@ -172,7 +172,7 @@ export function NavUser({
                           </>
                         ) : (
                           <>
-                            <UsersIcon className="size-3" />
+                            <UserRound className="size-3" />
                             <span>{t('admin')}</span>
                           </>
                         )}

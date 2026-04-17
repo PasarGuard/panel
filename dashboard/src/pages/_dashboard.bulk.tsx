@@ -18,7 +18,6 @@ const sudoTabs = [
 
 const nonSudoTabs = [
   { id: 'create', label: 'bulk.createUsers', icon: UserPlus, url: '/bulk' },
-  { id: 'wireguard', label: 'bulk.wireguardPeerIps', icon: Network, url: '/bulk/wireguard' },
 ]
 
 const BulkPage = () => {

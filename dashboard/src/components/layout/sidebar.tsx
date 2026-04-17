@@ -291,11 +291,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 url: '/bulk',
                 icon: UserPlus,
               },
-              {
-                title: 'bulk.wireguardPeerIps',
-                url: '/bulk/wireguard',
-                icon: Network,
-              },
             ],
           },
           // For non-sudo admins, show only theme settings and keep settings at the end

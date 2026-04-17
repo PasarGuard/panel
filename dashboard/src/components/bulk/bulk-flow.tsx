@@ -720,6 +720,13 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                     <p className="text-xs text-muted-foreground">
                       {dataOperation === 'add' ? t('bulk.addDataLimit', { defaultValue: 'Add Data Limit' }) : t('bulk.subtractDataLimit', { defaultValue: 'Subtract Data Limit' })}
                     </p>
+                    {dataOperation === 'subtract' && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        {t('bulk.subtractDataLimitHint', {
+                          defaultValue: "If the amount to subtract is greater than a user's current limit, that user will not be counted.",
+                        })}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
