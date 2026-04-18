@@ -31,7 +31,7 @@ import {
 import { bytesToFormGigabytes } from '@/utils/formatByte'
 import { normalizeExpireForEditForm } from '@/utils/userEditDateUtils'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -449,13 +449,11 @@ const UsersTable = memo(() => {
 
   const handleManualRefresh = async () => {
     isAutoRefreshingRef.current = false
-    queryClient.invalidateQueries({ queryKey: ['/api/users'] })
     return refetch()
   }
 
   const handleAutoRefresh = async () => {
     isAutoRefreshingRef.current = true
-    queryClient.invalidateQueries({ queryKey: ['/api/users'] })
     return refetch()
   }
 
@@ -685,15 +683,22 @@ const UsersTable = memo(() => {
     }
   }
 
-  const columns = setupColumns({
-    t,
-    dir,
-    showCreatedBy: isSudo && showCreatedBy,
-    showSelectionCheckbox,
-    handleSort,
-    filters: filters as { sort: string; status?: UserStatus | null;[key: string]: unknown },
-    handleStatusFilter,
-  })
+  const columns = useMemo(
+    () =>
+      setupColumns({
+        t,
+        dir,
+        showCreatedBy: isSudo && showCreatedBy,
+        showSelectionCheckbox,
+        handleSort,
+        filters: {
+          sort: filters.sort,
+          status: filters.status,
+        },
+        handleStatusFilter,
+      }),
+    [t, dir, isSudo, showCreatedBy, showSelectionCheckbox, handleSort, filters.sort, filters.status, handleStatusFilter],
+  )
 
   const handleAdvanceSearchSubmit = async (values: AdvanceSearchFormValue) => {
     if (isAdvanceSearchApplying) return
