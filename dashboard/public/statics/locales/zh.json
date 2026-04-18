@@ -1198,6 +1198,8 @@
   "subscriptionModal.fetchError": "获取配置失败",
   "subscriptionModal.noConfigs": "未找到配置",
   "subscriptionModal.unknownConfig": "未知配置",
+  "subscriptionModal.qrFormat": "二维码格式",
+  "subscriptionModal.qrFormatConfig": "配置",
   "configActions.copyConfig": "复制配置",
   "configActions.copyBase64": "复制 Base64",
   "configActions.downloadWireGuard": "下载 WireGuard",

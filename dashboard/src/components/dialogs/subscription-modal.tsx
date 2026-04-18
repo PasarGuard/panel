@@ -6,6 +6,7 @@ import { ScanQrCode, Copy, QrCode, ChevronLeft, ChevronRight, Check, Loader2, Re
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -32,6 +33,7 @@ interface ConfigItem {
 }
 
 type ConfigCopyMode = 'config' | 'base64'
+type ConfigQrMode = 'config' | 'uri'
 
 interface CopiedConfigState {
   config: string
@@ -52,6 +54,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedConfigQR, setSelectedConfigQR] = useState<ConfigItem | null>(null)
+  const [selectedConfigQrMode, setSelectedConfigQrMode] = useState<ConfigQrMode>('config')
   const [copiedConfig, setCopiedConfig] = useState<CopiedConfigState | null>(null)
   const [allConfigsCopied, setAllConfigsCopied] = useState(false)
 
@@ -146,14 +149,18 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
   )
 
   const handleShowConfigQR = (config: ConfigItem) => {
+    setSelectedConfigQrMode('config')
     setSelectedConfigQR(config)
   }
 
   const handleCloseConfigQR = () => {
+    setSelectedConfigQrMode('config')
     setSelectedConfigQR(null)
   }
 
   const selectedConfigWireGuardDownload = selectedConfigQR ? getWireGuardDownloadPayload(selectedConfigQR.config) : null
+  const selectedConfigQrValue =
+    selectedConfigWireGuardDownload && selectedConfigQrMode === 'config' ? selectedConfigWireGuardDownload.content : selectedConfigQR?.config || ''
 
   return (
     <>
@@ -280,8 +287,30 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
+            {selectedConfigWireGuardDownload && (
+              <ToggleGroup
+                type="single"
+                value={selectedConfigQrMode}
+                onValueChange={value => {
+                  if (value === 'config' || value === 'uri') {
+                    setSelectedConfigQrMode(value)
+                  }
+                }}
+                variant="outline"
+                size="sm"
+                className="rounded-md border border-border bg-muted/30 p-1"
+                aria-label={t('subscriptionModal.qrFormat', { defaultValue: 'QR code format' })}
+              >
+                <ToggleGroupItem value="config" className="h-7 px-2.5 text-[11px]">
+                  {t('subscriptionModal.qrFormatConfig', { defaultValue: 'Config' })}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="uri" className="h-7 px-2.5 text-[11px]">
+                  URI
+                </ToggleGroupItem>
+              </ToggleGroup>
+            )}
             <div dir="ltr" className="flex items-center justify-center overflow-hidden">
-              <QRCodeCanvas value={selectedConfigQR?.config || ''} size={220} className="max-w-full rounded-sm bg-white p-2" />
+              <QRCodeCanvas value={selectedConfigQrValue} size={220} className="max-w-full rounded-sm bg-white p-2" />
             </div>
             <div dir={dir} className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
               <Button

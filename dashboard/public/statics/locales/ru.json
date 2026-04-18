@@ -844,6 +844,8 @@
   "subscriptionModal.fetchError": "Не удалось получить конфигурации",
   "subscriptionModal.noConfigs": "Конфигурации не найдены",
   "subscriptionModal.unknownConfig": "Неизвестная конфигурация",
+  "subscriptionModal.qrFormat": "Формат QR-кода",
+  "subscriptionModal.qrFormatConfig": "Конфиг",
   "configActions.copyConfig": "Копировать конфиг",
   "configActions.copyBase64": "Копировать Base64",
   "configActions.downloadWireGuard": "Скачать WireGuard",

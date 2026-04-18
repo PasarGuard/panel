@@ -1216,6 +1216,8 @@
   "subscriptionModal.fetchError": "Failed to fetch configurations",
   "subscriptionModal.noConfigs": "No configurations found",
   "subscriptionModal.unknownConfig": "Unknown Config",
+  "subscriptionModal.qrFormat": "QR Code Format",
+  "subscriptionModal.qrFormatConfig": "Config",
   "configActions.copyConfig": "Copy Config",
   "configActions.copyBase64": "Copy Base64",
   "configActions.downloadWireGuard": "Download WireGuard",

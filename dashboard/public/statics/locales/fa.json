@@ -1092,6 +1092,8 @@
   "subscriptionModal.fetchError": "دریافت کانفیگ‌ها ناموفق بود",
   "subscriptionModal.noConfigs": "کانفیگی یافت نشد",
   "subscriptionModal.unknownConfig": "کانفیگ ناشناخته",
+  "subscriptionModal.qrFormat": "فرمت کد QR",
+  "subscriptionModal.qrFormatConfig": "کانفیگ",
   "configActions.copyConfig": "کپی کانفیگ",
   "configActions.copyBase64": "کپی Base64",
   "configActions.downloadWireGuard": "دانلود وایرگارد",
