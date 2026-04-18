@@ -166,7 +166,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-center">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
             <div className="flex flex-col items-center gap-3">
               <div dir="ltr" className="flex max-w-[280px] items-center justify-center overflow-hidden">
                 <QRCodeCanvas value={subscribeQrLink} size={260} className="rounded-sm bg-white p-1.5" />

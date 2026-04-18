@@ -87,14 +87,16 @@ const parseWireGuardUri = (value: string): ParsedWireGuardUri | null => {
   }
 }
 
-export const resolveSubscriptionQrUrl = (subscribeUrl: string | null) => {
+export const resolveSubscriptionQrUrl = (subscribeUrl: string | null | undefined) => {
   if (!subscribeUrl) return ''
 
   const value = String(subscribeUrl)
   return value.startsWith('/') ? `${window.location.origin}${value}` : value
 }
 
-export const resolveSubscriptionFetchBaseUrl = (subscribeUrl: string | null) => {
+export const resolveSubscriptionPublicUrl = (subscribeUrl: string | null | undefined) => resolveSubscriptionQrUrl(subscribeUrl)
+
+export const resolveSubscriptionPanelBaseUrl = (subscribeUrl: string | null | undefined) => {
   if (!subscribeUrl) return ''
 
   const value = String(subscribeUrl)
@@ -111,12 +113,25 @@ export const resolveSubscriptionFetchBaseUrl = (subscribeUrl: string | null) => 
   }
 }
 
-export const fetchSubscriptionContent = async (subscribeUrl: string, format: SubscriptionContentFormat, timeoutMs = 8000) => {
+export const resolveSubscriptionFetchBaseUrl = (subscribeUrl: string | null | undefined) => {
+  return resolveSubscriptionPanelBaseUrl(subscribeUrl)
+}
+
+export const buildSubscriptionFormatUrl = (subscribeUrl: string | null | undefined, format: string) => {
+  const baseUrl = resolveSubscriptionPanelBaseUrl(subscribeUrl)
+  return baseUrl ? `${baseUrl}/${format}` : ''
+}
+
+const fetchSubscriptionResource = async <T>(url: string, parser: (response: Response) => Promise<T>, timeoutMs = 8000) => {
+  if (!url) {
+    throw new Error('Subscription URL is empty')
+  }
+
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const response = await fetch(`${resolveSubscriptionFetchBaseUrl(subscribeUrl)}/${format}`, {
+    const response = await fetch(url, {
       signal: controller.signal,
     })
 
@@ -124,11 +139,18 @@ export const fetchSubscriptionContent = async (subscribeUrl: string, format: Sub
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    return response.text()
+    return parser(response)
   } finally {
     window.clearTimeout(timeoutId)
   }
 }
+
+export const fetchSubscriptionContentFromUrl = (url: string, timeoutMs = 8000) => fetchSubscriptionResource(url, response => response.text(), timeoutMs)
+
+export const fetchSubscriptionBlobFromUrl = (url: string, timeoutMs = 8000) => fetchSubscriptionResource(url, response => response.blob(), timeoutMs)
+
+export const fetchSubscriptionContent = (subscribeUrl: string, format: SubscriptionContentFormat, timeoutMs = 8000) =>
+  fetchSubscriptionContentFromUrl(buildSubscriptionFormatUrl(subscribeUrl, format), timeoutMs)
 
 export const extractNameFromConfigUrl = (url: string): string | null => {
   const trimmedUrl = url.trim()

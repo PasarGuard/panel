@@ -24,6 +24,7 @@ import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
+import { buildSubscriptionFormatUrl, fetchSubscriptionBlobFromUrl, fetchSubscriptionContentFromUrl, resolveSubscriptionPublicUrl } from '@/utils/subscription-config'
 
 type ActionButtonsProps = {
   user: UserResponse
@@ -181,7 +182,6 @@ const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
 })
 
 const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, renderActions = true }) => {
-  const [subscribeLinks, setSubscribeLinks] = useState<SubscribeLink[]>([])
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
@@ -296,33 +296,32 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     userForm.reset(buildUserEditFormValues(user))
   }, [user, userForm, isEditModalOpen])
 
+  const subscriptionPublicUrl = useMemo(() => resolveSubscriptionPublicUrl(user.subscription_url), [user.subscription_url])
+
+  const subscribeLinks = useMemo<SubscribeLink[]>(() => {
+    if (!user.subscription_url) return []
+
+    return [
+      { protocol: 'links', link: buildSubscriptionFormatUrl(user.subscription_url, 'links'), icon: ListTree },
+      { protocol: 'links (base64)', link: buildSubscriptionFormatUrl(user.subscription_url, 'links_base64'), icon: Code },
+      { protocol: 'xray', link: buildSubscriptionFormatUrl(user.subscription_url, 'xray'), icon: XrayIcon },
+      { protocol: 'wireguard', link: buildSubscriptionFormatUrl(user.subscription_url, 'wireguard'), icon: WireguardIcon },
+      { protocol: 'clash', link: buildSubscriptionFormatUrl(user.subscription_url, 'clash'), icon: Cat },
+      { protocol: 'clash-meta', link: buildSubscriptionFormatUrl(user.subscription_url, 'clash_meta'), icon: MihomoIcon },
+      { protocol: 'outline', link: buildSubscriptionFormatUrl(user.subscription_url, 'outline'), icon: GlobeLock },
+      { protocol: 'sing-box', link: buildSubscriptionFormatUrl(user.subscription_url, 'sing_box'), icon: SingboxIcon },
+    ]
+  }, [user.subscription_url])
+
   const onOpenSubscriptionModal = useCallback(() => {
     setSubscribeUrl(user.subscription_url ? user.subscription_url : '')
     setShowSubscriptionModal(true)
-  }, [user.subscription_url])
+  }, [setShowSubscriptionModal, setSubscribeUrl, user.subscription_url])
 
   const onCloseSubscriptionModal = useCallback(() => {
     setSubscribeUrl('')
     setShowSubscriptionModal(false)
-  }, [])
-
-  useEffect(() => {
-    if (user.subscription_url) {
-      const subURL = user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url
-
-      const links = [
-        { protocol: 'links', link: `${subURL}/links`, icon: ListTree },
-        { protocol: 'links (base64)', link: `${subURL}/links_base64`, icon: Code },
-        { protocol: 'xray', link: `${subURL}/xray`, icon: XrayIcon },
-        { protocol: 'wireguard', link: `${subURL}/wireguard`, icon: WireguardIcon },
-        { protocol: 'clash', link: `${subURL}/clash`, icon: Cat },
-        { protocol: 'clash-meta', link: `${subURL}/clash_meta`, icon: MihomoIcon },
-        { protocol: 'outline', link: `${subURL}/outline`, icon: GlobeLock },
-        { protocol: 'sing-box', link: `${subURL}/sing_box`, icon: SingboxIcon },
-      ]
-      setSubscribeLinks(links)
-    }
-  }, [user.subscription_url])
+  }, [setShowSubscriptionModal, setSubscribeUrl])
 
   const { copy, copied } = useClipboard({ timeout: 1500 })
 
@@ -454,45 +453,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     alert(`${message}\n\n${content}`)
   }
 
-  const buildDashboardFallbackUrl = (url: string): string | null => {
-    try {
-      const parsedUrl = new URL(url, window.location.origin)
-      if (parsedUrl.origin === window.location.origin) return null
+  const fetchContent = (url: string): Promise<string> => fetchSubscriptionContentFromUrl(url)
 
-      return `${window.location.origin}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
-    } catch (error) {
-      console.error('Failed to build fallback url:', error)
-      return null
-    }
-  }
-
-  async function fetchWithDashboardFallback<T>(url: string, parser: (response: Response) => Promise<T>): Promise<T> {
-    const attemptFetch = async (targetUrl: string) => {
-      const response = await fetch(targetUrl)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      return parser(response)
-    }
-
-    try {
-      return await attemptFetch(url)
-    } catch (primaryError) {
-      const fallbackUrl = buildDashboardFallbackUrl(url)
-      if (fallbackUrl) {
-        try {
-          return await attemptFetch(fallbackUrl)
-        } catch (fallbackError) {
-          console.error('Fallback fetch failed:', fallbackError)
-        }
-      }
-      throw primaryError
-    }
-  }
-
-  const fetchContent = (url: string): Promise<string> => fetchWithDashboardFallback(url, response => response.text())
-
-  const fetchBlob = (url: string): Promise<Blob> => fetchWithDashboardFallback(url, response => response.blob())
+  const fetchBlob = (url: string): Promise<Blob> => fetchSubscriptionBlobFromUrl(url)
 
   const fetchAndCacheContent = (link: string): Promise<string> => {
     const cachedContent = configContentCacheRef.current[link]
@@ -607,7 +570,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
           </Button>
           <TooltipProvider>
             <CopyButton
-              value={user.subscription_url ? (user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url) : ''}
+              value={subscriptionPublicUrl}
               copiedMessage="usersTable.copied"
               defaultMessage="usersTable.copyLink"
               icon="link"
