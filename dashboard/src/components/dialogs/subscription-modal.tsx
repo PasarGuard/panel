@@ -173,14 +173,14 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-center">
             <div className="flex flex-col items-center gap-3">
               <div dir="ltr" className="flex max-w-[280px] items-center justify-center overflow-hidden">
                 <QRCodeCanvas value={subscribeQrLink} size={260} className="rounded-sm bg-white p-1.5" />
               </div>
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 h-full">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{t('subscriptionModal.configs', { defaultValue: 'Configurations' })}</span>
                 <Button variant="ghost" size="sm" onClick={handleCopyAllConfigs} disabled={isLoading || configs.length === 0} className="h-7 px-2 text-xs">
