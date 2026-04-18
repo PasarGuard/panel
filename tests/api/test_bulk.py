@@ -283,7 +283,10 @@ def test_bulk_expire_dry_run(access_token):
 
 def test_bulk_delete_users_by_ids(access_token):
     core, groups = setup_groups(access_token, 1)
-    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_delete")}) for _ in range(2)]
+    users = [
+        create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_delete")})
+        for _ in range(2)
+    ]
     try:
         response = client.post(
             "/api/users/bulk/delete",
@@ -308,7 +311,10 @@ def test_bulk_delete_users_by_ids(access_token):
 
 def test_bulk_reset_users_usage_by_ids(access_token):
     core, groups = setup_groups(access_token, 1)
-    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_reset")}) for _ in range(2)]
+    users = [
+        create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_reset")})
+        for _ in range(2)
+    ]
     try:
         for index, user in enumerate(users, start=1):
             set_user_used_traffic(user["username"], index * 1024)
@@ -336,7 +342,10 @@ def test_bulk_reset_users_usage_by_ids(access_token):
 
 def test_bulk_revoke_users_subscription_by_ids(access_token):
     core, groups = setup_groups(access_token, 1)
-    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_revoke")}) for _ in range(2)]
+    users = [
+        create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_revoke")})
+        for _ in range(2)
+    ]
     try:
         response = client.post(
             "/api/users/bulk/revoke_sub",
@@ -355,7 +364,10 @@ def test_bulk_revoke_users_subscription_by_ids(access_token):
 
 def test_bulk_disable_users_by_ids(access_token):
     core, groups = setup_groups(access_token, 1)
-    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_disable")}) for _ in range(2)]
+    users = [
+        create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_disable")})
+        for _ in range(2)
+    ]
     try:
         response = client.post(
             "/api/users/bulk/disable",
@@ -380,7 +392,10 @@ def test_bulk_disable_users_by_ids(access_token):
 
 def test_bulk_enable_users_by_ids(access_token):
     core, groups = setup_groups(access_token, 1)
-    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_enable")}) for _ in range(2)]
+    users = [
+        create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_enable")})
+        for _ in range(2)
+    ]
     try:
         disable_response = client.post(
             "/api/users/bulk/disable",
@@ -412,7 +427,10 @@ def test_bulk_enable_users_by_ids(access_token):
 
 def test_bulk_disable_enable_users_ignore_noops(access_token):
     core, groups = setup_groups(access_token, 1)
-    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_noop")}) for _ in range(2)]
+    users = [
+        create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_noop")})
+        for _ in range(2)
+    ]
     try:
         first_user = users[0]
         second_user = users[1]
@@ -452,7 +470,10 @@ def test_bulk_disable_enable_users_ignore_noops(access_token):
 
 def test_bulk_set_owner_by_ids(access_token):
     core, groups = setup_groups(access_token, 1)
-    users = [create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_owner")}) for _ in range(2)]
+    users = [
+        create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_owner")})
+        for _ in range(2)
+    ]
     new_owner = create_admin(access_token, is_sudo=False)
     try:
         response = client.put(

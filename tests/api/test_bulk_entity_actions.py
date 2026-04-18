@@ -21,7 +21,6 @@ from tests.api.helpers import (
     delete_admin,
     delete_core,
     delete_group,
-    delete_user,
     delete_user_template,
     unique_name,
 )

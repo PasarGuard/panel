@@ -81,7 +81,7 @@ from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from app.utils.wireguard import prepare_wireguard_proxy_settings
+from app.utils.wireguard import prepare_wireguard_keys_only, prepare_wireguard_proxy_settings
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
@@ -261,14 +261,22 @@ class UserOperation(BaseOperation):
         proxy_settings: ProxyTable,
         *,
         exclude_user_id: int | None = None,
+        skip_peer_ip_validation: bool = False,
     ) -> ProxyTable:
         try:
-            return await prepare_wireguard_proxy_settings(
-                db,
-                proxy_settings,
-                groups,
-                exclude_user_id=exclude_user_id,
-            )
+            if skip_peer_ip_validation:
+                return await prepare_wireguard_keys_only(
+                    db,
+                    proxy_settings,
+                    groups,
+                )
+            else:
+                return await prepare_wireguard_proxy_settings(
+                    db,
+                    proxy_settings,
+                    groups,
+                    exclude_user_id=exclude_user_id,
+                )
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400, db=db)
 
@@ -313,11 +321,18 @@ class UserOperation(BaseOperation):
             if modified_user.proxy_settings is not None
             else ProxyTable.model_validate(current_proxy_settings_data)
         )
+
+        # Check if peer_ips have actually changed to avoid expensive DB scans
+        old_peer_ips = set(current_proxy_settings.wireguard.peer_ips or [])
+        new_peer_ips = set(proxy_settings_to_prepare.wireguard.peer_ips or [])
+        peer_ips_changed = old_peer_ips != new_peer_ips
+
         prepared_proxy_settings = await self._prepare_user_proxy_settings(
             db,
             effective_groups,
             proxy_settings_to_prepare,
             exclude_user_id=db_user.id,
+            skip_peer_ip_validation=not peer_ips_changed,
         )
         if modified_user.proxy_settings is not None or prepared_proxy_settings.dict() != current_proxy_settings_data:
             modified_user.proxy_settings = prepared_proxy_settings
@@ -550,7 +565,9 @@ class UserOperation(BaseOperation):
         db_users = await bulk_set_owner(db, db_users, new_admin)
         users = [await self.validate_user(db_user) for db_user in db_users]
         for user in users:
-            logger.info(f'User "{user.username}" owner successfully set to "{new_admin.username}" by admin "{admin.username}"')
+            logger.info(
+                f'User "{user.username}" owner successfully set to "{new_admin.username}" by admin "{admin.username}"'
+            )
 
         return self._build_bulk_action_response(users)
 
@@ -965,7 +982,9 @@ class UserOperation(BaseOperation):
             modify_user = self.apply_settings(modify_user, user_template)
 
             if user_template.reset_usages:
-                suppress_reset_status_change = user_template.status == UserStatus.on_hold and original_status != UserStatus.active
+                suppress_reset_status_change = (
+                    user_template.status == UserStatus.on_hold and original_status != UserStatus.active
+                )
                 await self._reset_user_data_usage(
                     db,
                     db_user,

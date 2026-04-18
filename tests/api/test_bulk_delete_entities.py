@@ -206,13 +206,13 @@ def get_node_related_counts(node_id: int) -> dict[str, int]:
                 ).scalar_one(),
                 "usage_logs": (
                     await session.execute(
-                        select(func.count()).select_from(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id == node_id)
+                        select(func.count())
+                        .select_from(NodeUsageResetLogs)
+                        .where(NodeUsageResetLogs.node_id == node_id)
                     )
                 ).scalar_one(),
                 "stats": (
-                    await session.execute(
-                        select(func.count()).select_from(NodeStat).where(NodeStat.node_id == node_id)
-                    )
+                    await session.execute(select(func.count()).select_from(NodeStat).where(NodeStat.node_id == node_id))
                 ).scalar_one(),
             }
 
@@ -225,23 +225,23 @@ def get_group_association_counts(group_id: int) -> dict[str, int]:
             return {
                 "users": (
                     await session.execute(
-                        select(func.count()).select_from(users_groups_association).where(
-                            users_groups_association.c.groups_id == group_id
-                        )
+                        select(func.count())
+                        .select_from(users_groups_association)
+                        .where(users_groups_association.c.groups_id == group_id)
                     )
                 ).scalar_one(),
                 "templates": (
                     await session.execute(
-                        select(func.count()).select_from(template_group_association).where(
-                            template_group_association.c.group_id == group_id
-                        )
+                        select(func.count())
+                        .select_from(template_group_association)
+                        .where(template_group_association.c.group_id == group_id)
                     )
                 ).scalar_one(),
                 "inbounds": (
                     await session.execute(
-                        select(func.count()).select_from(inbounds_groups_association).where(
-                            inbounds_groups_association.c.group_id == group_id
-                        )
+                        select(func.count())
+                        .select_from(inbounds_groups_association)
+                        .where(inbounds_groups_association.c.group_id == group_id)
                     )
                 ).scalar_one(),
             }
@@ -282,9 +282,9 @@ def get_template_group_link_count(template_id: int) -> int:
     async def _count():
         async with TestSession() as session:
             result = await session.execute(
-                select(func.count()).select_from(template_group_association).where(
-                    template_group_association.c.user_template_id == template_id
-                )
+                select(func.count())
+                .select_from(template_group_association)
+                .where(template_group_association.c.user_template_id == template_id)
             )
             return result.scalar_one()
 

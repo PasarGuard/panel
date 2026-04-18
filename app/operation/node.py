@@ -907,9 +907,7 @@ class NodeOperation(BaseOperation):
 
         # Notify
         for node_response in node_responses:
-            logger.info(
-                f'Node "{node_response.name}" with id "{node_response.id}" deleted by admin "{admin.username}"'
-            )
+            logger.info(f'Node "{node_response.name}" with id "{node_response.id}" deleted by admin "{admin.username}"')
             asyncio.create_task(notification.remove_node(node_response, admin.username))
 
         return RemoveNodesResponse(nodes=node_names, count=len(db_nodes))

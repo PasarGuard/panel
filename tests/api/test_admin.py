@@ -610,10 +610,12 @@ async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(access_tok
     admin_a = Admin(username=admin_username("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id)
     admin_b = Admin(username=admin_username("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id)
     async with TestSession() as session:
-        session.add_all([
-            admin_a,
-            admin_b,
-        ])
+        session.add_all(
+            [
+                admin_a,
+                admin_b,
+            ]
+        )
         await session.commit()
 
         async def fake_telegram_settings():

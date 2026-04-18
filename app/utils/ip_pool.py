@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.crud.user import get_users_with_proxy_settings
+from app.db.crud.user import get_all_wireguard_peer_ips_raw
+from app.db.models import User
+
 from .wireguard_pool import WIREGUARD_GLOBAL_POOL, WIREGUARD_RESERVED
 
 # Backward-compatible names
@@ -46,14 +49,66 @@ async def get_global_used_networks(
     *,
     exclude_user_id: int | None = None,
 ) -> set[IPv4Network | IPv6Network]:
-    users = await get_users_with_proxy_settings(db, exclude_user_id=exclude_user_id)
+    """Get all currently used peer networks from the database.
+
+    Uses dialect-specific optimized queries where available.
+    Falls back to lightweight column-only query for all databases.
+    """
+    dialect = db.bind.dialect.name
+
+    if dialect == "postgresql":
+        return await _get_global_used_networks_postgresql(db, exclude_user_id=exclude_user_id)
+    else:
+        # MySQL and SQLite: use lightweight query fetching only id and proxy_settings
+        return await _get_global_used_networks_lightweight(db, exclude_user_id=exclude_user_id)
+
+
+async def _get_global_used_networks_postgresql(
+    db: AsyncSession,
+    *,
+    exclude_user_id: int | None = None,
+) -> set[IPv4Network | IPv6Network]:
+    """PostgreSQL-optimized query using JSONB operators for native JSON extraction."""
+    # Query: extract all peer_ips arrays from wireguard settings and flatten them
+    stmt = select(func.jsonb_array_elements_text(User.proxy_settings["wireguard"]["peer_ips"]).label("peer_ip")).where(
+        User.proxy_settings["wireguard"]["peer_ips"].astext != "null"
+    )
+
+    if exclude_user_id is not None:
+        stmt = stmt.where(User.id != exclude_user_id)
+
+    result = await db.execute(stmt)
+    rows = result.all()
 
     used_ips: set[IPv4Network | IPv6Network] = set()
-    for user in users:
-        wireguard_settings = {}
-        if isinstance(user.proxy_settings, dict):
-            wireguard_settings = user.proxy_settings.get("wireguard") or {}
+    for row in rows:
+        peer_ip = row[0]
+        if peer_ip:
+            try:
+                used_ips.add(ip_network(peer_ip, strict=False))
+            except ValueError:
+                continue
 
+    return used_ips
+
+
+async def _get_global_used_networks_lightweight(
+    db: AsyncSession,
+    *,
+    exclude_user_id: int | None = None,
+) -> set[IPv4Network | IPv6Network]:
+    """Lightweight query fetching only id and proxy_settings columns."""
+    user_data = await get_all_wireguard_peer_ips_raw(db, exclude_user_id=exclude_user_id)
+
+    used_ips: set[IPv4Network | IPv6Network] = set()
+    for user_id, data in user_data.items():
+        proxy_settings = data.get("proxy_settings") or {}
+        if isinstance(proxy_settings, str):
+            import json
+
+            proxy_settings = json.loads(proxy_settings)
+
+        wireguard_settings = proxy_settings.get("wireguard") or {}
         peer_ips = wireguard_settings.get("peer_ips") or []
         for peer_ip in peer_ips:
             try:
@@ -90,24 +145,32 @@ def collect_used_peer_networks_from_proxy_settings_rows(
 
 
 def allocate_one_from_pool_sync(used_networks: set[IPv4Network | IPv6Network]) -> str | None:
-    """Pick first free IPv4 /32 in the global pool (sync; for migrations)."""
+    """Pick first free IPv4 /32 in the global pool (sync; for migrations).
+
+    Uses bitset-style integer lookup for O(1) per candidate instead of O(U) per candidate.
+    """
     pool = WIREGUARD_GLOBAL_POOL
     start = int(pool.network_address)
     end = int(pool.broadcast_address)
 
-    for raw_candidate in range(start, end + 1):
-        candidate = ip_address(raw_candidate)
+    # Pre-build set of all blocked integer addresses (reserved + used) for O(1) lookup
+    blocked: set[int] = set()
 
-        if any(candidate in net for net in WIREGUARD_RESERVED):
-            continue
+    # Add all reserved addresses
+    for net in WIREGUARD_RESERVED:
+        for addr in net:
+            blocked.add(int(addr))
 
-        if candidate == pool.broadcast_address:
-            continue
+    # Add all used addresses (only IPv4)
+    for net in used_networks:
+        if net.version == 4:
+            for addr in net:
+                blocked.add(int(addr))
 
-        if any(candidate in used_ip for used_ip in used_networks if used_ip.version == 4):
-            continue
-
-        return f"{candidate}/32"
+    # Scan for first free address, skipping network and broadcast
+    for raw_candidate in range(start + 1, end):
+        if raw_candidate not in blocked:
+            return f"{ip_address(raw_candidate)}/32"
 
     return None
 
@@ -121,6 +184,58 @@ async def allocate_from_global_pool(
     return allocate_one_from_pool_sync(used_ips)
 
 
+async def allocate_and_validate_peer_ips(
+    db: AsyncSession,
+    peer_ips: list[str],
+    *,
+    exclude_user_id: int | None = None,
+) -> list[str]:
+    """
+    Allocate peer IPs from global pool if not provided, or validate provided peer IPs.
+
+    Fetches the used networks from database once and reuses for both allocation and validation.
+    This avoids double scanning the entire user table.
+
+    Args:
+        db: Database session
+        peer_ips: List of peer IPs to use. If empty, allocates from global pool.
+        exclude_user_id: User ID to exclude from used networks check (for updates)
+
+    Returns:
+        List of allocated or validated peer IPs
+
+    Raises:
+        ValueError: If peer IPs are invalid, in use, reserved, or if allocation fails
+    """
+    # Single DB fetch for both allocation and validation
+    used_networks = await get_global_used_networks(db, exclude_user_id=exclude_user_id)
+
+    if not peer_ips:
+        # Allocation path: find first free IP from pool
+        candidate = allocate_one_from_pool_sync(used_networks)
+        if candidate is None:
+            raise ValueError("unable to allocate wireguard peer IP")
+        return [candidate]
+
+    # Validation path: check provided IPs against used networks
+    validate_peer_ips_within_global_pool(peer_ips)
+
+    for peer_ip in peer_ips:
+        try:
+            candidate = ip_network(peer_ip, strict=False)
+        except ValueError:
+            raise ValueError(f"invalid IP/network format: '{peer_ip}'")
+
+        if any(candidate.overlaps(used_ip) for used_ip in used_networks):
+            raise ValueError(f"peer IP/network '{peer_ip}' is already in use by an existing user's peer network")
+
+        candidate_ip = ip_address(candidate.network_address)
+        if any(candidate_ip in net for net in WIREGUARD_RESERVED):
+            raise ValueError(f"peer IP '{peer_ip}' is reserved")
+
+    return peer_ips
+
+
 async def validate_peer_ips_globally(
     db: AsyncSession,
     peer_ips: list[str],
@@ -131,6 +246,9 @@ async def validate_peer_ips_globally(
     Validate that supplied peer IPs/networks don't overlap with existing user's peer networks.
 
     Raises ValueError if any supplied IP/network overlaps with an existing user's peer networks.
+
+    Note: For new code, consider using allocate_and_validate_peer_ips which is more efficient
+    when allocation and validation need to happen together.
     """
     used_networks = await get_global_used_networks(db, exclude_user_id=exclude_user_id)
 

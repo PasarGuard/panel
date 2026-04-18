@@ -12,10 +12,8 @@ from app.models.proxy import ProxyTable
 from app.node.sync import sync_user
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.ip_pool import (
-    allocate_from_global_pool,
+    allocate_and_validate_peer_ips,
     peer_ips_outside_global_pool,
-    validate_peer_ips_globally,
-    validate_peer_ips_within_global_pool,
 )
 
 
@@ -95,17 +93,37 @@ async def prepare_wireguard_proxy_settings(
 
     peer_ips = list(proxy_settings.wireguard.peer_ips or [])
 
-    if peer_ips:
-        validate_peer_ips_within_global_pool(peer_ips)
-    else:
-        candidate = await allocate_from_global_pool(db, exclude_user_id=exclude_user_id)
-        if candidate is None:
-            raise ValueError("unable to allocate wireguard peer IP")
-        peer_ips = [candidate]
-
-    await validate_peer_ips_globally(db, peer_ips, exclude_user_id=exclude_user_id)
+    # Use merged allocate+validate function to avoid double DB scan
+    peer_ips = await allocate_and_validate_peer_ips(db, peer_ips, exclude_user_id=exclude_user_id)
 
     proxy_settings.wireguard.peer_ips = peer_ips
+    return proxy_settings
+
+
+async def prepare_wireguard_keys_only(
+    db: AsyncSession,
+    proxy_settings: ProxyTable,
+    groups: Iterable,
+) -> ProxyTable:
+    """Generate WireGuard keys without validation or IP allocation.
+
+    Used when peer_ips haven't changed during user modification.
+    Avoids expensive database scans for unchanged peer networks.
+    """
+    wireguard_tags = await get_wireguard_tags_from_groups(groups)
+    if not wireguard_tags:
+        return proxy_settings
+
+    if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:
+        raise ValueError("wireguard private_key is required when user is assigned to a WireGuard interface")
+
+    if not proxy_settings.wireguard.private_key:
+        private_key, public_key = generate_wireguard_keypair()
+        proxy_settings.wireguard.private_key = private_key
+        proxy_settings.wireguard.public_key = public_key
+    elif not proxy_settings.wireguard.public_key:
+        proxy_settings.wireguard.public_key = get_wireguard_public_key(proxy_settings.wireguard.private_key)
+
     return proxy_settings
 
 
@@ -175,9 +193,7 @@ async def bulk_reallocate_wireguard_peer_ips(
         groups = [g for g in user.groups if not g.is_disabled]
         proxy_settings.wireguard.peer_ips = []
         try:
-            prepared = await prepare_wireguard_proxy_settings(
-                db, proxy_settings, groups, exclude_user_id=user.id
-            )
+            prepared = await prepare_wireguard_proxy_settings(db, proxy_settings, groups, exclude_user_id=user.id)
         except ValueError:
             continue
         user.proxy_settings = prepared.dict()

@@ -28,9 +28,7 @@ def _parse_reserved_networks(raw: str) -> frozenset[IPv4Network]:
         except ValueError as exc:
             raise ValueError(f"Invalid CIDR in WIREGUARD_RESERVED: {part!r}") from exc
         if net.version != 4:
-            raise ValueError(
-                f"WIREGUARD_RESERVED must be IPv4 CIDR subnets (e.g. 10.0.0.0/31): {part!r}"
-            )
+            raise ValueError(f"WIREGUARD_RESERVED must be IPv4 CIDR subnets (e.g. 10.0.0.0/31): {part!r}")
         out.add(net)
     return frozenset(out)
 

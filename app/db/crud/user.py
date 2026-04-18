@@ -202,6 +202,33 @@ async def get_users_with_proxy_settings(
     return list(result.scalars().all())
 
 
+async def get_all_wireguard_peer_ips_raw(
+    db: AsyncSession,
+    *,
+    exclude_user_id: int | None = None,
+) -> dict[int, dict]:
+    """
+    Retrieve only id and proxy_settings for all users (lightweight variant).
+
+    Returns a dict mapping user_id -> {'proxy_settings': ...} for IP pool operations.
+    This avoids loading full ORM objects, related collections, and unnecessary columns.
+
+    Args:
+        db: Database session
+        exclude_user_id: User ID to exclude from results
+
+    Returns:
+        Dict mapping user_id to dict containing proxy_settings
+    """
+    stmt = select(User.id, User.proxy_settings)
+    if exclude_user_id is not None:
+        stmt = stmt.where(User.id != exclude_user_id)
+
+    result = await db.execute(stmt)
+    rows = result.all()
+    return {row[0]: {"proxy_settings": row[1]} for row in rows}
+
+
 UsersSortingOptions = Enum(
     "UsersSortingOptions",
     {
