@@ -50,10 +50,9 @@ export function SubscriptionRuleAdvancedSheet({
   }
 
   const updateResponseHeaderName = (currentKey: string, nextKey: string) => {
-    const updatedHeaders = { ...responseHeaders }
-    const currentValue = updatedHeaders[currentKey] ?? ''
-    delete updatedHeaders[currentKey]
-    updatedHeaders[nextKey] = currentValue
+    const updatedHeaders = Object.fromEntries(
+      responseHeaderEntries.map(([headerKey, headerValue]) => [headerKey === currentKey ? nextKey : headerKey, headerValue]),
+    )
     form.setValue(`rules.${ruleIndex}.response_headers`, updatedHeaders, { shouldDirty: true })
   }
 
@@ -119,8 +118,8 @@ export function SubscriptionRuleAdvancedSheet({
 
             <div className="max-h-[min(50dvh,24rem)] space-y-3 overflow-y-auto pr-0.5">
               {responseHeaderCount > 0 ? (
-                responseHeaderEntries.map(([headerKey, headerValue]) => (
-                  <div key={`${rowId}-${headerKey}`} className="space-y-2 rounded-lg border bg-card/50 p-3">
+                responseHeaderEntries.map(([headerKey, headerValue], index) => (
+                  <div key={`${rowId}-header-${index}`} className="space-y-2 rounded-lg border bg-card/50 p-3">
                     <div className="flex items-start gap-2">
                       <Input
                         value={headerKey}
