@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.user import get_all_wireguard_peer_ips_raw
@@ -69,10 +70,16 @@ async def _get_global_used_networks_postgresql(
     exclude_user_id: int | None = None,
 ) -> set[IPv4Network | IPv6Network]:
     """PostgreSQL-optimized query using JSONB operators for native JSON extraction."""
-    # Query: extract all peer_ips arrays from wireguard settings and flatten them
-    stmt = select(func.jsonb_array_elements_text(User.proxy_settings["wireguard"]["peer_ips"]).label("peer_ip")).where(
-        User.proxy_settings["wireguard"]["peer_ips"].astext != "null"
-    )
+
+    # Cast the JSON column to JSONB so SQLAlchemy exposes JSONB-specific operators.
+    # Subscript access on a plain JSON column returns a BinaryExpression that lacks
+    # JSONB methods (.astext, jsonb_array_elements_text, etc.).
+    jsonb_col = cast(User.proxy_settings, JSONB)
+    peer_ips_path = jsonb_col["wireguard"]["peer_ips"]
+
+    # jsonb_array_elements_text unnests the array into individual text rows.
+    # The IS NOT NULL guard skips users whose wireguard.peer_ips key is absent/null.
+    stmt = select(func.jsonb_array_elements_text(peer_ips_path).label("peer_ip")).where(peer_ips_path.isnot(None))
 
     if exclude_user_id is not None:
         stmt = stmt.where(User.id != exclude_user_id)
