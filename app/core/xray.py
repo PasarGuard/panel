@@ -284,10 +284,34 @@ class XRayConfig(dict):
 
     def _handle_xhttp_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle XHTTP network settings."""
+        extra = net_settings.get("extra", {})
+        if not isinstance(extra, dict):
+            extra = {}
+
+        def get_xhttp_value(key: str):
+            value = extra.get(key)
+            if value is None:
+                value = net_settings.get(key)
+            return value
+
         settings["path"] = net_settings.get("path", "")
         host = net_settings.get("host", "")
         settings["host"] = [host]
         settings["mode"] = net_settings.get("mode", "auto")
+        settings["x_padding_bytes"] = get_xhttp_value("xPaddingBytes")
+        settings["x_padding_obfs_mode"] = get_xhttp_value("xPaddingObfsMode")
+        settings["x_padding_key"] = get_xhttp_value("xPaddingKey")
+        settings["x_padding_header"] = get_xhttp_value("xPaddingHeader")
+        settings["x_padding_placement"] = get_xhttp_value("xPaddingPlacement")
+        settings["x_padding_method"] = get_xhttp_value("xPaddingMethod")
+        settings["uplink_http_method"] = get_xhttp_value("uplinkHTTPMethod")
+        settings["session_placement"] = get_xhttp_value("sessionPlacement")
+        settings["session_key"] = get_xhttp_value("sessionKey")
+        settings["seq_placement"] = get_xhttp_value("seqPlacement")
+        settings["seq_key"] = get_xhttp_value("seqKey")
+        settings["uplink_data_placement"] = get_xhttp_value("uplinkDataPlacement")
+        settings["uplink_data_key"] = get_xhttp_value("uplinkDataKey")
+        settings["uplink_chunk_size"] = get_xhttp_value("uplinkChunkSize")
 
     def _handle_kcp_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle KCP network settings."""
