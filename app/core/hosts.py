@@ -304,11 +304,16 @@ async def _prepare_subscription_inbound_data(
 
     # Compute flow_enabled: only for VLESS with specific conditions
     header_type = getattr(transport_config, "header_type", "none")
-    flow_enabled = (
+    base_flow_enabled = (
         protocol == "vless"
         and tls_value in ("tls", "reality")
         and network in ("tcp", "raw", "kcp")
         and header_type != "http"
+    )
+
+    # Enable also when inbound vless encryption is enabled (not "none")
+    flow_enabled = base_flow_enabled or (
+        protocol == "vless" and encryption not in (None, "", "none")
     )
 
     return SubscriptionInboundData(
