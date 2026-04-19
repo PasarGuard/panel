@@ -166,7 +166,7 @@ class StandardLinks(BaseSubscription):
 
     def _apply_finalmask(self, payload: dict, protocol: str, inbound: SubscriptionInboundData):
         """Apply finalMask for vmess if needed"""
-        if inbound.finalmask is not None:
+        if inbound.finalmask:
             payload["fm"] = json.dumps(inbound.finalmask)
 
     def _transport_tcp(self, payload: dict, protocol: str, config: TCPTransportConfig, path: str):
@@ -263,7 +263,7 @@ class StandardLinks(BaseSubscription):
 
         payload = {
             "encryption": inbound.encryption,
-            "security": inbound.tls_config.tls,
+            "security": inbound.tls_config.tls if inbound.tls_config.tls else "none",
             "type": inbound.network,
             "headerType": getattr(inbound.transport_config, "header_type", "none"),
         }
@@ -288,7 +288,7 @@ class StandardLinks(BaseSubscription):
         path = self._process_path(inbound)
 
         payload = {
-            "security": inbound.tls_config.tls,
+            "security": inbound.tls_config.tls if inbound.tls_config.tls else "none",
             "type": inbound.network,
             "headerType": getattr(inbound.transport_config, "header_type", "none"),
         }
