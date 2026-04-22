@@ -62,16 +62,6 @@ async def get_subscription_payload(token: str) -> dict | None:
         if token.startswith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."):
             payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"])
             if payload.get("access") == "subscription":
-                user_id = payload.get("uid")
-                if user_id is not None:
-                    try:
-                        user_id = int(user_id)
-                    except (TypeError, ValueError):
-                        return
-                    return {
-                        "user_id": user_id,
-                        "created_at": datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
-                    }
                 username = payload.get("sub")
                 if not username:
                     return
