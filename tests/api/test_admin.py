@@ -12,6 +12,7 @@ from app.db.crud.admin import get_admin_by_telegram_id
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage
 from app.models.settings import RunMethod, Telegram
 from app.routers.authentication import validate_mini_app_admin
+from app.utils.jwt import get_admin_payload
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
@@ -78,6 +79,23 @@ def test_admin_login():
     assert response.status_code == status.HTTP_200_OK
     assert "access_token" in response.json()
     return response.json()["access_token"]
+
+
+def test_admin_token_contains_admin_id_claim(access_token):
+    admin = create_admin(access_token)
+    try:
+        response = client.post(
+            url="/api/admin/token",
+            data={"username": admin["username"], "password": admin["password"], "grant_type": "password"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        token = response.json()["access_token"]
+        payload = asyncio.run(get_admin_payload(token))
+        assert payload is not None
+        assert payload["admin_id"] == admin["id"]
+        assert payload["username"] == admin["username"]
+    finally:
+        delete_admin(access_token, admin["username"])
 
 
 def test_get_admin(access_token):
@@ -262,6 +280,41 @@ def test_update_admin(access_token):
     assert response.json()["is_sudo"] is False
     assert response.json()["is_disabled"] is True
     delete_admin(access_token, admin["username"])
+
+
+def test_admin_routes_by_id_and_by_username(access_token):
+    admin = create_admin(access_token)
+    try:
+        by_username_update = client.put(
+            url=f"/api/admin/by-username/{admin['username']}",
+            json={"is_sudo": False, "note": "by-username note"},
+            headers=auth_headers(access_token),
+        )
+        assert by_username_update.status_code == status.HTTP_200_OK
+        assert by_username_update.json()["note"] == "by-username note"
+
+        by_id_update = client.put(
+            url=f"/api/admin/by-id/{admin['id']}",
+            json={"is_sudo": False, "note": "by-id note"},
+            headers=auth_headers(access_token),
+        )
+        assert by_id_update.status_code == status.HTTP_200_OK
+        assert by_id_update.json()["note"] == "by-id note"
+
+        by_id_usage = client.get(
+            f"/api/admin/by-id/{admin['id']}/usage",
+            headers=auth_headers(access_token),
+            params={"period": "hour"},
+        )
+        assert by_id_usage.status_code == status.HTTP_200_OK
+
+        by_username_reset = client.post(
+            f"/api/admin/by-username/{admin['username']}/reset",
+            headers=auth_headers(access_token),
+        )
+        assert by_username_reset.status_code == status.HTTP_200_OK
+    finally:
+        delete_admin(access_token, admin["username"])
 
 
 def test_update_admin_note(access_token):

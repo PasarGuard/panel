@@ -197,15 +197,21 @@ async def _prepare_subscription_inbound_data(
             no_grpc_header=xs.no_grpc_header if xs else None,
             sc_max_each_post_bytes=xs.sc_max_each_post_bytes if xs else None,
             sc_min_posts_interval_ms=xs.sc_min_posts_interval_ms if xs else None,
-            x_padding_bytes=xs.x_padding_bytes if xs and xs.x_padding_bytes is not None else inbound_config.get("x_padding_bytes"),
+            x_padding_bytes=xs.x_padding_bytes
+            if xs and xs.x_padding_bytes is not None
+            else inbound_config.get("x_padding_bytes"),
             x_padding_obfs_mode=(
                 xs.x_padding_obfs_mode
                 if xs and xs.x_padding_obfs_mode is not None
                 else inbound_config.get("x_padding_obfs_mode")
             ),
-            x_padding_key=xs.x_padding_key if xs and xs.x_padding_key is not None else inbound_config.get("x_padding_key"),
+            x_padding_key=xs.x_padding_key
+            if xs and xs.x_padding_key is not None
+            else inbound_config.get("x_padding_key"),
             x_padding_header=(
-                xs.x_padding_header if xs and xs.x_padding_header is not None else inbound_config.get("x_padding_header")
+                xs.x_padding_header
+                if xs and xs.x_padding_header is not None
+                else inbound_config.get("x_padding_header")
             ),
             x_padding_placement=(
                 xs.x_padding_placement
@@ -213,13 +219,19 @@ async def _prepare_subscription_inbound_data(
                 else inbound_config.get("x_padding_placement")
             ),
             x_padding_method=(
-                xs.x_padding_method if xs and xs.x_padding_method is not None else inbound_config.get("x_padding_method")
+                xs.x_padding_method
+                if xs and xs.x_padding_method is not None
+                else inbound_config.get("x_padding_method")
             ),
             uplink_http_method=(
-                xs.uplink_http_method if xs and xs.uplink_http_method is not None else inbound_config.get("uplink_http_method")
+                xs.uplink_http_method
+                if xs and xs.uplink_http_method is not None
+                else inbound_config.get("uplink_http_method")
             ),
             session_placement=(
-                xs.session_placement if xs and xs.session_placement is not None else inbound_config.get("session_placement")
+                xs.session_placement
+                if xs and xs.session_placement is not None
+                else inbound_config.get("session_placement")
             ),
             session_key=xs.session_key if xs and xs.session_key is not None else inbound_config.get("session_key"),
             seq_placement=(
@@ -235,7 +247,9 @@ async def _prepare_subscription_inbound_data(
                 xs.uplink_data_key if xs and xs.uplink_data_key is not None else inbound_config.get("uplink_data_key")
             ),
             uplink_chunk_size=(
-                xs.uplink_chunk_size if xs and xs.uplink_chunk_size is not None else inbound_config.get("uplink_chunk_size")
+                xs.uplink_chunk_size
+                if xs and xs.uplink_chunk_size is not None
+                else inbound_config.get("uplink_chunk_size")
             ),
             xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else None,
             download_settings=down_settings if xs and down_settings else None,

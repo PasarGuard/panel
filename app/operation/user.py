@@ -609,8 +609,7 @@ class UserOperation(BaseOperation):
     ) -> UserResponse:
         """Set a new owner (admin) for a user."""
         warnings.warn(
-            "set_owner(username, ...) is deprecated and will be removed in v6.0.0. "
-            "Use set_owner_by_id(user_id, ...).",
+            "set_owner(username, ...) is deprecated and will be removed in v6.0.0. Use set_owner_by_id(user_id, ...).",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -695,8 +694,7 @@ class UserOperation(BaseOperation):
 
     async def get_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserNotificationResponse:
         warnings.warn(
-            "get_user(username, ...) is deprecated and will be removed in v6.0.0. "
-            "Use get_user_by_id(user_id, ...).",
+            "get_user(username, ...) is deprecated and will be removed in v6.0.0. Use get_user_by_id(user_id, ...).",
             DeprecationWarning,
             stacklevel=2,
         )

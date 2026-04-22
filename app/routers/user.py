@@ -152,7 +152,9 @@ async def remove_user_by_username(
     responses={403: responses._403, 404: responses._404},
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def remove_user_by_id(user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)):
+async def remove_user_by_id(
+    user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+):
     return await user_operator.remove_user_by_id(db, user_id=user_id, admin=admin)
 
 
@@ -175,7 +177,9 @@ async def reset_user_data_usage_by_username(
     return await user_operator.reset_user_data_usage(db, username=username, admin=admin)
 
 
-@router.post("/by-id/{user_id}/reset", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
+@router.post(
+    "/by-id/{user_id}/reset", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
+)
 async def reset_user_data_usage_by_id(
     user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
 ):
@@ -311,7 +315,9 @@ async def get_user(username: str, db: AsyncSession = Depends(get_db), admin: Adm
     return await user_operator.get_user(db=db, username=username, admin=admin)
 
 
-@router.get("/by-username/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
+@router.get(
+    "/by-username/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
+)
 async def get_user_by_username(
     username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
 ):

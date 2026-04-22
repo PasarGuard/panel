@@ -139,6 +139,7 @@ class AdminInDB(AdminDetails):
 
 
 class AdminValidationResult(BaseModel):
+    id: int | None = None
     username: str
     is_sudo: bool
     is_disabled: bool

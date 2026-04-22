@@ -18,8 +18,10 @@ async def get_secret_key():
         return key
 
 
-async def create_admin_token(username: str, is_sudo=False) -> str:
+async def create_admin_token(admin_id: int | None, username: str, is_sudo=False) -> str:
     data = {"sub": username, "access": "sudo" if is_sudo else "admin", "iat": datetime.now(timezone.utc)}
+    if admin_id is not None:
+        data["aid"] = int(admin_id)
     if JWT_ACCESS_TOKEN_EXPIRE_MINUTES > 0:
         expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
         data["exp"] = expire
@@ -32,6 +34,12 @@ async def get_admin_payload(token: str) -> dict | None:
         payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"], leeway=5)
         username: str = payload.get("sub")
         access: str = payload.get("access")
+        admin_id = payload.get("aid")
+        if admin_id is not None:
+            try:
+                admin_id = int(admin_id)
+            except (TypeError, ValueError):
+                return
         if not username or access not in ("admin", "sudo"):
             return
         try:
@@ -39,7 +47,12 @@ async def get_admin_payload(token: str) -> dict | None:
         except KeyError:
             created_at = None
 
-        return {"username": username, "is_sudo": access == "sudo", "created_at": created_at}
+        return {
+            "admin_id": admin_id,
+            "username": username,
+            "is_sudo": access == "sudo",
+            "created_at": created_at,
+        }
     except jwt.exceptions.PyJWTError:
         return
 
