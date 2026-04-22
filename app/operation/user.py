@@ -1,6 +1,7 @@
 import asyncio
 import re
 import secrets
+import warnings
 from collections import Counter
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from typing import Literal
@@ -110,7 +111,7 @@ class UserOperation(BaseOperation):
             if user.admin and user.admin.sub_domain
             else (settings.url_prefix).replace("*", salt)
         )
-        token = await create_subscription_token(user.username)
+        token = await create_subscription_token(user.id)
         return f"{url_prefix}/{SUBSCRIPTION_PATH}/{token}"
 
     async def _generate_usernames(
@@ -356,21 +357,44 @@ class UserOperation(BaseOperation):
     async def modify_user(
         self, db: AsyncSession, username: str, modified_user: UserModify, admin: AdminDetails
     ) -> UserResponse:
+        warnings.warn(
+            "modify_user(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use modify_user_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_user = await self.get_validated_user(db, username, admin)
 
         return await self._modify_user(db, db_user, modified_user, admin)
 
-    async def remove_user(self, db: AsyncSession, username: str, admin: AdminDetails):
-        db_user = await self.get_validated_user(db, username, admin)
+    async def modify_user_by_id(
+        self, db: AsyncSession, user_id: int, modified_user: UserModify, admin: AdminDetails
+    ) -> UserResponse:
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        return await self._modify_user(db, db_user, modified_user, admin)
 
+    async def _remove_user(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> dict:
         user = await self.validate_user(db_user, include_subscription_url=False)
         await remove_user(db, db_user)
         await sync_remove_user(user)
 
         asyncio.create_task(notification.remove_user(user, admin))
-
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
         return {}
+
+    async def remove_user(self, db: AsyncSession, username: str, admin: AdminDetails):
+        warnings.warn(
+            "remove_user(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use remove_user_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        db_user = await self.get_validated_user(db, username, admin)
+        return await self._remove_user(db, db_user, admin)
+
+    async def remove_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        return await self._remove_user(db, db_user, admin)
 
     async def _get_validated_users_by_ids(
         self,
@@ -441,8 +465,18 @@ class UserOperation(BaseOperation):
         return user
 
     async def reset_user_data_usage(self, db: AsyncSession, username: str, admin: AdminDetails):
+        warnings.warn(
+            "reset_user_data_usage(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use reset_user_data_usage_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_user = await self.get_validated_user(db, username, admin)
 
+        return await self._reset_user_data_usage(db, db_user, admin)
+
+    async def reset_user_data_usage_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def bulk_reset_user_data_usage(
@@ -463,17 +497,28 @@ class UserOperation(BaseOperation):
 
         return self._build_bulk_action_response(users)
 
-    async def revoke_user_sub(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
-        db_user = await self.get_validated_user(db, username, admin)
-
+    async def _revoke_user_sub(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> UserResponse:
         db_user = await revoke_user_sub(db=db, db_user=db_user)
         user = await self.update_user(db_user)
 
         asyncio.create_task(notification.user_subscription_revoked(user, admin))
-
         logger.info(f'User "{db_user.username}" subscription was revoked by admin "{admin.username}"')
 
         return user
+
+    async def revoke_user_sub(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
+        warnings.warn(
+            "revoke_user_sub(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use revoke_user_sub_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        db_user = await self.get_validated_user(db, username, admin)
+        return await self._revoke_user_sub(db, db_user, admin)
+
+    async def revoke_user_sub_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, load_usage_logs=False)
+        return await self._revoke_user_sub(db, db_user, admin)
 
     async def bulk_revoke_user_sub(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
@@ -521,40 +566,64 @@ class UserOperation(BaseOperation):
         db_admin = await self.get_validated_admin(db, admin.username)
         await reset_all_users_data_usage(db=db, admin=db_admin)
 
-    async def active_next_plan(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
-        """Reset user by next plan"""
-        db_user = await self.get_validated_user(db, username, admin)
-
+    async def _active_next_plan(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> UserResponse:
         if db_user is None or db_user.next_plan is None:
             await self.raise_error(message="User doesn't have next plan", code=404)
 
         old_status = db_user.status
-
         db_user = await reset_user_by_next(db=db, db_user=db_user)
-
         user = await self.update_user(db_user)
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
 
         asyncio.create_task(notification.user_data_reset_by_next(user, admin))
-
         logger.info(f'User "{db_user.username}"\'s usage was reset by next plan by admin "{admin.username}"')
+        return user
 
+    async def active_next_plan(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
+        """Reset user by next plan"""
+        warnings.warn(
+            "active_next_plan(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use active_next_plan_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        db_user = await self.get_validated_user(db, username, admin)
+        return await self._active_next_plan(db, db_user, admin)
+
+    async def active_next_plan_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        return await self._active_next_plan(db, db_user, admin)
+
+    async def _set_owner(self, db: AsyncSession, db_user: User, new_admin, admin: AdminDetails) -> UserResponse:
+        db_user = await set_owner(db, db_user, new_admin)
+        user = await self.validate_user(db_user)
+        logger.info(
+            f'User "{user.username}" owner successfully set to "{new_admin.username}" by admin "{admin.username}"'
+        )
         return user
 
     async def set_owner(
         self, db: AsyncSession, username: str, admin_username: str, admin: AdminDetails
     ) -> UserResponse:
         """Set a new owner (admin) for a user."""
+        warnings.warn(
+            "set_owner(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use set_owner_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         new_admin = await self.get_validated_admin(db, username=admin_username)
         db_user = await self.get_validated_user(db, username, admin)
+        return await self._set_owner(db, db_user, new_admin, admin)
 
-        db_user = await set_owner(db, db_user, new_admin)
-        user = await self.validate_user(db_user)
-        logger.info(f'{user.username}"owner successfully set to{new_admin.username} by admin "{admin.username}"')
-
-        return user
+    async def set_owner_by_id(
+        self, db: AsyncSession, user_id: int, admin_username: str, admin: AdminDetails
+    ) -> UserResponse:
+        new_admin = await self.get_validated_admin(db, username=admin_username)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        return await self._set_owner(db, db_user, new_admin, admin)
 
     async def bulk_set_owner(
         self, db: AsyncSession, bulk_users: BulkUsersSetOwner, admin: AdminDetails
@@ -571,6 +640,25 @@ class UserOperation(BaseOperation):
 
         return self._build_bulk_action_response(users)
 
+    async def _get_user_usage(
+        self,
+        db: AsyncSession,
+        db_user: User,
+        admin: AdminDetails,
+        start: dt = None,
+        end: dt = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserUsageStatsList:
+        start, end = await self.validate_dates(start, end, True)
+
+        if not admin.is_sudo:
+            node_id = None
+            group_by_node = False
+
+        return await get_user_usages(db, db_user.id, start, end, period, node_id=node_id, group_by_node=group_by_node)
+
     async def get_user_usage(
         self,
         db: AsyncSession,
@@ -582,16 +670,36 @@ class UserOperation(BaseOperation):
         node_id: int | None = None,
         group_by_node: bool = False,
     ) -> UserUsageStatsList:
-        start, end = await self.validate_dates(start, end, True)
+        warnings.warn(
+            "get_user_usage(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use get_user_usage_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_user = await self.get_validated_user(db, username, admin)
+        return await self._get_user_usage(db, db_user, admin, start, end, period, node_id, group_by_node)
 
-        if not admin.is_sudo:
-            node_id = None
-            group_by_node = False
-
-        return await get_user_usages(db, db_user.id, start, end, period, node_id=node_id, group_by_node=group_by_node)
+    async def get_user_usage_by_id(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        admin: AdminDetails,
+        start: dt = None,
+        end: dt = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserUsageStatsList:
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        return await self._get_user_usage(db, db_user, admin, start, end, period, node_id, group_by_node)
 
     async def get_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserNotificationResponse:
+        warnings.warn(
+            "get_user(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use get_user_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_user = await self.get_validated_user(db, username, admin)
         return await self.validate_user(db_user)
 
@@ -869,10 +977,9 @@ class UserOperation(BaseOperation):
 
         return await self.create_user(db, new_user, admin)
 
-    async def modify_user_with_template(
-        self, db: AsyncSession, username: str, modified_template: ModifyUserByTemplate, admin: AdminDetails
+    async def _modify_user_with_template(
+        self, db: AsyncSession, db_user: User, modified_template: ModifyUserByTemplate, admin: AdminDetails
     ) -> UserResponse:
-        db_user = await self.get_validated_user(db, username, admin)
         original_status = db_user.status
         user_template = await self.get_validated_user_template(db, modified_template.user_template_id)
 
@@ -902,6 +1009,24 @@ class UserOperation(BaseOperation):
             )
 
         return await self._modify_user(db, db_user, modify_user, admin)
+
+    async def modify_user_with_template(
+        self, db: AsyncSession, username: str, modified_template: ModifyUserByTemplate, admin: AdminDetails
+    ) -> UserResponse:
+        warnings.warn(
+            "modify_user_with_template(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use modify_user_with_template_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        db_user = await self.get_validated_user(db, username, admin)
+        return await self._modify_user_with_template(db, db_user, modified_template, admin)
+
+    async def modify_user_with_template_by_id(
+        self, db: AsyncSession, user_id: int, modified_template: ModifyUserByTemplate, admin: AdminDetails
+    ) -> UserResponse:
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        return await self._modify_user_with_template(db, db_user, modified_template, admin)
 
     async def bulk_create_users_from_template(
         self, db: AsyncSession, bulk_users: BulkUsersFromTemplate, admin: AdminDetails
@@ -1050,22 +1175,50 @@ class UserOperation(BaseOperation):
         out = await run_wg_bulk(db, users, dry_run=body.dry_run, replace_all=body.replace_all)
         return WireGuardPeerIPsReallocateResponse(**out)
 
+    async def _get_users_sub_update_list(
+        self, db: AsyncSession, db_user: User, offset: int = 0, limit: int = 10
+    ) -> UserSubscriptionUpdateList:
+        user_sub_data, count = await get_users_sub_update_list(db, user_id=db_user.id, offset=offset, limit=limit)
+        return UserSubscriptionUpdateList(updates=user_sub_data, count=count)
+
     async def get_users_sub_update_list(
         self, db: AsyncSession, username: str, admin: AdminDetails, offset: int = 0, limit: int = 10
     ) -> UserSubscriptionUpdateList:
+        warnings.warn(
+            "get_users_sub_update_list(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use get_users_sub_update_list_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_user = await self.get_validated_user(db, username, admin)
-        user_sub_data, count = await get_users_sub_update_list(db, user_id=db_user.id, offset=offset, limit=limit)
+        return await self._get_users_sub_update_list(db, db_user, offset, limit)
 
-        return UserSubscriptionUpdateList(updates=user_sub_data, count=count)
+    async def get_users_sub_update_list_by_id(
+        self, db: AsyncSession, user_id: int, admin: AdminDetails, offset: int = 0, limit: int = 10
+    ) -> UserSubscriptionUpdateList:
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        return await self._get_users_sub_update_list(db, db_user, offset, limit)
 
     async def get_users_sub_update_chart(
         self,
         db: AsyncSession,
         admin: AdminDetails,
+        user_id: int | None = None,
         username: str | None = None,
         admin_id: int | None = None,
     ) -> UserSubscriptionUpdateChart:
+        if user_id is not None:
+            db_user = await self.get_validated_user_by_id(db, user_id, admin)
+            agent_counts = await get_users_subscription_agent_counts(db, user_id=db_user.id)
+            return self._build_user_agent_chart(agent_counts)
+
         if username:
+            warnings.warn(
+                "username filter for get_users_sub_update_chart(...) is deprecated and will be removed in v6.0.0. "
+                "Use user_id instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             db_user = await self.get_validated_user(db, username, admin)
             agent_counts = await get_users_subscription_agent_counts(db, user_id=db_user.id)
             return self._build_user_agent_chart(agent_counts)

@@ -44,8 +44,8 @@ async def get_admin_payload(token: str) -> dict | None:
         return
 
 
-async def create_subscription_token(username: str) -> str:
-    data = username + "," + str(ceil(time.time()))
+async def create_subscription_token(user_id: int) -> str:
+    data = "v2," + str(user_id) + "," + str(ceil(time.time()))
     data_b64_str = b64encode(data.encode("utf-8"), altchars=b"-_").decode("utf-8").rstrip("=")
     data_b64_sign = b64encode(
         sha256((data_b64_str + await get_secret_key()).encode("utf-8")).digest(), altchars=b"-_"
@@ -62,8 +62,21 @@ async def get_subscription_payload(token: str) -> dict | None:
         if token.startswith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."):
             payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"])
             if payload.get("access") == "subscription":
+                user_id = payload.get("uid")
+                if user_id is not None:
+                    try:
+                        user_id = int(user_id)
+                    except (TypeError, ValueError):
+                        return
+                    return {
+                        "user_id": user_id,
+                        "created_at": datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+                    }
+                username = payload.get("sub")
+                if not username:
+                    return
                 return {
-                    "username": payload["sub"],
+                    "username": username,
                     "created_at": datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
                 }
             else:
@@ -85,17 +98,29 @@ async def get_subscription_payload(token: str) -> dict | None:
             ).decode("utf-8")[:10]
             if u_signature == u_token_resign:
                 parts = u_token_dec_str.split(",")
-                if len(parts) != 2:
-                    return
-                u_username, u_created_at_str = parts
-                try:
-                    u_created_at = int(u_created_at_str)
-                except ValueError:
-                    return
-                return {
-                    "username": u_username,
-                    "created_at": datetime.fromtimestamp(u_created_at, tz=timezone.utc),
-                }
+                if len(parts) == 3 and parts[0] == "v2":
+                    _, u_user_id_str, u_created_at_str = parts
+                    try:
+                        u_user_id = int(u_user_id_str)
+                        u_created_at = int(u_created_at_str)
+                    except ValueError:
+                        return
+                    return {
+                        "user_id": u_user_id,
+                        "created_at": datetime.fromtimestamp(u_created_at, tz=timezone.utc),
+                    }
+
+                if len(parts) == 2:
+                    u_username, u_created_at_str = parts
+                    try:
+                        u_created_at = int(u_created_at_str)
+                    except ValueError:
+                        return
+                    return {
+                        "username": u_username,
+                        "created_at": datetime.fromtimestamp(u_created_at, tz=timezone.utc),
+                    }
+                return
             else:
                 return
     except jwt.exceptions.PyJWTError:
