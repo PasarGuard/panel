@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { useClipboard } from '@/hooks/use-clipboard'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/components/forms/user-form'
-import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
+import { useActiveNextPlanById, useGetCurrentAdmin, useRemoveUserById, useResetUserDataUsageById, useRevokeUserSubscriptionById, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Cat, Check, Copy, Cpu, EllipsisVertical, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
@@ -247,8 +247,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     invalidateUserMetricsQueries(queryClient)
   }
 
-  const removeUserMutation = useRemoveUser()
-  const resetUserDataUsageMutation = useResetUserDataUsage({
+  const removeUserMutation = useRemoveUserById()
+  const resetUserDataUsageMutation = useResetUserDataUsageById({
     mutation: {
       onSuccess: (updatedUser) => {
         if (updatedUser) {
@@ -257,7 +257,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       },
     },
   })
-  const revokeUserSubscriptionMutation = useRevokeUserSubscription({
+  const revokeUserSubscriptionMutation = useRevokeUserSubscriptionById({
     mutation: {
       onSuccess: (updatedUser) => {
         if (updatedUser) {
@@ -266,7 +266,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       },
     },
   })
-  const activeNextMutation = useActiveNextPlan({
+  const activeNextMutation = useActiveNextPlanById({
     mutation: {
       onSuccess: (updatedUser) => {
         if (updatedUser) {
@@ -345,7 +345,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     let latestUser = user
     for (const [, data] of cachedData) {
       if (data?.users) {
-        const foundUser = data.users.find(u => u.username === user.username)
+        const foundUser = data.users.find(u => u.id === user.id)
         if (foundUser) {
           latestUser = foundUser
           break
@@ -378,7 +378,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   const confirmRevokeSubscription = async () => {
     try {
-      await revokeUserSubscriptionMutation.mutateAsync({ username: user.username })
+      await revokeUserSubscriptionMutation.mutateAsync({ userId: user.id })
       toast.success(t('userDialog.revokeSubSuccess', { name: user.username }))
       setRevokeSubDialogOpen(false)
     } catch (error: any) {
@@ -392,7 +392,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   const activeNextPlan = async () => {
     try {
-      await activeNextMutation.mutateAsync({ username: user.username })
+      await activeNextMutation.mutateAsync({ userId: user.id })
       toast.success(t('userDialog.activeNextPlanSuccess', { name: user.username }))
       setIsActiveNextPlanModalOpen(false)
     } catch (error: any) {
@@ -406,7 +406,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   const confirmResetUsage = async () => {
     try {
-      await resetUserDataUsageMutation.mutateAsync({ username: user.username })
+      await resetUserDataUsageMutation.mutateAsync({ userId: user.id })
       toast.success(t('usersTable.resetUsageSuccess', { name: user.username }))
       setResetUsageDialogOpen(false)
     } catch (error: any) {
@@ -424,7 +424,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   const confirmDelete = async () => {
     try {
-      await removeUserMutation.mutateAsync({ username: user.username })
+      await removeUserMutation.mutateAsync({ userId: user.id })
       toast.success(t('usersTable.deleteSuccess', { name: user.username }))
       setDeleteDialogOpen(false)
       refreshUserData()
@@ -780,13 +780,14 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
             </AlertDialogContent>
           </AlertDialog>
 
-          <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={user.username} />
+          <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={user.id} />
 
           {/* SetOwnerModal: only for sudo admins */}
           {currentAdmin?.is_sudo && (
             <SetOwnerModal
               open={isSetOwnerModalOpen}
               onClose={() => setSetOwnerModalOpen(false)}
+              userId={user.id}
               username={user.username}
               currentOwner={user.admin?.username}
               onSuccess={(updatedUser?: UserResponse) => {
@@ -798,7 +799,12 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
           )}
 
           {/* UserSubscriptionClientsModal */}
-          <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={user.username} />
+          <UserSubscriptionClientsModal
+            isOpen={isSubscriptionClientsModalOpen}
+            onOpenChange={setSubscriptionClientsModalOpen}
+            userId={user.id}
+            username={user.username}
+          />
 
           {/* UserAllIPsModal: only for sudo admins */}
           {currentAdmin?.is_sudo && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}

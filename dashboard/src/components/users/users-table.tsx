@@ -660,7 +660,7 @@ const UsersTable = memo(() => {
     let latestUser = user
     for (const [, data] of cachedData) {
       if (data?.users) {
-        const foundUser = data.users.find(u => u.username === user.username)
+        const foundUser = data.users.find(u => u.id === user.id)
         if (foundUser) {
           latestUser = foundUser
           break

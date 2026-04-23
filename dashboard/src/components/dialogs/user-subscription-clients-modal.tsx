@@ -2,11 +2,11 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { useGetUserSubUpdateList, UserSubscriptionUpdateSchema } from '@/service/api'
+import { useGetUserSubUpdateListById, UserSubscriptionUpdateSchema } from '@/service/api'
 import { parseUserAgent, formatClientInfo } from '@/utils/userAgentParser'
 import { dateUtils } from '@/utils/dateFormatter'
 import { Monitor, Smartphone, Globe, HelpCircle, Users, Loader2, ChevronLeft, ChevronRight, Tv } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -14,7 +14,8 @@ import useDirDetection from '@/hooks/use-dir-detection'
 interface UserSubscriptionClientsModalProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  username: string
+  userId: number
+  username?: string
 }
 
 // Function to format time ago
@@ -273,22 +274,31 @@ const detectVersion = (userAgent: string): string => {
   return 'Unknown'
 }
 
-export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps> = ({ isOpen, onOpenChange, username }) => {
+export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps> = ({ isOpen, onOpenChange, userId, username }) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [currentPage, setCurrentPage] = useState(0)
   const itemsPerPage = 20
 
+  useEffect(() => {
+    if (!isOpen) {
+      setCurrentPage(0)
+      return
+    }
+
+    setCurrentPage(0)
+  }, [isOpen, userId])
+
   const {
     data: subUpdateList,
     isLoading,
     error,
-  } = useGetUserSubUpdateList(
-    username,
+  } = useGetUserSubUpdateListById(
+    userId,
     { offset: currentPage * itemsPerPage, limit: itemsPerPage },
     {
       query: {
-        enabled: isOpen && !!username,
+        enabled: isOpen && !!userId,
       },
     },
   )
@@ -380,9 +390,11 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 flex-shrink-0" />
             <span>{t('subscriptionClients.title', { defaultValue: 'Subscription Clients' })}</span>
-            <Badge variant="outline" dir="ltr" className="flex-shrink-0">
-              {username}
-            </Badge>
+            {username && (
+              <Badge variant="outline" dir="ltr" className="flex-shrink-0">
+                {username}
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 

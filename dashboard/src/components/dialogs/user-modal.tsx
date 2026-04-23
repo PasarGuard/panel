@@ -28,10 +28,10 @@ import {
   useCreateUserFromTemplate,
   useGetGroupsSimple,
   useGetUserTemplatesSimple,
-  useModifyUser,
-  useModifyUserWithTemplate,
-  useResetUserDataUsage,
-  useRevokeUserSubscription,
+  useModifyUserById,
+  useModifyUserWithTemplateById,
+  useResetUserDataUsageById,
+  useRevokeUserSubscriptionById,
   type UserResponse,
 } from '@/service/api'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
@@ -546,7 +546,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
   })
-  const modifyUserMutation = useModifyUser({
+  const modifyUserMutation = useModifyUserById({
     mutation: {
       onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
@@ -558,12 +558,12 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   })
 
   // Add the mutation hook at the top with other mutations
-  const modifyUserWithTemplateMutation = useModifyUserWithTemplate({
+  const modifyUserWithTemplateMutation = useModifyUserWithTemplateById({
     mutation: {
       onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
   })
-  const resetUserDataUsageMutation = useResetUserDataUsage({
+  const resetUserDataUsageMutation = useResetUserDataUsageById({
     mutation: {
       onSuccess: updatedUser => {
         if (updatedUser) {
@@ -572,7 +572,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       },
     },
   })
-  const revokeUserSubscriptionMutation = useRevokeUserSubscription({
+  const revokeUserSubscriptionMutation = useRevokeUserSubscriptionById({
     mutation: {
       onSuccess: updatedUser => {
         if (updatedUser) {
@@ -884,6 +884,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const handleTemplateMutation = React.useCallback(
     async (values: UseFormValues | UseEditFormValues) => {
       if (!selectedTemplateId) return
+      if (editingUser && !editingUserId) return
 
       // Validate template mode requirements
       if (!values.username || values.username.length < 3) {
@@ -893,9 +894,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
 
       setLoading(true)
       try {
-        if (editingUser) {
+        if (editingUser && editingUserId) {
           await modifyUserWithTemplateMutation.mutateAsync({
-            username: values.username,
+            userId: editingUserId,
             data: {
               user_template_id: selectedTemplateId,
               note: values.note,
@@ -1076,7 +1077,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         if (editingUser && editingUserId) {
           try {
             await modifyUserMutation.mutateAsync({
-              username: sendValues.username,
+              userId: editingUserId,
               data: sendValues,
             })
             toast.success(
@@ -1307,6 +1308,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   )
 
   const currentUsername = editingUserData?.username || form.getValues('username')
+  const currentUserId = editingUserData?.id || editingUserId
   const isPersianLocale = i18n.language?.toLowerCase().startsWith('fa')
   const formatMetaDate = React.useCallback(
     (value?: string | number | null) => {
@@ -1341,9 +1343,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }, [editingUserData?.edit_at, formatMetaDate])
 
   const confirmResetUsage = async () => {
-    if (!currentUsername) return
+    if (!currentUserId || !currentUsername) return
     try {
-      await resetUserDataUsageMutation.mutateAsync({ username: currentUsername })
+      await resetUserDataUsageMutation.mutateAsync({ userId: currentUserId })
       toast.success(t('usersTable.resetUsageSuccess', { name: currentUsername }))
       setResetUsageDialogOpen(false)
     } catch (error: any) {
@@ -1352,9 +1354,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }
 
   const confirmRevokeSubscription = async () => {
-    if (!currentUsername) return
+    if (!currentUserId || !currentUsername) return
     try {
-      await revokeUserSubscriptionMutation.mutateAsync({ username: currentUsername })
+      await revokeUserSubscriptionMutation.mutateAsync({ userId: currentUserId })
       toast.success(t('userDialog.revokeSubSuccess', { name: currentUsername }))
       setRevokeSubDialogOpen(false)
     } catch (error: any) {
@@ -2800,8 +2802,15 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       </AlertDialog>
 
       {isSudo && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
-      {currentUsername && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={currentUsername} />}
-      {currentUsername && <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={currentUsername} />}
+      {currentUserId && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={currentUserId} />}
+      {currentUserId && (
+        <UserSubscriptionClientsModal
+          isOpen={isSubscriptionClientsModalOpen}
+          onOpenChange={setSubscriptionClientsModalOpen}
+          userId={currentUserId}
+          username={currentUsername}
+        />
+      )}
     </Dialog>
   )
 }

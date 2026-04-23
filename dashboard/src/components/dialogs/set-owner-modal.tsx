@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, UserCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSetOwner, useBulkSetOwner, UserResponse } from '@/service/api'
+import { useBulkSetOwner, useSetOwnerById, UserResponse } from '@/service/api'
 import { toast } from 'sonner'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
 
 interface SetOwnerModalProps {
   open: boolean
   onClose: () => void
+  userId?: number
   username?: string
   userIds?: number[]
   selectedCount?: number
@@ -18,7 +19,7 @@ interface SetOwnerModalProps {
   onSuccess?: (user?: UserResponse) => void
 }
 
-export default function SetOwnerModal({ open, onClose, username, userIds, selectedCount, currentOwner, onSuccess }: SetOwnerModalProps) {
+export default function SetOwnerModal({ open, onClose, userId, username, userIds, selectedCount, currentOwner, onSuccess }: SetOwnerModalProps) {
   const { t } = useTranslation()
   const [selectedAdmin, setSelectedAdmin] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -28,7 +29,7 @@ export default function SetOwnerModal({ open, onClose, username, userIds, select
   const [isError, setIsError] = useState(false)
   const isBulkMode = Boolean(userIds?.length)
   const bulkCount = selectedCount ?? userIds?.length ?? 0
-  const setOwnerMutation = useSetOwner({
+  const setOwnerMutation = useSetOwnerById({
     mutation: {
       onSuccess: updatedUser => {
         if (onSuccess && updatedUser) {
@@ -84,8 +85,8 @@ export default function SetOwnerModal({ open, onClose, username, userIds, select
         })
         toast.success(t('setOwnerModal.bulkSuccess', { count: bulkCount, admin: selectedAdmin }))
         onSuccess?.()
-      } else if (username) {
-        await setOwnerMutation.mutateAsync({ username, params: { admin_username: selectedAdmin } })
+      } else if (userId) {
+        await setOwnerMutation.mutateAsync({ userId, params: { admin_username: selectedAdmin } })
         toast.success(t('setOwnerModal.success', { username, admin: selectedAdmin }))
       }
       onClose()

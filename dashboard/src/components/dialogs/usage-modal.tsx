@@ -5,7 +5,7 @@ import { ChartContainer, ChartTooltip, ChartConfig } from '../ui/chart'
 import { BarChart3, PieChart as PieChartIcon, TrendingUp, Calendar, Info } from 'lucide-react'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from '../charts/time-selector'
 import { useTranslation } from 'react-i18next'
-import { Period, useGetUserUsage, useGetNodesSimple, useGetCurrentAdmin, NodeSimple, GetUserUsageParams } from '@/service/api'
+import { Period, useGetNodesSimple, useGetCurrentAdmin, useGetUserUsageById, NodeSimple, GetUserUsageParams } from '@/service/api'
 import { DateRange } from 'react-day-picker'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { Button } from '../ui/button'
@@ -27,7 +27,7 @@ import {
 interface UsageModalProps {
   open: boolean
   onClose: () => void
-  username: string
+  userId: number
 }
 
 type NodePieChartDataPoint = {
@@ -175,7 +175,7 @@ function NodePieTooltip({ active, payload }: TooltipProps<number, string>) {
   )
 }
 
-const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
+const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
   // Memoize now only once per modal open
   const nowRef = useRef<number>(Date.now())
   useEffect(() => {
@@ -324,7 +324,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }, [backendPeriod, queryRange.startDate, queryRange.endDate, selectedNodeId, is_sudo])
 
   // Only fetch when modal is open
-  const { data, isLoading } = useGetUserUsage(username, userUsageParams, { query: { enabled: open } })
+  const { data, isLoading } = useGetUserUsageById(userId, userUsageParams, { query: { enabled: open && !!userId } })
 
   // Prepare chart data for BarChart with node grouping
   const processedChartData = useMemo(() => {
