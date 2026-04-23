@@ -6,7 +6,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
-import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsage, useGetUsage } from '@/service/api'
+import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsageById, useGetAdminUsageByUsername, useGetUsage } from '@/service/api'
 import { formatBytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './empty-state'
@@ -109,6 +109,7 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
 
 export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
+  const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
@@ -156,16 +157,23 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
     },
   })
 
-  const { data: adminUsageData, isLoading: isLoadingAdminUsage, error: adminUsageError } = useGetAdminUsage(selectedAdmin, adminUsageParams, {
+  const { data: adminUsageByIdData, isLoading: isLoadingAdminUsageById, error: adminUsageByIdError } = useGetAdminUsageById(selectedAdminId ?? 0, adminUsageParams, {
     query: {
-      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all',
+      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId != null,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const usageData = shouldUseNodeUsage ? nodeUsageData : adminUsageData
-  const isLoading = shouldUseNodeUsage ? isLoadingNodeUsage : isLoadingAdminUsage
-  const error = shouldUseNodeUsage ? nodeUsageError : adminUsageError
+  const { data: adminUsageByUsernameData, isLoading: isLoadingAdminUsageByUsername, error: adminUsageByUsernameError } = useGetAdminUsageByUsername(selectedAdmin, adminUsageParams, {
+    query: {
+      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId == null,
+      refetchInterval: 1000 * 60 * 5,
+    },
+  })
+
+  const usageData = shouldUseNodeUsage ? nodeUsageData : selectedAdminId != null ? adminUsageByIdData : adminUsageByUsernameData
+  const isLoading = shouldUseNodeUsage ? isLoadingNodeUsage : selectedAdminId != null ? isLoadingAdminUsageById : isLoadingAdminUsageByUsername
+  const error = shouldUseNodeUsage ? nodeUsageError : selectedAdminId != null ? adminUsageByIdError : adminUsageByUsernameError
 
   const statsArr = useMemo(
     () => pickStatsArray<NodeUsageStat | UserUsageStat>(usageData?.stats, nodeId !== undefined ? [String(nodeId), '-1'] : ['-1']),
@@ -272,7 +280,15 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                 <Calendar className="h-4 w-4" />
               </button>
             </div>
-            <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="w-full sm:w-[220px] sm:shrink-0" />
+            <AdminFilterCombobox
+              value={selectedAdmin}
+              onValueChange={username => {
+                setSelectedAdmin(username)
+                setSelectedAdminId(null)
+              }}
+              onAdminSelect={admin => setSelectedAdminId(admin?.id ?? null)}
+              className="w-full sm:w-[220px] sm:shrink-0"
+            />
           </div>
           {showCustomRange && (
             <div className="flex w-full">

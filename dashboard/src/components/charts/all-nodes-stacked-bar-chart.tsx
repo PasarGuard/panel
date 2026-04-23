@@ -6,7 +6,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
-import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsage, useGetNodesSimple, type NodeSimple, useGetUsage } from '@/service/api'
+import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsageById, useGetAdminUsageByUsername, useGetNodesSimple, type NodeSimple, useGetUsage } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './empty-state'
@@ -183,6 +183,7 @@ function NodePieTooltip({ active, payload }: TooltipProps<number, string>) {
 export function AllNodesStackedBarChart() {
   const [chartView, setChartView] = useState<'bar' | 'pie'>('bar')
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
+  const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
@@ -263,16 +264,23 @@ export function AllNodesStackedBarChart() {
     },
   })
 
-  const { data: adminUsageData, isLoading: isLoadingAdminUsage, error: adminUsageError } = useGetAdminUsage(selectedAdmin, usageParams, {
+  const { data: adminUsageByIdData, isLoading: isLoadingAdminUsageById, error: adminUsageByIdError } = useGetAdminUsageById(selectedAdminId ?? 0, usageParams, {
     query: {
-      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all',
+      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId != null,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const usageData = shouldUseNodeUsage ? nodeUsageData : adminUsageData
-  const isLoading = shouldUseNodeUsage ? isLoadingNodesUsage : isLoadingAdminUsage
-  const error = shouldUseNodeUsage ? nodesUsageError : adminUsageError
+  const { data: adminUsageByUsernameData, isLoading: isLoadingAdminUsageByUsername, error: adminUsageByUsernameError } = useGetAdminUsageByUsername(selectedAdmin, usageParams, {
+    query: {
+      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId == null,
+      refetchInterval: 1000 * 60 * 5,
+    },
+  })
+
+  const usageData = shouldUseNodeUsage ? nodeUsageData : selectedAdminId != null ? adminUsageByIdData : adminUsageByUsernameData
+  const isLoading = shouldUseNodeUsage ? isLoadingNodesUsage : selectedAdminId != null ? isLoadingAdminUsageById : isLoadingAdminUsageByUsername
+  const error = shouldUseNodeUsage ? nodesUsageError : selectedAdminId != null ? adminUsageByIdError : adminUsageByUsernameError
   const statsByNode = useMemo(() => toStatsRecord<NodeUsageStat | UserUsageStat>(usageData?.stats), [usageData?.stats])
 
   const { chartData, totalUsage } = useMemo(() => {
@@ -493,7 +501,15 @@ export function AllNodesStackedBarChart() {
                 </button>
               </div>
               <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
-                <AdminFilterCombobox value={selectedAdmin} onValueChange={setSelectedAdmin} className="min-w-0 flex-1 sm:w-[220px] sm:flex-none" />
+                <AdminFilterCombobox
+                  value={selectedAdmin}
+                  onValueChange={username => {
+                    setSelectedAdmin(username)
+                    setSelectedAdminId(null)
+                  }}
+                  onAdminSelect={admin => setSelectedAdminId(admin?.id ?? null)}
+                  className="min-w-0 flex-1 sm:w-[220px] sm:flex-none"
+                />
                 <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
                   <button
                     type="button"

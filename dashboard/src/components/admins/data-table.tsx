@@ -18,10 +18,10 @@ interface DataTableProps<TData extends AdminDetails> {
   onDelete: (admin: AdminDetails) => void
   onToggleStatus: (admin: AdminDetails) => void
   setStatusToggleDialogOpen: (isOpen: boolean) => void
-  onResetUsage: (adminUsername: string) => void
-  onDisableAllActiveUsers?: (adminUsername: string) => void
-  onActivateAllDisabledUsers?: (adminUsername: string) => void
-  onRemoveAllUsers?: (adminUsername: string) => void
+  onResetUsage: (admin: AdminDetails) => void
+  onDisableAllActiveUsers?: (admin: AdminDetails) => void
+  onActivateAllDisabledUsers?: (admin: AdminDetails) => void
+  onRemoveAllUsers?: (admin: AdminDetails) => void
   onSelectionChange?: (selectedUsernames: string[]) => void
   resetSelectionKey?: number
   isLoading?: boolean
@@ -44,10 +44,10 @@ const ExpandedRowContent = memo(
     onEdit: (admin: AdminDetails) => void
     onDelete: (admin: AdminDetails) => void
     onToggleStatus: (admin: AdminDetails) => void
-    onResetUsage: (adminUsername: string) => void
-    onDisableAllActiveUsers?: (adminUsername: string) => void
-    onActivateAllDisabledUsers?: (adminUsername: string) => void
-    onRemoveAllUsers?: (adminUsername: string) => void
+    onResetUsage: (admin: AdminDetails) => void
+    onDisableAllActiveUsers?: (admin: AdminDetails) => void
+    onActivateAllDisabledUsers?: (admin: AdminDetails) => void
+    onRemoveAllUsers?: (admin: AdminDetails) => void
     currentAdminUsername?: string
   }) => {
     const { t } = useTranslation()
@@ -96,7 +96,7 @@ const ExpandedRowContent = memo(
                 onSelect={e => {
                   e.preventDefault()
                   e.stopPropagation()
-                  onResetUsage(row.username)
+                  onResetUsage(row)
                 }}
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
@@ -107,7 +107,7 @@ const ExpandedRowContent = memo(
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onDisableAllActiveUsers(row.username)
+                    onDisableAllActiveUsers(row)
                   }}
                 >
                   <UserMinus className="mr-2 h-4 w-4" />
@@ -119,7 +119,7 @@ const ExpandedRowContent = memo(
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onActivateAllDisabledUsers(row.username)
+                    onActivateAllDisabledUsers(row)
                   }}
                 >
                   <UserCheck className="mr-2 h-4 w-4" />
@@ -132,7 +132,7 @@ const ExpandedRowContent = memo(
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onRemoveAllUsers(row.username)
+                    onRemoveAllUsers(row)
                   }}
                 >
                   <UserX className="mr-2 h-4 w-4" />

@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { useCreateAdmin, useModifyAdmin } from '@/service/api'
+import { useCreateAdmin, useModifyAdminById } from '@/service/api'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Pencil, UserCog } from 'lucide-react'
@@ -25,16 +25,17 @@ interface AdminModalProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
   editingAdmin?: boolean
+  editingAdminId?: number
   editingAdminUserName: string
   form: UseFormReturn<AdminFormValuesInput>
 }
 
-export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUserName, editingAdmin, form }: AdminModalProps) {
+export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId, editingAdminUserName, editingAdmin, form }: AdminModalProps) {
   const { t } = useTranslation()
   const handleError = useDynamicErrorHandler()
   const queryClient = useQueryClient()
   const addAdminMutation = useCreateAdmin()
-  const modifyAdminMutation = useModifyAdmin()
+  const modifyAdminMutation = useModifyAdminById()
 
   useEffect(() => {
     if (!isDialogOpen) setNotificationExpanded(false)
@@ -70,9 +71,9 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
         discord_id: values.discord_id,
         notification_enable: values.notification_enable || null,
       }
-      if (editingAdmin && editingAdminUserName) {
+      if (editingAdmin && editingAdminId != null) {
         const updatedAdmin = await modifyAdminMutation.mutateAsync({
-          username: editingAdminUserName,
+          adminId: editingAdminId,
           data: editData,
         })
         upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })

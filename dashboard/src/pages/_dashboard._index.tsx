@@ -279,7 +279,7 @@ const Dashboard = () => {
       {/* Only render AdminModal for sudo admins */}
       {is_sudo && isAdminModalOpen && (
         <Suspense fallback={<div />}>
-          <AdminModal isDialogOpen={isAdminModalOpen} onOpenChange={setAdminModalOpen} form={adminForm} editingAdmin={false} editingAdminUserName="" />
+          <AdminModal isDialogOpen={isAdminModalOpen} onOpenChange={setAdminModalOpen} form={adminForm} editingAdmin={false} editingAdminId={undefined} editingAdminUserName="" />
         </Suspense>
       )}
       {isTemplateModalOpen && (

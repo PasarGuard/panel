@@ -61,6 +61,7 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
   const dir = useDirDetection()
   const [search, setSearch] = useState(filters.username || '')
   const onFilterChangeRef = useRef(onFilterChange)
+  const compactActionButtonClass = 'relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10'
 
   // Keep the ref in sync with the prop
   onFilterChangeRef.current = onFilterChange
@@ -140,7 +141,7 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
                 type="button"
                 size="icon-md"
                 variant="ghost"
-                className="relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10"
+                className={compactActionButtonClass}
                 aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}
               >
                 <ArrowUpDown className="h-4 w-4" />
@@ -180,7 +181,7 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
 
       {/* Refresh Button */}
       <div className="flex h-full flex-shrink-0 items-center gap-0">
-        <Button type="button" size="icon-md" onClick={handleRefreshClick} variant="ghost" className="flex items-center gap-2 border">
+        <Button type="button" size="icon-md" onClick={handleRefreshClick} variant="ghost" className={compactActionButtonClass}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>

@@ -105,7 +105,7 @@ function CustomBarTooltip({ active, payload, period }: CustomBarTooltipProps) {
   )
 }
 
-const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
+const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUsername?: string }) => {
   const { t, i18n } = useTranslation()
   const { admin } = useAdmin()
   const dir = useDirDetection()
@@ -139,7 +139,7 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
   const queryRange = useMemo(() => getChartQueryRangeFromShortcut(periodOption.value, new Date(), { minuteForOneHour: true }), [periodOption.value])
   const activePeriod = queryRange.period
 
-  const shouldUseNodeUsage = is_sudo && !admin_username
+  const shouldUseNodeUsage = is_sudo && adminId == null && !adminUsername
 
   const nodeUsageParams = useMemo(
     () => ({
@@ -152,12 +152,12 @@ const DataUsageChart = ({ admin_username }: { admin_username?: string }) => {
 
   const userUsageParams = useMemo(
     () => ({
-      ...(admin_username ? { admin: [admin_username] } : {}),
+      ...(adminId != null ? { admin_id: adminId } : adminUsername ? { admin: [adminUsername] } : {}),
       period: activePeriod,
       start: queryRange.startDate,
       end: queryRange.endDate,
     }),
-    [admin_username, activePeriod, queryRange.startDate, queryRange.endDate],
+    [adminId, adminUsername, activePeriod, queryRange.startDate, queryRange.endDate],
   )
 
   const { data: nodeData, isLoading: isLoadingNodes } = useGetUsage(nodeUsageParams, {

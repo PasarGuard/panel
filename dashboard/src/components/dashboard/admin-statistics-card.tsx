@@ -61,8 +61,8 @@ const AdminStatisticsCard = ({
   // Use admin-specific stats if available, otherwise fall back to global stats
   const statsToUse = adminSystemStats || systemStats
 
-  // For DataUsageChart: pass admin_username for specific admin data, except for 'Total' which shows global data
-  const shouldPassAdminUsername = admin.username !== 'Total'
+  // For DataUsageChart: prefer admin id for specific admin data, except for 'Total' which shows global data.
+  const shouldScopeAdminData = admin.username !== 'Total'
 
   if (showAdminInfo)
     return (
@@ -81,7 +81,7 @@ const AdminStatisticsCard = ({
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <UserStatisticsCard data={statsToUse} />
-          <DeferredDataUsageChart admin_username={shouldPassAdminUsername ? admin.username : undefined} />
+          <DeferredDataUsageChart adminId={shouldScopeAdminData ? admin.id ?? undefined : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
         </div>
       </div>
     )
@@ -89,7 +89,7 @@ const AdminStatisticsCard = ({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <UserStatisticsCard data={statsToUse} />
-      <DeferredDataUsageChart admin_username={shouldPassAdminUsername ? admin.username : undefined} />
+      <DeferredDataUsageChart adminId={shouldScopeAdminData ? admin.id ?? undefined : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
     </div>
   )
 }
