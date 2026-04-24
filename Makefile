@@ -1,6 +1,6 @@
 # Makefile to check and set up Python 3.14 free-threaded and a virtual environment
 
-PYTHON_VERSION=3.14t
+PYTHON_VERSION?=3.14t
 VENV_DIR=.venv
 RUNTIME_ENV=PYTHON_GIL=1 DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 MSGPACK_PUREPYTHON=1
 

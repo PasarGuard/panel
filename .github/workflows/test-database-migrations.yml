@@ -1,6 +1,8 @@
 name: Test Database Migrations
 
 env:
+    PYTHON_VERSION: "3.14"
+    UV_NO_MANAGED_PYTHON: "1"
     PYTHON_GIL: "1"
     DISABLE_SQLALCHEMY_CEXT_RUNTIME: "1"
     MSGPACK_PUREPYTHON: "1"
@@ -24,7 +26,7 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.14t"
+                  python-version: "${{ env.PYTHON_VERSION }}"
 
             - name: Set DATABASE_URL
               run: |
@@ -63,16 +65,13 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.14t"
-
-            - name: Install libpq runtime
-              run: sudo apt-get update && sudo apt-get install -y libpq5
+                  python-version: "${{ env.PYTHON_VERSION }}"
 
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
                   echo "TESTING=1" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/testdb" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/testdb" >> $GITHUB_ENV
 
             - name: Install dependencies
               run: make setup
@@ -107,16 +106,13 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.14t"
-
-            - name: Install libpq runtime
-              run: sudo apt-get update && sudo apt-get install -y libpq5
+                  python-version: "${{ env.PYTHON_VERSION }}"
 
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
                   echo "TESTING=1" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/testdb" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/testdb" >> $GITHUB_ENV
                   echo "NATS_ENABLED=1" >> $GITHUB_ENV
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "UVICORN_WORKERS=2" >> $GITHUB_ENV
@@ -129,16 +125,20 @@ jobs:
                   uv run python - <<'PY'
                   import os
                   import time
-                  import psycopg
+                  import asyncio
+                  import asyncpg
                   from sqlalchemy.engine import make_url
 
                   url = make_url(os.environ["SQLALCHEMY_DATABASE_URL"])
-                  dsn = url.set(drivername="postgresql").render_as_string(hide_password=False)
+                  dsn = str(url.set(drivername="postgresql"))
+
+                  async def connect_once():
+                      conn = await asyncpg.connect(dsn)
+                      await conn.close()
 
                   for _ in range(30):
                       try:
-                          conn = psycopg.connect(dsn, connect_timeout=5)
-                          conn.close()
+                          asyncio.run(connect_once())
                           print("TimescaleDB is ready.")
                           break
                       except Exception as exc:
@@ -190,13 +190,13 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.14t"
+                  python-version: "${{ env.PYTHON_VERSION }}"
 
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
                   echo "TESTING=1" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=mysql+aiomysql://root:root@localhost:3306/testdb" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3306/testdb" >> $GITHUB_ENV
 
             - name: Install dependencies
               run: make setup
@@ -232,13 +232,13 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.14t"
+                  python-version: "${{ env.PYTHON_VERSION }}"
 
             - name: Set DATABASE_URL
               run: |
                   echo "TEST_FROM=github" >> $GITHUB_ENV
                   echo "TESTING=1" >> $GITHUB_ENV
-                  echo "SQLALCHEMY_DATABASE_URL=mysql+aiomysql://testuser:testpassword@localhost:3307/testdb" >> $GITHUB_ENV
+                  echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb" >> $GITHUB_ENV
                   echo "NATS_ENABLED=1" >> $GITHUB_ENV
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "UVICORN_WORKERS=2" >> $GITHUB_ENV
@@ -332,7 +332,7 @@ jobs:
 
             - name: Run Tests (multi-worker)
               run: |
-                  SCHEDULER_JOBSTORE_URL=mysql+aiomysql://testuser:testpassword@localhost:3307/testdb ROLE=node uv run python node_worker.py &
-                  SCHEDULER_JOBSTORE_URL=mysql+aiomysql://testuser:testpassword@localhost:3307/testdb ROLE=scheduler uv run python scheduler_worker.py &
+                  SCHEDULER_JOBSTORE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb ROLE=node uv run python node_worker.py &
+                  SCHEDULER_JOBSTORE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb ROLE=scheduler uv run python scheduler_worker.py &
                   sleep 5
                   make test
