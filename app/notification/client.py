@@ -16,8 +16,7 @@ from app.notification.queue_manager import (
 from app.settings import notification_settings
 from app.utils.logger import get_logger
 
-client = None
-proxy_url = None
+client: aiohttp.ClientSession | None = None
 
 
 async def define_client():
@@ -25,13 +24,14 @@ async def define_client():
     Re-create the global aiohttp.ClientSession.
     Call this function after changing the proxy setting.
     """
-    global client, proxy_url
+    global client
     if client and not client.closed:
         asyncio.create_task(client.close())
     settings = await notification_settings()
     proxy_url = settings.proxy_url
     client = aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=10),
+        proxy=proxy_url if proxy_url else None,
     )
 
 
@@ -48,7 +48,7 @@ async def _send_discord_webhook_direct(json_data, webhook, max_retries: int) -> 
     retries = 0
     while retries < max_retries:
         try:
-            response = await client.post(webhook, json=json_data, proxy=proxy_url)
+            response = await client.post(webhook, json=json_data)
             if response.status in [200, 204]:
                 logger.debug(f"Discord webhook payload delivered successfully, code {response.status}.")
                 return True
@@ -109,7 +109,7 @@ async def _send_telegram_message_direct(
     retries = 0
     while retries < max_retries:
         try:
-            response = await client.post(base_url, data=payload, proxy=proxy_url)
+            response = await client.post(base_url, data=payload)
             if response.status == 200:
                 logger.debug(f"Telegram message sent successfully, code {response.status}.")
                 return True
