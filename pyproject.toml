@@ -46,6 +46,8 @@ dependencies = [
     "pip-system-certs>=5.3",
     "pymysql>=1.1.2",
     "nats-py>=2.12.0",
+    "psycopg>=3.2",
+    "aiomysql>=0.2.0",
 ]
 
 [tool.ruff]

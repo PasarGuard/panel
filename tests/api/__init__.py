@@ -64,8 +64,12 @@ def run_migrations_sync():
             sync_db_url = sync_db_url.replace("sqlite+aiosqlite", "sqlite")
         elif "postgresql+asyncpg" in sync_db_url:
             sync_db_url = sync_db_url.replace("postgresql+asyncpg", "postgresql+pg8000")
+        elif "postgresql+psycopg_async" in sync_db_url:
+            sync_db_url = sync_db_url.replace("postgresql+psycopg_async", "postgresql+psycopg")
         elif "mysql+asyncmy" in sync_db_url:
             sync_db_url = sync_db_url.replace("mysql+asyncmy", "mysql+pymysql")
+        elif "mysql+aiomysql" in sync_db_url:
+            sync_db_url = sync_db_url.replace("mysql+aiomysql", "mysql+pymysql")
 
         print(f"[migrations] Running migrations with database: {sync_db_url}")
 

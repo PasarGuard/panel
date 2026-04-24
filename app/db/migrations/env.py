@@ -33,8 +33,11 @@ target_metadata = Base.metadata
 ASYNC_TO_SYNC_DRIVER = {
     "sqlite+aiosqlite": "sqlite",
     "postgresql+asyncpg": "postgresql+pg8000",
+    "postgresql+psycopg_async": "postgresql+psycopg",
     "mysql+asyncmy": "mysql+pymysql",
+    "mysql+aiomysql": "mysql+pymysql",
     "mariadb+asyncmy": "mariadb+pymysql",
+    "mariadb+aiomysql": "mariadb+pymysql",
 }
 
 # other values from the config, defined by the needs of env.py,
