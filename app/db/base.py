@@ -1,4 +1,6 @@
 # ruff: noqa: E402
+import os
+
 from runtime_compat import configure_free_threaded_runtime
 
 configure_free_threaded_runtime()
@@ -16,13 +18,16 @@ from config import (
 )
 
 IS_SQLITE = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
+SKIP_ENGINE_CREATION = os.getenv("PASARGUARD_SKIP_DB_ENGINE") == "1"
 
-if IS_SQLITE:
-    engine = create_async_engine(
-        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}, echo=ECHO_SQL_QUERIES
-    )
-else:
-    engine = create_async_engine(
+
+def create_db_engine():
+    if IS_SQLITE:
+        return create_async_engine(
+            SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}, echo=ECHO_SQL_QUERIES
+        )
+
+    return create_async_engine(
         SQLALCHEMY_DATABASE_URL,
         pool_size=SQLALCHEMY_POOL_SIZE,
         max_overflow=SQLALCHEMY_MAX_OVERFLOW,
@@ -32,7 +37,11 @@ else:
         echo=ECHO_SQL_QUERIES,
     )
 
-SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+
+engine = None if SKIP_ENGINE_CREATION else create_db_engine()
+SessionLocal = None if SKIP_ENGINE_CREATION else async_sessionmaker(
+    autocommit=False, autoflush=False, expire_on_commit=False, bind=engine
+)
 
 naming_convention = {
     "ix": "ix_%(column_0_label)s",
@@ -51,6 +60,8 @@ class Base(DeclarativeBase, MappedAsDataclass, AsyncAttrs):
 
 class GetDB:  # Context Manager
     def __init__(self):
+        if SessionLocal is None:
+            raise RuntimeError("Database sessions are not available while engine creation is disabled")
         self.db = SessionLocal()
 
     async def __aenter__(self):

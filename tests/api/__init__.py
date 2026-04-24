@@ -63,7 +63,7 @@ def run_migrations_sync():
         if "sqlite+aiosqlite" in sync_db_url:
             sync_db_url = sync_db_url.replace("sqlite+aiosqlite", "sqlite")
         elif "postgresql+asyncpg" in sync_db_url:
-            sync_db_url = sync_db_url.replace("postgresql+asyncpg", "postgresql")
+            sync_db_url = sync_db_url.replace("postgresql+asyncpg", "postgresql+pg8000")
         elif "mysql+asyncmy" in sync_db_url:
             sync_db_url = sync_db_url.replace("mysql+asyncmy", "mysql+pymysql")
 

@@ -1,14 +1,14 @@
-import asyncio
+import os
 from logging.config import fileConfig
 
 from runtime_compat import configure_free_threaded_runtime
 
 configure_free_threaded_runtime()
+os.environ.setdefault("PASARGUARD_SKIP_DB_ENGINE", "1")
 
-from sqlalchemy import pool
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
+from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import Connection, make_url
 
 from app.db.base import Base
 from config import SQLALCHEMY_DATABASE_URL
@@ -29,6 +29,13 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
+
+ASYNC_TO_SYNC_DRIVER = {
+    "sqlite+aiosqlite": "sqlite",
+    "postgresql+asyncpg": "postgresql+pg8000",
+    "mysql+asyncmy": "mysql+pymysql",
+    "mariadb+asyncmy": "mariadb+pymysql",
+}
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -68,22 +75,30 @@ def do_run_migrations(connection: Connection) -> None:
         context.run_migrations()
 
 
-async def run_async_migrations() -> None:
-    """In this scenario we need to create an Engine
-    and associate a connection with the context.
+def get_sync_database_url(url: str) -> str:
+    database_url = make_url(url)
+    sync_driver = ASYNC_TO_SYNC_DRIVER.get(database_url.drivername)
 
-    """
+    if sync_driver is None:
+        return database_url.render_as_string(hide_password=False)
 
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+    return database_url.set(drivername=sync_driver).render_as_string(hide_password=False)
+
+
+def run_sync_migrations() -> None:
+    section = config.get_section(config.config_ini_section, {})
+    section["sqlalchemy.url"] = get_sync_database_url(config.get_main_option("sqlalchemy.url"))
+
+    connectable = engine_from_config(
+        section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+    with connectable.connect() as connection:
+        do_run_migrations(connection)
 
-    await connectable.dispose()
+    connectable.dispose()
 
 
 def run_migrations_online() -> None:
@@ -94,7 +109,7 @@ def run_migrations_online() -> None:
         do_run_migrations(existing_connection)
         return
 
-    asyncio.run(run_async_migrations())
+    run_sync_migrations()
 
 
 if context.is_offline_mode():
