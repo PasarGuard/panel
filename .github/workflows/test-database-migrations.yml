@@ -1,6 +1,7 @@
 name: Test Database Migrations
 
 env:
+    PYTHON_GIL: "1"
     DISABLE_SQLALCHEMY_CEXT_RUNTIME: "1"
     MSGPACK_PUREPYTHON: "1"
 
