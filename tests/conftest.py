@@ -9,6 +9,11 @@ from pydantic import PydanticDeprecatedSince20
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
+from runtime_compat import configure_free_threaded_runtime  # noqa
+
+configure_free_threaded_runtime()
+os.environ.setdefault("TESTING", "1")
+os.environ.setdefault("DEBUG", "0")
 # Override the config module for tests
 import config  # noqa
 

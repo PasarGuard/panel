@@ -1,3 +1,8 @@
+# ruff: noqa: E402
+from runtime_compat import configure_free_threaded_runtime
+
+configure_free_threaded_runtime()
+
 from app.app_factory import create_app
 from app.lifecycle import lifespan, on_shutdown, on_startup
 from app.scheduler import scheduler

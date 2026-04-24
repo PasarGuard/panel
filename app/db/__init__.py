@@ -1,3 +1,8 @@
+# ruff: noqa: E402
+from runtime_compat import configure_free_threaded_runtime
+
+configure_free_threaded_runtime()
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Base, GetDB, get_db  # noqa

@@ -1,3 +1,8 @@
+# ruff: noqa: E402
+from runtime_compat import configure_free_threaded_runtime
+
+configure_free_threaded_runtime()
+
 from sqlalchemy import String, Numeric, TypeDecorator
 from sqlalchemy.sql.expression import FunctionElement
 from sqlalchemy.ext.compiler import compiles

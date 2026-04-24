@@ -1,3 +1,8 @@
+# ruff: noqa: E402
+from runtime_compat import configure_free_threaded_runtime
+
+configure_free_threaded_runtime()
+
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 from sqlalchemy import MetaData

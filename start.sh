@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 ROLE="${ROLE:-all-in-one}"
+export DISABLE_SQLALCHEMY_CEXT_RUNTIME="${DISABLE_SQLALCHEMY_CEXT_RUNTIME:-1}"
+export MSGPACK_PUREPYTHON="${MSGPACK_PUREPYTHON:-1}"
 
 if [ "${ROLE}" = "node" ]; then
     exec python node_worker.py

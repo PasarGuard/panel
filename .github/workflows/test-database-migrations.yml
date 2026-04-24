@@ -1,5 +1,9 @@
 name: Test Database Migrations
 
+env:
+    DISABLE_SQLALCHEMY_CEXT_RUNTIME: "1"
+    MSGPACK_PUREPYTHON: "1"
+
 on:
     push:
         paths:
@@ -19,7 +23,7 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.12"
+                  python-version: "3.14t"
 
             - name: Set DATABASE_URL
               run: |
@@ -32,6 +36,9 @@ jobs:
 
             - name: Run Alembic Migrations
               run: make run-migration
+
+            - name: Check Migration Sync
+              run: make check-migrations
 
             - name: Run Tests
               run: make test
@@ -55,7 +62,7 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.12"
+                  python-version: "3.14t"
 
             - name: Set DATABASE_URL
               run: |
@@ -68,6 +75,9 @@ jobs:
 
             - name: Run Alembic Migrations
               run: make run-migration
+
+            - name: Check Migration Sync
+              run: make check-migrations
 
             - name: Run Tests
               run: make test
@@ -93,7 +103,7 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.12"
+                  python-version: "3.14t"
 
             - name: Set DATABASE_URL
               run: |
@@ -112,17 +122,22 @@ jobs:
                   uv run python - <<'PY'
                   import os
                   import time
-                  import psycopg
+                  import asyncio
+                  import asyncpg
                   from sqlalchemy.engine import make_url
 
                   url = make_url(os.environ["SQLALCHEMY_DATABASE_URL"])
                   dsn = str(url.set(drivername="postgresql"))
 
+                  async def connect_once():
+                      conn = await asyncpg.connect(dsn)
+                      await conn.close()
+
                   for _ in range(30):
                       try:
-                          with psycopg.connect(dsn):
-                              print("TimescaleDB is ready.")
-                              break
+                          asyncio.run(connect_once())
+                          print("TimescaleDB is ready.")
+                          break
                       except Exception as exc:
                           print(f"Waiting for TimescaleDB: {exc}")
                           time.sleep(1)
@@ -142,6 +157,9 @@ jobs:
 
             - name: Run Alembic Migrations
               run: make run-migration
+
+            - name: Check Migration Sync
+              run: make check-migrations
 
             - name: Run Tests (multi-worker)
               run: |
@@ -169,7 +187,7 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.12"
+                  python-version: "3.14t"
 
             - name: Set DATABASE_URL
               run: |
@@ -182,6 +200,9 @@ jobs:
 
             - name: Run Alembic Migrations
               run: make run-migration
+
+            - name: Check Migration Sync
+              run: make check-migrations
 
             - name: Run Tests
               run: make test
@@ -208,7 +229,7 @@ jobs:
             - uses: actions/checkout@v6
             - uses: actions/setup-python@v6
               with:
-                  python-version: "3.12"
+                  python-version: "3.14t"
 
             - name: Set DATABASE_URL
               run: |
@@ -302,6 +323,9 @@ jobs:
 
             - name: Run Alembic Migrations
               run: make run-migration
+
+            - name: Check Migration Sync
+              run: make check-migrations
 
             - name: Run Tests (multi-worker)
               run: |

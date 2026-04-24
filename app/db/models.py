@@ -1,7 +1,12 @@
+# ruff: noqa: E402
 import os
 from datetime import datetime as dt, timezone as tz
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+from runtime_compat import configure_free_threaded_runtime
+
+configure_free_threaded_runtime()
 
 from sqlalchemy import (
     JSON,

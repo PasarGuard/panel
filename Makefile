@@ -1,20 +1,8 @@
-# Makefile to check and set up Python 3.12 and a virtual environment
+# Makefile to check and set up Python 3.14 free-threaded and a virtual environment
 
-PYTHON_VERSION=3.12
+PYTHON_VERSION=3.14t
 VENV_DIR=.venv
-
-# Check if Python 3.12 is installed, if not, install it
-.PHONY: check-python
-check-python:
-	@if ! python${PYTHON_VERSION} --version | grep -q "$(PYTHON_VERSION)"; then \
-		echo "Python $(PYTHON_VERSION) is not installed. Installing..."; \
-		sudo add-apt-repository -y ppa:deadsnakes/ppa && sudo apt update && sudo apt install -y python$(PYTHON_VERSION) python$(PYTHON_VERSION)-venv || { \
-			echo "Failed to install Python $(PYTHON_VERSION). Please install it manually."; \
-			exit 1; \
-		}; \
-	else \
-		echo "Python $(PYTHON_VERSION) is installed."; \
-	fi
+RUNTIME_ENV=DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 MSGPACK_PUREPYTHON=1
 
 .PHONY: install_uv
 install_uv:
@@ -26,10 +14,23 @@ install_uv:
 		echo "uv is already installed."; \
 	fi
 
+# Check if Python 3.14 free-threaded is installed, if not, install it with uv
+.PHONY: check-python
+check-python: install_uv
+	@if ! uv python find $(PYTHON_VERSION) >/dev/null 2>&1; then \
+		echo "Python $(PYTHON_VERSION) is not installed. Installing..."; \
+		uv python install $(PYTHON_VERSION) || { \
+			echo "Failed to install Python $(PYTHON_VERSION). Please install it manually."; \
+			exit 1; \
+		}; \
+	else \
+		echo "Python $(PYTHON_VERSION) is installed."; \
+	fi
+
 # Install Python dependencies from pyproject.toml
 .PHONY: requirements
 requirements:
-	@uv sync
+	@uv sync --python $(PYTHON_VERSION)
 
 # Check if nvm is installed, if not, install it
 .PHONY: check-nvm
@@ -82,49 +83,53 @@ install-front: check-bun
 # Run database migrations using Alembic
 .PHONY: run-migration
 run-migration:
-	@uv run alembic upgrade head 
+	@$(RUNTIME_ENV) uv run --python $(PYTHON_VERSION) alembic upgrade head 
+
+.PHONY: check-migrations
+check-migrations:
+	@$(RUNTIME_ENV) uv run --python $(PYTHON_VERSION) alembic check
 
 # run PasarGuard
 .PHONY: run
 run:
-	@uv run main.py
+	@$(RUNTIME_ENV) uv run --python $(PYTHON_VERSION) main.py
 
 # run pasarguard-cli
 .PHONY: run-cli
 run-cli:
-	@uv run pasarguard-cli.py
+	@$(RUNTIME_ENV) uv run --python $(PYTHON_VERSION) pasarguard-cli.py
 
 # run pasarguard-tui
 .PHONY: run-tui
 run-tui:
-	@uv run pasarguard-tui.py
+	@$(RUNTIME_ENV) uv run --python $(PYTHON_VERSION) pasarguard-tui.py
 
 
 # Run tests
 .PHONY: test
 test:
-	@uv run pytest tests/
+	@$(RUNTIME_ENV) TESTING=1 DEBUG=0 uv run --python $(PYTHON_VERSION) pytest tests/
 
 # Run tests-watch
 .PHONY: test-whatch
 test-whatch:
-	@uv run ptw
+	@$(RUNTIME_ENV) TESTING=1 DEBUG=0 uv run --python $(PYTHON_VERSION) ptw
 
-# Run PasarGuard with watchfiles
+# Run PasarGuard with Uvicorn reload
 .PHONY: run-watch
 run-watch:
-	@echo "Running application with watchfiles..."
-	@uv run watchfiles --filter python "uv run main.py" .
+	@echo "Running application with reload enabled..."
+	@$(RUNTIME_ENV) DEBUG=1 uv run --python $(PYTHON_VERSION) main.py
 
 # Check code
 .PHONY: check
 check:
-	@uv run ruff check .
+	@uv run --python $(PYTHON_VERSION) ruff check .
 
 # Format code
 .PHONY: format
 format:
-	@uv run ruff format .
+	@uv run --python $(PYTHON_VERSION) ruff format .
 
 # Clean the environment
 .PHONY: clean
@@ -134,7 +139,7 @@ clean:
 
 # Setup environment: check Python, install uv, and sync requirements
 .PHONY: setup
-setup: check-python install_uv requirements
+setup: install_uv check-python requirements
 
 # Format code (front-end)
 .PHONY: fformat

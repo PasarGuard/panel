@@ -1,4 +1,9 @@
+# ruff: noqa: E402
 import asyncio
+
+from runtime_compat import configure_free_threaded_runtime
+
+configure_free_threaded_runtime()
 
 from decouple import UndefinedValueError, config
 from pydantic import ValidationError

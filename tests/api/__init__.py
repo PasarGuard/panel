@@ -1,5 +1,10 @@
+# ruff: noqa: E402
 import asyncio
 import json
+
+from runtime_compat import configure_free_threaded_runtime
+
+configure_free_threaded_runtime()
 
 from alembic.command import upgrade
 from alembic.config import Config

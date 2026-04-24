@@ -1,5 +1,10 @@
 import asyncio
 from logging.config import fileConfig
+
+from runtime_compat import configure_free_threaded_runtime
+
+configure_free_threaded_runtime()
+
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -54,6 +59,8 @@ def run_migrations_offline() -> None:
 
     with context.begin_transaction():
         context.run_migrations()
+
+
 def do_run_migrations(connection: Connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
 
