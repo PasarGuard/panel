@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime as dt, timedelta as td, timezone as tz
 
-import httpx
+import aiohttp
 from sqlalchemy import delete
 
 from app import on_shutdown, scheduler
@@ -9,9 +9,9 @@ from app.db import GetDB
 from app.db.models import NotificationReminder
 from app.models.settings import Webhook
 from app.notification.queue_manager import (
-    get_webhook_queue,
     WebhookNotification,
     enqueue_webhook,
+    get_webhook_queue,
     shutdown_webhook_queue,
 )
 from app.settings import webhook_settings
@@ -21,7 +21,7 @@ from config import JOB_SEND_NOTIFICATIONS_INTERVAL, ROLE
 logger = get_logger("send-notification")
 
 
-async def send_to_all_webhooks(client: httpx.AsyncClient, notifications, webhooks):
+async def send_to_all_webhooks(client: aiohttp.ClientSession, notifications, webhooks, proxy_url=None):
     """
     Send the notifications to all webhooks concurrently.
     Returns True if at least one webhook succeeds.
@@ -35,11 +35,11 @@ async def send_to_all_webhooks(client: httpx.AsyncClient, notifications, webhook
     async def send_one(webhook):
         webhook_headers = {"x-webhook-secret": webhook.secret} if webhook.secret else None
         try:
-            r = await client.post(webhook.url, json=payload, headers=webhook_headers)
-            if r.status_code in (200, 201, 202, 204):
+            r = await client.post(webhook.url, json=payload, headers=webhook_headers, proxy=proxy_url)
+            if r.status in (200, 201, 202, 204):
                 return True
             else:
-                logger.error(f"Webhook {webhook.url} failed: {r.status_code} - {r.text}")
+                logger.error(f"Webhook {webhook.url} failed: {r.status} - {await r.text()}")
         except Exception as err:
             logger.error(f"Webhook {webhook.url} exception: {err}")
         return False
@@ -61,7 +61,7 @@ async def send_notifications():
     current_time = dt.now(tz.utc).timestamp()
 
     try:
-        async with httpx.AsyncClient(http2=True, timeout=httpx.Timeout(10), proxy=settings.proxy_url) as client:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as client:
             webhook_queue = get_webhook_queue()
             while True:
                 try:
@@ -97,7 +97,7 @@ async def send_notifications():
                     )
                     # Extract payloads from WebhookNotification objects
                     payloads = [notif.payload for notif in batch]
-                    success = await send_to_all_webhooks(client, payloads, settings.webhooks)
+                    success = await send_to_all_webhooks(client, payloads, settings.webhooks, settings.proxy_url)
 
                     if not success:
                         retry_at = dt.now(tz.utc).timestamp()

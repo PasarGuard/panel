@@ -1131,6 +1131,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "aiocache" },
     { name = "aiogram" },
+    { name = "aiohttp" },
     { name = "aiohttp-socks" },
     { name = "aiorwlock" },
     { name = "aiosqlite" },
@@ -1144,7 +1145,6 @@ dependencies = [
     { name = "cryptography" },
     { name = "deprecated" },
     { name = "fastapi" },
-    { name = "httpx" },
     { name = "jdatetime" },
     { name = "jinja2" },
     { name = "nats-py" },
@@ -1186,6 +1186,7 @@ dev = [
 requires-dist = [
     { name = "aiocache", specifier = ">=0.12.3" },
     { name = "aiogram", specifier = ">=3.23.0" },
+    { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "aiohttp-socks", specifier = ">=0.10.1" },
     { name = "aiorwlock", specifier = ">=1.5.0" },
     { name = "aiosqlite", specifier = ">=0.21.0" },
@@ -1199,7 +1200,6 @@ requires-dist = [
     { name = "cryptography", specifier = "==46.0.7" },
     { name = "deprecated", specifier = "==1.2.13" },
     { name = "fastapi", specifier = ">=0.136.1" },
-    { name = "httpx", specifier = ">=0.28.1" },
     { name = "jdatetime", specifier = ">=5.2.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "nats-py", specifier = ">=2.12.0" },

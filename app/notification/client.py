@@ -2,7 +2,7 @@ import asyncio
 from contextlib import suppress
 from typing import Any
 
-import httpx
+import aiohttp
 
 from app import on_startup
 from app.models.settings import NotificationSettings
@@ -16,22 +16,22 @@ from app.notification.queue_manager import (
 from app.settings import notification_settings
 from app.utils.logger import get_logger
 
-
 client = None
+proxy_url = None
 
 
 async def define_client():
     """
-    Re-create the global httpx.AsyncClient.
+    Re-create the global aiohttp.ClientSession.
     Call this function after changing the proxy setting.
     """
-    global client
-    if client and not client.is_closed:
-        asyncio.create_task(client.aclose())
-    client = httpx.AsyncClient(
-        http2=True,
-        timeout=httpx.Timeout(10),
-        proxy=(await notification_settings()).proxy_url,
+    global client, proxy_url
+    if client and not client.closed:
+        asyncio.create_task(client.close())
+    settings = await notification_settings()
+    proxy_url = settings.proxy_url
+    client = aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=10),
     )
 
 
@@ -48,24 +48,24 @@ async def _send_discord_webhook_direct(json_data, webhook, max_retries: int) -> 
     retries = 0
     while retries < max_retries:
         try:
-            response = await client.post(webhook, json=json_data)
-            if response.status_code in [200, 204]:
-                logger.debug(f"Discord webhook payload delivered successfully, code {response.status_code}.")
+            response = await client.post(webhook, json=json_data, proxy=proxy_url)
+            if response.status in [200, 204]:
+                logger.debug(f"Discord webhook payload delivered successfully, code {response.status}.")
                 return True
-            elif response.status_code == 429:
+            elif response.status == 429:
                 retries += 1
                 if retries < max_retries:
                     # Extract retry_after from response
                     try:
-                        retry_after = response.json().get("retry_after", 0.5)
+                        retry_after = (await response.json()).get("retry_after", 0.5)
                     except Exception:
                         retry_after = 0.5
                     logger.warning(f"Discord rate limit hit, waiting {retry_after}s (attempt {retries}/{max_retries})")
                     await asyncio.sleep(retry_after)
                     continue
             else:
-                response_text = response.text
-                logger.error(f"Discord webhook failed: {response.status_code} - {response_text}")
+                response_text = await response.text()
+                logger.error(f"Discord webhook failed: {response.status} - {response_text}")
                 return False
         except Exception as err:
             logger.error(f"Discord webhook failed Exception: {str(err)}")
@@ -109,24 +109,24 @@ async def _send_telegram_message_direct(
     retries = 0
     while retries < max_retries:
         try:
-            response = await client.post(base_url, data=payload)
-            if response.status_code == 200:
-                logger.debug(f"Telegram message sent successfully, code {response.status_code}.")
+            response = await client.post(base_url, data=payload, proxy=proxy_url)
+            if response.status == 200:
+                logger.debug(f"Telegram message sent successfully, code {response.status}.")
                 return True
-            elif response.status_code == 429:
+            elif response.status == 429:
                 retries += 1
                 if retries < max_retries:
                     # Extract retry_after from Telegram response
                     try:
-                        retry_after = response.json().get("parameters", {}).get("retry_after", 0.5)
+                        retry_after = (await response.json()).get("parameters", {}).get("retry_after", 0.5)
                     except Exception:
                         retry_after = 0.5
                     logger.warning(f"Telegram rate limit hit, waiting {retry_after}s (attempt {retries}/{max_retries})")
                     await asyncio.sleep(retry_after)
                     continue
             else:
-                response_text = response.text
-                logger.error(f"Telegram message failed: {response.status_code} - {response_text}")
+                response_text = await response.text()
+                logger.error(f"Telegram message failed: {response.status} - {response_text}")
                 return False
         except Exception as err:
             logger.error(f"Telegram message failed: {str(err)}")
