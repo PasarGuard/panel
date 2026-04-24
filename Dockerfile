@@ -39,7 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python -c "import sysconfig; raise SystemExit('Python is not a free-threaded build') if sysconfig.get_config_var('Py_GIL_DISABLED') != 1 else None"
+RUN python -c "import sys, sysconfig; sys.exit(0 if sysconfig.get_config_var('Py_GIL_DISABLED') == 1 else 'Python is not a free-threaded build')"
 
 COPY cli_wrapper.sh /usr/bin/pasarguard-cli
 RUN chmod +x /usr/bin/pasarguard-cli
