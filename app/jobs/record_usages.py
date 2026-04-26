@@ -24,15 +24,20 @@ from app.utils.logger import get_logger
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
     ROLE,
+    JOB_RECORD_USAGE_DB_CONCURRENCY,
+    JOB_RECORD_USAGE_NODE_CONCURRENCY,
     JOB_RECORD_NODE_USAGES_INTERVAL,
     JOB_RECORD_USER_USAGES_INTERVAL,
 )
 
 logger = get_logger("record-usages")
 
-# Hard-limit concurrency: Prevent DB lock storms
-# Start with 2-4, adjust based on DB performance
-JOB_SEM = asyncio.Semaphore(3)  # Max 3 concurrent DB write operations
+# Hard-limit DB concurrency to prevent lock storms.
+DB_SEM = asyncio.Semaphore(max(1, JOB_RECORD_USAGE_DB_CONCURRENCY))
+
+# Node API calls can block on slow nodes. Keep this separate from DB writes so a
+# few timing-out nodes do not starve healthy nodes from refreshing online_at.
+NODE_API_SEM = asyncio.Semaphore(max(1, JOB_RECORD_USAGE_NODE_CONCURRENCY))
 
 
 # Thread pool executor for I/O-bound node API calls
@@ -371,7 +376,7 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
         return
 
     # Execute single batched UPSERT with concurrency control
-    async with JOB_SEM:
+    async with DB_SEM:
         queries = build_node_user_usage_upsert(dialect, upsert_params)
         for stmt, stmt_params in queries:
             await safe_execute(stmt, stmt_params)
@@ -411,7 +416,7 @@ async def record_node_stats_batched(all_node_params: dict):
         }
 
         # Execute with concurrency control
-        async with JOB_SEM:
+        async with DB_SEM:
             queries = build_node_usage_upsert(dialect, upsert_param)
             for stmt, stmt_params in queries:
                 await safe_execute(stmt, stmt_params)
@@ -452,7 +457,7 @@ async def get_users_stats(node: PasarGuardNode):
     Get user stats from node using thread pool for CPU-bound processing.
     This distributes the heavy data processing workload across cores.
     """
-    async with JOB_SEM:
+    async with NODE_API_SEM:
         try:
             # I/O operation: fetch stats from node (async, non-blocking)
             stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
@@ -495,7 +500,7 @@ async def get_outbounds_stats(node: PasarGuardNode):
     Get outbounds stats from node using thread pool for CPU-bound processing.
     This distributes the heavy data processing workload across cores.
     """
-    async with JOB_SEM:
+    async with NODE_API_SEM:
         try:
             # I/O operation: fetch stats from node (async, non-blocking)
             stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
@@ -661,7 +666,7 @@ async def _record_user_usages_impl():
                 .values(used_traffic=User.used_traffic + bindparam("value"), online_at=dt.now(tz.utc))
                 .execution_options(synchronize_session=False)
             )
-            async with JOB_SEM:
+            async with DB_SEM:
                 await safe_execute(user_stmt, valid_users_usage)
             logger.debug(f"Updated {len(valid_users_usage)} users")
 
@@ -674,7 +679,7 @@ async def _record_user_usages_impl():
                 .values(used_traffic=Admin.used_traffic + bindparam("value"))
                 .execution_options(synchronize_session=False)
             )
-            async with JOB_SEM:
+            async with DB_SEM:
                 await safe_execute(admin_stmt, admin_data)
             logger.debug(f"Updated {len(admin_data)} admins")
 
@@ -777,7 +782,7 @@ async def _record_node_usages_impl():
                 .values(uplink=Node.uplink + bindparam("up"), downlink=Node.downlink + bindparam("down"))
                 .execution_options(synchronize_session=False)
             )
-            async with JOB_SEM:
+            async with DB_SEM:
                 await safe_execute(node_update_stmt, node_update_params)
             logger.debug(f"Updated {len(node_update_params)} nodes")
 
@@ -785,7 +790,7 @@ async def _record_node_usages_impl():
         system_update_stmt = update(System).values(
             uplink=System.uplink + total_up, downlink=System.downlink + total_down
         )
-        async with JOB_SEM:
+        async with DB_SEM:
             await safe_execute(system_update_stmt)
 
         if DISABLE_RECORDING_NODE_USAGE:
@@ -826,6 +831,8 @@ if ROLE.runs_node:
         seconds=JOB_RECORD_USER_USAGES_INTERVAL,
         start_date=dt.now(tz.utc) + td(seconds=30),
         id="record_user_usages",
+        coalesce=True,
+        max_instances=1,
     )
 
     scheduler.add_job(
@@ -834,4 +841,6 @@ if ROLE.runs_node:
         seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
         start_date=dt.now(tz.utc) + td(seconds=15),
         id="record_node_usages",
+        coalesce=True,
+        max_instances=1,
     )

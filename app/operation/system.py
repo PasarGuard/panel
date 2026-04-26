@@ -11,6 +11,7 @@ from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.system import InboundSummary, SystemStats
 from app.utils.system import cpu_usage, disk_usage, memory_usage
+from config import ONLINE_USERS_WINDOW_MINUTES
 
 from . import BaseOperation
 
@@ -39,7 +40,7 @@ class SystemOperation(BaseOperation):
         # Get user counts by status in a single query and online users count
         statuses = [UserStatus.active, UserStatus.disabled, UserStatus.on_hold, UserStatus.expired, UserStatus.limited]
         user_counts_task = get_users_count_by_status(db, statuses, admin_id)
-        online_users_task = count_online_users(db, timedelta(minutes=2), admin_id)
+        online_users_task = count_online_users(db, timedelta(minutes=ONLINE_USERS_WINDOW_MINUTES), admin_id)
 
         tasks = [mem_task, cpu_task, disk_task, user_counts_task, online_users_task]
         if system_task is not None:
