@@ -1,9 +1,9 @@
-# Makefile to check and set up Python 3.12 and a virtual environment
+# Makefile to check and set up Python 3.14 and a virtual environment
 
-PYTHON_VERSION=3.12
+PYTHON_VERSION=3.14
 VENV_DIR=.venv
 
-# Check if Python 3.12 is installed, if not, install it
+# Check if Python 3.14 is installed, if not, install it
 .PHONY: check-python
 check-python:
 	@if ! python${PYTHON_VERSION} --version | grep -q "$(PYTHON_VERSION)"; then \
