@@ -5,7 +5,7 @@ import hmac
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, desc, func, select, update
+from sqlalchemy import delete, desc, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import HWIDUserDevice, User
@@ -42,6 +42,36 @@ class HWIDDecision:
     missing_hwid: bool = False
 
 
+async def _acquire_user_hwid_lock(db: AsyncSession, user_id: int) -> None:
+    dialect = db.get_bind().dialect.name
+    if dialect == "sqlite":
+        # SQLite ignores FOR UPDATE; force a write lock on the user row.
+        await db.execute(update(User).where(User.id == user_id).values(id=User.id))
+        return
+
+    if dialect == "postgresql":
+        # Transaction-scoped lock that is auto-released on commit/rollback.
+        await db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": int(user_id)})
+        return
+
+    if dialect == "mysql":
+        lock_name = f"hwid_user_{user_id}"
+        lock_result = await db.execute(text("SELECT GET_LOCK(:lock_name, 10)"), {"lock_name": lock_name})
+        if int(lock_result.scalar() or 0) != 1:
+            raise RuntimeError("Failed to acquire HWID lock")
+        return
+
+    # Generic fallback for other SQL dialects.
+    await db.execute(select(User.id).where(User.id == user_id).with_for_update())
+
+
+async def _release_user_hwid_lock(db: AsyncSession, user_id: int) -> None:
+    if db.get_bind().dialect.name != "mysql":
+        return
+    lock_name = f"hwid_user_{user_id}"
+    await db.execute(text("SELECT RELEASE_LOCK(:lock_name)"), {"lock_name": lock_name})
+
+
 async def enforce_hwid_device_limit(
     db: AsyncSession,
     *,
@@ -63,54 +93,59 @@ async def enforce_hwid_device_limit(
 
     hwid_hash = hash_hwid(normalized_hwid)
     now = datetime.now(timezone.utc)
+    needs_manual_unlock = db.get_bind().dialect.name == "mysql"
 
     tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
     should_commit = False
     decision = HWIDDecision(allowed=True)
-    async with tx_ctx:
-        # Force a row-level write lock to serialize per-user registrations.
-        # This is more reliable across dialects than relying on FOR UPDATE semantics.
-        await db.execute(update(User).where(User.id == user.id).values(id=User.id))
-
-        existing = (
-            await db.execute(
-                select(HWIDUserDevice).where(HWIDUserDevice.user_id == user.id, HWIDUserDevice.hwid_hash == hwid_hash)
-            )
-        ).scalar_one_or_none()
-
-        if existing:
-            existing.last_seen_at = now
-            existing.device_os = _clamp(device_os, _DEVICE_OS_MAX_LEN)
-            existing.os_version = _clamp(os_version, _OS_VERSION_MAX_LEN)
-            existing.device_model = _clamp(device_model, _DEVICE_MODEL_MAX_LEN)
-            existing.user_agent = _clamp(user_agent, _USER_AGENT_MAX_LEN)
-            existing.request_ip = _clamp(request_ip, _REQUEST_IP_MAX_LEN)
-            existing.updated_at = now
-            should_commit = True
-            decision = HWIDDecision(allowed=True)
-        else:
-            count_stmt = select(func.count(HWIDUserDevice.id)).where(HWIDUserDevice.user_id == user.id)
-            existing_count = int((await db.execute(count_stmt)).scalar_one() or 0)
-            if existing_count >= limit:
-                decision = HWIDDecision(allowed=False, max_devices_reached=True)
-            else:
-                db.add(
-                    HWIDUserDevice(
-                        user_id=user.id,
-                        hwid_hash=hwid_hash,
-                        device_os=_clamp(device_os, _DEVICE_OS_MAX_LEN),
-                        os_version=_clamp(os_version, _OS_VERSION_MAX_LEN),
-                        device_model=_clamp(device_model, _DEVICE_MODEL_MAX_LEN),
-                        user_agent=_clamp(user_agent, _USER_AGENT_MAX_LEN),
-                        request_ip=_clamp(request_ip, _REQUEST_IP_MAX_LEN),
-                        updated_at=now,
-                    )
+    try:
+        async with tx_ctx:
+            await _acquire_user_hwid_lock(db, user.id)
+            existing = (
+                await db.execute(
+                    select(HWIDUserDevice).where(HWIDUserDevice.user_id == user.id, HWIDUserDevice.hwid_hash == hwid_hash)
                 )
+            ).scalar_one_or_none()
+
+            if existing:
+                existing.last_seen_at = now
+                existing.device_os = _clamp(device_os, _DEVICE_OS_MAX_LEN)
+                existing.os_version = _clamp(os_version, _OS_VERSION_MAX_LEN)
+                existing.device_model = _clamp(device_model, _DEVICE_MODEL_MAX_LEN)
+                existing.user_agent = _clamp(user_agent, _USER_AGENT_MAX_LEN)
+                existing.request_ip = _clamp(request_ip, _REQUEST_IP_MAX_LEN)
+                existing.updated_at = now
                 should_commit = True
                 decision = HWIDDecision(allowed=True)
-
-    if should_commit:
-        await db.commit()
+            else:
+                lock_count_stmt = select(HWIDUserDevice.id).where(HWIDUserDevice.user_id == user.id)
+                if db.get_bind().dialect.name != "sqlite":
+                    # Use a locking read so concurrent transactions observe current rows,
+                    # not a stale repeatable-read snapshot.
+                    lock_count_stmt = lock_count_stmt.with_for_update()
+                existing_count = len((await db.execute(lock_count_stmt)).scalars().all())
+                if existing_count >= limit:
+                    decision = HWIDDecision(allowed=False, max_devices_reached=True)
+                else:
+                    db.add(
+                        HWIDUserDevice(
+                            user_id=user.id,
+                            hwid_hash=hwid_hash,
+                            device_os=_clamp(device_os, _DEVICE_OS_MAX_LEN),
+                            os_version=_clamp(os_version, _OS_VERSION_MAX_LEN),
+                            device_model=_clamp(device_model, _DEVICE_MODEL_MAX_LEN),
+                            user_agent=_clamp(user_agent, _USER_AGENT_MAX_LEN),
+                            request_ip=_clamp(request_ip, _REQUEST_IP_MAX_LEN),
+                            updated_at=now,
+                        )
+                    )
+                    should_commit = True
+                    decision = HWIDDecision(allowed=True)
+        if should_commit:
+            await db.commit()
+    finally:
+        if needs_manual_unlock:
+            await _release_user_hwid_lock(db, user.id)
     return decision
 
 
@@ -165,47 +200,50 @@ async def add_hwid_device(
 
     hwid_hash = hash_hwid(normalized_hwid)
     now = datetime.now(timezone.utc)
+    needs_manual_unlock = db.get_bind().dialect.name == "mysql"
 
     tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
-    async with tx_ctx:
-        await db.execute(update(User).where(User.id == user_id).values(id=User.id))
+    try:
+        async with tx_ctx:
+            await _acquire_user_hwid_lock(db, user_id)
+            existing = (
+                await db.execute(
+                    select(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id, HWIDUserDevice.hwid_hash == hwid_hash)
+                )
+            ).scalar_one_or_none()
 
-        existing = (
-            await db.execute(
-                select(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id, HWIDUserDevice.hwid_hash == hwid_hash)
-            )
-        ).scalar_one_or_none()
+            if existing:
+                existing.last_seen_at = now
+                existing.device_os = _clamp(device_os, _DEVICE_OS_MAX_LEN)
+                existing.os_version = _clamp(os_version, _OS_VERSION_MAX_LEN)
+                existing.device_model = _clamp(device_model, _DEVICE_MODEL_MAX_LEN)
+                existing.user_agent = _clamp(user_agent, _USER_AGENT_MAX_LEN)
+                existing.request_ip = _clamp(request_ip, _REQUEST_IP_MAX_LEN)
+                existing.updated_at = now
+                device = existing
+                created = False
+            else:
+                device = HWIDUserDevice(
+                    user_id=user_id,
+                    hwid_hash=hwid_hash,
+                    device_os=_clamp(device_os, _DEVICE_OS_MAX_LEN),
+                    os_version=_clamp(os_version, _OS_VERSION_MAX_LEN),
+                    device_model=_clamp(device_model, _DEVICE_MODEL_MAX_LEN),
+                    user_agent=_clamp(user_agent, _USER_AGENT_MAX_LEN),
+                    request_ip=_clamp(request_ip, _REQUEST_IP_MAX_LEN),
+                    updated_at=now,
+                )
+                db.add(device)
+                await db.flush()
+                created = True
 
-        if existing:
-            existing.last_seen_at = now
-            existing.device_os = _clamp(device_os, _DEVICE_OS_MAX_LEN)
-            existing.os_version = _clamp(os_version, _OS_VERSION_MAX_LEN)
-            existing.device_model = _clamp(device_model, _DEVICE_MODEL_MAX_LEN)
-            existing.user_agent = _clamp(user_agent, _USER_AGENT_MAX_LEN)
-            existing.request_ip = _clamp(request_ip, _REQUEST_IP_MAX_LEN)
-            existing.updated_at = now
-            device = existing
-            created = False
-        else:
-            device = HWIDUserDevice(
-                user_id=user_id,
-                hwid_hash=hwid_hash,
-                device_os=_clamp(device_os, _DEVICE_OS_MAX_LEN),
-                os_version=_clamp(os_version, _OS_VERSION_MAX_LEN),
-                device_model=_clamp(device_model, _DEVICE_MODEL_MAX_LEN),
-                user_agent=_clamp(user_agent, _USER_AGENT_MAX_LEN),
-                request_ip=_clamp(request_ip, _REQUEST_IP_MAX_LEN),
-                updated_at=now,
-            )
-            db.add(device)
-            await db.flush()
-            created = True
-
-        username = (
-            await db.execute(select(User.username).where(User.id == user_id))
-        ).scalar_one_or_none()
-
-    await db.commit()
+            username = (
+                await db.execute(select(User.username).where(User.id == user_id))
+            ).scalar_one_or_none()
+        await db.commit()
+    finally:
+        if needs_manual_unlock:
+            await _release_user_hwid_lock(db, user_id)
     return (
         {
             "id": device.id,
