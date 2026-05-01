@@ -147,6 +147,10 @@ export default function SettingsHWIDPage() {
   const devices = listQuery.data?.items || []
   const listLoading = listQuery.isLoading || listQuery.isFetching
   const statsLoading = statsQuery.isLoading || statsQuery.isFetching
+  const parsedNewDeviceUserId = Number.parseInt(newDeviceUserId, 10)
+  const isValidNewDeviceUserId = Number.isInteger(parsedNewDeviceUserId) && parsedNewDeviceUserId > 0
+  const parsedUserIdFilter = Number.parseInt(userIdFilter, 10)
+  const isValidUserIdFilter = Number.isInteger(parsedUserIdFilter) && parsedUserIdFilter > 0
 
   const refetchAll = () => {
     void queryClient.invalidateQueries({ queryKey: ['hwid-devices'] })
@@ -237,10 +241,10 @@ export default function SettingsHWIDPage() {
               </div>
               <Button
                 className="shrink-0 gap-2"
-                disabled={!newDeviceUserId || !newDeviceHwid || addDeviceMutation.isPending}
+                disabled={!isValidNewDeviceUserId || !newDeviceHwid.trim() || addDeviceMutation.isPending}
                 onClick={() =>
                   addDeviceMutation.mutate({
-                    user_id: Number.parseInt(newDeviceUserId, 10) || 0,
+                    user_id: parsedNewDeviceUserId,
                     hwid: newDeviceHwid.trim(),
                   })
                 }
@@ -260,7 +264,11 @@ export default function SettingsHWIDPage() {
               onChange={e => setUserIdFilter(e.target.value)}
               className="max-w-xs font-mono text-sm"
             />
-            <Button variant="destructive" disabled={!userIdFilter || deleteAllMutation.isPending} onClick={() => deleteAllMutation.mutate({ user_id: Number.parseInt(userIdFilter, 10) || 0 })}>
+            <Button
+              variant="destructive"
+              disabled={!isValidUserIdFilter || deleteAllMutation.isPending}
+              onClick={() => deleteAllMutation.mutate({ user_id: parsedUserIdFilter })}
+            >
               {t('settings.hwid.deleteAllForUser', { defaultValue: 'Delete all for user' })}
             </Button>
           </div>

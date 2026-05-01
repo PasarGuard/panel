@@ -31,20 +31,20 @@ class HWIDStatsResponse(BaseModel):
 
 
 class HWIDDeleteRequest(BaseModel):
-    user_id: int
-    hwid_hash: str
+    user_id: int = Field(ge=1)
+    hwid_hash: str = Field(min_length=1, max_length=128)
 
 
 class HWIDDeleteAllRequest(BaseModel):
-    user_id: int
+    user_id: int = Field(ge=1)
 
 
 class HWIDAddRequest(BaseModel):
-    user_id: int
-    hwid: str
-    device_os: str | None = None
-    os_version: str | None = None
-    device_model: str | None = None
-    user_agent: str | None = None
-    request_ip: str | None = None
+    user_id: int = Field(ge=1)
+    hwid: str = Field(min_length=1, max_length=256)
+    device_os: str | None = Field(default=None, max_length=64)
+    os_version: str | None = Field(default=None, max_length=64)
+    device_model: str | None = Field(default=None, max_length=128)
+    user_agent: str | None = Field(default=None, max_length=512)
+    request_ip: str | None = Field(default=None, max_length=64)
 

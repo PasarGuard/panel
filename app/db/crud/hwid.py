@@ -30,8 +30,8 @@ def normalize_hwid(value: str) -> str:
 
 
 def hash_hwid(hwid: str) -> str:
-    normalized = normalize_hwid(hwid)
-    digest = hmac.new(HWID_HASH_SALT.encode("utf-8"), normalized.encode("utf-8"), hashlib.sha256).hexdigest()
+    # Expects normalized HWID input.
+    digest = hmac.new(HWID_HASH_SALT.encode("utf-8"), hwid.encode("utf-8"), hashlib.sha256).hexdigest()
     return digest
 
 
@@ -218,14 +218,18 @@ async def add_hwid_device(
 
 
 async def delete_hwid_device(db: AsyncSession, *, user_id: int, hwid_hash: str) -> int:
-    result = await db.execute(delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id, HWIDUserDevice.hwid_hash == hwid_hash))
-    await db.commit()
+    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
+    async with tx_ctx:
+        result = await db.execute(
+            delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id, HWIDUserDevice.hwid_hash == hwid_hash)
+        )
     return int(result.rowcount or 0)
 
 
 async def delete_all_hwid_devices(db: AsyncSession, *, user_id: int) -> int:
-    result = await db.execute(delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id))
-    await db.commit()
+    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
+    async with tx_ctx:
+        result = await db.execute(delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id))
     return int(result.rowcount or 0)
 
 

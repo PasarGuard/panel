@@ -605,7 +605,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const hwidDevicesQuery = useQuery({
     queryKey: ['user-hwid-devices', resolvedEditingUserId],
     enabled: isDialogOpen && editingUser && resolvedEditingUserId > 0,
-    queryFn: () => fetcher<HWIDDeviceListResponse>(`/api/hwid/devices/${resolvedEditingUserId}`),
+    queryFn: () => fetcher<HWIDDeviceListResponse>(`/api/hwid/devices?user_id=${resolvedEditingUserId}`),
   })
   const deleteHwidDeviceMutation = useMutation({
     mutationFn: (payload: { user_id: number; hwid_hash: string }) =>

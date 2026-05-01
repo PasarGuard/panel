@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.db import AsyncSession, get_db
 from app.models.hwid import (
@@ -21,8 +21,8 @@ hwid_operator = HWIDOperation(operator_type=OperatorType.API)
 
 @router.get("", response_model=HWIDDeviceListResponse)
 async def get_hwid_devices(
-    offset: int = 0,
-    limit: int = 50,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     user_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current),
@@ -68,7 +68,11 @@ async def add_hwid_device(payload: HWIDAddRequest, db: AsyncSession = Depends(ge
 
 
 @router.get("/top-users")
-async def get_top_users(limit: int = 20, db: AsyncSession = Depends(get_db), admin=Depends(get_current)):
+async def get_top_users(
+    limit: int = Query(default=20, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current),
+):
     return await hwid_operator.top_users(db, admin, limit=limit)
 
 

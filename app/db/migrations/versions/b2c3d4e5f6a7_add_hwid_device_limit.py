@@ -21,11 +21,15 @@ def upgrade() -> None:
     with op.batch_alter_table("users") as batch_op:
         batch_op.add_column(sa.Column("hwid_device_limit", sa.Integer(), nullable=True))
         batch_op.add_column(sa.Column("hwid_limit_disabled", sa.Boolean(), nullable=False, server_default="0"))
+        batch_op.create_check_constraint(
+            "ck_users_hwid_device_limit_non_negative",
+            "hwid_device_limit IS NULL OR hwid_device_limit >= 0",
+        )
 
     op.create_table(
         "hwid_user_devices",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.BigInteger(), nullable=False),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
         sa.Column("hwid_hash", sa.String(length=128), nullable=False),
         sa.Column("device_os", sa.String(length=64), nullable=True),
         sa.Column("os_version", sa.String(length=64), nullable=True),
@@ -52,6 +56,7 @@ def downgrade() -> None:
     op.drop_table("hwid_user_devices")
 
     with op.batch_alter_table("users") as batch_op:
+        batch_op.drop_constraint("ck_users_hwid_device_limit_non_negative", type_="check")
         batch_op.drop_column("hwid_limit_disabled")
         batch_op.drop_column("hwid_device_limit")
 

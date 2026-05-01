@@ -326,8 +326,8 @@ class HWIDUserDevice(Base):
         Index("ix_hwid_user_devices_last_seen_at", "last_seen_at"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, init=False, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
     user: Mapped["User"] = relationship(init=False)
     hwid_hash: Mapped[str] = mapped_column(String(128))
     device_os: Mapped[Optional[str]] = mapped_column(String(64), default=None)

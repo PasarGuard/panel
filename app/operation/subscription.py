@@ -210,6 +210,43 @@ class SubscriptionOperation(BaseOperation):
 
         return str(value).strip()
 
+    async def _enforce_hwid_or_deny(
+        self,
+        db: AsyncSession,
+        db_user: User,
+        sub_settings: SubSettings,
+        hwid: str | None,
+        device_os: str | None,
+        os_version: str | None,
+        device_model: str | None,
+        user_agent: str | None,
+        request_ip: str | None,
+    ) -> Response | None:
+        hwid_operator = HWIDOperation(operator_type=self.operator_type)
+        hwid_decision = await hwid_operator.enforce_subscription_hwid(
+            db,
+            user=db_user,
+            subscription_settings=sub_settings,
+            hwid=hwid,
+            device_os=device_os,
+            os_version=os_version,
+            device_model=device_model,
+            user_agent=user_agent,
+            request_ip=request_ip,
+        )
+        if hwid_decision.allowed:
+            return None
+
+        headers = (
+            self._HWID_NOT_SUPPORTED_HEADERS
+            if hwid_decision.missing_hwid
+            else self._HWID_LIMIT_REACHED_HEADERS if hwid_decision.max_devices_reached else {}
+        )
+        if not hwid_decision.missing_hwid and not hwid_decision.max_devices_reached:
+            self.logger.warning("Unexpected HWID deny state for user_id=%s: %s", db_user.id, hwid_decision)
+        # Preserve existing safe denial behavior for invalid/missing subscription-like requests.
+        return Response(status_code=404, headers=headers)
+
     @staticmethod
     def create_info_response_headers(user: UsersResponseWithInbounds, sub_settings: SubSettings) -> dict:
         """Create response headers for /info endpoint with only support-url, announce, and announce-url."""
@@ -262,27 +299,11 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token)
         user = await self.validated_user(db_user)
-        hwid_operator = HWIDOperation(operator_type=self.operator_type)
-
-        hwid_decision = await hwid_operator.enforce_subscription_hwid(
-            db,
-            user=db_user,
-            subscription_settings=sub_settings,
-            hwid=hwid,
-            device_os=device_os,
-            os_version=os_version,
-            device_model=device_model,
-            user_agent=user_agent,
-            request_ip=request_ip,
+        deny_response = await self._enforce_hwid_or_deny(
+            db, db_user, sub_settings, hwid, device_os, os_version, device_model, user_agent, request_ip
         )
-        if not hwid_decision.allowed:
-            headers = (
-                self._HWID_NOT_SUPPORTED_HEADERS
-                if hwid_decision.missing_hwid
-                else self._HWID_LIMIT_REACHED_HEADERS if hwid_decision.max_devices_reached else {}
-            )
-            # Preserve existing safe denial behavior for invalid/missing subscription-like requests.
-            return Response(status_code=404, headers=headers)
+        if deny_response is not None:
+            return deny_response
 
         is_browser_request = "text/html" in accept_header
 
@@ -387,25 +408,11 @@ class SubscriptionOperation(BaseOperation):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token)
         user = await self.validated_user(db_user)
-        hwid_operator = HWIDOperation(operator_type=self.operator_type)
-        hwid_decision = await hwid_operator.enforce_subscription_hwid(
-            db,
-            user=db_user,
-            subscription_settings=sub_settings,
-            hwid=hwid,
-            device_os=device_os,
-            os_version=os_version,
-            device_model=device_model,
-            user_agent=user_agent,
-            request_ip=request_ip,
+        deny_response = await self._enforce_hwid_or_deny(
+            db, db_user, sub_settings, hwid, device_os, os_version, device_model, user_agent, request_ip
         )
-        if not hwid_decision.allowed:
-            headers = (
-                self._HWID_NOT_SUPPORTED_HEADERS
-                if hwid_decision.missing_hwid
-                else self._HWID_LIMIT_REACHED_HEADERS if hwid_decision.max_devices_reached else {}
-            )
-            return Response(status_code=404, headers=headers)
+        if deny_response is not None:
+            return deny_response
 
         response_headers = self.create_response_headers(
             user,

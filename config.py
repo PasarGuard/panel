@@ -68,7 +68,11 @@ if not SUBSCRIPTION_PATH:
     SUBSCRIPTION_PATH = config("SUBSCRIPTION_PATH", default="sub").strip("/")
 
 USER_SUBSCRIPTION_CLIENTS_LIMIT = config("USER_SUBSCRIPTION_CLIENTS_LIMIT", cast=int, default=10)
-HWID_HASH_SALT = config("HWID_HASH_SALT", default="pasarguard-hwid")
+_DEFAULT_HWID_HASH_SALT = "pasarguard-hwid"
+HWID_HASH_SALT = config("HWID_HASH_SALT", default=_DEFAULT_HWID_HASH_SALT).strip()
+ENV = config("ENV", default="development").strip().lower()
+if ENV == "production" and not TESTING and (not HWID_HASH_SALT or HWID_HASH_SALT == _DEFAULT_HWID_HASH_SALT):
+    raise ValueError("HWID_HASH_SALT must be set to a unique, stable secret in production.")
 
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=1440)
 
