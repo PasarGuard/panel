@@ -19,11 +19,6 @@ def mock_lock(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.node.node_manager._lock", _lock)
 
 
-@pytest.fixture(autouse=True)
-def mock_settings():
-    return None
-
-
 @pytest.fixture
 def access_token() -> str:
     response = client.post(

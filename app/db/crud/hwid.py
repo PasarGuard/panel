@@ -64,8 +64,7 @@ async def enforce_hwid_device_limit(
     hwid_hash = hash_hwid(normalized_hwid)
     now = datetime.now(timezone.utc)
 
-    owns_transaction = not db.in_transaction()
-    tx_ctx = db.begin() if owns_transaction else db.begin_nested()
+    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
     should_commit = False
     decision = HWIDDecision(allowed=True)
     async with tx_ctx:
@@ -110,7 +109,7 @@ async def enforce_hwid_device_limit(
                 should_commit = True
                 decision = HWIDDecision(allowed=True)
 
-    if should_commit and owns_transaction:
+    if should_commit:
         await db.commit()
     return decision
 
@@ -167,8 +166,7 @@ async def add_hwid_device(
     hwid_hash = hash_hwid(normalized_hwid)
     now = datetime.now(timezone.utc)
 
-    owns_transaction = not db.in_transaction()
-    tx_ctx = db.begin() if owns_transaction else db.begin_nested()
+    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
     async with tx_ctx:
         await db.execute(update(User).where(User.id == user_id).values(id=User.id))
 
@@ -207,8 +205,7 @@ async def add_hwid_device(
             await db.execute(select(User.username).where(User.id == user_id))
         ).scalar_one_or_none()
 
-    if owns_transaction:
-        await db.commit()
+    await db.commit()
     return (
         {
             "id": device.id,
@@ -230,24 +227,20 @@ async def add_hwid_device(
 
 
 async def delete_hwid_device(db: AsyncSession, *, user_id: int, hwid_hash: str) -> int:
-    owns_transaction = not db.in_transaction()
-    tx_ctx = db.begin() if owns_transaction else db.begin_nested()
+    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
     async with tx_ctx:
         result = await db.execute(
             delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id, HWIDUserDevice.hwid_hash == hwid_hash)
         )
-    if owns_transaction:
-        await db.commit()
+    await db.commit()
     return int(result.rowcount or 0)
 
 
 async def delete_all_hwid_devices(db: AsyncSession, *, user_id: int) -> int:
-    owns_transaction = not db.in_transaction()
-    tx_ctx = db.begin() if owns_transaction else db.begin_nested()
+    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
     async with tx_ctx:
         result = await db.execute(delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id))
-    if owns_transaction:
-        await db.commit()
+    await db.commit()
     return int(result.rowcount or 0)
 
 

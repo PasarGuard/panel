@@ -23,9 +23,11 @@ def upgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name
     users_columns = {col["name"]: col for col in inspect(bind).get_columns("users")}
-    users_id_type_repr = str(users_columns["id"]["type"]).upper() if "id" in users_columns else ""
+    users_id_type = users_columns.get("id", {}).get("type")
+    users_id_type_repr = str(users_id_type).upper() if users_id_type is not None else ""
+    users_id_is_unsigned = bool(getattr(users_id_type, "unsigned", False))
     if "BIGINT" in users_id_type_repr:
-        if dialect_name == "mysql" and "UNSIGNED" in users_id_type_repr:
+        if dialect_name == "mysql" and (users_id_is_unsigned or "UNSIGNED" in users_id_type_repr):
             user_id_column_type = mysql.BIGINT(unsigned=True)
         else:
             user_id_column_type = sa.BigInteger()
