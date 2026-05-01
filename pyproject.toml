@@ -39,7 +39,7 @@ dependencies = [
     "aiohttp-socks>=0.10.1",
     "uvloop>=0.22.1; sys_platform != 'win32'",
     "aiorwlock>=1.5.0",
-    "typer>=0.25.0",
+    "typer>=0.25.1",
     "pasarguard-node-bridge>=0.6.0",
     "pip-system-certs>=5.3",
     "psycopg[binary]>=3.3.3",
