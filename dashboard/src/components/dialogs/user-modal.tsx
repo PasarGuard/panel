@@ -340,6 +340,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const [onHoldCalendarOpen, setOnHoldCalendarOpen] = useState(false)
   const [isResetUsageDialogOpen, setResetUsageDialogOpen] = useState(false)
   const [isRevokeSubDialogOpen, setRevokeSubDialogOpen] = useState(false)
+  const [isDeleteAllHwidDialogOpen, setDeleteAllHwidDialogOpen] = useState(false)
   const [isUserAllIPsModalOpen, setUserAllIPsModalOpen] = useState(false)
   const [isUsageModalOpen, setUsageModalOpen] = useState(false)
   const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
@@ -1428,11 +1429,25 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     }
   }
 
+  const confirmDeleteAllHwidDevices = async () => {
+    if (!resolvedEditingUserId) return
+    try {
+      await deleteAllHwidDevicesMutation.mutateAsync({ user_id: resolvedEditingUserId })
+      setDeleteAllHwidDialogOpen(false)
+    } catch {
+      // Keep the dialog open on failure so the user can retry.
+    }
+  }
+
   const renderUserMetaPanel = (extraClassName?: string) => {
     if (!editingUser) return null
 
     const hwidItems = hwidDevicesQuery.data?.items || []
     const hwidCount = hwidDevicesQuery.data?.total ?? hwidItems.length
+    const hwidQueryErrorMessage =
+      hwidDevicesQuery.error instanceof Error
+        ? hwidDevicesQuery.error.message
+        : t('settings.hwid.loadFailed', { defaultValue: 'Failed to load HWID devices.' })
 
     return (
       <div className={cn('mt-3 space-y-3', extraClassName)}>
@@ -1488,7 +1503,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                       variant="destructive"
                       className="h-6 px-2 text-[10px]"
                       disabled={!hwidItems.length || deleteAllHwidDevicesMutation.isPending}
-                      onClick={() => deleteAllHwidDevicesMutation.mutate({ user_id: resolvedEditingUserId })}
+                      onClick={() => setDeleteAllHwidDialogOpen(true)}
                     >
                       {t('userDialog.hwidDeleteAll', { defaultValue: 'Delete all' })}
                     </Button>
@@ -1498,6 +1513,8 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                   <div className="text-xs text-muted-foreground">
                     {t('loading', { defaultValue: 'Loading...' })}
                   </div>
+                ) : hwidDevicesQuery.isError ? (
+                  <div className="text-xs text-destructive">{hwidQueryErrorMessage}</div>
                 ) : hwidItems.length === 0 ? (
                   <div className="text-xs text-muted-foreground">
                     {t('userDialog.hwidNoDevices', { defaultValue: 'No HWID devices registered for this user yet.' })}
@@ -1526,6 +1543,8 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              aria-label={t('userDialog.hwidDeleteDevice', { defaultValue: 'Delete HWID device' })}
+                              title={t('userDialog.hwidDeleteDevice', { defaultValue: 'Delete HWID device' })}
                               disabled={deleteHwidDeviceMutation.isPending}
                               onClick={() =>
                                 deleteHwidDeviceMutation.mutate({
@@ -3028,6 +3047,25 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
             <AlertDialogCancel>{t('usersTable.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmRevokeSubscription} disabled={revokeUserSubscriptionMutation.isPending}>
               {t('revokeUserSub.title')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteAllHwidDialogOpen} onOpenChange={setDeleteAllHwidDialogOpen}>
+        <AlertDialogContent dir={dir}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('userDialog.hwidDeleteAllConfirmTitle', { defaultValue: 'Delete all HWID devices?' })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('userDialog.hwidDeleteAllConfirmDescription', {
+                defaultValue: 'This action will remove all registered HWID devices for this user and cannot be undone.',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('usersTable.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteAllHwidDevices} disabled={deleteAllHwidDevicesMutation.isPending}>
+              {deleteAllHwidDevicesMutation.isPending ? t('deleting', { defaultValue: 'Deleting...' }) : t('delete', { defaultValue: 'Delete' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
