@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
 import {
   Clock,
+  Smartphone,
   ExternalLink,
   FileCode2,
   Globe,
@@ -144,6 +145,57 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                 <Input type="url" placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
               </FormControl>
               <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.general.announceUrlDescription')}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="hwid_device_limit_enabled"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between space-y-0 rounded-lg border border-primary/30 bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4 lg:col-span-2">
+              <div className="flex-1 space-y-0.5 pr-4">
+                <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
+                  <Smartphone className="h-4 w-4 shrink-0" />
+                  <span className="break-words">{t('settings.subscriptions.hwidEnabled', { defaultValue: 'Enable HWID Device Limit' })}</span>
+                </FormLabel>
+                <FormDescription className="text-xs leading-relaxed text-muted-foreground sm:leading-normal">
+                  {t('settings.subscriptions.hwidEnabledDescription', {
+                    defaultValue: 'Require x-hwid header on subscription fetch and enforce per-user device limits.',
+                  })}
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="hwid_fallback_device_limit"
+          render={({ field }) => (
+            <FormItem className="space-y-2 lg:col-span-2">
+              <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
+                <Smartphone className="h-4 w-4 shrink-0" />
+                {t('settings.subscriptions.hwidFallbackLimit', { defaultValue: 'HWID fallback device limit' })}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min="0"
+                  value={field.value ?? 0}
+                  onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)}
+                  className="text-xs sm:text-sm"
+                />
+              </FormControl>
+              <FormDescription className="text-xs text-muted-foreground sm:text-sm">
+                {t('settings.subscriptions.hwidFallbackLimitDescription', {
+                  defaultValue: 'Default max devices when user-specific HWID limit is not set. 0 disables fallback enforcement.',
+                })}
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

@@ -341,7 +341,45 @@
         }
       },
       "resetToDefault": "Reset to Default",
-      "resetToDefaultSuccess": "Subscription rules reset to default"
+      "resetToDefaultSuccess": "Subscription rules reset to default",
+      "hwidEnabled": "Enable HWID Device Limit",
+      "hwidEnabledDescription": "Require x-hwid on subscription requests and enforce device limits.",
+      "hwidFallbackLimit": "HWID fallback device limit",
+      "hwidFallbackLimitDescription": "Used when user-specific HWID limit is empty."
+    },
+    "hwid": {
+      "title": "HWID",
+      "description": "Inspect and manage registered HWID devices",
+      "reload": "Refresh",
+      "globalConfig": "Global HWID Config",
+      "globalConfigHint": "Toggle and fallback limit live under Subscription settings.",
+      "globalEnabled": "HWID limit enabled",
+      "globalFallback": "Fallback device limit",
+      "openSubscriptionsSettings": "Open subscription settings",
+      "inspectorHint": "Register a device from a raw HWID (hashed on the server), filter by user, or delete rows.",
+      "addSection": "Manual register",
+      "emptyDevices": "No devices match this filter.",
+      "addDevice": "Add device",
+      "addUserId": "User ID",
+      "addHwid": "Raw HWID value",
+      "deviceAdded": "HWID device added",
+      "addFailed": "Failed to add HWID device",
+      "inspector": "HWID Inspector",
+      "totalDevices": "Total Devices",
+      "usersWithDevices": "Users With Devices",
+      "userIdFilter": "Filter by user ID",
+      "deleteAllForUser": "Delete all for user",
+      "deviceDeleted": "HWID device deleted",
+      "devicesDeleted": "All HWID devices deleted for user",
+      "deleteFailed": "Failed to delete HWID device(s)",
+      "columns": {
+        "user": "User",
+        "username": "Username",
+        "hwidHash": "HWID Hash",
+        "device": "Device",
+        "lastSeen": "Last Seen",
+        "action": "Action"
+      }
     },
     "telegram": {
       "title": "Telegram",
@@ -1374,6 +1412,9 @@
     "onHoldExpireDurationPlaceholder": "e.g. 7",
     "optional": "optional",
     "periodicUsageReset": "Periodic Usage Reset",
+    "hwidDeviceLimit": "Device limit",
+    "hwidDeviceLimitPlaceholder": "Global default",
+    "hwidDisabled": "Disable HWID limit for this user",
     "protocols": "Protocols",
     "relative": "Relative",
     "resetStrategyAnnually": "Annually",
@@ -1450,7 +1491,18 @@
     "editError": "Failed to update user «{{name}}»",
     "createError": "Failed to create user «{{name}}»",
     "selectStatus": "Select status",
-    "selectedTemplates": "{{count}} Template(s) selected"
+    "selectedTemplates": "{{count}} Template(s) selected",
+    "hwidSettingsTitle": "HWID Settings",
+    "hwidTitle": "HWID",
+    "hwidDevicesTitle": "HWID Devices",
+    "hwidRegisteredCount": "Registered devices",
+    "hwidNoDevices": "No HWID devices registered for this user yet.",
+    "hwidLastSeen": "Last seen",
+    "hwidLimitBypass": "Exempt from HWID limits",
+    "hwidLimitBypassDescription": "When enabled, this user can fetch subscriptions without HWID checks and without registering devices — as if HWID were disabled for this user only.",
+    "hwidSectionSubtitle": "Optional per-user cap and exemption when global HWID is on.",
+    "hwidDevicesAfterSave": "Registered devices appear here after the user is saved.",
+    "hwidDeleteAll": "Delete all"
   },
   "userSettings": {
     "subscriptionUrlCopied": "Subscription URL copied to clipboard"

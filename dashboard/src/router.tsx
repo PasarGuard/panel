@@ -27,6 +27,7 @@ const DiscordSettings = lazy(() => import('./pages/_dashboard.settings.discord')
 const GeneralSettings = lazy(() => import('./pages/_dashboard.settings.general'))
 const NotificationSettings = lazy(() => import('./pages/_dashboard.settings.notifications'))
 const SubscriptionSettings = lazy(() => import('./pages/_dashboard.settings.subscriptions'))
+const HWIDSettings = lazy(() => import('./pages/_dashboard.settings.hwid'))
 const TelegramSettings = lazy(() => import('./pages/_dashboard.settings.telegram'))
 const WebhookSettings = lazy(() => import('./pages/_dashboard.settings.webhook'))
 const Statistics = lazy(() => import('./pages/_dashboard.statistics'))
@@ -223,6 +224,14 @@ export const router = createHashRouter([
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <SubscriptionSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/hwid',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <HWIDSettings />
               </Suspense>
             ),
           },

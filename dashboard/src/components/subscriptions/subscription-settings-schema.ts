@@ -42,6 +42,8 @@ export const subscriptionSchema = z.object({
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
   randomize_order: z.boolean().optional(),
+  hwid_device_limit_enabled: z.boolean().optional(),
+  hwid_fallback_device_limit: z.number().min(0, 'HWID fallback limit must be 0 or greater').optional(),
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),

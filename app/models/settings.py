@@ -269,6 +269,8 @@ class Subscription(BaseModel):
     allow_browser_config: bool = Field(default=True)
     disable_sub_template: bool = Field(default=False)
     randomize_order: bool = Field(default=False)
+    hwid_device_limit_enabled: bool = Field(default=False)
+    hwid_fallback_device_limit: int = Field(default=0, ge=0)
 
     @field_validator("applications")
     @classmethod

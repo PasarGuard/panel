@@ -58,6 +58,8 @@ const userSharedSchemaShape = {
   on_hold_expire_duration: z.number().nullable().optional(),
   on_hold_timeout: z.union([z.string(), z.number(), z.null()]).optional(),
   auto_delete_in_days: z.number().optional(),
+  hwid_device_limit: z.number().min(0).optional(),
+  hwid_limit_disabled: z.boolean().optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
 } satisfies z.ZodRawShape
@@ -101,6 +103,8 @@ export const getDefaultUserForm = async () => {
     data_limit: 0,
     expire: '',
     note: '',
+    hwid_device_limit: undefined,
+    hwid_limit_disabled: false,
     group_ids: [],
     proxy_settings: {
       vmess: {

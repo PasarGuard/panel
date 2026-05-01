@@ -222,7 +222,45 @@
         }
       },
       "resetToDefault": "بازگشت به پیش‌فرض",
-      "resetToDefaultSuccess": "قوانین اشتراک به پیش‌فرض بازنشانی شد"
+      "resetToDefaultSuccess": "قوانین اشتراک به پیش‌فرض بازنشانی شد",
+      "hwidEnabled": "فعال‌سازی محدودیت دستگاه HWID",
+      "hwidEnabledDescription": "الزام هدر x-hwid در درخواست اشتراک و اعمال سقف تعداد دستگاه برای هر کاربر.",
+      "hwidFallbackLimit": "سقف پیش‌فرض تعداد دستگاه HWID",
+      "hwidFallbackLimitDescription": "وقتی برای کاربر سقف اختصاصی HWID تنظیم نشده باشد استفاده می‌شود؛ مقدار ۰ یعنی بدون اعمال سقف پیش‌فرض."
+    },
+    "hwid": {
+      "title": "HWID",
+      "description": "مشاهده و مدیریت دستگاه‌های ثبت‌شده HWID",
+      "reload": "به‌روزرسانی",
+      "globalConfig": "پیکربندی سراسری HWID",
+      "globalConfigHint": "فعال/غیرفعال و سقف پیش‌فرض در تنظیمات اشتراک است.",
+      "globalEnabled": "محدودیت HWID فعال است",
+      "globalFallback": "سقف پیش‌فرض دستگاه‌ها",
+      "openSubscriptionsSettings": "باز کردن تنظیمات اشتراک",
+      "inspectorHint": "ثبت دستگاه از مقدار خام HWID (هش روی سرور)، فیلتر با شناسه کاربر یا حذف ردیف‌ها.",
+      "addSection": "ثبت دستی",
+      "emptyDevices": "دستگاهی با این فیلتر یافت نشد.",
+      "addDevice": "افزودن دستگاه",
+      "addUserId": "شناسه کاربر",
+      "addHwid": "مقدار خام HWID",
+      "deviceAdded": "دستگاه HWID افزوده شد",
+      "addFailed": "افزودن دستگاه HWID ناموفق بود",
+      "inspector": "بازرس HWID",
+      "totalDevices": "کل دستگاه‌ها",
+      "usersWithDevices": "کاربران دارای دستگاه",
+      "userIdFilter": "فیلتر با شناسه کاربر",
+      "deleteAllForUser": "حذف همه برای کاربر",
+      "deviceDeleted": "دستگاه HWID حذف شد",
+      "devicesDeleted": "همه دستگاه‌های HWID کاربر حذف شد",
+      "deleteFailed": "حذف دستگاه(های) HWID ناموفق بود",
+      "columns": {
+        "user": "کاربر",
+        "username": "نام کاربری",
+        "hwidHash": "هش HWID",
+        "device": "دستگاه",
+        "lastSeen": "آخرین مشاهده",
+        "action": "عملیات"
+      }
     },
     "telegram": {
       "title": "تلگرام",
@@ -1864,7 +1902,21 @@
     "editError": "خطا در ویرایش کاربر «{{name}}»",
     "createError": "خطا در ایجاد کاربر «{{name}}»",
     "selectStatus": "انتخاب وضعیت",
-    "selectedTemplates": "{{count}} قالب انتخاب شده"
+    "selectedTemplates": "{{count}} قالب انتخاب شده",
+    "hwidTitle": "HWID",
+    "hwidDeviceLimit": "سقف تعداد دستگاه",
+    "hwidDeviceLimitPlaceholder": "پیش‌فرض سراسری",
+    "hwidDisabled": "غیرفعال کردن محدودیت HWID برای این کاربر",
+    "hwidSettingsTitle": "تنظیمات HWID",
+    "hwidDevicesTitle": "دستگاه‌های HWID",
+    "hwidRegisteredCount": "دستگاه‌های ثبت‌شده",
+    "hwidNoDevices": "هنوز دستگاه HWID برای این کاربر ثبت نشده است.",
+    "hwidLastSeen": "آخرین فعالیت",
+    "hwidLimitBypass": "معاف از محدودیت HWID",
+    "hwidLimitBypassDescription": "در صورت فعال بودن، این کاربر بدون بررسی HWID و بدون ثبت دستگاه اشتراک را دریافت می‌کند — گویی HWID فقط برای او خاموش است.",
+    "hwidSectionSubtitle": "سقف اختیاری دستگاه و معافیت وقتی HWID سراسری روشن است.",
+    "hwidDevicesAfterSave": "پس از ذخیرهٔ کاربر، فهرست دستگاه‌ها اینجا نمایش داده می‌شود.",
+    "hwidDeleteAll": "حذف همه"
   },
   "userSettings": {
     "subscriptionUrlCopied": "لینک اشتراک در کلیپ‌بورد کپی شد"

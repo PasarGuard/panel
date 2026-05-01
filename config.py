@@ -68,6 +68,7 @@ if not SUBSCRIPTION_PATH:
     SUBSCRIPTION_PATH = config("SUBSCRIPTION_PATH", default="sub").strip("/")
 
 USER_SUBSCRIPTION_CLIENTS_LIMIT = config("USER_SUBSCRIPTION_CLIENTS_LIMIT", cast=int, default=10)
+HWID_HASH_SALT = config("HWID_HASH_SALT", default="pasarguard-hwid")
 
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=1440)
 

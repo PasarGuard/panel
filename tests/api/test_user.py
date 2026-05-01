@@ -1,6 +1,7 @@
 import io
 import json
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -240,6 +241,171 @@ def test_user_sub_update_user_agent_truncates_long_values(access_token):
         assert response.json()["updates"][0]["user_agent"] == long_user_agent[:512]
     finally:
         delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_subscription_hwid_missing_is_denied_when_enabled(access_token):
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+    updated_subscription = {
+        **original_subscription,
+        "hwid_device_limit_enabled": True,
+        "hwid_fallback_device_limit": 1,
+    }
+    assert (
+        client.put("/api/settings", headers=auth_headers(access_token), json={"subscription": updated_subscription}).status_code
+        == status.HTTP_200_OK
+    )
+
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("test_hwid_missing")})
+    try:
+        response = client.get(user["subscription_url"], headers={"User-Agent": "v2rayNG"})
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.headers.get("x-hwid-active") == "true"
+        assert response.headers.get("x-hwid-not-supported") == "true"
+    finally:
+        client.put("/api/settings", headers=auth_headers(access_token), json={"subscription": original_subscription})
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_subscription_hwid_enforces_limit_and_supports_existing_device(access_token):
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    original_subscription = settings_response.json()["subscription"]
+    updated_subscription = {
+        **original_subscription,
+        "hwid_device_limit_enabled": True,
+        "hwid_fallback_device_limit": 1,
+    }
+    assert (
+        client.put("/api/settings", headers=auth_headers(access_token), json={"subscription": updated_subscription}).status_code
+        == status.HTTP_200_OK
+    )
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_hwid_limit"), "hwid_device_limit": 1},
+    )
+    try:
+        first = client.get(user["subscription_url"], headers={"User-Agent": "v2rayNG", "x-hwid": "device-1"})
+        assert first.status_code == status.HTTP_200_OK
+        assert first.headers.get("x-hwid-active") == "true"
+
+        second = client.get(user["subscription_url"], headers={"User-Agent": "v2rayNG", "x-hwid": "device-1"})
+        assert second.status_code == status.HTTP_200_OK
+
+        third = client.get(user["subscription_url"], headers={"User-Agent": "v2rayNG", "x-hwid": "device-2"})
+        assert third.status_code == status.HTTP_404_NOT_FOUND
+        assert third.headers.get("x-hwid-max-devices-reached") == "true"
+        assert third.headers.get("x-hwid-limit") == "true"
+    finally:
+        client.put("/api/settings", headers=auth_headers(access_token), json={"subscription": original_subscription})
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_hwid_admin_list_and_delete_device(access_token):
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    original_subscription = settings_response.json()["subscription"]
+    updated_subscription = {
+        **original_subscription,
+        "hwid_device_limit_enabled": True,
+        "hwid_fallback_device_limit": 1,
+    }
+    assert (
+        client.put("/api/settings", headers=auth_headers(access_token), json={"subscription": updated_subscription}).status_code
+        == status.HTTP_200_OK
+    )
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("test_hwid_admin")})
+    try:
+        sub_response = client.get(user["subscription_url"], headers={"User-Agent": "v2rayNG", "x-hwid": "device-admin-1"})
+        assert sub_response.status_code == status.HTTP_200_OK
+
+        list_response = client.get(f"/api/hwid/devices/{user['id']}", headers=auth_headers(access_token))
+        assert list_response.status_code == status.HTTP_200_OK
+        assert list_response.json()["total"] == 1
+        hwid_hash = list_response.json()["items"][0]["hwid_hash"]
+
+        delete_response = client.post(
+            "/api/hwid/devices/delete",
+            headers=auth_headers(access_token),
+            json={"user_id": user["id"], "hwid_hash": hwid_hash},
+        )
+        assert delete_response.status_code == status.HTTP_200_OK
+        assert delete_response.json()["deleted"] == 1
+    finally:
+        client.put("/api/settings", headers=auth_headers(access_token), json={"subscription": original_subscription})
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_hwid_concurrent_requests_do_not_exceed_limit(access_token):
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    original_subscription = settings_response.json()["subscription"]
+    updated_subscription = {
+        **original_subscription,
+        "hwid_device_limit_enabled": True,
+        "hwid_fallback_device_limit": 1,
+    }
+    assert (
+        client.put("/api/settings", headers=auth_headers(access_token), json={"subscription": updated_subscription}).status_code
+        == status.HTTP_200_OK
+    )
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_hwid_race"), "hwid_device_limit": 1},
+    )
+    try:
+        def fetch(hwid_value: str):
+            return client.get(user["subscription_url"], headers={"User-Agent": "v2rayNG", "x-hwid": hwid_value}).status_code
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            statuses = list(executor.map(fetch, ["race-1", "race-2", "race-3", "race-4"]))
+
+        assert status.HTTP_200_OK in statuses
+        list_response = client.get(f"/api/hwid/devices/{user['id']}", headers=auth_headers(access_token))
+        assert list_response.status_code == status.HTTP_200_OK
+        assert list_response.json()["total"] == 1
+    finally:
+        client.put("/api/settings", headers=auth_headers(access_token), json={"subscription": original_subscription})
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_hwid_seed_demo_users_with_5_10_25_devices(access_token):
+    """Populate three users with 5, 10, and 25 HWID rows via admin API (for UI / inspector demos)."""
+    core, groups = setup_groups(access_token, 1)
+    group_id = groups[0]["id"]
+    counts = (5, 10, 25)
+    users: list[dict] = []
+    try:
+        for idx, n in enumerate(counts):
+            user = create_user(
+                access_token,
+                group_ids=[group_id],
+                payload={"username": unique_name(f"hwid_demo_{idx}")},
+            )
+            users.append(user)
+            uid = user["id"]
+            for d in range(n):
+                r = client.post(
+                    "/api/hwid/devices",
+                    headers=auth_headers(access_token),
+                    json={"user_id": uid, "hwid": f"demo-seed-{uid}-dev-{d}"},
+                )
+                assert r.status_code == status.HTTP_200_OK, r.text
+            listed = client.get(f"/api/hwid/devices/{uid}", headers=auth_headers(access_token))
+            assert listed.status_code == status.HTTP_200_OK
+            assert listed.json()["total"] == n
+    finally:
+        for user in users:
+            delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
 
 

@@ -51,6 +51,7 @@ import {
   UserPlus,
   UsersIcon,
   Webhook,
+  Smartphone,
 } from 'lucide-react'
 import * as React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -251,6 +252,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: 'settings.subscriptions.title',
                 url: '/settings/subscriptions',
                 icon: ListTodo,
+              },
+              {
+                title: 'settings.hwid.title',
+                url: '/settings/hwid',
+                icon: Smartphone,
               },
               {
                 title: 'settings.telegram.title',

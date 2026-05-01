@@ -354,7 +354,45 @@
         "iconUrlDescription": "Необязательно. Отображается рядом с названием приложения."
       },
       "resetToDefault": "Сбросить к умолчанию",
-      "resetToDefaultSuccess": "Правила подписки сброшены к умолчанию"
+      "resetToDefaultSuccess": "Правила подписки сброшены к умолчанию",
+      "hwidEnabled": "Включить лимит устройств HWID",
+      "hwidEnabledDescription": "Требовать заголовок x-hwid при запросе подписки и применять лимиты устройств.",
+      "hwidFallbackLimit": "Резервный лимит HWID",
+      "hwidFallbackLimitDescription": "Используется, если у пользователя не задан персональный лимит."
+    },
+    "hwid": {
+      "title": "HWID",
+      "description": "Просмотр и управление зарегистрированными HWID-устройствами",
+      "reload": "Обновить",
+      "globalConfig": "Глобальная конфигурация HWID",
+      "globalConfigHint": "Включение и резервный лимит задаются в настройках подписки.",
+      "globalEnabled": "HWID-лимит включен",
+      "globalFallback": "Fallback лимит устройств",
+      "openSubscriptionsSettings": "Открыть настройки подписки",
+      "inspectorHint": "Ручная регистрация по сырому HWID (хеш на сервере), фильтр по пользователю, удаление строк.",
+      "addSection": "Ручная регистрация",
+      "emptyDevices": "Нет устройств по этому фильтру.",
+      "addDevice": "Добавить устройство",
+      "addUserId": "ID пользователя",
+      "addHwid": "Сырое значение HWID",
+      "deviceAdded": "HWID-устройство добавлено",
+      "addFailed": "Не удалось добавить HWID-устройство",
+      "inspector": "Инспектор HWID",
+      "totalDevices": "Всего устройств",
+      "usersWithDevices": "Пользователи с устройствами",
+      "userIdFilter": "Фильтр по ID пользователя",
+      "deleteAllForUser": "Удалить все для пользователя",
+      "deviceDeleted": "HWID-устройство удалено",
+      "devicesDeleted": "Все HWID-устройства пользователя удалены",
+      "deleteFailed": "Не удалось удалить HWID-устройство(а)",
+      "columns": {
+        "user": "Пользователь",
+        "username": "Имя пользователя",
+        "hwidHash": "Хеш HWID",
+        "device": "Устройство",
+        "lastSeen": "Последняя активность",
+        "action": "Действие"
+      }
     },
     "telegram": {
       "title": "Telegram",
@@ -1826,7 +1864,21 @@
     "editError": "Не удалось обновить пользователя «{{name}}»",
     "createError": "Не удалось создать пользователя «{{name}}»",
     "selectStatus": "Выберите статус",
-    "selectedTemplates": "Выбрано шаблонов: {{count}}"
+    "selectedTemplates": "Выбрано шаблонов: {{count}}",
+    "hwidSettingsTitle": "Настройки HWID",
+    "hwidTitle": "HWID",
+    "hwidDevicesTitle": "HWID устройства",
+    "hwidRegisteredCount": "Зарегистрировано устройств",
+    "hwidNoDevices": "Для этого пользователя пока нет зарегистрированных HWID-устройств.",
+    "hwidLastSeen": "Последняя активность",
+    "hwidLimitBypass": "Не применять HWID к пользователю",
+    "hwidLimitBypassDescription": "Если включено, пользователь получает подписку без проверки HWID и без регистрации устройств — как при отключённом HWID только для него.",
+    "hwidSectionSubtitle": "Свой лимит устройств и исключение из HWID при глобально включенной проверке.",
+    "hwidDevicesAfterSave": "Список устройств появится после сохранения пользователя.",
+    "hwidDeleteAll": "Удалить все",
+    "hwidDeviceLimit": "Лимит устройств",
+    "hwidDeviceLimitPlaceholder": "Как в настройках",
+    "hwidDisabled": "Отключить HWID-лимит для этого пользователя"
   },
   "userSettings": {
     "subscriptionUrlCopied": "URL подписки скопирован в буфер обмена"

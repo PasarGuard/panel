@@ -18,6 +18,7 @@ from app.templates import render_template
 from config import SUBSCRIPTION_PAGE_TEMPLATE
 
 from . import BaseOperation
+from .hwid import HWIDOperation
 from .user import UserOperation
 
 client_config = {
@@ -73,6 +74,14 @@ client_config = {
 
 
 class SubscriptionOperation(BaseOperation):
+    _HWID_ACTIVE_HEADERS = {"x-hwid-active": "true"}
+    _HWID_NOT_SUPPORTED_HEADERS = {"x-hwid-active": "true", "x-hwid-not-supported": "true"}
+    _HWID_LIMIT_REACHED_HEADERS = {
+        "x-hwid-active": "true",
+        "x-hwid-max-devices-reached": "true",
+        "x-hwid-limit": "true",
+    }
+
     _ENCODED_RULE_RESPONSE_HEADERS = {"announce", "profile-title"}
 
     @staticmethod
@@ -240,6 +249,11 @@ class SubscriptionOperation(BaseOperation):
         accept_header: str = "",
         user_agent: str = "",
         request_url: str = "",
+        hwid: str | None = None,
+        device_os: str | None = None,
+        os_version: str | None = None,
+        device_model: str | None = None,
+        request_ip: str | None = None,
     ):
         """
         Provides a subscription link based on the user agent (Clash, V2Ray, etc.).
@@ -248,6 +262,27 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token)
         user = await self.validated_user(db_user)
+        hwid_operator = HWIDOperation(operator_type=self.operator_type)
+
+        hwid_decision = await hwid_operator.enforce_subscription_hwid(
+            db,
+            user=db_user,
+            subscription_settings=sub_settings,
+            hwid=hwid,
+            device_os=device_os,
+            os_version=os_version,
+            device_model=device_model,
+            user_agent=user_agent,
+            request_ip=request_ip,
+        )
+        if not hwid_decision.allowed:
+            headers = (
+                self._HWID_NOT_SUPPORTED_HEADERS
+                if hwid_decision.missing_hwid
+                else self._HWID_LIMIT_REACHED_HEADERS if hwid_decision.max_devices_reached else {}
+            )
+            # Preserve existing safe denial behavior for invalid/missing subscription-like requests.
+            return Response(status_code=404, headers=headers)
 
         is_browser_request = "text/html" in accept_header
 
@@ -296,7 +331,7 @@ class SubscriptionOperation(BaseOperation):
                 request_url,
                 sub_settings,
                 inline=inline_view,
-                extra_headers={},
+                extra_headers=self._HWID_ACTIVE_HEADERS if sub_settings.hwid_device_limit_enabled else {},
                 extension=client_config.get(client_type, {}).get("extension", "") if client_type else "",
             )
             try:
@@ -332,7 +367,18 @@ class SubscriptionOperation(BaseOperation):
         return format_variables
 
     async def user_subscription_with_client_type(
-        self, db: AsyncSession, token: str, client_type: ConfigFormat, request_url: str = "", accept_header: str = ""
+        self,
+        db: AsyncSession,
+        token: str,
+        client_type: ConfigFormat,
+        request_url: str = "",
+        accept_header: str = "",
+        user_agent: str = "",
+        hwid: str | None = None,
+        device_os: str | None = None,
+        os_version: str | None = None,
+        device_model: str | None = None,
+        request_ip: str | None = None,
     ):
         """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
         sub_settings: SubSettings = await subscription_settings()
@@ -341,9 +387,32 @@ class SubscriptionOperation(BaseOperation):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token)
         user = await self.validated_user(db_user)
+        hwid_operator = HWIDOperation(operator_type=self.operator_type)
+        hwid_decision = await hwid_operator.enforce_subscription_hwid(
+            db,
+            user=db_user,
+            subscription_settings=sub_settings,
+            hwid=hwid,
+            device_os=device_os,
+            os_version=os_version,
+            device_model=device_model,
+            user_agent=user_agent,
+            request_ip=request_ip,
+        )
+        if not hwid_decision.allowed:
+            headers = (
+                self._HWID_NOT_SUPPORTED_HEADERS
+                if hwid_decision.missing_hwid
+                else self._HWID_LIMIT_REACHED_HEADERS if hwid_decision.max_devices_reached else {}
+            )
+            return Response(status_code=404, headers=headers)
 
         response_headers = self.create_response_headers(
-            user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
+            user,
+            request_url,
+            sub_settings,
+            extra_headers=self._HWID_ACTIVE_HEADERS if sub_settings.hwid_device_limit_enabled else {},
+            extension=client_config.get(client_type, {}).get("extension", ""),
         )
         try:
             response_headers = self.sanitize_response_headers(response_headers)

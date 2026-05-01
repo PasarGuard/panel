@@ -851,6 +851,10 @@ export type UserResponseAutoDeleteInDays = number | null
 
 export type UserResponseGroupIds = number[] | null
 
+export type UserResponseHwidDeviceLimit = number | null
+
+export type UserResponseHwidLimitDisabled = boolean | null
+
 export type UserResponseOnHoldTimeout = string | number | null
 
 export type UserResponseOnHoldExpireDuration = number | null
@@ -877,6 +881,8 @@ export interface UserResponse {
   on_hold_timeout?: UserResponseOnHoldTimeout
   group_ids?: UserResponseGroupIds
   auto_delete_in_days?: UserResponseAutoDeleteInDays
+  hwid_device_limit?: UserResponseHwidDeviceLimit
+  hwid_limit_disabled?: UserResponseHwidLimitDisabled
   next_plan?: UserResponseNextPlan
   id: number
   username: string
@@ -908,6 +914,10 @@ export type UserModifyAutoDeleteInDays = number | null
 
 export type UserModifyGroupIds = number[] | null
 
+export type UserModifyHwidDeviceLimit = number | null
+
+export type UserModifyHwidLimitDisabled = boolean | null
+
 export type UserModifyOnHoldTimeout = string | number | null
 
 export type UserModifyOnHoldExpireDuration = number | null
@@ -936,6 +946,8 @@ export interface UserModify {
   on_hold_timeout?: UserModifyOnHoldTimeout
   group_ids?: UserModifyGroupIds
   auto_delete_in_days?: UserModifyAutoDeleteInDays
+  hwid_device_limit?: UserModifyHwidDeviceLimit
+  hwid_limit_disabled?: UserModifyHwidLimitDisabled
   next_plan?: UserModifyNextPlan
   status?: UserModifyStatus
 }
@@ -966,6 +978,10 @@ export type UserCreateAutoDeleteInDays = number | null
 
 export type UserCreateGroupIds = number[] | null
 
+export type UserCreateHwidDeviceLimit = number | null
+
+export type UserCreateHwidLimitDisabled = boolean | null
+
 export type UserCreateOnHoldTimeout = string | number | null
 
 export type UserCreateOnHoldExpireDuration = number | null
@@ -992,6 +1008,8 @@ export interface UserCreate {
   on_hold_timeout?: UserCreateOnHoldTimeout
   group_ids?: UserCreateGroupIds
   auto_delete_in_days?: UserCreateAutoDeleteInDays
+  hwid_device_limit?: UserCreateHwidDeviceLimit
+  hwid_limit_disabled?: UserCreateHwidLimitDisabled
   next_plan?: UserCreateNextPlan
   username: string
   status?: UserCreateStatus
@@ -1198,6 +1216,8 @@ export interface SubscriptionOutput {
   allow_browser_config?: boolean
   disable_sub_template?: boolean
   randomize_order?: boolean
+  hwid_device_limit_enabled?: boolean
+  hwid_fallback_device_limit?: number
 }
 
 export interface SubscriptionInput {
@@ -1214,6 +1234,8 @@ export interface SubscriptionInput {
   allow_browser_config?: boolean
   disable_sub_template?: boolean
   randomize_order?: boolean
+  hwid_device_limit_enabled?: boolean
+  hwid_fallback_device_limit?: number
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null

@@ -22,6 +22,10 @@ async def user_subscription(
     token: str,
     db: AsyncSession = Depends(get_db),
     user_agent: str = Header(default=""),
+    x_hwid: str | None = Header(default=None),
+    x_device_os: str | None = Header(default=None),
+    x_ver_os: str | None = Header(default=None),
+    x_device_model: str | None = Header(default=None),
 ):
     """Provides a subscription link based on the user agent (Clash, V2Ray, etc.)."""
     return await subscription_operator.user_subscription(
@@ -30,6 +34,11 @@ async def user_subscription(
         accept_header=request.headers.get("Accept", ""),
         user_agent=user_agent,
         request_url=str(request.url),
+        hwid=x_hwid,
+        device_os=x_device_os,
+        os_version=x_ver_os,
+        device_model=x_device_model,
+        request_ip=request.client.host if request.client else None,
     )
 
 
@@ -66,6 +75,11 @@ async def user_subscription_with_client_type(
     token: str,
     client_type: ConfigFormat,
     db: AsyncSession = Depends(get_db),
+    user_agent: str = Header(default=""),
+    x_hwid: str | None = Header(default=None),
+    x_device_os: str | None = Header(default=None),
+    x_ver_os: str | None = Header(default=None),
+    x_device_model: str | None = Header(default=None),
 ):
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
     return await subscription_operator.user_subscription_with_client_type(
@@ -74,4 +88,10 @@ async def user_subscription_with_client_type(
         client_type=client_type,
         request_url=str(request.url),
         accept_header=request.headers.get("Accept", ""),
+        user_agent=user_agent,
+        hwid=x_hwid,
+        device_os=x_device_os,
+        os_version=x_ver_os,
+        device_model=x_device_model,
+        request_ip=request.client.host if request.client else None,
     )

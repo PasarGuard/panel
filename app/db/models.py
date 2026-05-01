@@ -161,6 +161,8 @@ class User(Base):
     on_hold_expire_duration: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     on_hold_timeout: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     auto_delete_in_days: Mapped[Optional[int]] = mapped_column(default=None)
+    hwid_device_limit: Mapped[Optional[int]] = mapped_column(default=None)
+    hwid_limit_disabled: Mapped[bool] = mapped_column(default=False, server_default="0")
     edit_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
@@ -313,6 +315,30 @@ class UserSubscriptionUpdate(Base):
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
+
+
+class HWIDUserDevice(Base):
+    __tablename__ = "hwid_user_devices"
+    __table_args__ = (
+        UniqueConstraint("user_id", "hwid_hash"),
+        Index("ix_hwid_user_devices_user_id_last_seen_at", "user_id", "last_seen_at"),
+        Index("ix_hwid_user_devices_hwid_hash", "hwid_hash"),
+        Index("ix_hwid_user_devices_last_seen_at", "last_seen_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user: Mapped["User"] = relationship(init=False)
+    hwid_hash: Mapped[str] = mapped_column(String(128))
+    device_os: Mapped[Optional[str]] = mapped_column(String(64), default=None)
+    os_version: Mapped[Optional[str]] = mapped_column(String(64), default=None)
+    device_model: Mapped[Optional[str]] = mapped_column(String(128), default=None)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), default=None)
+    request_ip: Mapped[Optional[str]] = mapped_column(String(64), default=None)
+    first_seen_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    last_seen_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    updated_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc))
 
 
 template_group_association = Table(

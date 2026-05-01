@@ -892,6 +892,12 @@ async def modify_user(
     if modify.on_hold_expire_duration is not None:
         db_user.on_hold_expire_duration = modify.on_hold_expire_duration
 
+    if modify.hwid_device_limit is not None:
+        db_user.hwid_device_limit = modify.hwid_device_limit
+
+    if modify.hwid_limit_disabled is not None:
+        db_user.hwid_limit_disabled = modify.hwid_limit_disabled
+
     if modify.next_plan is not None:
         db_user.next_plan = NextPlan(
             user_id=db_user.id,

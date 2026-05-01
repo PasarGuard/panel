@@ -35,6 +35,8 @@ class User(BaseModel):
     on_hold_timeout: dt | int | None = Field(default=None)
     group_ids: list[int] | None = Field(default_factory=list)
     auto_delete_in_days: int | None = Field(default=None)
+    hwid_device_limit: int | None = Field(default=None, ge=0)
+    hwid_limit_disabled: bool | None = Field(default=None)
     next_plan: NextPlanModel | None = Field(default=None)
 
 

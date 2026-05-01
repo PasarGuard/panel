@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -20,6 +20,7 @@ import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
+import { fetcher } from '@/service/http'
 import {
   getGeneralSettings,
   getGetGeneralSettingsQueryKey,
@@ -37,10 +38,11 @@ import {
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
+import { formatClientInfo, parseUserAgent } from '@/utils/userAgentParser'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Group, Users, Pencil, UserRoundPlus } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Group, Users, Pencil, UserRoundPlus, Smartphone, Trash2 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -56,6 +58,24 @@ interface UserModalProps {
   editingUserId?: number
   editingUserData?: any // The user data object when editing
   onSuccessCallback?: (user: UserResponse) => void
+}
+
+type HWIDDevice = {
+  id: number
+  user_id: number
+  hwid_hash: string
+  device_os?: string
+  os_version?: string
+  device_model?: string
+  user_agent?: string
+  request_ip?: string
+  first_seen_at: string
+  last_seen_at: string
+}
+
+type HWIDDeviceListResponse = {
+  items: HWIDDevice[]
+  total: number
 }
 
 const isDate = (v: unknown): v is Date => typeof v === 'object' && v !== null && v instanceof Date
@@ -579,6 +599,41 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
           syncUserCacheFromApiResponse(updatedUser)
         }
       },
+    },
+  })
+  const resolvedEditingUserId = editingUser ? Number(editingUserId ?? editingUserData?.id ?? 0) : 0
+  const hwidDevicesQuery = useQuery({
+    queryKey: ['user-hwid-devices', resolvedEditingUserId],
+    enabled: isDialogOpen && editingUser && resolvedEditingUserId > 0,
+    queryFn: () => fetcher<HWIDDeviceListResponse>(`/api/hwid/devices/${resolvedEditingUserId}`),
+  })
+  const deleteHwidDeviceMutation = useMutation({
+    mutationFn: (payload: { user_id: number; hwid_hash: string }) =>
+      fetcher('/api/hwid/devices/delete', { method: 'POST', body: payload }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-hwid-devices', resolvedEditingUserId] })
+      queryClient.invalidateQueries({ queryKey: ['hwid-devices'] })
+      queryClient.invalidateQueries({ queryKey: ['hwid-devices-stats'] })
+      toast.success(t('settings.hwid.deviceDeleted', { defaultValue: 'HWID device deleted' }))
+    },
+    onError: (error: any) => {
+      toast.error(t('settings.hwid.deleteFailed', { defaultValue: 'Failed to delete HWID device' }), {
+        description: error?.data?.detail || error?.message || '',
+      })
+    },
+  })
+  const deleteAllHwidDevicesMutation = useMutation({
+    mutationFn: (payload: { user_id: number }) => fetcher('/api/hwid/devices/delete-all', { method: 'POST', body: payload }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-hwid-devices', resolvedEditingUserId] })
+      queryClient.invalidateQueries({ queryKey: ['hwid-devices'] })
+      queryClient.invalidateQueries({ queryKey: ['hwid-devices-stats'] })
+      toast.success(t('settings.hwid.devicesDeleted', { defaultValue: 'All HWID devices deleted for user' }))
+    },
+    onError: (error: any) => {
+      toast.error(t('settings.hwid.deleteFailed', { defaultValue: 'Failed to delete HWID device(s)' }), {
+        description: error?.data?.detail || error?.message || '',
+      })
     },
   })
 
@@ -1116,7 +1171,18 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         setActiveTab('groups')
         setSelectedTemplateId(null)
       } catch (error: any) {
-        const fields = ['username', 'data_limit', 'expire', 'note', 'data_limit_reset_strategy', 'on_hold_expire_duration', 'on_hold_timeout', 'group_ids']
+        const fields = [
+          'username',
+          'data_limit',
+          'expire',
+          'note',
+          'data_limit_reset_strategy',
+          'on_hold_expire_duration',
+          'on_hold_timeout',
+          'group_ids',
+          'hwid_device_limit',
+          'hwid_limit_disabled',
+        ]
         handleError({ error, fields, form, contextKey: 'users' })
       } finally {
         setLoading(false)
@@ -1365,6 +1431,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const renderUserMetaPanel = (extraClassName?: string) => {
     if (!editingUser) return null
 
+    const hwidItems = hwidDevicesQuery.data?.items || []
+    const hwidCount = hwidDevicesQuery.data?.total ?? hwidItems.length
+
     return (
       <div className={cn('mt-3 space-y-3', extraClassName)}>
         <Accordion type="multiple" className="w-full">
@@ -1395,6 +1464,82 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                     <span dir="ltr" className="text-right">
                       {editedAtText}
                     </span>
+                  </div>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="meta-hwid-devices" className="mt-2 rounded-sm border bg-background px-2">
+            <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+              <span className="flex items-center gap-1.5">
+                <Smartphone className="h-3.5 w-3.5" />
+                {t('userDialog.hwidDevicesTitle', { defaultValue: 'HWID Devices' })}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-2">
+              <div className="space-y-2 rounded-md bg-background py-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{t('userDialog.hwidRegisteredCount', { defaultValue: 'Registered devices' })}</span>
+                  <div className="flex items-center gap-2">
+                    <span dir="ltr" className="font-medium text-foreground">{hwidCount}</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="h-6 px-2 text-[10px]"
+                      disabled={!hwidItems.length || deleteAllHwidDevicesMutation.isPending}
+                      onClick={() => deleteAllHwidDevicesMutation.mutate({ user_id: resolvedEditingUserId })}
+                    >
+                      {t('userDialog.hwidDeleteAll', { defaultValue: 'Delete all' })}
+                    </Button>
+                  </div>
+                </div>
+                {hwidDevicesQuery.isLoading ? (
+                  <div className="text-xs text-muted-foreground">
+                    {t('loading', { defaultValue: 'Loading...' })}
+                  </div>
+                ) : hwidItems.length === 0 ? (
+                  <div className="text-xs text-muted-foreground">
+                    {t('userDialog.hwidNoDevices', { defaultValue: 'No HWID devices registered for this user yet.' })}
+                  </div>
+                ) : (
+                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {hwidItems.map(item => {
+                      const clientInfo = formatClientInfo(parseUserAgent(item.user_agent))
+                      const deviceText =
+                        [item.device_os, item.os_version, item.device_model]
+                          .filter(Boolean)
+                          .join(' / ') || t('unknown', { defaultValue: 'Unknown' })
+                      return (
+                        <div key={item.id} className="rounded-md border p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 space-y-1">
+                              <div className="truncate text-xs font-medium">{clientInfo}</div>
+                              <div className="truncate text-[11px] text-muted-foreground">{deviceText}</div>
+                              <div className="font-mono text-[10px] text-muted-foreground break-all">{item.hwid_hash}</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {t('userDialog.hwidLastSeen', { defaultValue: 'Last seen' })}: {formatMetaDate(item.last_seen_at)}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={deleteHwidDeviceMutation.isPending}
+                              onClick={() =>
+                                deleteHwidDeviceMutation.mutate({
+                                  user_id: item.user_id,
+                                  hwid_hash: item.hwid_hash,
+                                })
+                              }
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -2268,6 +2413,88 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                           />
                         </AccordionContent>
                       </AccordionItem>
+                      {!selectedTemplateId && (
+                        <AccordionItem
+                          className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline"
+                          value="hwidSettings"
+                        >
+                          <AccordionTrigger className="hover:no-underline">
+                            <div className="flex items-start gap-2 text-start">
+                              <Smartphone className="mt-0.5 h-4 w-4 shrink-0" />
+                              <div className="space-y-0.5">
+                                <span className="text-sm font-medium leading-tight">{t('userDialog.hwidTitle', { defaultValue: 'HWID' })}</span>
+                                <span className="block text-xs font-normal leading-snug text-muted-foreground">
+                                  {t('userDialog.hwidSectionSubtitle', { defaultValue: 'Per-user device limit and optional exemption when HWID is enabled globally.' })}
+                                </span>
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4 px-2 pb-3 pt-0">
+                            <FormField
+                              control={form.control}
+                              name="hwid_device_limit"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-sm">{t('userDialog.hwidDeviceLimit', { defaultValue: 'Device limit' })}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      className="w-full sm:max-w-md"
+                                      dir="ltr"
+                                      value={field.value ?? ''}
+                                      placeholder={t('userDialog.hwidDeviceLimitPlaceholder', { defaultValue: 'Global default' })}
+                                      onChange={e => {
+                                        const raw = e.target.value
+                                        if (raw === '') {
+                                          field.onChange(undefined)
+                                          handleFieldChange('hwid_device_limit', undefined)
+                                          return
+                                        }
+                                        const parsed = Math.max(0, Number.parseInt(raw, 10) || 0)
+                                        field.onChange(parsed)
+                                        handleFieldChange('hwid_device_limit', parsed)
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="hwid_limit_disabled"
+                              render={({ field }) => (
+                                <FormItem className="space-y-2 rounded-md border bg-muted/20 px-3 py-3">
+                                  <div className="flex flex-row items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-1">
+                                      <FormLabel className="!mt-0 cursor-pointer text-sm font-medium leading-snug">
+                                        {t('userDialog.hwidLimitBypass', { defaultValue: 'Exempt from HWID limits' })}
+                                      </FormLabel>
+                                      <FormDescription className="text-xs leading-relaxed">
+                                        {t('userDialog.hwidLimitBypassDescription', {
+                                          defaultValue:
+                                            'When enabled, this user can fetch subscriptions without HWID checks and without device registration — same as if HWID were off for them only.',
+                                        })}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        className="shrink-0"
+                                        checked={!!field.value}
+                                        onCheckedChange={checked => {
+                                          field.onChange(checked)
+                                          handleFieldChange('hwid_limit_disabled', checked)
+                                        }}
+                                      />
+                                    </FormControl>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
                     </Accordion>
                   )}
                   {/* Next Plan Section (toggleable) */}

@@ -41,6 +41,8 @@ export default function SubscriptionSettings() {
       allow_browser_config: true,
       disable_sub_template: false,
       randomize_order: false,
+      hwid_device_limit_enabled: false,
+      hwid_fallback_device_limit: 0,
       rules: [],
       applications: [],
       manual_sub_request: {
@@ -123,6 +125,8 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
+        hwid_device_limit_enabled: subscriptionData.hwid_device_limit_enabled ?? false,
+        hwid_fallback_device_limit: subscriptionData.hwid_fallback_device_limit ?? 0,
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,
@@ -270,6 +274,8 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
+        hwid_device_limit_enabled: subscriptionData.hwid_device_limit_enabled ?? false,
+        hwid_fallback_device_limit: subscriptionData.hwid_fallback_device_limit ?? 0,
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,

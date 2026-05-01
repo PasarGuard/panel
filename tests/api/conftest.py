@@ -102,6 +102,8 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
             "profile_title": "Subscription",
             "host_status_filter": False,
             "randomize_order": False,
+            "hwid_device_limit_enabled": False,
+            "hwid_fallback_device_limit": 0,
             "rules": [
                 {
                     "pattern": "^([Cc]lash[\\-\\.]?[Vv]erge|[Cc]lash[\\-\\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)",
