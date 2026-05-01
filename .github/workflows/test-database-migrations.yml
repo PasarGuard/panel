@@ -27,8 +27,8 @@ jobs:
                   echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:///./test.db" >> $GITHUB_ENV
 
-            - name: Install dependencies
-              run: make setup
+            - name: Install test dependencies
+              run: make setup-test
 
             - name: Run Alembic Migrations
               run: make run-migration
@@ -66,8 +66,8 @@ jobs:
                   echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/testdb" >> $GITHUB_ENV
 
-            - name: Install dependencies
-              run: make setup
+            - name: Install test dependencies
+              run: make setup-test
 
             - name: Run Alembic Migrations
               run: make run-migration
@@ -110,8 +110,8 @@ jobs:
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "UVICORN_WORKERS=2" >> $GITHUB_ENV
 
-            - name: Install dependencies
-              run: make setup
+            - name: Install test dependencies
+              run: make setup-test
 
             - name: Wait for TimescaleDB
               run: |
@@ -186,8 +186,8 @@ jobs:
                   echo "TESTING=1" >> $GITHUB_ENV
                   echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3306/testdb" >> $GITHUB_ENV
 
-            - name: Install dependencies
-              run: make setup
+            - name: Install test dependencies
+              run: make setup-test
 
             - name: Run Alembic Migrations
               run: make run-migration
@@ -231,8 +231,8 @@ jobs:
                   echo "NATS_URL=nats://localhost:4222" >> $GITHUB_ENV
                   echo "UVICORN_WORKERS=2" >> $GITHUB_ENV
 
-            - name: Install dependencies
-              run: make setup
+            - name: Install test dependencies
+              run: make setup-test
 
             - name: Wait for MariaDB and ensure testuser grants
               run: |

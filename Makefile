@@ -31,6 +31,10 @@ install_uv:
 requirements:
 	@uv sync
 
+.PHONY: requirements-dev
+requirements-dev:
+	@uv sync --group dev
+
 # Check if nvm is installed, if not, install it
 .PHONY: check-nvm
 check-nvm:
@@ -139,6 +143,9 @@ clean:
 # Setup environment: check Python, install uv, and sync requirements
 .PHONY: setup
 setup: check-python install_uv requirements
+
+.PHONY: setup-test
+setup-test: check-python install_uv requirements-dev
 
 # Format code (front-end)
 .PHONY: fformat

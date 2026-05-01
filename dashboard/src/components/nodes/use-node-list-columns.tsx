@@ -6,8 +6,6 @@ import NodeActionsMenu from '@/components/nodes/node-actions-menu'
 import { CoresSimpleResponse, NodeResponse, NodeStatus } from '@/service/api'
 import { cn } from '@/lib/utils'
 import { Package, Server } from 'lucide-react'
-import { useXrayReleases } from '@/hooks/use-xray-releases'
-import { useNodeReleases } from '@/hooks/use-node-releases'
 
 interface UseNodeListColumnsProps {
   onEdit: (node: NodeResponse) => void
@@ -32,8 +30,6 @@ const getNodeStatusDotColor = (status: NodeStatus) => {
 
 export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNodeListColumnsProps) => {
   const { t } = useTranslation()
-  const { latestVersion: latestXrayVersion, hasUpdate: hasXrayUpdate } = useXrayReleases()
-  const { latestVersion: latestNodeVersion, hasUpdate: hasNodeUpdate } = useNodeReleases()
 
   return useMemo<ListColumn<NodeResponse>[]>(
     () => [
@@ -71,14 +67,12 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
                 <div className="flex items-center gap-1.5">
                   <Server className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{node.xray_version}</span>
-                  {hasXrayUpdate(node.xray_version) && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
                 </div>
               )}
               {node.node_version && (
                 <div className="flex items-center gap-1.5">
                   <Package className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{node.node_version}</span>
-                  {hasNodeUpdate(node.node_version) && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
                 </div>
               )}
             </div>
@@ -102,6 +96,6 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
         cell: node => <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} />,
       },
     ],
-    [t, onEdit, onToggleStatus, coresData, latestXrayVersion, hasXrayUpdate, latestNodeVersion, hasNodeUpdate],
+    [t, onEdit, onToggleStatus, coresData],
   )
 }

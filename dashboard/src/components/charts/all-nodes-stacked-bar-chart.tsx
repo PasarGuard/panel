@@ -286,7 +286,7 @@ export function AllNodesStackedBarChart() {
   const { chartData, totalUsage } = useMemo(() => {
     const statsKeys = Object.keys(statsByNode)
     if (statsKeys.length === 0) {
-      return { chartData: [] as NodeChartDataPoint[], totalUsage: '0' }
+      return { chartData: [] as NodeChartDataPoint[], totalUsage: null }
     }
 
     const hasIndividualNodeData = statsKeys.some(key => key !== '-1')
@@ -316,7 +316,7 @@ export function AllNodesStackedBarChart() {
       const totalBytes = aggregatedStats.reduce((sum, point) => sum + getTrafficBytes(point), 0)
       return {
         chartData: aggregatedChartData,
-        totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : '0',
+        totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : null,
       }
     }
 
@@ -360,7 +360,7 @@ export function AllNodesStackedBarChart() {
 
     return {
       chartData: chartRows,
-      totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : '0',
+      totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : null,
     }
   }, [statsByNode, nodeList, activePeriod, i18n.language])
 
@@ -539,7 +539,7 @@ export function AllNodesStackedBarChart() {
           <div className="m-0 flex flex-col justify-center p-4 xl:border-l xl:p-5 xl:px-6">
             <span className="text-xs text-muted-foreground sm:text-sm">{t('statistics.usageDuringPeriod')}</span>
             <span dir="ltr" className="flex justify-center text-lg text-foreground">
-              {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage}
+              {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage ? totalUsage : <span className="text-muted-foreground">—</span>}
             </span>
           </div>
         </CardHeader>

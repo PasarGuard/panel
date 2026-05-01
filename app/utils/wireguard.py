@@ -87,12 +87,17 @@ async def get_wireguard_inbound_tags_from_db(db: AsyncSession) -> set[str]:
 
 
 async def user_in_wireguard_group(user: User, wg_tags: set[str]) -> bool:
-    await user.awaitable_attrs.groups
-    for group in user.groups:
+    groups = user.__dict__.get("groups")
+    if groups is None:
+        groups = await user.awaitable_attrs.groups
+
+    for group in groups:
         if group.is_disabled:
             continue
-        await group.awaitable_attrs.inbounds
-        for inbound in group.inbounds:
+        inbounds = group.__dict__.get("inbounds")
+        if inbounds is None:
+            inbounds = await group.awaitable_attrs.inbounds
+        for inbound in inbounds:
             if inbound.tag in wg_tags:
                 return True
     return False
@@ -143,6 +148,21 @@ async def prepare_wireguard_keys_only(
     if not wireguard_tags:
         return proxy_settings
 
+    if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:
+        raise ValueError("wireguard private_key is required when user is assigned to a WireGuard interface")
+
+    if not proxy_settings.wireguard.private_key:
+        private_key, public_key = generate_wireguard_keypair()
+        proxy_settings.wireguard.private_key = private_key
+        proxy_settings.wireguard.public_key = public_key
+    elif not proxy_settings.wireguard.public_key:
+        proxy_settings.wireguard.public_key = get_wireguard_public_key(proxy_settings.wireguard.private_key)
+
+    return proxy_settings
+
+
+def prepare_wireguard_keys_for_member(proxy_settings: ProxyTable) -> ProxyTable:
+    """Generate WireGuard keys for a user already known to belong to a WireGuard group."""
     if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:
         raise ValueError("wireguard private_key is required when user is assigned to a WireGuard interface")
 
@@ -253,10 +273,8 @@ async def bulk_reallocate_wireguard_peer_ips(
     updated_users: list[User] = []
     for user in to_touch:
         proxy_settings = ProxyTable.model_validate(user.proxy_settings or {})
-        await user.awaitable_attrs.groups
-        groups = [g for g in user.groups if not g.is_disabled]
         try:
-            prepared = await prepare_wireguard_keys_only(db, proxy_settings, groups)
+            prepared = prepare_wireguard_keys_for_member(proxy_settings)
         except ValueError:
             continue
         peer_ip = allocator.allocate()
@@ -269,8 +287,6 @@ async def bulk_reallocate_wireguard_peer_ips(
 
     if updated_users:
         await db.commit()
-        for user in updated_users:
-            await db.refresh(user)
         await sync_users(updated_users)
 
     return {

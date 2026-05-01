@@ -49,6 +49,7 @@ import {
 } from 'lucide-react'
 import { BulkExpiredDateFilters } from '@/components/bulk/bulk-expired-date-filters'
 import { SelectorPanel } from '@/components/bulk/selector-panel'
+import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
@@ -59,7 +60,7 @@ import { endOfDay, startOfDay } from 'date-fns'
 const PAGE_SIZE = 50
 
 type BulkOperationType = 'proxy' | 'data' | 'expire' | 'groups' | 'wireguard'
-type ExpiryUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'months'
+type ExpiryUnit = TimeUnit
 
 interface BulkFlowProps {
   operationType: BulkOperationType
@@ -121,22 +122,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       setExpireSeconds(undefined)
       return
     }
-    let seconds = num
-    switch (expireUnit) {
-      case 'minutes':
-        seconds = num * 60
-        break
-      case 'hours':
-        seconds = num * 3600
-        break
-      case 'days':
-        seconds = num * 86400
-        break
-      case 'months':
-        seconds = num * 2592000
-        break
-    }
-    setExpireSeconds(seconds)
+    setExpireSeconds(num * TIME_UNIT_SECONDS[expireUnit])
   }, [expireAmount, expireUnit])
 
   const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ limit: PAGE_SIZE, offset: 0, all: true })
@@ -770,25 +756,16 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                           step="1"
                           min="1"
                           dir="ltr"
-                          className={cn(isRTL ? 'pl-20 pr-3' : 'pr-20 pl-3')}
+                          className={cn(isRTL ? 'pl-[4.5rem] pr-3' : 'pr-[4.5rem] pl-3')}
                         />
-                        <Select value={expireUnit} onValueChange={v => setExpireUnit(v as ExpiryUnit)}>
-                          <SelectTrigger
-                            className={cn(
-                              'pointer-events-auto absolute top-0 h-full w-20',
-                              isRTL ? 'left-0 rounded-r-none border-r-0' : 'right-0 rounded-l-none border-l-0',
-                            )}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="seconds">{t('time.seconds', { defaultValue: 'Seconds' })}</SelectItem>
-                            <SelectItem value="minutes">{t('time.mins', { defaultValue: 'Minutes' })}</SelectItem>
-                            <SelectItem value="hours">{t('time.hours', { defaultValue: 'Hours' })}</SelectItem>
-                            <SelectItem value="days">{t('time.days', { defaultValue: 'Days' })}</SelectItem>
-                            <SelectItem value="months">{t('time.months', { defaultValue: 'Months' })}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <TimeUnitSelect
+                          value={expireUnit}
+                          onValueChange={setExpireUnit}
+                          triggerClassName={cn(
+                            'pointer-events-auto absolute top-0 h-full w-[4.5rem] px-2',
+                            isRTL ? 'left-0 rounded-r-none border-r-0' : 'right-0 rounded-l-none border-l-0',
+                          )}
+                        />
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">

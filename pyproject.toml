@@ -34,12 +34,12 @@ dependencies = [
     "asyncpg>=0.31.0",
     "asyncmy>=0.2.10; sys_platform != 'win32'",
     "aiocache>=0.12.3",
-    "textual[syntax]>=2.1.2",
+    "textual[syntax]>=8.2.5",
     "aiogram>=3.23.0",
     "aiohttp-socks>=0.10.1",
     "uvloop>=0.22.1; sys_platform != 'win32'",
     "aiorwlock>=1.5.0",
-    "typer>=0.25.0",
+    "typer>=0.25.1",
     "pasarguard-node-bridge>=0.6.0",
     "pip-system-certs>=5.3",
     "psycopg[binary]>=3.3.3",
@@ -68,6 +68,7 @@ docstring-code-line-length = "dynamic"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.0.3",
     "pytest-asyncio>=0.26.0",
     "pytest-watch>=4.2.0",

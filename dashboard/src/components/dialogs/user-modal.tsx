@@ -1,5 +1,6 @@
 import { DatePicker, type DatePickerAlign, type DatePickerSide } from '@/components/common/date-picker'
 import GroupsSelector from '@/components/common/groups-selector'
+import { TimeUnitSelect, TIME_UNIT_SECONDS, secondsToTimeUnit, type TimeUnit } from '@/components/common/time-unit-select'
 import UsageModal from '@/components/dialogs/usage-modal'
 import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
@@ -324,6 +325,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const [isUsageModalOpen, setUsageModalOpen] = useState(false)
   const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
+  const [onHoldExpireUnit, setOnHoldExpireUnit] = useState<TimeUnit>('days')
 
   // Watch next plan values directly for reactivity
   const nextPlanUserTemplateId = form.watch('next_plan.user_template_id')
@@ -417,6 +419,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         setNextPlanManuallyDisabled(false)
         dataLimitInputRef.current = ''
         onHoldExpireDurationInputRef.current = ''
+        setOnHoldExpireUnit('days')
         nextPlanExpireInputRef.current = ''
         nextPlanDataLimitInputRef.current = ''
       }
@@ -1728,17 +1731,18 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                             control={form.control}
                             name="on_hold_expire_duration"
                             render={({ field }) => {
-                              const daySec = 24 * 60 * 60
+                              const unitSeconds = TIME_UNIT_SECONDS[onHoldExpireUnit]
                               if (
                                 onHoldExpireDurationInputRef.current === '' &&
                                 field.value != null &&
                                 field.value !== undefined &&
                                 field.value > 0
                               ) {
-                                onHoldExpireDurationInputRef.current = String(field.value / daySec)
+                                onHoldExpireDurationInputRef.current = secondsToTimeUnit(field.value, onHoldExpireUnit)
                               } else if (
-                                (field.value === null || field.value === undefined) &&
+                                (field.value === null || field.value === undefined || field.value === 0) &&
                                 onHoldExpireDurationInputRef.current !== ''
+                                && !onHoldExpireDurationInputRef.current.endsWith('.')
                               ) {
                                 onHoldExpireDurationInputRef.current = ''
                               }
@@ -1747,7 +1751,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                 onHoldExpireDurationInputRef.current !== ''
                                   ? onHoldExpireDurationInputRef.current
                                   : field.value != null && field.value !== undefined && field.value > 0
-                                    ? String(field.value / daySec)
+                                    ? secondsToTimeUnit(field.value, onHoldExpireUnit)
                                     : ''
 
                               return (
@@ -1787,7 +1791,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                           } else {
                                             const numValue = parseFloat(rawValue)
                                             if (!isNaN(numValue) && numValue >= 0) {
-                                              const seconds = numValue * daySec
+                                              const seconds = numValue * unitSeconds
                                               field.onChange(seconds)
                                               handleFieldChange('on_hold_expire_duration', seconds)
                                               void form.trigger('on_hold_expire_duration')
@@ -1804,10 +1808,10 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                           } else {
                                             const numValue = parseFloat(rawValue)
                                             if (!isNaN(numValue) && numValue >= 0) {
-                                              const finalDays = numValue
-                                              const finalSeconds = finalDays * daySec
+                                              const finalAmount = numValue
+                                              const finalSeconds = finalAmount * unitSeconds
                                               onHoldExpireDurationInputRef.current =
-                                                finalDays > 0 ? String(finalDays) : ''
+                                                finalAmount > 0 ? String(finalAmount) : ''
                                               field.onChange(finalSeconds)
                                               handleFieldChange('on_hold_expire_duration', finalSeconds)
                                               void form.trigger('on_hold_expire_duration')
@@ -1819,13 +1823,19 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                             }
                                           }
                                         }}
-                                        className={dir === 'rtl' ? 'pl-14' : 'pr-14'}
+                                        className={cn(dir === 'rtl' ? 'pl-20' : 'pr-20')}
                                       />
-                                      <span
-                                        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground ${dir === 'rtl' ? 'start-3' : 'end-3'}`}
-                                      >
-                                        {t('time.days', { defaultValue: 'Days' })}
-                                      </span>
+                                      <TimeUnitSelect
+                                        value={onHoldExpireUnit}
+                                        onValueChange={nextUnit => {
+                                          setOnHoldExpireUnit(nextUnit)
+                                          onHoldExpireDurationInputRef.current = secondsToTimeUnit(field.value, nextUnit)
+                                        }}
+                                        triggerClassName={cn(
+                                          'absolute top-0 h-full w-20 rounded-none border-y-0 focus:ring-0 focus:ring-offset-0',
+                                          dir === 'rtl' ? 'left-0 border-l-0' : 'right-0 border-r-0',
+                                        )}
+                                      />
                                     </div>
                                   </FormControl>
                                   <FormMessage />
@@ -1864,7 +1874,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                           calendarOpen={onHoldCalendarOpen}
                           setCalendarOpen={setOnHoldCalendarOpen}
                           handleFieldChange={handleFieldChange}
-                          label={t('userDialog.timeOutDate', { defaultValue: 'Expire date' })}
+                          label={t('userDialog.timeOutDate', { defaultValue: 'Hold Until' })}
                           fieldName="on_hold_timeout"
                           popoverAlignDesktop="start"
                           popoverSideDesktop={dir === 'rtl' ? 'left' : 'right'}

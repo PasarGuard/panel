@@ -1731,6 +1731,7 @@ export interface NodeRealtimeStats {
   cpu_usage: number
   incoming_bandwidth_speed: number
   outgoing_bandwidth_speed: number
+  uptime: number
 }
 
 export interface NodeNotificationEnable {

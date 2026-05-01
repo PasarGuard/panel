@@ -151,9 +151,10 @@ async def get_cores_simple(
                 sort_list.extend(s.value)
             else:
                 sort_list.append(s.value)
+        sort_list.append(CoreConfig.id.asc())
         stmt = stmt.order_by(*sort_list)
     else:
-        stmt = stmt.order_by(CoreConfig.created_at.asc())
+        stmt = stmt.order_by(CoreConfig.created_at.asc(), CoreConfig.id.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())

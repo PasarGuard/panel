@@ -199,7 +199,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
 
   const totalUsage = useMemo(() => {
     const total = statsArr.reduce((sum, point) => sum + getTrafficBytes(point), 0)
-    if (total <= 0) return '0'
+    if (total <= 0) return null
     return String(formatBytes(total, 2))
   }, [statsArr])
 
@@ -299,7 +299,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
         <div className="m-0 flex flex-col justify-center p-4 xl:border-l xl:p-5 xl:px-6">
           <span className="text-xs text-muted-foreground">{t('statistics.usageDuringPeriod')}</span>
           <span dir="ltr" className="flex justify-center text-base text-foreground sm:text-lg">
-            {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage}
+            {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage ? totalUsage : <span className="text-muted-foreground">—</span>}
           </span>
         </div>
       </CardHeader>

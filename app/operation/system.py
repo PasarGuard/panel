@@ -42,7 +42,7 @@ class SystemOperation(BaseOperation):
         user_counts_task = get_users_count_by_status(db, statuses, admin_id)
         online_users_task = count_online_users(db, timedelta(minutes=2), admin_id)
 
-        tasks = [mem_task, cpu_task, disk_task, user_counts_task, online_users_task,uptime_task]
+        tasks = [mem_task, cpu_task, disk_task, user_counts_task, online_users_task, uptime_task]
         if system_task is not None:
             tasks.append(system_task)
 

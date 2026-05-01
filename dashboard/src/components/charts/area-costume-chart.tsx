@@ -68,19 +68,20 @@ interface AreaCostumeChartProps {
   nodeId?: number
   currentStats?: SystemStats | NodeRealtimeStats | null
   realtimeStats?: SystemStats | NodeRealtimeStats
+  realtimeAvailable?: boolean
 }
 
 const isSystemStats = (stats: SystemStats | NodeRealtimeStats): stats is SystemStats => 'total_user' in stats
 
 const isNodeRealtimeStats = (stats: SystemStats | NodeRealtimeStats): stats is NodeRealtimeStats => 'incoming_bandwidth_speed' in stats
 
-export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCostumeChartProps) {
+export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtimeAvailable = true }: AreaCostumeChartProps) {
   const { t, i18n } = useTranslation()
   const { resolvedTheme } = useTheme()
   const dir = useDirDetection()
   const [realtimeHistory, setRealtimeHistory] = useState<DataPoint[]>([])
   const [realtimeError, setRealtimeError] = useState<Error | null>(null)
-  const [viewMode, setViewMode] = useState<'realtime' | 'historical'>('realtime')
+  const [viewMode, setViewMode] = useState<'realtime' | 'historical'>(() => (realtimeAvailable ? 'realtime' : 'historical'))
 
   const chartContainerRef = useRef<HTMLDivElement>(null)
 
@@ -128,10 +129,12 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
   useEffect(() => {
     setRealtimeHistory([])
     setRealtimeError(null)
-    setViewMode('realtime')
-  }, [nodeId])
+    setViewMode(realtimeAvailable ? 'realtime' : 'historical')
+  }, [nodeId, realtimeAvailable])
 
   const toggleViewMode = () => {
+    if (!realtimeAvailable) return
+
     if (viewMode === 'realtime') {
       setViewMode('historical')
       return
@@ -256,7 +259,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
             </div>
           </div>
 
-          {nodeId !== undefined && (
+          {nodeId !== undefined && realtimeAvailable && (
             <Button variant={viewMode === 'realtime' ? 'default' : 'outline'} size="sm" onClick={toggleViewMode} className="h-9 w-full px-4 font-medium sm:w-auto">
               {viewMode === 'realtime' ? (
                 <>
@@ -274,24 +277,26 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats }: AreaCo
         </div>
 
         <CardDescription className="text-sm text-muted-foreground !mt-0">{viewMode === 'realtime' ? t('statistics.realtimeDescription') : t('statistics.historicalDescription')}</CardDescription>
-        <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2 sm:gap-6">
-          <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">
-            <div className="flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('statistics.cpuUsage')}</span>
+        {realtimeAvailable && (
+          <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2 sm:gap-6">
+            <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('statistics.cpuUsage')}</span>
+              </div>
+              <span className="text-xl font-bold text-foreground sm:text-2xl">{displayCpuUsage}</span>
             </div>
-            <span className="text-xl font-bold text-foreground sm:text-2xl">{displayCpuUsage}</span>
-          </div>
-          <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">
-            <div className="flex items-center gap-2">
-              <MemoryStick className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('statistics.ramUsage')}</span>
+            <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">
+              <div className="flex items-center gap-2">
+                <MemoryStick className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('statistics.ramUsage')}</span>
+              </div>
+              <span dir="ltr" className="text-xl font-bold text-foreground sm:text-2xl">
+                {displayRamUsage}
+              </span>
             </div>
-            <span dir="ltr" className="text-xl font-bold text-foreground sm:text-2xl">
-              {displayRamUsage}
-            </span>
           </div>
-        </div>
+        )}
       </CardHeader>
 
       {viewMode === 'historical' && nodeId !== undefined && (

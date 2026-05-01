@@ -188,9 +188,7 @@ async def clear_host_subscription_template_overrides(db: AsyncSession, template_
         return 0
 
     template_id_set = set(template_ids)
-    rows = (
-        await db.execute(select(ProxyHost).where(ProxyHost.subscription_templates.isnot(None)))
-    ).scalars().all()
+    rows = (await db.execute(select(ProxyHost).where(ProxyHost.subscription_templates.isnot(None)))).scalars().all()
 
     updated_count = 0
     for host in rows:

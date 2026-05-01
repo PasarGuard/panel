@@ -3,7 +3,7 @@ from enum import Enum
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.db.models import DataLimitResetStrategy, UserStatus, UserStatusCreate
+from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.admin import AdminBase, AdminContactInfo
 from app.models.proxy import ProxyTable, ShadowsocksMethods, XTLSFlows
 from app.utils.helpers import fix_datetime_timezone
@@ -59,19 +59,19 @@ class UserWithValidator(User):
             return value
         return fix_datetime_timezone(value)
 
-    @field_validator("status", mode="before", check_fields=False)
-    def validate_status(cls, status, values):
-        return UserValidator.validate_status(status, values)
-
 
 class UserCreate(UserWithValidator):
     username: str
-    status: UserStatusCreate | None = Field(default=None)
+    status: UserStatus | None = Field(default=None)
 
     @field_validator("username", check_fields=False)
     @classmethod
     def validate_username(cls, v):
         return UserValidator.validate_username(v)
+
+    @field_validator("status", mode="before", check_fields=False)
+    def validate_status(cls, status, values):
+        return UserValidator.validate_status(status, {UserStatus.active, UserStatus.on_hold}, values)
 
     @field_validator("group_ids", mode="after")
     @classmethod
@@ -80,8 +80,14 @@ class UserCreate(UserWithValidator):
 
 
 class UserModify(UserWithValidator):
-    status: UserStatusModify | None = Field(default=None)
+    status: UserStatus | None = Field(default=None)
     proxy_settings: ProxyTable | None = Field(default=None)
+
+    @field_validator("status", mode="before", check_fields=False)
+    def validate_status(cls, status, values):
+        return UserValidator.validate_status(
+            status, {UserStatus.active, UserStatus.on_hold, UserStatus.disabled}, values
+        )
 
     @field_validator("group_ids", mode="after")
     @classmethod

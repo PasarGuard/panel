@@ -1,13 +1,12 @@
-import asyncio
 import ipaddress
 import math
 import os
 import secrets
 import socket
 import time
+import urllib.request
 from dataclasses import dataclass
 
-import aiohttp
 import psutil
 
 
@@ -82,102 +81,65 @@ def check_port(port: int) -> bool:
         s.close()
 
 
-async def _fetch_text(session: aiohttp.ClientSession, url: str) -> str | None:
+def _fetch_text(url: str, timeout: float = 5.0) -> str | None:
     try:
-        async with session.get(url) as response:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
             if response.status != 200:
                 return None
-            return (await response.text()).strip()
+            return response.read().decode("utf-8").strip()
     except Exception:
         return None
 
 
-async def _get_public_ipv4_async() -> str | None:
+def _get_public_ipv4() -> str | None:
     urls = (
-        "http://api4.ipify.org/",
-        "http://ipv4.icanhazip.com/",
+        "https://api.ipify.org/",
+        "https://ipv4.icanhazip.com/",
         "https://ifconfig.io/ip",
     )
-    timeout = aiohttp.ClientTimeout(total=5)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        tasks = [asyncio.ensure_future(_fetch_text(session, url)) for url in urls]
+    for url in urls:
+        ip = _fetch_text(url)
+        if not ip:
+            continue
         try:
-            for finished in asyncio.as_completed(tasks):
-                ip = await finished
-                if not ip:
-                    continue
-                try:
-                    if ipaddress.IPv4Address(ip).is_global:
-                        for task in tasks:
-                            if not task.done():
-                                task.cancel()
-                        return ip
-                except Exception:
-                    continue
-        finally:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            if ipaddress.IPv4Address(ip).is_global:
+                return ip
+        except Exception:
+            continue
 
     return None
 
 
 def get_public_ip():
-    try:
-        ip = asyncio.ensure_future(_get_public_ipv4_async())
-        if ip:
-            return ip
-    except RuntimeError:
-        pass
-
-    sock = None
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.connect(("8.8.8.8", 80))
-        resp = sock.getsockname()[0]
-        if ipaddress.IPv4Address(resp).is_global:
-            return resp
-    except (socket.error, IndexError):
-        pass
-    finally:
-        if sock:
-            sock.close()
+    ip = _get_public_ipv4()
+    if ip:
+        return ip
 
     return "127.0.0.1"
 
 
-async def _get_public_ipv6_async() -> str | None:
+def _get_public_ipv6() -> str | None:
     urls = (
-        "http://api6.ipify.org/",
-        "http://ipv6.icanhazip.com/",
+        "https://api6.ipify.org/",
+        "https://ipv6.icanhazip.com/",
     )
-    timeout = aiohttp.ClientTimeout(total=5)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        tasks = [asyncio.ensure_future(_fetch_text(session, url)) for url in urls]
+    for url in urls:
+        ip = _fetch_text(url)
+        if not ip:
+            continue
         try:
-            for finished in asyncio.as_completed(tasks):
-                ip = await finished
-                if not ip:
-                    continue
-                try:
-                    if ipaddress.IPv6Address(ip).is_global:
-                        for task in tasks:
-                            if not task.done():
-                                task.cancel()
-                        return "[%s]" % ip
-                except Exception:
-                    continue
-        finally:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            if ipaddress.IPv6Address(ip).is_global:
+                return "[%s]" % ip
+        except Exception:
+            continue
 
     return None
 
 
 def get_public_ipv6():
-    try:
-        ip = asyncio.ensure_future(_get_public_ipv6_async())
-        if ip:
-            return ip
-    except RuntimeError:
-        pass
+    ip = _get_public_ipv6()
+    if ip:
+        return ip
 
     return "[::1]"
 

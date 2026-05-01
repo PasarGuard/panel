@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { CoresSimpleResponse, NodeResponse, useGetCoreConfig } from '@/service/api'
+import { CoresSimpleResponse, NodeResponse } from '@/service/api'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { useNodeReleases } from '@/hooks/use-node-releases'
 import NodeUsageDisplay from './node-usage-display'
@@ -26,17 +26,12 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
   const dir = useDirDetection()
   const { latestVersion: latestXrayVersion, hasUpdate: hasXrayUpdate } = useXrayReleases()
   const { latestVersion: latestNodeVersion, hasUpdate: hasNodeUpdate } = useNodeReleases()
-  const { data: coreConfig } = useGetCoreConfig(node.core_config_id || 0, {
-    query: {
-      enabled: !!node.core_config_id,
-      staleTime: 5 * 60 * 1000,
-    },
-  })
   const coreVersion = node.core_version ?? node.xray_version
-  const resolvedCoreType = coreConfig?.type ?? coresData?.cores?.find(c => c.id === node.core_config_id)?.type ?? null
+  const resolvedCoreType = coresData?.cores?.find(c => c.id === node.core_config_id)?.type ?? null
   const isWireGuardCore = resolvedCoreType === 'wg'
-  const isXrayBackend = resolvedCoreType === 'xray' || (resolvedCoreType === null && (coreConfig?.type || 'xray') === 'xray')
-  const hasCoreUpdate = !!(isXrayBackend && coreVersion && latestXrayVersion && hasXrayUpdate(coreVersion))
+  const isXrayBackend = resolvedCoreType !== 'wg'
+  const coreUpdateVersion = node.xray_version ?? coreVersion
+  const hasCoreUpdate = !!(isXrayBackend && coreUpdateVersion && latestXrayVersion && hasXrayUpdate(coreUpdateVersion))
   const hasNodeVersionUpdate = !isWireGuardCore && !!latestNodeVersion && !!node.node_version && hasNodeUpdate(node.node_version)
 
   const getStatusConfig = () => {
@@ -193,6 +188,12 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
                                 <span>{t('version.latestVersion', { defaultValue: 'Latest' })}</span>
                                 <span className="font-mono font-medium">{latestNodeVersion}</span>
                               </div>
+                            )}
+                            {hasNodeVersionUpdate && (
+                              <>
+                                <Separator className="my-1.5" />
+                                <span>{t('nodeModal.updateAvailable', { defaultValue: 'Update available' })}</span>
+                              </>
                             )}
                           </div>
                         </div>

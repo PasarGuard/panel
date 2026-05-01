@@ -17,6 +17,7 @@ from app.db.crud.bulk import (
     count_bulk_datalimit_targets,
     count_bulk_expire_targets,
     count_bulk_proxy_targets,
+    get_bulk_wireguard_peer_ip_users,
     reset_all_users_data_usage,
     update_users_datalimit,
     update_users_expire,
@@ -83,7 +84,11 @@ from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from app.utils.wireguard import prepare_wireguard_keys_only, prepare_wireguard_proxy_settings
+from app.utils.wireguard import (
+    bulk_reallocate_wireguard_peer_ips as run_bulk_reallocate_wireguard_peer_ips,
+    prepare_wireguard_keys_only,
+    prepare_wireguard_proxy_settings,
+)
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
@@ -1153,22 +1158,18 @@ class UserOperation(BaseOperation):
     async def bulk_reallocate_wireguard_peer_ips(
         self, db: AsyncSession, body: BulkWireGuardPeerIPs, admin: AdminDetails
     ) -> WireGuardPeerIPsReallocateResponse:
-        from sqlalchemy import and_, select
+        users = await get_bulk_wireguard_peer_ip_users(
+            db,
+            body,
+            admin_id=None if admin.is_sudo else admin.id,
+        )
 
-        from app.db.crud.bulk import _create_final_filter
-        from app.db.crud.user import load_user_attrs
-        from app.utils.wireguard import bulk_reallocate_wireguard_peer_ips as run_wg_bulk
-
-        final_filter = _create_final_filter(body)
-        if not admin.is_sudo:
-            final_filter = and_(final_filter, User.admin_id == admin.id)
-
-        result = await db.execute(select(User).where(final_filter))
-        users = list(result.scalars().all())
-        for u in users:
-            await load_user_attrs(u, load_usage_logs=False)
-
-        out = await run_wg_bulk(db, users, dry_run=body.dry_run, replace_all=body.replace_all)
+        out = await run_bulk_reallocate_wireguard_peer_ips(
+            db,
+            users,
+            dry_run=body.dry_run,
+            replace_all=body.replace_all,
+        )
         return WireGuardPeerIPsReallocateResponse(**out)
 
     async def _get_users_sub_update_list(

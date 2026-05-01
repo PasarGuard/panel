@@ -204,7 +204,7 @@ class ClientTemplateOperation(BaseOperation):
 
         logger.info(
             f'Client template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"'
-            f' and cleared from {cleared_hosts} host(s)'
+            f" and cleared from {cleared_hosts} host(s)"
         )
         await self._sync_client_template_cache()
 

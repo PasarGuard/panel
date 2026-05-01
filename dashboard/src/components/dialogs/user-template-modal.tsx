@@ -1,4 +1,5 @@
 import GroupsSelector from '@/components/common/groups-selector'
+import { TimeUnitSelect, TIME_UNIT_SECONDS, secondsToTimeUnit, type TimeUnit } from '@/components/common/time-unit-select'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -128,7 +129,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const addUserTemplateMutation = useCreateUserTemplate()
   const handleError = useDynamicErrorHandler()
   const modifyUserTemplateMutation = useModifyUserTemplate()
-  const [timeType, setTimeType] = useState<'seconds' | 'hours' | 'days'>('seconds')
+  const [timeType, setTimeType] = useState<TimeUnit>('seconds')
+  const [expireDurationUnit, setExpireDurationUnit] = useState<TimeUnit>('days')
   const [loading, setLoading] = useState(false)
   const dataLimitInputRef = React.useRef<string>('')
   const expireDurationInputRef = React.useRef<string>('')
@@ -146,6 +148,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
     form.reset(userTemplateFormDefaultValues)
     dataLimitInputRef.current = ''
     expireDurationInputRef.current = ''
+    setExpireDurationUnit('days')
     setTimeType('seconds')
     prevStatusForSyncRef.current = undefined
   }, [isDialogOpen, editingUserTemplate, form])
@@ -154,6 +157,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
     if (!isDialogOpen) {
       dataLimitInputRef.current = ''
       expireDurationInputRef.current = ''
+      setExpireDurationUnit('days')
     }
   }, [isDialogOpen])
 
@@ -446,14 +450,14 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                   control={form.control}
                   name="expire_duration"
                   render={({ field }) => {
-                    const daySec = 24 * 60 * 60
+                    const unitSeconds = TIME_UNIT_SECONDS[expireDurationUnit]
                     if (
                       expireDurationInputRef.current === '' &&
                       field.value != null &&
                       field.value !== undefined &&
                       field.value > 0
                     ) {
-                      expireDurationInputRef.current = String(field.value / daySec)
+                      expireDurationInputRef.current = secondsToTimeUnit(field.value, expireDurationUnit)
                     } else if (
                       (field.value === null || field.value === undefined || field.value === 0) &&
                       expireDurationInputRef.current !== '' &&
@@ -466,7 +470,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                       expireDurationInputRef.current !== ''
                         ? expireDurationInputRef.current
                         : field.value != null && field.value !== undefined && field.value > 0
-                          ? String(field.value / daySec)
+                          ? secondsToTimeUnit(field.value, expireDurationUnit)
                           : ''
 
                     return (
@@ -503,7 +507,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                                 } else {
                                   const numValue = parseFloat(rawValue)
                                   if (!isNaN(numValue) && numValue >= 0) {
-                                    field.onChange(numValue * daySec)
+                                    field.onChange(numValue * unitSeconds)
                                     void form.trigger('expire_duration')
                                   }
                                 }
@@ -517,9 +521,9 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                                 } else {
                                   const numValue = parseFloat(rawValue)
                                   if (!isNaN(numValue) && numValue >= 0) {
-                                    const finalDays = numValue
-                                    const finalSeconds = finalDays * daySec
-                                    expireDurationInputRef.current = finalDays > 0 ? String(finalDays) : ''
+                                    const finalAmount = numValue
+                                    const finalSeconds = finalAmount * unitSeconds
+                                    expireDurationInputRef.current = finalAmount > 0 ? String(finalAmount) : ''
                                     field.onChange(finalSeconds)
                                     void form.trigger('expire_duration')
                                   } else {
@@ -529,13 +533,16 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                                   }
                                 }
                               }}
-                              className={dir === 'rtl' ? 'pl-14' : 'pr-14'}
+                              className={dir === 'rtl' ? 'pl-20' : 'pr-20'}
                             />
-                            <span
-                              className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground ${dir === 'rtl' ? 'start-3' : 'end-3'}`}
-                            >
-                              {t('time.days', { defaultValue: 'Days' })}
-                            </span>
+                            <TimeUnitSelect
+                              value={expireDurationUnit}
+                              onValueChange={nextUnit => {
+                                setExpireDurationUnit(nextUnit)
+                                expireDurationInputRef.current = secondsToTimeUnit(field.value, nextUnit)
+                              }}
+                              triggerClassName={`absolute top-0 h-full w-20 rounded-none border-y-0 focus:ring-0 focus:ring-offset-0 ${dir === 'rtl' ? 'left-0 border-l-0' : 'right-0 border-r-0'}`}
+                            />
                           </div>
                         </FormControl>
                         <FormMessage />
@@ -567,31 +574,13 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                   render={({ field }) => {
                     const convertToDisplayValue = (value: number | undefined) => {
                       if (value == null || value === 0) return ''
-                      switch (timeType) {
-                        case 'seconds':
-                          return value
-                        case 'hours':
-                          return value / (60 * 60)
-                        case 'days':
-                          return value / (24 * 60 * 60)
-                        default:
-                          return value
-                      }
+                      return value / TIME_UNIT_SECONDS[timeType]
                     }
 
-                    const convertToSeconds = (inputValue: string, type: string) => {
+                    const convertToSeconds = (inputValue: string, type: TimeUnit) => {
                       const numValue = parseFloat(inputValue)
                       if (isNaN(numValue) || numValue < 0) return undefined
-                      switch (type) {
-                        case 'seconds':
-                          return numValue
-                        case 'hours':
-                          return numValue * 60 * 60
-                        case 'days':
-                          return numValue * 24 * 60 * 60
-                        default:
-                          return numValue
-                      }
+                      return numValue * TIME_UNIT_SECONDS[type]
                     }
 
                     if (status !== UserStatusCreate.on_hold) {
@@ -616,17 +605,12 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                                 className="flex-[3] rounded-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                               />
                             </div>
-                            <div className="flex-[2]">
-                              <Select value={timeType} onValueChange={v => setTimeType(v as 'seconds' | 'hours' | 'days')}>
-                                <SelectTrigger className="w-full rounded-none border-0 focus:ring-0 focus:ring-offset-0">
-                                  <SelectValue placeholder={t('time.seconds', { defaultValue: 'Seconds' })} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="days">{t('time.days', { defaultValue: 'Days' })}</SelectItem>
-                                  <SelectItem value="hours">{t('time.hours', { defaultValue: 'Hours' })}</SelectItem>
-                                  <SelectItem value="seconds">{t('time.seconds', { defaultValue: 'Seconds' })}</SelectItem>
-                                </SelectContent>
-                              </Select>
+                            <div className="w-20 shrink-0">
+                              <TimeUnitSelect
+                                value={timeType}
+                                onValueChange={setTimeType}
+                                triggerClassName="w-full rounded-none border-0 px-2 focus:ring-0 focus:ring-offset-0"
+                              />
                             </div>
                           </div>
                         </FormControl>

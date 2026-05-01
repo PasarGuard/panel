@@ -1,10 +1,10 @@
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
-from app.db.models import UserStatusCreate
+from app.db.models import UserStatus, UserStatusCreate
 
 
 class NumericValidatorMixin:
@@ -57,7 +57,7 @@ class NumericValidatorMixin:
 
 class ListValidator:
     @staticmethod
-    def nullable_list(list: list | None, name: str) -> list:
+    def nullable_list(list: list[Any] | None, name: str) -> list[Any]:
         if list and len(list) < 1:
             raise ValueError(f"you must select at least one {name}")
         return list
@@ -116,10 +116,16 @@ class PasswordValidator:
 
 class UserValidator:
     @staticmethod
-    def validate_status(status, values):
+    def validate_status(
+        status: UserStatus | UserStatusCreate | None,
+        allowed_statuses: set[UserStatus | UserStatusCreate],
+        values,
+    ):
+        UserValidator.allow_status(status, allowed_statuses)
+
         on_hold_expire = values.data.get("on_hold_expire_duration") or values.data.get("expire_duration")
         expire = values.data.get("expire")
-        if status == UserStatusCreate.on_hold:
+        if status is not None and status == "on_hold":
             if on_hold_expire == 0 or on_hold_expire is None:
                 raise ValueError("User cannot be on hold without a valid on_hold_expire_duration.")
             if expire:
@@ -149,6 +155,18 @@ class UserValidator:
             return value
         else:
             raise ValueError("on_hold_timeout can be datetime or 0")
+
+    @staticmethod
+    def allow_status(
+        status: UserStatus | UserStatusCreate | None,
+        allowed_statuses: set[UserStatus | UserStatusCreate],
+    ):
+        if status is None:
+            return
+        allowed_values = {allowed_status.value for allowed_status in allowed_statuses}
+        if status in allowed_values:
+            return
+        raise ValueError("status must be in", allowed_statuses)
 
 
 class ProxyValidator:

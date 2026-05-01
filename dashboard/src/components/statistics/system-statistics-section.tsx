@@ -95,6 +95,12 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
     return { usage: Math.round(cpuUsage * 10) / 10, cores: cpuCores } // Round to 1 decimal place
   }
 
+  const getUptimeSeconds = () => {
+    if (!currentStats) return null
+
+    return isNodeStats(currentStats) ? currentStats.uptime : currentStats.uptime_seconds
+  }
+
   const memory = getMemoryUsage()
   const disk = getDiskUsage()
   const cpu = getCpuInfo()
@@ -103,7 +109,8 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
   const nodeStatsMode = !!currentStats && isNodeStats(currentStats)
   const incomingSpeed = formatMbpsPair(getIncomingBandwidth() || 0)
   const outgoingSpeed = formatMbpsPair(getOutgoingBandwidth() || 0)
-  const uptime = currentStats && !isNodeStats(currentStats) ? formatDuration(currentStats.uptime_seconds, t) : null
+  const uptimeSeconds = getUptimeSeconds()
+  const uptime = uptimeSeconds !== null ? formatDuration(uptimeSeconds, t) : null
 
   return (
     <div
@@ -298,6 +305,37 @@ export default function SystemStatisticsSection({ currentStats }: SystemStatisti
                   </span>
                   <span dir="ltr" className="whitespace-nowrap rounded-md bg-muted/60 px-1.5 py-1 text-xs font-medium text-muted-foreground sm:px-2">
                     {incomingSpeed.mbpsText} Mb/s
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Node Uptime */}
+          <div className="h-full w-full animate-fade-in sm:col-span-2" style={{ animationDuration: '600ms', animationDelay: '450ms' }}>
+            <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
+              <div
+                className={cn(
+                  'absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 transition-opacity duration-500',
+                  'dark:from-primary/5 dark:to-transparent',
+                  'group-hover:opacity-100',
+                )}
+              />
+              <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+                <div className="mb-2 flex items-start justify-between sm:mb-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="rounded-lg bg-primary/10 p-1.5 sm:p-2">
+                      <Clock3 className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium leading-tight text-muted-foreground sm:truncate sm:text-sm">{t('statistics.uptime')}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-end justify-between gap-2">
+                  <span className="truncate text-lg font-bold leading-tight transition-all duration-300 sm:text-xl lg:text-2xl">
+                    {uptime}
                   </span>
                 </div>
               </CardContent>

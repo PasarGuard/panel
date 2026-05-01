@@ -825,7 +825,9 @@ class AdminContent(Static):
         if not self.table.columns:
             return
         admin = await self.admin_operator.get_validated_admin_by_id(self.db, self.selected_admin_id)
-        self.app.push_screen(AdminResetUsage(self.db, self.admin_operator, admin.id, admin.username, self._refresh_table))
+        self.app.push_screen(
+            AdminResetUsage(self.db, self.admin_operator, admin.id, admin.username, self._refresh_table)
+        )
 
     async def action_previous_page(self):
         if self.current_page > 1:
