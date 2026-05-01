@@ -5,7 +5,7 @@ import hmac
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, desc, func, select
+from sqlalchemy import delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import HWIDUserDevice, User
@@ -65,9 +65,15 @@ async def enforce_hwid_device_limit(
     now = datetime.now(timezone.utc)
 
     tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
+    should_commit = False
+    decision = HWIDDecision(allowed=True)
     async with tx_ctx:
         # Lock user row to serialize registration decisions per user.
-        await db.execute(select(User.id).where(User.id == user.id).with_for_update())
+        # SQLite ignores FOR UPDATE, so force an early write lock on the user row.
+        if db.get_bind().dialect.name == "sqlite":
+            await db.execute(update(User).where(User.id == user.id).values(id=User.id))
+        else:
+            await db.execute(select(User.id).where(User.id == user.id).with_for_update())
 
         existing = (
             await db.execute(
@@ -83,27 +89,32 @@ async def enforce_hwid_device_limit(
             existing.user_agent = _clamp(user_agent, _USER_AGENT_MAX_LEN)
             existing.request_ip = _clamp(request_ip, _REQUEST_IP_MAX_LEN)
             existing.updated_at = now
-            return HWIDDecision(allowed=True)
+            should_commit = True
+            decision = HWIDDecision(allowed=True)
+        else:
+            count_stmt = select(func.count(HWIDUserDevice.id)).where(HWIDUserDevice.user_id == user.id)
+            existing_count = int((await db.execute(count_stmt)).scalar_one() or 0)
+            if existing_count >= limit:
+                decision = HWIDDecision(allowed=False, max_devices_reached=True)
+            else:
+                db.add(
+                    HWIDUserDevice(
+                        user_id=user.id,
+                        hwid_hash=hwid_hash,
+                        device_os=_clamp(device_os, _DEVICE_OS_MAX_LEN),
+                        os_version=_clamp(os_version, _OS_VERSION_MAX_LEN),
+                        device_model=_clamp(device_model, _DEVICE_MODEL_MAX_LEN),
+                        user_agent=_clamp(user_agent, _USER_AGENT_MAX_LEN),
+                        request_ip=_clamp(request_ip, _REQUEST_IP_MAX_LEN),
+                        updated_at=now,
+                    )
+                )
+                should_commit = True
+                decision = HWIDDecision(allowed=True)
 
-        count_stmt = select(func.count(HWIDUserDevice.id)).where(HWIDUserDevice.user_id == user.id)
-        existing_count = int((await db.execute(count_stmt)).scalar_one() or 0)
-        if existing_count >= limit:
-            return HWIDDecision(allowed=False, max_devices_reached=True)
-
-        db.add(
-            HWIDUserDevice(
-                user_id=user.id,
-                hwid_hash=hwid_hash,
-                device_os=_clamp(device_os, _DEVICE_OS_MAX_LEN),
-                os_version=_clamp(os_version, _OS_VERSION_MAX_LEN),
-                device_model=_clamp(device_model, _DEVICE_MODEL_MAX_LEN),
-                user_agent=_clamp(user_agent, _USER_AGENT_MAX_LEN),
-                request_ip=_clamp(request_ip, _REQUEST_IP_MAX_LEN),
-                updated_at=now,
-            )
-        )
-
-    return HWIDDecision(allowed=True)
+    if should_commit:
+        await db.commit()
+    return decision
 
 
 async def list_hwid_devices(
@@ -160,7 +171,10 @@ async def add_hwid_device(
 
     tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
     async with tx_ctx:
-        await db.execute(select(User.id).where(User.id == user_id).with_for_update())
+        if db.get_bind().dialect.name == "sqlite":
+            await db.execute(update(User).where(User.id == user_id).values(id=User.id))
+        else:
+            await db.execute(select(User.id).where(User.id == user_id).with_for_update())
 
         existing = (
             await db.execute(
@@ -197,6 +211,7 @@ async def add_hwid_device(
             await db.execute(select(User.username).where(User.id == user_id))
         ).scalar_one_or_none()
 
+    await db.commit()
     return (
         {
             "id": device.id,
@@ -223,6 +238,7 @@ async def delete_hwid_device(db: AsyncSession, *, user_id: int, hwid_hash: str) 
         result = await db.execute(
             delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id, HWIDUserDevice.hwid_hash == hwid_hash)
         )
+    await db.commit()
     return int(result.rowcount or 0)
 
 
@@ -230,6 +246,7 @@ async def delete_all_hwid_devices(db: AsyncSession, *, user_id: int) -> int:
     tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
     async with tx_ctx:
         result = await db.execute(delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id))
+    await db.commit()
     return int(result.rowcount or 0)
 
 
