@@ -67,22 +67,12 @@ async def _acquire_user_hwid_lock(db: AsyncSession, user_id: int) -> None:
         await db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": int(user_id)})
         return
 
-    if dialect == "mysql":
-        lock_name = f"hwid_user_{user_id}"
-        lock_result = await db.execute(text("SELECT GET_LOCK(:lock_name, 10)"), {"lock_name": lock_name})
-        if int(lock_result.scalar() or 0) != 1:
-            raise RuntimeError("Failed to acquire HWID lock")
-        return
-
-    # Generic fallback for other SQL dialects.
+    # Use transaction-scoped row lock for MySQL/MariaDB and other dialects.
     await db.execute(select(User.id).where(User.id == user_id).with_for_update())
 
 
 async def _release_user_hwid_lock(db: AsyncSession, user_id: int) -> None:
-    if db.get_bind().dialect.name != "mysql":
-        return
-    lock_name = f"hwid_user_{user_id}"
-    await db.execute(text("SELECT RELEASE_LOCK(:lock_name)"), {"lock_name": lock_name})
+    return
 
 
 async def enforce_hwid_device_limit(
@@ -106,8 +96,6 @@ async def enforce_hwid_device_limit(
 
     hwid_hash = hash_hwid(normalized_hwid)
     now = datetime.now(timezone.utc)
-    needs_manual_unlock = db.get_bind().dialect.name == "mysql"
-
     had_transaction = db.in_transaction()
     tx_ctx = nullcontext() if had_transaction else db.begin()
     sqlite_lock_ctx = (
@@ -157,10 +145,7 @@ async def enforce_hwid_device_limit(
                         )
                         decision = HWIDDecision(allowed=True)
     finally:
-        if needs_manual_unlock:
-            await _release_user_hwid_lock(db, user.id)
-    if had_transaction:
-        await db.commit()
+        await _release_user_hwid_lock(db, user.id)
     return decision
 
 
@@ -215,8 +200,6 @@ async def add_hwid_device(
 
     hwid_hash = hash_hwid(normalized_hwid)
     now = datetime.now(timezone.utc)
-    needs_manual_unlock = db.get_bind().dialect.name == "mysql"
-
     had_transaction = db.in_transaction()
     tx_ctx = nullcontext() if had_transaction else db.begin()
     sqlite_lock_ctx = _get_sqlite_user_lock(user_id) if db.get_bind().dialect.name == "sqlite" else nullcontext()
@@ -259,10 +242,8 @@ async def add_hwid_device(
                     await db.execute(select(User.username).where(User.id == user_id))
                 ).scalar_one_or_none()
     finally:
-        if needs_manual_unlock:
-            await _release_user_hwid_lock(db, user_id)
-    if had_transaction:
-        await db.commit()
+        await _release_user_hwid_lock(db, user_id)
+    await db.commit()
     return (
         {
             "id": device.id,
@@ -284,24 +265,20 @@ async def add_hwid_device(
 
 
 async def delete_hwid_device(db: AsyncSession, *, user_id: int, hwid_hash: str) -> int:
-    had_transaction = db.in_transaction()
-    tx_ctx = nullcontext() if had_transaction else db.begin()
+    tx_ctx = nullcontext() if db.in_transaction() else db.begin()
     async with tx_ctx:
         result = await db.execute(
             delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id, HWIDUserDevice.hwid_hash == hwid_hash)
         )
-    if had_transaction:
-        await db.commit()
+    await db.commit()
     return int(result.rowcount or 0)
 
 
 async def delete_all_hwid_devices(db: AsyncSession, *, user_id: int) -> int:
-    had_transaction = db.in_transaction()
-    tx_ctx = nullcontext() if had_transaction else db.begin()
+    tx_ctx = nullcontext() if db.in_transaction() else db.begin()
     async with tx_ctx:
         result = await db.execute(delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id))
-    if had_transaction:
-        await db.commit()
+    await db.commit()
     return int(result.rowcount or 0)
 
 
