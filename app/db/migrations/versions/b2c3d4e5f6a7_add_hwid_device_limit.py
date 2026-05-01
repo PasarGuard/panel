@@ -9,6 +9,7 @@ Create Date: 2026-04-30 22:00:00.000000
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
+from sqlalchemy.dialects import mysql
 
 
 # revision identifiers, used by Alembic.
@@ -23,7 +24,13 @@ def upgrade() -> None:
     dialect_name = bind.dialect.name
     users_columns = {col["name"]: col for col in inspect(bind).get_columns("users")}
     users_id_type_repr = str(users_columns["id"]["type"]).upper() if "id" in users_columns else ""
-    user_id_column_type = sa.BigInteger() if "BIGINT" in users_id_type_repr else sa.Integer()
+    if "BIGINT" in users_id_type_repr:
+        if dialect_name == "mysql" and "UNSIGNED" in users_id_type_repr:
+            user_id_column_type = mysql.BIGINT(unsigned=True)
+        else:
+            user_id_column_type = sa.BigInteger()
+    else:
+        user_id_column_type = sa.Integer()
 
     with op.batch_alter_table("users") as batch_op:
         batch_op.add_column(sa.Column("hwid_device_limit", sa.Integer(), nullable=True))

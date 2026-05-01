@@ -2440,6 +2440,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                     <Input
                                       type="number"
                                       min="0"
+                                      step="1"
                                       className="w-full sm:max-w-md"
                                       dir="ltr"
                                       value={field.value ?? ''}
@@ -2451,7 +2452,13 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                           handleFieldChange('hwid_device_limit', undefined)
                                           return
                                         }
-                                        const parsed = Math.max(0, Number.parseInt(raw, 10) || 0)
+                                        if (!/^\d+$/.test(raw.trim())) {
+                                          return
+                                        }
+                                        const parsed = Number(raw)
+                                        if (!Number.isInteger(parsed) || parsed < 0) {
+                                          return
+                                        }
                                         field.onChange(parsed)
                                         handleFieldChange('hwid_device_limit', parsed)
                                       }}

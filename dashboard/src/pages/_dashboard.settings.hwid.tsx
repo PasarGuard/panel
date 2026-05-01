@@ -79,12 +79,22 @@ export default function SettingsHWIDPage() {
   const [userIdFilter, setUserIdFilter] = useState<string>('')
   const [newDeviceUserId, setNewDeviceUserId] = useState('')
   const [newDeviceHwid, setNewDeviceHwid] = useState('')
+  const parsePositiveInt = (value: string): number | undefined => {
+    if (!/^\d+$/.test(value.trim())) {
+      return undefined
+    }
+    const parsed = Number(value)
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+  }
 
   const listQuery = useQuery({
     queryKey: ['hwid-devices', userIdFilter],
     queryFn: () =>
       fetcher<HWIDListResponse>('/api/hwid/devices', {
-        params: userIdFilter ? { user_id: Number.parseInt(userIdFilter, 10) || undefined } : {},
+        params: (() => {
+          const parsed = parsePositiveInt(userIdFilter)
+          return parsed ? { user_id: parsed } : {}
+        })(),
       }),
   })
 
@@ -147,10 +157,10 @@ export default function SettingsHWIDPage() {
   const devices = listQuery.data?.items || []
   const listLoading = listQuery.isLoading || listQuery.isFetching
   const statsLoading = statsQuery.isLoading || statsQuery.isFetching
-  const parsedNewDeviceUserId = Number.parseInt(newDeviceUserId, 10)
-  const isValidNewDeviceUserId = Number.isInteger(parsedNewDeviceUserId) && parsedNewDeviceUserId > 0
-  const parsedUserIdFilter = Number.parseInt(userIdFilter, 10)
-  const isValidUserIdFilter = Number.isInteger(parsedUserIdFilter) && parsedUserIdFilter > 0
+  const parsedNewDeviceUserId = parsePositiveInt(newDeviceUserId)
+  const isValidNewDeviceUserId = parsedNewDeviceUserId !== undefined
+  const parsedUserIdFilter = parsePositiveInt(userIdFilter)
+  const isValidUserIdFilter = parsedUserIdFilter !== undefined
 
   const refetchAll = () => {
     void queryClient.invalidateQueries({ queryKey: ['hwid-devices'] })
@@ -244,7 +254,7 @@ export default function SettingsHWIDPage() {
                 disabled={!isValidNewDeviceUserId || !newDeviceHwid.trim() || addDeviceMutation.isPending}
                 onClick={() =>
                   addDeviceMutation.mutate({
-                    user_id: parsedNewDeviceUserId,
+                    user_id: parsedNewDeviceUserId!,
                     hwid: newDeviceHwid.trim(),
                   })
                 }
@@ -267,7 +277,7 @@ export default function SettingsHWIDPage() {
             <Button
               variant="destructive"
               disabled={!isValidUserIdFilter || deleteAllMutation.isPending}
-              onClick={() => deleteAllMutation.mutate({ user_id: parsedUserIdFilter })}
+              onClick={() => deleteAllMutation.mutate({ user_id: parsedUserIdFilter! })}
             >
               {t('settings.hwid.deleteAllForUser', { defaultValue: 'Delete all for user' })}
             </Button>

@@ -64,16 +64,14 @@ async def enforce_hwid_device_limit(
     hwid_hash = hash_hwid(normalized_hwid)
     now = datetime.now(timezone.utc)
 
-    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
+    owns_transaction = not db.in_transaction()
+    tx_ctx = db.begin() if owns_transaction else db.begin_nested()
     should_commit = False
     decision = HWIDDecision(allowed=True)
     async with tx_ctx:
-        # Lock user row to serialize registration decisions per user.
-        # SQLite ignores FOR UPDATE, so force an early write lock on the user row.
-        if db.get_bind().dialect.name == "sqlite":
-            await db.execute(update(User).where(User.id == user.id).values(id=User.id))
-        else:
-            await db.execute(select(User.id).where(User.id == user.id).with_for_update())
+        # Force a row-level write lock to serialize per-user registrations.
+        # This is more reliable across dialects than relying on FOR UPDATE semantics.
+        await db.execute(update(User).where(User.id == user.id).values(id=User.id))
 
         existing = (
             await db.execute(
@@ -112,7 +110,7 @@ async def enforce_hwid_device_limit(
                 should_commit = True
                 decision = HWIDDecision(allowed=True)
 
-    if should_commit:
+    if should_commit and owns_transaction:
         await db.commit()
     return decision
 
@@ -169,12 +167,10 @@ async def add_hwid_device(
     hwid_hash = hash_hwid(normalized_hwid)
     now = datetime.now(timezone.utc)
 
-    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
+    owns_transaction = not db.in_transaction()
+    tx_ctx = db.begin() if owns_transaction else db.begin_nested()
     async with tx_ctx:
-        if db.get_bind().dialect.name == "sqlite":
-            await db.execute(update(User).where(User.id == user_id).values(id=User.id))
-        else:
-            await db.execute(select(User.id).where(User.id == user_id).with_for_update())
+        await db.execute(update(User).where(User.id == user_id).values(id=User.id))
 
         existing = (
             await db.execute(
@@ -211,7 +207,8 @@ async def add_hwid_device(
             await db.execute(select(User.username).where(User.id == user_id))
         ).scalar_one_or_none()
 
-    await db.commit()
+    if owns_transaction:
+        await db.commit()
     return (
         {
             "id": device.id,
@@ -233,20 +230,24 @@ async def add_hwid_device(
 
 
 async def delete_hwid_device(db: AsyncSession, *, user_id: int, hwid_hash: str) -> int:
-    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
+    owns_transaction = not db.in_transaction()
+    tx_ctx = db.begin() if owns_transaction else db.begin_nested()
     async with tx_ctx:
         result = await db.execute(
             delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id, HWIDUserDevice.hwid_hash == hwid_hash)
         )
-    await db.commit()
+    if owns_transaction:
+        await db.commit()
     return int(result.rowcount or 0)
 
 
 async def delete_all_hwid_devices(db: AsyncSession, *, user_id: int) -> int:
-    tx_ctx = db.begin_nested() if db.in_transaction() else db.begin()
+    owns_transaction = not db.in_transaction()
+    tx_ctx = db.begin() if owns_transaction else db.begin_nested()
     async with tx_ctx:
         result = await db.execute(delete(HWIDUserDevice).where(HWIDUserDevice.user_id == user_id))
-    await db.commit()
+    if owns_transaction:
+        await db.commit()
     return int(result.rowcount or 0)
 
 
