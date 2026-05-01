@@ -3,6 +3,7 @@ from aiocache import cached
 from app.db import GetDB
 from app.db.crud.settings import get_settings
 from app.models import settings
+from config import TESTING
 
 
 @cached()
@@ -43,6 +44,19 @@ async def notification_settings() -> settings.NotificationSettings:
 
 @cached()
 async def notification_enable() -> settings.NotificationEnable:
+    if TESTING:
+        return settings.NotificationEnable(
+            admin={"create": False, "modify": False, "delete": False, "reset_usage": False, "login": False},
+            core={"create": False, "modify": False, "delete": False},
+            group={"create": False, "modify": False, "delete": False},
+            host={"create": False, "modify": False, "delete": False, "modify_hosts": False},
+            node={"create": False, "modify": False, "delete": False, "connect": False, "error": False, "limited": False, "reset_usage": False},
+            user={"create": False, "modify": False, "delete": False, "status_change": False, "reset_data_usage": False, "data_reset_by_next": False, "subscription_revoked": False},
+            user_template={"create": False, "modify": False, "delete": False},
+            days_left=False,
+            percentage_reached=False,
+        )
+
     async with GetDB() as db:
         db_settings = await get_settings(db)
 

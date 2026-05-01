@@ -41,11 +41,18 @@ from app.models.stats import Period, UserUsageStatsList
 from app.operation import BaseOperation, OperatorType
 from app.operation.user import UserOperation
 from app.utils.logger import get_logger
+from config import TESTING
 
 logger = get_logger("admin-operation")
 
 
 class AdminOperation(BaseOperation):
+    @staticmethod
+    def _schedule_notification(task) -> None:
+        if TESTING:
+            return
+        asyncio.create_task(task)
+
     @staticmethod
     def _is_non_blocking_sync_operator(operator_type: OperatorType) -> bool:
         return operator_type in (OperatorType.API, OperatorType.WEB)
@@ -70,7 +77,7 @@ class AdminOperation(BaseOperation):
         if self.operator_type != OperatorType.CLI:
             logger.info(f'New admin "{db_admin.username}" with id "{db_admin.id}" added by admin "{admin.username}"')
         new_admin = AdminDetails.model_validate(db_admin)
-        asyncio.create_task(notification.create_admin(new_admin, admin.username))
+        self._schedule_notification(notification.create_admin(new_admin, admin.username))
 
         return db_admin
 
@@ -107,7 +114,7 @@ class AdminOperation(BaseOperation):
             )
 
         modified_admin = AdminDetails.model_validate(db_admin)
-        asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
+        self._schedule_notification(notification.modify_admin(modified_admin, current_admin.username))
         return modified_admin
 
     async def remove_admin(self, db: AsyncSession, username: str, current_admin: AdminDetails | None = None):
@@ -123,7 +130,7 @@ class AdminOperation(BaseOperation):
             logger.info(
                 f'Admin "{db_admin.username}" with id "{db_admin.id}" deleted by admin "{current_admin.username}"'
             )
-            asyncio.create_task(notification.remove_admin(username, current_admin.username))
+            self._schedule_notification(notification.remove_admin(username, current_admin.username))
 
     async def get_admins(
         self,
@@ -249,7 +256,7 @@ class AdminOperation(BaseOperation):
             await sync_remove_user(user)
 
         for user in serialized_users:
-            asyncio.create_task(notification.remove_user(user, admin))
+            self._schedule_notification(notification.remove_user(user, admin))
 
         logger.info(
             f'Admin "{admin.username}" deleted {len(serialized_users)} users belonging to admin "{target_username}"'
@@ -264,7 +271,7 @@ class AdminOperation(BaseOperation):
             logger.info(f'Admin "{username}" usage has been reset by admin "{admin.username}"')
 
         reseted_admin = AdminDetails.model_validate(db_admin)
-        asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
+        self._schedule_notification(notification.admin_usage_reset(reseted_admin, admin.username))
 
         return reseted_admin
 
@@ -323,7 +330,7 @@ class AdminOperation(BaseOperation):
         if self.operator_type != OperatorType.CLI:
             for username in usernames:
                 logger.info(f'Admin "{username}" deleted by admin "{admin.username}"')
-                asyncio.create_task(notification.remove_admin(username, admin.username))
+                self._schedule_notification(notification.remove_admin(username, admin.username))
 
         return RemoveAdminsResponse(admins=usernames, count=len(db_admins))
 
@@ -391,7 +398,7 @@ class AdminOperation(BaseOperation):
 
         for db_admin in admins_to_update:
             modified_admin = AdminDetails.model_validate(db_admin)
-            asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
+            self._schedule_notification(notification.modify_admin(modified_admin, current_admin.username))
             logger.info(
                 f'Admin "{db_admin.username}" bulk {"disabled" if is_disabled else "enabled"} by admin "{current_admin.username}"'
             )
@@ -406,7 +413,7 @@ class AdminOperation(BaseOperation):
         for db_admin in db_admins:
             db_admin = await reset_admin_usage(db, db_admin=db_admin)
             reseted_admin = AdminDetails.model_validate(db_admin)
-            asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
+            self._schedule_notification(notification.admin_usage_reset(reseted_admin, admin.username))
             logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
 
         return self._build_bulk_action_response(db_admins)

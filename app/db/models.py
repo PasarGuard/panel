@@ -139,6 +139,9 @@ class User(Base):
     subscription_updates: Mapped[List["UserSubscriptionUpdate"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
+    hwid_devices: Mapped[List["HWIDUserDevice"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", init=False
+    )
     usage_logs: Mapped[List["UserUsageResetLogs"]] = relationship(back_populates="user", init=False)
     admin: Mapped["Admin"] = relationship(back_populates="users", init=False)
     next_plan: Mapped[Optional["NextPlan"]] = relationship(
@@ -328,7 +331,7 @@ class HWIDUserDevice(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    user: Mapped["User"] = relationship(init=False)
+    user: Mapped["User"] = relationship(back_populates="hwid_devices", init=False)
     hwid_hash: Mapped[str] = mapped_column(String(128))
     device_os: Mapped[Optional[str]] = mapped_column(String(64), default=None)
     os_version: Mapped[Optional[str]] = mapped_column(String(64), default=None)

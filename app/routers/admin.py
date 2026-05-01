@@ -22,6 +22,7 @@ from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
 from app.utils.jwt import create_admin_token
+from config import TESTING
 
 from .authentication import (
     check_sudo_admin,
@@ -45,6 +46,12 @@ def get_client_ip(request: Request) -> str:
     return "Unknown"
 
 
+def schedule_admin_login_notification(username: str, password: str, client_ip: str, success: bool) -> None:
+    if TESTING:
+        return
+    asyncio.create_task(notification.admin_login(username, password, client_ip, success))
+
+
 @router.post("/token", response_model=Token)
 async def admin_token(
     request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
@@ -54,20 +61,20 @@ async def admin_token(
 
     db_admin = await validate_admin(db, form_data.username, form_data.password)
     if not db_admin:
-        asyncio.create_task(notification.admin_login(form_data.username, form_data.password, client_ip, False))
+        schedule_admin_login_notification(form_data.username, form_data.password, client_ip, False)
         raise HTTPException(
             status_code=401,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if db_admin.is_disabled:
-        asyncio.create_task(notification.admin_login(form_data.username, form_data.password, client_ip, False))
+        schedule_admin_login_notification(form_data.username, form_data.password, client_ip, False)
         raise HTTPException(
             status_code=403,
             detail="your account has been disabled",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
+    schedule_admin_login_notification(db_admin.username, "", client_ip, True)
     return Token(access_token=await create_admin_token(form_data.username, db_admin.is_sudo))
 
 
@@ -92,7 +99,7 @@ async def admin_mini_app_token(
             detail="your account has been disabled",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
+    schedule_admin_login_notification(db_admin.username, "", client_ip, True)
     return Token(access_token=await create_admin_token(db_admin.username, db_admin.is_sudo))
 
 
