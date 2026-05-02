@@ -427,7 +427,6 @@
         "recurrent": "Retry Attempts",
         "recurrentDescription": "Number of retry attempts for failed webhooks (1-24)",
         "proxyUrl": "Proxy URL",
-        "proxyUrlPlaceholder": "http://proxy.example.com:8080",
         "proxyUrlDescription": "Proxy URL for webhook requests (optional)"
       },
       "webhooks": {

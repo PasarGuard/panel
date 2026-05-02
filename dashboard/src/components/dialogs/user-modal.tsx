@@ -260,7 +260,7 @@ const StatusSelect = ({
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
+      <PopoverContent className="w-(--radix-popover-trigger-width) p-1" align="start">
         {React.Children.map(children, child => {
           if (React.isValidElement<StatusSelectItemProps>(child) && typeof child.props.value === 'string') {
             return React.cloneElement(child, {
@@ -2284,7 +2284,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                   )}
                   {/* Next Plan Section (toggleable) */}
                   {activeTab === 'groups' && editingUser && (
-                    <div className="rounded-[--radius] border border-border p-4">
+                    <div className="rounded-(--radius) border border-border p-4">
                       <div className="flex items-center justify-between">
                         <div
                           className="flex cursor-pointer items-center gap-2"

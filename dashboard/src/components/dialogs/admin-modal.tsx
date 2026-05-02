@@ -143,7 +143,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                     const hasError = !!form.formState.errors.username
                     return (
                       <FormItem>
-                        <FormLabel>{t('admins.username')}</FormLabel>
+                        <FormLabel className='pb-2'>{t('admins.username')}</FormLabel>
                         <FormControl>
                           <Input placeholder={t('admins.enterUsername')} disabled={editingAdmin} isError={hasError} autoComplete="off" {...field} />
                         </FormControl>
@@ -260,7 +260,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                   control={form.control}
                   name={'profile_title'}
                   render={({ field }) => (
-                    <FormItem className="flex h-full flex-col justify-end gap-2">
+                    <FormItem className="flex h-full flex-col justify-endnp">
                       <div className="flex items-center gap-2">
                         <FormLabel>{t('admins.profile')}</FormLabel>
                         <VariablesPopover />
@@ -480,8 +480,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                   control={form.control}
                   name="is_sudo"
                   render={({ field }) => (
-                    <FormItem className="flex w-full cursor-pointer flex-row items-center justify-between rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
-                      <div className="space-y-0.5">
+                    <FormItem className="flex w-full cursor-pointer mb-2 flex-row items-center justify-between rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                      <div className="space-y-0.5 mb-0">
                         <FormLabel className="text-base">{t('admins.sudo')}</FormLabel>
                       </div>
                       <FormControl>

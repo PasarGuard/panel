@@ -129,6 +129,7 @@ const UsersTable = memo(() => {
   const [isChangingPage, setIsChangingPage] = useState(false)
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
+  const clearSelectedUserTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
   const [resetSelectionKey, setResetSelectionKey] = useState(0)
   const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | 'disable' | 'enable' | 'apply_template' | null>(null)
@@ -136,6 +137,7 @@ const UsersTable = memo(() => {
   const [isBulkApplyTemplateModalOpen, setIsBulkApplyTemplateModalOpen] = useState(false)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [isAdvanceSearchApplying, setIsAdvanceSearchApplying] = useState(false)
+  const resetAdvanceSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isSorting, setIsSorting] = useState(false)
   const [showCreatedBy, setShowCreatedBy] = useState(getUsersShowCreatedBy())
   const [showSelectionCheckbox, setShowSelectionCheckbox] = useState(getUsersShowSelectionCheckbox())
@@ -661,6 +663,11 @@ const UsersTable = memo(() => {
   }
 
   const handleEdit = (user: UserResponse) => {
+    if (clearSelectedUserTimeoutRef.current) {
+      clearTimeout(clearSelectedUserTimeoutRef.current)
+      clearSelectedUserTimeoutRef.current = null
+    }
+
     const cachedData = queryClient.getQueriesData<UsersResponse>({
       queryKey: ['/api/users'],
       exact: false,
@@ -682,15 +689,39 @@ const UsersTable = memo(() => {
   }
 
   const handleEditSuccess = (_updatedUser: UserResponse) => {
-    setEditModalOpen(false)
+    handleEditModalClose(false)
   }
 
   const handleEditModalClose = (open: boolean) => {
-    setEditModalOpen(open)
-    if (!open) {
-      setSelectedUser(null)
+    if (open) {
+      if (clearSelectedUserTimeoutRef.current) {
+        clearTimeout(clearSelectedUserTimeoutRef.current)
+        clearSelectedUserTimeoutRef.current = null
+      }
+      setEditModalOpen(true)
+      return
     }
+
+    setEditModalOpen(false)
+    if (clearSelectedUserTimeoutRef.current) {
+      clearTimeout(clearSelectedUserTimeoutRef.current)
+    }
+    clearSelectedUserTimeoutRef.current = setTimeout(() => {
+      setSelectedUser(null)
+      clearSelectedUserTimeoutRef.current = null
+    }, 220)
   }
+
+  useEffect(() => {
+    return () => {
+      if (clearSelectedUserTimeoutRef.current) {
+        clearTimeout(clearSelectedUserTimeoutRef.current)
+      }
+      if (resetAdvanceSearchTimeoutRef.current) {
+        clearTimeout(resetAdvanceSearchTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const columns = useMemo(
     () =>
@@ -758,6 +789,23 @@ const UsersTable = memo(() => {
       advanceSearchForm.reset(values)
     } finally {
       setIsAdvanceSearchApplying(false)
+    }
+  }
+
+  const handleAdvanceSearchOpenChange = (open: boolean) => {
+    if (isAdvanceSearchApplying && !open) return
+
+    if (resetAdvanceSearchTimeoutRef.current) {
+      clearTimeout(resetAdvanceSearchTimeoutRef.current)
+      resetAdvanceSearchTimeoutRef.current = null
+    }
+
+    setIsAdvanceSearchOpen(open)
+    if (!open) {
+      resetAdvanceSearchTimeoutRef.current = setTimeout(() => {
+        advanceSearchForm.reset()
+        resetAdvanceSearchTimeoutRef.current = null
+      }, 220)
     }
   }
 
@@ -864,20 +912,14 @@ const UsersTable = memo(() => {
           onSuccessCallback={handleEditSuccess}
         />
       )}
-      {isAdvanceSearchOpen && (
-        <AdvanceSearchModal
-          isDialogOpen={isAdvanceSearchOpen}
-          onOpenChange={open => {
-            if (isAdvanceSearchApplying && !open) return
-            setIsAdvanceSearchOpen(open)
-            if (!open) advanceSearchForm.reset()
-          }}
-          form={advanceSearchForm}
-          onSubmit={handleAdvanceSearchSubmit}
-          isSudo={isSudo}
-          isApplying={isAdvanceSearchApplying}
-        />
-      )}
+      <AdvanceSearchModal
+        isDialogOpen={isAdvanceSearchOpen}
+        onOpenChange={handleAdvanceSearchOpenChange}
+        form={advanceSearchForm}
+        onSubmit={handleAdvanceSearchSubmit}
+        isSudo={isSudo}
+        isApplying={isAdvanceSearchApplying}
+      />
       <BulkActionAlertDialog
         open={bulkAction === 'delete'}
         onOpenChange={open => setBulkAction(open ? 'delete' : null)}

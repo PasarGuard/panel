@@ -5,11 +5,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useGetUserSubUpdateListById, UserSubscriptionUpdateSchema } from '@/service/api'
 import { parseUserAgent, formatClientInfo } from '@/utils/userAgentParser'
 import { dateUtils } from '@/utils/dateFormatter'
-import { Monitor, Smartphone, Globe, HelpCircle, Users, Loader2, ChevronLeft, ChevronRight, Tv } from 'lucide-react'
+import { Monitor, Smartphone, Globe, HelpCircle, Users, ChevronLeft, ChevronRight, Tv } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface UserSubscriptionClientsModalProps {
   isOpen: boolean
@@ -383,6 +384,33 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
     }
   }
 
+  const renderLoadingSkeleton = () => (
+    <div className="space-y-4 py-4">
+      <div className={`flex items-center justify-between ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-4 w-12" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="rounded-lg border bg-card p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-3 w-12" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-5 w-12 rounded-full" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <Skeleton className="mt-3 h-3 w-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[95vh] max-w-4xl flex-col sm:max-h-[600px]" dir={dir}>
@@ -401,10 +429,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
         {/* Content Area */}
         <div className="min-h-0 flex-1 overflow-hidden">
           {isLoading && (
-            <div className={`flex items-center justify-center py-8 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <Loader2 className="h-6 w-6 flex-shrink-0 animate-spin" />
-              <span className={`${dir === 'rtl' ? 'mr-2' : 'ml-2'}`}>{t('loading', { defaultValue: 'Loading...' })}</span>
-            </div>
+            renderLoadingSkeleton()
           )}
 
           {error && <div className="py-8 text-center text-destructive">{t('subscriptionClients.error', { defaultValue: 'Failed to load subscription clients' })}</div>}

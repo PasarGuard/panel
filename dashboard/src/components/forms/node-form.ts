@@ -18,6 +18,7 @@ export const nodeFormSchema = z.object({
   reset_time: z.union([z.null(), z.undefined(), z.number().min(-1)]),
   default_timeout: z.number().min(3, 'Default timeout must be 3 or greater').max(60, 'Default timeout must be 60 or lower').optional(),
   internal_timeout: z.number().min(3, 'Internal timeout must be 3 or greater').max(60, 'Internal timeout must be 60 or lower').optional(),
+  proxy_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
 })
 
 export type NodeFormValues = z.input<typeof nodeFormSchema>
@@ -32,4 +33,5 @@ export const nodeFormDefaultValues: Partial<NodeFormValues> = {
   keep_alive: 20000,
   keep_alive_unit: 'seconds',
   api_key: '',
+  proxy_url: '',
 }

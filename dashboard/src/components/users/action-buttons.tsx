@@ -57,7 +57,10 @@ const actionButtonsModalStateStore = new Map<number, ActionButtonsModalState>()
 const actionButtonsUserStore = new Map<number, UserResponse>()
 const actionButtonsModalStateListeners = new Map<number, Set<() => void>>()
 const actionButtonsGlobalListeners = new Set<() => void>()
+const actionButtonsClosingUserIds = new Set<number>()
+const actionButtonsClosingTimers = new Map<number, ReturnType<typeof setTimeout>>()
 let actionButtonsGlobalStateVersion = 0
+const MODAL_EXIT_ANIMATION_MS = 220
 
 const createDefaultModalState = (user: UserResponse): ActionButtonsModalState => ({
   subscribeUrl: user.subscription_url || '',
@@ -142,7 +145,7 @@ const subscribeGlobalModalState = (listener: () => void) => {
 
 const getOpenModalUsers = (): UserResponse[] =>
   Array.from(actionButtonsModalStateStore.entries())
-    .filter(([, state]) => hasOpenModal(state))
+    .filter(([userId, state]) => hasOpenModal(state) || actionButtonsClosingUserIds.has(userId))
     .map(([userId]) => actionButtonsUserStore.get(userId))
     .filter((user): user is UserResponse => Boolean(user))
 
@@ -152,10 +155,36 @@ const updateModalState = (userId: number, updater: (prev: ActionButtonsModalStat
   const current = actionButtonsModalStateStore.get(userId)
   if (!current) return
 
+  const wasOpen = hasOpenModal(current)
   const next = updater(current)
   if (next === current) return
+  const isOpen = hasOpenModal(next)
 
   actionButtonsModalStateStore.set(userId, next)
+
+  if (isOpen) {
+    const closingTimer = actionButtonsClosingTimers.get(userId)
+    if (closingTimer) {
+      clearTimeout(closingTimer)
+      actionButtonsClosingTimers.delete(userId)
+    }
+    actionButtonsClosingUserIds.delete(userId)
+  } else if (wasOpen) {
+    actionButtonsClosingUserIds.add(userId)
+    const closingTimer = actionButtonsClosingTimers.get(userId)
+    if (closingTimer) {
+      clearTimeout(closingTimer)
+    }
+    actionButtonsClosingTimers.set(
+      userId,
+      setTimeout(() => {
+        actionButtonsClosingUserIds.delete(userId)
+        actionButtonsClosingTimers.delete(userId)
+        notifyGlobalListeners()
+      }, MODAL_EXIT_ANIMATION_MS),
+    )
+  }
+
   actionButtonsModalStateListeners.get(userId)?.forEach(listener => listener())
   notifyGlobalListeners()
 }
@@ -185,6 +214,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
+  const clearSelectedUserTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearSubscribeUrlTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -288,6 +319,17 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     defaultValues: buildUserEditFormValues(user),
   })
 
+  useEffect(() => {
+    return () => {
+      if (clearSelectedUserTimeoutRef.current) {
+        clearTimeout(clearSelectedUserTimeoutRef.current)
+      }
+      if (clearSubscribeUrlTimeoutRef.current) {
+        clearTimeout(clearSubscribeUrlTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Update form when user data changes
   useEffect(() => {
     // Keep background refreshes from clobbering an active edit session.
@@ -314,13 +356,23 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   }, [user.subscription_url])
 
   const onOpenSubscriptionModal = useCallback(() => {
+    if (clearSubscribeUrlTimeoutRef.current) {
+      clearTimeout(clearSubscribeUrlTimeoutRef.current)
+      clearSubscribeUrlTimeoutRef.current = null
+    }
     setSubscribeUrl(user.subscription_url ? user.subscription_url : '')
     setShowSubscriptionModal(true)
   }, [setShowSubscriptionModal, setSubscribeUrl, user.subscription_url])
 
   const onCloseSubscriptionModal = useCallback(() => {
-    setSubscribeUrl('')
     setShowSubscriptionModal(false)
+    if (clearSubscribeUrlTimeoutRef.current) {
+      clearTimeout(clearSubscribeUrlTimeoutRef.current)
+    }
+    clearSubscribeUrlTimeoutRef.current = setTimeout(() => {
+      setSubscribeUrl('')
+      clearSubscribeUrlTimeoutRef.current = null
+    }, MODAL_EXIT_ANIMATION_MS)
   }, [setShowSubscriptionModal, setSubscribeUrl])
 
   const { copy, copied } = useClipboard({ timeout: 1500 })
@@ -337,6 +389,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   // Handlers for menu items
   const handleEdit = () => {
+    if (clearSelectedUserTimeoutRef.current) {
+      clearTimeout(clearSelectedUserTimeoutRef.current)
+      clearSelectedUserTimeoutRef.current = null
+    }
+
     const cachedData = queryClient.getQueriesData<UsersResponse>({
       queryKey: ['/api/users'],
       exact: false,
@@ -358,6 +415,17 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     setSelectedUser(latestUser)
     setEditModalOpen(true)
   }
+
+  const closeEditModal = useCallback(() => {
+    setEditModalOpen(false)
+    if (clearSelectedUserTimeoutRef.current) {
+      clearTimeout(clearSelectedUserTimeoutRef.current)
+    }
+    clearSelectedUserTimeoutRef.current = setTimeout(() => {
+      setSelectedUser(null)
+      clearSelectedUserTimeoutRef.current = null
+    }, 220)
+  }, [])
 
   const handleSetOwner = () => {
     setSetOwnerModalOpen(true)
@@ -563,12 +631,13 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   }
 
   return (
-    <div
-      onClick={renderActions ? (e => e.stopPropagation()) : undefined}
-      onPointerDown={renderActions ? (e => e.stopPropagation()) : undefined}
-    >
+    <>
       {renderActions && (
-        <div className="flex items-center justify-end">
+        <div
+          className="flex items-center justify-end"
+          onClick={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
+        >
           <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
             <Pencil className="h-4 w-4" />
           </Button>
@@ -707,10 +776,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       )}
 
       {isModalHost && (
-        <>
+        <div className="contents" onClick={e => e.stopPropagation()}>
           {/* Subscription Modal */}
-          {showSubscriptionModal && subscribeUrl && (
+          {subscribeUrl && (
             <SubscriptionModal
+              open={showSubscriptionModal}
               subscribeUrl={subscribeUrl}
               userId={user.id}
               username={user.username}
@@ -810,31 +880,30 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
           {/* UserAllIPsModal: only for sudo admins */}
           {currentAdmin?.is_sudo && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
-        </>
+        </div>
       )}
 
       {/* Edit User Modal */}
       {selectedUser && (
-        <UserModal
-          isDialogOpen={isEditModalOpen}
-          onOpenChange={(open) => {
-            setEditModalOpen(open)
-            if (!open) {
-              setSelectedUser(null)
-            }
-          }}
-          form={userForm}
-          editingUser={true}
-          editingUserId={selectedUser.id}
-          editingUserData={selectedUser}
-          onSuccessCallback={() => {
-            // No need to invalidate - cache is already updated by the modal
-            setEditModalOpen(false)
-            setSelectedUser(null)
-          }}
-        />
+        <div className="contents" onClick={e => e.stopPropagation()}>
+          <UserModal
+            isDialogOpen={isEditModalOpen}
+            onOpenChange={(open) => {
+              if (open) setEditModalOpen(true)
+              else closeEditModal()
+            }}
+            form={userForm}
+            editingUser={true}
+            editingUserId={selectedUser.id}
+            editingUserData={selectedUser}
+            onSuccessCallback={() => {
+              // No need to invalidate - cache is already updated by the modal
+              closeEditModal()
+            }}
+          />
+        </div>
       )}
-    </div>
+    </>
   )
 }
 

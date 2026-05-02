@@ -77,6 +77,7 @@ def sample_node_response(**overrides) -> NodeResponse:
         "downlink": 0,
         "lifetime_uplink": 0,
         "lifetime_downlink": 0,
+        "proxy_url": "socks5://127.0.0.1:1080",
     }
     data.update(overrides)
     return NodeResponse(**data)
@@ -99,6 +100,7 @@ def node_create_payload(**overrides) -> dict:
         "reset_time": -1,
         "default_timeout": 10,
         "internal_timeout": 15,
+        "proxy_url": "socks5://127.0.0.1:1080",
     }
     payload.update(overrides)
     return payload

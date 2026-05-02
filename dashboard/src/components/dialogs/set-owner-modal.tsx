@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, UserCheck } from 'lucide-react'
+import { UserCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useBulkSetOwner, useSetOwnerById, UserResponse } from '@/service/api'
 import { toast } from 'sonner'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface SetOwnerModalProps {
   open: boolean
@@ -127,8 +128,11 @@ export default function SetOwnerModal({ open, onClose, userId, username, userIds
               </div>
             )}
             {isLoading ? (
-              <div className="flex items-center justify-center p-2">
-                <Loader2 className="animate-spin" />
+              <div className="space-y-2 p-2">
+                <Skeleton className="h-10 w-full" />
+                <div className="space-y-1 rounded-md border p-2">
+                  <Skeleton className="h-4 w-32" />
+                </div>
               </div>
             ) : isError ? (
               <div className="p-2 text-destructive">{t('setOwnerModal.loadError', { defaultValue: 'Failed to load admins.' })}</div>
@@ -154,8 +158,7 @@ export default function SetOwnerModal({ open, onClose, userId, username, userIds
               {t('cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button type="button" onClick={handleSubmit} disabled={!selectedAdmin || submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('setOwnerModal.confirm', { defaultValue: 'Set Owner' })}
+              {submitting ? t('submitting', { defaultValue: 'Submitting...' }) : t('setOwnerModal.confirm', { defaultValue: 'Set Owner' })}
             </Button>
           </div>
         </div>

@@ -25,7 +25,7 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
 
   // Add state for chart refresh
   const [chartRefreshKey, setChartRefreshKey] = useState(0)
-  const resizeTimeoutRef = useRef<NodeJS.Timeout>()
+  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lastWindowWidthRef = useRef<number>(typeof window !== 'undefined' ? window.innerWidth : 0)
 
   // For non-sudo admins, selectedServer should always be 'master'

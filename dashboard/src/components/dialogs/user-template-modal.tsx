@@ -84,7 +84,7 @@ const StatusSelect = ({
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
+      <PopoverContent className="w-(--radix-popover-trigger-width) p-1" align="start">
         {React.Children.map(children, child => {
           if (React.isValidElement<StatusSelectItemProps>(child) && typeof child.props.value === 'string') {
             return React.cloneElement(child, {
