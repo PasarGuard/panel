@@ -64,14 +64,14 @@ class FragmentSettings(BaseModel):
 
 
 class XrayNoiseSettings(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
     type: str = Field(pattern=r"^$|^(:?rand|array|str|base64|hex)$")
     packet: str | list[int] | None = Field(default=None)
     delay: str | int | None = Field(default=None)
     apply_to: str = Field(default="ip", pattern=r"ip|ipv4|ipv6")
     rand: int | str | None = Field(default=None)
     rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
 
 class NoiseSettings(BaseModel):
@@ -463,6 +463,7 @@ class BaseHost(BaseModel):
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
     wireguard_overrides: WireGuardHostOverrides | None = None
     subscription_templates: SubscriptionTemplates | None = None
+    final_mask_settings: FinalMask | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

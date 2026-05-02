@@ -172,7 +172,7 @@ async def _prepare_subscription_inbound_data(
     if inbound_flow == "none":
         inbound_flow = ""
 
-    finalmask = inbound_config.get("finalmask")
+    final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
 
     # Network comes from inbound, NOT from checking which transport exists on host!
     # Host can have ALL transport configs, inbound determines which one is used
@@ -372,7 +372,7 @@ async def _prepare_subscription_inbound_data(
         use_sni_as_host=host.use_sni_as_host,
         fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
         noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
-        finalmask=finalmask,
+        finalmask=final_mask_settings,
         priority=host.priority,
         status=list(host.status) if host.status else None,
         subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
