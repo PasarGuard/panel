@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel, Field, computed_field
+from app.models.host import FinalMask
 
 
 class TLSConfig(BaseModel):
@@ -258,7 +259,7 @@ class SubscriptionInboundData(BaseModel):
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)
-    finalmask: dict[str, Any] | None = Field(None)
+    finalmask: FinalMask | dict[str, Any] | None = Field(None)
 
     # Priority and status
     priority: int = Field(0)

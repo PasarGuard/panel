@@ -167,7 +167,11 @@ class StandardLinks(BaseSubscription):
     def _apply_finalmask(self, payload: dict, protocol: str, inbound: SubscriptionInboundData):
         """Apply finalMask for vmess if needed"""
         if inbound.finalmask:
-            payload["fm"] = json.dumps(inbound.finalmask)
+            if isinstance(inbound.finalmask, FinalMask):
+                finalmask = inbound.finalmask.model_dump()
+            else:
+                finalmask = inbound.finalmask
+            payload["fm"] = json.dumps(finalmask)
 
     def _transport_tcp(self, payload: dict, protocol: str, config: TCPTransportConfig, path: str):
         """Handle tcp/raw/http transport - only gets TCP config"""

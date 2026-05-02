@@ -1,6 +1,5 @@
 import os
 from datetime import datetime as dt, timezone as tz
-from email.policy import default
 from enum import Enum
 from typing import Any, Dict, List, Optional
 

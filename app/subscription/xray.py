@@ -10,6 +10,7 @@ from app.models.subscription import (
     TLSConfig,
     WebSocketTransportConfig,
     XHTTPTransportConfig,
+    FinalMask,
 )
 from app.templates import render_template_string
 from app.utils.helpers import UUIDEncoder
@@ -467,9 +468,11 @@ class XrayConfiguration(BaseSubscription):
         }
 
         if inbound.finalmask is not None:
-            outbound["streamSettings"] = self._stream_setting_config(
-                network=inbound.network, finalmask=inbound.finalmask
-            )
+            if isinstance(inbound.finalmask, FinalMask):
+                finalmask = inbound.finalmask.model_dump()
+            else:
+                finalmask = inbound.finalmask
+            outbound["streamSettings"] = self._stream_setting_config(network=inbound.network, finalmask=finalmask)
 
         return self._normalize_and_remove_none_values(outbound)
 
