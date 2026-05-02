@@ -1,6 +1,5 @@
 import react from '@vitejs/plugin-react'
-import autoprefixer from 'autoprefixer'
-import tailwindcss from 'tailwindcss'
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 import svgr from 'vite-plugin-svgr'
 import path from 'path'
@@ -11,11 +10,6 @@ export default defineConfig({
   clearScreen: false,
   server: {
     host: true,
-  },
-  css: {
-    postcss: {
-      plugins: [tailwindcss, autoprefixer],
-    },
   },
   build: {
     outDir: 'build',
@@ -140,6 +134,7 @@ export default defineConfig({
     ],
   },
   plugins: [
+    tailwindcss(),
     react(),
     svgr(),
     VitePWA({
@@ -153,19 +148,6 @@ export default defineConfig({
         globIgnores: ['statics/editor.api*.js', 'statics/ts.worker*.js'],
         skipWaiting: true,
         clientsClaim: true,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365,
-              },
-            },
-          },
-        ],
       },
     }),
   ],

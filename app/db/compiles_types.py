@@ -1,4 +1,4 @@
-from sqlalchemy import String, Numeric, TypeDecorator
+from sqlalchemy import BigInteger, String, Numeric, TypeDecorator
 from sqlalchemy.sql.expression import FunctionElement
 from sqlalchemy.ext.compiler import compiles
 
@@ -6,6 +6,15 @@ from sqlalchemy.ext.compiler import compiles
 class CaseSensitiveString(String):
     def __init__(self, length=None):
         super(CaseSensitiveString, self).__init__(length)
+
+
+class SqliteCompatibleBigInteger(BigInteger):
+    pass
+
+
+@compiles(SqliteCompatibleBigInteger, "sqlite")
+def compile_sqlite_compatible_big_integer(element, compiler, **kw):
+    return "INTEGER"
 
 
 # Modify how this type is handled for each dialect

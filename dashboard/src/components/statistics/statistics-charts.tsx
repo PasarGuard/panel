@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { NodeRealtimeStats, SystemStats, useGetNodesSimple, useRealtimeNodeStats } from '@/service/api'
+import { NodeRealtimeStats, NodeSimple, SystemStats, useRealtimeNodeStats } from '@/service/api'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CostumeBarChart } from '../charts/costume-bar-chart'
@@ -16,9 +16,11 @@ interface StatisticsChartsProps {
   error: any
   selectedServer: string
   is_sudo: boolean
+  nodesData?: NodeSimple[]
+  isLoadingNodes?: boolean
 }
 
-export default function StatisticsCharts({ data, isLoading, error, selectedServer, is_sudo }: StatisticsChartsProps) {
+export default function StatisticsCharts({ data, isLoading, error, selectedServer, is_sudo, nodesData = [], isLoadingNodes = false }: StatisticsChartsProps) {
   const { t } = useTranslation()
 
   // Add state for chart refresh
@@ -26,21 +28,17 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
   const resizeTimeoutRef = useRef<NodeJS.Timeout>()
   const lastWindowWidthRef = useRef<number>(typeof window !== 'undefined' ? window.innerWidth : 0)
 
-  // Only fetch nodes for sudo admins
-  const { isLoading: isLoadingNodes, error: nodesError } = useGetNodesSimple({ all: true }, {
-    query: {
-      enabled: is_sudo, // Only fetch nodes for sudo admins
-    },
-  })
-
   // For non-sudo admins, selectedServer should always be 'master'
   const actualSelectedServer = is_sudo ? selectedServer : 'master'
   const selectedNodeId = actualSelectedServer === 'master' ? undefined : parseInt(actualSelectedServer, 10)
+  const selectedNode = selectedNodeId !== undefined ? nodesData.find(node => node.id === selectedNodeId) : undefined
+  const selectedNodeConnected = selectedNode?.status === 'connected'
+  const shouldFetchNodeRealtime = is_sudo && !!selectedNodeId && selectedNodeConnected
 
-  // Only fetch node stats for sudo admins when a node is selected
+  // Only fetch realtime node stats for connected nodes.
   const { data: nodeStats, isLoading: isLoadingNodeStats } = useRealtimeNodeStats(selectedNodeId || 0, {
     query: {
-      enabled: is_sudo && !!selectedNodeId, // Only fetch node stats for sudo admins with selected node
+      enabled: shouldFetchNodeRealtime,
       refetchInterval: 1500, // Update every 1.5 seconds for faster realtime updates
       staleTime: 1000, // Consider data stale after 1 second
     },
@@ -90,11 +88,11 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
     }
   }, [selectedServer])
 
-  if ((actualSelectedServer === 'master' && isLoading) || (is_sudo && isLoadingNodes) || (is_sudo && selectedNodeId && isLoadingNodeStats)) {
+  if ((actualSelectedServer === 'master' && isLoading) || (is_sudo && isLoadingNodes) || (shouldFetchNodeRealtime && isLoadingNodeStats)) {
     return <StatisticsSkeletons is_sudo={is_sudo} />
   }
 
-  if (error || (is_sudo && nodesError)) {
+  if (error) {
     return (
       <div className="space-y-8">
         <div className="flex items-center justify-between">
@@ -103,28 +101,31 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
             <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
           </div>
         </div>
-        <EmptyState type="error" title={t('errors.statisticsLoadFailed')} description={error?.message || nodesError?.message || t('errors.connectionFailed')} className="min-h-[400px]" />
+        <EmptyState type="error" title={t('errors.statisticsLoadFailed')} description={error?.message || t('errors.connectionFailed')} className="min-h-[400px]" />
       </div>
     )
   }
 
   // Get the current stats based on selection
-  const currentStats = actualSelectedServer === 'master' ? (data as SystemStats) : (nodeStats as NodeRealtimeStats)
+  const currentStats = actualSelectedServer === 'master' ? (data as SystemStats) : selectedNodeConnected ? (nodeStats as NodeRealtimeStats) : null
+  const showRealtimeSystemStats = actualSelectedServer === 'master' || selectedNodeConnected
 
   return (
     <div className="space-y-8">
       {/* System Statistics Section - show for all admins */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
+      {showRealtimeSystemStats && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
+            </div>
+          </div>
+          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+            <SystemStatisticsSection currentStats={currentStats} />
           </div>
         </div>
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
-          <SystemStatisticsSection currentStats={currentStats} />
-        </div>
-      </div>
+      )}
 
       {/* Charts Section */}
       <div className="space-y-8">
@@ -139,7 +140,13 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
           </div>
         )}
         <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '320ms', animationFillMode: 'both' }}>
-          <AreaCostumeChart key={chartRefreshKey} nodeId={selectedNodeId} currentStats={currentStats} realtimeStats={actualSelectedServer === 'master' ? data : nodeStats || undefined} />
+          <AreaCostumeChart
+            key={chartRefreshKey}
+            nodeId={selectedNodeId}
+            currentStats={currentStats}
+            realtimeStats={actualSelectedServer === 'master' ? data : selectedNodeConnected ? nodeStats || undefined : undefined}
+            realtimeAvailable={actualSelectedServer === 'master' || selectedNodeConnected}
+          />
         </div>
       </div>
     </div>

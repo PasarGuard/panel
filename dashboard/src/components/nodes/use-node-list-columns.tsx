@@ -5,6 +5,7 @@ import NodeUsageDisplay from '@/components/nodes/node-usage-display'
 import NodeActionsMenu from '@/components/nodes/node-actions-menu'
 import { CoresSimpleResponse, NodeResponse, NodeStatus } from '@/service/api'
 import { cn } from '@/lib/utils'
+import { Package, Server } from 'lucide-react'
 
 interface UseNodeListColumnsProps {
   onEdit: (node: NodeResponse) => void
@@ -35,7 +36,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
       {
         id: 'name',
         header: t('name'),
-        width: '4fr',
+        width: '3fr',
         cell: node => (
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn('h-2 w-2 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
@@ -46,7 +47,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
       {
         id: 'address',
         header: t('address'),
-        width: '1fr',
+        width: '2fr',
         cell: node => (
           <div dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
             {node.address}:{node.port}
@@ -55,9 +56,34 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
         hideOnMobile: true,
       },
       {
+        id: 'version',
+        header: t('version.title', { defaultValue: 'Version' }),
+        width: '2fr',
+        cell: node => {
+          if (!node.xray_version && !node.node_version) return null
+          return (
+            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+              {node.xray_version && (
+                <div className="flex items-center gap-1.5">
+                  <Server className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{node.xray_version}</span>
+                </div>
+              )}
+              {node.node_version && (
+                <div className="flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{node.node_version}</span>
+                </div>
+              )}
+            </div>
+          )
+        },
+        hideOnMobile: true,
+      },
+      {
         id: 'usage',
         header: t('usageLabel'),
-        width: '1fr',
+        width: '2fr',
         cell: node => <NodeUsageDisplay node={node} />,
         hideOnMobile: true,
       },

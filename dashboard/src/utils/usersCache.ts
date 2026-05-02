@@ -144,7 +144,7 @@ const shouldInsertIntoQueryPage = (params?: GetUsersParams): boolean => {
 
 const upsertInSingleUsersQuery = (oldData: UsersResponse, user: UserResponse, params: GetUsersParams | undefined, allowInsert: boolean): UsersResponse | undefined => {
   const oldUsers = oldData.users ?? []
-  const existingIndex = oldUsers.findIndex(u => u.username === user.username)
+  const existingIndex = oldUsers.findIndex(u => u.id === user.id)
   const matchesFilters = matchesUserFilters(user, params)
 
   let users = oldUsers
@@ -153,10 +153,10 @@ const upsertInSingleUsersQuery = (oldData: UsersResponse, user: UserResponse, pa
 
   if (existingIndex >= 0) {
     if (matchesFilters) {
-      users = oldUsers.map(u => (u.username === user.username ? user : u))
+      users = oldUsers.map(u => (u.id === user.id ? user : u))
       changed = true
     } else {
-      users = oldUsers.filter(u => u.username !== user.username)
+      users = oldUsers.filter(u => u.id !== user.id)
       total = Math.max(0, total - 1)
       changed = true
     }

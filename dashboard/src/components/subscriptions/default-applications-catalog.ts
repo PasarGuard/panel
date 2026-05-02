@@ -131,7 +131,7 @@ const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = 
 }
 
 function mapOsNameToPlatform(engName: string): SubscriptionPlatform {
-  switch (engName.toLowerCase()) {
+  switch (engName.trim().toLowerCase().replace(/[\s_-]+/g, '')) {
     case 'android':
       return 'android'
     case 'ios':
@@ -142,6 +142,12 @@ function mapOsNameToPlatform(engName: string): SubscriptionPlatform {
       return 'linux'
     case 'macos':
       return 'macos'
+    case 'appletv':
+    case 'tvos':
+      return 'appletv'
+    case 'androidtv':
+    case 'googletv':
+      return 'androidtv'
     default:
       return 'android'
   }
@@ -154,7 +160,7 @@ export function buildDefaultApplications() {
     import_url?: string
     description?: Record<string, string>
     recommended?: boolean
-    platform: 'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'appletv' | 'androidtv'
+    platform: SubscriptionPlatform
     download_links: { name: string; url: string; language: 'fa' | 'en' | 'ru' | 'zh' }[]
   }[] = []
 

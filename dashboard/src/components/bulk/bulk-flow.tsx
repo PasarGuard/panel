@@ -49,6 +49,7 @@ import {
 } from 'lucide-react'
 import { BulkExpiredDateFilters } from '@/components/bulk/bulk-expired-date-filters'
 import { SelectorPanel } from '@/components/bulk/selector-panel'
+import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
@@ -59,7 +60,7 @@ import { endOfDay, startOfDay } from 'date-fns'
 const PAGE_SIZE = 50
 
 type BulkOperationType = 'proxy' | 'data' | 'expire' | 'groups' | 'wireguard'
-type ExpiryUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'months'
+type ExpiryUnit = TimeUnit
 
 interface BulkFlowProps {
   operationType: BulkOperationType
@@ -80,6 +81,12 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const [dataLimit, setDataLimit] = useState<number | undefined>(undefined)
   const [dataOperation, setDataOperation] = useState<'add' | 'subtract'>('add')
   const dataLimitInputRef = useRef<string>('')
+  const [dataLimitInput, setDataLimitInput] = useState('')
+
+  const setDataLimitRawInput = (value: string) => {
+    dataLimitInputRef.current = value
+    setDataLimitInput(value)
+  }
 
   const [expireSeconds, setExpireSeconds] = useState<number | undefined>(undefined)
   const [expireUnit, setExpireUnit] = useState<ExpiryUnit>('days')
@@ -115,42 +122,20 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       setExpireSeconds(undefined)
       return
     }
-    let seconds = num
-    switch (expireUnit) {
-      case 'minutes':
-        seconds = num * 60
-        break
-      case 'hours':
-        seconds = num * 3600
-        break
-      case 'days':
-        seconds = num * 86400
-        break
-      case 'months':
-        seconds = num * 2592000
-        break
-    }
-    setExpireSeconds(seconds)
+    setExpireSeconds(num * TIME_UNIT_SECONDS[expireUnit])
   }, [expireAmount, expireUnit])
-
-  useEffect(() => {
-    if (!selectedStatuses.includes('expired')) {
-      setExpiredAfter(undefined)
-      setExpiredBefore(undefined)
-    }
-  }, [selectedStatuses])
 
   const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ limit: PAGE_SIZE, offset: 0, all: true })
   const { data: usersData, isLoading: usersLoading } = useGetUsersSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedUserSearch || undefined })
   const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedAdminSearch || undefined })
 
-  // Backend: expire >= expired_after AND expire <= expired_before. Sending the same midnight for both
+  // Backend: expire >= expire_after AND expire <= expire_before. Sending the same midnight for both
   // would only match that instant; use start/end of local calendar day so one day in both fields is a full day.
-  const expiredStatusDatePayload =
-    (operationType === 'data' || operationType === 'expire') && selectedStatuses.includes('expired')
+  const expireDatePayload =
+    (operationType === 'data' || operationType === 'expire') && (expiredAfter || expiredBefore)
       ? {
-          ...(expiredAfter ? { expired_after: startOfDay(expiredAfter).toISOString() } : {}),
-          ...(expiredBefore ? { expired_before: endOfDay(expiredBefore).toISOString() } : {}),
+          ...(expiredAfter ? { expire_after: startOfDay(expiredAfter).toISOString() } : {}),
+          ...(expiredBefore ? { expire_before: endOfDay(expiredBefore).toISOString() } : {}),
         }
       : {}
 
@@ -295,7 +280,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             ...basePayload,
             ...statusPayload,
-            ...expiredStatusDatePayload,
+            ...expireDatePayload,
             amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
             dry_run: false,
           }
@@ -303,7 +288,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             ...basePayload,
             ...statusPayload,
-            ...expiredStatusDatePayload,
+            ...expireDatePayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
             dry_run: false,
           }
@@ -397,7 +382,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           setSelectedFlow(undefined)
           setSelectedMethod(undefined)
           setDataLimit(undefined)
-          dataLimitInputRef.current = ''
+          setDataLimitRawInput('')
           setExpireSeconds(undefined)
           setExpireAmount(undefined)
           setSelectedGroups([])
@@ -442,7 +427,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             ...basePayload,
             ...statusPayload,
-            ...expiredStatusDatePayload,
+            ...expireDatePayload,
             amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
             dry_run: true,
           }
@@ -451,7 +436,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             ...basePayload,
             ...statusPayload,
-            ...expiredStatusDatePayload,
+            ...expireDatePayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
             dry_run: true,
           }
@@ -517,8 +502,10 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const hasStatusFilter =
     (operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && selectedStatuses.length > 0
   const statusTargetCount = hasStatusFilter ? selectedStatuses.length : 0
-  const displayTargetCount = totalTargets + statusTargetCount
-  const isApplyToAll = totalTargets === 0 && !hasStatusFilter
+  const hasExpireDateFilter = (operationType === 'data' || operationType === 'expire') && Boolean(expiredAfter || expiredBefore)
+  const expireDateFilterCount = hasExpireDateFilter ? Number(Boolean(expiredAfter)) + Number(Boolean(expiredBefore)) : 0
+  const displayTargetCount = totalTargets + statusTargetCount + expireDateFilterCount
+  const isApplyToAll = totalTargets === 0 && !hasStatusFilter && !hasExpireDateFilter
 
   const formatTime = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`
@@ -643,13 +630,13 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         type="single"
                         value={dataOperation}
                         onValueChange={value => value && setDataOperation(value as 'add' | 'subtract')}
-                        className="w-full rounded-md border p-1 sm:w-auto"
+                        className="h-9 w-full rounded-md border p-0.5 sm:w-auto"
                         defaultValue="add"
                       >
-                        <ToggleGroupItem value="add" aria-label="Add" className="flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
+                        <ToggleGroupItem value="add" aria-label="Add" size="sm" className="h-8 flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
                           <Plus className="h-4 w-4" />
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="subtract" aria-label="Subtract" className="flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
+                        <ToggleGroupItem value="subtract" aria-label="Subtract" size="sm" className="h-8 flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
                           <Minus className="h-4 w-4" />
                         </ToggleGroupItem>
                       </ToggleGroup>
@@ -659,31 +646,28 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                           type="text"
                           inputMode="decimal"
                           placeholder={t('bulk.dataLimitPlaceholder', { defaultValue: 'Enter amount' })}
-                          value={dataLimitInputRef.current !== '' ? dataLimitInputRef.current : dataLimit !== undefined && dataLimit > 0 ? String(dataLimit) : ''}
+                          value={dataLimitInput !== '' ? dataLimitInput : dataLimit !== undefined && dataLimit > 0 ? String(dataLimit) : ''}
                           onChange={e => {
                             const rawValue = e.target.value.trim()
 
+                            setDataLimitRawInput(rawValue)
+
                             if (rawValue === '') {
-                              dataLimitInputRef.current = ''
                               setDataLimit(undefined)
                               return
                             }
 
-                            const validNumberPattern = /^-?(\d*\.?\d*|\.\d*)$/
+                            const validNumberPattern = /^-?\d*\.?\d*$/
                             if (validNumberPattern.test(rawValue)) {
-                              dataLimitInputRef.current = rawValue
-
-                              if (rawValue === '.' || rawValue === '-.' || rawValue === '-') {
-                                setDataLimit(undefined)
-                              } else if (rawValue.endsWith('.') && rawValue.length > 1) {
+                              if (rawValue.endsWith('.') && rawValue.length > 1) {
                                 const prevValue = dataLimit !== undefined ? dataLimit : 0
                                 setDataLimit(prevValue)
+                              } else if (rawValue === '.') {
+                                setDataLimit(undefined)
                               } else {
                                 const numValue = parseFloat(rawValue)
                                 if (!isNaN(numValue) && numValue >= 0) {
                                   setDataLimit(numValue)
-                                } else {
-                                  setDataLimit(undefined)
                                 }
                               }
                             }
@@ -691,16 +675,16 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                           onBlur={() => {
                             const rawValue = dataLimitInputRef.current.trim()
                             if (rawValue === '' || rawValue === '.' || rawValue === '0') {
-                              dataLimitInputRef.current = ''
+                              setDataLimitRawInput('')
                               setDataLimit(undefined)
                             } else {
                               const numValue = parseFloat(rawValue)
                               if (!isNaN(numValue) && numValue >= 0) {
                                 const finalValue = numValue
-                                dataLimitInputRef.current = finalValue > 0 ? String(finalValue) : ''
+                                setDataLimitRawInput(finalValue > 0 ? String(finalValue) : '')
                                 setDataLimit(finalValue > 0 ? finalValue : undefined)
                               } else {
-                                dataLimitInputRef.current = ''
+                                setDataLimitRawInput('')
                                 setDataLimit(undefined)
                               }
                             }
@@ -715,6 +699,11 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         >
                           GB
                         </span>
+                        {dataLimit !== undefined && dataLimit > 0 && dataLimit < 1 && (
+                          <p dir="ltr" className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">
+                            {formatBytes(Math.round(dataLimit * 1024 * 1024 * 1024))}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -743,13 +732,13 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         type="single"
                         value={expireOperation}
                         onValueChange={value => value && setExpireOperation(value as 'add' | 'subtract')}
-                        className="w-full rounded-md border p-1 sm:w-auto"
+                        className="h-9 w-full rounded-md border p-0.5 sm:w-auto"
                         defaultValue="add"
                       >
-                        <ToggleGroupItem value="add" aria-label="Add" className="flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
+                        <ToggleGroupItem value="add" aria-label="Add" size="sm" className="h-8 flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
                           <Plus className="h-4 w-4" />
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="subtract" aria-label="Subtract" className="flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
+                        <ToggleGroupItem value="subtract" aria-label="Subtract" size="sm" className="h-8 flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
                           <Minus className="h-4 w-4" />
                         </ToggleGroupItem>
                       </ToggleGroup>
@@ -767,25 +756,16 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                           step="1"
                           min="1"
                           dir="ltr"
-                          className={cn(isRTL ? 'pl-20 pr-3' : 'pr-20 pl-3')}
+                          className={cn(isRTL ? 'pl-[4.5rem] pr-3' : 'pr-[4.5rem] pl-3')}
                         />
-                        <Select value={expireUnit} onValueChange={v => setExpireUnit(v as ExpiryUnit)}>
-                          <SelectTrigger
-                            className={cn(
-                              'pointer-events-auto absolute top-0 h-full w-20',
-                              isRTL ? 'left-0 rounded-r-none border-r-0' : 'right-0 rounded-l-none border-l-0',
-                            )}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="seconds">{t('time.seconds', { defaultValue: 'Seconds' })}</SelectItem>
-                            <SelectItem value="minutes">{t('time.mins', { defaultValue: 'Minutes' })}</SelectItem>
-                            <SelectItem value="hours">{t('time.hours', { defaultValue: 'Hours' })}</SelectItem>
-                            <SelectItem value="days">{t('time.days', { defaultValue: 'Days' })}</SelectItem>
-                            <SelectItem value="months">{t('time.months', { defaultValue: 'Months' })}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <TimeUnitSelect
+                          value={expireUnit}
+                          onValueChange={setExpireUnit}
+                          triggerClassName={cn(
+                            'pointer-events-auto absolute top-0 h-full w-[4.5rem] px-2',
+                            isRTL ? 'left-0 rounded-r-none border-r-0' : 'right-0 rounded-l-none border-l-0',
+                          )}
+                        />
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -1015,7 +995,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   </CardContent>
                 </Card>
               )}
-              {(operationType === 'data' || operationType === 'expire') && selectedStatuses.includes('expired') && (
+              {(operationType === 'data' || operationType === 'expire') && (
                 <Card>
                   <CardContent className="p-3 sm:p-4">
                     <BulkExpiredDateFilters
@@ -1178,7 +1158,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   )}
 
                   {(operationType === 'data' || operationType === 'expire') &&
-                    selectedStatuses.includes('expired') &&
                     (expiredAfter || expiredBefore) && (
                       <div className="space-y-1.5 text-sm">
                         {expiredAfter && (

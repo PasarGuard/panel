@@ -46,7 +46,7 @@ export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
       {/* Main Usage Info */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
         <div className={cn('flex items-center gap-1.5', isRTL && 'flex-row-reverse')}>
-          <span dir="ltr" className={cn("text-xs font-medium text-foreground", isRTL && 'justify-end')}>
+          <span dir="ltr" className={cn("text-xs font-medium text-foreground w-full", isRTL && 'justify-end')}>
             {formatBytes(totalUsed)}
           </span>
           {!isUnlimited && dataLimit && (

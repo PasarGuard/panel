@@ -7,7 +7,12 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import func, select
 
 from app.db import AsyncSession, get_db
-from app.db.crud.admin import find_admins_by_telegram_id, get_admin as get_admin_by_username, get_admin_by_telegram_id
+from app.db.crud.admin import (
+    find_admins_by_telegram_id,
+    get_admin as get_admin_by_username,
+    get_admin_by_id as get_admin_by_id_crud,
+    get_admin_by_telegram_id,
+)
 from app.db.models import Admin, AdminUsageLogs, User
 from app.models.admin import AdminDetails, AdminValidationResult, verify_password
 from app.models.settings import Telegram
@@ -58,7 +63,13 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     if not payload:
         return
 
-    db_admin = await get_admin_by_username(db, payload["username"], load_users=False, load_usage_logs=False)
+    db_admin = None
+    if payload.get("admin_id") is not None:
+        db_admin = await get_admin_by_id_crud(db, payload["admin_id"], load_users=False, load_usage_logs=False)
+
+    if not db_admin:
+        db_admin = await get_admin_by_username(db, payload["username"], load_users=False, load_usage_logs=False)
+
     if db_admin:
         if not _is_token_valid_for_admin(db_admin, payload):
             return
@@ -83,11 +94,26 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
         .correlate(Admin)
         .scalar_subquery()
     )
-    admin_row = (
-        await db.execute(
-            select(Admin, total_users_subquery, reseted_usage_subquery).where(Admin.username == payload["username"])
-        )
-    ).one_or_none()
+    if payload.get("admin_id") is not None:
+        admin_row = (
+            await db.execute(
+                select(Admin, total_users_subquery, reseted_usage_subquery).where(Admin.id == payload["admin_id"])
+            )
+        ).one_or_none()
+        if admin_row is None:
+            admin_row = (
+                await db.execute(
+                    select(Admin, total_users_subquery, reseted_usage_subquery).where(
+                        Admin.username == payload["username"]
+                    )
+                )
+            ).one_or_none()
+    else:
+        admin_row = (
+            await db.execute(
+                select(Admin, total_users_subquery, reseted_usage_subquery).where(Admin.username == payload["username"])
+            )
+        ).one_or_none()
 
     if admin_row:
         db_admin, total_users, reseted_usage = admin_row
@@ -148,7 +174,10 @@ async def validate_admin(db: AsyncSession, username: str, password: str) -> Admi
     db_admin = await get_admin_by_username(db, username, load_users=False, load_usage_logs=False)
     if db_admin and await verify_password(password, db_admin.hashed_password):
         return AdminValidationResult(
-            username=db_admin.username, is_sudo=db_admin.is_sudo, is_disabled=db_admin.is_disabled
+            id=db_admin.id,
+            username=db_admin.username,
+            is_sudo=db_admin.is_sudo,
+            is_disabled=db_admin.is_disabled,
         )
 
     if not db_admin and SUDOERS.get(username) == password:
@@ -187,5 +216,8 @@ async def validate_mini_app_admin(db: AsyncSession, token: str) -> AdminValidati
     db_admin = await get_admin_by_telegram_id(db, data.user.id, load_users=False, load_usage_logs=False)
     if db_admin:
         return AdminValidationResult(
-            username=db_admin.username, is_sudo=db_admin.is_sudo, is_disabled=db_admin.is_disabled
+            id=db_admin.id,
+            username=db_admin.username,
+            is_sudo=db_admin.is_sudo,
+            is_disabled=db_admin.is_disabled,
         )

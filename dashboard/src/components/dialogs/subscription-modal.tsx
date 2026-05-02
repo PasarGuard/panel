@@ -1,12 +1,13 @@
-import { FC, memo, useState, useEffect, useCallback } from 'react'
+import { FC, memo, useState, useEffect, useCallback, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { QRCodeCanvas } from 'qrcode.react'
 import { useTranslation } from 'react-i18next'
-import { ScanQrCode, Copy, QrCode, ChevronLeft, ChevronRight, Check, Loader2, RefreshCw, Download } from 'lucide-react'
+import { ScanQrCode, Copy, QrCode, ChevronLeft, ChevronRight, Check, RefreshCw, Download } from 'lucide-react'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -14,14 +15,16 @@ import {
   encodeSubscriptionContentToBase64,
   extractAddressFromConfigUrl,
   extractNameFromConfigUrl,
-  fetchSubscriptionContent,
+  fetchUserSubscriptionContent,
   getWireGuardDownloadPayload,
   prepareSubscriptionContentForCopy,
   resolveSubscriptionQrUrl,
 } from '@/utils/subscription-config'
 
 interface SubscriptionModalProps {
+  open?: boolean
   subscribeUrl: string | null
+  userId: number
   username: string
   onCloseModal: () => void
 }
@@ -43,8 +46,8 @@ interface CopiedConfigState {
 const CONFIGS_PER_PAGE = 5
 const LINKS_FETCH_TIMEOUT_MS = 8000
 
-const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, username, onCloseModal }) => {
-  const isOpen = subscribeUrl !== null
+const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl, userId, username, onCloseModal }) => {
+  const isOpen = open ?? subscribeUrl !== null
   const { t } = useTranslation()
   const dir = useDirDetection()
   const isRTL = dir === 'rtl'
@@ -54,9 +57,11 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedConfigQR, setSelectedConfigQR] = useState<ConfigItem | null>(null)
+  const [isConfigQrOpen, setConfigQrOpen] = useState(false)
   const [selectedConfigQrMode, setSelectedConfigQrMode] = useState<ConfigQrMode>('config')
   const [copiedConfig, setCopiedConfig] = useState<CopiedConfigState | null>(null)
   const [allConfigsCopied, setAllConfigsCopied] = useState(false)
+  const clearSelectedConfigQrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const subscribeQrLink = resolveSubscriptionQrUrl(subscribeUrl)
 
@@ -67,7 +72,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
     setError(null)
 
     try {
-      const text = await fetchSubscriptionContent(subscribeUrl, 'links', LINKS_FETCH_TIMEOUT_MS)
+      const text = await fetchUserSubscriptionContent(userId, 'links', LINKS_FETCH_TIMEOUT_MS)
       const configLines = text.split('\n').filter(line => line.trim() !== '')
 
       setConfigs(
@@ -84,11 +89,24 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
     } finally {
       setIsLoading(false)
     }
-  }, [subscribeUrl, t])
+  }, [subscribeUrl, userId, t])
 
   useEffect(() => {
     fetchConfigs()
   }, [fetchConfigs])
+
+  useEffect(() => {
+    if (isOpen) return
+    setConfigQrOpen(false)
+  }, [isOpen])
+
+  useEffect(() => {
+    return () => {
+      if (clearSelectedConfigQrTimeoutRef.current) {
+        clearTimeout(clearSelectedConfigQrTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const totalPages = Math.ceil(configs.length / CONFIGS_PER_PAGE)
   const startIndex = currentPage * CONFIGS_PER_PAGE
@@ -149,13 +167,25 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
   )
 
   const handleShowConfigQR = (config: ConfigItem) => {
+    if (clearSelectedConfigQrTimeoutRef.current) {
+      clearTimeout(clearSelectedConfigQrTimeoutRef.current)
+      clearSelectedConfigQrTimeoutRef.current = null
+    }
     setSelectedConfigQrMode('config')
     setSelectedConfigQR(config)
+    setConfigQrOpen(true)
   }
 
   const handleCloseConfigQR = () => {
+    setConfigQrOpen(false)
     setSelectedConfigQrMode('config')
-    setSelectedConfigQR(null)
+    if (clearSelectedConfigQrTimeoutRef.current) {
+      clearTimeout(clearSelectedConfigQrTimeoutRef.current)
+    }
+    clearSelectedConfigQrTimeoutRef.current = setTimeout(() => {
+      setSelectedConfigQR(null)
+      clearSelectedConfigQrTimeoutRef.current = null
+    }, 220)
   }
 
   const selectedConfigWireGuardDownload = selectedConfigQR ? getWireGuardDownloadPayload(selectedConfigQR.config) : null
@@ -164,7 +194,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
 
   return (
     <>
-      <Dialog open={isOpen && !selectedConfigQR} onOpenChange={onCloseModal}>
+      <Dialog open={isOpen && !isConfigQrOpen} onOpenChange={onCloseModal}>
         <DialogContent className="max-h-[90dvh] max-w-[860px] overflow-y-auto overflow-x-hidden">
           <DialogHeader dir={dir}>
             <DialogTitle className="flex items-center gap-2">
@@ -190,8 +220,19 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
               </div>
 
               {isLoading ? (
-                <div className="flex h-[200px] items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <div className="flex h-[200px] flex-col gap-2">
+                  {Array.from({ length: 2 }).map((_, index) => (
+                    <div key={index} className="flex items-center justify-between rounded-md border p-2">
+                      <div className="flex flex-1 flex-col gap-2">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-5 w-24 rounded-full" />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Skeleton className="h-8 w-8" />
+                        <Skeleton className="h-8 w-8" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="flex h-[200px] flex-col items-center justify-center gap-3">
@@ -276,7 +317,9 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ subscribeUrl, user
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedConfigQR} onOpenChange={handleCloseConfigQR}>
+      <Dialog open={isConfigQrOpen} onOpenChange={open => {
+        if (!open) handleCloseConfigQR()
+      }}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-[380px] sm:max-w-[420px]">
           <DialogHeader dir={dir}>
             <DialogTitle className="flex items-center gap-2">

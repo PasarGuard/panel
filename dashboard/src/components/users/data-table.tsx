@@ -4,12 +4,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UserResponse } from '@/service/api'
-import { ChevronDown, LoaderCircle, Rss } from 'lucide-react'
+import { ChevronDown, Rss } from 'lucide-react'
 import ActionButtons from './action-buttons'
 import { OnlineStatus } from './online-status'
 import { StatusBadge } from './status-badge'
 import UsageSliderCompact from './usage-slider-compact'
 import { useTranslation } from 'react-i18next'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface DataTableProps<TData extends UserResponse, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -44,7 +45,7 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
   </div>
 ))
 
-export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, onEdit, onSelectionChange, resetSelectionKey = 0 }: DataTableProps<TData, TValue>) => {
+export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, data, isLoading = false, isFetching = false, onEdit, onSelectionChange, resetSelectionKey = 0 }: DataTableProps<TData, TValue>) => {
   const { t } = useTranslation()
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
   /** CSS :hover can stick after closing portaled menus; drive md+ row bg with pointer events instead. */
@@ -109,21 +110,87 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
     [handleRowToggle, onEdit],
   )
 
-  // Keep rows mounted during background fetching so row-level dialogs remain stable.
-  const isLoadingData = isLoading
+  const isLoadingData = isLoading || isFetching
+  const loadingRowCount = 10
+
+  const getLoadingCellClassName = useCallback(
+    (columnId: string) =>
+      cn(
+        'text-sm',
+        columnId !== 'details' && 'whitespace-nowrap',
+        columnId === 'details' && 'md:whitespace-nowrap',
+        columnId !== 'details' && 'py-1.5',
+        columnId === 'username' && cn('max-w-[calc(100vw-50px-32px-100px-60px)]', hasSelectionColumn && '!px-0'),
+        columnId === 'status' && '!px-0',
+        columnId === 'select' && 'w-8 !px-1 !py-5',
+        columnId === 'chevron' && 'w-4 !p-0',
+        !['select', 'username', 'status', 'details', 'chevron'].includes(columnId) && 'hidden !p-0 md:table-cell',
+        columnId === 'chevron' && 'table-cell md:hidden',
+        !['details', 'select', 'chevron'].includes(columnId) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
+      ),
+    [hasSelectionColumn, isRTL],
+  )
+
+  const renderLoadingCell = useCallback((columnId: string, rowIndex: number) => {
+    switch (columnId) {
+      case 'select':
+        return (
+          <div className="flex h-5 items-center justify-center">
+            <Skeleton className="h-3.5 w-3.5 rounded-[3px]" />
+          </div>
+        )
+      case 'username':
+        return (
+          <div className="flex items-start gap-x-2 px-0.5 py-1">
+            <Skeleton className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className={cn('h-4', rowIndex % 3 === 0 ? 'w-28' : 'w-36')} />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+        )
+      case 'status':
+        return (
+          <div className="flex flex-col gap-y-2 py-1">
+            <Skeleton className="hidden h-5 w-24 rounded-full md:block" />
+            <Skeleton className="h-5 w-16 rounded-full md:hidden" />
+          </div>
+        )
+      case 'details':
+        return (
+          <div className="flex items-center justify-between gap-3 py-1">
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-1.5 w-full rounded-full" />
+              <div className="flex justify-between gap-3">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+            <Skeleton className="hidden h-8 w-[180px] md:block" />
+          </div>
+        )
+      case 'chevron':
+        return <Skeleton className="mx-auto h-4 w-4 rounded-full" />
+      default:
+        return <Skeleton className="h-4 w-20" />
+    }
+  }, [])
 
   const LoadingState = useMemo(
     () => (
-      <TableRow>
-        <TableCell colSpan={columns.length} className="h-24">
-          <div dir={dir} className="flex flex-col items-center justify-center gap-2">
-            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-            <span className="text-sm">{t('loading')}</span>
-          </div>
-        </TableCell>
-      </TableRow>
+      <>
+        {Array.from({ length: loadingRowCount }).map((_, rowIndex) => (
+          <TableRow key={`user-skeleton-${rowIndex}`} className="border-b">
+            {table.getVisibleLeafColumns().map(column => (
+              <TableCell key={`${column.id}-${rowIndex}`} className={getLoadingCellClassName(column.id)}>
+                {renderLoadingCell(column.id, rowIndex)}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </>
     ),
-    [columns.length, dir, t],
+    [getLoadingCellClassName, renderLoadingCell, table],
   )
 
   const EmptyState = useMemo(

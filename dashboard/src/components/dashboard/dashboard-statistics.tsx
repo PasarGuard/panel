@@ -3,7 +3,8 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { SystemStats } from '@/service/api'
 import { formatBytes } from '@/utils/formatByte'
-import { Cpu, Database, Download, HardDrive, MemoryStick, Upload, UserCheck, Users, Wifi } from 'lucide-react'
+import { formatDuration } from '@/utils/formatDuration'
+import { Clock3, Cpu, Database, Download, HardDrive, MemoryStick, Upload, UserCheck, Users, Wifi } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CircularProgress } from '../ui/circular-progress'
 import { Card, CardContent } from '../ui/card'
@@ -16,8 +17,8 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
   if (!systemData) {
     return (
       <div className={cn('grid h-full w-full gap-3 sm:gap-4 lg:gap-6', 'grid-cols-1 sm:grid-cols-2', dir === 'rtl' && 'lg:grid-flow-col-reverse')}>
-        {[...Array(5)].map((_, i) => (
-          <Card key={i} className={cn('h-full overflow-hidden border', i === 4 && 'sm:col-span-2')}>
+        {[...Array(6)].map((_, i) => (
+          <Card key={i} className={cn('h-full overflow-hidden border', (i === 4 || i === 5) && 'sm:col-span-2')}>
             <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
               <div className="mb-2 flex items-start justify-between sm:mb-3">
                 <div className="flex items-center gap-2 sm:gap-3">
@@ -25,7 +26,7 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
                   <Skeleton className="h-4 w-24 sm:h-5" />
                 </div>
               </div>
-              {i === 4 ? (
+              {i === 5 ? (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 sm:gap-3">
                   {[...Array(3)].map((_, metricIndex) => (
                     <div key={metricIndex} className="rounded-lg border bg-background/60 p-3 sm:p-4">
@@ -107,6 +108,7 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
   const onlineUsers = Number(systemData.online_users) || 0
   const activeUsersPercent = totalUsers > 0 ? Math.min(Math.max((activeUsers / totalUsers) * 100, 0), 100) : 0
   const onlineUsersPercent = activeUsers > 0 ? Math.min(Math.max((onlineUsers / activeUsers) * 100, 0), 100) : 0
+  const uptime = formatDuration(systemData.uptime_seconds, t)
 
   return (
     <div
@@ -283,8 +285,39 @@ const DashboardStatistics = ({ systemData }: { systemData: SystemStats | undefin
         </Card>
       </div>
 
+      {/* Panel Uptime */}
+      <div className="h-full w-full animate-fade-in sm:col-span-2" style={{ animationDuration: '600ms', animationDelay: '450ms' }}>
+        <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
+          <div
+            className={cn(
+              'absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 transition-opacity duration-500',
+              'dark:from-primary/5 dark:to-transparent',
+              'group-hover:opacity-100',
+            )}
+          />
+          <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+            <div className="mb-2 flex items-start justify-between sm:mb-3">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="rounded-lg bg-primary/10 p-1.5 sm:p-2">
+                  <Clock3 className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">{t('statistics.uptime')}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-end justify-between gap-2">
+              <span className="truncate text-lg font-bold leading-tight transition-all duration-300 sm:text-xl lg:text-2xl">
+                {uptime}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Users Overview */}
-      <div className={cn('h-full w-full animate-fade-in', 'sm:col-span-2')} style={{ animationDuration: '600ms', animationDelay: '450ms' }}>
+      <div className={cn('h-full w-full animate-fade-in', 'sm:col-span-2')} style={{ animationDuration: '600ms', animationDelay: '550ms' }}>
         <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
           <div
             className={cn(

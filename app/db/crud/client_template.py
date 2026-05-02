@@ -5,7 +5,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ClientTemplate
+from app.db.models import ClientTemplate, ProxyHost
 from app.models.client_template import ClientTemplateCreate, ClientTemplateModify, ClientTemplateType
 
 TEMPLATE_TYPE_TO_LEGACY_KEY: dict[ClientTemplateType, str] = {
@@ -181,6 +181,33 @@ async def set_default_template(db: AsyncSession, db_template: ClientTemplate) ->
     await db.commit()
     await db.refresh(db_template)
     return db_template
+
+
+async def clear_host_subscription_template_overrides(db: AsyncSession, template_ids: list[int] | set[int]) -> int:
+    if not template_ids:
+        return 0
+
+    template_id_set = set(template_ids)
+    rows = (await db.execute(select(ProxyHost).where(ProxyHost.subscription_templates.isnot(None)))).scalars().all()
+
+    updated_count = 0
+    for host in rows:
+        subscription_templates = host.subscription_templates
+        if not isinstance(subscription_templates, dict):
+            continue
+
+        if subscription_templates.get("xray") not in template_id_set:
+            continue
+
+        updated_templates = dict(subscription_templates)
+        updated_templates.pop("xray", None)
+        host.subscription_templates = updated_templates or None
+        updated_count += 1
+
+    if updated_count:
+        await db.commit()
+
+    return updated_count
 
 
 async def create_client_template(db: AsyncSession, client_template: ClientTemplateCreate) -> ClientTemplate:

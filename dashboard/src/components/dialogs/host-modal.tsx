@@ -43,6 +43,18 @@ const statusOptions = [
   { value: UserStatus.on_hold, label: 'hostsDialog.status.onHold' },
 ] as const
 
+const createHostFormDefaults = (): HostFormValues => ({
+  ...hostFormDefaultValues,
+  address: [],
+  port: undefined,
+  status: [],
+  host: [],
+  sni: [],
+  http_headers: {},
+  alpn: [],
+  verify_peer_cert_by_name: [],
+})
+
 // Memoized Noise Item Component for optimal performance
 interface NoiseItemProps {
   index: number
@@ -309,8 +321,15 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
             </div>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[min(90vw,400px)] p-3" align={dir === 'rtl' ? 'end' : 'start'} side="bottom" dir={dir}>
-          <div className="max-h-64 space-y-3 overflow-y-auto">
+        <PopoverContent
+          className="w-[min(90vw,400px)] overflow-hidden p-3"
+          align={dir === 'rtl' ? 'end' : 'start'}
+          side="bottom"
+          dir={dir}
+          onWheel={e => e.stopPropagation()}
+          onTouchMove={e => e.stopPropagation()}
+        >
+          <div className="flex max-h-[min(70dvh,24rem)] min-h-0 flex-col gap-3 overflow-hidden">
             {/* Input for adding new items with submit button */}
             <div className="m-1.5 flex flex-col gap-2 sm:flex-row sm:items-center">
               <Input
@@ -329,11 +348,11 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
 
             {/* Selected items list */}
             {field.value && field.value.length > 0 && (
-              <div dir="ltr" className="space-y-2">
+              <div dir="ltr" className="flex min-h-0 flex-col gap-2">
                 <div dir={dir} className="text-xs font-medium text-muted-foreground">
                   {t('arrayInput.items')} ({field.value.length})
                 </div>
-                <div className="max-h-48 space-y-1 overflow-y-auto">
+                <div className="min-h-0 max-h-[min(50dvh,14rem)] space-y-1 overflow-y-auto overscroll-contain pr-1 touch-pan-y">
                   {field.value.map((item: string, index: number) => (
                     <div key={index} className="group flex min-w-0 items-center gap-2 rounded-md border p-2 transition-colors hover:bg-accent/50" onClick={e => e.stopPropagation()}>
                       {editingIndex === index ? (
@@ -459,6 +478,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
   const infoPopoverAlign = isMobile ? 'center' : 'start'
 
+  const resetFormToDefaults = useCallback(() => {
+    form.reset(createHostFormDefaults())
+    form.setValue('port', undefined, { shouldDirty: false, shouldTouch: false, shouldValidate: false })
+    form.clearErrors('port')
+  }, [form])
+
   // Optimized noise settings handlers with useCallback for performance
   const addNoiseSetting = useCallback(() => {
     const currentNoiseSettings = form.getValues('noise_settings.xray') || []
@@ -568,7 +593,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       setWireguardOpenSection(undefined)
       setIsTransportOpen(false)
       setResolvedHostMode('xray')
-      form.reset(hostFormDefaultValues)
+      resetFormToDefaults()
     }
     onOpenChange(open)
   }
@@ -613,6 +638,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }
     setOpenSection(prevSection => (prevSection === value ? undefined : value))
   }
+
+  useEffect(() => {
+    if (isDialogOpen && !editingHost) {
+      resetFormToDefaults()
+    }
+  }, [editingHost, isDialogOpen, resetFormToDefaults])
 
   useEffect(() => {
     if (!isDialogOpen) {
@@ -1006,6 +1037,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             placeholder="443"
                             isError={!!form.formState.errors.port}
                             type="number"
+                            autoComplete="off"
                             {...field}
                             onChange={e => {
                               const val = e.target.value

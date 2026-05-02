@@ -523,23 +523,23 @@ export default function NodesList() {
         },
         ...(disableEligibleCount > 0
           ? [
-            {
-              key: 'disable',
-              label: t('disable'),
-              icon: PowerOff,
-              onClick: () => setBulkAction('disable'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'disable',
+                label: t('disable'),
+                icon: PowerOff,
+                onClick: () => setBulkAction('disable'),
+              } as BulkActionItem,
+            ]
           : []),
         ...(enableEligibleCount > 0
           ? [
-            {
-              key: 'enable',
-              label: t('enable'),
-              icon: Power,
-              onClick: () => setBulkAction('enable'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'enable',
+                label: t('enable'),
+                icon: Power,
+                onClick: () => setBulkAction('enable'),
+              } as BulkActionItem,
+            ]
           : []),
         {
           key: 'reset',
@@ -649,7 +649,7 @@ export default function NodesList() {
               getRowId={node => node.id}
               isLoading={showLoadingSpinner || showPageLoadingSkeletons}
               loadingRows={6}
-              className="gap-3"
+              className="gap-1.5"
               onRowClick={handleEdit}
               mode={viewMode}
               enableSelection

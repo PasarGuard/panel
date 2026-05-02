@@ -182,6 +182,35 @@ def allocate_one_from_pool_sync(used_networks: set[IPv4Network | IPv6Network]) -
     return None
 
 
+class WireGuardPeerIPAllocator:
+    """Stateful IPv4 /32 allocator for bulk operations."""
+
+    def __init__(self, used_networks: set[IPv4Network | IPv6Network]):
+        self._pool = WIREGUARD_GLOBAL_POOL
+        self._end = int(self._pool.broadcast_address)
+        self._next = int(self._pool.network_address) + 1
+        self._blocked: set[int] = set()
+
+        for net in WIREGUARD_RESERVED:
+            for addr in net:
+                self._blocked.add(int(addr))
+
+        for net in used_networks:
+            if net.version == 4:
+                for addr in net:
+                    self._blocked.add(int(addr))
+
+    def allocate(self) -> str | None:
+        while self._next < self._end:
+            raw_candidate = self._next
+            self._next += 1
+            if raw_candidate in self._blocked:
+                continue
+            self._blocked.add(raw_candidate)
+            return f"{ip_address(raw_candidate)}/32"
+        return None
+
+
 async def allocate_from_global_pool(
     db: AsyncSession,
     *,

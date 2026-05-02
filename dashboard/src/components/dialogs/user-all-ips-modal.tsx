@@ -8,10 +8,11 @@ import { useUserOnlineIpListAllNodes, useGetNodesSimple } from '@/service/api'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useClipboard } from '@/hooks/use-clipboard'
-import { Network, RefreshCw, Loader2, AlertCircle, Server } from 'lucide-react'
+import { Network, RefreshCw, AlertCircle, Server } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import React from 'react'
 
 interface UserAllIPsModalProps {
@@ -111,15 +112,23 @@ const NodeIPCard = React.memo(({ nodeId, nodeName, ips }: NodeIPCardProps) => {
 NodeIPCard.displayName = 'NodeIPCard'
 
 const LoadingState = React.memo(() => {
-  const { t } = useTranslation()
-  const dir = useDirDetection()
-
   return (
-    <div className="flex h-32 flex-col items-center justify-center gap-2">
-      <Loader2 className="h-6 w-6 animate-spin" />
-      <span className="text-sm" dir={dir}>
-        {t('loading', { defaultValue: 'Loading...' })}
-      </span>
+    <div className="space-y-3">
+      {Array.from({ length: 2 }).map((_, index) => (
+        <div key={index} className="rounded-lg border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4 rounded-full" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 })

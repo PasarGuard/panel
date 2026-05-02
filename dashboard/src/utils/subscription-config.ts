@@ -1,4 +1,6 @@
-export type SubscriptionContentFormat = 'links' | 'links_base64' | 'wireguard'
+import { $fetch } from '@/service/http'
+
+export type SubscriptionContentFormat = 'links' | 'links_base64' | 'xray' | 'wireguard' | 'sing_box' | 'clash' | 'clash_meta' | 'outline'
 
 const WIREGUARD_PROTOCOL = 'wireguard://'
 const TEXT_FILE_MIME_TYPE = 'text/plain;charset=utf-8'
@@ -10,8 +12,6 @@ const safeDecodeURIComponent = (value: string) => {
     return value
   }
 }
-
-const normalizeSubscriptionPath = (value: string) => value.replace(/\/+$/, '')
 
 const formatCommaSeparatedValue = (value: string) =>
   value
@@ -94,6 +94,15 @@ export const resolveSubscriptionQrUrl = (subscribeUrl: string | null | undefined
   return value.startsWith('/') ? `${window.location.origin}${value}` : value
 }
 
+const normalizeSubscriptionPath = (url: string) => {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}${parsed.search}${parsed.hash}`
+  } catch {
+    return url.replace(/\/+$/, '')
+  }
+}
+
 export const resolveSubscriptionPublicUrl = (subscribeUrl: string | null | undefined) => resolveSubscriptionQrUrl(subscribeUrl)
 
 export const resolveSubscriptionPanelBaseUrl = (subscribeUrl: string | null | undefined) => {
@@ -151,6 +160,12 @@ export const fetchSubscriptionBlobFromUrl = (url: string, timeoutMs = 8000) => f
 
 export const fetchSubscriptionContent = (subscribeUrl: string, format: SubscriptionContentFormat, timeoutMs = 8000) =>
   fetchSubscriptionContentFromUrl(buildSubscriptionFormatUrl(subscribeUrl, format), timeoutMs)
+
+export const fetchUserSubscriptionContent = (userId: number, format: SubscriptionContentFormat, timeoutMs = 8000) =>
+  $fetch<string, 'text'>(`/api/user/${userId}/subscription/${format}`, {
+    responseType: 'text',
+    timeout: timeoutMs,
+  })
 
 export const extractNameFromConfigUrl = (url: string): string | null => {
   const trimmedUrl = url.trim()

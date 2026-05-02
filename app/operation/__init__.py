@@ -142,7 +142,13 @@ class BaseOperation:
         if not sub:
             await self.raise_error(message="Not Found", code=404)
 
-        db_user = await get_user(db, sub["username"])
+        if "user_id" in sub:
+            db_user = await get_user_by_id(db, sub["user_id"])
+        elif "username" in sub:
+            db_user = await get_user(db, sub["username"])
+        else:
+            await self.raise_error(message="Not Found", code=404)
+
         if not db_user or db_user.created_at.astimezone(tz.utc) > sub["created_at"]:
             await self.raise_error(message="Not Found", code=404)
 

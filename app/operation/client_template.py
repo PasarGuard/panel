@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from app.db import AsyncSession
 from app.db.crud.client_template import (
     ClientTemplateSortingOptionsSimple,
+    clear_host_subscription_template_overrides,
     count_client_templates_by_type,
     create_client_template,
     get_client_templates,
@@ -195,12 +196,16 @@ class ClientTemplateOperation(BaseOperation):
         if db_template.is_default:
             replacement = await get_first_template_by_type(db, template_type, exclude_id=db_template.id)
 
+        cleared_hosts = await clear_host_subscription_template_overrides(db, {db_template.id})
         await remove_client_template(db, db_template)
 
         if replacement is not None:
             await set_default_template(db, replacement)
 
-        logger.info(f'Client template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"')
+        logger.info(
+            f'Client template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"'
+            f" and cleared from {cleared_hosts} host(s)"
+        )
         await self._sync_client_template_cache()
 
     async def bulk_remove_client_templates(
@@ -245,6 +250,7 @@ class ClientTemplateOperation(BaseOperation):
         template_ids = [t.id for t in db_templates]
         template_names = [t.name for t in db_templates]
 
+        cleared_hosts = await clear_host_subscription_template_overrides(db, template_ids)
         await remove_client_templates(db, template_ids)
 
         # Sync cache and log
@@ -254,5 +260,7 @@ class ClientTemplateOperation(BaseOperation):
             logger.info(
                 f'Client template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"'
             )
+        if cleared_hosts:
+            logger.info(f"Cleared deleted client template overrides from {cleared_hosts} host(s)")
 
         return RemoveClientTemplatesResponse(templates=template_names, count=len(db_templates))

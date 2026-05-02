@@ -233,19 +233,8 @@ export function ListGenerator<T>({
                   defaultValue: isSelected ? 'Selected' : 'Select',
                 })
                 const selectionControl = canSelectRow ? (
-                  <div
-                    className="flex shrink-0 items-center"
-                    onClick={stopSelectionClick}
-                    onMouseDown={stopSelectionPointer}
-                    onPointerDown={stopSelectionPointer}
-                    onKeyDown={stopSelectionClick}
-                  >
-                    <Checkbox
-                      aria-label={selectionLabel}
-                      className={selectionCheckboxClassName}
-                      checked={isSelected}
-                      onCheckedChange={() => handleToggleRowSelection(rowId, item)}
-                    />
+                  <div className="flex shrink-0 items-center" onClick={stopSelectionClick} onMouseDown={stopSelectionPointer} onPointerDown={stopSelectionPointer} onKeyDown={stopSelectionClick}>
+                    <Checkbox aria-label={selectionLabel} className={selectionCheckboxClassName} checked={isSelected} onCheckedChange={() => handleToggleRowSelection(rowId, item)} />
                   </div>
                 ) : undefined
 
@@ -345,13 +334,7 @@ export function ListGenerator<T>({
                 </button>
               )}
               {enableSelection && (
-                <div
-                  className="flex items-center justify-center"
-                  onClick={stopSelectionClick}
-                  onMouseDown={stopSelectionPointer}
-                  onPointerDown={stopSelectionPointer}
-                  onKeyDown={stopSelectionClick}
-                >
+                <div className="flex items-center justify-center" onClick={stopSelectionClick} onMouseDown={stopSelectionPointer} onPointerDown={stopSelectionPointer} onKeyDown={stopSelectionClick}>
                   {canSelectRow ? (
                     <Checkbox
                       aria-label={t('select', { defaultValue: 'Select' })}
@@ -395,12 +378,17 @@ export function ListGenerator<T>({
                 <div className="col-span-full mt-2 space-y-1.5 md:hidden">
                   {mobileDetailDataColumns.length > 0 && (
                     <div className="space-y-1">
-                      {mobileDetailDataColumns.map(column => (
-                        <div key={`mobile-${column.id}-${rowId}`} className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}>
-                          <div className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{column.header}</div>
-                          <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{column.cell(item)}</div>
-                        </div>
-                      ))}
+                      {mobileDetailDataColumns.map(column => {
+                        const cellContent = column.cell(item)
+                        if (cellContent === null || cellContent === undefined) return null
+
+                        return (
+                          <div key={`mobile-${column.id}-${rowId}`} className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}>
+                            <div className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{column.header}</div>
+                            <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{cellContent}</div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>

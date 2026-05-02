@@ -216,7 +216,7 @@ class SubFormatEnable(BaseModel):
 class Platform(StrEnum):
     ANDROID = "android"
     IOS = "ios"
-    WIINDOWS = "windows"
+    WINDOWS = "windows"
     MACOS = "macos"
     LINUX = "linux"
     APPLETV = "appletv"

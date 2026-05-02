@@ -79,22 +79,24 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
         versionToSend = selectedVersion
         if (selectedVersion === 'latest') {
           if (!latestVersion) {
-            toast.error(t('nodeModal.updateCoreFailed', {
-              message: 'Latest version not available',
-              defaultValue: 'Failed to update Xray core: Latest version not available',
-            }))
+            toast.error(
+              t('nodeModal.updateCoreFailed', {
+                message: 'Latest version not available',
+                defaultValue: 'Failed to update Xray core: Latest version not available',
+              }),
+            )
             return
           }
           // Use actual latest version instead of 'latest' string
           versionToSend = latestVersion
         }
       }
-      
+
       // Ensure version has 'v' prefix for backend pattern vX.X.X
       if (!versionToSend.startsWith('v')) {
         versionToSend = `v${versionToSend}`
       }
-      
+
       const response = await updateCoreMutation.mutateAsync({
         nodeId: node.id,
         data: {
@@ -135,16 +137,14 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
 
         <div className="space-y-4 py-4">
           {/* Version Info Section */}
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
             {currentVersion && (
               <div className="flex items-center justify-between">
-                <span className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>
-                  {t('version.currentVersion', { defaultValue: 'Current Version' })}
-                </span>
+                <span className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>{t('version.currentVersion', { defaultValue: 'Current Version' })}</span>
                 <div className={cn('flex items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
                   <span className="font-mono text-sm">{currentVersion}</span>
                   {showUpdateBadge && (
-                    <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20">
+                    <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300">
                       {t('nodeModal.updateAvailable', { defaultValue: 'Update Available' })}
                     </Badge>
                   )}
@@ -152,20 +152,12 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
               </div>
             )}
             {latestVersion && (
-              <div className="flex items-center justify-between pt-2 border-t">
-                <span className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>
-                  {t('nodeModal.latest', { defaultValue: 'Latest' })}
-                </span>
+              <div className="flex items-center justify-between border-t pt-2">
+                <span className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>{t('nodeModal.latest', { defaultValue: 'Latest' })}</span>
                 <div className={cn('flex items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
                   <span className="font-mono text-sm font-semibold">{latestVersion}</span>
                   {releaseUrl && (
-                    <a
-                      href={releaseUrl}
-                      target="_blank"
-                      rel="no-referrer"
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={e => e.stopPropagation()}
-                    >
+                    <a href={releaseUrl} target="_blank" rel="no-referrer" className="text-muted-foreground transition-colors hover:text-foreground" onClick={e => e.stopPropagation()}>
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   )}
@@ -176,7 +168,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
 
           {/* Version Selection */}
           <div className="space-y-3">
-            <Tabs value={versionMode} onValueChange={(value) => setVersionMode(value as 'list' | 'custom')} className="w-full">
+            <Tabs value={versionMode} onValueChange={value => setVersionMode(value as 'list' | 'custom')} className="w-full">
               <TabsList className={cn('grid w-full grid-cols-2', dir === 'rtl' && 'flex-row-reverse')}>
                 <TabsTrigger value="list" className={cn('text-sm', dir === 'rtl' && 'text-right')}>
                   {t('nodeModal.selectFromList', { defaultValue: 'Select from List' })}
@@ -189,13 +181,11 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
               <TabsContent value="list" className="mt-3">
                 {isLoadingReleases ? (
                   <div className={cn('rounded-md border p-8 text-center', dir === 'rtl' && 'text-right')}>
-                    <div className="text-sm text-muted-foreground">
-                      {t('nodeModal.loadingReleases', { defaultValue: 'Loading releases...' })}
-                    </div>
+                    <div className="text-sm text-muted-foreground">{t('nodeModal.loadingReleases', { defaultValue: 'Loading releases...' })}</div>
                   </div>
                 ) : (
                   <ScrollArea className="h-[200px] rounded-md border sm:h-[280px]">
-                    <div className="p-2 space-y-1">
+                    <div className="space-y-1 p-2">
                       {latestVersion && (
                         <button
                           type="button"
@@ -204,9 +194,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
                             'w-full rounded-md px-3 py-2.5 text-left text-sm transition-all',
                             'hover:bg-accent hover:text-accent-foreground',
                             'border-2',
-                            selectedVersion === 'latest'
-                              ? 'bg-accent text-accent-foreground border-primary'
-                              : 'border-transparent',
+                            selectedVersion === 'latest' ? 'border-primary bg-accent text-accent-foreground' : 'border-transparent',
                             dir === 'rtl' && 'text-right',
                           )}
                         >
@@ -217,15 +205,12 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
                                 {latestVersion}
                               </Badge>
                             </div>
-                            {selectedVersion === 'latest' && (
-                              <div className="h-2 w-2 rounded-full bg-primary" />
-                            )}
+                            {selectedVersion === 'latest' && <div className="h-2 w-2 rounded-full bg-primary" />}
                           </div>
                         </button>
                       )}
                       {versions
                         .filter(release => release.version !== latestVersion)
-                        .slice(0, 10)
                         .map(release => (
                           <button
                             key={release.version}
@@ -235,17 +220,20 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
                               'w-full rounded-md px-3 py-2 text-left text-sm transition-all',
                               'hover:bg-accent hover:text-accent-foreground',
                               'border-2',
-                              selectedVersion === release.version
-                                ? 'bg-accent text-accent-foreground border-primary'
-                                : 'border-transparent',
+                              selectedVersion === release.version ? 'border-primary bg-accent text-accent-foreground' : 'border-transparent',
                               dir === 'rtl' && 'text-right',
                             )}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-mono">{release.version}</span>
-                              {selectedVersion === release.version && (
-                                <div className="h-2 w-2 rounded-full bg-primary" />
-                              )}
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono">{release.version}</span>
+                                {release.isPrerelease && (
+                                  <Badge variant="outline" className="h-4 border-amber-500/30 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                                    {t('nodeModal.prerelease', { defaultValue: 'Pre-release' })}
+                                  </Badge>
+                                )}
+                              </div>
+                              {selectedVersion === release.version && <div className="h-2 w-2 rounded-full bg-primary" />}
                             </div>
                           </button>
                         ))}
@@ -264,7 +252,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
                     type="text"
                     placeholder={t('nodeModal.versionPlaceholder', { defaultValue: 'e.g., v1.8.0 or 1.8.0' })}
                     value={customVersion}
-                    onChange={(e) => handleCustomVersionChange(e.target.value)}
+                    onChange={e => handleCustomVersionChange(e.target.value)}
                     onBlur={() => {
                       if (customVersion) {
                         validateCustomVersion(customVersion)
@@ -290,12 +278,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
           <LoaderButton
             className="!m-0"
             onClick={handleUpdate}
-            disabled={
-              updateCoreMutation.isPending ||
-              isLoadingReleases ||
-              (versionMode === 'list' && !latestVersion) ||
-              (versionMode === 'custom' && (!customVersion.trim() || !!customVersionError))
-            }
+            disabled={updateCoreMutation.isPending || isLoadingReleases || (versionMode === 'list' && !latestVersion) || (versionMode === 'custom' && (!customVersion.trim() || !!customVersionError))}
             isLoading={updateCoreMutation.isPending}
             loadingText={t('nodeModal.updating', { defaultValue: 'Updating...' })}
           >

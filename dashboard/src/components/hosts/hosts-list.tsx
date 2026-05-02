@@ -20,6 +20,7 @@ import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
 import { BulkActionItem, BulkActionsBar } from '@/components/users/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export interface HostsListProps {
   data?: BaseHost[]
@@ -899,18 +900,24 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                 <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} />
               )}
               renderGridSkeleton={index => (
-                <Card key={index} className="p-4">
-                  <div className="flex animate-pulse items-center gap-3">
-                    <div className="h-5 w-5 shrink-0 rounded-sm bg-muted" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-muted" />
-                        <div className="h-4 w-2/5 rounded-md bg-muted" />
+                <Card key={index} className="group relative h-full p-4">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="h-5 w-5 shrink-0 rounded-sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                        <Skeleton className="h-5 w-28 sm:w-36" />
                       </div>
-                      <div className="h-3 w-4/5 rounded-md bg-muted" />
-                      <div className="h-3 w-2/5 rounded-md bg-muted" />
+                      <div className="mt-1.5 flex items-center gap-1">
+                        <Skeleton className="h-4 w-4 shrink-0" />
+                        <Skeleton className="h-4 w-40 sm:w-52" />
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <Skeleton className="h-4 w-4 shrink-0" />
+                        <Skeleton className="h-4 w-28 sm:w-36" />
+                      </div>
                     </div>
-                    <div className="h-8 w-8 shrink-0 rounded-md bg-muted" />
+                    <Skeleton className="h-8 w-8 shrink-0" />
                   </div>
                 </Card>
               )}

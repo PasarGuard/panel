@@ -38,6 +38,14 @@ const includesIgnoreCase = (value: string | null | undefined, needle: string): b
 
 const isDisabled = (admin: AdminDetails): boolean => !!admin.is_disabled
 
+const sameAdmin = (left: AdminDetails, right: AdminDetails): boolean => {
+  if (left.id != null && right.id != null) {
+    return left.id === right.id
+  }
+
+  return left.username === right.username
+}
+
 const getCreatedAt = (admin: AdminDetails): unknown => {
   return (admin as AdminDetails & { created_at?: string | number | null }).created_at
 }
@@ -101,7 +109,7 @@ const incrementStatusCount = (active: number, disabled: number, admin: AdminDeta
 
 const upsertInSingleAdminsQuery = (oldData: AdminsResponse, admin: AdminDetails, params: GetAdminsParams | undefined, allowInsert: boolean): AdminsResponse | undefined => {
   const oldAdmins = oldData.admins ?? []
-  const existingIndex = oldAdmins.findIndex(a => a.username === admin.username)
+  const existingIndex = oldAdmins.findIndex(a => sameAdmin(a, admin))
   const matchesFilters = matchesAdminFilters(admin, params)
 
   let admins = oldAdmins
@@ -114,7 +122,7 @@ const upsertInSingleAdminsQuery = (oldData: AdminsResponse, admin: AdminDetails,
     const previous = oldAdmins[existingIndex]
 
     if (matchesFilters) {
-      admins = oldAdmins.map(a => (a.username === admin.username ? admin : a))
+      admins = oldAdmins.map(a => (sameAdmin(a, admin) ? admin : a))
       changed = true
 
       if (isDisabled(previous) !== isDisabled(admin)) {
@@ -127,7 +135,7 @@ const upsertInSingleAdminsQuery = (oldData: AdminsResponse, admin: AdminDetails,
         }
       }
     } else {
-      admins = oldAdmins.filter(a => a.username !== admin.username)
+      admins = oldAdmins.filter(a => !sameAdmin(a, admin))
       total = Math.max(0, total - 1)
       const dec = decrementStatusCount(active, disabled, previous)
       active = dec.active
@@ -186,7 +194,7 @@ export const upsertAdminInAdminsCache = (queryClient: QueryClient, admin: AdminD
   })
 }
 
-export const removeAdminFromAdminsCache = (queryClient: QueryClient, username: string) => {
+export const removeAdminFromAdminsCache = (queryClient: QueryClient, adminId: number) => {
   const cachedQueries = queryClient.getQueriesData<AdminsResponse>({
     queryKey: [ADMINS_QUERY_KEY],
     exact: false,
@@ -194,10 +202,10 @@ export const removeAdminFromAdminsCache = (queryClient: QueryClient, username: s
 
   cachedQueries.forEach(([queryKey, oldData]) => {
     if (!oldData) return
-    const existing = oldData.admins.find(a => a.username === username)
+    const existing = oldData.admins.find(a => a.id === adminId)
     if (!existing) return
 
-    const admins = oldData.admins.filter(a => a.username !== username)
+    const admins = oldData.admins.filter(a => a.id !== adminId)
     const total = Math.max(0, oldData.total - 1)
     const dec = decrementStatusCount(oldData.active, oldData.disabled, existing)
 
@@ -211,7 +219,7 @@ export const removeAdminFromAdminsCache = (queryClient: QueryClient, username: s
   })
 }
 
-export const patchAdminInAdminsCache = (queryClient: QueryClient, username: string, patch: Partial<AdminDetails>) => {
+export const patchAdminInAdminsCache = (queryClient: QueryClient, adminId: number, patch: Partial<AdminDetails>) => {
   const cachedQueries = queryClient.getQueriesData<AdminsResponse>({
     queryKey: [ADMINS_QUERY_KEY],
     exact: false,
@@ -219,12 +227,12 @@ export const patchAdminInAdminsCache = (queryClient: QueryClient, username: stri
 
   cachedQueries.forEach(([queryKey, oldData]) => {
     if (!oldData) return
-    const index = oldData.admins.findIndex(a => a.username === username)
+    const index = oldData.admins.findIndex(a => a.id === adminId)
     if (index < 0) return
 
     const oldAdmin = oldData.admins[index]
     const updatedAdmin = { ...oldAdmin, ...patch }
-    const admins = oldData.admins.map(a => (a.username === username ? updatedAdmin : a))
+    const admins = oldData.admins.map(a => (a.id === adminId ? updatedAdmin : a))
 
     let active = oldData.active
     let disabled = oldData.disabled

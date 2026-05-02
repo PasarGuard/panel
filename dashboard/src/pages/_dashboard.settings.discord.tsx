@@ -8,6 +8,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Switch } from '@/components/ui/switch'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Bot, Globe, MessageCircle } from 'lucide-react'
 import { useSettingsContext } from './_dashboard.settings'
 import { toast } from 'sonner'
@@ -87,16 +88,16 @@ export default function DiscordSettings() {
           {/* General Settings Skeleton */}
           <div className="space-y-4">
             <div className="space-y-2">
-              <div className="h-6 w-48 animate-pulse rounded bg-muted"></div>
-              <div className="h-4 w-96 animate-pulse rounded bg-muted"></div>
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-96" />
             </div>
-            <div className="h-16 animate-pulse rounded bg-muted"></div>
+            <Skeleton className="h-16" />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {[...Array(2)].map((_, i) => (
                 <div key={i} className="space-y-2">
-                  <div className="h-4 w-24 animate-pulse rounded bg-muted"></div>
-                  <div className="h-10 animate-pulse rounded bg-muted"></div>
-                  <div className="h-3 w-64 animate-pulse rounded bg-muted"></div>
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-10" />
+                  <Skeleton className="h-3 w-64" />
                 </div>
               ))}
             </div>
@@ -106,8 +107,8 @@ export default function DiscordSettings() {
           <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:gap-4">
             <div className="flex-1"></div>
             <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
-              <div className="h-10 w-24 animate-pulse rounded bg-muted"></div>
-              <div className="h-10 w-20 animate-pulse rounded bg-muted"></div>
+              <Skeleton className="h-10 w-24" />
+              <Skeleton className="h-10 w-20" />
             </div>
           </div>
         </div>

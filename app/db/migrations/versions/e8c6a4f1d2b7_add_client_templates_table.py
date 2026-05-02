@@ -43,8 +43,8 @@ dns:
   nameserver:
     - 'https://1.1.1.1/dns-query#PROXY'
   proxy-server-nameserver:
-    - '178.22.122.100'
-    - '78.157.42.100'
+    - '8.8.8.8'
+    - '1.1.1.1'
 
 sniffer:
   enable: true

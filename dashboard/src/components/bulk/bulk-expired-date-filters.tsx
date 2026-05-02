@@ -15,7 +15,7 @@ type BulkExpiredDateFiltersProps = {
 }
 
 /**
- * Optional expired-on date range when filtering by Expired status (BulkUser expired_after / expired_before).
+ * Optional expire-date range for bulk operations (BulkUser expire_after / expire_before).
  * Uses the same DatePicker behavior as cleanup settings and other app surfaces.
  */
 export function BulkExpiredDateFilters({
@@ -42,7 +42,6 @@ export function BulkExpiredDateFilters({
             label={t('bulk.expiredFilterAfter')}
             placeholder={t('bulk.expiredFilterAfterPlaceholder')}
             minDate={new Date('1900-01-01')}
-            maxDate={new Date()}
             formatDate={formatDate}
             side="bottom"
             align="center"
@@ -57,7 +56,6 @@ export function BulkExpiredDateFilters({
             label={t('bulk.expiredFilterBefore')}
             placeholder={t('bulk.expiredFilterBeforePlaceholder')}
             minDate={new Date('1900-01-01')}
-            maxDate={new Date()}
             formatDate={formatDate}
             side="bottom"
             align="center"

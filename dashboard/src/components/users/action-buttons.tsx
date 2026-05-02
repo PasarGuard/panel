@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { useClipboard } from '@/hooks/use-clipboard'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/components/forms/user-form'
-import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
+import { useActiveNextPlanById, useGetCurrentAdmin, useRemoveUserById, useResetUserDataUsageById, useRevokeUserSubscriptionById, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Cat, Check, Copy, Cpu, EllipsisVertical, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
@@ -24,7 +24,7 @@ import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
-import { buildSubscriptionFormatUrl, fetchSubscriptionBlobFromUrl, fetchSubscriptionContentFromUrl, resolveSubscriptionPublicUrl } from '@/utils/subscription-config'
+import { buildSubscriptionFormatUrl, fetchSubscriptionBlobFromUrl, fetchUserSubscriptionContent, resolveSubscriptionPublicUrl, type SubscriptionContentFormat } from '@/utils/subscription-config'
 
 type ActionButtonsProps = {
   user: UserResponse
@@ -34,7 +34,7 @@ type ActionButtonsProps = {
 
 export interface SubscribeLink {
   protocol: string
-  link: string
+  format: SubscriptionContentFormat
   icon: React.ComponentType<{ className?: string }>
 }
 
@@ -57,7 +57,10 @@ const actionButtonsModalStateStore = new Map<number, ActionButtonsModalState>()
 const actionButtonsUserStore = new Map<number, UserResponse>()
 const actionButtonsModalStateListeners = new Map<number, Set<() => void>>()
 const actionButtonsGlobalListeners = new Set<() => void>()
+const actionButtonsClosingUserIds = new Set<number>()
+const actionButtonsClosingTimers = new Map<number, ReturnType<typeof setTimeout>>()
 let actionButtonsGlobalStateVersion = 0
+const MODAL_EXIT_ANIMATION_MS = 220
 
 const createDefaultModalState = (user: UserResponse): ActionButtonsModalState => ({
   subscribeUrl: user.subscription_url || '',
@@ -142,7 +145,7 @@ const subscribeGlobalModalState = (listener: () => void) => {
 
 const getOpenModalUsers = (): UserResponse[] =>
   Array.from(actionButtonsModalStateStore.entries())
-    .filter(([, state]) => hasOpenModal(state))
+    .filter(([userId, state]) => hasOpenModal(state) || actionButtonsClosingUserIds.has(userId))
     .map(([userId]) => actionButtonsUserStore.get(userId))
     .filter((user): user is UserResponse => Boolean(user))
 
@@ -152,10 +155,36 @@ const updateModalState = (userId: number, updater: (prev: ActionButtonsModalStat
   const current = actionButtonsModalStateStore.get(userId)
   if (!current) return
 
+  const wasOpen = hasOpenModal(current)
   const next = updater(current)
   if (next === current) return
+  const isOpen = hasOpenModal(next)
 
   actionButtonsModalStateStore.set(userId, next)
+
+  if (isOpen) {
+    const closingTimer = actionButtonsClosingTimers.get(userId)
+    if (closingTimer) {
+      clearTimeout(closingTimer)
+      actionButtonsClosingTimers.delete(userId)
+    }
+    actionButtonsClosingUserIds.delete(userId)
+  } else if (wasOpen) {
+    actionButtonsClosingUserIds.add(userId)
+    const closingTimer = actionButtonsClosingTimers.get(userId)
+    if (closingTimer) {
+      clearTimeout(closingTimer)
+    }
+    actionButtonsClosingTimers.set(
+      userId,
+      setTimeout(() => {
+        actionButtonsClosingUserIds.delete(userId)
+        actionButtonsClosingTimers.delete(userId)
+        notifyGlobalListeners()
+      }, MODAL_EXIT_ANIMATION_MS),
+    )
+  }
+
   actionButtonsModalStateListeners.get(userId)?.forEach(listener => listener())
   notifyGlobalListeners()
 }
@@ -185,6 +214,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
+  const clearSelectedUserTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearSubscribeUrlTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -247,8 +278,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     invalidateUserMetricsQueries(queryClient)
   }
 
-  const removeUserMutation = useRemoveUser()
-  const resetUserDataUsageMutation = useResetUserDataUsage({
+  const removeUserMutation = useRemoveUserById()
+  const resetUserDataUsageMutation = useResetUserDataUsageById({
     mutation: {
       onSuccess: (updatedUser) => {
         if (updatedUser) {
@@ -257,7 +288,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       },
     },
   })
-  const revokeUserSubscriptionMutation = useRevokeUserSubscription({
+  const revokeUserSubscriptionMutation = useRevokeUserSubscriptionById({
     mutation: {
       onSuccess: (updatedUser) => {
         if (updatedUser) {
@@ -266,7 +297,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       },
     },
   })
-  const activeNextMutation = useActiveNextPlan({
+  const activeNextMutation = useActiveNextPlanById({
     mutation: {
       onSuccess: (updatedUser) => {
         if (updatedUser) {
@@ -288,6 +319,17 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     defaultValues: buildUserEditFormValues(user),
   })
 
+  useEffect(() => {
+    return () => {
+      if (clearSelectedUserTimeoutRef.current) {
+        clearTimeout(clearSelectedUserTimeoutRef.current)
+      }
+      if (clearSubscribeUrlTimeoutRef.current) {
+        clearTimeout(clearSubscribeUrlTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Update form when user data changes
   useEffect(() => {
     // Keep background refreshes from clobbering an active edit session.
@@ -302,25 +344,35 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     if (!user.subscription_url) return []
 
     return [
-      { protocol: 'links', link: buildSubscriptionFormatUrl(user.subscription_url, 'links'), icon: ListTree },
-      { protocol: 'links (base64)', link: buildSubscriptionFormatUrl(user.subscription_url, 'links_base64'), icon: Code },
-      { protocol: 'xray', link: buildSubscriptionFormatUrl(user.subscription_url, 'xray'), icon: XrayIcon },
-      { protocol: 'wireguard', link: buildSubscriptionFormatUrl(user.subscription_url, 'wireguard'), icon: WireguardIcon },
-      { protocol: 'clash', link: buildSubscriptionFormatUrl(user.subscription_url, 'clash'), icon: Cat },
-      { protocol: 'clash-meta', link: buildSubscriptionFormatUrl(user.subscription_url, 'clash_meta'), icon: MihomoIcon },
-      { protocol: 'outline', link: buildSubscriptionFormatUrl(user.subscription_url, 'outline'), icon: GlobeLock },
-      { protocol: 'sing-box', link: buildSubscriptionFormatUrl(user.subscription_url, 'sing_box'), icon: SingboxIcon },
+      { protocol: 'links', format: 'links', icon: ListTree },
+      { protocol: 'links (base64)', format: 'links_base64', icon: Code },
+      { protocol: 'xray', format: 'xray', icon: XrayIcon },
+      { protocol: 'wireguard', format: 'wireguard', icon: WireguardIcon },
+      { protocol: 'clash', format: 'clash', icon: Cat },
+      { protocol: 'clash-meta', format: 'clash_meta', icon: MihomoIcon },
+      { protocol: 'outline', format: 'outline', icon: GlobeLock },
+      { protocol: 'sing-box', format: 'sing_box', icon: SingboxIcon },
     ]
   }, [user.subscription_url])
 
   const onOpenSubscriptionModal = useCallback(() => {
+    if (clearSubscribeUrlTimeoutRef.current) {
+      clearTimeout(clearSubscribeUrlTimeoutRef.current)
+      clearSubscribeUrlTimeoutRef.current = null
+    }
     setSubscribeUrl(user.subscription_url ? user.subscription_url : '')
     setShowSubscriptionModal(true)
   }, [setShowSubscriptionModal, setSubscribeUrl, user.subscription_url])
 
   const onCloseSubscriptionModal = useCallback(() => {
-    setSubscribeUrl('')
     setShowSubscriptionModal(false)
+    if (clearSubscribeUrlTimeoutRef.current) {
+      clearTimeout(clearSubscribeUrlTimeoutRef.current)
+    }
+    clearSubscribeUrlTimeoutRef.current = setTimeout(() => {
+      setSubscribeUrl('')
+      clearSubscribeUrlTimeoutRef.current = null
+    }, MODAL_EXIT_ANIMATION_MS)
   }, [setShowSubscriptionModal, setSubscribeUrl])
 
   const { copy, copied } = useClipboard({ timeout: 1500 })
@@ -337,6 +389,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   // Handlers for menu items
   const handleEdit = () => {
+    if (clearSelectedUserTimeoutRef.current) {
+      clearTimeout(clearSelectedUserTimeoutRef.current)
+      clearSelectedUserTimeoutRef.current = null
+    }
+
     const cachedData = queryClient.getQueriesData<UsersResponse>({
       queryKey: ['/api/users'],
       exact: false,
@@ -345,7 +402,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     let latestUser = user
     for (const [, data] of cachedData) {
       if (data?.users) {
-        const foundUser = data.users.find(u => u.username === user.username)
+        const foundUser = data.users.find(u => u.id === user.id)
         if (foundUser) {
           latestUser = foundUser
           break
@@ -358,6 +415,17 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     setSelectedUser(latestUser)
     setEditModalOpen(true)
   }
+
+  const closeEditModal = useCallback(() => {
+    setEditModalOpen(false)
+    if (clearSelectedUserTimeoutRef.current) {
+      clearTimeout(clearSelectedUserTimeoutRef.current)
+    }
+    clearSelectedUserTimeoutRef.current = setTimeout(() => {
+      setSelectedUser(null)
+      clearSelectedUserTimeoutRef.current = null
+    }, 220)
+  }, [])
 
   const handleSetOwner = () => {
     setSetOwnerModalOpen(true)
@@ -378,7 +446,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   const confirmRevokeSubscription = async () => {
     try {
-      await revokeUserSubscriptionMutation.mutateAsync({ username: user.username })
+      await revokeUserSubscriptionMutation.mutateAsync({ userId: user.id })
       toast.success(t('userDialog.revokeSubSuccess', { name: user.username }))
       setRevokeSubDialogOpen(false)
     } catch (error: any) {
@@ -392,7 +460,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   const activeNextPlan = async () => {
     try {
-      await activeNextMutation.mutateAsync({ username: user.username })
+      await activeNextMutation.mutateAsync({ userId: user.id })
       toast.success(t('userDialog.activeNextPlanSuccess', { name: user.username }))
       setIsActiveNextPlanModalOpen(false)
     } catch (error: any) {
@@ -406,7 +474,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   const confirmResetUsage = async () => {
     try {
-      await resetUserDataUsageMutation.mutateAsync({ username: user.username })
+      await resetUserDataUsageMutation.mutateAsync({ userId: user.id })
       toast.success(t('usersTable.resetUsageSuccess', { name: user.username }))
       setResetUsageDialogOpen(false)
     } catch (error: any) {
@@ -424,7 +492,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   const confirmDelete = async () => {
     try {
-      await removeUserMutation.mutateAsync({ username: user.username })
+      await removeUserMutation.mutateAsync({ userId: user.id })
       toast.success(t('usersTable.deleteSuccess', { name: user.username }))
       setDeleteDialogOpen(false)
       refreshUserData()
@@ -453,46 +521,46 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     alert(`${message}\n\n${content}`)
   }
 
-  const fetchContent = (url: string): Promise<string> => fetchSubscriptionContentFromUrl(url)
+  const fetchContent = (format: SubscriptionContentFormat): Promise<string> => fetchUserSubscriptionContent(user.id, format)
 
   const fetchBlob = (url: string): Promise<Blob> => fetchSubscriptionBlobFromUrl(url)
 
-  const fetchAndCacheContent = (link: string): Promise<string> => {
-    const cachedContent = configContentCacheRef.current[link]
+  const fetchAndCacheContent = (format: SubscriptionContentFormat): Promise<string> => {
+    const cachedContent = configContentCacheRef.current[format]
     if (cachedContent !== undefined) {
       return Promise.resolve(cachedContent)
     }
 
-    const pendingRequest = pendingContentFetchRef.current[link]
+    const pendingRequest = pendingContentFetchRef.current[format]
     if (pendingRequest) {
       return pendingRequest
     }
 
-    const request = fetchContent(link)
+    const request = fetchContent(format)
       .then(content => {
-        configContentCacheRef.current[link] = content
+        configContentCacheRef.current[format] = content
         return content
       })
       .finally(() => {
-        delete pendingContentFetchRef.current[link]
+        delete pendingContentFetchRef.current[format]
       })
 
-    pendingContentFetchRef.current[link] = request
+    pendingContentFetchRef.current[format] = request
     return request
   }
 
   const prefetchCopyableConfigs = () => {
-    subscribeLinks.forEach(({ protocol, link }) => {
+    subscribeLinks.forEach(({ protocol, format }) => {
       if (DOWNLOAD_ONLY_PROTOCOLS.includes(protocol)) return
-      void fetchAndCacheContent(link).catch(error => {
+      void fetchAndCacheContent(format).catch(error => {
         console.error('Failed to prefetch config content:', error)
       })
     })
   }
 
-  const handleLinksCopy = async (link: string, type: string) => {
+  const handleLinksCopy = async (format: SubscriptionContentFormat, type: string) => {
     try {
-      const cachedContent = configContentCacheRef.current[link]
+      const cachedContent = configContentCacheRef.current[format]
       if (cachedContent !== undefined) {
         const copiedSuccessfully = await copy(cachedContent)
         if (copiedSuccessfully) {
@@ -504,14 +572,14 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       }
 
       if (requiresSynchronousClipboard()) {
-        void fetchAndCacheContent(link).catch(error => {
+        void fetchAndCacheContent(format).catch(error => {
           console.error('Failed to fetch config content:', error)
         })
         toast.info(t('copyPrepareRetry', { defaultValue: 'Preparing configuration. Tap again to copy.' }))
         return
       }
 
-      const content = await fetchAndCacheContent(link)
+      const content = await fetchAndCacheContent(format)
       const copiedSuccessfully = await copy(content)
       if (copiedSuccessfully) {
         toast.success(`${type} ${t('usersTable.copied', { defaultValue: 'Copied to clipboard' })}`)
@@ -523,13 +591,14 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     }
   }
 
-  const handleConfigDownload = async (link: string, type: string) => {
+  const handleConfigDownload = async (format: SubscriptionContentFormat, type: string) => {
     try {
+      const link = buildSubscriptionFormatUrl(user.subscription_url, format)
       if (isIOS()) {
         // iOS: open in new tab or show content
         const newWindow = window.open(link, '_blank')
         if (!newWindow) {
-          const content = await fetchContent(link)
+          const content = await fetchContent(format)
           showManualCopyAlert(content, 'url')
         } else {
           toast.success(t('downloadSuccess', { defaultValue: 'Configuration opened in new tab' }))
@@ -553,21 +622,22 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     }
   }
 
-  const handleCopyOrDownload = (link: string, type: string) => {
+  const handleCopyOrDownload = (format: SubscriptionContentFormat, type: string) => {
     if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
-      handleConfigDownload(link, type)
+      handleConfigDownload(format, type)
     } else {
-      handleLinksCopy(link, type)
+      handleLinksCopy(format, type)
     }
   }
 
   return (
-    <div
-      onClick={renderActions ? (e => e.stopPropagation()) : undefined}
-      onPointerDown={renderActions ? (e => e.stopPropagation()) : undefined}
-    >
+    <>
       {renderActions && (
-        <div className="flex items-center justify-end">
+        <div
+          className="flex items-center justify-end"
+          onClick={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
+        >
           <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
             <Pencil className="h-4 w-4" />
           </Button>
@@ -595,7 +665,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   {subscribeLinks.map((item, index) => (
-                    <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.link, item.protocol)}>
+                    <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.format, item.protocol)}>
                       <item.icon className="mr-2 h-4 w-4" />
                       {item.protocol}
                     </DropdownMenuItem>
@@ -706,11 +776,13 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       )}
 
       {isModalHost && (
-        <>
+        <div className="contents" onClick={e => e.stopPropagation()}>
           {/* Subscription Modal */}
-          {showSubscriptionModal && subscribeUrl && (
+          {subscribeUrl && (
             <SubscriptionModal
+              open={showSubscriptionModal}
               subscribeUrl={subscribeUrl}
+              userId={user.id}
               username={user.username}
               onCloseModal={onCloseSubscriptionModal}
             />
@@ -780,13 +852,14 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
             </AlertDialogContent>
           </AlertDialog>
 
-          <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={user.username} />
+          <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={user.id} />
 
           {/* SetOwnerModal: only for sudo admins */}
           {currentAdmin?.is_sudo && (
             <SetOwnerModal
               open={isSetOwnerModalOpen}
               onClose={() => setSetOwnerModalOpen(false)}
+              userId={user.id}
               username={user.username}
               currentOwner={user.admin?.username}
               onSuccess={(updatedUser?: UserResponse) => {
@@ -798,35 +871,39 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
           )}
 
           {/* UserSubscriptionClientsModal */}
-          <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={user.username} />
+          <UserSubscriptionClientsModal
+            isOpen={isSubscriptionClientsModalOpen}
+            onOpenChange={setSubscriptionClientsModalOpen}
+            userId={user.id}
+            username={user.username}
+          />
 
           {/* UserAllIPsModal: only for sudo admins */}
           {currentAdmin?.is_sudo && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
-        </>
+        </div>
       )}
 
       {/* Edit User Modal */}
       {selectedUser && (
-        <UserModal
-          isDialogOpen={isEditModalOpen}
-          onOpenChange={(open) => {
-            setEditModalOpen(open)
-            if (!open) {
-              setSelectedUser(null)
-            }
-          }}
-          form={userForm}
-          editingUser={true}
-          editingUserId={selectedUser.id}
-          editingUserData={selectedUser}
-          onSuccessCallback={() => {
-            // No need to invalidate - cache is already updated by the modal
-            setEditModalOpen(false)
-            setSelectedUser(null)
-          }}
-        />
+        <div className="contents" onClick={e => e.stopPropagation()}>
+          <UserModal
+            isDialogOpen={isEditModalOpen}
+            onOpenChange={(open) => {
+              if (open) setEditModalOpen(true)
+              else closeEditModal()
+            }}
+            form={userForm}
+            editingUser={true}
+            editingUserId={selectedUser.id}
+            editingUserData={selectedUser}
+            onSuccessCallback={() => {
+              // No need to invalidate - cache is already updated by the modal
+              closeEditModal()
+            }}
+          />
+        </div>
       )}
-    </div>
+    </>
   )
 }
 

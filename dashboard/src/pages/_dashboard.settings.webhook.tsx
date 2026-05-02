@@ -11,6 +11,7 @@ import { PasswordInput } from '@/components/ui/password-input'
 import { Switch } from '@/components/ui/switch'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Webhook, Globe, Plus, Trash2, Clock, RotateCw, Target } from 'lucide-react'
 import { useSettingsContext } from './_dashboard.settings'
 import { toast } from 'sonner'
@@ -160,16 +161,16 @@ export default function WebhookSettings() {
           {/* General Settings Skeleton */}
           <div className="space-y-4">
             <div className="space-y-2">
-              <div className="h-6 w-48 animate-pulse rounded bg-muted"></div>
-              <div className="h-4 w-96 animate-pulse rounded bg-muted"></div>
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-96" />
             </div>
-            <div className="h-16 animate-pulse rounded bg-muted"></div>
+            <Skeleton className="h-16" />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="space-y-2">
-                  <div className="h-4 w-24 animate-pulse rounded bg-muted"></div>
-                  <div className="h-10 animate-pulse rounded bg-muted"></div>
-                  <div className="h-3 w-64 animate-pulse rounded bg-muted"></div>
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-10" />
+                  <Skeleton className="h-3 w-64" />
                 </div>
               ))}
             </div>
@@ -179,8 +180,8 @@ export default function WebhookSettings() {
           <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:gap-4">
             <div className="flex-1"></div>
             <div className="flex flex-col gap-3 sm:shrink-0 sm:flex-row sm:gap-4">
-              <div className="h-10 w-24 animate-pulse rounded bg-muted"></div>
-              <div className="h-10 w-20 animate-pulse rounded bg-muted"></div>
+              <Skeleton className="h-10 w-24" />
+              <Skeleton className="h-10 w-20" />
             </div>
           </div>
         </div>

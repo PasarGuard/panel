@@ -22,33 +22,51 @@ from sqlalchemy import (
     func,
     or_,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
-from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, StringArray
+from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, SqliteCompatibleBigInteger, StringArray
+
+PostgresJSONB = JSON().with_variant(JSONB(none_as_null=True), "postgresql")
+
+
+def id_column():
+    return mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
+
+
+def fk_id_column(target: str, **column_kwargs: Any):
+    fk_kwargs = {key: column_kwargs.pop(key) for key in ("ondelete", "onupdate") if key in column_kwargs}
+    return mapped_column(SqliteCompatibleBigInteger, ForeignKey(target, **fk_kwargs), **column_kwargs)
+
+
+def fk_id_table_column(name: str, target: str, **column_kwargs: Any):
+    fk_kwargs = {key: column_kwargs.pop(key) for key in ("ondelete", "onupdate") if key in column_kwargs}
+    return Column(name, SqliteCompatibleBigInteger, ForeignKey(target, **fk_kwargs), **column_kwargs)
+
 
 inbounds_groups_association = Table(
     "inbounds_groups_association",
     Base.metadata,
-    Column("inbound_id", ForeignKey("inbounds.id"), primary_key=True),
-    Column("group_id", ForeignKey("groups.id"), primary_key=True),
+    fk_id_table_column("inbound_id", "inbounds.id", primary_key=True),
+    fk_id_table_column("group_id", "groups.id", primary_key=True),
 )
 
 users_groups_association = Table(
     "users_groups_association",
     Base.metadata,
-    Column("user_id", ForeignKey("users.id"), primary_key=True),
-    Column("groups_id", ForeignKey("groups.id"), primary_key=True),
+    fk_id_table_column("user_id", "users.id", primary_key=True),
+    fk_id_table_column("groups_id", "groups.id", primary_key=True),
 )
 
 
 class Admin(Base):
     __tablename__ = "admins"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     username: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
@@ -67,7 +85,7 @@ class Admin(Base):
     sub_domain: Mapped[Optional[str]] = mapped_column(String(256), default=None)
     profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     support_url: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
-    notification_enable: Mapped[Optional[Dict]] = mapped_column(JSON, default=None)
+    notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
 
     @hybrid_property
@@ -94,8 +112,8 @@ class Admin(Base):
 class AdminUsageLogs(Base):
     __tablename__ = "admin_usage_logs"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    admin_id: Mapped[int] = mapped_column(ForeignKey("admins.id"))
+    id: Mapped[int] = id_column()
+    admin_id: Mapped[int] = fk_id_column("admins.id")
     admin: Mapped["Admin"] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
@@ -125,7 +143,7 @@ class DataLimitResetStrategy(str, Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
@@ -154,7 +172,7 @@ class User(Base):
         default=DataLimitResetStrategy.no_reset,
     )
     _expire: Mapped[Optional[dt]] = mapped_column("expire", DateTime(timezone=True), default=None, init=False)
-    admin_id: Mapped[Optional[int]] = mapped_column(ForeignKey("admins.id"), default=None)
+    admin_id: Mapped[Optional[int]] = fk_id_column("admins.id", default=None)
     sub_revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
     online_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
@@ -308,8 +326,8 @@ class User(Base):
 class UserSubscriptionUpdate(Base):
     __tablename__ = "user_subscription_updates"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    id: Mapped[int] = id_column()
+    user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
@@ -318,8 +336,8 @@ class UserSubscriptionUpdate(Base):
 template_group_association = Table(
     "template_group_association",
     Base.metadata,
-    Column("user_template_id", ForeignKey("user_templates.id")),
-    Column("group_id", ForeignKey("groups.id")),
+    fk_id_table_column("user_template_id", "user_templates.id"),
+    fk_id_table_column("group_id", "groups.id"),
 )
 
 
@@ -331,9 +349,9 @@ class NextPlan(Base):
         Index("ix_next_plans_user_template_id", "user_template_id"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    user_template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_templates.id", ondelete="SET NULL"))
+    id: Mapped[int] = id_column()
+    user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
+    user_template_id: Mapped[Optional[int]] = fk_id_column("user_templates.id", ondelete="SET NULL")
     user: Mapped["User"] = relationship(back_populates="next_plan", init=False)
     user_template: Mapped[Optional["UserTemplate"]] = relationship(back_populates="next_plans", init=False)
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -349,7 +367,7 @@ class UserStatusCreate(str, Enum):
 class UserTemplate(Base):
     __tablename__ = "user_templates"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     name: Mapped[str] = mapped_column(String(64), unique=True)
     username_prefix: Mapped[Optional[str]] = mapped_column(String(20))
     username_suffix: Mapped[Optional[str]] = mapped_column(String(20))
@@ -382,8 +400,8 @@ class UserUsageResetLogs(Base):
         Index("ix_user_usage_logs_user_id_reset_at", "user_id", "reset_at"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
-    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    id: Mapped[int] = id_column()
+    user_id: Mapped[Optional[int]] = fk_id_column("users.id", ondelete="CASCADE", nullable=True)
     user: Mapped["User"] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
@@ -392,7 +410,7 @@ class UserUsageResetLogs(Base):
 class ProxyInbound(Base):
     __tablename__ = "inbounds"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     tag: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     hosts: Mapped[List["ProxyHost"]] = relationship(back_populates="inbound", init=False)
     groups: Mapped[List["Group"]] = relationship(
@@ -442,7 +460,7 @@ ProxyHostFingerprint = Enum(
 class ProxyHost(Base):
     __tablename__ = "hosts"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     remark: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[Optional[int]] = mapped_column(nullable=True)
     path: Mapped[Optional[str]] = mapped_column(String(256), unique=False, nullable=True)
@@ -494,7 +512,7 @@ class ProxyHost(Base):
 class System(Base):
     __tablename__ = "system"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
@@ -522,7 +540,7 @@ class NodeStatus(str, Enum):
 class Node(Base):
     __tablename__ = "nodes"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
@@ -533,9 +551,7 @@ class Node(Base):
     server_ca: Mapped[str] = mapped_column(String(2048), nullable=False)
     api_key: Mapped[str | None] = mapped_column(String(36))
     node_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, init=False)
-    core_config_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("core_configs.id", ondelete="SET NULL"), nullable=True
-    )
+    core_config_id: Mapped[Optional[int]] = fk_id_column("core_configs.id", ondelete="SET NULL", nullable=True)
     user_usages: Mapped[List["NodeUserUsage"]] = relationship(
         back_populates="node", cascade="all, delete-orphan", init=False
     )
@@ -633,11 +649,11 @@ class NodeUserUsage(Base):
         Index("ix_node_user_usages_created_at", "created_at"),  # Time-based cleanup/aggregation
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="node_usages", init=False)
-    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
+    node_id: Mapped[Optional[int]] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped["Node"] = relationship(back_populates="user_usages", init=False)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
 
@@ -651,9 +667,9 @@ class NodeUsage(Base):
         # The unique constraint already creates an index on (created_at, node_id)
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
-    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
+    node_id: Mapped[Optional[int]] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped["Node"] = relationship(back_populates="usages", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -666,9 +682,9 @@ class NodeUsageResetLogs(Base):
         Index("ix_node_usage_reset_logs_node_id_created_at", "node_id", "created_at"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
-    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
+    node_id: Mapped[int] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped["Node"] = relationship(back_populates="usage_logs", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, nullable=False)
     downlink: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -677,9 +693,9 @@ class NodeUsageResetLogs(Base):
 class NotificationReminder(Base):
     __tablename__ = "notification_reminders"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
     threshold: Mapped[Optional[int]] = mapped_column(default=None)
@@ -689,7 +705,7 @@ class NotificationReminder(Base):
 class Group(Base):
     __tablename__ = "groups"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     name: Mapped[str] = mapped_column(String(64))
     users: Mapped[List["User"]] = relationship(secondary=users_groups_association, back_populates="groups", init=False)
     inbounds: Mapped[List["ProxyInbound"]] = relationship(
@@ -723,7 +739,7 @@ class CoreType(str, Enum):
 class CoreConfig(Base):
     __tablename__ = "core_configs"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
@@ -750,9 +766,9 @@ class ClientTemplate(Base):
 class NodeStat(Base):
     __tablename__ = "node_stats"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
-    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
+    node_id: Mapped[int] = fk_id_column("nodes.id")
     node: Mapped["Node"] = relationship(back_populates="stats", init=False)
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     mem_used: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
@@ -765,7 +781,7 @@ class NodeStat(Base):
 class Settings(Base):
     __tablename__ = "settings"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
+    id: Mapped[int] = id_column()
     telegram: Mapped[dict] = mapped_column(JSON())
     discord: Mapped[dict] = mapped_column(JSON())
     webhook: Mapped[dict] = mapped_column(JSON())

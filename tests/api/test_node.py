@@ -186,6 +186,7 @@ def realtime_stats_payload() -> NodeRealtimeStats:
         cpu_usage=23.5,
         incoming_bandwidth_speed=512,
         outgoing_bandwidth_speed=256,
+        uptime=50,
     )
 
 

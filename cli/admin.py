@@ -132,14 +132,14 @@ class AdminCLI(BaseCLI):
                 delete_users = typer.confirm(message, default=False)
                 if delete_users:
                     try:
-                        await admin_op.remove_all_users(db, username, SYSTEM_ADMIN)
+                        await admin_op.remove_all_users_by_id(db, target_admin.id, SYSTEM_ADMIN)
                         self.console.print(f"[green]Deleted {user_count} users belonging to admin '{username}'[/green]")
                     except Exception as e:
                         self.console.print(f"[red]Error deleting users: {e}[/red]")
                         return
 
             try:
-                await admin_op.remove_admin(db, username, SYSTEM_ADMIN)
+                await admin_op.remove_admin_by_id(db, target_admin.id, SYSTEM_ADMIN)
                 self.console.print(f"[green]Admin '{username}' deleted successfully[/green]")
             except Exception as e:
                 self.console.print(f"[red]Error deleting admin: {e}[/red]")
@@ -161,7 +161,7 @@ class AdminCLI(BaseCLI):
             return
 
         try:
-            deleted = await admin_op.remove_all_users(db, username, SYSTEM_ADMIN)
+            deleted = await admin_op.remove_all_users_by_id(db, target_admin.id, SYSTEM_ADMIN)
             if deleted == 0:
                 self.console.print(f"[yellow]Admin '{username}' has no users to delete[/yellow]")
             else:
@@ -298,7 +298,7 @@ class AdminCLI(BaseCLI):
                     is_disabled=is_disabled,
                     notification_enable=notification_enable,
                 )
-                await admin_op.modify_admin(db, username, modified_admin, SYSTEM_ADMIN)
+                await admin_op.modify_admin_by_id(db, current_admin.id, modified_admin, SYSTEM_ADMIN)
                 self.console.print(f"[green]Admin '{username}' modified successfully[/green]")
             except Exception as e:
                 self.console.print(f"[red]Error modifying admin: {e}[/red]")
@@ -317,7 +317,8 @@ class AdminCLI(BaseCLI):
 
         if typer.confirm(f"Are you sure you want to reset usage for admin '{username}'?"):
             try:
-                await admin_op.reset_admin_usage(db, username, SYSTEM_ADMIN)
+                target_admin = next(admin for admin in admins if admin.username == username)
+                await admin_op.reset_admin_usage_by_id(db, target_admin.id, SYSTEM_ADMIN)
                 self.console.print(f"[green]Usage reset for admin '{username}'[/green]")
             except Exception as e:
                 self.console.print(f"[red]Error resetting usage: {e}[/red]")

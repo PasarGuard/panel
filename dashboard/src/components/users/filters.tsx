@@ -15,6 +15,8 @@ import { useGetUsers, UserStatus } from '@/service/api'
 import { RefetchOptions } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
 import { getUsersAutoRefreshIntervalSeconds, setUsersAutoRefreshIntervalSeconds } from '@/utils/userPreferenceStorage'
+import { $fetch as publicFetch } from 'ofetch'
+import { resolveSubscriptionPanelBaseUrl } from '@/utils/subscription-config'
 
 // Compact sort configuration: one row per field
 const sortSections = [
@@ -85,6 +87,8 @@ const autoRefreshOptions = [
 interface FiltersProps {
   filters: {
     search?: string
+    proxy_id?: string
+    is_protocol?: boolean
     limit?: number
     offset?: number
     sort: string
@@ -101,14 +105,44 @@ interface FiltersProps {
   handleSort?: (column: string, fromDropdown?: boolean) => void
 }
 
+type SubscriptionInfoResponse = {
+  username?: string
+}
+
+const isSubscriptionUrlSearch = (value: string | undefined): value is string => {
+  return Boolean(value?.trim().startsWith('https://'))
+}
+
+const buildSubscriptionInfoUrl = (value: string) => {
+  const baseUrl = resolveSubscriptionPanelBaseUrl(value)
+  if (!baseUrl) return ''
+
+  try {
+    const url = new URL(baseUrl)
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}/info`
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return `${baseUrl.replace(/\/+$/, '')}/info`
+  }
+}
+
 export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort }: FiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
-  const { search, debouncedSearch, setSearch } = useDebouncedSearch(filters.search || '', 300)
-  const prevDebouncedSearchRef = useRef<string | undefined>(filters.search || undefined)
+  const activeSearchValue = filters.search || filters.proxy_id || ''
+  const { search, debouncedSearch, setSearch } = useDebouncedSearch(activeSearchValue, 300)
+  const prevDebouncedSearchRef = useRef<string | undefined>(activeSearchValue || undefined)
+  const searchResolveIdRef = useRef(0)
+  const ignoreNextDebouncedSearchRef = useRef(false)
+
+  useEffect(() => {
+    prevDebouncedSearchRef.current = activeSearchValue || undefined
+  }, [activeSearchValue])
   
   const refetchUsers = useCallback(
     async (showLoading = false, isAutoRefresh = false) => {
@@ -161,9 +195,61 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
 
   // Update filters when debounced search changes
   useEffect(() => {
+    if (ignoreNextDebouncedSearchRef.current) {
+      ignoreNextDebouncedSearchRef.current = false
+      prevDebouncedSearchRef.current = debouncedSearch
+      return
+    }
+
     // Only update if search actually changed to avoid resetting page on initial load
     if (debouncedSearch !== prevDebouncedSearchRef.current) {
       prevDebouncedSearchRef.current = debouncedSearch
+      const trimmedSearch = debouncedSearch?.trim()
+      const resolveId = searchResolveIdRef.current + 1
+      searchResolveIdRef.current = resolveId
+
+      if (!trimmedSearch) {
+        onFilterChange({
+          search: '',
+          proxy_id: undefined,
+          is_protocol: false,
+          offset: 0,
+        })
+        return
+      }
+
+      if (isSubscriptionUrlSearch(trimmedSearch)) {
+        const resolveSubscriptionUsername = async () => {
+          try {
+            const infoUrl = buildSubscriptionInfoUrl(trimmedSearch)
+            if (!infoUrl) return
+
+            const info = await publicFetch<SubscriptionInfoResponse>(infoUrl)
+            const username = info.username?.trim()
+
+            if (searchResolveIdRef.current !== resolveId || !username) return
+
+            prevDebouncedSearchRef.current = username
+            setSearch(username)
+            onFilterChange({
+              search: username,
+              proxy_id: undefined,
+              is_protocol: false,
+              offset: 0,
+            })
+          } catch {
+            if (searchResolveIdRef.current !== resolveId) return
+            onFilterChange({
+              search: debouncedSearch || '',
+              offset: 0,
+            })
+          }
+        }
+
+        void resolveSubscriptionUsername()
+        return
+      }
+
       onFilterChange({
         search: debouncedSearch || '',
         offset: 0,
@@ -173,14 +259,20 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
 
   // Handle input change
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    searchResolveIdRef.current += 1
     setSearch(e.target.value)
   }
 
   // Clear search field
   const clearSearch = () => {
+    searchResolveIdRef.current += 1
+    ignoreNextDebouncedSearchRef.current = true
+    prevDebouncedSearchRef.current = debouncedSearch
     setSearch('')
     onFilterChange({
       search: '',
+      proxy_id: undefined,
+      is_protocol: false,
       offset: 0,
     })
   }
@@ -248,7 +340,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
         )}
       </div>
       <div className="flex h-full flex-shrink-0 items-center gap-1">
-        <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10" onClick={handleOpenAdvanceSearch}>
+        <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" onClick={handleOpenAdvanceSearch}>
           <Filter className="h-4 w-4" />
           {hasActiveAdvanceFilters() && (
             <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
@@ -259,7 +351,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
         {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
           <Popover>
             <PopoverTrigger asChild>
-              <Button size="sm" variant="outline" className={cn('h-9 w-9 p-0 md:h-8 md:w-8', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
+              <Button size="sm" variant="outline" className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
                 <X className="h-3 w-3" />
               </Button>
             </PopoverTrigger>
@@ -277,7 +369,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
               <Button
                 size="icon-md"
                 variant="ghost"
-                className="relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10"
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg border"
                 aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}
               >
                 <ArrowUpDown className="h-4 w-4" />
@@ -321,7 +413,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
           onClick={handleRefreshClick}
           variant="ghost"
           className={cn(
-            'relative flex h-9 w-9 items-center justify-center border transition-all duration-200 md:h-10 md:w-10',
+            'relative flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200',
             dir === 'rtl' ? 'rounded-l-none border-l-0' : 'rounded-r-none',
             (isRefreshing || isFetching) && 'opacity-70',
           )}
@@ -345,7 +437,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             <Button
               size="icon-md"
               variant="ghost"
-              className={cn('relative flex h-9 w-9 items-center justify-center border md:h-10 md:w-10', dir === 'rtl' ? 'rounded-r-none' : 'rounded-l-none border-l-0')}
+              className={cn('relative flex h-9 w-9 items-center justify-center rounded-lg border', dir === 'rtl' ? 'rounded-r-none' : 'rounded-l-none border-l-0')}
               aria-label={t('autoRefresh.label')}
               title={`${t('autoRefresh.label')} (${autoRefreshShortLabel})`}
             >
