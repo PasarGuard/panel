@@ -1,5 +1,5 @@
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, TooltipProps } from 'recharts'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartConfig, ChartContainer } from '@/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -231,8 +231,8 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
   const error = viewMode === 'historical' ? historicalError : realtimeError
   const historicalXAxisInterval = useMemo(() => getXAxisInterval(periodOption, historicalHistory.length), [periodOption, historicalHistory.length])
 
-  let displayCpuUsage: string | JSX.Element = <Skeleton className="h-5 w-16" />
-  let displayRamUsage: string | JSX.Element = <Skeleton className="h-5 w-16" />
+  let displayCpuUsage: string | ReactNode = <Skeleton className="h-5 w-16" />
+  let displayRamUsage: string | ReactNode = <Skeleton className="h-5 w-16" />
 
   if (currentStats) {
     if (isSystemStats(currentStats) || isNodeRealtimeStats(currentStats)) {
@@ -251,12 +251,11 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
 
   return (
     <Card className="flex flex-1 flex-col pt-2">
-      <CardHeader className="flex flex-col space-y-4 p-4 md:p-6">
+      <CardHeader className="flex flex-col gap-4 p-4 md:p-6">
         <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center gap-x-2">
-              <CardTitle className='mb-1'>{viewMode === 'realtime' ? t('statistics.realTimeData') : t('statistics.historicalData')}</CardTitle>
-            </div>
+          <div>
+            <CardTitle className="mb-1">{viewMode === 'realtime' ? t('statistics.realTimeData') : t('statistics.historicalData')}</CardTitle>
+            <CardDescription>{viewMode === 'realtime' ? t('statistics.realtimeDescription') : t('statistics.historicalDescription')}</CardDescription>
           </div>
 
           {nodeId !== undefined && realtimeAvailable && (
@@ -276,7 +275,6 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
           )}
         </div>
 
-        <CardDescription className="text-sm text-muted-foreground !mt-0">{viewMode === 'realtime' ? t('statistics.realtimeDescription') : t('statistics.historicalDescription')}</CardDescription>
         {realtimeAvailable && (
           <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2 sm:gap-6">
             <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">

@@ -347,6 +347,7 @@ class NodeOperation(BaseOperation):
             NodeResponse: Updated node object
         """
         db_node = await self.get_validated_node(db=db, node_id=node_id)
+        was_limited = db_node.status == NodeStatus.limited
 
         # Store old values for notification
         old_uplink = db_node.uplink
@@ -354,6 +355,10 @@ class NodeOperation(BaseOperation):
 
         # Reset usage (creates log entry and sets uplink/downlink to 0)
         db_node = await reset_node_usage(db, db_node)
+
+        if was_limited:
+            await self.connect_single_node(db, db_node.id)
+            db_node = await self.get_validated_node(db=db, node_id=node_id)
 
         # Create response
         node = NodeResponse.model_validate(db_node)
@@ -969,10 +974,15 @@ class NodeOperation(BaseOperation):
     ) -> BulkNodesActionResponse:
         db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
         old_usages = {node.id: (node.uplink, node.downlink) for node in db_nodes}
+        limited_node_ids = {node.id for node in db_nodes if node.status == NodeStatus.limited}
 
         db_nodes = await bulk_reset_node_usage(db, db_nodes)
 
         for db_node in db_nodes:
+            if db_node.id in limited_node_ids:
+                await self.connect_single_node(db, db_node.id)
+                db_node = await self.get_validated_node(db=db, node_id=db_node.id)
+
             node = NodeResponse.model_validate(db_node)
             old_uplink, old_downlink = old_usages[db_node.id]
             asyncio.create_task(notification.reset_node_usage(node, admin.username, old_uplink, old_downlink))

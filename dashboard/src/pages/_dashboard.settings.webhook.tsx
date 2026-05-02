@@ -281,7 +281,7 @@ export default function WebhookSettings() {
                           {t('settings.webhook.general.proxyUrl')}
                         </FormLabel>
                         <FormControl>
-                          <Input type="url" placeholder={t('settings.webhook.general.proxyUrlPlaceholder')} {...field} className="text-xs sm:text-sm" />
+                          <Input type="url" placeholder="http://proxy.example.com:8080" {...field} className="text-xs sm:text-sm" />
                         </FormControl>
                         <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.proxyUrlDescription')}</FormDescription>
                         <FormMessage />

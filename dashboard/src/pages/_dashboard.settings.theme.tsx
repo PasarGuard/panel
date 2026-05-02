@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { useTheme, colorThemes, type ColorTheme, type Radius } from '@/components/common/theme-provider'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { CheckCircle2, SunMoon, Palette, Ruler, Eye, RotateCcw, Sun, Moon, Monitor, CalendarClock, Languages, BarChart3, TrendingUp } from 'lucide-react'
@@ -32,7 +32,7 @@ const radiusOptions = [
 
 const modeOptions = ['light', 'dark', 'system'] as const
 
-const modeIcons: Record<(typeof modeOptions)[number], JSX.Element> = {
+const modeIcons: Record<(typeof modeOptions)[number], ReactNode> = {
   light: <Sun className="h-4 w-4 text-primary" />,
   dark: <Moon className="h-4 w-4 text-primary" />,
   system: <Monitor className="h-4 w-4 text-primary" />,
@@ -40,7 +40,7 @@ const modeIcons: Record<(typeof modeOptions)[number], JSX.Element> = {
 
 const chartViewOptions = ['bar', 'area'] as const
 
-const chartViewIcons: Record<(typeof chartViewOptions)[number], JSX.Element> = {
+const chartViewIcons: Record<(typeof chartViewOptions)[number], ReactNode> = {
   bar: <BarChart3 className="h-4 w-4 text-primary" />,
   area: <TrendingUp className="h-4 w-4 text-primary" />,
 }

@@ -207,6 +207,7 @@ export default function NodesList() {
       server_ca: node.server_ca,
       keep_alive: node.keep_alive,
       keep_alive_unit: 'seconds',
+      proxy_url: node.proxy_url ?? '',
     })
     setIsDialogOpen(true)
   }
@@ -233,6 +234,7 @@ export default function NodesList() {
         reset_time: toOptional(node.reset_time),
         default_timeout: toOptional(node.default_timeout),
         internal_timeout: toOptional(node.internal_timeout),
+        proxy_url: node.proxy_url ?? null,
         status: newStatus,
       }
 
@@ -650,6 +652,7 @@ export default function NodesList() {
               isLoading={showLoadingSpinner || showPageLoadingSkeletons}
               loadingRows={6}
               className="gap-1.5"
+              rowClassName={viewMode === 'list' ? 'py-2' : undefined}
               onRowClick={handleEdit}
               mode={viewMode}
               enableSelection

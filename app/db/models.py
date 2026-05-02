@@ -582,6 +582,7 @@ class Node(Base):
     keep_alive: Mapped[int] = mapped_column(unique=False, default=0)
     default_timeout: Mapped[int] = mapped_column(default=10, server_default=text("10"))
     internal_timeout: Mapped[int] = mapped_column(default=15, server_default=text("15"))
+    proxy_url: Mapped[str | None] = mapped_column(String(256), default="", unique=False, nullable=True)
 
     @hybrid_property
     def reseted_uplink(self) -> int:

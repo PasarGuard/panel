@@ -10,7 +10,9 @@ import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { useNodeReleases } from '@/hooks/use-node-releases'
 import NodeUsageDisplay from './node-usage-display'
 import NodeActionsMenu from './node-actions-menu'
-import type { ReactNode } from 'react'
+import UpdateCoreDialog from '@/components/dialogs/update-core-modal'
+import { useState } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 
 interface NodeProps {
   node: NodeResponse
@@ -24,6 +26,7 @@ interface NodeProps {
 export default function Node({ node, onEdit, onToggleStatus, coresData, selectionControl, selected = false }: NodeProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const [showUpdateCoreDialog, setShowUpdateCoreDialog] = useState(false)
   const { latestVersion: latestXrayVersion, hasUpdate: hasXrayUpdate } = useXrayReleases()
   const { latestVersion: latestNodeVersion, hasUpdate: hasNodeUpdate } = useNodeReleases()
   const coreVersion = node.core_version ?? node.xray_version
@@ -83,6 +86,12 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
   const lifetimeDownlink = node.lifetime_downlink || 0
   const totalLifetime = lifetimeUplink + lifetimeDownlink
   const hasUsageDisplay = !(totalUsed === 0 && !node.data_limit && totalLifetime === 0)
+  const handleCoreVersionClick = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!hasCoreUpdate) return
+    event.preventDefault()
+    event.stopPropagation()
+    setShowUpdateCoreDialog(true)
+  }
 
   return (
     <TooltipProvider>
@@ -133,11 +142,21 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
                   {coreVersion && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className={cn('group/version inline-flex items-center', dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1')}>
+                        <button
+                          type="button"
+                          onClick={handleCoreVersionClick}
+                          className={cn(
+                            'group/version inline-flex items-center rounded-sm bg-transparent p-0 text-left',
+                            hasCoreUpdate && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                            !hasCoreUpdate && 'cursor-default',
+                            dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
+                          )}
+                          aria-label={t('nodeModal.updateCore', { defaultValue: 'Update Core' })}
+                        >
                           <Package className={cn('h-3 w-3 shrink-0 transition-colors sm:h-3.5 sm:w-3.5', hasCoreUpdate ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')} />
                           <span className={cn('font-mono text-[10px] font-medium sm:text-[11px]', hasCoreUpdate ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>{coreVersion}</span>
                           {hasCoreUpdate && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
-                        </div>
+                        </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
                         <div className="space-y-2 text-xs">
@@ -206,14 +225,14 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
 
             {hasUsageDisplay && (
               <>
-                <Separator className="my-2 opacity-50" />
-                {/* Usage Display */}
+                <Separator className="my-1.5 opacity-50" />
                 <NodeUsageDisplay node={node} />
               </>
             )}
           </div>
         </div>
       </Card>
+      <UpdateCoreDialog node={node} isOpen={showUpdateCoreDialog} onOpenChange={setShowUpdateCoreDialog} />
     </TooltipProvider>
   )
 }

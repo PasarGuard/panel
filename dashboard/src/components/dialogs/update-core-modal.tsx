@@ -31,7 +31,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
   const updateCoreMutation = useUpdateCore()
   const { latestVersion, releaseUrl, versions, isLoading: isLoadingReleases, hasUpdate } = useXrayReleases()
 
-  const currentVersion = node.xray_version
+  const currentVersion = node.xray_version ?? node.core_version
   const showUpdateBadge = currentVersion && latestVersion && hasUpdate(currentVersion)
 
   React.useEffect(() => {

@@ -333,13 +333,6 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
-
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -357,6 +350,13 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
@@ -545,6 +545,11 @@ export const XHttpModes = {
 
 export type XHttpSettingsInputMode = XHttpModes | null
 
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
+
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -553,11 +558,6 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
-}
-
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
 }
 
 export type WireGuardSettingsPublicKey = string | null
@@ -854,15 +854,6 @@ export interface UserSubscriptionUpdateChart {
   segments?: UserSubscriptionUpdateChartSegment[]
 }
 
-export type UserStatusModify = (typeof UserStatusModify)[keyof typeof UserStatusModify]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const UserStatusModify = {
-  active: 'active',
-  disabled: 'disabled',
-  on_hold: 'on_hold',
-} as const
-
 export type UserStatusCreate = (typeof UserStatusCreate)[keyof typeof UserStatusCreate]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -951,7 +942,7 @@ export interface UserNotificationEnable {
   subscription_revoked?: boolean
 }
 
-export type UserModifyStatus = UserStatusModify | null
+export type UserModifyStatus = UserStatus | null
 
 export type UserModifyNextPlan = NextPlanModel | null
 
@@ -1009,7 +1000,7 @@ export interface UserIPListAll {
   nodes: UserIPListAllNodes
 }
 
-export type UserCreateStatus = UserStatusCreate | null
+export type UserCreateStatus = UserStatus | null
 
 export type UserCreateNextPlan = NextPlanModel | null
 
@@ -1514,41 +1505,6 @@ export type NotificationSettingsOutputTelegramChatId = number | null
 
 export type NotificationSettingsOutputTelegramApiToken = string | null
 
-export type NotificationSettingsInputProxyUrl = string | null
-
-export type NotificationSettingsInputDiscordWebhookUrl = string | null
-
-export type NotificationSettingsInputTelegramTopicId = number | null
-
-export type NotificationSettingsInputTelegramChatId = number | null
-
-export type NotificationSettingsInputTelegramApiToken = string | null
-
-export interface NotificationEnable {
-  admin?: AdminNotificationEnable
-  core?: BaseNotificationEnable
-  group?: BaseNotificationEnable
-  host?: HostNotificationEnable
-  node?: NodeNotificationEnable
-  user?: UserNotificationEnable
-  user_template?: BaseNotificationEnable
-  days_left?: boolean
-  percentage_reached?: boolean
-}
-
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
 export interface NotificationSettingsOutput {
   notify_telegram?: boolean
   notify_discord?: boolean
@@ -1562,6 +1518,16 @@ export interface NotificationSettingsOutput {
   max_retries: number
 }
 
+export type NotificationSettingsInputProxyUrl = string | null
+
+export type NotificationSettingsInputDiscordWebhookUrl = string | null
+
+export type NotificationSettingsInputTelegramTopicId = number | null
+
+export type NotificationSettingsInputTelegramChatId = number | null
+
+export type NotificationSettingsInputTelegramApiToken = string | null
+
 export interface NotificationSettingsInput {
   notify_telegram?: boolean
   notify_discord?: boolean
@@ -1573,6 +1539,28 @@ export interface NotificationSettingsInput {
   proxy_url?: NotificationSettingsInputProxyUrl
   /** */
   max_retries: number
+}
+
+export interface NodeNotificationEnable {
+  create?: boolean
+  modify?: boolean
+  delete?: boolean
+  connect?: boolean
+  error?: boolean
+  limited?: boolean
+  reset_usage?: boolean
+}
+
+export interface NotificationEnable {
+  admin?: AdminNotificationEnable
+  core?: BaseNotificationEnable
+  group?: BaseNotificationEnable
+  host?: HostNotificationEnable
+  node?: NodeNotificationEnable
+  user?: UserNotificationEnable
+  user_template?: BaseNotificationEnable
+  days_left?: boolean
+  percentage_reached?: boolean
 }
 
 export type NotificationChannelDiscordWebhookUrl = string | null
@@ -1588,6 +1576,19 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1615,13 +1616,6 @@ export interface NodesResponse {
 
 export type NodeUsageStatsListPeriod = Period | null
 
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
-
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -1629,6 +1623,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1683,6 +1684,8 @@ export type NodeResponseNodeVersion = string | null
 
 export type NodeResponseXrayVersion = string | null
 
+export type NodeResponseProxyUrl = string | null
+
 export type NodeResponseApiKey = string | null
 
 export type NodeResponseCoreConfigId = number | null
@@ -1712,6 +1715,7 @@ export interface NodeResponse {
    * @maximum 60
    */
   internal_timeout?: number
+  proxy_url?: NodeResponseProxyUrl
   id: number
   xray_version: NodeResponseXrayVersion
   node_version: NodeResponseNodeVersion
@@ -1734,17 +1738,9 @@ export interface NodeRealtimeStats {
   uptime: number
 }
 
-export interface NodeNotificationEnable {
-  create?: boolean
-  modify?: boolean
-  delete?: boolean
-  connect?: boolean
-  error?: boolean
-  limited?: boolean
-  reset_usage?: boolean
-}
-
 export type NodeModifyStatus = NodeStatus | null
+
+export type NodeModifyProxyUrl = string | null
 
 export type NodeModifyInternalTimeout = number | null
 
@@ -1790,11 +1786,19 @@ export interface NodeModify {
   reset_time?: NodeModifyResetTime
   default_timeout?: NodeModifyDefaultTimeout
   internal_timeout?: NodeModifyInternalTimeout
+  proxy_url?: NodeModifyProxyUrl
   status?: NodeModifyStatus
 }
 
 export interface NodeGeoFilesUpdate {
   region?: GeoFilseRegion
+}
+
+export type NodeCreateProxyUrl = string | null
+
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
 }
 
 export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
@@ -1830,11 +1834,7 @@ export interface NodeCreate {
    * @maximum 60
    */
   internal_timeout?: number
-}
-
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
+  proxy_url?: NodeCreateProxyUrl
 }
 
 export type NextPlanModelExpire = number | null
@@ -1978,6 +1978,11 @@ export interface HTTPException {
   detail: string
 }
 
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
+}
+
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -1991,11 +1996,6 @@ export interface GroupSimple {
  */
 export interface GroupsSimpleResponse {
   groups: GroupSimple[]
-  total: number
-}
-
-export interface GroupsResponse {
-  groups: GroupResponse[]
   total: number
 }
 
@@ -2154,6 +2154,26 @@ export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
 
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
+
 export interface CreateHost {
   id?: CreateHostId
   remark: string
@@ -2186,34 +2206,6 @@ export interface CreateHost {
   subscription_templates?: CreateHostSubscriptionTemplates
 }
 
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
-
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
-}
-
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2235,6 +2227,19 @@ export interface CoreSimple {
   type?: CoreSimpleType
 }
 
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
+}
+
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
+}
+
 export type CoreResponseType = CoreType | null
 
 export type CoreResponseConfig = { [key: string]: unknown }
@@ -2247,11 +2252,6 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2291,6 +2291,11 @@ export const ConfigFormat = {
   block: 'block',
 } as const
 
+export interface ClientTemplatesSimpleResponse {
+  templates: ClientTemplateSimple[]
+  total: number
+}
+
 export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2307,11 +2312,6 @@ export interface ClientTemplateSimple {
   name: string
   template_type: ClientTemplateType
   is_default: boolean
-}
-
-export interface ClientTemplatesSimpleResponse {
-  templates: ClientTemplateSimple[]
-  total: number
 }
 
 export interface ClientTemplateResponse {
@@ -2622,26 +2622,6 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
-
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -2673,6 +2653,26 @@ export interface BaseHost {
   wireguard_overrides?: BaseHostWireguardOverrides
   subscription_templates?: BaseHostSubscriptionTemplates
 }
+
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 

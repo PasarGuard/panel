@@ -29,8 +29,8 @@ interface TopLoadingBarProps {
 
 function TopLoadingBar({ height = 3, color, shadow = false, className = '' }: TopLoadingBarProps) {
   const [progress, setProgress] = useState(0)
-  const completeTimeoutRef = useRef<NodeJS.Timeout>()
-  const progressIntervalRef = useRef<NodeJS.Timeout>()
+  const completeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   const lastLocationRef = useRef('')
   const { resolvedTheme } = useTheme()
   const location = useLocation()

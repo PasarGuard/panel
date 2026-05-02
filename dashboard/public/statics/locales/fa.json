@@ -308,7 +308,6 @@
         "recurrent": "تعداد تلاش مجدد",
         "recurrentDescription": "تعداد تلاش‌های مجدد برای webhook‌های ناموفق (۱-۲۴)",
         "proxyUrl": "آدرس پروکسی",
-        "proxyUrlPlaceholder": "http://proxy.example.com:8080",
         "proxyUrlDescription": "آدرس پروکسی برای درخواست‌های webhook (اختیاری)"
       },
       "webhooks": {

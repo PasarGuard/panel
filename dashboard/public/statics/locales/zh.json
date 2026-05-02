@@ -408,7 +408,6 @@
         "recurrent": "重试次数",
         "recurrentDescription": "失败Webhook的重试次数（1-24）",
         "proxyUrl": "代理URL",
-        "proxyUrlPlaceholder": "http://proxy.example.com:8080",
         "proxyUrlDescription": "Webhook请求的代理URL（可选）"
       },
       "webhooks": {
