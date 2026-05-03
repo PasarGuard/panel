@@ -30,6 +30,7 @@ class AdminDelete(BaseModal):
         self,
         db: AsyncSession,
         operation: AdminOperation,
+        admin_id: int,
         username: str,
         on_close: callable,
         user_count: int = 0,
@@ -39,6 +40,7 @@ class AdminDelete(BaseModal):
         super().__init__(*args, **kwargs)
         self.db = db
         self.operation = operation
+        self.admin_id = admin_id
         self.username = username
         self.on_close = on_close
         self.user_count = user_count
@@ -73,9 +75,9 @@ class AdminDelete(BaseModal):
                 if self.user_count > 0:
                     delete_users = self.query_one("#delete-users").value
                     if delete_users:
-                        await self.operation.remove_all_users(self.db, self.username, SYSTEM_ADMIN)
+                        await self.operation.remove_all_users_by_id(self.db, self.admin_id, SYSTEM_ADMIN)
                         self.notify("Admin users deleted successfully", severity="success", title="Success")
-                await self.operation.remove_admin(self.db, self.username, SYSTEM_ADMIN)
+                await self.operation.remove_admin_by_id(self.db, self.admin_id, SYSTEM_ADMIN)
                 self.on_close()
             except ValueError as e:
                 self.notify(str(e), severity="error", title="Error")
@@ -87,6 +89,7 @@ class AdminDeleteUsers(BaseModal):
         self,
         db: AsyncSession,
         operation: AdminOperation,
+        admin_id: int,
         username: str,
         on_close: callable,
         user_count: int = 0,
@@ -96,6 +99,7 @@ class AdminDeleteUsers(BaseModal):
         super().__init__(*args, **kwargs)
         self.db = db
         self.operation = operation
+        self.admin_id = admin_id
         self.username = username
         self.on_close = on_close
         self.user_count = user_count
@@ -120,7 +124,7 @@ class AdminDeleteUsers(BaseModal):
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "delete":
             try:
-                deleted = await self.operation.remove_all_users(self.db, self.username, SYSTEM_ADMIN)
+                deleted = await self.operation.remove_all_users_by_id(self.db, self.admin_id, SYSTEM_ADMIN)
                 if deleted == 0:
                     self.notify("No users were deleted (none found)", severity="warning", title="Info")
                 else:
@@ -135,11 +139,19 @@ class AdminDeleteUsers(BaseModal):
 
 class AdminResetUsage(BaseModal):
     def __init__(
-        self, db: AsyncSession, operation: AdminOperation, username: str, on_close: callable, *args, **kwargs
+        self,
+        db: AsyncSession,
+        operation: AdminOperation,
+        admin_id: int,
+        username: str,
+        on_close: callable,
+        *args,
+        **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.db = db
         self.operation = operation
+        self.admin_id = admin_id
         self.username = username
         self.on_close = on_close
 
@@ -160,7 +172,7 @@ class AdminResetUsage(BaseModal):
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "reset":
             try:
-                await self.operation.reset_admin_usage(self.db, self.username, SYSTEM_ADMIN)
+                await self.operation.reset_admin_usage_by_id(self.db, self.admin_id, SYSTEM_ADMIN)
                 self.notify("Admin usage reseted successfully", severity="success", title="Success")
                 self.on_close()
             except ValueError as e:
@@ -587,9 +599,9 @@ class AdminModifyModale(BaseModal):
                 self.notify("Password and confirm password do not match", severity="error", title="Error")
                 return
             try:
-                await self.operation.modify_admin(
+                await self.operation.modify_admin_by_id(
                     self.db,
-                    self.admin.username,
+                    self.admin.id,
                     AdminModify(
                         password=password,
                         telegram_id=telegram_id,
@@ -715,11 +727,11 @@ class AdminContent(Static):
         centered_columns = [self._center_text(column, column_widths[i]) for i, column in enumerate(columns)]
         self.table.add_columns(*centered_columns)
         i = 1
-        for row, adnin in zip(admins_data, admins):
+        for row, admin_obj in zip(admins_data, admins):
             centered_row = [self._center_text(str(cell), column_widths[i]) for i, cell in enumerate(row)]
             label = Text(f"{i + offset}")
             i += 1
-            self.table.add_row(*centered_row, key=adnin.username, label=label)
+            self.table.add_row(*centered_row, key=str(admin_obj.id), label=label)
 
         total_pages = (self.total_admins + self.page_size - 1) // self.page_size
         self.pagination_info.update(
@@ -727,25 +739,25 @@ class AdminContent(Static):
         )
 
     @property
-    def selected_admin(self):
-        return self.table.coordinate_to_cell_key(Coordinate(self.table.cursor_row, 0)).row_key.value
+    def selected_admin_id(self) -> int:
+        return int(self.table.coordinate_to_cell_key(Coordinate(self.table.cursor_row, 0)).row_key.value)
 
     async def action_delete_admin(self):
         if not self.table.columns:
             return
-        admin = await self.admin_operator.get_validated_admin(self.db, username=self.selected_admin)
+        admin = await self.admin_operator.get_validated_admin_by_id(self.db, self.selected_admin_id)
         user_count = len(admin.users or [])
         self.app.push_screen(
-            AdminDelete(self.db, self.admin_operator, self.selected_admin, self._refresh_table, user_count)
+            AdminDelete(self.db, self.admin_operator, admin.id, admin.username, self._refresh_table, user_count)
         )
 
     async def action_delete_admin_users(self):
         if not self.table.columns:
             return
-        admin = await self.admin_operator.get_validated_admin(self.db, username=self.selected_admin)
+        admin = await self.admin_operator.get_validated_admin_by_id(self.db, self.selected_admin_id)
         user_count = len(admin.users or [])
         self.app.push_screen(
-            AdminDeleteUsers(self.db, self.admin_operator, self.selected_admin, self._refresh_table, user_count)
+            AdminDeleteUsers(self.db, self.admin_operator, admin.id, admin.username, self._refresh_table, user_count)
         )
 
     def _refresh_table(self):
@@ -759,7 +771,7 @@ class AdminContent(Static):
     async def action_modify_admin(self):
         if not self.table.columns:
             return
-        admin = await self.admin_operator.get_validated_admin(self.db, username=self.selected_admin)
+        admin = await self.admin_operator.get_validated_admin_by_id(self.db, self.selected_admin_id)
         self.app.push_screen(
             AdminModifyModale(
                 self.db, self.admin_operator, admin, self._refresh_table, self.format_tui_validation_error
@@ -812,7 +824,10 @@ class AdminContent(Static):
     async def action_reset_admin_usage(self):
         if not self.table.columns:
             return
-        self.app.push_screen(AdminResetUsage(self.db, self.admin_operator, self.selected_admin, self._refresh_table))
+        admin = await self.admin_operator.get_validated_admin_by_id(self.db, self.selected_admin_id)
+        self.app.push_screen(
+            AdminResetUsage(self.db, self.admin_operator, admin.id, admin.username, self._refresh_table)
+        )
 
     async def action_previous_page(self):
         if self.current_page > 1:

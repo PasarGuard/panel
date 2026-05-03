@@ -166,7 +166,7 @@ async def get_admin_by_id(
     Returns:
         Admin: The admin object.
     """
-    admin = (await db.execute(select(Admin).where(Admin.id == id))).first()
+    admin = (await db.execute(select(Admin).where(Admin.id == id))).unique().scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin

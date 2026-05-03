@@ -10,7 +10,7 @@ from app.db.crud.user import count_online_users, get_users_count_by_status
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.system import InboundSummary, SystemStats
-from app.utils.system import cpu_usage, disk_usage, memory_usage
+from app.utils.system import cpu_usage, disk_usage, get_uptime, memory_usage
 
 from . import BaseOperation
 
@@ -23,6 +23,7 @@ class SystemOperation(BaseOperation):
         mem_task = asyncio.to_thread(memory_usage)
         cpu_task = asyncio.to_thread(cpu_usage)
         disk_task = asyncio.to_thread(disk_usage)
+        uptime_task = asyncio.to_thread(get_uptime)
 
         admin_param = None
         if admin.is_sudo and admin_username:
@@ -41,7 +42,7 @@ class SystemOperation(BaseOperation):
         user_counts_task = get_users_count_by_status(db, statuses, admin_id)
         online_users_task = count_online_users(db, timedelta(minutes=2), admin_id)
 
-        tasks = [mem_task, cpu_task, disk_task, user_counts_task, online_users_task]
+        tasks = [mem_task, cpu_task, disk_task, user_counts_task, online_users_task, uptime_task]
         if system_task is not None:
             tasks.append(system_task)
 
@@ -52,9 +53,10 @@ class SystemOperation(BaseOperation):
         disk = results[2]
         user_counts = results[3]
         online_users = results[4]
+        uptime_seconds = results[5]
 
         if system_task is not None:
-            system = results[5]
+            system = results[6]
             uplink = system.uplink
             downlink = system.downlink
         else:
@@ -63,6 +65,7 @@ class SystemOperation(BaseOperation):
 
         return SystemStats(
             version=__version__,
+            uptime_seconds=uptime_seconds,
             mem_total=mem.total,
             mem_used=mem.used,
             disk_total=disk.total,

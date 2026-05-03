@@ -1,16 +1,23 @@
 import io
 import json
 import zipfile
+from base64 import b64encode
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+from math import ceil
+import asyncio
+import time
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
 
 from app.models.settings import ConfigFormat, SubRule
 from app.operation.subscription import SubscriptionOperation
+from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
+from app.utils.jwt import create_subscription_token, get_secret_key, get_subscription_payload
 from tests.api import client
 from tests.api.helpers import (
     auth_headers,
@@ -45,6 +52,43 @@ def extract_wireguard_config_bodies(response) -> list[str]:
     with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
         config_files = [name for name in zip_file.namelist() if name.endswith(".conf")]
         return [zip_file.read(name).decode("utf-8") for name in config_files]
+
+
+def _build_legacy_subscription_token(username: str) -> str:
+    created_at = str(ceil(time.time()))
+    data = f"{username},{created_at}"
+    data_b64 = b64encode(data.encode("utf-8"), altchars=b"-_").decode("utf-8").rstrip("=")
+    secret = asyncio.run(get_secret_key())
+    sign = b64encode(sha256((data_b64 + secret).encode("utf-8")).digest(), altchars=b"-_").decode("utf-8")[:10]
+    return data_b64 + sign
+
+
+def _build_v2_subscription_token(user_id: int, secret: str) -> str:
+    created_at = str(ceil(time.time()))
+    data = f"v2,{user_id},{created_at}"
+    data_b64 = b64encode(data.encode("utf-8"), altchars=b"-_").decode("utf-8").rstrip("=")
+    sign = b64encode(sha256((data_b64 + secret).encode("utf-8")).digest(), altchars=b"-_").decode("utf-8")[:10]
+    return data_b64 + sign
+
+
+def test_subscription_token_generation_avoids_trailing_dash_or_underscore_and_keeps_v2_compatibility(monkeypatch):
+    secret = "test-secret"
+
+    async def fake_get_secret_key():
+        return secret
+
+    monkeypatch.setattr(jwt_utils, "get_secret_key", fake_get_secret_key)
+
+    token = asyncio.run(create_subscription_token(123))
+    assert token[-1].isalnum()
+    assert not token.endswith(("-", "_"))
+
+    payload = asyncio.run(get_subscription_payload(token))
+    assert payload["user_id"] == 123
+
+    old_v2_token = _build_v2_subscription_token(456, secret)
+    old_v2_payload = asyncio.run(get_subscription_payload(old_v2_token))
+    assert old_v2_payload["user_id"] == 456
 
 
 def test_user_create_active(access_token):
@@ -195,6 +239,62 @@ def test_user_subscriptions(access_token):
         delete_user(access_token, user["username"])
         for host in hosts:
             client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        cleanup_groups(access_token, core, groups)
+
+
+def test_user_routes_by_id_and_by_username(access_token):
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("id_routes_user")})
+    try:
+        by_id_get = client.get(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
+        assert by_id_get.status_code == status.HTTP_200_OK
+        assert by_id_get.json()["username"] == user["username"]
+
+        by_username_get = client.get(f"/api/user/by-username/{user['username']}", headers=auth_headers(access_token))
+        assert by_username_get.status_code == status.HTTP_200_OK
+        assert by_username_get.json()["id"] == user["id"]
+
+        patch_payload = {"note": "updated via by-id"}
+        by_id_modify = client.put(
+            f"/api/user/by-id/{user['id']}",
+            headers=auth_headers(access_token),
+            json=patch_payload,
+        )
+        assert by_id_modify.status_code == status.HTTP_200_OK
+        assert by_id_modify.json()["note"] == patch_payload["note"]
+
+        by_username_usage = client.get(
+            f"/api/user/by-username/{user['username']}/usage",
+            headers=auth_headers(access_token),
+            params={"period": "hour"},
+        )
+        assert by_username_usage.status_code == status.HTTP_200_OK
+    finally:
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_subscription_url_new_token_and_legacy_compatibility(access_token):
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[group["id"] for group in groups],
+        payload={"username": unique_name("legacy_sub_user")},
+    )
+    try:
+        current_token_url = user["subscription_url"]
+        current_links = client.get(f"{current_token_url}/links")
+        assert current_links.status_code == status.HTTP_200_OK
+
+        legacy_token = _build_legacy_subscription_token(user["username"])
+        legacy_token_url = f"{current_token_url.rsplit('/', 1)[0]}/{legacy_token}"
+        legacy_links = client.get(f"{legacy_token_url}/links")
+        assert legacy_links.status_code == status.HTTP_200_OK
+    finally:
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
         cleanup_groups(access_token, core, groups)
 
 

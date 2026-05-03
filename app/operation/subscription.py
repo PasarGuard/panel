@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 from app.db import AsyncSession
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
+from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, SubRule, Subscription as SubSettings
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
@@ -429,6 +430,35 @@ class SubscriptionOperation(BaseOperation):
 
         # Create response headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
+
+    async def user_subscription_by_user(
+        self,
+        db_user: User,
+        client_type: ConfigFormat,
+        request_url: str = "",
+    ):
+        if client_type == ConfigFormat.block:
+            await self.raise_error(message="Client not supported", code=406)
+
+        sub_settings: SubSettings = await subscription_settings()
+        user = await self.validated_user(db_user)
+
+        response_headers = self.create_response_headers(
+            user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
+        )
+        try:
+            response_headers = self.sanitize_response_headers(response_headers)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400)
+        conf, media_type = await self.fetch_config(user, client_type)
+
+        return Response(content=conf, media_type=media_type, headers=response_headers)
+
+    async def user_subscription_by_id(
+        self, db: AsyncSession, user_id: int, admin: AdminDetails, client_type: ConfigFormat, request_url: str = ""
+    ):
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        return await self.user_subscription_by_user(db_user, client_type, request_url)
 
     async def user_subscription_info(self, db: AsyncSession, token: str) -> tuple[SubscriptionUserResponse, dict]:
         """Retrieves detailed information about the user's subscription."""

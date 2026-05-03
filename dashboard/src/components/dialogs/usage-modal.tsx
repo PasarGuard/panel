@@ -5,11 +5,12 @@ import { ChartContainer, ChartTooltip, ChartConfig } from '../ui/chart'
 import { BarChart3, PieChart as PieChartIcon, TrendingUp, Calendar, Info } from 'lucide-react'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from '../charts/time-selector'
 import { useTranslation } from 'react-i18next'
-import { Period, useGetUserUsage, useGetNodesSimple, useGetCurrentAdmin, NodeSimple, GetUserUsageParams } from '@/service/api'
+import { Period, useGetNodesSimple, useGetCurrentAdmin, useGetUserUsageById, NodeSimple, GetUserUsageParams } from '@/service/api'
 import { DateRange } from 'react-day-picker'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import { Button } from '../ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
+import { Skeleton } from '../ui/skeleton'
 import { TooltipProps, Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart as RechartsPieChart } from 'recharts'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
@@ -27,7 +28,7 @@ import {
 interface UsageModalProps {
   open: boolean
   onClose: () => void
-  username: string
+  userId: number
 }
 
 type NodePieChartDataPoint = {
@@ -175,7 +176,7 @@ function NodePieTooltip({ active, payload }: TooltipProps<number, string>) {
   )
 }
 
-const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
+const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
   // Memoize now only once per modal open
   const nowRef = useRef<number>(Date.now())
   useEffect(() => {
@@ -324,7 +325,7 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
   }, [backendPeriod, queryRange.startDate, queryRange.endDate, selectedNodeId, is_sudo])
 
   // Only fetch when modal is open
-  const { data, isLoading } = useGetUserUsage(username, userUsageParams, { query: { enabled: open } })
+  const { data, isLoading } = useGetUserUsageById(userId, userUsageParams, { query: { enabled: open && !!userId } })
 
   // Prepare chart data for BarChart with node grouping
   const processedChartData = useMemo(() => {
@@ -707,17 +708,15 @@ const UsageModal = ({ open, onClose, username }: UsageModalProps) => {
                                 heightClass = isMobile ? 'h-16' : 'h-20'
                               }
                               return (
-                                <div key={i} className="animate-pulse">
-                                  <div className={`w-6 rounded-t-lg bg-muted sm:w-8 ${heightClass}`} />
-                                </div>
+                                <Skeleton key={i} className={`w-6 rounded-t-lg sm:w-8 ${heightClass}`} />
                               )
                             })}
                           </div>
                         </div>
                       </div>
                       <div className="mt-4 flex justify-between px-2">
-                        <div className="h-3 w-12 animate-pulse rounded bg-muted sm:h-4 sm:w-16" />
-                        <div className="h-3 w-12 animate-pulse rounded bg-muted sm:h-4 sm:w-16" />
+                        <Skeleton className="h-3 w-12 sm:h-4 sm:w-16" />
+                        <Skeleton className="h-3 w-12 sm:h-4 sm:w-16" />
                       </div>
                     </div>
                   </div>

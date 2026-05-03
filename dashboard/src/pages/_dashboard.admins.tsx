@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import AdminsTable from '@/components/admins/admins-table'
 import AdminModal from '@/components/dialogs/admin-modal'
 import { adminFormDefaultValues, adminFormSchema, type AdminFormValuesInput } from '@/components/forms/admin-form'
-import { useActivateAllDisabledUsers, useDisableAllActiveUsers, useModifyAdmin, useRemoveAdmin, useResetAdminUsage } from '@/service/api'
+import { useActivateAllDisabledUsersById, useDisableAllActiveUsersById, useModifyAdminById, useRemoveAdminById, useResetAdminUsageById } from '@/service/api'
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/components/admins/admin-statistics'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -27,16 +27,34 @@ export default function AdminsPage() {
     defaultValues: adminFormDefaultValues,
   })
 
-  const removeAdminMutation = useRemoveAdmin()
-  const modifyAdminMutation = useModifyAdmin()
-  const modifyDisableAllAdminUsers = useDisableAllActiveUsers()
-  const modifyActivateAllAdminUsers = useActivateAllDisabledUsers()
-  const resetUsageMutation = useResetAdminUsage()
+  const removeAdminMutation = useRemoveAdminById()
+  const modifyAdminMutation = useModifyAdminById()
+  const modifyDisableAllAdminUsers = useDisableAllActiveUsersById()
+  const modifyActivateAllAdminUsers = useActivateAllDisabledUsersById()
+  const resetUsageMutation = useResetAdminUsageById()
   const handleError = useDynamicErrorHandler()
+
+  const getAdminId = (admin: AdminDetails) => {
+    if (admin.id == null) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: t('admins.missingId', {
+          name: admin.username,
+          defaultValue: 'Admin "{name}" is missing an id in the current response.',
+        }),
+      })
+      return null
+    }
+
+    return admin.id
+  }
+
   const handleDelete = async (admin: AdminDetails) => {
+    const adminId = getAdminId(admin)
+    if (adminId == null) return
+
     try {
       await removeAdminMutation.mutateAsync({
-        username: admin.username,
+        adminId,
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
         description: t('admins.deleteSuccess', {
@@ -44,7 +62,7 @@ export default function AdminsPage() {
           defaultValue: 'Admin «{{name}}» has been deleted successfully',
         }),
       })
-      removeAdminFromAdminsCache(queryClient, admin.username)
+      removeAdminFromAdminsCache(queryClient, adminId)
     } catch (error) {
       handleError({
         error,
@@ -56,20 +74,23 @@ export default function AdminsPage() {
   }
 
   const handleToggleStatus = async (admin: AdminDetails, checked: boolean) => {
+    const adminId = getAdminId(admin)
+    if (adminId == null) return
+
     try {
       if (!admin.is_disabled && checked) {
         await modifyDisableAllAdminUsers.mutateAsync({
-          username: admin.username,
+          adminId,
         })
       }
 
       if (admin.is_disabled && checked) {
         await modifyActivateAllAdminUsers.mutateAsync({
-          username: admin.username,
+          adminId,
         })
       }
       const updatedAdmin = await modifyAdminMutation.mutateAsync({
-        username: admin.username,
+        adminId,
         data: {
           is_sudo: admin.is_sudo,
           is_disabled: !admin.is_disabled,
@@ -91,7 +112,6 @@ export default function AdminsPage() {
           defaultValue: `Admin "{name}" has been ${admin.is_disabled ? 'enabled' : 'disabled'} successfully`,
         }),
       })
-
     } catch (error: any) {
       const status = error?.status ?? error?.response?.status
       const backendDetail = error?.data?.detail ?? error?.response?._data?.detail ?? error?.response?.data?.detail
@@ -134,24 +154,26 @@ export default function AdminsPage() {
     setIsDialogOpen(true)
   }
 
-  const resetUsage = async (adminUsername: string) => {
+  const resetUsage = async (admin: AdminDetails) => {
+    const adminId = getAdminId(admin)
+    if (adminId == null) return
+
     try {
       const updatedAdmin = await resetUsageMutation.mutateAsync({
-        username: adminUsername,
+        adminId,
       })
       upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
 
       toast.success(t('success', { defaultValue: 'Success' }), {
         description: t('admins.resetUsageSuccess', {
-          name: adminUsername,
+          name: admin.username,
           defaultValue: `Admin "{name}" user usage has been reset successfully`,
         }),
       })
-
     } catch (error) {
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: t('admins.resetUsageFailed', {
-          name: adminUsername,
+          name: admin.username,
           defaultValue: `Failed to reset admin "{name}" user usage`,
         }),
       })
@@ -195,7 +217,7 @@ export default function AdminsPage() {
           }}
           form={form}
           editingAdmin={!!editingAdmin}
-          editingAdminUserName={editingAdmin?.username || ''}
+          editingAdminId={editingAdmin?.id}
         />
       </div>
     </div>

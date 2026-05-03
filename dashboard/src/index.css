@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@config '../tailwind.config.js';
+@plugin 'tailwindcss-animate';
+@import 'tailwindcss';
 
 @layer base {
   :root {
@@ -129,6 +129,11 @@
     @apply bg-background font-body text-foreground;
     overflow-x: hidden; /* Prevent horizontal scroll from drag-and-drop elements */
     scroll-behavior: smooth; /* Smooth scrolling for better UX */
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
   }
 
   /* Enhanced shadcn-style scrollbar */

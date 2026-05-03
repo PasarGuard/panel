@@ -1,5 +1,6 @@
 import { DatePicker, type DatePickerAlign, type DatePickerSide } from '@/components/common/date-picker'
 import GroupsSelector from '@/components/common/groups-selector'
+import { TimeUnitSelect, TIME_UNIT_SECONDS, secondsToTimeUnit, type TimeUnit } from '@/components/common/time-unit-select'
 import UsageModal from '@/components/dialogs/usage-modal'
 import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
@@ -29,10 +30,10 @@ import {
   useCreateUserFromTemplate,
   useGetGroupsSimple,
   useGetUserTemplatesSimple,
-  useModifyUser,
-  useModifyUserWithTemplate,
-  useResetUserDataUsage,
-  useRevokeUserSubscription,
+  useModifyUserById,
+  useModifyUserWithTemplateById,
+  useResetUserDataUsageById,
+  useRevokeUserSubscriptionById,
   type UserResponse,
 } from '@/service/api'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
@@ -279,7 +280,7 @@ const StatusSelect = ({
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
+      <PopoverContent className="w-(--radix-popover-trigger-width) p-1" align="start">
         {React.Children.map(children, child => {
           if (React.isValidElement<StatusSelectItemProps>(child) && typeof child.props.value === 'string') {
             return React.cloneElement(child, {
@@ -345,6 +346,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const [isUsageModalOpen, setUsageModalOpen] = useState(false)
   const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
+  const [onHoldExpireUnit, setOnHoldExpireUnit] = useState<TimeUnit>('days')
 
   // Watch next plan values directly for reactivity
   const nextPlanUserTemplateId = form.watch('next_plan.user_template_id')
@@ -438,6 +440,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         setNextPlanManuallyDisabled(false)
         dataLimitInputRef.current = ''
         onHoldExpireDurationInputRef.current = ''
+        setOnHoldExpireUnit('days')
         nextPlanExpireInputRef.current = ''
         nextPlanDataLimitInputRef.current = ''
       }
@@ -567,7 +570,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
   })
-  const modifyUserMutation = useModifyUser({
+  const modifyUserMutation = useModifyUserById({
     mutation: {
       onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
@@ -579,12 +582,12 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   })
 
   // Add the mutation hook at the top with other mutations
-  const modifyUserWithTemplateMutation = useModifyUserWithTemplate({
+  const modifyUserWithTemplateMutation = useModifyUserWithTemplateById({
     mutation: {
       onSuccess: data => syncUserCacheFromApiResponse(data, { allowInsert: true, notifySuccessCallback: true }),
     },
   })
-  const resetUserDataUsageMutation = useResetUserDataUsage({
+  const resetUserDataUsageMutation = useResetUserDataUsageById({
     mutation: {
       onSuccess: updatedUser => {
         if (updatedUser) {
@@ -593,7 +596,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       },
     },
   })
-  const revokeUserSubscriptionMutation = useRevokeUserSubscription({
+  const revokeUserSubscriptionMutation = useRevokeUserSubscriptionById({
     mutation: {
       onSuccess: updatedUser => {
         if (updatedUser) {
@@ -940,6 +943,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const handleTemplateMutation = React.useCallback(
     async (values: UseFormValues | UseEditFormValues) => {
       if (!selectedTemplateId) return
+      if (editingUser && !editingUserId) return
 
       // Validate template mode requirements
       if (!values.username || values.username.length < 3) {
@@ -949,9 +953,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
 
       setLoading(true)
       try {
-        if (editingUser) {
+        if (editingUser && editingUserId) {
           await modifyUserWithTemplateMutation.mutateAsync({
-            username: values.username,
+            userId: editingUserId,
             data: {
               user_template_id: selectedTemplateId,
               note: values.note,
@@ -1132,7 +1136,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         if (editingUser && editingUserId) {
           try {
             await modifyUserMutation.mutateAsync({
-              username: sendValues.username,
+              userId: editingUserId,
               data: sendValues,
             })
             toast.success(
@@ -1374,6 +1378,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   )
 
   const currentUsername = editingUserData?.username || form.getValues('username')
+  const currentUserId = editingUserData?.id || editingUserId
   const isPersianLocale = i18n.language?.toLowerCase().startsWith('fa')
   const formatMetaDate = React.useCallback(
     (value?: string | number | null) => {
@@ -1408,9 +1413,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }, [editingUserData?.edit_at, formatMetaDate])
 
   const confirmResetUsage = async () => {
-    if (!currentUsername) return
+    if (!currentUserId || !currentUsername) return
     try {
-      await resetUserDataUsageMutation.mutateAsync({ username: currentUsername })
+      await resetUserDataUsageMutation.mutateAsync({ userId: currentUserId })
       toast.success(t('usersTable.resetUsageSuccess', { name: currentUsername }))
       setResetUsageDialogOpen(false)
     } catch (error: any) {
@@ -1419,9 +1424,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }
 
   const confirmRevokeSubscription = async () => {
-    if (!currentUsername) return
+    if (!currentUserId || !currentUsername) return
     try {
-      await revokeUserSubscriptionMutation.mutateAsync({ username: currentUsername })
+      await revokeUserSubscriptionMutation.mutateAsync({ userId: currentUserId })
       toast.success(t('userDialog.revokeSubSuccess', { name: currentUsername }))
       setRevokeSubDialogOpen(false)
     } catch (error: any) {
@@ -1890,17 +1895,18 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                             control={form.control}
                             name="on_hold_expire_duration"
                             render={({ field }) => {
-                              const daySec = 24 * 60 * 60
+                              const unitSeconds = TIME_UNIT_SECONDS[onHoldExpireUnit]
                               if (
                                 onHoldExpireDurationInputRef.current === '' &&
                                 field.value != null &&
                                 field.value !== undefined &&
                                 field.value > 0
                               ) {
-                                onHoldExpireDurationInputRef.current = String(field.value / daySec)
+                                onHoldExpireDurationInputRef.current = secondsToTimeUnit(field.value, onHoldExpireUnit)
                               } else if (
-                                (field.value === null || field.value === undefined) &&
+                                (field.value === null || field.value === undefined || field.value === 0) &&
                                 onHoldExpireDurationInputRef.current !== ''
+                                && !onHoldExpireDurationInputRef.current.endsWith('.')
                               ) {
                                 onHoldExpireDurationInputRef.current = ''
                               }
@@ -1909,7 +1915,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                 onHoldExpireDurationInputRef.current !== ''
                                   ? onHoldExpireDurationInputRef.current
                                   : field.value != null && field.value !== undefined && field.value > 0
-                                    ? String(field.value / daySec)
+                                    ? secondsToTimeUnit(field.value, onHoldExpireUnit)
                                     : ''
 
                               return (
@@ -1949,7 +1955,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                           } else {
                                             const numValue = parseFloat(rawValue)
                                             if (!isNaN(numValue) && numValue >= 0) {
-                                              const seconds = numValue * daySec
+                                              const seconds = numValue * unitSeconds
                                               field.onChange(seconds)
                                               handleFieldChange('on_hold_expire_duration', seconds)
                                               void form.trigger('on_hold_expire_duration')
@@ -1966,10 +1972,10 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                           } else {
                                             const numValue = parseFloat(rawValue)
                                             if (!isNaN(numValue) && numValue >= 0) {
-                                              const finalDays = numValue
-                                              const finalSeconds = finalDays * daySec
+                                              const finalAmount = numValue
+                                              const finalSeconds = finalAmount * unitSeconds
                                               onHoldExpireDurationInputRef.current =
-                                                finalDays > 0 ? String(finalDays) : ''
+                                                finalAmount > 0 ? String(finalAmount) : ''
                                               field.onChange(finalSeconds)
                                               handleFieldChange('on_hold_expire_duration', finalSeconds)
                                               void form.trigger('on_hold_expire_duration')
@@ -1981,13 +1987,19 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                             }
                                           }
                                         }}
-                                        className={dir === 'rtl' ? 'pl-14' : 'pr-14'}
+                                        className={cn(dir === 'rtl' ? 'pl-20' : 'pr-20')}
                                       />
-                                      <span
-                                        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground ${dir === 'rtl' ? 'start-3' : 'end-3'}`}
-                                      >
-                                        {t('time.days', { defaultValue: 'Days' })}
-                                      </span>
+                                      <TimeUnitSelect
+                                        value={onHoldExpireUnit}
+                                        onValueChange={nextUnit => {
+                                          setOnHoldExpireUnit(nextUnit)
+                                          onHoldExpireDurationInputRef.current = secondsToTimeUnit(field.value, nextUnit)
+                                        }}
+                                        triggerClassName={cn(
+                                          'absolute top-0 h-full w-20 rounded-none border-y-0 focus:ring-0 focus:ring-offset-0',
+                                          dir === 'rtl' ? 'left-0 border-l-0' : 'right-0 border-r-0',
+                                        )}
+                                      />
                                     </div>
                                   </FormControl>
                                   <FormMessage />
@@ -2026,7 +2038,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                           calendarOpen={onHoldCalendarOpen}
                           setCalendarOpen={setOnHoldCalendarOpen}
                           handleFieldChange={handleFieldChange}
-                          label={t('userDialog.timeOutDate', { defaultValue: 'Expire date' })}
+                          label={t('userDialog.timeOutDate', { defaultValue: 'Hold Until' })}
                           fieldName="on_hold_timeout"
                           popoverAlignDesktop="start"
                           popoverSideDesktop={dir === 'rtl' ? 'left' : 'right'}
@@ -2525,7 +2537,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                   )}
                   {/* Next Plan Section (toggleable) */}
                   {activeTab === 'groups' && editingUser && (
-                    <div className="rounded-[--radius] border border-border p-4">
+                    <div className="rounded-(--radius) border border-border p-4">
                       <div className="flex items-center justify-between">
                         <div
                           className="flex cursor-pointer items-center gap-2"
@@ -3072,8 +3084,15 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       </AlertDialog>
 
       {isSudo && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
-      {currentUsername && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} username={currentUsername} />}
-      {currentUsername && <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} username={currentUsername} />}
+      {currentUserId && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={currentUserId} />}
+      {currentUserId && (
+        <UserSubscriptionClientsModal
+          isOpen={isSubscriptionClientsModalOpen}
+          onOpenChange={setSubscriptionClientsModalOpen}
+          userId={currentUserId}
+          username={currentUsername}
+        />
+      )}
     </Dialog>
   )
 }

@@ -9,6 +9,7 @@ class InboundSummary(BaseModel):
 
 class SystemStats(BaseModel):
     version: str
+    uptime_seconds: int
     mem_total: int | None = None
     mem_used: int | None = None
     disk_total: int | None = None

@@ -4,7 +4,6 @@ from aiorwlock import RWLock
 from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode, create_node
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
-
 from app.db.models import Node, NodeConnectionType
 from app.node.user import core_users
 from app.utils.logger import get_logger
@@ -60,6 +59,7 @@ class NodeManager:
                 default_timeout=node.default_timeout,
                 internal_timeout=node.internal_timeout,
                 max_message_size=max_message_size,
+                proxy=node.proxy_url,
                 extra={"id": node.id, "usage_coefficient": node.usage_coefficient},
             )
 

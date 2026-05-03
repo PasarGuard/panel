@@ -32,6 +32,7 @@ import { useNodeListColumns } from '@/components/nodes/use-node-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { BulkActionItem, BulkActionsBar } from '@/components/users/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
+import { NodeActionsMenuModalHost } from '@/components/nodes/node-actions-menu'
 
 const NODES_PER_PAGE = 15
 
@@ -207,6 +208,7 @@ export default function NodesList() {
       server_ca: node.server_ca,
       keep_alive: node.keep_alive,
       keep_alive_unit: 'seconds',
+      proxy_url: node.proxy_url ?? '',
     })
     setIsDialogOpen(true)
   }
@@ -233,6 +235,7 @@ export default function NodesList() {
         reset_time: toOptional(node.reset_time),
         default_timeout: toOptional(node.default_timeout),
         internal_timeout: toOptional(node.internal_timeout),
+        proxy_url: node.proxy_url ?? null,
         status: newStatus,
       }
 
@@ -523,23 +526,23 @@ export default function NodesList() {
         },
         ...(disableEligibleCount > 0
           ? [
-            {
-              key: 'disable',
-              label: t('disable'),
-              icon: PowerOff,
-              onClick: () => setBulkAction('disable'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'disable',
+                label: t('disable'),
+                icon: PowerOff,
+                onClick: () => setBulkAction('disable'),
+              } as BulkActionItem,
+            ]
           : []),
         ...(enableEligibleCount > 0
           ? [
-            {
-              key: 'enable',
-              label: t('enable'),
-              icon: Power,
-              onClick: () => setBulkAction('enable'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'enable',
+                label: t('enable'),
+                icon: Power,
+                onClick: () => setBulkAction('enable'),
+              } as BulkActionItem,
+            ]
           : []),
         {
           key: 'reset',
@@ -649,7 +652,8 @@ export default function NodesList() {
               getRowId={node => node.id}
               isLoading={showLoadingSpinner || showPageLoadingSkeletons}
               loadingRows={6}
-              className="gap-3"
+              className="gap-1.5"
+              rowClassName={viewMode === 'list' ? 'py-2' : undefined}
               onRowClick={handleEdit}
               mode={viewMode}
               enableSelection
@@ -669,7 +673,7 @@ export default function NodesList() {
                         <Skeleton className="h-5 w-32 sm:w-40" />
                       </div>
                       <Skeleton className="mb-1 h-4 w-28 sm:w-36" />
-                      {i % 3 === 0 && <Skeleton className="mb-2 mt-1 h-3 w-40 sm:w-48" />}
+                      {i % 3 === 0 && <Skeleton className="mt-1 mb-2 h-3 w-40 sm:w-48" />}
                       <div className="mt-2 space-y-1.5">
                         <Skeleton className="h-1.5 w-full rounded-full" />
                         <div className="flex items-center justify-between gap-2">
@@ -696,9 +700,9 @@ export default function NodesList() {
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">{t('nodes.noNodes')}</h3>
-                  <p className="mx-auto max-w-2xl text-muted-foreground">
+                  <p className="text-muted-foreground mx-auto max-w-2xl">
                     {t('nodes.noNodesDescription')}{' '}
-                    <a href="https://github.com/PasarGuard/node" target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline-offset-4 hover:underline">
+                    <a href="https://github.com/PasarGuard/node" target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline-offset-4 hover:underline">
                       PasarGuard/node
                     </a>{' '}
                     {t('nodes.noNodesDescription2', { defaultValue: 'and connect it to the panel.' })}
@@ -713,7 +717,7 @@ export default function NodesList() {
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">{t('nodes.noFilteredResults')}</h3>
-                  <p className="mx-auto max-w-2xl text-muted-foreground">{t('nodes.noSearchResults')}</p>
+                  <p className="text-muted-foreground mx-auto max-w-2xl">{t('nodes.noSearchResults')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -753,6 +757,7 @@ export default function NodesList() {
             destructive={activeBulkActionConfig.destructive}
           />
         )}
+        <NodeActionsMenuModalHost />
       </div>
     </div>
   )

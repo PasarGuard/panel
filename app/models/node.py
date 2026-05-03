@@ -7,7 +7,8 @@ from cryptography.x509 import load_pem_x509_certificate
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
-from .validators import ListValidator
+
+from .validators import ListValidator, ProxyValidator
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
@@ -50,6 +51,7 @@ class Node(BaseModel):
     reset_time: int = Field(default=-1)
     default_timeout: int = Field(default=10, ge=3, le=60)
     internal_timeout: int = Field(default=15, ge=3, le=60)
+    proxy_url: str | None = Field(default=None, max_length=256)
 
 
 class NodeCreate(Node):
@@ -157,6 +159,11 @@ class NodeCreate(Node):
             )
 
         return self
+
+    @field_validator("proxy_url")
+    @classmethod
+    def validate_proxy_url(cls, v):
+        return ProxyValidator.validate_proxy_url(v)
 
 
 class NodeModify(NodeCreate):

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState, memo } from 'react'
+import { useCallback, useEffect, useRef, useMemo, useState, memo } from 'react'
 import { useLocation } from 'react-router'
 import { useTheme } from '@/components/common/theme-provider'
 import LoadingBar from 'react-top-loading-bar'
@@ -14,8 +14,6 @@ const shouldIgnoreRoute = (pathname: string): boolean => {
   return shouldIgnore
 }
 
-let lastLocation = ''
-
 declare global {
   interface Window {
     resetLoadingBarInitialState?: () => void
@@ -30,8 +28,10 @@ interface TopLoadingBarProps {
 }
 
 function TopLoadingBar({ height = 3, color, shadow = false, className = '' }: TopLoadingBarProps) {
-  const ref = useRef<any>(null)
-  const maxTimeoutRef = useRef<NodeJS.Timeout>()
+  const [progress, setProgress] = useState(0)
+  const completeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
+  const lastLocationRef = useRef('')
   const { resolvedTheme } = useTheme()
   const location = useLocation()
 
@@ -77,6 +77,39 @@ function TopLoadingBar({ height = 3, color, shadow = false, className = '' }: To
   }, [colorThemeKey])
 
   const pathname = useMemo(() => location.pathname, [location.pathname])
+
+  const clearTimers = useCallback(() => {
+    if (completeTimeoutRef.current) {
+      clearTimeout(completeTimeoutRef.current)
+      completeTimeoutRef.current = undefined
+    }
+
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current)
+      progressIntervalRef.current = undefined
+    }
+  }, [])
+
+  const complete = useCallback(() => {
+    clearTimers()
+    setProgress(100)
+  }, [clearTimers])
+
+  const start = useCallback(() => {
+    clearTimers()
+    setProgress(20)
+
+    progressIntervalRef.current = setInterval(() => {
+      setProgress(current => {
+        if (current >= 90) return current
+        return Math.min(current + Math.max(2, (90 - current) * 0.18), 90)
+      })
+    }, 180)
+
+    completeTimeoutRef.current = setTimeout(() => {
+      complete()
+    }, 800)
+  }, [clearTimers, complete])
 
   const primaryColor = useMemo(() => {
     if (color) return color
@@ -125,68 +158,39 @@ function TopLoadingBar({ height = 3, color, shadow = false, className = '' }: To
   useEffect(() => {
     const currentPath = location.pathname + location.search
 
-    if (currentPath !== lastLocation && lastLocation !== '') {
+    if (currentPath !== lastLocationRef.current && lastLocationRef.current !== '') {
       if ((window as any).resetLoadingBarInitialState) {
         ;(window as any).resetLoadingBarInitialState()
       }
     }
 
-    lastLocation = currentPath
+    lastLocationRef.current = currentPath
 
     if (shouldIgnoreRoute(pathname)) {
-      // For ignored routes, ensure any existing loading bar is completed immediately
-      if (ref.current) {
-        ref.current.complete()
-      }
-      // Clear any pending timeout
-      if (maxTimeoutRef.current) {
-        clearTimeout(maxTimeoutRef.current)
-        maxTimeoutRef.current = undefined
-      }
-    } else if (ref.current) {
-      // Start loading bar on route change with continuous animation
-      ref.current.continuousStart()
-
-      // Set timeout to complete the loading bar after a longer delay
-      // This gives time for the animation to progress and the page to render
-      if (maxTimeoutRef.current) {
-        clearTimeout(maxTimeoutRef.current)
-      }
-
-      maxTimeoutRef.current = setTimeout(() => {
-        if (ref.current) {
-          ref.current.complete()
-        }
-        maxTimeoutRef.current = undefined
-      }, 800)
+      complete()
+    } else {
+      start()
     }
 
-    return () => {
-      if (maxTimeoutRef.current) {
-        clearTimeout(maxTimeoutRef.current)
-      }
-    }
-  }, [pathname, location.search])
+    return clearTimers
+  }, [clearTimers, complete, pathname, location.pathname, location.search, start])
 
   useEffect(() => {
-    return () => {
-      if (maxTimeoutRef.current) {
-        clearTimeout(maxTimeoutRef.current)
-      }
-    }
-  }, [])
+    return clearTimers
+  }, [clearTimers])
 
   const loadingBarProps = useMemo(
     () => ({
-      ref,
+      progress,
       color: primaryColor,
       height,
       shadow,
       className: `${className} pointer-events-none [direction:ltr] !top-[env(safe-area-inset-top)]`,
+      onLoaderFinished: () => setProgress(0),
       waitingTime: 0,
       transitionTime: 200,
     }),
-    [primaryColor, height, shadow, className],
+    [progress, primaryColor, height, shadow, className],
   )
 
   return (

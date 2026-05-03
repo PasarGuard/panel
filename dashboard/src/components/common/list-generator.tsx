@@ -133,6 +133,7 @@ export function ListGenerator<T>({
   const hasMobileTrailingWidth = mobileDetailsColumns.length > 0
   const isAllVisibleSelected = visibleSelectableRowIds.length > 0 && visibleSelectableRowIds.every(id => selectedRowSet.has(id))
   const isSomeVisibleSelected = !isAllVisibleSelected && visibleSelectableRowIds.some(id => selectedRowSet.has(id))
+  const selectedVisibleRowCount = visibleSelectableRowIds.filter(id => selectedRowSet.has(id)).length
   const mobileTemplateColumns = useMemo(() => {
     const visibleColumns = columns.filter(column => !column.hideOnMobile).map(column => column.width ?? 'minmax(0, 1fr)')
 
@@ -161,6 +162,7 @@ export function ListGenerator<T>({
   const listTemplateClassName = 'grid [grid-template-columns:var(--list-cols-mobile)] md:[grid-template-columns:var(--list-cols-desktop)]'
   const dir = useDirDetection()
   const gridContent = (showRows || isLoading) && renderGridItem
+  const headerSelectionCheckboxClassName = 'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary'
   const selectionCheckboxClassName =
     'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 bg-background data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground'
   const stopSelectionClick = (event: React.SyntheticEvent) => {
@@ -204,9 +206,47 @@ export function ListGenerator<T>({
     onSelectionChange(nextSelectedRowIds)
   }
 
+  const handleGridSelectionToolbarClick = () => {
+    handleToggleAllVisibleSelection(!isAllVisibleSelected)
+  }
+
+  const handleGridSelectionToolbarKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+
+    event.preventDefault()
+    handleGridSelectionToolbarClick()
+  }
+
   if (mode === 'grid') {
     return (
       <div className={cn('flex w-full flex-col gap-2', className)}>
+        {enableSelection && enableGridSelection && visibleSelectableRowIds.length > 0 && (
+          <div
+            role="button"
+            tabIndex={0}
+            className="bg-background hover:bg-muted/40 focus-visible:ring-ring flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            onClick={handleGridSelectionToolbarClick}
+            onKeyDown={handleGridSelectionToolbarKeyDown}
+          >
+            <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
+              <Checkbox
+                aria-label={t('selectAll', { defaultValue: 'Select all' })}
+                className={headerSelectionCheckboxClassName}
+                checked={isAllVisibleSelected || (isSomeVisibleSelected && 'indeterminate')}
+                onCheckedChange={value => handleToggleAllVisibleSelection(!!value)}
+                onClick={stopSelectionClick}
+                onPointerDown={stopSelectionClick}
+                onKeyDown={stopSelectionClick}
+              />
+              <span className="truncate">{t('selectAll', { defaultValue: 'Select all' })}</span>
+            </div>
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {selectedVisibleRowCount}/{visibleSelectableRowIds.length}
+            </span>
+          </div>
+        )}
         {gridContent ? (
           <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3', gridClassName)} style={gridStyle}>
             {isLoading &&
@@ -214,7 +254,7 @@ export function ListGenerator<T>({
                 renderGridSkeleton ? (
                   <div key={`grid-skeleton-${index}`}>{renderGridSkeleton(index)}</div>
                 ) : (
-                  <div key={`grid-skeleton-${index}`} className="rounded-md border bg-background p-4">
+                  <div key={`grid-skeleton-${index}`} className="bg-background rounded-md border p-4">
                     <div className="space-y-2">
                       <Skeleton className="h-4 w-2/3" />
                       <Skeleton className="h-3 w-full" />
@@ -233,25 +273,14 @@ export function ListGenerator<T>({
                   defaultValue: isSelected ? 'Selected' : 'Select',
                 })
                 const selectionControl = canSelectRow ? (
-                  <div
-                    className="flex shrink-0 items-center"
-                    onClick={stopSelectionClick}
-                    onMouseDown={stopSelectionPointer}
-                    onPointerDown={stopSelectionPointer}
-                    onKeyDown={stopSelectionClick}
-                  >
-                    <Checkbox
-                      aria-label={selectionLabel}
-                      className={selectionCheckboxClassName}
-                      checked={isSelected}
-                      onCheckedChange={() => handleToggleRowSelection(rowId, item)}
-                    />
+                  <div className="flex shrink-0 items-center" onClick={stopSelectionClick} onMouseDown={stopSelectionPointer} onPointerDown={stopSelectionPointer} onKeyDown={stopSelectionClick}>
+                    <Checkbox aria-label={selectionLabel} className={selectionCheckboxClassName} checked={isSelected} onCheckedChange={() => handleToggleRowSelection(rowId, item)} />
                   </div>
                 ) : undefined
 
                 const renderedGridItem =
-                  enableGridSelection && React.isValidElement<any>(gridItem)
-                    ? React.cloneElement(gridItem, {
+                  enableGridSelection && React.isValidElement(gridItem)
+                    ? React.cloneElement(gridItem as React.ReactElement<{ selected?: boolean; selectionControl?: React.ReactNode }>, {
                         selected: isSelected,
                         selectionControl,
                       })
@@ -265,9 +294,9 @@ export function ListGenerator<T>({
               })}
           </div>
         ) : (
-          <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">Provide `renderGridItem` to render grid mode.</div>
+          <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">Provide `renderGridItem` to render grid mode.</div>
         )}
-        {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}
+        {shouldShowEmptyState && (emptyState ?? <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">No results.</div>)}
       </div>
     )
   }
@@ -275,13 +304,13 @@ export function ListGenerator<T>({
   return (
     <div className={cn('flex w-full flex-col gap-2', className)}>
       {!hideHeader && (
-        <div className={cn(listTemplateClassName, 'gap-3 px-3 text-xs font-semibold uppercase text-muted-foreground', headerClassName)} style={listTemplateStyleVars}>
+        <div className={cn(listTemplateClassName, 'text-muted-foreground gap-3 px-3 text-xs font-semibold uppercase', headerClassName)} style={listTemplateStyleVars}>
           {enableSorting && <div aria-hidden="true" />}
           {enableSelection && (
             <div className="flex items-center justify-center">
               <Checkbox
                 aria-label={t('selectAll', { defaultValue: 'Select all' })}
-                className={selectionCheckboxClassName}
+                className={headerSelectionCheckboxClassName}
                 checked={isAllVisibleSelected || (isSomeVisibleSelected && 'indeterminate')}
                 onCheckedChange={value => handleToggleAllVisibleSelection(!!value)}
                 onClick={stopSelectionClick}
@@ -301,7 +330,7 @@ export function ListGenerator<T>({
 
       {isLoading &&
         Array.from({ length: loadingRows }).map((_, rowIndex) => (
-          <div key={`list-skeleton-${rowIndex}`} className={cn(listTemplateClassName, 'gap-3 rounded-md border bg-background px-3 py-3')} style={listTemplateStyleVars}>
+          <div key={`list-skeleton-${rowIndex}`} className={cn(listTemplateClassName, 'bg-background gap-3 rounded-md border px-3 py-3')} style={listTemplateStyleVars}>
             {enableSorting && <div aria-hidden="true" />}
             {enableSelection && <div aria-hidden="true" />}
             {columns.map(column => (
@@ -319,12 +348,13 @@ export function ListGenerator<T>({
           const canSelectRow = enableSelection && (isRowSelectable ? isRowSelectable(item) : true)
           const isSelected = selectedRowSet.has(rowId)
 
-          const RowContent = (props?: { attributes?: ReturnType<typeof useSortable>['attributes']; listeners?: ReturnType<typeof useSortable>['listeners']; style?: React.CSSProperties }) => (
+          const renderRowContent = (props?: { attributes?: ReturnType<typeof useSortable>['attributes']; listeners?: ReturnType<typeof useSortable>['listeners']; style?: React.CSSProperties }) => (
             <div
+              key={!enableSorting ? rowId : undefined}
               className={cn(
                 listTemplateClassName,
-                'gap-3 overflow-hidden rounded-md border bg-background px-3 py-3',
-                onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
+                'bg-background gap-3 overflow-hidden rounded-md border px-3 py-3',
+                onRowClick && 'hover:bg-muted/40 cursor-pointer transition-colors',
                 isSelected && 'border-primary/40 bg-muted/40',
                 renderRowClassName(item, index),
               )}
@@ -335,7 +365,7 @@ export function ListGenerator<T>({
               {enableSorting && (
                 <button
                   type="button"
-                  className={cn('flex touch-none items-center justify-center text-muted-foreground', sortingDisabled ? 'cursor-not-allowed opacity-40' : 'z-50 cursor-grab')}
+                  className={cn('text-muted-foreground flex touch-none items-center justify-center', sortingDisabled ? 'cursor-not-allowed opacity-40' : 'z-50 cursor-grab')}
                   onClick={event => event.stopPropagation()}
                   {...props?.listeners}
                   aria-label="Drag to reorder"
@@ -345,13 +375,7 @@ export function ListGenerator<T>({
                 </button>
               )}
               {enableSelection && (
-                <div
-                  className="flex items-center justify-center"
-                  onClick={stopSelectionClick}
-                  onMouseDown={stopSelectionPointer}
-                  onPointerDown={stopSelectionPointer}
-                  onKeyDown={stopSelectionClick}
-                >
+                <div className="flex items-center justify-center" onClick={stopSelectionClick} onMouseDown={stopSelectionPointer} onPointerDown={stopSelectionPointer} onKeyDown={stopSelectionClick}>
                   {canSelectRow ? (
                     <Checkbox
                       aria-label={t('select', { defaultValue: 'Select' })}
@@ -379,7 +403,7 @@ export function ListGenerator<T>({
                   {hasMobileExpandableDetails && (
                     <button
                       type="button"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground/80 transition-all hover:text-foreground active:scale-95"
+                      className="text-muted-foreground/80 hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-full transition-all active:scale-95"
                       onClick={event => {
                         event.stopPropagation()
                         setExpandedRowId(prev => (prev === rowId ? null : rowId))
@@ -395,12 +419,17 @@ export function ListGenerator<T>({
                 <div className="col-span-full mt-2 space-y-1.5 md:hidden">
                   {mobileDetailDataColumns.length > 0 && (
                     <div className="space-y-1">
-                      {mobileDetailDataColumns.map(column => (
-                        <div key={`mobile-${column.id}-${rowId}`} className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}>
-                          <div className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{column.header}</div>
-                          <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{column.cell(item)}</div>
-                        </div>
-                      ))}
+                      {mobileDetailDataColumns.map(column => {
+                        const cellContent = column.cell(item)
+                        if (cellContent === null || cellContent === undefined) return null
+
+                        return (
+                          <div key={`mobile-${column.id}-${rowId}`} className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}>
+                            <div className="text-muted-foreground shrink-0 text-[10px] font-medium tracking-wide uppercase">{column.header}</div>
+                            <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{cellContent}</div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -409,13 +438,13 @@ export function ListGenerator<T>({
           )
 
           if (!enableSorting) {
-            return <RowContent key={rowId} />
+            return renderRowContent()
           }
 
-          return <SortableListRow key={rowId} rowId={rowId} sortingDisabled={sortingDisabled} renderRow={props => <RowContent {...props} />} />
+          return <SortableListRow key={rowId} rowId={rowId} sortingDisabled={sortingDisabled} renderRow={props => renderRowContent(props)} />
         })}
 
-      {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}
+      {shouldShowEmptyState && (emptyState ?? <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">No results.</div>)}
     </div>
   )
 }

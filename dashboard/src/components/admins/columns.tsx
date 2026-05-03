@@ -16,10 +16,10 @@ interface ColumnSetupProps {
   onEdit: (admin: AdminDetails) => void
   onDelete: (admin: AdminDetails) => void
   toggleStatus: (admin: AdminDetails) => void
-  onResetUsage: (adminUsername: string) => void
-  onDisableAllActiveUsers: (adminUsername: string) => void
-  onActivateAllDisabledUsers: (adminUsername: string) => void
-  onRemoveAllUsers: (adminUsername: string) => void
+  onResetUsage: (admin: AdminDetails) => void
+  onDisableAllActiveUsers: (admin: AdminDetails) => void
+  onActivateAllDisabledUsers: (admin: AdminDetails) => void
+  onRemoveAllUsers: (admin: AdminDetails) => void
 }
 
 const createSortButton = (
@@ -206,7 +206,7 @@ export const setupColumns = ({
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onResetUsage(row.original.username)
+                    onResetUsage(row.original)
                   }}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
@@ -229,7 +229,7 @@ export const setupColumns = ({
                     onSelect={e => {
                       e.preventDefault()
                       e.stopPropagation()
-                      onDisableAllActiveUsers(row.original.username)
+                      onDisableAllActiveUsers(row.original)
                     }}
                   >
                     <UserMinus className="mr-2 h-4 w-4" />
@@ -241,7 +241,7 @@ export const setupColumns = ({
                     onSelect={e => {
                       e.preventDefault()
                       e.stopPropagation()
-                      onActivateAllDisabledUsers(row.original.username)
+                      onActivateAllDisabledUsers(row.original)
                     }}
                   >
                     <UserCheck className="mr-2 h-4 w-4" />
@@ -254,7 +254,7 @@ export const setupColumns = ({
                     onSelect={e => {
                       e.preventDefault()
                       e.stopPropagation()
-                      onRemoveAllUsers(row.original.username)
+                      onRemoveAllUsers(row.original)
                     }}
                   >
                     <UserX className="mr-2 h-4 w-4" />

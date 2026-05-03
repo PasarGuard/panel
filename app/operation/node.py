@@ -297,9 +297,7 @@ class NodeOperation(BaseOperation):
 
         return node
 
-    async def modify_node(
-        self, db: AsyncSession, node_id: Node, modified_node: NodeModify, admin: AdminDetails
-    ) -> Node:
+    async def modify_node(self, db: AsyncSession, node_id: int, modified_node: NodeModify, admin: AdminDetails) -> Node:
         db_node = await self.get_validated_node(db=db, node_id=node_id)
         if modified_node.core_config_id is not None:
             await self.get_validated_core_config(db, modified_node.core_config_id)
@@ -325,7 +323,7 @@ class NodeOperation(BaseOperation):
 
         return node
 
-    async def remove_node(self, db: AsyncSession, node_id: Node, admin: AdminDetails) -> None:
+    async def remove_node(self, db: AsyncSession, node_id: int, admin: AdminDetails) -> None:
         db_node: Node = await self.get_validated_node(db=db, node_id=node_id)
         node_response = NodeResponse.model_validate(db_node)
 
@@ -349,6 +347,7 @@ class NodeOperation(BaseOperation):
             NodeResponse: Updated node object
         """
         db_node = await self.get_validated_node(db=db, node_id=node_id)
+        was_limited = db_node.status == NodeStatus.limited
 
         # Store old values for notification
         old_uplink = db_node.uplink
@@ -356,6 +355,10 @@ class NodeOperation(BaseOperation):
 
         # Reset usage (creates log entry and sets uplink/downlink to 0)
         db_node = await reset_node_usage(db, db_node)
+
+        if was_limited:
+            await self.connect_single_node(db, db_node.id)
+            db_node = await self.get_validated_node(db=db, node_id=node_id)
 
         # Create response
         node = NodeResponse.model_validate(db_node)
@@ -409,7 +412,7 @@ class NodeOperation(BaseOperation):
         await self._disconnect_single_impl(node_id)
         logger.info(f'Node "{node_id}" disconnected')
 
-    async def restart_node(self, db: AsyncSession, node_id: Node, admin: AdminDetails) -> None:
+    async def restart_node(self, db: AsyncSession, node_id: int, admin: AdminDetails) -> None:
         await self.connect_single_node(db, node_id)
         logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
 
@@ -429,23 +432,23 @@ class NodeOperation(BaseOperation):
         start, end = await self.validate_dates(start, end, True)
         return await get_nodes_usage(db, start, end, period=period, node_id=node_id, group_by_node=group_by_node)
 
-    async def get_logs(self, node_id: Node) -> Callable[[], AsyncIterator[asyncio.Queue]]:
+    async def get_logs(self, node_id: int) -> Callable[[], AsyncIterator[asyncio.Queue]]:
         return await self._get_logs_impl(node_id)
 
     async def get_node_stats_periodic(
-        self, db: AsyncSession, node_id: id, start: dt = None, end: dt = None, period: Period = Period.hour
+        self, db: AsyncSession, node_id: int, start: dt = None, end: dt = None, period: Period = Period.hour
     ) -> NodeStatsList:
         start, end = await self.validate_dates(start, end, True)
 
         return await get_node_stats(db, node_id, start, end, period=period)
 
-    async def get_node_system_stats(self, node_id: Node) -> NodeRealtimeStats:
+    async def get_node_system_stats(self, node_id: int) -> NodeRealtimeStats:
         return await self._get_node_stats_impl(node_id)
 
     async def get_nodes_system_stats(self) -> dict[int, NodeRealtimeStats | None]:
         return await self._get_nodes_stats_impl()
 
-    async def _get_node_stats_safe(self, node_id: Node) -> NodeRealtimeStats | None:
+    async def _get_node_stats_safe(self, node_id: int) -> NodeRealtimeStats | None:
         """Wrapper method that returns None instead of raising exceptions"""
         try:
             return await self.get_node_system_stats(node_id)
@@ -453,10 +456,10 @@ class NodeOperation(BaseOperation):
             logger.error(f"Error getting system stats for node {node_id}: {e}")
             return None
 
-    async def get_user_online_stats_by_node(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
+    async def get_user_online_stats_by_node(self, db: AsyncSession, node_id: int, username: str) -> dict[int, int]:
         return await self._get_user_online_stats_impl(db, node_id, username)
 
-    async def get_user_ip_list_by_node(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
+    async def get_user_ip_list_by_node(self, db: AsyncSession, node_id: int, username: str) -> UserIPList:
         return await self._get_user_ip_list_impl(db, node_id, username)
 
     async def get_user_ip_list_all_nodes(self, db: AsyncSession, username: str) -> UserIPListAll:
@@ -674,16 +677,16 @@ class NodeOperation(BaseOperation):
     async def _restart_all_nodes_remote(self, db: AsyncSession, admin: AdminDetails, core_id: int | None) -> None:
         await node_nats_client.publish("connect_nodes_bulk", {"core_id": core_id})
 
-    async def _get_logs_local(self, node_id: Node) -> Callable[[], AsyncIterator[asyncio.Queue]]:
+    async def _get_logs_local(self, node_id: int) -> Callable[[], AsyncIterator[asyncio.Queue]]:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
         return node.stream_logs
 
-    async def _get_logs_remote(self, node_id: Node) -> Callable[[], AsyncIterator[asyncio.Queue]]:
+    async def _get_logs_remote(self, node_id: int) -> Callable[[], AsyncIterator[asyncio.Queue]]:
         await self.raise_error(message="Node logs are only available via node-worker", code=409)
 
-    async def _get_node_system_stats_local(self, node_id: Node) -> NodeRealtimeStats:
+    async def _get_node_system_stats_local(self, node_id: int) -> NodeRealtimeStats:
         node = await node_manager.get_node(node_id)
 
         if node is None:
@@ -704,9 +707,10 @@ class NodeOperation(BaseOperation):
             cpu_usage=stats.cpu_usage,
             incoming_bandwidth_speed=stats.incoming_bandwidth_speed,
             outgoing_bandwidth_speed=stats.outgoing_bandwidth_speed,
+            uptime=stats.uptime,
         )
 
-    async def _get_node_system_stats_remote(self, node_id: Node) -> NodeRealtimeStats:
+    async def _get_node_system_stats_remote(self, node_id: int) -> NodeRealtimeStats:
         try:
             data = await node_nats_client.request("get_node_system_stats", {"node_id": node_id})
             return NodeRealtimeStats.model_validate(data)
@@ -738,7 +742,7 @@ class NodeOperation(BaseOperation):
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _get_user_online_stats_local(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
+    async def _get_user_online_stats_local(self, db: AsyncSession, node_id: int, username: str) -> dict[int, int]:
         db_user = await get_user(db, username=username)
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
@@ -758,13 +762,13 @@ class NodeOperation(BaseOperation):
 
         return {node_id: stats.value}
 
-    async def _get_user_online_stats_remote(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
+    async def _get_user_online_stats_remote(self, db: AsyncSession, node_id: int, username: str) -> dict[int, int]:
         try:
             return await node_nats_client.request("get_user_online_stats", {"node_id": node_id, "username": username})
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _get_user_ip_list_local(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
+    async def _get_user_ip_list_local(self, db: AsyncSession, node_id: int, username: str) -> UserIPList:
         db_user = await get_user(db, username=username)
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
@@ -777,7 +781,7 @@ class NodeOperation(BaseOperation):
 
         return UserIPList(ips=ips)
 
-    async def _get_user_ip_list_remote(self, db: AsyncSession, node_id: Node, username: str) -> UserIPList:
+    async def _get_user_ip_list_remote(self, db: AsyncSession, node_id: int, username: str) -> UserIPList:
         try:
             data = await node_nats_client.request("get_user_ip_list", {"node_id": node_id, "username": username})
             return UserIPList.model_validate(data)
@@ -970,10 +974,15 @@ class NodeOperation(BaseOperation):
     ) -> BulkNodesActionResponse:
         db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
         old_usages = {node.id: (node.uplink, node.downlink) for node in db_nodes}
+        limited_node_ids = {node.id for node in db_nodes if node.status == NodeStatus.limited}
 
         db_nodes = await bulk_reset_node_usage(db, db_nodes)
 
         for db_node in db_nodes:
+            if db_node.id in limited_node_ids:
+                await self.connect_single_node(db, db_node.id)
+                db_node = await self.get_validated_node(db=db, node_id=db_node.id)
+
             node = NodeResponse.model_validate(db_node)
             old_uplink, old_downlink = old_usages[db_node.id]
             asyncio.create_task(notification.reset_node_usage(node, admin.username, old_uplink, old_downlink))

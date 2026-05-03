@@ -222,9 +222,9 @@ export const LoadingBarConfig = {
 export const useTopLoadingBar = () => {
   const [loadingState, setLoadingState] = useState<LoadingState>(globalLoadingState)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
-  const initialLoadTimeoutRef = useRef<NodeJS.Timeout>()
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>()
-  const maxTimeoutRef = useRef<NodeJS.Timeout>()
+  const initialLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const maxTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const queryPredicate = useCallback((query: any) => !shouldIgnoreQuery(query.queryKey), [])
   const mutationPredicate = useCallback((mutation: any) => !shouldIgnoreMutation(mutation.options?.mutationKey || []), [])

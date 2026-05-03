@@ -1,9 +1,10 @@
-from enum import Enum
 from datetime import datetime as dt
+from enum import Enum
 
 from pydantic import BaseModel, field_validator
 
 from app.utils.helpers import ensure_datetime_timezone
+
 from .validators import NumericValidatorMixin
 
 
@@ -75,6 +76,7 @@ class NodeRealtimeStats(BaseModel):
     cpu_usage: float
     incoming_bandwidth_speed: int
     outgoing_bandwidth_speed: int
+    uptime: int
 
 
 class NodeStats(BaseModel):

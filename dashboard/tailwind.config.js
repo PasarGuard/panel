@@ -162,6 +162,11 @@ module.exports = {
           '80%': { transform: 'translateX(4px)' },
           '100%': { transform: 'translateX(0)' },
         },
+        'skeleton-shimmer': {
+          '100%': {
+            transform: 'translateX(100%)',
+          },
+        },
         'bounce-in': {
           '0%': {
             transform: 'scale(0.8)',
@@ -273,6 +278,7 @@ module.exports = {
         'slide-in': 'slide-in 0.3s ease-out',
         'slide-out': 'slide-out 0.3s ease-out',
         'telegram-shake': 'telegram-shake 0.5s ease-in-out',
+        'skeleton-shimmer': 'skeleton-shimmer 1.8s ease-in-out infinite',
         'bounce-in': 'bounce-in 0.4s ease-out',
         'zoom-out': 'zoom-out 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
         'zoom-in': 'zoom-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -285,5 +291,4 @@ module.exports = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
 }

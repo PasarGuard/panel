@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { useCreateAdmin, useModifyAdmin } from '@/service/api'
+import { useCreateAdmin, useModifyAdminById } from '@/service/api'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Pencil, UserCog } from 'lucide-react'
@@ -25,16 +25,16 @@ interface AdminModalProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
   editingAdmin?: boolean
-  editingAdminUserName: string
+  editingAdminId?: number | null
   form: UseFormReturn<AdminFormValuesInput>
 }
 
-export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUserName, editingAdmin, form }: AdminModalProps) {
+export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId, editingAdmin, form }: AdminModalProps) {
   const { t } = useTranslation()
   const handleError = useDynamicErrorHandler()
   const queryClient = useQueryClient()
   const addAdminMutation = useCreateAdmin()
-  const modifyAdminMutation = useModifyAdmin()
+  const modifyAdminMutation = useModifyAdminById()
 
   useEffect(() => {
     if (!isDialogOpen) setNotificationExpanded(false)
@@ -70,9 +70,9 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
         discord_id: values.discord_id,
         notification_enable: values.notification_enable || null,
       }
-      if (editingAdmin && editingAdminUserName) {
+      if (editingAdmin && editingAdminId != null) {
         const updatedAdmin = await modifyAdminMutation.mutateAsync({
-          username: editingAdminUserName,
+          adminId: editingAdminId,
           data: editData,
         })
         upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
@@ -130,9 +130,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
             {editingAdmin ? <Pencil className="h-5 w-5" /> : <UserCog className="h-5 w-5" />}
             <span>{editingAdmin ? t('admins.editAdmin') : t('admins.createAdmin')}</span>
           </DialogTitle>
-          <DialogDescription className="sr-only">
-            {t('admins.description', { defaultValue: 'Configure admin account settings.' })}
-          </DialogDescription>
+          <DialogDescription className="sr-only">{t('admins.description', { defaultValue: 'Configure admin account settings.' })}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" autoComplete="off">
@@ -145,7 +143,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                     const hasError = !!form.formState.errors.username
                     return (
                       <FormItem>
-                        <FormLabel>{t('admins.username')}</FormLabel>
+                        <FormLabel className='pb-2'>{t('admins.username')}</FormLabel>
                         <FormControl>
                           <Input placeholder={t('admins.enterUsername')} disabled={editingAdmin} isError={hasError} autoComplete="off" {...field} />
                         </FormControl>
@@ -217,13 +215,13 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                     <FormItem>
                       <FormLabel>{t('admins.discordId')}</FormLabel>
                       <FormControl>
-                          <Input
-                            type="number"
-                            placeholder={t('admins.discordId')}
-                            autoComplete="off"
-                            onChange={e => {
-                              const value = e.target.value
-                              field.onChange(value ? parseInt(value) : 0)
+                        <Input
+                          type="number"
+                          placeholder={t('admins.discordId')}
+                          autoComplete="off"
+                          onChange={e => {
+                            const value = e.target.value
+                            field.onChange(value ? parseInt(value) : 0)
                           }}
                           value={field.value ? field.value : ''}
                         />
@@ -262,7 +260,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                   control={form.control}
                   name={'profile_title'}
                   render={({ field }) => (
-                    <FormItem className="flex h-full flex-col justify-end gap-2">
+                    <FormItem className="flex h-full flex-col justify-endnp">
                       <div className="flex items-center gap-2">
                         <FormLabel>{t('admins.profile')}</FormLabel>
                         <VariablesPopover />
@@ -482,8 +480,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminUse
                   control={form.control}
                   name="is_sudo"
                   render={({ field }) => (
-                    <FormItem className="flex w-full cursor-pointer flex-row items-center justify-between rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
-                      <div className="space-y-0.5">
+                    <FormItem className="flex w-full cursor-pointer mb-2 flex-row items-center justify-between rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                      <div className="space-y-0.5 mb-0">
                         <FormLabel className="text-base">{t('admins.sudo')}</FormLabel>
                       </div>
                       <FormControl>

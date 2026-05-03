@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { AdminDetails } from '@/service/api'
 import {
-  useActivateAllDisabledUsers,
+  useActivateAllDisabledUsersById,
   useBulkActivateAllDisabledUsers,
   useBulkDeleteAdmins,
   useBulkDisableAdmins,
@@ -9,9 +9,9 @@ import {
   useBulkEnableAdmins,
   useBulkRemoveAllUsers,
   useBulkResetAdminsUsage,
-  useDisableAllActiveUsers,
   useGetAdmins,
-  useRemoveAllUsers,
+  useDisableAllActiveUsersById,
+  useRemoveAllUsersById,
 } from '@/service/api'
 import { DataTable } from './data-table'
 import { setupColumns } from './columns'
@@ -41,7 +41,7 @@ interface AdminsTableProps {
   onEdit: (admin: AdminDetails) => void
   onDelete: (admin: AdminDetails) => void
   onToggleStatus: (admin: AdminDetails, checked: boolean) => void
-  onResetUsage: (adminUsername: string) => void
+  onResetUsage: (admin: AdminDetails) => void
   onTotalAdminsChange?: (counts: { total: number; active: number; disabled: number } | null) => void
 }
 
@@ -217,9 +217,9 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const [bulkAction, setBulkAction] = useState<BulkAdminActionType | null>(null)
   const [adminToDelete, setAdminToDelete] = useState<AdminDetails | null>(null)
   const [adminToToggleStatus, setAdminToToggleStatus] = useState<AdminDetails | null>(null)
-  const [adminToReset, setAdminToReset] = useState<string | null>(null)
-  const [bulkUsersStatusAction, setBulkUsersStatusAction] = useState<{ username: string; actionType: BulkUsersActionType } | null>(null)
-  const [adminToRemoveAllUsers, setAdminToRemoveAllUsers] = useState<string | null>(null)
+  const [adminToReset, setAdminToReset] = useState<AdminDetails | null>(null)
+  const [bulkUsersStatusAction, setBulkUsersStatusAction] = useState<{ admin: AdminDetails; actionType: BulkUsersActionType } | null>(null)
+  const [adminToRemoveAllUsers, setAdminToRemoveAllUsers] = useState<AdminDetails | null>(null)
   const bulkDeleteAdminsMutation = useBulkDeleteAdmins()
   const bulkResetAdminsUsageMutation = useBulkResetAdminsUsage()
   const bulkDisableAdminsMutation = useBulkDisableAdmins()
@@ -260,9 +260,26 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       }
     }
   }, [adminsResponse, onTotalAdminsChange])
-  const disableAllActiveUsersMutation = useDisableAllActiveUsers()
-  const activateAllDisabledUsersMutation = useActivateAllDisabledUsers()
-  const removeAllUsersMutation = useRemoveAllUsers()
+  const disableAllActiveUsersMutation = useDisableAllActiveUsersById()
+  const activateAllDisabledUsersMutation = useActivateAllDisabledUsersById()
+  const removeAllUsersMutation = useRemoveAllUsersById()
+
+  const getAdminId = useCallback(
+    (admin: AdminDetails) => {
+      if (admin.id == null) {
+        toast.error(t('error', { defaultValue: 'Error' }), {
+          description: t('admins.missingId', {
+            name: admin.username,
+            defaultValue: 'Admin "{name}" is missing an id in the current response.',
+          }),
+        })
+        return null
+      }
+
+      return admin.id
+    },
+    [t],
+  )
 
   // Update filters when pagination changes
   useEffect(() => {
@@ -330,8 +347,8 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     setStatusToggleDialogOpen(true)
   }
 
-  const handleResetUsersUsageClick = (adminUsername: string) => {
-    setAdminToReset(adminUsername)
+  const handleResetUsersUsageClick = (admin: AdminDetails) => {
+    setAdminToReset(admin)
     setResetUsersUsageDialogOpen(true)
   }
   const handleConfirmResetUsersUsage = async () => {
@@ -342,18 +359,18 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     }
   }
 
-  const handleRemoveAllUsersClick = (adminUsername: string) => {
-    setAdminToRemoveAllUsers(adminUsername)
+  const handleRemoveAllUsersClick = (admin: AdminDetails) => {
+    setAdminToRemoveAllUsers(admin)
     setRemoveAllUsersDialogOpen(true)
   }
 
-  const handleDisableAllActiveUsersClick = (adminUsername: string) => {
-    setBulkUsersStatusAction({ username: adminUsername, actionType: 'disable' })
+  const handleDisableAllActiveUsersClick = (admin: AdminDetails) => {
+    setBulkUsersStatusAction({ admin, actionType: 'disable' })
     setBulkUsersStatusDialogOpen(true)
   }
 
-  const handleActivateAllDisabledUsersClick = (adminUsername: string) => {
-    setBulkUsersStatusAction({ username: adminUsername, actionType: 'activate' })
+  const handleActivateAllDisabledUsersClick = (admin: AdminDetails) => {
+    setBulkUsersStatusAction({ admin, actionType: 'activate' })
     setBulkUsersStatusDialogOpen(true)
   }
 
@@ -365,28 +382,35 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const handleConfirmBulkUsersStatusAction = async () => {
     if (!bulkUsersStatusAction) return
 
-    const { username, actionType } = bulkUsersStatusAction
+    const { admin, actionType } = bulkUsersStatusAction
+    const adminId = getAdminId(admin)
+    if (adminId == null) return
 
     try {
       if (actionType === 'disable') {
-        await disableAllActiveUsersMutation.mutateAsync({ username })
+        await disableAllActiveUsersMutation.mutateAsync({ adminId })
       } else {
-        await activateAllDisabledUsersMutation.mutateAsync({ username })
+        await activateAllDisabledUsersMutation.mutateAsync({ adminId })
       }
 
       toast.success(t('success', { defaultValue: 'Success' }), {
         description: t(actionType === 'disable' ? 'admins.disableAllActiveUsersSuccess' : 'admins.activateAllDisabledUsersSuccess', {
-          name: username,
+          name: admin.username,
           defaultValue:
-            actionType === 'disable' ? `All active users under admin "${username}" have been disabled successfully` : `All disabled users under admin "${username}" have been activated successfully`,
+            actionType === 'disable'
+              ? `All active users under admin "${admin.username}" have been disabled successfully`
+              : `All disabled users under admin "${admin.username}" have been activated successfully`,
         }),
       })
       closeBulkUsersStatusDialog()
     } catch (error) {
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: t(actionType === 'disable' ? 'admins.disableAllActiveUsersFailed' : 'admins.activateAllDisabledUsersFailed', {
-          name: username,
-          defaultValue: actionType === 'disable' ? `Failed to disable all active users under admin "${username}"` : `Failed to activate all disabled users under admin "${username}"`,
+          name: admin.username,
+          defaultValue:
+            actionType === 'disable'
+              ? `Failed to disable all active users under admin "${admin.username}"`
+              : `Failed to activate all disabled users under admin "${admin.username}"`,
         }),
       })
     }
@@ -394,23 +418,26 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
 
   const handleConfirmRemoveAllUsers = async () => {
     if (adminToRemoveAllUsers) {
+      const adminId = getAdminId(adminToRemoveAllUsers)
+      if (adminId == null) return
+
       try {
         await removeAllUsersMutation.mutateAsync({
-          username: adminToRemoveAllUsers,
+          adminId,
         })
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('admins.removeAllUsersSuccess', {
-            name: adminToRemoveAllUsers,
+            name: adminToRemoveAllUsers.username,
             defaultValue: `All users under admin "{name}" have been removed successfully`,
           }),
         })
-        patchAdminInAdminsCache(queryClient, adminToRemoveAllUsers, { total_users: 0 })
+        patchAdminInAdminsCache(queryClient, adminId, { total_users: 0 })
         setRemoveAllUsersDialogOpen(false)
         setAdminToRemoveAllUsers(null)
       } catch (error) {
         toast.error(t('error', { defaultValue: 'Error' }), {
           description: t('admins.removeAllUsersFailed', {
-            name: adminToRemoveAllUsers,
+            name: adminToRemoveAllUsers.username,
             defaultValue: `Failed to remove all users under admin "{name}"`,
           }),
         })
@@ -832,7 +859,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         currentAdminUsername={currentAdmin?.username}
         setStatusToggleDialogOpen={setStatusToggleDialogOpen}
         isLoading={isCurrentlyLoading && isFirstLoadRef.current}
-        isFetching={isFetching && !isFirstLoadRef.current}
+        isFetching={isPageLoading}
       />
       <PaginationControls
         currentPage={currentPage}
@@ -849,7 +876,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       )}
       {adminToReset && (
         <ResetUsersUsageConfirmationDialog
-          adminUsername={adminToReset}
+          adminUsername={adminToReset.username}
           onConfirm={handleConfirmResetUsersUsage}
           isOpen={resetUsersUsageDialogOpen}
           onClose={() => setResetUsersUsageDialogOpen(false)}
@@ -857,7 +884,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       )}
       {bulkUsersStatusAction && (
         <BulkUsersStatusConfirmationDialog
-          adminUsername={bulkUsersStatusAction.username}
+          adminUsername={bulkUsersStatusAction.admin.username}
           actionType={bulkUsersStatusAction.actionType}
           onConfirm={handleConfirmBulkUsersStatusAction}
           isOpen={bulkUsersStatusDialogOpen}
@@ -866,7 +893,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       )}
       {adminToRemoveAllUsers && (
         <RemoveAllUsersConfirmationDialog
-          adminUsername={adminToRemoveAllUsers}
+          adminUsername={adminToRemoveAllUsers.username}
           onConfirm={handleConfirmRemoveAllUsers}
           isOpen={removeAllUsersDialogOpen}
           onClose={() => setRemoveAllUsersDialogOpen(false)}

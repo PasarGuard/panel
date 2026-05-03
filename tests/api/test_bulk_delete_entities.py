@@ -367,6 +367,49 @@ def test_bulk_delete_client_templates_reassigns_default(access_token):
     assert len([template for template in remaining if template["is_default"]]) == 1
 
 
+def test_bulk_delete_client_templates_clears_associated_host_overrides(access_token):
+    core = create_core(access_token, name=unique_name("bulk_client_host_core"))
+    inbounds = get_inbounds(access_token)
+    assert inbounds, "No inbounds available for host template bulk cleanup test"
+    target = create_client_template(
+        access_token,
+        name=unique_name("bulk_client_host_cleanup"),
+        template_type="xray_subscription",
+        content='{"inbounds":[{"tag":"placeholder","protocol":"vmess","settings":{"clients":[]}}],"outbounds":[{"tag":"bulk-cleanup-template-marker","protocol":"freedom","settings":{}}]}',
+    )
+    host_id = None
+    try:
+        create_response = client.post(
+            "/api/host",
+            headers=auth_headers(access_token),
+            json={
+                "remark": unique_name("bulk_host_template_cleanup"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbounds[0],
+                "priority": 1,
+                "subscription_templates": {"xray": target["id"]},
+            },
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED
+        host_id = create_response.json()["id"]
+
+        response = client.post(
+            "/api/client_templates/bulk/delete",
+            headers=auth_headers(access_token),
+            json={"ids": [target["id"]]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        host_response = client.get(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        assert host_response.status_code == status.HTTP_200_OK
+        assert host_response.json()["subscription_templates"] is None
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core_if_present(access_token, core["id"])
+
+
 def test_bulk_delete_client_templates_rejects_system_template(access_token):
     templates_response = client.get("/api/client_templates", headers=auth_headers(access_token))
     assert templates_response.status_code == status.HTTP_200_OK

@@ -2,7 +2,8 @@ import PageHeader from '@/components/layout/page-header'
 import MainContent from '@/components/statistics/statistics-charts'
 import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getGetSystemStatsQueryKey, getSystemStats, useGetNodesSimple, NodeSimple } from '@/service/api'
+import { getGetSystemStatsQueryKey, getSystemStats, useGetNodesSimple, NodeSimple, NodeStatus } from '@/service/api'
+import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +23,21 @@ const Statistics = () => {
 
   // Extract nodes array from response
   const nodesData = nodesResponse?.nodes || []
+
+  const getNodeStatusDotColor = (status: NodeStatus) => {
+    switch (status) {
+      case 'connected':
+        return 'bg-green-500'
+      case 'connecting':
+        return 'bg-amber-500'
+      case 'error':
+        return 'bg-destructive'
+      case 'limited':
+        return 'bg-orange-500'
+      default:
+        return 'bg-gray-400 dark:bg-gray-600'
+    }
+  }
 
   // Use the getSystemStats API with proper query key and refetch interval
   const { data, error, isLoading } = useQuery({
@@ -62,13 +78,14 @@ const Statistics = () => {
                         <SelectItem value="master" className="text-xs sm:text-sm">
                           {t('master')}
                         </SelectItem>
-                        {nodesData
-                          .filter((node: NodeSimple) => node.status === 'connected')
-                          .map((node: NodeSimple) => (
-                            <SelectItem key={node.id} value={String(node.id)} className="text-xs sm:text-sm">
-                              {node.name}
-                            </SelectItem>
-                          ))}
+                        {nodesData.map((node: NodeSimple) => (
+                          <SelectItem key={node.id} value={String(node.id)} className="text-xs sm:text-sm">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
+                              <span className="min-w-0 truncate">{node.name}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -84,7 +101,7 @@ const Statistics = () => {
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
             <Card>
               <CardContent className="p-4 sm:p-6">
-                <MainContent error={error} isLoading={isLoading} data={data} selectedServer={selectedServer} is_sudo={true} />
+                <MainContent error={error} isLoading={isLoading} data={data} selectedServer={selectedServer} is_sudo={true} nodesData={nodesData} isLoadingNodes={isLoadingNodes} />
               </CardContent>
             </Card>
           </div>

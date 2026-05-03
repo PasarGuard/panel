@@ -34,9 +34,9 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
   return (
     <>
       <div ref={setNodeRef} style={style} className="cursor-default">
-        <div className="group relative rounded-md border bg-card transition-colors hover:bg-accent/20" dir="ltr">
+        <div className="group relative cursor-pointer rounded-md border bg-card transition-colors hover:bg-accent/20" dir="ltr" onClick={() => setIsSheetOpen(true)}>
           <div className="flex items-center gap-2 p-3 sm:gap-3 sm:p-4">
-            <button type="button" style={{ cursor: cursor }} className="touch-none shrink-0 opacity-50 transition-opacity group-hover:opacity-100" {...attributes} {...listeners}>
+            <button type="button" style={{ cursor: cursor }} className="touch-none shrink-0 opacity-50 transition-opacity group-hover:opacity-100" onClick={e => e.stopPropagation()} {...attributes} {...listeners}>
               <GripVertical className="h-4 w-4 sm:h-5 sm:w-5" />
               <span className="sr-only">Drag to reorder</span>
             </button>
@@ -104,7 +104,11 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
               variant="ghost"
               size="icon"
               className="h-7 w-7 shrink-0 sm:h-8 sm:w-8"
-              onClick={() => setIsSheetOpen(true)}
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                setIsSheetOpen(true)
+              }}
               aria-label={t('settings.subscriptions.applications.editApplication')}
             >
               <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />

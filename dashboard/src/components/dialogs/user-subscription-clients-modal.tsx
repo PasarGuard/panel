@@ -2,19 +2,21 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { useGetUserSubUpdateList, UserSubscriptionUpdateSchema } from '@/service/api'
+import { useGetUserSubUpdateListById, UserSubscriptionUpdateSchema } from '@/service/api'
 import { parseUserAgent, formatClientInfo } from '@/utils/userAgentParser'
 import { dateUtils } from '@/utils/dateFormatter'
-import { Monitor, Smartphone, Globe, HelpCircle, Users, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { FC, useState } from 'react'
+import { Monitor, Smartphone, Globe, HelpCircle, Users, ChevronLeft, ChevronRight, Tv } from 'lucide-react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface UserSubscriptionClientsModalProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  username: string
+  userId: number
+  username?: string
 }
 
 // Function to format time ago
@@ -62,6 +64,8 @@ const getClientIcon = (iconType: string) => {
       return Monitor
     case 'mobile':
       return Smartphone
+    case 'tv':
+      return Tv
     case 'browser':
       return Globe
     default:
@@ -76,8 +80,21 @@ const getOSBadgeColor = (os: string) => {
       return 'bg-blue-500 hover:bg-blue-600'
     case 'macos':
       return 'bg-gray-500 hover:bg-gray-600'
+    case 'ipados':
+      return 'bg-violet-500 hover:bg-violet-600'
+    case 'apple tv':
+    case 'tvos':
+      return 'bg-zinc-600 hover:bg-zinc-700'
+    case 'visionos':
+      return 'bg-slate-600 hover:bg-slate-700'
     case 'android':
       return 'bg-green-500 hover:bg-green-600'
+    case 'android tv':
+      return 'bg-lime-600 hover:bg-lime-700'
+    case 'fire os':
+      return 'bg-amber-700 hover:bg-amber-800'
+    case 'harmonyos':
+      return 'bg-red-500 hover:bg-red-600'
     case 'ios':
       return 'bg-purple-500 hover:bg-purple-600'
     case 'linux':
@@ -116,6 +133,8 @@ const getOSBadgeColor = (os: string) => {
       return 'bg-gray-600 hover:bg-gray-700'
     case 'aix':
       return 'bg-indigo-600 hover:bg-indigo-700'
+    case 'openwrt':
+      return 'bg-cyan-700 hover:bg-cyan-800'
     default:
       return 'bg-gray-400 hover:bg-gray-500'
   }
@@ -137,15 +156,26 @@ const detectOS = (userAgent: string, clientInfo?: { name: string; isKnownClient:
   if (ua.includes('manjaro')) return 'Manjaro'
   if (ua.includes('gentoo')) return 'Gentoo'
   if (ua.includes('slackware')) return 'Slackware'
+  if (ua.includes('openwrt')) return 'OpenWrt'
+
+  // Apple TV / tvOS and other Apple platforms before generic iOS/macOS fallbacks.
+  if (ua.includes('tvos') || ua.includes('apple tv') || ua.includes('appletv')) return 'Apple TV'
+  if (ua.includes('visionos') || ua.includes('vision pro')) return 'visionOS'
+  if (ua.includes('ipados') || ua.includes('ipad') || (ua.includes('macintosh') && ua.includes('mobile'))) return 'iPadOS'
+
+  // Android-derived platforms before generic Android.
+  if (ua.includes('android tv') || ua.includes('google tv') || ua.includes('googletv')) return 'Android TV'
+  if (ua.includes('fire os') || ua.includes('silk/') || ua.includes('kindle')) return 'Fire OS'
+
+  // HarmonyOS / OpenHarmony can appear with Android-compatible user agents.
+  if (ua.includes('harmonyos') || ua.includes('openharmony')) return 'HarmonyOS'
 
   // iOS detection (comprehensive)
   if (
     ua.includes('iphone') ||
-    ua.includes('ipad') ||
     ua.includes('ipod') ||
     ua.includes('ios') ||
-    ua.includes('darwin') ||
-    ua.includes('cfnetwork') ||
+    ua.includes('cpu iphone os') ||
     (ua.includes('mobile safari') && (ua.includes('version/') || ua.includes('cpu iphone os')))
   )
     return 'iOS'
@@ -157,7 +187,11 @@ const detectOS = (userAgent: string, clientInfo?: { name: string; isKnownClient:
   if (ua.includes('windows nt') || ua.includes('windows phone') || ua.includes('win32') || ua.includes('win64') || (ua.includes('windows') && !ua.includes('windows phone'))) return 'Windows'
 
   // macOS detection (comprehensive)
-  if (ua.includes('mac os x') || ua.includes('macos') || ua.includes('macintosh') || ua.includes('mac_powerpc') || ua.includes('macintel')) return 'macOS'
+  if (ua.includes('mac os x') || ua.includes('macos') || ua.includes('macintosh') || ua.includes('mac_powerpc') || ua.includes('macintel') || ua.includes('osx'))
+    return 'macOS'
+
+  // CFNetwork/Darwin often omits the concrete Apple OS. Keep it as an iOS fallback after explicit Apple checks.
+  if (ua.includes('darwin') || ua.includes('cfnetwork')) return 'iOS'
 
   // Chrome OS detection
   if (ua.includes('cros') || ua.includes('chromebook')) return 'Chrome OS'
@@ -185,7 +219,7 @@ const detectOS = (userAgent: string, clientInfo?: { name: string; isKnownClient:
     }
 
     // iOS-only clients
-    if (['shadowrocket', 'quantumult', 'surge'].includes(clientName)) {
+    if (['shadowrocket', 'quantumult', 'streisand', 'stash', 'surge'].includes(clientName)) {
       return 'iOS'
     }
 
@@ -200,7 +234,7 @@ const detectOS = (userAgent: string, clientInfo?: { name: string; isKnownClient:
     }
 
     // Cross-platform clients - use as last resort
-    if (clientName === 'v2box' || ['hiddify', 'fairvpn'].includes(clientName)) {
+    if (['clash', 'flclash', 'hiddify', 'karing', 'sing-box', 'v2box', 'fairvpn'].includes(clientName)) {
       // Default assumptions for cross-platform apps when UA doesn't specify
       return 'Android' // Most common platform for these apps
     }
@@ -241,22 +275,31 @@ const detectVersion = (userAgent: string): string => {
   return 'Unknown'
 }
 
-export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps> = ({ isOpen, onOpenChange, username }) => {
+export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps> = ({ isOpen, onOpenChange, userId, username }) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [currentPage, setCurrentPage] = useState(0)
   const itemsPerPage = 20
 
+  useEffect(() => {
+    if (!isOpen) {
+      setCurrentPage(0)
+      return
+    }
+
+    setCurrentPage(0)
+  }, [isOpen, userId])
+
   const {
     data: subUpdateList,
     isLoading,
     error,
-  } = useGetUserSubUpdateList(
-    username,
+  } = useGetUserSubUpdateListById(
+    userId,
     { offset: currentPage * itemsPerPage, limit: itemsPerPage },
     {
       query: {
-        enabled: isOpen && !!username,
+        enabled: isOpen && !!userId,
       },
     },
   )
@@ -341,6 +384,33 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
     }
   }
 
+  const renderLoadingSkeleton = () => (
+    <div className="space-y-4 py-4">
+      <div className={`flex items-center justify-between ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-4 w-12" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="rounded-lg border bg-card p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-3 w-12" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-5 w-12 rounded-full" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <Skeleton className="mt-3 h-3 w-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[95vh] max-w-4xl flex-col sm:max-h-[600px]" dir={dir}>
@@ -348,19 +418,18 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 flex-shrink-0" />
             <span>{t('subscriptionClients.title', { defaultValue: 'Subscription Clients' })}</span>
-            <Badge variant="outline" dir="ltr" className="flex-shrink-0">
-              {username}
-            </Badge>
+            {username && (
+              <Badge variant="outline" dir="ltr" className="flex-shrink-0">
+                {username}
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         {/* Content Area */}
         <div className="min-h-0 flex-1 overflow-hidden">
           {isLoading && (
-            <div className={`flex items-center justify-center py-8 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <Loader2 className="h-6 w-6 flex-shrink-0 animate-spin" />
-              <span className={`${dir === 'rtl' ? 'mr-2' : 'ml-2'}`}>{t('loading', { defaultValue: 'Loading...' })}</span>
-            </div>
+            renderLoadingSkeleton()
           )}
 
           {error && <div className="py-8 text-center text-destructive">{t('subscriptionClients.error', { defaultValue: 'Failed to load subscription clients' })}</div>}

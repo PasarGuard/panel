@@ -438,22 +438,63 @@ async def get_expired_users(
     admin_id: int | None = None,
     target: Literal["expired", "limited"] = "expired",
 ):
-    query = select(User)
-
-    if target == "limited":
-        query = query.where(User.status == UserStatus.limited).where(User.is_limited)
-    else:
-        # Time-expired users support expiration date range filtering.
-        query = query.where(User.status == UserStatus.expired).where(User.is_expired)
-        if expired_after:
-            query = query.where(User.expire >= expired_after)
-        if expired_before:
-            query = query.where(User.expire <= expired_before)
-
-    if admin_id:
-        query = query.where(User.admin_id == admin_id)
+    conditions = _cleanup_target_user_conditions(expired_after, expired_before, admin_id, target)
+    query = select(User).where(*conditions)
 
     return (await db.execute(query)).unique().scalars().all()
+
+
+def _cleanup_target_user_conditions(
+    expired_after: datetime | None = None,
+    expired_before: datetime | None = None,
+    admin_id: int | None = None,
+    target: Literal["expired", "limited"] = "expired",
+    now: datetime | None = None,
+):
+    if target == "limited":
+        conditions = [User.status == UserStatus.limited, User.is_limited]
+    else:
+        # Time-expired users support expiration date range filtering.
+        conditions = [
+            User.status == UserStatus.expired,
+            User.expire.isnot(None),
+            User.expire <= now if now is not None else User.is_expired,
+        ]
+        if expired_after:
+            conditions.append(User.expire >= expired_after)
+        if expired_before:
+            conditions.append(User.expire <= expired_before)
+
+    if admin_id is not None:
+        conditions.append(User.admin_id == admin_id)
+
+    return conditions
+
+
+async def remove_expired_users(
+    db: AsyncSession,
+    expired_after: datetime | None = None,
+    expired_before: datetime | None = None,
+    admin_id: int | None = None,
+    target: Literal["expired", "limited"] = "expired",
+) -> list[str]:
+    now = datetime.now(timezone.utc) if target == "expired" else None
+    conditions = _cleanup_target_user_conditions(expired_after, expired_before, admin_id, target, now)
+
+    rows = (await db.execute(select(User.id, User.username).where(*conditions))).all()
+    if not rows:
+        return []
+
+    user_ids = [user_id for user_id, _ in rows]
+    usernames = [username for _, username in rows]
+
+    for start in range(0, len(user_ids), 1000):
+        chunk = user_ids[start : start + 1000]
+        await _delete_user_dependencies(db, chunk)
+        await db.execute(delete(User).where(User.id.in_(chunk)))
+    await db.commit()
+
+    return usernames
 
 
 async def get_active_to_expire_users(db: AsyncSession) -> list[User]:

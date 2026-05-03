@@ -1,9 +1,9 @@
 from datetime import datetime as dt
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.db.models import DataLimitResetStrategy, UserStatus, UserStatusCreate
+from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.admin import AdminBase, AdminContactInfo
 from app.models.proxy import ProxyTable, ShadowsocksMethods, XTLSFlows
 from app.utils.helpers import fix_datetime_timezone
@@ -61,19 +61,19 @@ class UserWithValidator(User):
             return value
         return fix_datetime_timezone(value)
 
-    @field_validator("status", mode="before", check_fields=False)
-    def validate_status(cls, status, values):
-        return UserValidator.validate_status(status, values)
-
 
 class UserCreate(UserWithValidator):
     username: str
-    status: UserStatusCreate | None = Field(default=None)
+    status: UserStatus | None = Field(default=None)
 
     @field_validator("username", check_fields=False)
     @classmethod
     def validate_username(cls, v):
         return UserValidator.validate_username(v)
+
+    @field_validator("status", mode="before", check_fields=False)
+    def validate_status(cls, status, values):
+        return UserValidator.validate_status(status, {UserStatus.active, UserStatus.on_hold}, values)
 
     @field_validator("group_ids", mode="after")
     @classmethod
@@ -82,8 +82,14 @@ class UserCreate(UserWithValidator):
 
 
 class UserModify(UserWithValidator):
-    status: UserStatusModify | None = Field(default=None)
+    status: UserStatus | None = Field(default=None)
     proxy_settings: ProxyTable | None = Field(default=None)
+
+    @field_validator("status", mode="before", check_fields=False)
+    def validate_status(cls, status, values):
+        return UserValidator.validate_status(
+            status, {UserStatus.active, UserStatus.on_hold, UserStatus.disabled}, values
+        )
 
     @field_validator("group_ids", mode="after")
     @classmethod
@@ -233,17 +239,16 @@ class CreateUserFromTemplate(ModifyUserByTemplate):
         return UserValidator.validate_username(v)
 
 
-class BulkUser(BaseModel):
-    amount: int
+class BulkUserFilter(BaseModel):
     dry_run: bool = False
     group_ids: set[int] = Field(default_factory=set)
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
     status: set[UserStatus] = Field(default_factory=set)
-    expired_after: dt | None = Field(default=None)
-    expired_before: dt | None = Field(default=None)
+    expire_after: dt | None = Field(default=None, validation_alias=AliasChoices("expire_after", "expired_after"))
+    expire_before: dt | None = Field(default=None, validation_alias=AliasChoices("expire_before", "expired_before"))
 
-    @field_validator("expired_after", "expired_before", check_fields=False)
+    @field_validator("expire_after", "expire_before", check_fields=False)
     @classmethod
     def validator_datetime(cls, value):
         if not value:
@@ -251,25 +256,20 @@ class BulkUser(BaseModel):
         return fix_datetime_timezone(value)
 
 
-class BulkUsersProxy(BaseModel):
+class BulkUser(BulkUserFilter):
+    amount: int
+
+
+class BulkUsersProxy(BulkUserFilter):
     flow: XTLSFlows | None = Field(default=None)
     method: ShadowsocksMethods | None = Field(default=None)
-    dry_run: bool = False
-    group_ids: set[int] = Field(default_factory=set)
-    admins: set[int] = Field(default_factory=set)
-    users: set[int] = Field(default_factory=set)
 
 
-class BulkWireGuardPeerIPs(BaseModel):
+class BulkWireGuardPeerIPs(BulkUserFilter):
     """Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status)."""
 
     confirm: bool = False
-    dry_run: bool = False
     replace_all: bool = False
-    group_ids: set[int] = Field(default_factory=set)
-    admins: set[int] = Field(default_factory=set)
-    users: set[int] = Field(default_factory=set)
-    status: set[UserStatus] = Field(default_factory=set)
 
 
 class BulkOperationDryRunResponse(BaseModel):

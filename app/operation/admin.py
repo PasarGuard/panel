@@ -1,4 +1,5 @@
 import asyncio
+import warnings
 from datetime import datetime as dt
 
 from sqlalchemy.exc import IntegrityError
@@ -84,8 +85,19 @@ class AdminOperation(BaseOperation):
     async def modify_admin(
         self, db: AsyncSession, username: str, modified_admin: AdminModify, current_admin: AdminDetails
     ) -> AdminDetails:
-        """Modify an existing admin's details."""
+        warnings.warn(
+            "modify_admin(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use modify_admin_by_id(admin_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_admin = await self.get_validated_admin(db, username=username)
+        return await self._modify_admin(db, db_admin, modified_admin, current_admin)
+
+    async def _modify_admin(
+        self, db: AsyncSession, db_admin: Admin, modified_admin: AdminModify, current_admin: AdminDetails
+    ) -> AdminDetails:
+        """Modify an existing admin's details."""
         if self.operator_type != OperatorType.CLI and not db_admin.is_sudo and modified_admin.is_sudo:
             await self.raise_error(
                 message="Promoting admin to sudo via API is not allowed. Use pasarguard cli / tui instead.", code=403
@@ -117,9 +129,24 @@ class AdminOperation(BaseOperation):
         self._schedule_notification(notification.modify_admin(modified_admin, current_admin.username))
         return modified_admin
 
+    async def modify_admin_by_id(
+        self, db: AsyncSession, admin_id: int, modified_admin: AdminModify, current_admin: AdminDetails
+    ) -> AdminDetails:
+        db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        return await self._modify_admin(db, db_admin, modified_admin, current_admin)
+
     async def remove_admin(self, db: AsyncSession, username: str, current_admin: AdminDetails | None = None):
-        """Remove an admin from the database."""
+        warnings.warn(
+            "remove_admin(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use remove_admin_by_id(admin_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._remove_admin(db, db_admin, current_admin)
+
+    async def _remove_admin(self, db: AsyncSession, db_admin: Admin, current_admin: AdminDetails | None = None):
+        """Remove an admin from the database."""
         if self.operator_type != OperatorType.CLI and db_admin.is_sudo:
             await self.raise_error(
                 message="You're not allowed to remove sudoer's account. Use pasarguard cli / tui instead.", code=403
@@ -130,7 +157,11 @@ class AdminOperation(BaseOperation):
             logger.info(
                 f'Admin "{db_admin.username}" with id "{db_admin.id}" deleted by admin "{current_admin.username}"'
             )
-            self._schedule_notification(notification.remove_admin(username, current_admin.username))
+            self._schedule_notification(notification.remove_admin(db_admin.username, current_admin.username))
+
+    async def remove_admin_by_id(self, db: AsyncSession, admin_id: int, current_admin: AdminDetails | None = None):
+        db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._remove_admin(db, db_admin, current_admin)
 
     async def get_admins(
         self,
@@ -209,9 +240,17 @@ class AdminOperation(BaseOperation):
         return await get_admins_count(db)
 
     async def disable_all_active_users(self, db: AsyncSession, username: str, admin: AdminDetails):
-        """Disable all active users under a specific admin"""
+        warnings.warn(
+            "disable_all_active_users(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use disable_all_active_users_by_id(admin_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._disable_all_active_users_for_admin(db, db_admin, admin)
 
+    async def _disable_all_active_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
+        """Disable all active users under a specific admin"""
         if db_admin.is_sudo:
             await self.raise_error(message="You're not allowed to disable sudo admin users.", code=403)
 
@@ -220,12 +259,24 @@ class AdminOperation(BaseOperation):
         users = await get_users(db, admin=db_admin)
         await sync_users(users)
 
-        logger.info(f'Admin "{username}" users has been disabled by admin "{admin.username}"')
+        logger.info(f'Admin "{db_admin.username}" users has been disabled by admin "{admin.username}"')
+
+    async def disable_all_active_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails):
+        db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._disable_all_active_users_for_admin(db, db_admin, admin)
 
     async def activate_all_disabled_users(self, db: AsyncSession, username: str, admin: AdminDetails):
-        """Enable all active users under a specific admin"""
+        warnings.warn(
+            "activate_all_disabled_users(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use activate_all_disabled_users_by_id(admin_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._activate_all_disabled_users_for_admin(db, db_admin, admin)
 
+    async def _activate_all_disabled_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
+        """Enable all active users under a specific admin"""
         if db_admin.is_sudo:
             await self.raise_error(message="You're not allowed to enable sudo admin users.", code=403)
 
@@ -234,11 +285,24 @@ class AdminOperation(BaseOperation):
         users = await get_users(db, admin=db_admin)
         await sync_users(users)
 
-        logger.info(f'Admin "{username}" users has been activated by admin "{admin.username}"')
+        logger.info(f'Admin "{db_admin.username}" users has been activated by admin "{admin.username}"')
+
+    async def activate_all_disabled_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails):
+        db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._activate_all_disabled_users_for_admin(db, db_admin, admin)
 
     async def remove_all_users(self, db: AsyncSession, username: str, admin: AdminDetails) -> int:
-        """Delete all users that belong to the specified admin."""
+        warnings.warn(
+            "remove_all_users(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use remove_all_users_by_id(admin_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         db_admin = await self.get_validated_admin(db, username=username)
+        return await self._remove_all_users_for_admin(db, db_admin, admin)
+
+    async def _remove_all_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails) -> int:
+        """Delete all users that belong to the specified admin."""
         target_username = db_admin.username
 
         if self.operator_type != OperatorType.CLI and db_admin.is_sudo:
@@ -263,17 +327,33 @@ class AdminOperation(BaseOperation):
         )
         return len(serialized_users)
 
-    async def reset_admin_usage(self, db: AsyncSession, username: str, admin: AdminDetails) -> AdminDetails:
-        db_admin = await self.get_validated_admin(db, username=username)
+    async def remove_all_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails) -> int:
+        db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        return await self._remove_all_users_for_admin(db, db_admin, admin)
 
+    async def reset_admin_usage(self, db: AsyncSession, username: str, admin: AdminDetails) -> AdminDetails:
+        warnings.warn(
+            "reset_admin_usage(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use reset_admin_usage_by_id(admin_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        db_admin = await self.get_validated_admin(db, username=username)
+        return await self._reset_admin_usage(db, db_admin, admin)
+
+    async def _reset_admin_usage(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails) -> AdminDetails:
         db_admin = await reset_admin_usage(db, db_admin=db_admin)
         if self.operator_type != OperatorType.CLI:
-            logger.info(f'Admin "{username}" usage has been reset by admin "{admin.username}"')
+            logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
 
-        reseted_admin = AdminDetails.model_validate(db_admin)
-        self._schedule_notification(notification.admin_usage_reset(reseted_admin, admin.username))
+        reseted_admin_details = AdminDetails.model_validate(db_admin)
+        self._schedule_notification(notification.admin_usage_reset(reseted_admin_details, admin.username))
 
-        return reseted_admin
+        return reseted_admin_details
+
+    async def reset_admin_usage_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails) -> AdminDetails:
+        db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        return await self._reset_admin_usage(db, db_admin, admin)
 
     async def get_admin_usage(
         self,
@@ -286,20 +366,70 @@ class AdminOperation(BaseOperation):
         node_id: int | None = None,
         group_by_node: bool = False,
     ) -> UserUsageStatsList:
+        warnings.warn(
+            "get_admin_usage(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use get_admin_usage_by_id(admin_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        db_admin = await self.get_validated_admin(db, username=username)
+        return await self._get_admin_usage(
+            db,
+            db_admin,
+            admin,
+            start=start,
+            end=end,
+            period=period,
+            node_id=node_id,
+            group_by_node=group_by_node,
+        )
+
+    async def _get_admin_usage(
+        self,
+        db: AsyncSession,
+        db_admin: Admin,
+        admin: AdminDetails,
+        start: dt = None,
+        end: dt = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserUsageStatsList:
         """Get aggregated usage for an admin's users."""
         start, end = await self.validate_dates(start, end, True)
 
         if not admin.is_sudo:
-            if username != admin.username:
+            if db_admin.username != admin.username:
                 await self.raise_error(message="You're not allowed", code=403)
             node_id = None
             group_by_node = False
 
-        db_admin = await self.get_validated_admin(db, username=username)
-
         return await get_admin_usages(
             db=db,
             admin_id=db_admin.id,
+            start=start,
+            end=end,
+            period=period,
+            node_id=node_id,
+            group_by_node=group_by_node,
+        )
+
+    async def get_admin_usage_by_id(
+        self,
+        db: AsyncSession,
+        admin_id: int,
+        admin: AdminDetails,
+        start: dt = None,
+        end: dt = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserUsageStatsList:
+        db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        return await self._get_admin_usage(
+            db,
+            db_admin,
+            admin,
             start=start,
             end=end,
             period=period,
@@ -427,7 +557,7 @@ class AdminOperation(BaseOperation):
             await self._ensure_can_manage_admin_users(db_admin, action="disable")
 
         for db_admin in db_admins:
-            await self.disable_all_active_users(db, username=db_admin.username, admin=admin)
+            await self._disable_all_active_users_for_admin(db, db_admin, admin)
 
         return self._build_bulk_action_response(db_admins)
 
@@ -440,7 +570,7 @@ class AdminOperation(BaseOperation):
             await self._ensure_can_manage_admin_users(db_admin, action="activate")
 
         for db_admin in db_admins:
-            await self.activate_all_disabled_users(db, username=db_admin.username, admin=admin)
+            await self._activate_all_disabled_users_for_admin(db, db_admin, admin)
 
         return self._build_bulk_action_response(db_admins)
 
@@ -453,6 +583,6 @@ class AdminOperation(BaseOperation):
             await self._ensure_can_manage_admin_users(db_admin, action="remove")
 
         for db_admin in db_admins:
-            await self.remove_all_users(db, username=db_admin.username, admin=admin)
+            await self._remove_all_users_for_admin(db, db_admin, admin)
 
         return self._build_bulk_action_response(db_admins)

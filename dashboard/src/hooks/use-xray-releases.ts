@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 interface Release {
   version: string
   url: string
+  isPrerelease?: boolean
 }
 
 interface CachedReleases {
@@ -18,13 +19,21 @@ interface XrayReleaseResult {
   hasUpdate: (currentVersion: string | null) => boolean
 }
 
-const GITHUB_API_URL = 'https://api.github.com/repos/XTLS/Xray-core/releases?per_page=10'
+const GITHUB_API_URL = 'https://api.github.com/repos/XTLS/Xray-core/releases?per_page=15'
 const CACHE_KEY = 'pg_xray_releases'
 const CACHE_DURATION = 10 * 60 * 1000
 
 function compareVersions(current: string, latest: string): number {
-  const currentParts = current.replace(/^v/, '').split('.').map(Number)
-  const latestParts = latest.replace(/^v/, '').split('.').map(Number)
+  const currentParts = current
+    .replace(/^v/, '')
+    .split(/[\.-]/)
+    .filter(p => !isNaN(Number(p)))
+    .map(Number)
+  const latestParts = latest
+    .replace(/^v/, '')
+    .split(/[\.-]/)
+    .filter(p => !isNaN(Number(p)))
+    .map(Number)
 
   for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
     const curr = currentParts[i] || 0
@@ -73,12 +82,13 @@ async function fetchXrayReleases(): Promise<Release[]> {
 
     const data = await response.json()
     const releases: Release[] = data
-      .filter((release: any) => !release.prerelease && !release.draft)
+      .filter((release: any) => !release.draft)
       .map((release: any) => ({
         version: release.tag_name?.replace(/^v/, '') || '',
         url: release.html_url || '',
+        isPrerelease: !!release.prerelease,
       }))
-      .filter((r: Release) => r.version);
+      .filter((r: Release) => r.version)
 
     if (releases.length > 0) setCache(releases)
     return releases
@@ -100,8 +110,9 @@ export function useXrayReleases(): XrayReleaseResult {
   })
 
   const releases = data || []
-  const latestVersion = releases[0]?.version || null
-  const releaseUrl = releases[0]?.url || null
+  const latestOfficialRelease = releases.find(r => !r.isPrerelease)
+  const latestVersion = latestOfficialRelease?.version || null
+  const releaseUrl = latestOfficialRelease?.url || null
 
   const hasUpdate = (currentVersion: string | null) => {
     if (!currentVersion || !latestVersion) return false
@@ -118,4 +129,3 @@ export function useXrayReleases(): XrayReleaseResult {
     hasUpdate,
   }
 }
-

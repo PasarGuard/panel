@@ -507,19 +507,22 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     }
   }
 
-  const applyBackendTemplate = useCallback((nextBackendType: CoreBackendType) => {
-    let defaultTemplate: string
-    if (nextBackendType === 'wg') {
-      const keyPair = generateWireGuardKeyPair()
-      setGeneratedWireGuardKeyPair(keyPair)
-      defaultTemplate = createWireGuardCoreConfigJson(keyPair)
-    } else {
-      defaultTemplate = defaultXrayConfig
-    }
-    form.setValue('config', defaultTemplate, { shouldDirty: true, shouldValidate: true })
-    validateJsonContent(defaultTemplate)
-    debouncedConfigChange(defaultTemplate)
-  }, [debouncedConfigChange, form, validateJsonContent])
+  const applyBackendTemplate = useCallback(
+    (nextBackendType: CoreBackendType) => {
+      let defaultTemplate: string
+      if (nextBackendType === 'wg') {
+        const keyPair = generateWireGuardKeyPair()
+        setGeneratedWireGuardKeyPair(keyPair)
+        defaultTemplate = createWireGuardCoreConfigJson(keyPair)
+      } else {
+        defaultTemplate = defaultXrayConfig
+      }
+      form.setValue('config', defaultTemplate, { shouldDirty: true, shouldValidate: true })
+      validateJsonContent(defaultTemplate)
+      debouncedConfigChange(defaultTemplate)
+    },
+    [debouncedConfigChange, form, validateJsonContent],
+  )
 
   const generateWireGuardKeys = useCallback(() => {
     try {
@@ -630,19 +633,19 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     typeof message === 'string'
                       ? message
                       : t('validation.invalid', {
-                        field: t(`coreConfigModal.${field}`, { defaultValue: field }),
-                        defaultValue: `${field} is invalid`,
-                      }),
+                          field: t(`coreConfigModal.${field}`, { defaultValue: field }),
+                          defaultValue: `${field} is invalid`,
+                        }),
                 })
               }
             })
 
             toast.error(
               firstMessage ||
-              t('validation.invalid', {
-                field: t(`coreConfigModal.${firstField}`, { defaultValue: firstField }),
-                defaultValue: `${firstField} is invalid`,
-              }),
+                t('validation.invalid', {
+                  field: t(`coreConfigModal.${firstField}`, { defaultValue: firstField }),
+                  defaultValue: `${firstField} is invalid`,
+                }),
             )
           } else if (typeof detail === 'string' && !Array.isArray(detail)) {
             toast.error(detail)
@@ -1142,13 +1145,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       </div>
       <div dir="ltr" className="flex min-w-0 items-center gap-2">
         <CodeBlock value={value} />
-        <CopyButton
-          value={value}
-          icon="copy"
-          copiedMessage={copiedMessage}
-          defaultMessage={defaultMessage}
-          className="h-8 w-8 shrink-0 text-xs sm:h-9 sm:w-9 sm:text-sm"
-        />
+        <CopyButton value={value} icon="copy" copiedMessage={copiedMessage} defaultMessage={defaultMessage} className="h-8 w-8 shrink-0 text-xs sm:h-9 sm:w-9 sm:text-sm" />
       </div>
     </div>
   )
@@ -1275,7 +1272,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
     return (
       <Dialog open={isResultsDialogOpen} onOpenChange={setIsResultsDialogOpen}>
-        <DialogContent className="max-h-[95vh] w-[95vw] max-w-2xl min-w-0 overflow-y-auto overflow-x-hidden">
+        <DialogContent className="max-h-[95vh] w-[95vw] min-w-0 max-w-2xl overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 shrink-0 sm:h-5 sm:w-5" />
@@ -1330,12 +1327,12 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       {renderResultDialog()}
       <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
         <DialogContent className="h-full w-full max-w-5xl md:h-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {editingCore ? <Pencil className="h-5 w-5" /> : <Cpu className="h-5 w-5" />}
-            <span>{editingCore ? t('coreConfigModal.editCore') : t('coreConfigModal.addConfig')}</span>
-          </DialogTitle>
-        </DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editingCore ? <Pencil className="h-5 w-5" /> : <Cpu className="h-5 w-5" />}
+              <span>{editingCore ? t('coreConfigModal.editCore') : t('coreConfigModal.addConfig')}</span>
+            </DialogTitle>
+          </DialogHeader>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -1360,15 +1357,15 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                 style={
                                   isEditorFullscreen
                                     ? {
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                    }
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }
                                     : {
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                    }
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                      }
                                 }
                               >
                                 {isEditorFullscreen && <div className="absolute inset-0 bg-background/95 backdrop-blur-sm" onClick={handleToggleFullscreen} />}
@@ -1502,7 +1499,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                       name="type"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}</FormLabel>
+                          <FormLabel>{t('coreConfigModal.backendType', { defaultValue: 'Type' })}</FormLabel>
                           <FormControl>
                             <Select
                               value={field.value ?? 'xray'}
@@ -1515,7 +1512,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                               }}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })} />
+                                <SelectValue placeholder={t('coreConfigModal.backendType', { defaultValue: 'Type' })} />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="xray">Xray</SelectItem>

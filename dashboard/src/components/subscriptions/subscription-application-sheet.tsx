@@ -11,14 +11,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Info, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Info, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import {
   useFieldArray,
   useForm,
@@ -26,6 +26,8 @@ import {
   useFormState,
   useWatch,
   type Control,
+  type FieldArrayPath,
+  type FieldErrors,
   type FieldPath,
   type UseFormReturn,
 } from 'react-hook-form'
@@ -42,18 +44,12 @@ function IconUrlInfoPopover() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-          aria-label={description}
-        >
-          <Info className="h-3.5 w-3.5" />
+        <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent" aria-label={description}>
+          <Info className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="z-[70] w-[min(90vw,20rem)] p-3 text-xs leading-relaxed text-muted-foreground sm:w-80"
+        className="w-[280px] p-3 text-xs leading-relaxed text-muted-foreground sm:w-[320px]"
         side={infoPopoverSide}
         align={infoPopoverAlign}
         sideOffset={5}
@@ -72,6 +68,14 @@ const emptyApplicationDefaults: SubscriptionApplicationFormData = {
   recommended: false,
   platform: 'android',
   download_links: [{ name: '', url: '', language: 'en' }],
+}
+
+function cloneApplication(app: SubscriptionApplicationFormData): SubscriptionApplicationFormData {
+  return {
+    ...app,
+    description: { ...(app.description || {}) },
+    download_links: (app.download_links || []).map(link => ({ ...link })),
+  }
 }
 
 export type SubscriptionApplicationSheetProps =
@@ -113,7 +117,6 @@ function SubscriptionApplicationSheetCreate({
 }: Extract<SubscriptionApplicationSheetProps, { variant: 'create' }>) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
-  const [selectedLanguage, setSelectedLanguage] = useState('en')
   const [iconBroken, setIconBroken] = useState(false)
 
   const form = useForm<SubscriptionApplicationFormData>({
@@ -130,7 +133,6 @@ function SubscriptionApplicationSheetCreate({
   useEffect(() => {
     if (open) {
       form.reset(emptyApplicationDefaults)
-      setSelectedLanguage('en')
     }
   }, [open, form])
 
@@ -161,8 +163,6 @@ function SubscriptionApplicationSheetCreate({
 
             <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
               <ApplicationFieldsGridCreate
-                selectedLanguage={selectedLanguage}
-                onSelectedLanguageChange={setSelectedLanguage}
                 iconBroken={iconBroken}
                 setIconBroken={setIconBroken}
               />
@@ -193,15 +193,42 @@ function SubscriptionApplicationSheetEdit({
 }: Extract<SubscriptionApplicationSheetProps, { variant: 'edit' }>) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
-  const [selectedLanguage, setSelectedLanguage] = useState('en')
   const [iconBroken, setIconBroken] = useState(false)
+  const initialApplicationRef = useRef<SubscriptionApplicationFormData | null>(null)
+  const [canUndo, setCanUndo] = useState(false)
+  const [restoredLinks, setRestoredLinks] = useState<SubscriptionApplicationFormData['download_links'] | null>(null)
+  const [restoreLinksVersion, setRestoreLinksVersion] = useState(0)
   const iconUrlWatch = form.watch(`applications.${applicationIndex}.icon_url`)
 
   useEffect(() => {
     setIconBroken(false)
   }, [iconUrlWatch])
 
-  const appName = (form.watch(`applications.${applicationIndex}.name`) || '').trim()
+  useEffect(() => {
+    if (open) {
+      const currentApplication = form.getValues(`applications.${applicationIndex}`) as SubscriptionApplicationFormData | undefined
+      initialApplicationRef.current = currentApplication ? cloneApplication(currentApplication) : null
+      setCanUndo(Boolean(currentApplication))
+    }
+  }, [open, form, applicationIndex])
+
+  const undoChanges = () => {
+    if (!initialApplicationRef.current) return
+    const restoredApplication = cloneApplication(initialApplicationRef.current)
+    const setOptions = { shouldDirty: true, shouldTouch: false, shouldValidate: false }
+
+    form.setValue(`applications.${applicationIndex}.name`, restoredApplication.name, setOptions)
+    form.setValue(`applications.${applicationIndex}.icon_url`, restoredApplication.icon_url, setOptions)
+    form.setValue(`applications.${applicationIndex}.import_url`, restoredApplication.import_url, setOptions)
+    form.setValue(`applications.${applicationIndex}.description`, restoredApplication.description, setOptions)
+    form.setValue(`applications.${applicationIndex}.recommended`, restoredApplication.recommended, setOptions)
+    form.setValue(`applications.${applicationIndex}.platform`, restoredApplication.platform, setOptions)
+    setRestoredLinks(restoredApplication.download_links)
+    setRestoreLinksVersion(version => version + 1)
+    setIconBroken(false)
+    void form.trigger(`applications.${applicationIndex}`)
+  }
+
   const linksFieldName = `applications.${applicationIndex}.download_links` as FieldPath<SubscriptionFormData>
 
   return (
@@ -212,7 +239,10 @@ function SubscriptionApplicationSheetEdit({
         onOpenAutoFocus={e => e.preventDefault()}
       >
         <SheetHeader className="flex flex-col flex-shrink-0 space-y-1 border-b px-6 pb-4 pt-6 pe-14 text-start">
-          <SheetTitle>{appName || t('settings.subscriptions.applications.application', { defaultValue: 'Application' })}</SheetTitle>
+          <SheetTitle className="flex items-center gap-2">
+            <Pencil className="h-5 w-5" />
+            <span>{t('settings.subscriptions.applications.editApplication', { defaultValue: 'Edit application' })}</span>
+          </SheetTitle>
           <SheetDescription>{t('settings.subscriptions.applications.sheetDescription')}</SheetDescription>
         </SheetHeader>
 
@@ -220,15 +250,24 @@ function SubscriptionApplicationSheetEdit({
           <ApplicationFieldsGridEdit
             form={form}
             applicationIndex={applicationIndex}
-            selectedLanguage={selectedLanguage}
-            onSelectedLanguageChange={setSelectedLanguage}
             iconBroken={iconBroken}
             setIconBroken={setIconBroken}
           />
-          <DownloadLinksSection variant="edit" linksFieldName={linksFieldName} rowIdPrefix={rowId} applicationIndex={applicationIndex} />
+          <DownloadLinksSection
+            variant="edit"
+            linksFieldName={linksFieldName}
+            rowIdPrefix={rowId}
+            applicationIndex={applicationIndex}
+            restoredLinks={restoredLinks}
+            restoreLinksVersion={restoreLinksVersion}
+          />
         </div>
 
         <SheetFooter className="flex-shrink-0 flex-col gap-2 border-t px-6 py-4 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={undoChanges} disabled={!canUndo}>
+            <RotateCcw className="me-2 h-4 w-4" />
+            {t('settings.subscriptions.applications.undo', { defaultValue: 'Undo' })}
+          </Button>
           <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)}>
             {t('close', { defaultValue: 'Close' })}
           </Button>
@@ -239,18 +278,15 @@ function SubscriptionApplicationSheetEdit({
 }
 
 function ApplicationFieldsGridCreate({
-  selectedLanguage,
-  onSelectedLanguageChange,
   iconBroken,
   setIconBroken,
 }: {
-  selectedLanguage: string
-  onSelectedLanguageChange: (v: string) => void
   iconBroken: boolean
   setIconBroken: (v: boolean) => void
 }) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
+  const [selectedLanguage, setSelectedLanguage] = useState('en')
   const { control } = useFormContext<SubscriptionApplicationFormData>()
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -303,11 +339,11 @@ function ApplicationFieldsGridCreate({
         control={control}
         name="platform"
         render={({ field }) => (
-          <FormItem className="space-y-1">
+          <FormItem className="space-y-1 sm:col-span-2">
             <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.platform')}</FormLabel>
             <Select onValueChange={field.onChange} value={field.value}>
               <FormControl>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 w-full text-xs">
                   <SelectValue />
                 </SelectTrigger>
               </FormControl>
@@ -332,10 +368,7 @@ function ApplicationFieldsGridCreate({
         name="import_url"
         render={({ field }) => (
           <FormItem className="space-y-1 sm:col-span-2">
-            <div className="flex items-center gap-1.5">
-              <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
-              <VariablesPopover includeProfileTitle={true} />
-            </div>
+            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
             <FormControl>
               <Input placeholder={t('settings.subscriptions.applications.importUrlPlaceholder')} {...field} className="h-8 font-mono text-xs" dir="ltr" />
             </FormControl>
@@ -352,27 +385,22 @@ function ApplicationFieldsGridCreate({
           <FormItem className="space-y-1 sm:col-span-2">
             <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
             <FormControl>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Select value={selectedLanguage} onValueChange={onSelectedLanguageChange}>
-                  <SelectTrigger className="h-8 w-full text-xs sm:w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="scrollbar-thin z-[60]">
+              <div className="flex flex-col gap-2">
+                <Tabs value={selectedLanguage} onValueChange={setSelectedLanguage} className="w-full">
+                  <TabsList className="flex h-auto w-full flex-wrap gap-1 overflow-x-auto px-1 sm:w-fit sm:flex-nowrap sm:gap-4">
                     {languageOptions.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs">{option.icon}</span>
-                          <span className="text-xs">{option.label}</span>
-                        </div>
-                      </SelectItem>
+                      <TabsTrigger key={option.value} className="flex-1 px-1 text-xs sm:flex-none sm:px-2" value={option.value}>
+                        <span className="me-1">{option.icon}</span>
+                        <span>{option.label}</span>
+                      </TabsTrigger>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </TabsList>
+                </Tabs>
                 <Textarea
                   placeholder={t('settings.subscriptions.applications.descriptionPlaceholder', {
                     lang: languageOptions.find(lang => lang.value === selectedLanguage)?.label || 'English',
                   })}
-                  value={field.value?.[selectedLanguage as keyof typeof field.value] || ''}
+                  value={field.value?.[selectedLanguage] || ''}
                   onChange={e => {
                     const current = field.value || {}
                     field.onChange({
@@ -380,10 +408,7 @@ function ApplicationFieldsGridCreate({
                       [selectedLanguage]: e.target.value,
                     })
                   }}
-                  className={cn(
-                    'min-h-[60px] flex-1 resize-none text-xs',
-                    isRtl && selectedLanguage !== 'fa' && 'text-left',
-                  )}
+                  className={cn('min-h-[60px] resize-none text-xs', isRtl && selectedLanguage !== 'fa' && 'text-left')}
                   dir={isRtl && selectedLanguage !== 'fa' ? 'ltr' : undefined}
                   rows={2}
                 />
@@ -416,20 +441,17 @@ function ApplicationFieldsGridCreate({
 function ApplicationFieldsGridEdit({
   form,
   applicationIndex,
-  selectedLanguage,
-  onSelectedLanguageChange,
   iconBroken,
   setIconBroken,
 }: {
   form: UseFormReturn<SubscriptionFormData>
   applicationIndex: number
-  selectedLanguage: string
-  onSelectedLanguageChange: (v: string) => void
   iconBroken: boolean
   setIconBroken: (v: boolean) => void
 }) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
+  const [selectedLanguage, setSelectedLanguage] = useState('en')
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <FormField
@@ -441,7 +463,7 @@ function ApplicationFieldsGridEdit({
             <FormControl>
               <Input placeholder={t('settings.subscriptions.applications.namePlaceholder')} {...field} className="h-8 text-xs" />
             </FormControl>
-            {(form.formState?.errors as any)?.applications?.[applicationIndex]?.name && (
+            {form.formState.errors.applications?.[applicationIndex]?.name && (
               <p className="text-[0.8rem] font-medium text-destructive">{t('validation.required', { field: t('settings.subscriptions.applications.name') })}</p>
             )}
           </FormItem>
@@ -478,11 +500,11 @@ function ApplicationFieldsGridEdit({
         control={form.control}
         name={`applications.${applicationIndex}.platform`}
         render={({ field }) => (
-          <FormItem className="space-y-1">
+          <FormItem className="space-y-1 sm:col-span-2">
             <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.platform')}</FormLabel>
             <Select onValueChange={field.onChange} value={field.value}>
               <FormControl>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 w-full text-xs">
                   <SelectValue />
                 </SelectTrigger>
               </FormControl>
@@ -507,10 +529,7 @@ function ApplicationFieldsGridEdit({
         name={`applications.${applicationIndex}.import_url`}
         render={({ field }) => (
           <FormItem className="space-y-1 sm:col-span-2">
-            <div className="flex items-center gap-1.5">
-              <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
-              <VariablesPopover includeProfileTitle={true} />
-            </div>
+            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
             <FormControl>
               <Input placeholder={t('settings.subscriptions.applications.importUrlPlaceholder')} {...field} className="h-8 text-left font-mono text-xs" dir="ltr" />
             </FormControl>
@@ -527,22 +546,17 @@ function ApplicationFieldsGridEdit({
           <FormItem className="space-y-1 sm:col-span-2">
             <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
             <FormControl>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Select value={selectedLanguage} onValueChange={onSelectedLanguageChange}>
-                  <SelectTrigger className="h-8 w-full text-xs sm:w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="scrollbar-thin z-[60]">
+              <div className="flex flex-col gap-2">
+                <Tabs value={selectedLanguage} onValueChange={setSelectedLanguage} className="w-full">
+                  <TabsList className="flex h-auto w-full flex-wrap gap-1 overflow-x-auto px-1 sm:w-fit sm:flex-nowrap sm:gap-4">
                     {languageOptions.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs">{option.icon}</span>
-                          <span className="text-xs">{option.label}</span>
-                        </div>
-                      </SelectItem>
+                      <TabsTrigger key={option.value} className="flex-1 px-1 text-xs sm:flex-none sm:px-2" value={option.value}>
+                        <span className="me-1">{option.icon}</span>
+                        <span>{option.label}</span>
+                      </TabsTrigger>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </TabsList>
+                </Tabs>
                 <Textarea
                   placeholder={t('settings.subscriptions.applications.descriptionPlaceholder', {
                     lang: languageOptions.find(lang => lang.value === selectedLanguage)?.label || 'English',
@@ -555,7 +569,7 @@ function ApplicationFieldsGridEdit({
                       [selectedLanguage]: e.target.value,
                     })
                   }}
-                  className={`min-h-[60px] flex-1 resize-none text-xs ${isRtl && selectedLanguage !== 'fa' ? 'text-left' : ''}`}
+                  className={cn('min-h-[60px] resize-none text-xs', isRtl && selectedLanguage !== 'fa' && 'text-left')}
                   dir={isRtl && selectedLanguage !== 'fa' ? 'ltr' : undefined}
                   rows={2}
                 />
@@ -590,33 +604,49 @@ type DownloadLinksSectionProps = {
   linksFieldName: string
   rowIdPrefix: string
   applicationIndex?: number
+  restoredLinks?: SubscriptionApplicationFormData['download_links'] | null
+  restoreLinksVersion?: number
 }
 
-function DownloadLinksSection({ variant, linksFieldName, rowIdPrefix, applicationIndex }: DownloadLinksSectionProps) {
+function DownloadLinksSection({
+  variant,
+  linksFieldName,
+  rowIdPrefix,
+  applicationIndex,
+  restoredLinks,
+  restoreLinksVersion = 0,
+}: DownloadLinksSectionProps) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
-  const { control } = useFormContext()
+  const { control } = useFormContext<SubscriptionFormData & SubscriptionApplicationFormData>()
   const { errors } = useFormState({ control })
 
-  const { fields, append, remove } = useFieldArray({
-    control: control as unknown as Control<SubscriptionFormData & SubscriptionApplicationFormData>,
-    name: linksFieldName as any,
+  const { fields, append, remove, replace } = useFieldArray({
+    control: control as Control<SubscriptionFormData & SubscriptionApplicationFormData>,
+    name: linksFieldName as FieldArrayPath<SubscriptionFormData & SubscriptionApplicationFormData>,
   })
 
+  useEffect(() => {
+    if (variant !== 'edit' || restoreLinksVersion === 0 || !restoredLinks) return
+    replace(restoredLinks.map(link => ({ ...link })))
+  }, [replace, restoredLinks, restoreLinksVersion, variant])
+
   const watchedLinks = useWatch({
-    control: control as unknown as Control<SubscriptionFormData & SubscriptionApplicationFormData>,
-    name: linksFieldName as any,
+    control: control as Control<SubscriptionFormData & SubscriptionApplicationFormData>,
+    name: linksFieldName as FieldPath<SubscriptionFormData & SubscriptionApplicationFormData>,
   }) as { language?: string }[] | undefined
 
   const addDownloadLink = () => {
     append({ name: '', url: '', language: 'en' })
   }
 
+  const createErrors = errors as FieldErrors<SubscriptionApplicationFormData>
+  const editErrors = errors as FieldErrors<SubscriptionFormData>
   const downloadLinksRootError =
     variant === 'create'
-      ? (errors as any)?.download_links?.message
+      ? createErrors.download_links?.message
       : applicationIndex !== undefined
-        ? (errors as any)?.applications?.[applicationIndex]?.download_links?.message
+        ? editErrors.applications?.[applicationIndex]?.download_links?.message
         : undefined
 
   return (
@@ -651,28 +681,32 @@ function DownloadLinksSection({ variant, linksFieldName, rowIdPrefix, applicatio
 
             const nameErr =
               variant === 'create'
-                ? (errors as any)?.download_links?.[linkIndex]?.name
+                ? createErrors.download_links?.[linkIndex]?.name
                 : applicationIndex !== undefined
-                  ? (errors as any)?.applications?.[applicationIndex]?.download_links?.[linkIndex]?.name
+                  ? editErrors.applications?.[applicationIndex]?.download_links?.[linkIndex]?.name
                   : undefined
             const urlErr =
               variant === 'create'
-                ? (errors as any)?.download_links?.[linkIndex]?.url
+                ? createErrors.download_links?.[linkIndex]?.url
                 : applicationIndex !== undefined
-                  ? (errors as any)?.applications?.[applicationIndex]?.download_links?.[linkIndex]?.url
+                  ? editErrors.applications?.[applicationIndex]?.download_links?.[linkIndex]?.url
                   : undefined
 
             return (
               <div key={`${rowIdPrefix}-${linkField.id}`} className="flex flex-col gap-2 rounded-md border bg-muted/20 p-2 sm:flex-row">
                 <FormField
                   control={control}
-                  name={`${base}.name` as any}
+                  name={`${base}.name` as FieldPath<SubscriptionFormData & SubscriptionApplicationFormData>}
                   render={({ field }) => (
                     <FormItem className="min-w-0 flex-1">
                       <FormControl>
                         <Input
                           placeholder={t('settings.subscriptions.applications.downloadLinkNamePlaceholder')}
-                          {...field}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          onChange={field.onChange}
+                          ref={field.ref}
+                          value={String(field.value ?? '')}
                           className={cn('h-7 text-xs', ltrForThis && 'text-left')}
                           dir={ltrForThis ? 'ltr' : undefined}
                         />
@@ -687,13 +721,17 @@ function DownloadLinksSection({ variant, linksFieldName, rowIdPrefix, applicatio
                 />
                 <FormField
                   control={control}
-                  name={`${base}.url` as any}
+                  name={`${base}.url` as FieldPath<SubscriptionFormData & SubscriptionApplicationFormData>}
                   render={({ field }) => (
                     <FormItem className="min-w-0 flex-1">
                       <FormControl>
                         <Input
                           placeholder={t('settings.subscriptions.applications.downloadLinkUrlPlaceholder')}
-                          {...field}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          onChange={field.onChange}
+                          ref={field.ref}
+                          value={String(field.value ?? '')}
                           className="h-7 text-left font-mono text-xs"
                           dir="ltr"
                         />
@@ -705,10 +743,10 @@ function DownloadLinksSection({ variant, linksFieldName, rowIdPrefix, applicatio
                 <div className="flex items-start gap-2 sm:items-center">
                   <FormField
                     control={control}
-                    name={`${base}.language` as any}
+                    name={`${base}.language` as FieldPath<SubscriptionFormData & SubscriptionApplicationFormData>}
                     render={({ field }) => (
                       <FormItem className="w-full sm:w-24">
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} value={String(field.value ?? 'en')}>
                           <FormControl>
                             <SelectTrigger className="h-7 text-xs">
                               <SelectValue />

@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, UserCheck } from 'lucide-react'
+import { UserCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSetOwner, useBulkSetOwner, UserResponse } from '@/service/api'
+import { useBulkSetOwner, useSetOwnerById, UserResponse } from '@/service/api'
 import { toast } from 'sonner'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface SetOwnerModalProps {
   open: boolean
   onClose: () => void
+  userId?: number
   username?: string
   userIds?: number[]
   selectedCount?: number
@@ -18,7 +20,7 @@ interface SetOwnerModalProps {
   onSuccess?: (user?: UserResponse) => void
 }
 
-export default function SetOwnerModal({ open, onClose, username, userIds, selectedCount, currentOwner, onSuccess }: SetOwnerModalProps) {
+export default function SetOwnerModal({ open, onClose, userId, username, userIds, selectedCount, currentOwner, onSuccess }: SetOwnerModalProps) {
   const { t } = useTranslation()
   const [selectedAdmin, setSelectedAdmin] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -28,7 +30,7 @@ export default function SetOwnerModal({ open, onClose, username, userIds, select
   const [isError, setIsError] = useState(false)
   const isBulkMode = Boolean(userIds?.length)
   const bulkCount = selectedCount ?? userIds?.length ?? 0
-  const setOwnerMutation = useSetOwner({
+  const setOwnerMutation = useSetOwnerById({
     mutation: {
       onSuccess: updatedUser => {
         if (onSuccess && updatedUser) {
@@ -84,8 +86,8 @@ export default function SetOwnerModal({ open, onClose, username, userIds, select
         })
         toast.success(t('setOwnerModal.bulkSuccess', { count: bulkCount, admin: selectedAdmin }))
         onSuccess?.()
-      } else if (username) {
-        await setOwnerMutation.mutateAsync({ username, params: { admin_username: selectedAdmin } })
+      } else if (userId) {
+        await setOwnerMutation.mutateAsync({ userId, params: { admin_username: selectedAdmin } })
         toast.success(t('setOwnerModal.success', { username, admin: selectedAdmin }))
       }
       onClose()
@@ -126,8 +128,11 @@ export default function SetOwnerModal({ open, onClose, username, userIds, select
               </div>
             )}
             {isLoading ? (
-              <div className="flex items-center justify-center p-2">
-                <Loader2 className="animate-spin" />
+              <div className="space-y-2 p-2">
+                <Skeleton className="h-10 w-full" />
+                <div className="space-y-1 rounded-md border p-2">
+                  <Skeleton className="h-4 w-32" />
+                </div>
               </div>
             ) : isError ? (
               <div className="p-2 text-destructive">{t('setOwnerModal.loadError', { defaultValue: 'Failed to load admins.' })}</div>
@@ -153,8 +158,7 @@ export default function SetOwnerModal({ open, onClose, username, userIds, select
               {t('cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button type="button" onClick={handleSubmit} disabled={!selectedAdmin || submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('setOwnerModal.confirm', { defaultValue: 'Set Owner' })}
+              {submitting ? t('submitting', { defaultValue: 'Submitting...' }) : t('setOwnerModal.confirm', { defaultValue: 'Set Owner' })}
             </Button>
           </div>
         </div>

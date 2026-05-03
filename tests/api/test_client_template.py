@@ -1,7 +1,7 @@
 from fastapi import status
 
 from tests.api import client
-from tests.api.helpers import create_client_template, unique_name
+from tests.api.helpers import auth_headers, create_client_template, create_core, delete_core, get_inbounds, unique_name
 
 
 def test_client_template_create_and_get(access_token):
@@ -109,3 +109,47 @@ def test_client_template_can_delete_non_first_template(access_token):
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+def test_client_template_delete_clears_associated_host_override(access_token):
+    core = create_core(access_token)
+    inbound_list = get_inbounds(access_token)
+    assert inbound_list, "No inbounds available for host template cleanup test"
+    target = create_client_template(
+        access_token,
+        name=unique_name("tmpl_xray_host_cleanup"),
+        template_type="xray_subscription",
+        content='{"inbounds":[{"tag":"placeholder","protocol":"vmess","settings":{"clients":[]}}],"outbounds":[{"tag":"cleanup-template-marker","protocol":"freedom","settings":{}}]}',
+    )
+
+    host_id = None
+    try:
+        create_response = client.post(
+            "/api/host",
+            headers=auth_headers(access_token),
+            json={
+                "remark": unique_name("host_template_cleanup"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbound_list[0],
+                "priority": 1,
+                "subscription_templates": {"xray": target["id"]},
+            },
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED
+        host_id = create_response.json()["id"]
+        assert create_response.json()["subscription_templates"] == {"xray": target["id"]}
+
+        delete_response = client.delete(
+            f"/api/client_template/{target['id']}",
+            headers=auth_headers(access_token),
+        )
+        assert delete_response.status_code == status.HTTP_204_NO_CONTENT
+
+        host_response = client.get(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        assert host_response.status_code == status.HTTP_200_OK
+        assert host_response.json()["subscription_templates"] is None
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])

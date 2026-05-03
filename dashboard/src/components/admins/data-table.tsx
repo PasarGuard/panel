@@ -3,12 +3,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import React, { useState, useMemo, memo, useCallback, useEffect } from 'react'
-import { ChartPie, ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserX, LoaderCircle, MoreVertical, Users } from 'lucide-react'
+import { ChartPie, ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserX, MoreVertical, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AdminDetails } from '@/service/api'
 import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes } from '@/utils/formatByte'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface DataTableProps<TData extends AdminDetails> {
   columns: ColumnDef<TData, any>[]
@@ -18,10 +19,10 @@ interface DataTableProps<TData extends AdminDetails> {
   onDelete: (admin: AdminDetails) => void
   onToggleStatus: (admin: AdminDetails) => void
   setStatusToggleDialogOpen: (isOpen: boolean) => void
-  onResetUsage: (adminUsername: string) => void
-  onDisableAllActiveUsers?: (adminUsername: string) => void
-  onActivateAllDisabledUsers?: (adminUsername: string) => void
-  onRemoveAllUsers?: (adminUsername: string) => void
+  onResetUsage: (admin: AdminDetails) => void
+  onDisableAllActiveUsers?: (admin: AdminDetails) => void
+  onActivateAllDisabledUsers?: (admin: AdminDetails) => void
+  onRemoveAllUsers?: (admin: AdminDetails) => void
   onSelectionChange?: (selectedUsernames: string[]) => void
   resetSelectionKey?: number
   isLoading?: boolean
@@ -44,10 +45,10 @@ const ExpandedRowContent = memo(
     onEdit: (admin: AdminDetails) => void
     onDelete: (admin: AdminDetails) => void
     onToggleStatus: (admin: AdminDetails) => void
-    onResetUsage: (adminUsername: string) => void
-    onDisableAllActiveUsers?: (adminUsername: string) => void
-    onActivateAllDisabledUsers?: (adminUsername: string) => void
-    onRemoveAllUsers?: (adminUsername: string) => void
+    onResetUsage: (admin: AdminDetails) => void
+    onDisableAllActiveUsers?: (admin: AdminDetails) => void
+    onActivateAllDisabledUsers?: (admin: AdminDetails) => void
+    onRemoveAllUsers?: (admin: AdminDetails) => void
     currentAdminUsername?: string
   }) => {
     const { t } = useTranslation()
@@ -96,7 +97,7 @@ const ExpandedRowContent = memo(
                 onSelect={e => {
                   e.preventDefault()
                   e.stopPropagation()
-                  onResetUsage(row.username)
+                  onResetUsage(row)
                 }}
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
@@ -107,7 +108,7 @@ const ExpandedRowContent = memo(
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onDisableAllActiveUsers(row.username)
+                    onDisableAllActiveUsers(row)
                   }}
                 >
                   <UserMinus className="mr-2 h-4 w-4" />
@@ -119,7 +120,7 @@ const ExpandedRowContent = memo(
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onActivateAllDisabledUsers(row.username)
+                    onActivateAllDisabledUsers(row)
                   }}
                 >
                   <UserCheck className="mr-2 h-4 w-4" />
@@ -132,7 +133,7 @@ const ExpandedRowContent = memo(
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
-                    onRemoveAllUsers(row.username)
+                    onRemoveAllUsers(row)
                   }}
                 >
                   <UserX className="mr-2 h-4 w-4" />
@@ -212,19 +213,82 @@ export function DataTable<TData extends AdminDetails>({
   const dir = useDirDetection()
   const isRTL = dir === 'rtl'
   const isLoadingData = isLoading || isFetching
+  const loadingRowCount = 10
+
+  const getLoadingCellClassName = useCallback(
+    (columnId: string) =>
+      cn(
+        'text-sm',
+        columnId !== 'username' && 'whitespace-nowrap',
+        columnId === 'select' && 'w-8 !px-1 !py-4',
+        columnId === 'username' && 'max-w-[calc(100vw-32px-72px-44px-16px-56px)] !px-0',
+        columnId === 'used_traffic' && '!px-0 text-center',
+        columnId === 'lifetime_used_traffic' && '!px-0 text-center',
+        columnId === 'chevron' && 'w-10',
+        !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(columnId) && 'hidden !p-0 md:table-cell',
+        columnId === 'chevron' && 'table-cell md:hidden',
+        !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(columnId) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
+      ),
+    [isRTL],
+  )
+
+  const renderLoadingCell = useCallback((columnId: string, rowIndex: number) => {
+    switch (columnId) {
+      case 'select':
+        return (
+          <div className="flex h-5 items-center justify-center">
+            <Skeleton className="h-3.5 w-3.5 rounded-[3px]" />
+          </div>
+        )
+      case 'username':
+        return (
+          <div className="flex items-center gap-x-3 py-1.5">
+            <Skeleton className="h-2.5 w-2.5 shrink-0 rounded-full" />
+            <Skeleton className={cn('h-4', rowIndex % 3 === 0 ? 'w-24' : 'w-32')} />
+          </div>
+        )
+      case 'used_traffic':
+        return <Skeleton className="mx-auto h-4 w-16 md:mx-0" />
+      case 'lifetime_used_traffic':
+        return (
+          <>
+            <Skeleton className="mx-auto h-4 w-4 rounded-full md:hidden" />
+            <Skeleton className="hidden h-4 w-20 md:block" />
+          </>
+        )
+      case 'is_sudo':
+        return <Skeleton className="h-5 w-20 rounded-full" />
+      case 'total_users':
+        return (
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-4" />
+            <Skeleton className="h-4 w-8" />
+          </div>
+        )
+      case 'actions':
+        return <Skeleton className="h-8 w-8" />
+      case 'chevron':
+        return <Skeleton className="mx-auto h-4 w-4 rounded-full" />
+      default:
+        return <Skeleton className="h-4 w-20" />
+    }
+  }, [])
 
   const LoadingState = useMemo(
     () => (
-      <TableRow>
-        <TableCell colSpan={columns.length} className="h-24">
-          <div dir={dir} className="flex flex-col items-center justify-center gap-2">
-            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-            <span className="text-sm">{t('loading')}</span>
-          </div>
-        </TableCell>
-      </TableRow>
+      <>
+        {Array.from({ length: loadingRowCount }).map((_, rowIndex) => (
+          <TableRow key={`admin-skeleton-${rowIndex}`} className="border-b">
+            {table.getVisibleLeafColumns().map(column => (
+              <TableCell key={`${column.id}-${rowIndex}`} className={getLoadingCellClassName(column.id)}>
+                {renderLoadingCell(column.id, rowIndex)}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </>
     ),
-    [columns.length, dir, t],
+    [getLoadingCellClassName, renderLoadingCell, table],
   )
 
   const EmptyState = useMemo(

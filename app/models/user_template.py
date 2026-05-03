@@ -38,7 +38,7 @@ class UserTemplate(BaseModel):
 class UserTemplateWithValidator(UserTemplate):
     @field_validator("status", mode="before", check_fields=False)
     def validate_status(cls, status, values):
-        return UserValidator.validate_status(status, values)
+        return UserValidator.validate_status(status, {UserStatusCreate.active, UserStatusCreate.on_hold}, values)
 
     @field_validator("username_prefix", "username_suffix", check_fields=False)
     @classmethod

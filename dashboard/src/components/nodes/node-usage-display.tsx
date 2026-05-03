@@ -1,10 +1,9 @@
-import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { Progress } from '@/components/ui/progress'
 import { formatBytes } from '@/utils/formatByte'
 import { NodeResponse } from '@/service/api'
-import { ArrowUp, ArrowDown } from 'lucide-react'
+import { Download, Gauge, HardDrive, Upload } from 'lucide-react'
 import { statusColors } from '@/constants/UserSettings'
 
 interface NodeUsageDisplayProps {
@@ -12,7 +11,6 @@ interface NodeUsageDisplayProps {
 }
 
 export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
-  const { t } = useTranslation()
   const isRTL = useDirDetection() === 'rtl'
   const uplink = node.uplink || 0
   const downlink = node.downlink || 0
@@ -24,73 +22,51 @@ export default function NodeUsageDisplay({ node }: NodeUsageDisplayProps) {
   const isUnlimited = dataLimit === null || dataLimit === undefined || dataLimit === 0
   const progressValue = isUnlimited || !dataLimit ? 0 : Math.min((totalUsed / dataLimit) * 100, 100)
 
-  // Determine progress color based on usage (using same colors as active users)
   const getProgressColor = () => {
     if (isUnlimited) return ''
-    if (progressValue >= 90) return statusColors.limited.sliderColor // bg-red-600
-    if (progressValue >= 70) return statusColors.expired.sliderColor // bg-amber-600
-    return statusColors.active.sliderColor // bg-emerald-600
+    if (progressValue >= 90) return statusColors.limited.sliderColor
+    if (progressValue >= 70) return statusColors.expired.sliderColor
+    return statusColors.active.sliderColor
   }
 
   if (totalUsed === 0 && !dataLimit && totalLifetime === 0) {
-    return <div>-</div>
+    return <span className="text-xs text-muted-foreground">-</span>
   }
 
   return (
-    <div className={cn('space-y-1.5', isRTL ? 'text-right' : 'text-left')}>
-      {/* Progress Bar */}
-      {!isUnlimited && dataLimit && (
-        <Progress value={progressValue} className="h-1" indicatorClassName={getProgressColor()} />
-      )}
+    <div className={cn('min-w-0 space-y-1', isRTL ? 'text-right' : 'text-left')}>
+      {!isUnlimited && dataLimit && <Progress value={progressValue} className="h-1" indicatorClassName={getProgressColor()} />}
 
-      {/* Main Usage Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
-        <div className={cn('flex items-center gap-1.5', isRTL && 'flex-row-reverse')}>
-          <span dir="ltr" className={cn("text-xs font-medium text-foreground", isRTL && 'justify-end')}>
-            {formatBytes(totalUsed)}
+      <div className={cn('flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] leading-4', isRTL ? 'justify-end' : 'justify-start')}>
+        <span dir="ltr" className={cn('inline-flex shrink-0 items-center gap-0.5 font-semibold text-foreground', isRTL && 'flex-row-reverse')}>
+          <Gauge className="h-2.5 w-2.5 shrink-0" strokeWidth={2.25} />
+          {formatBytes(totalUsed)}
+        </span>
+        {!isUnlimited && dataLimit && (
+          <span dir="ltr" className="shrink-0 text-muted-foreground">
+            / {formatBytes(dataLimit)}
           </span>
-          {!isUnlimited && dataLimit && (
-            <>
-              <span className="text-muted-foreground/60">/</span>
-              <span dir="ltr" className="text-xs text-muted-foreground">
-                {formatBytes(dataLimit)}
-              </span>
-            </>
-          )}
-        </div>
+        )}
         {totalLifetime > 0 && (
-          <div className='flex items-center gap-1'>
-            <span className="text-[10px] text-muted-foreground">
-              {t('usersTable.total', { defaultValue: 'Total' })}:
-            </span>
-            <span dir="ltr" className="text-[10px] font-medium text-muted-foreground">
-              {formatBytes(totalLifetime)}
-            </span>
-          </div>
+          <span dir="ltr" className={cn('inline-flex shrink-0 items-center gap-0.5 text-muted-foreground', isRTL && 'flex-row-reverse')}>
+            <HardDrive className="h-2.5 w-2.5 shrink-0" strokeWidth={2.25} />
+            {formatBytes(totalLifetime)}
+          </span>
+        )}
+        {(uplink > 0 || downlink > 0) && <span className="hidden h-3 w-px shrink-0 bg-border sm:inline-block" />}
+        {uplink > 0 && (
+          <span dir="ltr" className={cn('inline-flex shrink-0 items-center gap-0.5 font-medium text-blue-500 dark:text-blue-400', isRTL && 'flex-row-reverse')}>
+            <Upload className="h-2.5 w-2.5 shrink-0" strokeWidth={2.25} />
+            {formatBytes(uplink)}
+          </span>
+        )}
+        {downlink > 0 && (
+          <span dir="ltr" className={cn('inline-flex shrink-0 items-center gap-0.5 font-medium text-emerald-500 dark:text-emerald-400', isRTL && 'flex-row-reverse')}>
+            <Download className="h-2.5 w-2.5 shrink-0" strokeWidth={2.25} />
+            {formatBytes(downlink)}
+          </span>
         )}
       </div>
-
-      {/* Upload/Download Stats */}
-      {(uplink > 0 || downlink > 0) && (
-        <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', isRTL ? 'justify-end' : 'justify-start')}>
-          {uplink > 0 && (
-            <div className={cn('flex items-center gap-1', isRTL && 'flex-row-reverse')}>
-              <ArrowUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-blue-500 dark:text-blue-400" strokeWidth={2} />
-              <span dir="ltr" className="text-[10px] font-medium text-blue-500 dark:text-blue-400">
-                {formatBytes(uplink)}
-              </span>
-            </div>
-          )}
-          {downlink > 0 && (
-            <div className={cn('flex items-center gap-1', isRTL && 'flex-row-reverse')}>
-              <ArrowDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-emerald-500 dark:text-emerald-400" strokeWidth={2} />
-              <span dir="ltr" className="text-[10px] font-medium text-emerald-500 dark:text-emerald-400">
-                {formatBytes(downlink)}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

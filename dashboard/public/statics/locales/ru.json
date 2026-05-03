@@ -309,19 +309,20 @@
       },
       "applications": {
         "title": "Приложения",
-        "description": "Настройка клиентских приложений и ссылок для скачивания для разных платформ",
+        "description": "Настройка клиентских приложений и ссылок для разных платформ",
         "addApplication": "Добавить приложение",
         "addSheetDescription": "Создайте новую запись клиентского приложения для страницы подписки.",
-        "sheetDescription": "Измените данные приложения и ссылки на загрузки для этой платформы.",
+        "sheetDescription": "Измените данные приложения и ссылки для этой платформы.",
         "editApplication": "Редактировать приложение",
         "application": "Приложение",
         "duplicateApplication": "Пожалуйста, заполните существующее приложение перед добавлением нового",
         "noApplications": "Приложения не настроены",
-        "noApplicationsDescription": "Добавьте приложения для предоставления ссылок для скачивания и конфигурации для разных платформ",
+        "noApplicationsDescription": "Добавьте приложения для предоставления ссылок и конфигурации для разных платформ",
         "loadDefaults": "Загрузить по умолчанию",
         "loadedDefaults": "Значения по умолчанию загружены",
         "resetToDefault": "Сбросить по умолчанию",
         "resetToDefaultSuccess": "Приложения сброшены к настройкам по умолчанию",
+        "undo": "Отменить",
         "name": "Название приложения",
         "namePlaceholder": "Введите название приложения",
         "platform": "Платформа",
@@ -332,12 +333,12 @@
         "descriptionPlaceholder": "Введите описание на {{lang}}",
         "recommended": "Рекомендуемое",
         "recommendedDescription": "Отметить это приложение как рекомендуемое для пользователей",
-        "downloadLinks": "Ссылки для скачивания",
+        "downloadLinks": "Ссылки",
         "addDownloadLink": "Добавить ссылку",
-        "noDownloadLinks": "Ссылки для скачивания не добавлены",
+        "noDownloadLinks": "Ссылки не добавлены",
         "downloadLinkNamePlaceholder": "Название ссылки",
-        "downloadLinkUrlPlaceholder": "https://example.com/download",
-        "downloadLinksRequired": "Требуется хотя бы одна ссылка для скачивания",
+        "downloadLinkUrlPlaceholder": "https://example.com/link",
+        "downloadLinksRequired": "Требуется хотя бы одна ссылка",
         "downloadLinkIncomplete": "Для каждой ссылки нужны и название, и URL.",
         "downloadLinkName": "Название ссылки",
         "downloadLinkUrl": "URL ссылки",
@@ -477,7 +478,6 @@
         "recurrent": "Количество повторов",
         "recurrentDescription": "Количество повторных попыток для неудачных веб-хуков (1-24)",
         "proxyUrl": "URL прокси",
-        "proxyUrlPlaceholder": "http://proxy.example.com:8080",
         "proxyUrlDescription": "URL прокси для запросов веб-хуков (необязательно)"
       },
       "webhooks": {
@@ -1028,7 +1028,7 @@
   "userDialog.editUserTitle": "Редактировать пользователя",
   "userDialog.endDate": "Дата окончания",
   "userDialog.expiryDate": "Дата истечения срока",
-  "userDialog.timeOutDate": "Дата истечения срока действия",
+  "userDialog.timeOutDate": "Удерживать до",
   "userDialog.generatedByDefault": "по умолчанию",
   "userDialog.hours": "Часы",
   "userDialog.method": "Метод",
@@ -1100,6 +1100,7 @@
   "statistics.ramUsage": "Использование RAM",
   "statistics.cpuUsage": "Использование CPU",
   "statistics.diskUsage": "Использование диска",
+  "statistics.uptime": "Время работы",
   "statistics.cores": "ядер",
   "arrayInput": {
     "addPlaceholder": "Введите и нажмите Enter для добавления...",
@@ -1638,6 +1639,7 @@
     "update": "Обновить",
     "updating": "Обновление...",
     "updateAvailable": "Доступно обновление",
+    "prerelease": "Предварительная версия",
     "loadingReleases": "Загрузка релизов..."
   },
   "theme": {
@@ -1725,7 +1727,7 @@
     "selectInbound": "Выберите входящий",
     "inbound": "Входящий",
     "generateKeyPair": "Пара ключей",
-    "backendType": "Тип бэкенда",
+    "backendType": "Тип",
     "generateWireGuardKeyPair": "Пара ключей WireGuard",
     "generateShortId": "Короткий ID",
     "publicKey": "Публичный ключ",
@@ -2051,11 +2053,11 @@
     "applyToProxyDesc": "Выберите группы, пользователей или администраторов для применения настроек прокси",
     "flowMethod": "Поток: {{flow}} | Метод: {{method}}",
     "expireDate": "Дата истечения",
-    "expiredFilterAfter": "Истекли не раньше",
+    "expiredFilterAfter": "Истекает не раньше",
     "expiredFilterAfterPlaceholder": "Выберите дату",
-    "expiredFilterBefore": "Истекли не позже",
+    "expiredFilterBefore": "Истекает не позже",
     "expiredFilterBeforePlaceholder": "Выберите дату",
-    "expiredFilterHint": "Необязательно. При выбранном статусе «Истёк» можно сузить выбор по дате истечения срока действия учётной записи.",
+    "expiredFilterHint": "Необязательно. Сузьте выбор по дате истечения пользователя.",
     "dataLimit": "Лимит данных",
     "groupsDesc": "Выберите группы для применения",
     "expireDateDesc": "Выберите дату истечения срока действия для применения",
@@ -2207,7 +2209,7 @@
       "createMore": "Создать больше пользователей",
       "strategy": {
         "sequence": "Последовательный (user1, user2, user3...)",
-        "random": "Случайный (user-abc123, user-def456...)"
+        "random": "Случайный (a3f9c1d2e4b5, 9a8b7c6d5e4f...)"
       }
     }
   },
@@ -2294,6 +2296,7 @@
     "missingFields": "Пожалуйста, заполните обязательные поля: {{fields}}"
   },
   "version": {
+    "title": "Версия",
     "newVersionAvailable": "Доступна новая версия!",
     "currentVersion": "Текущая",
     "latestVersion": "Последняя",

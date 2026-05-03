@@ -133,6 +133,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         reset_time: node.reset_time ?? null,
         default_timeout: node.default_timeout ?? 10,
         internal_timeout: node.internal_timeout ?? 15,
+        proxy_url: node.proxy_url ?? '',
       },
       { keepDirty: false, keepValues: false },
     )
@@ -195,6 +196,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           reset_time: nodeData.reset_time ?? null,
           default_timeout: nodeData.default_timeout ?? 10,
           internal_timeout: nodeData.internal_timeout ?? 15,
+          proxy_url: nodeData.proxy_url ?? '',
         })
         lastSyncedNodeRef.current = nodeData
         setIsFetchingNodeData(false)
@@ -231,6 +233,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               reset_time: nodeData.reset_time ?? null,
               default_timeout: nodeData.default_timeout ?? 10,
               internal_timeout: nodeData.internal_timeout ?? 15,
+              proxy_url: nodeData.proxy_url ?? '',
             })
             lastSyncedNodeRef.current = nodeData
           } catch (error) {
@@ -261,6 +264,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         reset_time: -1,
         default_timeout: 10,
         internal_timeout: 15,
+        proxy_url: '',
       })
     }
   }, [editingNode, editingNodeId, isDialogOpen, cores, initialNodeData, form])
@@ -326,6 +330,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         data_limit: gbToBytes(values.data_limit),
         reset_time: values.reset_time !== null && values.reset_time !== undefined ? values.reset_time : -1,
         api_port: values.api_port ?? undefined,
+        proxy_url: values.proxy_url?.trim() || null,
       }
 
       let nodeId: number | undefined
@@ -374,7 +379,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
-      const fields = ['name', 'address', 'port', 'core_config_id', 'api_key', 'keep_alive_unit', 'keep_alive', 'server_ca', 'connection_type', '']
+      const fields = ['name', 'address', 'port', 'core_config_id', 'api_key', 'keep_alive_unit', 'keep_alive', 'server_ca', 'connection_type', 'proxy_url', '']
       handleError({ error, fields, form, contextKey: 'nodes' })
     }
   }
@@ -401,7 +406,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     ? 'bg-green-500 dark:bg-green-400'
                     : currentNode?.status === 'error'
                       ? 'bg-red-500 dark:bg-red-400'
-                      : 'bg-gray-500 dark:bg-gray-400'
+                      : currentNode?.status === 'limited'
+                        ? 'bg-orange-500 dark:bg-orange-400'
+                        : 'bg-gray-500 dark:bg-gray-400'
                   }`}
               />
               <span className="text-sm font-medium text-foreground">
@@ -411,7 +418,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     ? t('nodeModal.status.connected')
                     : currentNode?.status === 'error'
                       ? t('nodeModal.status.error')
-                      : t('nodeModal.status.disabled')}
+                      : currentNode?.status === 'limited'
+                        ? t('status.limited', { defaultValue: 'Limited' })
+                        : t('nodeModal.status.disabled')}
               </span>
               {currentNode?.status === 'error' && (
                 <Button variant="ghost" size="sm" onClick={() => setShowErrorDetails(!showErrorDetails)} className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground">
@@ -547,7 +556,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                         field.onChange(uuidv4())
                       }
                       return (
-                        <FormItem className={'min-h-[100px]'}>
+                        <FormItem>
                           <FormLabel>{t('nodeModal.apiKey')}</FormLabel>
                           <FormControl>
                             <div className={cn('flex w-full min-w-0 items-stretch gap-0', dir === 'rtl' && 'flex-row-reverse')}>
@@ -576,7 +585,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                       )
                     }}
                   />
-                  <Accordion type="single" collapsible className="!mt-0 mb-4 w-full pb-4">
+                  <Accordion type="single" collapsible className="!mt-0 mb-2 w-full pb-2">
                     <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="advanced-settings">
                       <AccordionTrigger>
                         <div className="flex items-center gap-2">
@@ -813,7 +822,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                       />
                                     </FormControl>
                                     {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                      <p className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
+                                      <p dir='ltr' className={cn('absolute w-full right-0 top-full mt-1 text-xs text-muted-foreground', dir === 'rtl' ? 'text-left' : 'text-end')}>
+                                        {formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}
+                                      </p>
                                     )}
                                     <FormMessage />
                                   </FormItem>
@@ -1167,6 +1178,26 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                 )}
                               />
                             </div>
+                            <FormField
+                              control={form.control}
+                              name="proxy_url"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('settings.webhook.general.proxyUrl')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      isError={!!form.formState.errors.proxy_url}
+                                      type="url"
+                                      placeholder="socks5://127.0.0.1:1080"
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      className="font-mono text-xs sm:text-sm"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </div>
                         </div>
                       </AccordionContent>
