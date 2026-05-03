@@ -31,6 +31,21 @@ target_metadata = Base.metadata
 # ... etc.
 
 
+def _compare_type(_context, _inspected_column, metadata_column, _inspected_type, _metadata_type):
+    """Skip INTEGER vs BIGINT drift for HWID PK/FK.
+
+    Migration b2c3d4e5f6a7 mirrors ``users.id`` SQL type per dialect (INTEGER on SQLite,
+    BIGINT on PostgreSQL/MySQL). Models use ``BigInteger`` so runtime values fit all DBs;
+    SQLite still reflects INTEGER, which would otherwise fail ``alembic check``.
+    """
+    if metadata_column.table.name == "hwid_user_devices" and metadata_column.name in (
+        "id",
+        "user_id",
+    ):
+        return False
+    return None
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -50,12 +65,20 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         render_as_batch=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=_compare_type,
     )
 
     with context.begin_transaction():
         context.run_migrations()
+
+
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=True,
+        compare_type=_compare_type,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

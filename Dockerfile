@@ -44,5 +44,6 @@ COPY healthcheck.sh /code/healthcheck.sh
 RUN chmod +x /code/healthcheck.sh
 
 RUN chmod +x /code/start.sh
+RUN sed -i 's/\r$//' /code/start.sh /code/healthcheck.sh /usr/bin/pasarguard-cli /usr/bin/pasarguard-tui
 
 ENTRYPOINT ["/code/start.sh"]
