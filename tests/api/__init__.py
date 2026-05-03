@@ -3,8 +3,8 @@ import json
 
 from alembic.command import upgrade
 from alembic.config import Config
-from decouple import config
 from fastapi.testclient import TestClient
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -13,13 +13,23 @@ from sqlalchemy.pool import NullPool, StaticPool
 from app.db import base
 from config import database_settings
 
+
+class TestSettings(BaseSettings):
+    test_from: str = "local"
+    database_url: str = "sqlite+aiosqlite:///./test.db"
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+
+
+test_settings = TestSettings()
+
 XRAY_JSON_TEST_FILE = "tests/api/xray_config-test.json"
 
-TEST_FROM = config("TEST_FROM", default="local")
+TEST_FROM = test_settings.test_from
 # In local mode, use in-memory SQLite by default, but allow override via DATABASE_URL env var
 if TEST_FROM == "local":
-    # DATABASE_URL = config("DATABASE_URL", default="sqlite+aiosqlite:///:memory:")
-    DATABASE_URL = config("DATABASE_URL", default="sqlite+aiosqlite:///./test.db")
+    # DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+    DATABASE_URL = test_settings.database_url
 
 else:
     DATABASE_URL = database_settings.url
