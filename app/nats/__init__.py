@@ -1,13 +1,13 @@
-from config import NATS_ENABLED, NATS_URL
+from config import nats_settings
 
 
 def is_nats_enabled() -> bool:
-    return NATS_ENABLED
+    return nats_settings.enabled
 
 
 def get_nats_config():
     return {
-        "url": NATS_URL,
+        "url": nats_settings.url,
     }
 
 

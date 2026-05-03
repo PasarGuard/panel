@@ -9,7 +9,7 @@ from app.operation.user import UserOperation
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
-from config import JOB_RESET_USER_DATA_USAGE_INTERVAL, ROLE
+from config import job_settings, runtime_settings
 
 logger = get_logger("jobs")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
@@ -32,11 +32,11 @@ async def reset_data_usage():
             logger.info(f'User data usage reset for User "{user.username}"')
 
 
-if ROLE.runs_scheduler:
+if runtime_settings.role.runs_scheduler:
     scheduler.add_job(
         reset_data_usage,
         "interval",
-        seconds=JOB_RESET_USER_DATA_USAGE_INTERVAL,
+        seconds=job_settings.reset_user_data_usage_interval,
         coalesce=True,
         start_date=dt.now(tz.utc) + td(minutes=1),
         max_instances=1,

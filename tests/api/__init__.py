@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
 
 from app.db import base
-from config import SQLALCHEMY_DATABASE_URL
+from config import database_settings
 
 XRAY_JSON_TEST_FILE = "tests/api/xray_config-test.json"
 
@@ -22,7 +22,7 @@ if TEST_FROM == "local":
     DATABASE_URL = config("DATABASE_URL", default="sqlite+aiosqlite:///./test.db")
 
 else:
-    DATABASE_URL = SQLALCHEMY_DATABASE_URL
+    DATABASE_URL = database_settings.url
 print(f"TEST_FROM: {TEST_FROM}")
 print(f"DATABASE_URL: {DATABASE_URL}")
 

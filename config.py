@@ -1,132 +1,217 @@
-from decouple import config
-from dotenv import load_dotenv
+from functools import cached_property
+from typing import Any
+
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from role import Role
 
-TESTING = config("TESTING", default=False, cast=bool)
-if not TESTING:
-    load_dotenv()
-    # Reload TESTING in case it is defined in .env
-    TESTING = config("TESTING", default=TESTING, cast=bool)
 
-SQLALCHEMY_DATABASE_URL = config("SQLALCHEMY_DATABASE_URL", default="sqlite+aiosqlite:///db.sqlite3")
-SQLALCHEMY_POOL_SIZE = config("SQLALCHEMY_POOL_SIZE", cast=int, default=25)
-SQLALCHEMY_MAX_OVERFLOW = config("SQLALCHEMY_MAX_OVERFLOW", cast=int, default=60)
-SQLALCHEMY_POOL_RECYCLE = config("SQLALCHEMY_POOL_RECYCLE", cast=int, default=300)
-ECHO_SQL_QUERIES = config("ECHO_SQL_QUERIES", cast=bool, default=False)
-
-UVICORN_HOST = config("UVICORN_HOST", default="0.0.0.0")
-UVICORN_PORT = config("UVICORN_PORT", cast=int, default=8000)
-UVICORN_UDS = config("UVICORN_UDS", default=None)
-UVICORN_SSL_CERTFILE = config("UVICORN_SSL_CERTFILE", default=None)
-UVICORN_SSL_KEYFILE = config("UVICORN_SSL_KEYFILE", default=None)
-UVICORN_SSL_CA_TYPE = config("UVICORN_SSL_CA_TYPE", default="public").lower()
-UVICORN_WORKERS = config("UVICORN_WORKERS", default=1, cast=int)
-DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
-UVICORN_LOOP = config("UVICORN_LOOP", default="auto", cast=str)
-
-_role_raw = config("ROLE", default="all-in-one").strip().lower()
-try:
-    ROLE = Role(_role_raw)
-except ValueError:
-    raise ValueError(f"Invalid ROLE '{_role_raw}'. Must be one of: {[r.value for r in Role]}")
-
-NATS_ENABLED = config("NATS_ENABLED", default=False, cast=bool)
-NATS_URL = config("NATS_URL", default="nats://localhost:4222")
-NATS_WORKER_SYNC_SUBJECT = config("NATS_WORKER_SYNC_SUBJECT", default="pasarguard.worker_sync")
-NATS_NODE_COMMAND_SUBJECT = config("NATS_NODE_COMMAND_SUBJECT", default="pasarguard.node.command")
-NATS_NODE_RPC_SUBJECT = config("NATS_NODE_RPC_SUBJECT", default="pasarguard.node.rpc")
-NATS_SCHEDULER_RPC_SUBJECT = config("NATS_SCHEDULER_RPC_SUBJECT", default="pasarguard.scheduler.rpc")
-NATS_NODE_LOG_SUBJECT = config("NATS_NODE_LOG_SUBJECT", default="pasarguard.node.logs")
-NATS_NODE_RPC_TIMEOUT = config("NATS_NODE_RPC_TIMEOUT", cast=float, default=30.0)
-NATS_SCHEDULER_RPC_TIMEOUT = config("NATS_SCHEDULER_RPC_TIMEOUT", cast=float, default=5.0)
-CORE_PUBSUB_CHANNEL = config("CORE_PUBSUB_CHANNEL", default="core_hosts_updates")
-HOST_PUBSUB_CHANNEL = config("HOST_PUBSUB_CHANNEL", default="host_manager_updates")
-
-# NATS KV buckets and streams for coordination
-NATS_TELEGRAM_KV_BUCKET = config("NATS_TELEGRAM_KV_BUCKET", default="pasarguard_telegram")
-NATS_NOTIFICATION_STREAM = config("NATS_NOTIFICATION_STREAM", default="NOTIFICATIONS")
-NATS_NOTIFICATION_SUBJECT = config("NATS_NOTIFICATION_SUBJECT", default="notifications.queue")
-NATS_NOTIFICATION_CONSUMER = config("NATS_NOTIFICATION_CONSUMER", default="notification_workers")
-NATS_WEBHOOK_STREAM = config("NATS_WEBHOOK_STREAM", default="WEBHOOK_NOTIFICATIONS")
-NATS_WEBHOOK_SUBJECT = config("NATS_WEBHOOK_SUBJECT", default="notifications.webhook")
-NATS_WEBHOOK_CONSUMER = config("NATS_WEBHOOK_CONSUMER", default="webhook_workers")
-
-DEBUG = config("DEBUG", default=False, cast=bool)
-DOCS = config("DOCS", default=False, cast=bool)
-
-ALLOWED_ORIGINS = config("ALLOWED_ORIGINS", default="*").split(",")
-
-VITE_BASE_API = (
-    f"{'https' if UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE else 'http'}://127.0.0.1:{UVICORN_PORT}/"
-    if DEBUG and config("VITE_BASE_API", default="/") == "/"
-    else config("VITE_BASE_API", default="/")
-)
-
-# For backward compatibility
-SUBSCRIPTION_PATH = config("XRAY_SUBSCRIPTION_PATH", default="").strip("/")
-if not SUBSCRIPTION_PATH:
-    SUBSCRIPTION_PATH = config("SUBSCRIPTION_PATH", default="sub").strip("/")
-
-USER_SUBSCRIPTION_CLIENTS_LIMIT = config("USER_SUBSCRIPTION_CLIENTS_LIMIT", cast=int, default=10)
-
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=1440)
-
-CUSTOM_TEMPLATES_DIRECTORY = config("CUSTOM_TEMPLATES_DIRECTORY", default=None)
-SUBSCRIPTION_PAGE_TEMPLATE = config("SUBSCRIPTION_PAGE_TEMPLATE", default="subscription/index.html")
-HOME_PAGE_TEMPLATE = config("HOME_PAGE_TEMPLATE", default="home/index.html")
-
-EXTERNAL_CONFIG = config("EXTERNAL_CONFIG", default="", cast=str)
-
-USERS_AUTODELETE_DAYS = config("USERS_AUTODELETE_DAYS", default=-1, cast=int)
-USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS = config("USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS", default=False, cast=bool)
-
-DO_NOT_LOG_TELEGRAM_BOT = config("DO_NOT_LOG_TELEGRAM_BOT", default=True, cast=bool)
-
-SAVE_LOGS_TO_FILE = config("SAVE_LOGS_TO_FILE", default=False, cast=bool)
-LOG_FILE_PATH = config("LOG_FILE_PATH", default="pasarguard.log")
-LOG_BACKUP_COUNT = config("LOG_BACKUP_COUNT", cast=int, default=72)
-LOG_ROTATION_ENABLED = config("LOG_ROTATION_ENABLED", default=False, cast=bool)
-LOG_ROTATION_INTERVAL = config("LOG_ROTATION_INTERVAL", cast=int, default=1)
-LOG_ROTATION_UNIT = config("LOG_ROTATION_UNIT", default="H")
-LOG_MAX_BYTES = config("LOG_MAX_BYTES", cast=int, default=10485760)  # default: 10 MB
-VALID_LOG_LEVELS = ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG")
-LOG_LEVEL = config("LOG_LEVEL", default="INFO").upper()
-if LOG_LEVEL not in VALID_LOG_LEVELS:
-    LOG_LEVEL = "INFO"
-
-# USERNAME: PASSWORD
-SUDOERS = (
-    {config("SUDO_USERNAME"): config("SUDO_PASSWORD")}
-    if config("SUDO_USERNAME", default="") and config("SUDO_PASSWORD", default="")
-    else {}
-)
-
-DISABLE_RECORDING_NODE_USAGE = config("DISABLE_RECORDING_NODE_USAGE", cast=bool, default=False)
-
-# due to high amount of data this job is only available for postgresql and timescaledb
-if SQLALCHEMY_DATABASE_URL.startswith("postgresql"):
-    ENABLE_RECORDING_NODES_STATS = config("ENABLE_RECORDING_NODES_STATS", cast=bool, default=False)
-else:
-    ENABLE_RECORDING_NODES_STATS = False
-
-# Interval jobs, all values are in seconds
-JOB_CORE_HEALTH_CHECK_INTERVAL = config("JOB_CORE_HEALTH_CHECK_INTERVAL", cast=int, default=10)
-JOB_RECORD_NODE_USAGES_INTERVAL = config("JOB_RECORD_NODE_USAGES_INTERVAL", cast=int, default=30)
-JOB_RECORD_USER_USAGES_INTERVAL = config("JOB_RECORD_USER_USAGES_INTERVAL", cast=int, default=10)
-JOB_REVIEW_USERS_INTERVAL = config("JOB_REVIEW_USERS_INTERVAL", cast=int, default=30)
-JOB_SEND_NOTIFICATIONS_INTERVAL = config("JOB_SEND_NOTIFICATIONS_INTERVAL", cast=int, default=30)
-JOB_GATHER_NODES_STATS_INTERVAL = config("JOB_GATHER_NODES_STATS_INTERVAL", cast=int, default=25)
-JOB_REMOVE_OLD_INBOUNDS_INTERVAL = config("JOB_REMOVE_OLD_INBOUNDS_INTERVAL", cast=int, default=600)
-JOB_REMOVE_EXPIRED_USERS_INTERVAL = config("JOB_REMOVE_EXPIRED_USERS_INTERVAL", cast=int, default=3600)
-JOB_RESET_USER_DATA_USAGE_INTERVAL = config("JOB_RESET_USER_DATA_USAGE_INTERVAL", cast=int, default=600)
-JOB_RESET_NODE_USAGE_INTERVAL = config("JOB_RESET_NODE_USAGE_INTERVAL", cast=int, default=60)
-JOB_CHECK_NODE_LIMITS_INTERVAL = config("JOB_CHECK_NODE_LIMITS_INTERVAL", cast=int, default=60)
-JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL = config("JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL", cast=int, default=600)
+class EnvSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
-## Experimental featueres
-STOP_NODES_ON_SHUTDOWN = config("STOP_NODES_ON_SHUTDOWN", cast=bool, default=True)
+class RuntimeSettings(EnvSettings):
+    testing: bool = Field(default=False, validation_alias="TESTING")
+    debug: bool = Field(default=False, validation_alias="DEBUG")
+    docs: bool = Field(default=False, validation_alias="DOCS")
+    role: Role = Field(default=Role.ALL_IN_ONE, validation_alias="ROLE")
 
-# WireGuard client pool (strings; CIDRs parsed in app.utils.wireguard_pool)
-WIREGUARD_GLOBAL_POOL = config("WIREGUARD_GLOBAL_POOL", default="10.0.0.0/8")
-WIREGUARD_RESERVED = config("WIREGUARD_RESERVED", default="10.0.0.0/31")
+    @field_validator("role", mode="before")
+    @classmethod
+    def parse_role(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            value = value.strip().lower()
+        return value
+
+
+runtime_settings = RuntimeSettings()
+
+
+class DatabaseSettings(EnvSettings):
+    url: str = Field(default="sqlite+aiosqlite:///db.sqlite3", validation_alias="SQLALCHEMY_DATABASE_URL")
+    pool_size: int = Field(default=25, validation_alias="SQLALCHEMY_POOL_SIZE")
+    max_overflow: int = Field(default=60, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
+    pool_recycle: int = Field(default=300, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    echo_queries: bool = Field(default=False, validation_alias="ECHO_SQL_QUERIES")
+
+    @cached_property
+    def is_postgresql(self) -> bool:
+        return self.url.startswith("postgresql")
+
+    @cached_property
+    def is_sqlite(self) -> bool:
+        return self.url.startswith("sqlite")
+
+
+class ServerSettings(EnvSettings):
+    host: str = Field(default="0.0.0.0", validation_alias="UVICORN_HOST")
+    port: int = Field(default=8000, validation_alias="UVICORN_PORT")
+    uds: str | None = Field(default=None, validation_alias="UVICORN_UDS")
+    ssl_certfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_CERTFILE")
+    ssl_keyfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_KEYFILE")
+    ssl_ca_type: str = Field(default="public", validation_alias="UVICORN_SSL_CA_TYPE")
+    workers: int = Field(default=1, validation_alias="UVICORN_WORKERS")
+    loop: str = Field(default="auto", validation_alias="UVICORN_LOOP")
+
+    @field_validator("ssl_ca_type")
+    @classmethod
+    def normalize_ssl_ca_type(cls, value: str) -> str:
+        return value.lower()
+
+    @cached_property
+    def has_ssl(self) -> bool:
+        return bool(self.ssl_certfile and self.ssl_keyfile)
+
+
+class DashboardSettings(EnvSettings):
+    path: str = Field(default="/dashboard/", validation_alias="DASHBOARD_PATH")
+    vite_base_api: str = Field(default="/", validation_alias="VITE_BASE_API")
+
+
+class NatsSettings(EnvSettings):
+    enabled: bool = Field(default=False, validation_alias="NATS_ENABLED")
+    url: str = Field(default="nats://localhost:4222", validation_alias="NATS_URL")
+    worker_sync_subject: str = Field(default="pasarguard.worker_sync", validation_alias="NATS_WORKER_SYNC_SUBJECT")
+    node_command_subject: str = Field(default="pasarguard.node.command", validation_alias="NATS_NODE_COMMAND_SUBJECT")
+    node_rpc_subject: str = Field(default="pasarguard.node.rpc", validation_alias="NATS_NODE_RPC_SUBJECT")
+    scheduler_rpc_subject: str = Field(
+        default="pasarguard.scheduler.rpc", validation_alias="NATS_SCHEDULER_RPC_SUBJECT"
+    )
+    node_log_subject: str = Field(default="pasarguard.node.logs", validation_alias="NATS_NODE_LOG_SUBJECT")
+    node_rpc_timeout: float = Field(default=30.0, validation_alias="NATS_NODE_RPC_TIMEOUT")
+    scheduler_rpc_timeout: float = Field(default=5.0, validation_alias="NATS_SCHEDULER_RPC_TIMEOUT")
+    core_pubsub_channel: str = Field(default="core_hosts_updates", validation_alias="CORE_PUBSUB_CHANNEL")
+    host_pubsub_channel: str = Field(default="host_manager_updates", validation_alias="HOST_PUBSUB_CHANNEL")
+    telegram_kv_bucket: str = Field(default="pasarguard_telegram", validation_alias="NATS_TELEGRAM_KV_BUCKET")
+    notification_stream: str = Field(default="NOTIFICATIONS", validation_alias="NATS_NOTIFICATION_STREAM")
+    notification_subject: str = Field(default="notifications.queue", validation_alias="NATS_NOTIFICATION_SUBJECT")
+    notification_consumer: str = Field(default="notification_workers", validation_alias="NATS_NOTIFICATION_CONSUMER")
+    webhook_stream: str = Field(default="WEBHOOK_NOTIFICATIONS", validation_alias="NATS_WEBHOOK_STREAM")
+    webhook_subject: str = Field(default="notifications.webhook", validation_alias="NATS_WEBHOOK_SUBJECT")
+    webhook_consumer: str = Field(default="webhook_workers", validation_alias="NATS_WEBHOOK_CONSUMER")
+
+
+class CorsSettings(EnvSettings):
+    allowed_origins_raw: str = Field(default="*", validation_alias="ALLOWED_ORIGINS")
+
+    @cached_property
+    def allowed_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.allowed_origins_raw.split(",") if origin.strip()]
+
+
+class SubscriptionEnvSettings(EnvSettings):
+    xray_path: str = Field(default="", validation_alias="XRAY_SUBSCRIPTION_PATH")
+    fallback_path: str = Field(default="sub", validation_alias="SUBSCRIPTION_PATH")
+    clients_limit: int = Field(default=10, validation_alias="USER_SUBSCRIPTION_CLIENTS_LIMIT")
+    external_config: str = Field(default="", validation_alias="EXTERNAL_CONFIG")
+
+    @cached_property
+    def path(self) -> str:
+        return (self.xray_path or self.fallback_path).strip("/")
+
+
+class JwtSettings(EnvSettings):
+    access_token_expire_minutes: int = Field(default=1440, validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+
+
+class TemplateSettings(EnvSettings):
+    custom_templates_directory: str | None = Field(default=None, validation_alias="CUSTOM_TEMPLATES_DIRECTORY")
+    subscription_page_template: str = Field(
+        default="subscription/index.html", validation_alias="SUBSCRIPTION_PAGE_TEMPLATE"
+    )
+    home_page_template: str = Field(default="home/index.html", validation_alias="HOME_PAGE_TEMPLATE")
+
+
+class UserCleanupSettings(EnvSettings):
+    autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
+    include_limited_accounts: bool = Field(default=False, validation_alias="USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS")
+
+
+class TelegramEnvSettings(EnvSettings):
+    do_not_log_bot: bool = Field(default=True, validation_alias="DO_NOT_LOG_TELEGRAM_BOT")
+
+
+class LoggingSettings(EnvSettings):
+    save_to_file: bool = Field(default=False, validation_alias="SAVE_LOGS_TO_FILE")
+    file_path: str = Field(default="pasarguard.log", validation_alias="LOG_FILE_PATH")
+    backup_count: int = Field(default=72, validation_alias="LOG_BACKUP_COUNT")
+    rotation_enabled: bool = Field(default=False, validation_alias="LOG_ROTATION_ENABLED")
+    rotation_interval: int = Field(default=1, validation_alias="LOG_ROTATION_INTERVAL")
+    rotation_unit: str = Field(default="H", validation_alias="LOG_ROTATION_UNIT")
+    max_bytes: int = Field(default=10485760, validation_alias="LOG_MAX_BYTES")
+    level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+
+    @field_validator("level")
+    @classmethod
+    def normalize_level(cls, value: str) -> str:
+        value = value.upper()
+        return value if value in ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG") else "INFO"
+
+
+class AuthSettings(EnvSettings):
+    sudo_username: str = Field(default="", validation_alias="SUDO_USERNAME")
+    sudo_password: str = Field(default="", validation_alias="SUDO_PASSWORD")
+    sudoers: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def build_sudoers(self) -> "AuthSettings":
+        if self.sudo_username and self.sudo_password and not self.sudoers:
+            self.sudoers[self.sudo_username] = self.sudo_password
+        return self
+
+
+class UsageSettings(EnvSettings):
+    disable_recording_node_usage: bool = Field(default=False, validation_alias="DISABLE_RECORDING_NODE_USAGE")
+    enable_recording_nodes_stats: bool = Field(default=False, validation_alias="ENABLE_RECORDING_NODES_STATS")
+
+
+class JobSettings(EnvSettings):
+    core_health_check_interval: int = Field(default=10, validation_alias="JOB_CORE_HEALTH_CHECK_INTERVAL")
+    record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
+    record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
+    review_users_interval: int = Field(default=30, validation_alias="JOB_REVIEW_USERS_INTERVAL")
+    send_notifications_interval: int = Field(default=30, validation_alias="JOB_SEND_NOTIFICATIONS_INTERVAL")
+    gather_nodes_stats_interval: int = Field(default=25, validation_alias="JOB_GATHER_NODES_STATS_INTERVAL")
+    remove_old_inbounds_interval: int = Field(default=600, validation_alias="JOB_REMOVE_OLD_INBOUNDS_INTERVAL")
+    remove_expired_users_interval: int = Field(default=3600, validation_alias="JOB_REMOVE_EXPIRED_USERS_INTERVAL")
+    reset_user_data_usage_interval: int = Field(default=600, validation_alias="JOB_RESET_USER_DATA_USAGE_INTERVAL")
+    reset_node_usage_interval: int = Field(default=60, validation_alias="JOB_RESET_NODE_USAGE_INTERVAL")
+    check_node_limits_interval: int = Field(default=60, validation_alias="JOB_CHECK_NODE_LIMITS_INTERVAL")
+    cleanup_subscription_updates_interval: int = Field(
+        default=600, validation_alias="JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL"
+    )
+
+
+class FeatureSettings(EnvSettings):
+    stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
+
+
+class WireGuardSettings(EnvSettings):
+    global_pool: str = Field(default="10.0.0.0/8", validation_alias="WIREGUARD_GLOBAL_POOL")
+    reserved: str = Field(default="10.0.0.0/31", validation_alias="WIREGUARD_RESERVED")
+
+
+database_settings = DatabaseSettings()
+server_settings = ServerSettings()
+dashboard_settings = DashboardSettings()
+nats_settings = NatsSettings()
+cors_settings = CorsSettings()
+subscription_env_settings = SubscriptionEnvSettings()
+jwt_settings = JwtSettings()
+template_settings = TemplateSettings()
+user_cleanup_settings = UserCleanupSettings()
+telegram_env_settings = TelegramEnvSettings()
+logging_settings = LoggingSettings()
+auth_settings = AuthSettings()
+usage_settings = UsageSettings()
+job_settings = JobSettings()
+feature_settings = FeatureSettings()
+wireguard_settings = WireGuardSettings()
+
+if not database_settings.is_postgresql:
+    usage_settings.enable_recording_nodes_stats = False
+
+if runtime_settings.debug and dashboard_settings.vite_base_api == "/":
+    scheme = "https" if server_settings.has_ssl else "http"
+    dashboard_settings.vite_base_api = f"{scheme}://127.0.0.1:{server_settings.port}/"

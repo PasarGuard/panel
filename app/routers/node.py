@@ -30,7 +30,7 @@ from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.utils import responses
 from app.nats.node_rpc import node_nats_client
-from config import ROLE
+from config import runtime_settings
 
 from .authentication import check_sudo_admin
 
@@ -108,7 +108,7 @@ async def _node_logs_remote(node_id: int, request: Request) -> EventSourceRespon
     return EventSourceResponse(event_generator())
 
 
-_node_logs_handler = _node_logs_local if ROLE.runs_node else _node_logs_remote
+_node_logs_handler = _node_logs_local if runtime_settings.role.runs_node else _node_logs_remote
 
 
 @router.get("/settings", response_model=NodeSettings)

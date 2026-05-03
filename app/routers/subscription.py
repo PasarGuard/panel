@@ -9,9 +9,9 @@ from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse
 from app.operation import OperatorType
 from app.operation.subscription import SubscriptionOperation
-from config import SUBSCRIPTION_PATH
+from config import subscription_env_settings
 
-router = APIRouter(tags=["Subscription"], prefix=f"/{SUBSCRIPTION_PATH}")
+router = APIRouter(tags=["Subscription"], prefix=f"/{subscription_env_settings.path}")
 subscription_operator = SubscriptionOperation(operator_type=OperatorType.API)
 
 

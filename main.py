@@ -12,24 +12,13 @@ from app import create_app  # noqa: F401
 from app.utils.logger import get_logger
 from app.nats import require_nats_if_multiworker
 from app.utils.logger import LOGGING_CONFIG
-from config import (
-    DEBUG,
-    LOG_LEVEL,
-    UVICORN_HOST,
-    UVICORN_LOOP,
-    UVICORN_PORT,
-    UVICORN_SSL_CA_TYPE,
-    UVICORN_SSL_CERTFILE,
-    UVICORN_SSL_KEYFILE,
-    UVICORN_UDS,
-    UVICORN_WORKERS,
-)
+from config import logging_settings, runtime_settings, server_settings
 
 logger = get_logger("uvicorn-main")
 
-workers = UVICORN_WORKERS or 1
+workers = server_settings.workers or 1
 if workers < 1:
-    logger.warning(f"Invalid UVICORN_WORKERS value '{UVICORN_WORKERS}', defaulting to 1.")
+    logger.warning(f"Invalid UVICORN_WORKERS value '{server_settings.workers}', defaulting to 1.")
     workers = 1
 elif workers > 1:
     require_nats_if_multiworker(workers)
@@ -106,33 +95,33 @@ def validate_cert_and_key(cert_file_path, key_file_path, ca_type: str = "public"
 if __name__ == "__main__":
     # Validate UVICORN_SSL_CA_TYPE value
     valid_ca_types = ("public", "private")
-    ca_type = UVICORN_SSL_CA_TYPE
+    ca_type = server_settings.ssl_ca_type
     if ca_type not in valid_ca_types:
         logger.warning(
-            f"Invalid UVICORN_SSL_CA_TYPE value '{UVICORN_SSL_CA_TYPE}'. "
+            f"Invalid UVICORN_SSL_CA_TYPE value '{server_settings.ssl_ca_type}'. "
             f"Expected one of {valid_ca_types}. Defaulting to 'public'."
         )
         ca_type = "public"
 
     bind_args = {}
 
-    if UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE:
-        validate_cert_and_key(UVICORN_SSL_CERTFILE, UVICORN_SSL_KEYFILE, ca_type=ca_type)
+    if server_settings.ssl_certfile and server_settings.ssl_keyfile:
+        validate_cert_and_key(server_settings.ssl_certfile, server_settings.ssl_keyfile, ca_type=ca_type)
 
-        bind_args["ssl_certfile"] = UVICORN_SSL_CERTFILE
-        bind_args["ssl_keyfile"] = UVICORN_SSL_KEYFILE
+        bind_args["ssl_certfile"] = server_settings.ssl_certfile
+        bind_args["ssl_keyfile"] = server_settings.ssl_keyfile
 
-        if UVICORN_UDS:
-            bind_args["uds"] = UVICORN_UDS
+        if server_settings.uds:
+            bind_args["uds"] = server_settings.uds
         else:
-            bind_args["host"] = UVICORN_HOST
-            bind_args["port"] = UVICORN_PORT
+            bind_args["host"] = server_settings.host
+            bind_args["port"] = server_settings.port
 
     else:
-        if UVICORN_UDS:
-            bind_args["uds"] = UVICORN_UDS
+        if server_settings.uds:
+            bind_args["uds"] = server_settings.uds
         else:
-            ip = check_and_modify_ip(UVICORN_HOST)
+            ip = check_and_modify_ip(server_settings.host)
 
             logger.warning(f"""
 {click.style("IMPORTANT!", blink=True, bold=True, fg="yellow")}
@@ -145,19 +134,19 @@ If you wish to continue without SSL, you can use SSH port forwarding to access t
 
 Use the following command:
 
-{click.style(f"ssh -L {UVICORN_PORT}:localhost:{UVICORN_PORT} user@server", italic=True, fg="cyan")}
+{click.style(f"ssh -L {server_settings.port}:localhost:{server_settings.port} user@server", italic=True, fg="cyan")}
 
-Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on your computer.
+Then, navigate to {click.style(f"http://{ip}:{server_settings.port}", bold=True)} on your computer.
             """)
 
             bind_args["host"] = ip
-            bind_args["port"] = UVICORN_PORT
+            bind_args["port"] = server_settings.port
 
-    if DEBUG:
+    if runtime_settings.debug:
         bind_args["uds"] = None
         bind_args["host"] = "0.0.0.0"
 
-    effective_log_level = LOG_LEVEL
+    effective_log_level = logging_settings.level
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         LOGGING_CONFIG["loggers"][logger_name]["level"] = effective_log_level
 
@@ -167,10 +156,10 @@ Then, navigate to {click.style(f"http://{ip}:{UVICORN_PORT}", bold=True)} on you
             factory=True,
             **bind_args,
             workers=workers,
-            reload=DEBUG,
+            reload=runtime_settings.debug,
             log_config=LOGGING_CONFIG,
             log_level=effective_log_level.lower(),
-            loop=UVICORN_LOOP,
+            loop=server_settings.loop,
         )
     except FileNotFoundError:  # to prevent error on removing unix sock
         pass

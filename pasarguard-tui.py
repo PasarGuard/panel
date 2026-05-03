@@ -2,7 +2,7 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header
 
-from config import DEBUG
+from config import runtime_settings
 from tui.help import HelpModal
 
 
@@ -10,7 +10,7 @@ class PasarGuardTUI(App):
     """A Textual app to manage pasarguard"""
 
     CSS_PATH = "tui/style.tcss"
-    ENABLE_COMMAND_PALETTE = DEBUG
+    ENABLE_COMMAND_PALETTE = runtime_settings.debug
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

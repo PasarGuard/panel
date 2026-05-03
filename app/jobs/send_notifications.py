@@ -16,7 +16,7 @@ from app.notification.queue_manager import (
 )
 from app.settings import webhook_settings
 from app.utils.logger import get_logger
-from config import JOB_SEND_NOTIFICATIONS_INTERVAL, ROLE
+from config import job_settings, runtime_settings
 
 logger = get_logger("send-notification")
 
@@ -139,11 +139,11 @@ async def send_pending_notifications_before_shutdown():
     await send_notifications()
 
 
-if ROLE.runs_scheduler:
+if runtime_settings.role.runs_scheduler:
     scheduler.add_job(
         send_notifications,
         "interval",
-        seconds=JOB_SEND_NOTIFICATIONS_INTERVAL,
+        seconds=job_settings.send_notifications_interval,
         max_instances=1,
         coalesce=True,
         id="send_notifications",

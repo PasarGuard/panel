@@ -89,7 +89,7 @@ from app.utils.wireguard import (
     prepare_wireguard_keys_only,
     prepare_wireguard_proxy_settings,
 )
-from config import SUBSCRIPTION_PATH
+from config import subscription_env_settings
 
 logger = get_logger("user-operation")
 
@@ -118,7 +118,7 @@ class UserOperation(BaseOperation):
             else (settings.url_prefix).replace("*", salt)
         )
         token = await create_subscription_token(user.id)
-        return f"{url_prefix}/{SUBSCRIPTION_PATH}/{token}"
+        return f"{url_prefix}/{subscription_env_settings.path}/{token}"
 
     async def _generate_usernames(
         self,

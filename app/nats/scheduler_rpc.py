@@ -1,20 +1,20 @@
 from app.nats.rpc_client import NatsRpcClient
 from app.nats.rpc_service import BaseRpcService
 from app.utils.logger import get_logger
-from config import ROLE, NATS_SCHEDULER_RPC_SUBJECT, NATS_SCHEDULER_RPC_TIMEOUT
+from config import nats_settings, runtime_settings
 
 logger = get_logger("scheduler-nats")
 
 
 scheduler_nats_client = NatsRpcClient(
-    NATS_SCHEDULER_RPC_SUBJECT,
-    NATS_SCHEDULER_RPC_TIMEOUT,
+    nats_settings.scheduler_rpc_subject,
+    nats_settings.scheduler_rpc_timeout,
     error_message="Scheduler RPC error",
 )
 _scheduler_rpc_service = BaseRpcService(
-    subject=NATS_SCHEDULER_RPC_SUBJECT,
+    subject=nats_settings.scheduler_rpc_subject,
     logger=logger,
-    role_check=lambda: ROLE.runs_scheduler,
+    role_check=lambda: runtime_settings.role.runs_scheduler,
     start_msg="Scheduler RPC service started",
     stop_msg="Scheduler RPC service stopped",
 )

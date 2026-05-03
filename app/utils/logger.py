@@ -6,17 +6,7 @@ import click
 from uvicorn.config import LOGGING_CONFIG
 from uvicorn.logging import AccessFormatter, ColourizedFormatter, DefaultFormatter
 
-from config import (
-    ECHO_SQL_QUERIES,
-    LOG_BACKUP_COUNT,
-    LOG_FILE_PATH,
-    LOG_LEVEL,
-    LOG_MAX_BYTES,
-    LOG_ROTATION_ENABLED,
-    LOG_ROTATION_INTERVAL,
-    LOG_ROTATION_UNIT,
-    SAVE_LOGS_TO_FILE,
-)
+from config import database_settings, logging_settings
 
 
 class CustomLoggingFormatter(DefaultFormatter):
@@ -79,27 +69,27 @@ LOGGING_CONFIG["filters"]["require_process_time"] = {"()": RequireProcessTimeFil
 LOGGING_CONFIG["loggers"]["uvicorn.access"].setdefault("filters", [])
 LOGGING_CONFIG["loggers"]["uvicorn.access"]["filters"].append("require_process_time")
 
-LOGGING_CONFIG["loggers"]["uvicorn"]["level"] = LOG_LEVEL
-LOGGING_CONFIG["loggers"]["uvicorn.error"]["level"] = LOG_LEVEL
-LOGGING_CONFIG["loggers"]["uvicorn.access"]["level"] = LOG_LEVEL
+LOGGING_CONFIG["loggers"]["uvicorn"]["level"] = logging_settings.level
+LOGGING_CONFIG["loggers"]["uvicorn.error"]["level"] = logging_settings.level
+LOGGING_CONFIG["loggers"]["uvicorn.access"]["level"] = logging_settings.level
 
-if SAVE_LOGS_TO_FILE:
-    if LOG_ROTATION_ENABLED:
+if logging_settings.save_to_file:
+    if logging_settings.rotation_enabled:
         LOGGING_CONFIG["handlers"]["file"] = {
             "class": "logging.handlers.TimedRotatingFileHandler",
             "formatter": "default",
-            "filename": LOG_FILE_PATH,
-            "interval": LOG_ROTATION_INTERVAL,
-            "when": LOG_ROTATION_UNIT,
-            "backupCount": LOG_BACKUP_COUNT,
+            "filename": logging_settings.file_path,
+            "interval": logging_settings.rotation_interval,
+            "when": logging_settings.rotation_unit,
+            "backupCount": logging_settings.backup_count,
         }
     else:
         LOGGING_CONFIG["handlers"]["file"] = {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "default",
-            "filename": LOG_FILE_PATH,
-            "maxBytes": LOG_MAX_BYTES,
-            "backupCount": LOG_BACKUP_COUNT,
+            "filename": logging_settings.file_path,
+            "maxBytes": logging_settings.max_bytes,
+            "backupCount": logging_settings.backup_count,
         }
     LOGGING_CONFIG["loggers"]["uvicorn"]["handlers"].append("file")
     LOGGING_CONFIG["loggers"]["uvicorn.access"]["handlers"].append("file")
@@ -108,7 +98,7 @@ if SAVE_LOGS_TO_FILE:
 def get_logger(name: str = "uvicorn.error") -> logging.Logger:
     if not LOGGING_CONFIG["loggers"].get(name):
         handlers = ["custom"]
-        if SAVE_LOGS_TO_FILE:
+        if logging_settings.save_to_file:
             handlers.append("file")
         LOGGING_CONFIG["loggers"][name] = {
             "handlers": handlers,
@@ -120,7 +110,7 @@ def get_logger(name: str = "uvicorn.error") -> logging.Logger:
     return logger
 
 
-if ECHO_SQL_QUERIES:
+if database_settings.echo_queries:
     _ = get_logger("sqlalchemy.engine")
 
 
