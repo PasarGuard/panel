@@ -41,7 +41,7 @@ dependencies = [
     "typer>=0.25.1",
     "pasarguard-node-bridge>=0.7.1",
     "pip-system-certs>=5.3",
-    "psycopg[binary]>=3.3.3",
+    "psycopg[binary]>=3.3.4",
     "pymysql>=1.1.2",
     "nats-py>=2.12.0",
 ]
