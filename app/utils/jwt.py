@@ -8,7 +8,7 @@ from math import ceil
 from aiocache import cached
 from app.db import GetDB
 from app.db.crud.general import get_jwt_secret_key
-from config import JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+from config import jwt_settings
 
 
 @cached()
@@ -22,8 +22,8 @@ async def create_admin_token(admin_id: int | None, username: str, is_sudo=False)
     data = {"sub": username, "access": "sudo" if is_sudo else "admin", "iat": datetime.now(timezone.utc)}
     if admin_id is not None:
         data["aid"] = int(admin_id)
-    if JWT_ACCESS_TOKEN_EXPIRE_MINUTES > 0:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    if jwt_settings.access_token_expire_minutes > 0:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=jwt_settings.access_token_expire_minutes)
         data["exp"] = expire
     encoded_jwt = jwt.encode(data, await get_secret_key(), algorithm="HS256")
     return encoded_jwt

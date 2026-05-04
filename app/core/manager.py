@@ -19,7 +19,7 @@ from app.nats.client import setup_nats_kv
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.utils.logger import get_logger
-from config import ROLE
+from config import runtime_settings
 
 
 class CoreManager:
@@ -36,7 +36,7 @@ class CoreManager:
         self._inbounds: list[str] = []
         self._inbounds_by_tag = {}
         self._nats_enabled = is_nats_enabled()
-        self._multi_worker = ROLE.requires_nats
+        self._multi_worker = runtime_settings.role.requires_nats
         self._nc: nats.NATS | None = None
         self._js: JetStreamContext | None = None
         self._kv: KeyValue | None = None

@@ -2,7 +2,7 @@ from app import on_shutdown, scheduler
 from app.notification.client import process_notification
 from app.notification.queue_manager import get_queue, shutdown_queues
 from app.utils.logger import get_logger
-from config import ROLE, JOB_SEND_NOTIFICATIONS_INTERVAL
+from config import job_settings, runtime_settings
 
 logger = get_logger("process-notification-queues")
 
@@ -11,7 +11,7 @@ async def process_all_notification_queues():
     """
     Drain queued notifications and process them.
     """
-    if not ROLE.runs_scheduler:
+    if not runtime_settings.role.runs_scheduler:
         return
 
     logger.debug("Processing notification queues")
@@ -30,11 +30,11 @@ async def send_pending_notifications_before_shutdown():
 
 
 # Schedule the job to run at the same interval as webhook notifications
-if ROLE.runs_scheduler:
+if runtime_settings.role.runs_scheduler:
     scheduler.add_job(
         process_all_notification_queues,
         "interval",
-        seconds=JOB_SEND_NOTIFICATIONS_INTERVAL,
+        seconds=job_settings.send_notifications_interval,
         max_instances=1,
         coalesce=True,
         id="process_notification_queues",

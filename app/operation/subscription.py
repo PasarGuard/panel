@@ -16,7 +16,7 @@ from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
-from config import SUBSCRIPTION_PAGE_TEMPLATE
+from config import template_settings
 
 from . import BaseOperation
 from .user import UserOperation
@@ -256,7 +256,7 @@ class SubscriptionOperation(BaseOperation):
             template = (
                 db_user.admin.sub_template
                 if db_user.admin and db_user.admin.sub_template
-                else SUBSCRIPTION_PAGE_TEMPLATE
+                else template_settings.subscription_page_template
             )
             links = []
             if sub_settings.allow_browser_config:
@@ -298,7 +298,6 @@ class SubscriptionOperation(BaseOperation):
                 sub_settings,
                 inline=inline_view,
                 extra_headers={},
-                extension=client_config.get(client_type, {}).get("extension", "") if client_type else "",
             )
             try:
                 response_headers.update(

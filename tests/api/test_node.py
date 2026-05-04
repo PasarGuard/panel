@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
@@ -23,6 +24,7 @@ from app.db.models import (
     User,
 )
 from app.models.core import CoreCreate
+from app.models.admin import AdminDetails
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.stats import (
     NodeRealtimeStats,
@@ -32,6 +34,8 @@ from app.models.stats import (
     NodeUsageStatsList,
     Period,
 )
+from app.operation import OperatorType
+from app.operation.node import NodeOperation
 from tests.api import TestSession, client
 from tests.api.helpers import auth_headers, unique_name
 from tests.api.sample_data import XRAY_CONFIG
@@ -499,6 +503,52 @@ def test_realtime_node_stats(access_token, node_operator_mock):
     assert response.json() == realtime_stats.model_dump()
     awaited_kwargs = node_operator_mock.get_node_system_stats.await_args.kwargs
     assert awaited_kwargs["node_id"] == 12
+
+
+@pytest.mark.asyncio
+async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch: pytest.MonkeyPatch):
+    operator = NodeOperation(operator_type=OperatorType.API)
+    scheduled_node_ids: list[int] = []
+
+    async def record_background_connect(node_id: int) -> None:
+        scheduled_node_ids.append(node_id)
+
+    monkeypatch.setattr(operator, "_update_node_impl", AsyncMock())
+    monkeypatch.setattr(operator, "_connect_single_node_background", record_background_connect)
+    monkeypatch.setattr("app.operation.node.notification.create_node", AsyncMock())
+    monkeypatch.setattr("app.operation.node.notification.modify_node", AsyncMock())
+
+    admin = AdminDetails(username="admin", is_sudo=True)
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_node_background")))
+        core_id = inspect(core).identity[0]
+        node_id: int | None = None
+        try:
+            created = await operator.create_node(
+                session,
+                NodeCreate(**node_create_payload(name=unique_name("node_background"), core_config_id=core_id)),
+                admin,
+            )
+            node_id = created.id
+            await asyncio.sleep(0)
+
+            modified = await operator.modify_node(
+                session,
+                created.id,
+                NodeModify(name=unique_name("node_background_modified")),
+                admin,
+            )
+            await asyncio.sleep(0)
+
+            assert scheduled_node_ids == [created.id, modified.id]
+        finally:
+            if node_id is not None:
+                db_node = await session.get(Node, node_id)
+                if db_node:
+                    await db_remove_node(session, db_node)
+            db_core = await session.get(CoreConfig, core_id)
+            if db_core:
+                await remove_core_config(session, db_core)
 
 
 # Tests for /api/nodes/simple endpoint

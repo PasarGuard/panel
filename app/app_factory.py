@@ -13,7 +13,7 @@ from app.settings import handle_settings_message
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
-from config import DOCS, ROLE, SUBSCRIPTION_PATH
+from config import runtime_settings, subscription_env_settings
 
 
 logger = get_logger("app-factory")
@@ -41,7 +41,7 @@ def _register_scheduler_hooks():
     on_startup(initialize_queues)
 
     # APScheduler is needed by node and scheduler roles to run their jobs
-    if not (ROLE.runs_node or ROLE.runs_scheduler):
+    if not (runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler):
         return
 
     from app.scheduler import scheduler
@@ -50,7 +50,7 @@ def _register_scheduler_hooks():
     on_shutdown(scheduler.shutdown)
 
     # Notification dispatcher (consumer loop) is only needed by scheduler role
-    if not ROLE.runs_scheduler:
+    if not runtime_settings.role.runs_scheduler:
         return
 
     from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
@@ -60,7 +60,7 @@ def _register_scheduler_hooks():
 
 
 def _register_jobs():
-    if not (ROLE.runs_node or ROLE.runs_scheduler):
+    if not (runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler):
         return
     from app import jobs  # noqa: F401
 
@@ -68,7 +68,7 @@ def _register_jobs():
 def create_app() -> FastAPI:
     from app.lifecycle import lifespan
 
-    if ROLE.requires_nats and not is_nats_enabled():
+    if runtime_settings.role.requires_nats and not is_nats_enabled():
         raise RuntimeError("NATS must be enabled for backend / node / scheduler roles.")
 
     app = FastAPI(
@@ -76,7 +76,7 @@ def create_app() -> FastAPI:
         description="Unified GUI Censorship Resistant Solution",
         version=__version__,
         lifespan=lifespan,
-        openapi_url="/openapi.json" if DOCS else None,
+        openapi_url="/openapi.json" if runtime_settings.docs else None,
     )
 
     setup_middleware(app)
@@ -84,12 +84,14 @@ def create_app() -> FastAPI:
     def _validate_paths():
         paths = [f"{r.path}/" for r in app.routes]
         paths.append("/api/")
-        if f"/{SUBSCRIPTION_PATH}/" in paths:
-            raise ValueError(f"you can't use /{SUBSCRIPTION_PATH}/ as subscription path it reserved for {app.title}")
+        if f"/{subscription_env_settings.path}/" in paths:
+            raise ValueError(
+                f"you can't use /{subscription_env_settings.path}/ as subscription path it reserved for {app.title}"
+            )
 
     on_startup(_validate_paths)
 
-    if ROLE.runs_panel:
+    if runtime_settings.role.runs_panel:
         import dashboard
         from app import telegram  # noqa: F401
         from app.routers import api_router
@@ -97,25 +99,27 @@ def create_app() -> FastAPI:
         dashboard.setup_dashboard(app)
         app.include_router(api_router)
 
-    if ROLE.runs_node:
+    if runtime_settings.role.runs_node:
         from app.node import worker as node_worker  # noqa: F401
 
-    if ROLE.runs_scheduler:
+    if runtime_settings.role.runs_scheduler:
         from app.nats.scheduler_rpc import start_scheduler_rpc, stop_scheduler_rpc
 
         on_startup(start_scheduler_rpc)
         on_shutdown(stop_scheduler_rpc)
 
-    enable_router = ROLE.runs_panel or ROLE.runs_node or ROLE.runs_scheduler
-    enable_settings = ROLE.runs_panel or ROLE.runs_scheduler
-    enable_client_templates = ROLE.runs_panel or ROLE.runs_scheduler
+    enable_router = (
+        runtime_settings.role.runs_panel or runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler
+    )
+    enable_settings = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
+    enable_client_templates = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     _register_nats_handlers(enable_router, enable_settings, enable_client_templates)
     _register_scheduler_hooks()
     _register_jobs()
 
     _use_route_names_as_operation_ids(app)
 
-    on_startup(lambda: logger.info(f"PasarGuard v{__version__} ({ROLE.value})"))
+    on_startup(lambda: logger.info(f"PasarGuard v{__version__} ({runtime_settings.role.value})"))
 
     @app.exception_handler(RequestValidationError)
     def validation_exception_handler(request: Request, exc: RequestValidationError):

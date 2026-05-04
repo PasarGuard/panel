@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.utils.logger import get_logger
-from config import ALLOWED_ORIGINS
+from config import cors_settings
 
 from .request_logging import RequestProcessTimeLoggingMiddleware
 
@@ -11,7 +11,7 @@ from .request_logging import RequestProcessTimeLoggingMiddleware
 def setup_middleware(app: FastAPI):
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
+        allow_origins=cors_settings.allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

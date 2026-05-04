@@ -7,7 +7,7 @@ import nats
 from app.nats.client import create_nats_client
 from app.nats.message import MessageTopic, NatsMessage
 from app.utils.logger import get_logger
-from config import ROLE, NATS_WORKER_SYNC_SUBJECT
+from config import nats_settings, runtime_settings
 
 logger = get_logger("nats-router")
 
@@ -39,8 +39,8 @@ class NatsMessageRouter:
             return
 
         try:
-            sub = await client.subscribe(NATS_WORKER_SYNC_SUBJECT)
-            logger.debug(f"NATS message router started, listening on {NATS_WORKER_SYNC_SUBJECT}")
+            sub = await client.subscribe(nats_settings.worker_sync_subject)
+            logger.debug(f"NATS message router started, listening on {nats_settings.worker_sync_subject}")
 
             async for msg in sub.messages:
                 try:
@@ -71,7 +71,7 @@ class NatsMessageRouter:
 
     async def start(self):
         """Start the router listener."""
-        if not ROLE.requires_nats:
+        if not runtime_settings.role.requires_nats:
             return
 
         if self._running:
@@ -100,7 +100,7 @@ class NatsMessageRouter:
 
     async def publish(self, topic: MessageTopic, data: dict):
         """Publish a message to NATS."""
-        if not ROLE.requires_nats:
+        if not runtime_settings.role.requires_nats:
             return
 
         client = await self._get_client()
@@ -109,7 +109,7 @@ class NatsMessageRouter:
 
         try:
             message = NatsMessage(topic=topic, data=data)
-            await client.publish(NATS_WORKER_SYNC_SUBJECT, message.model_dump_json().encode())
+            await client.publish(nats_settings.worker_sync_subject, message.model_dump_json().encode())
         except Exception as exc:
             logger.warning(f"Failed to publish NATS message: {exc}")
 

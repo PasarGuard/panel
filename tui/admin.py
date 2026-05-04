@@ -1,6 +1,5 @@
 import asyncio
 
-from decouple import UndefinedValueError, config
 from pydantic import ValidationError
 from rich.text import Text
 from sqlalchemy import func, select
@@ -18,6 +17,7 @@ from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils.helpers import readable_datetime
 from app.utils.system import readable_size
+from config import auth_settings
 from tui import BaseModal
 
 SYSTEM_ADMIN = AdminDetails(
@@ -779,16 +779,8 @@ class AdminContent(Static):
         )
 
     async def action_import_from_env(self):
-        try:
-            username, password = config("SUDO_USERNAME"), config("SUDO_PASSWORD")
-        except UndefinedValueError:
-            self.notify(
-                "Unable to get SUDO_USERNAME and/or SUDO_PASSWORD.\n"
-                "Make sure you have set them in the env file or as environment variables.",
-                severity="error",
-                title="Error",
-            )
-            return
+        username = auth_settings.sudo_username
+        password = auth_settings.sudo_password
         if not (username and password):
             self.notify(
                 "Unable to retrieve username and password.\nMake sure both SUDO_USERNAME and SUDO_PASSWORD are set.",

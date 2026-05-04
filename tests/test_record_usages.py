@@ -15,7 +15,7 @@ from app.db import base
 from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
-from config import SQLALCHEMY_DATABASE_URL
+from config import database_settings
 
 
 class DummyNode:
@@ -31,7 +31,7 @@ def _get_test_database_url() -> str:
     test_from = os.getenv("TEST_FROM", "local").lower()
     if test_from == "local":
         return "sqlite+aiosqlite:///:memory:"
-    return SQLALCHEMY_DATABASE_URL
+    return database_settings.url
 
 
 @pytest.fixture
@@ -141,7 +141,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
-    monkeypatch.setattr(record_usages, "DISABLE_RECORDING_NODE_USAGE", False)
+    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
 
     await record_usages.record_user_usages()
 
@@ -210,7 +210,7 @@ async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.Monk
         return []
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
-    monkeypatch.setattr(record_usages, "DISABLE_RECORDING_NODE_USAGE", False)
+    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
 
     await record_usages.record_user_usages()
 
@@ -264,7 +264,7 @@ async def test_record_node_usages_updates_totals(monkeypatch: pytest.MonkeyPatch
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
-    monkeypatch.setattr(record_usages, "DISABLE_RECORDING_NODE_USAGE", False)
+    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
 
     await record_usages.record_node_usages()
 

@@ -6,11 +6,11 @@ from uuid import uuid4
 
 from fastapi import status
 
-from config import NATS_ENABLED, ROLE
+from config import nats_settings, runtime_settings
 from tests.api import client
 from tests.api.sample_data import XRAY_CONFIG
 
-_WAIT_FOR_INBOUNDS = ROLE.requires_nats and NATS_ENABLED
+_WAIT_FOR_INBOUNDS = runtime_settings.role.requires_nats and nats_settings.enabled
 _INBOUNDS_RETRIES = 10
 _INBOUNDS_DELAY_SEC = 0.2
 

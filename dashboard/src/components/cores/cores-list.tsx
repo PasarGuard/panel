@@ -223,7 +223,7 @@ export default function Cores({ isDialogOpen, onOpenChange, cores, onEditCore, o
           getRowId={core => core.id}
           isLoading={isLoading}
           loadingRows={6}
-          className="gap-3"
+          className={viewMode === 'grid' ? 'gap-4' : 'gap-3'}
           onRowClick={handleRowEdit}
           mode={viewMode}
           enableSelection

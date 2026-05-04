@@ -12,12 +12,7 @@ from app.db.crud.node import get_limited_nodes, get_nodes
 from app.utils.logger import get_logger
 from app.operation.node import NodeOperation
 
-from config import (
-    ROLE,
-    JOB_CORE_HEALTH_CHECK_INTERVAL,
-    JOB_CHECK_NODE_LIMITS_INTERVAL,
-    STOP_NODES_ON_SHUTDOWN,
-)
+from config import feature_settings, job_settings, runtime_settings
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 logger = get_logger("node-checker")
@@ -190,19 +185,19 @@ async def node_health_check():
     """
     Cron job that checks health of all enabled nodes.
     """
-    if not ROLE.runs_node:
+    if not runtime_settings.role.runs_node:
         return
     async with GetDB() as db:
         db_nodes, _ = await get_nodes(db=db, enabled=True)
-        dict_nodes = await node_manager.get_nodes()
 
-        check_tasks = [process_node_health_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
-        await asyncio.gather(*check_tasks, return_exceptions=True)
+    dict_nodes = await node_manager.get_nodes()
+    check_tasks = [process_node_health_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
+    await asyncio.gather(*check_tasks, return_exceptions=True)
 
 
 @on_startup
 async def initialize_nodes():
-    if not ROLE.runs_node:
+    if not runtime_settings.role.runs_node:
         return
 
     logger.info("Starting nodes' cores...")
@@ -220,7 +215,7 @@ async def initialize_nodes():
     scheduler.add_job(
         node_health_check,
         "interval",
-        seconds=JOB_CORE_HEALTH_CHECK_INTERVAL,
+        seconds=job_settings.core_health_check_interval,
         coalesce=True,
         max_instances=1,
         id="node_health_check",
@@ -231,19 +226,19 @@ async def initialize_nodes():
     scheduler.add_job(
         check_node_limits,
         "interval",
-        seconds=JOB_CHECK_NODE_LIMITS_INTERVAL,
+        seconds=job_settings.check_node_limits_interval,
         coalesce=True,
         max_instances=1,
         id="check_node_limits",
         replace_existing=True,
     )
 
-    if STOP_NODES_ON_SHUTDOWN:
+    if feature_settings.stop_nodes_on_shutdown:
         on_shutdown(shutdown_nodes)
 
 
 async def shutdown_nodes():
-    if not ROLE.runs_node:
+    if not runtime_settings.role.runs_node:
         return
 
     logger.info("Stopping nodes' cores...")

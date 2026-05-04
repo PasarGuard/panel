@@ -6,10 +6,11 @@ Create Date: 2026-02-20 15:45:00.000000
 
 """
 
-import os
 from pathlib import Path
 
 from alembic import op
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import sqlalchemy as sa
 
 
@@ -21,6 +22,27 @@ depends_on = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
+
+
+class MigrationSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    custom_templates_directory: str | None = Field(default=None, validation_alias="CUSTOM_TEMPLATES_DIRECTORY")
+    clash_subscription_template: str | None = Field(default=None, validation_alias="CLASH_SUBSCRIPTION_TEMPLATE")
+    xray_subscription_template: str | None = Field(default=None, validation_alias="XRAY_SUBSCRIPTION_TEMPLATE")
+    singbox_subscription_template: str | None = Field(default=None, validation_alias="SINGBOX_SUBSCRIPTION_TEMPLATE")
+    user_agent_template: str | None = Field(default=None, validation_alias="USER_AGENT_TEMPLATE")
+    grpc_user_agent_template: str | None = Field(default=None, validation_alias="GRPC_USER_AGENT_TEMPLATE")
+
+
+migration_settings = MigrationSettings()
+TEMPLATE_OVERRIDES = {
+    "CLASH_SUBSCRIPTION_TEMPLATE": migration_settings.clash_subscription_template,
+    "XRAY_SUBSCRIPTION_TEMPLATE": migration_settings.xray_subscription_template,
+    "SINGBOX_SUBSCRIPTION_TEMPLATE": migration_settings.singbox_subscription_template,
+    "USER_AGENT_TEMPLATE": migration_settings.user_agent_template,
+    "GRPC_USER_AGENT_TEMPLATE": migration_settings.grpc_user_agent_template,
+}
 
 
 DEFAULT_CLASH_SUBSCRIPTION_TEMPLATE = """mode: rule
@@ -354,8 +376,8 @@ def _template_content_or_default(
     path_from_project_root: str,
     default_content: str,
 ) -> str:
-    env_value = os.getenv(env_key)
-    custom_templates_directory = os.getenv("CUSTOM_TEMPLATES_DIRECTORY")
+    env_value = TEMPLATE_OVERRIDES.get(env_key)
+    custom_templates_directory = migration_settings.custom_templates_directory
     if custom_templates_directory and env_value:
         custom_file_path = Path(custom_templates_directory) / env_value
         try:
@@ -501,11 +523,7 @@ def upgrade() -> None:
         (row.template_type, row.name)
         for row in bind.execute(sa.select(client_templates.c.template_type, client_templates.c.name))
     }
-    missing_rows = [
-        row
-        for row in _default_template_rows()
-        if (row["template_type"], row["name"]) not in existing_keys
-    ]
+    missing_rows = [row for row in _default_template_rows() if (row["template_type"], row["name"]) not in existing_keys]
     if missing_rows:
         op.bulk_insert(client_templates, missing_rows)
 

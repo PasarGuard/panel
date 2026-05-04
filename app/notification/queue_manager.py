@@ -5,15 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.nats import is_nats_enabled
 from app.notification.nats_queue import NatsNotificationQueue, InMemoryNotificationQueue, NotificationQueue
-from config import (
-    ROLE,
-    NATS_NOTIFICATION_STREAM,
-    NATS_NOTIFICATION_SUBJECT,
-    NATS_NOTIFICATION_CONSUMER,
-    NATS_WEBHOOK_STREAM,
-    NATS_WEBHOOK_SUBJECT,
-    NATS_WEBHOOK_CONSUMER,
-)
+from config import nats_settings, runtime_settings
 
 
 class TelegramNotification(BaseModel):
@@ -47,9 +39,9 @@ class WebhookNotification(BaseModel):
 # Telegram/Discord queue singleton
 queue_instance: NotificationQueue = (
     NatsNotificationQueue(
-        stream_name=NATS_NOTIFICATION_STREAM,
-        subject=NATS_NOTIFICATION_SUBJECT,
-        consumer_name=NATS_NOTIFICATION_CONSUMER,
+        stream_name=nats_settings.notification_stream,
+        subject=nats_settings.notification_subject,
+        consumer_name=nats_settings.notification_consumer,
     )
     if is_nats_enabled()
     else InMemoryNotificationQueue()
@@ -59,9 +51,9 @@ queue_instance: NotificationQueue = (
 # Webhook queue singleton
 webhook_queue_instance: NotificationQueue = (
     NatsNotificationQueue(
-        stream_name=NATS_WEBHOOK_STREAM,
-        subject=NATS_WEBHOOK_SUBJECT,
-        consumer_name=NATS_WEBHOOK_CONSUMER,
+        stream_name=nats_settings.webhook_stream,
+        subject=nats_settings.webhook_subject,
+        consumer_name=nats_settings.webhook_consumer,
     )
     if is_nats_enabled()
     else InMemoryNotificationQueue()
@@ -75,7 +67,7 @@ def get_queue() -> NotificationQueue:
 async def init_queue(queue: NotificationQueue):
     if isinstance(queue, NatsNotificationQueue):
         # Only scheduler role (and all-in-one) actually dequeue and need the consumer
-        await queue.initialize(create_consumer=ROLE.runs_scheduler)
+        await queue.initialize(create_consumer=runtime_settings.role.runs_scheduler)
 
 
 async def initialize_queues():

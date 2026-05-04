@@ -18,12 +18,7 @@ from app.node import node_manager
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.utils.logger import get_logger
-from config import (
-    ROLE,
-    NATS_NODE_COMMAND_SUBJECT,
-    NATS_NODE_LOG_SUBJECT,
-    NATS_NODE_RPC_SUBJECT,
-)
+from config import nats_settings, runtime_settings
 
 logger = get_logger("node-worker")
 
@@ -31,9 +26,9 @@ logger = get_logger("node-worker")
 class NodeWorkerService(BaseRpcService):
     def __init__(self):
         super().__init__(
-            subject=NATS_NODE_RPC_SUBJECT,
+            subject=nats_settings.node_rpc_subject,
             logger=logger,
-            role_check=lambda: ROLE.runs_node,
+            role_check=lambda: runtime_settings.role.runs_node,
         )
         self._command_sub: Subscription | None = None
         self._log_tasks: dict[str, asyncio.Task] = {}
@@ -71,11 +66,11 @@ class NodeWorkerService(BaseRpcService):
         if not self._nc:
             return
 
-        self._command_sub = await self._nc.subscribe(NATS_NODE_COMMAND_SUBJECT, cb=self._handle_command)
+        self._command_sub = await self._nc.subscribe(nats_settings.node_command_subject, cb=self._handle_command)
         logger.info("Node worker service started")
 
     async def stop(self):
-        if not ROLE.runs_node:
+        if not runtime_settings.role.runs_node:
             return
 
         for stop_event in list(self._stop_events.values()):
@@ -269,7 +264,7 @@ class NodeWorkerService(BaseRpcService):
         if node is None:
             raise RuntimeError("Node not found")
 
-        log_subject = f"{NATS_NODE_LOG_SUBJECT}.{uuid.uuid4().hex}"
+        log_subject = f"{nats_settings.node_log_subject}.{uuid.uuid4().hex}"
         stop_subject = f"{log_subject}.stop"
 
         stop_event = asyncio.Event()

@@ -723,7 +723,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     if (wg == null) {
       form.setValue(
         'wireguard_overrides',
-        { allowed_ips: [], reserved: '', mtu: undefined, keepalive_seconds: undefined },
+        { allowed_ips: [], reserved: '', mtu: undefined, keepalive_seconds: undefined, dns: [] },
         { shouldDirty: false },
       )
     }
@@ -764,6 +764,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           if (wg.keepalive_seconds != null && !Number.isNaN(Number(wg.keepalive_seconds))) {
             next.keepalive_seconds = Number(wg.keepalive_seconds)
           }
+          if (wg.dns?.length) next.dns = wg.dns
           payload.wireguard_overrides = Object.keys(next).length > 0 ? next : undefined
         }
       } else {

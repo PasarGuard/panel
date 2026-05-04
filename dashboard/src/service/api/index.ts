@@ -3,9 +3,8 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 3.0.2
+ * OpenAPI spec version: 3.1.0
  */
-import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -19,8 +18,9 @@ import type {
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import type { BodyType, ErrorType } from '../http'
 import { orvalFetcher } from '../http'
-import type { ErrorType, BodyType } from '../http'
 export type GetUserTemplatesSimpleParams = {
   offset?: number | null
   limit?: number | null
@@ -42,7 +42,6 @@ export type GetSubUserUsageParams = {
 
 export type DeleteExpiredUsersTarget = (typeof DeleteExpiredUsersTarget)[keyof typeof DeleteExpiredUsersTarget]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const DeleteExpiredUsersTarget = {
   expired: 'expired',
   limited: 'limited',
@@ -57,7 +56,6 @@ export type DeleteExpiredUsersParams = {
 
 export type GetExpiredUsersTarget = (typeof GetExpiredUsersTarget)[keyof typeof GetExpiredUsersTarget]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GetExpiredUsersTarget = {
   expired: 'expired',
   limited: 'limited',
@@ -344,7 +342,6 @@ export interface XrayFragmentSettings {
 
 export type Xudp = (typeof Xudp)[keyof typeof Xudp]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Xudp = {
   reject: 'reject',
   allow: 'allow',
@@ -360,7 +357,6 @@ export interface XrayMuxSettingsInput {
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const XTLSFlows = {
   '': '',
   'xtls-rprx-vision': 'xtls-rprx-vision',
@@ -535,7 +531,6 @@ export interface XHttpSettingsInput {
 
 export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const XHttpModes = {
   auto: 'auto',
   'packet-up': 'packet-up',
@@ -661,7 +656,6 @@ export interface UsersResponse {
 
 export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UsernameGenerationStrategy = {
   random: 'random',
   sequence: 'sequence',
@@ -856,7 +850,6 @@ export interface UserSubscriptionUpdateChart {
 
 export type UserStatusCreate = (typeof UserStatusCreate)[keyof typeof UserStatusCreate]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UserStatusCreate = {
   active: 'active',
   on_hold: 'on_hold',
@@ -864,7 +857,6 @@ export const UserStatusCreate = {
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UserStatus = {
   active: 'active',
   disabled: 'disabled',
@@ -1041,7 +1033,6 @@ export interface UserCreate {
 
 export type UsageTable = (typeof UsageTable)[keyof typeof UsageTable]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UsageTable = {
   node_user_usages: 'node_user_usages',
   node_usages: 'node_usages',
@@ -1286,7 +1277,6 @@ export interface SingBoxFragmentSettings {
 
 export type ShadowsocksMethods = (typeof ShadowsocksMethods)[keyof typeof ShadowsocksMethods]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ShadowsocksMethods = {
   'aes-128-gcm': 'aes-128-gcm',
   'aes-256-gcm': 'aes-256-gcm',
@@ -1350,7 +1340,6 @@ export interface SettingsSchemaInput {
 
 export type RunMethod = (typeof RunMethod)[keyof typeof RunMethod]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const RunMethod = {
   webhook: 'webhook',
   'long-polling': 'long-polling',
@@ -1437,7 +1426,6 @@ export interface ProxyTableInput {
 
 export type ProxyHostSecurity = (typeof ProxyHostSecurity)[keyof typeof ProxyHostSecurity]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ProxyHostSecurity = {
   inbound_default: 'inbound_default',
   none: 'none',
@@ -1446,7 +1434,6 @@ export const ProxyHostSecurity = {
 
 export type ProxyHostFingerprint = (typeof ProxyHostFingerprint)[keyof typeof ProxyHostFingerprint]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ProxyHostFingerprint = {
   '': '',
   chrome: 'chrome',
@@ -1465,7 +1452,6 @@ export const ProxyHostFingerprint = {
 
 export type ProxyHostALPN = (typeof ProxyHostALPN)[keyof typeof ProxyHostALPN]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ProxyHostALPN = {
   'http/11': 'http/1.1',
   h2: 'h2',
@@ -1474,7 +1460,6 @@ export const ProxyHostALPN = {
 
 export type Platform = (typeof Platform)[keyof typeof Platform]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Platform = {
   android: 'android',
   ios: 'ios',
@@ -1487,7 +1472,6 @@ export const Platform = {
 
 export type Period = (typeof Period)[keyof typeof Period]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Period = {
   minute: 'minute',
   hour: 'hour',
@@ -1633,7 +1617,6 @@ export interface NodeUsageStatsList {
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const NodeStatus = {
   connected: 'connected',
   connecting: 'connecting',
@@ -1803,7 +1786,6 @@ export interface NodeCoreUpdate {
 
 export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
@@ -1876,7 +1858,6 @@ export interface MuxSettingsInput {
 
 export type MultiplexProtocol = (typeof MultiplexProtocol)[keyof typeof MultiplexProtocol]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const MultiplexProtocol = {
   smux: 'smux',
   yamux: 'yamux',
@@ -1892,7 +1873,6 @@ export interface ModifyUserByTemplate {
 
 export type Language = (typeof Language)[keyof typeof Language]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Language = {
   fa: 'fa',
   en: 'en',
@@ -2037,7 +2017,6 @@ export interface GroupCreate {
 
 export type GeoFilseRegion = (typeof GeoFilseRegion)[keyof typeof GeoFilseRegion]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GeoFilseRegion = {
   iran: 'iran',
   china: 'china',
@@ -2087,7 +2066,6 @@ export interface ExtraSettings {
 
 export type ECHQueryStrategy = (typeof ECHQueryStrategy)[keyof typeof ECHQueryStrategy]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ECHQueryStrategy = {
   none: 'none',
   half: 'half',
@@ -2113,7 +2091,6 @@ export interface Discord {
 
 export type DataLimitResetStrategy = (typeof DataLimitResetStrategy)[keyof typeof DataLimitResetStrategy]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const DataLimitResetStrategy = {
   no_reset: 'no_reset',
   day: 'day',
@@ -2208,7 +2185,6 @@ export interface CreateHost {
 
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const CoreType = {
   xray: 'xray',
   wg: 'wg',
@@ -2278,7 +2254,6 @@ export interface Conflict {
 
 export type ConfigFormat = (typeof ConfigFormat)[keyof typeof ConfigFormat]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ConfigFormat = {
   links: 'links',
   links_base64: 'links_base64',
@@ -2298,7 +2273,6 @@ export interface ClientTemplatesSimpleResponse {
 
 export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ClientTemplateType = {
   clash_subscription: 'clash_subscription',
   xray_subscription: 'xray_subscription',

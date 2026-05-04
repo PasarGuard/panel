@@ -27,7 +27,7 @@ from app.db.models import (
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
-from config import USERS_AUTODELETE_DAYS
+from config import user_cleanup_settings
 
 from .general import (
     _build_trunc_expression,
@@ -1214,7 +1214,7 @@ async def autodelete_expired_users(
     """
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
-    auto_delete = func.coalesce(User.auto_delete_in_days, literal(USERS_AUTODELETE_DAYS))
+    auto_delete = func.coalesce(User.auto_delete_in_days, literal(user_cleanup_settings.autodelete_days))
 
     query = (
         select(
