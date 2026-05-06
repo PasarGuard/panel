@@ -9,9 +9,11 @@ from math import ceil
 import asyncio
 import time
 from urllib.parse import parse_qs, unquote, urlsplit
+from unittest.mock import AsyncMock, MagicMock
 
 from fastapi import status
 
+from app.models.node import UserIPList, UserIPListAll
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
@@ -238,6 +240,37 @@ def test_user_subscriptions(access_token):
         delete_user(access_token, user["username"])
         for host in hosts:
             client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        cleanup_groups(access_token, core, groups)
+
+
+def test_user_subscription_online_ips_uses_subscription_token(access_token, monkeypatch):
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(
+        access_token,
+        group_ids=[group["id"] for group in groups],
+        payload={"username": unique_name("sub_online_ips")},
+    )
+    node_operator_mock = MagicMock()
+    node_operator_mock.get_user_ip_list_all_nodes = AsyncMock(
+        return_value=UserIPListAll(
+            nodes={
+                7: UserIPList(ips={"198.51.100.10": 2, "203.0.113.20": 1}),
+                9: UserIPList(ips={"198.51.100.10": 3}),
+            }
+        )
+    )
+    monkeypatch.setattr("app.operation.subscription.node_operator", node_operator_mock)
+
+    try:
+        response = client.get(f"{user['subscription_url']}/online_ips")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"ips": {"198.51.100.10": 5, "203.0.113.20": 1}}
+        awaited_kwargs = node_operator_mock.get_user_ip_list_all_nodes.await_args.kwargs
+        assert awaited_kwargs["db"] is not None
+        assert awaited_kwargs["username"] == user["username"]
+    finally:
+        delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
 
 

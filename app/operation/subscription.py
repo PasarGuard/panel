@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from datetime import datetime as dt
 from json import dumps as json_dumps
 from typing import Any
@@ -10,6 +11,7 @@ from app.db import AsyncSession
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
+from app.models.node import UserIPList
 from app.models.settings import Application, ConfigFormat, SubRule, Subscription as SubSettings
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
@@ -18,8 +20,11 @@ from app.subscription.share import encode_title, generate_subscription, setup_fo
 from app.templates import render_template
 from config import template_settings
 
-from . import BaseOperation
+from . import BaseOperation, OperatorType
+from .node import NodeOperation
 from .user import UserOperation
+
+node_operator = NodeOperation(operator_type=OperatorType.API)
 
 client_config = {
     ConfigFormat.clash_meta: {
@@ -115,7 +120,7 @@ class SubscriptionOperation(BaseOperation):
 
         try:
             return profile_title.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             # Invalid format string, return original title
             return profile_title
 
@@ -127,7 +132,7 @@ class SubscriptionOperation(BaseOperation):
 
         try:
             return sub_settings.announce.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             return sub_settings.announce
 
     @staticmethod
@@ -206,7 +211,7 @@ class SubscriptionOperation(BaseOperation):
                 return ""
             try:
                 return header_value.format_map(format_variables)
-            except (ValueError, KeyError):
+            except ValueError, KeyError:
                 return header_value
 
         if isinstance(value, (dict, list, tuple, bool, int, float)):
@@ -420,6 +425,20 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         format_variables = await self.get_format_variables(user)
         return self._make_apps_import_urls(sub_settings.applications, format_variables)
+
+    async def user_subscription_online_ips(self, db: AsyncSession, token: str) -> UserIPList:
+        """
+        Get online IP addresses for the subscription user across all available nodes.
+        """
+        db_user = await self.get_validated_sub(db, token=token)
+        all_nodes_ips = await node_operator.get_user_ip_list_all_nodes(db=db, username=db_user.username)
+
+        ips: Counter[str] = Counter()
+        for node_ips in all_nodes_ips.nodes.values():
+            if node_ips:
+                ips.update(node_ips.ips)
+
+        return UserIPList(ips=dict(ips))
 
     def _make_apps_import_urls(self, applications: list[Application], format_variables: dict) -> list[Application]:
         apps_with_updated_urls = []

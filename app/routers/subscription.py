@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.db import AsyncSession, get_db
+from app.models.node import UserIPList
 from app.models.settings import Application, ConfigFormat
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse
@@ -58,6 +59,12 @@ async def get_sub_user_usage(
 ):
     """Fetches the usage statistics for the user within a specified date range."""
     return await subscription_operator.get_user_usage(db, token=token, start=start, end=end, period=period)
+
+
+@router.get("/{token}/online_ips", response_model=UserIPList)
+async def user_subscription_online_ips(token: str, db: AsyncSession = Depends(get_db)):
+    """Retrieves online IP addresses for the user's subscription."""
+    return await subscription_operator.user_subscription_online_ips(db, token=token)
 
 
 @router.get("/{token}/{client_type}")
