@@ -557,10 +557,6 @@
         "title": "Метод Shadowsocks по умолчанию",
         "description": "Автоматически заполнять метод шифрования для новых пользователей Shadowsocks"
       },
-      "wireguardEnabled": {
-        "title": "Enable WireGuard",
-        "description": "Generate WireGuard peer settings and include WireGuard hosts in subscriptions"
-      },
       "errorLoadingSettings": "Ошибка загрузки настроек"
     }
   },

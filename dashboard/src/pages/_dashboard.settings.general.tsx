@@ -5,7 +5,6 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
 import { ShadowsocksMethods, XTLSFlows, useReconnectAllNode } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
@@ -22,7 +21,6 @@ import { useSettingsContext } from './_dashboard.settings'
 const generalSettingsSchema = z.object({
   default_flow: z.string().default(''),
   default_method: z.string().default(''),
-  wireguard_enabled: z.boolean().default(true),
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
@@ -39,7 +37,6 @@ export default function General() {
     defaultValues: {
       default_flow: '',
       default_method: '',
-      wireguard_enabled: true,
     },
   })
 
@@ -47,7 +44,6 @@ export default function General() {
     form.reset({
       default_flow: settings?.general?.default_flow || '',
       default_method: settings?.general?.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-      wireguard_enabled: settings?.general?.wireguard_enabled ?? true,
     })
   }, [settings])
 
@@ -59,7 +55,6 @@ export default function General() {
           ...data,
           default_flow: data.default_flow || undefined,
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-          wireguard_enabled: data.wireguard_enabled,
         },
       }
 
@@ -74,7 +69,6 @@ export default function General() {
       form.reset({
         default_flow: '',
         default_method: DEFAULT_SHADOWSOCKS_METHOD,
-        wireguard_enabled: settings.general.wireguard_enabled ?? true,
       })
       toast.success(t('settings.general.cancelSuccess'))
     }
@@ -238,24 +232,6 @@ export default function General() {
               />
             </div>
 
-            <div className="mt-5">
-              <FormField
-                control={form.control}
-                name="wireguard_enabled"
-                render={({ field }) => (
-                  <FormItem className="flex space-y-0 flex-col gap-3 rounded-md border p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                      <FormLabel className="text-xs font-medium sm:text-sm">{t('settings.general.wireguardEnabled.title')}</FormLabel>
-                      <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.wireguardEnabled.description')}</FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
           </div>
 
           <Separator className="my-3" />

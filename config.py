@@ -188,6 +188,7 @@ class FeatureSettings(EnvSettings):
 
 
 class WireGuardSettings(EnvSettings):
+    enabled: bool = Field(default=True, validation_alias="WIREGUARD_ENABLED")
     global_pool: str = Field(default="10.0.0.0/8", validation_alias="WIREGUARD_GLOBAL_POOL")
     reserved: str = Field(default="10.0.0.0/31", validation_alias="WIREGUARD_RESERVED")
 

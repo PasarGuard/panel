@@ -2026,7 +2026,6 @@ export const GeoFilseRegion = {
 export interface General {
   default_flow?: XTLSFlows
   default_method?: ShadowsocksMethods
-  wireguard_enabled?: boolean
 }
 
 export type GRPCSettingsInitialWindowsSize = number | null

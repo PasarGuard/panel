@@ -569,10 +569,6 @@
         "title": "默认 Shadowsocks 加密方式",
         "description": "为新 Shadowsocks 用户自动填写加密方式"
       },
-      "wireguardEnabled": {
-        "title": "Enable WireGuard",
-        "description": "Generate WireGuard peer settings and include WireGuard hosts in subscriptions"
-      },
       "errorLoadingSettings": "加载设置时出错"
     },
     "errorLoadingSettings": "加载设置时出错"

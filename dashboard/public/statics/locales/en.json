@@ -148,10 +148,6 @@
         "title": "Default Shadowsocks Method",
         "description": "Autofill the encryption method for new Shadowsocks users"
       },
-      "wireguardEnabled": {
-        "title": "Enable WireGuard",
-        "description": "Generate WireGuard peer settings and include WireGuard hosts in subscriptions"
-      },
       "errorLoadingSettings": "Error loading settings"
     },
     "notifications": {

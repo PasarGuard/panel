@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
 
-from app.models.settings import ConfigFormat, General, SubRule, Subscription
+from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
@@ -478,12 +478,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
 
 
 def test_wireguard_disabled_skips_peer_ip_allocation_and_subscription_outputs(access_token, monkeypatch):
-    async def disabled_general_settings():
-        return General(wireguard_enabled=False)
-
-    monkeypatch.setattr("app.utils.wireguard.general_settings", disabled_general_settings)
-    monkeypatch.setattr("app.subscription.share.general_settings", disabled_general_settings)
-    monkeypatch.setattr("app.operation.subscription.general_settings", disabled_general_settings)
+    monkeypatch.setattr("config.wireguard_settings.enabled", False)
 
     interface_private_key, _ = generate_wireguard_keypair()
     interface_name = unique_name("wg_disabled")
