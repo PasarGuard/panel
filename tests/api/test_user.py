@@ -477,7 +477,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         delete_core(access_token, core["id"])
 
 
-def test_wireguard_disabled_skips_allocation_and_subscription_outputs(access_token, monkeypatch):
+def test_wireguard_disabled_skips_peer_ip_allocation_and_subscription_outputs(access_token, monkeypatch):
     async def disabled_general_settings():
         return General(wireguard_enabled=False)
 
@@ -518,6 +518,8 @@ def test_wireguard_disabled_skips_allocation_and_subscription_outputs(access_tok
     user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_disabled_user")})
 
     try:
+        assert user["proxy_settings"]["wireguard"]["private_key"]
+        assert user["proxy_settings"]["wireguard"]["public_key"]
         assert user["proxy_settings"]["wireguard"]["peer_ips"] == []
 
         links_response = client.get(f"{user['subscription_url']}/links")

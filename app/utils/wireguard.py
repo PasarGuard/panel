@@ -112,9 +112,6 @@ async def prepare_wireguard_proxy_settings(
     exclude_user_id: int | None = None,
 ) -> ProxyTable:
     """Prepare WireGuard proxy settings with key generation and global pool IP allocation."""
-    if not (await general_settings()).wireguard_enabled:
-        return proxy_settings
-
     wireguard_tags = await get_wireguard_tags_from_groups(groups)
     if not wireguard_tags:
         return proxy_settings
@@ -128,6 +125,9 @@ async def prepare_wireguard_proxy_settings(
         proxy_settings.wireguard.public_key = public_key
     elif not proxy_settings.wireguard.public_key:
         proxy_settings.wireguard.public_key = get_wireguard_public_key(proxy_settings.wireguard.private_key)
+
+    if not (await general_settings()).wireguard_enabled:
+        return proxy_settings
 
     peer_ips = list(proxy_settings.wireguard.peer_ips or [])
 
@@ -148,9 +148,6 @@ async def prepare_wireguard_keys_only(
     Used when peer_ips haven't changed during user modification.
     Avoids expensive database scans for unchanged peer networks.
     """
-    if not (await general_settings()).wireguard_enabled:
-        return proxy_settings
-
     wireguard_tags = await get_wireguard_tags_from_groups(groups)
     if not wireguard_tags:
         return proxy_settings
