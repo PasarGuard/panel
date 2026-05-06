@@ -13,7 +13,7 @@ from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, SubRule, Subscription as SubSettings
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
-from app.settings import subscription_settings
+from app.settings import general_settings, subscription_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
 from config import template_settings
@@ -299,6 +299,8 @@ class SubscriptionOperation(BaseOperation):
             client_type = matched_rule.target if matched_rule else None
             if client_type == ConfigFormat.block or not client_type:
                 await self.raise_error(message="Client not supported", code=406)
+            if client_type == ConfigFormat.wireguard and not (await general_settings()).wireguard_enabled:
+                await self.raise_error(message="Client not supported", code=406)
 
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent)
@@ -351,6 +353,9 @@ class SubscriptionOperation(BaseOperation):
         """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
         sub_settings: SubSettings = await subscription_settings()
 
+        if client_type == ConfigFormat.wireguard and not (await general_settings()).wireguard_enabled:
+            await self.raise_error(message="Client not supported", code=406)
+
         if client_type == ConfigFormat.block or not getattr(sub_settings.manual_sub_request, client_type):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token)
@@ -374,6 +379,9 @@ class SubscriptionOperation(BaseOperation):
         client_type: ConfigFormat,
         request_url: str = "",
     ):
+        if client_type == ConfigFormat.wireguard and not (await general_settings()).wireguard_enabled:
+            await self.raise_error(message="Client not supported", code=406)
+
         if client_type == ConfigFormat.block:
             await self.raise_error(message="Client not supported", code=406)
 

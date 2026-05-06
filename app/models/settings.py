@@ -288,6 +288,7 @@ class Subscription(BaseModel):
 class General(BaseModel):
     default_flow: XTLSFlows = Field(default=XTLSFlows.NONE)
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
+    wireguard_enabled: bool = Field(default=True)
 
 
 class SettingsSchema(BaseModel):

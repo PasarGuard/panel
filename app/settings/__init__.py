@@ -59,6 +59,15 @@ async def subscription_settings() -> settings.Subscription:
     return validated_settings
 
 
+@cached()
+async def general_settings() -> settings.General:
+    async with GetDB() as db:
+        db_settings = await get_settings(db)
+
+    validated_settings = settings.General.model_validate(db_settings.general)
+    return validated_settings
+
+
 async def refresh_caches() -> None:
     await telegram_settings.cache.clear()
     await discord_settings.cache.clear()
@@ -66,6 +75,7 @@ async def refresh_caches() -> None:
     await notification_settings.cache.clear()
     await notification_enable.cache.clear()
     await subscription_settings.cache.clear()
+    await general_settings.cache.clear()
 
 
 async def handle_settings_message(_: dict):

@@ -500,6 +500,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     enabled: isDialogOpen,
     refetchOnMount: true,
   })
+  const wireguardEnabled = generalSettings?.wireguard_enabled ?? true
 
   const syncUserCacheFromApiResponse = (user: UserResponse, options?: { allowInsert?: boolean; notifySuccessCallback?: boolean }) => {
     upsertUserInUsersCache(queryClient, user, { allowInsert: options?.allowInsert ?? false })
@@ -2151,85 +2152,89 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                               )
                             }}
                           />
-                          <FormField
-                            control={form.control}
-                            name="proxy_settings.wireguard.private_key"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}</FormLabel>
-                                <FormControl>
-                                  <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-                                    <Input
-                                      {...field}
-                                      value={field.value ?? ''}
-                                      placeholder={t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}
-                                      onChange={e => {
-                                        field.onChange(e)
-                                        syncWireGuardPublicKey(e.target.value)
-                                        form.trigger('proxy_settings.wireguard.private_key')
-                                        handleFieldChange('proxy_settings.wireguard.private_key', e.target.value)
-                                      }}
-                                    />
-                                    <Button
-                                      size="icon"
-                                      type="button"
-                                      variant="ghost"
-                                      onClick={generateWireGuardProxySettings}
-                                      title={t('userDialog.proxySettings.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
-                                    >
-                                      <RefreshCcw className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="proxy_settings.wireguard.public_key"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    dir="ltr"
-                                    {...field}
-                                    value={field.value ?? ''}
-                                    placeholder={t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}
-                                    disabled
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="proxy_settings.wireguard.peer_ips"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.wireguardPeerIps', { defaultValue: 'WireGuard Peer IPs' })}</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    dir="ltr"
-                                    value={Array.isArray(field.value) ? field.value.join('\n') : ''}
-                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.0.0.10/32' })}
-                                    onChange={e => {
-                                      const peerIps = parseWireGuardPeerIps(e.target.value)
-                                      field.onChange(peerIps)
-                                      form.trigger('proxy_settings.wireguard.peer_ips')
-                                      handleFieldChange('proxy_settings.wireguard.peer_ips', peerIps)
-                                    }}
-                                  />
-                                </FormControl>
-                                <p className="text-xs text-muted-foreground">
-                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. For manual entries, enter one CIDR per line, and keep each value within that pool.' })}
-                                </p>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                          {wireguardEnabled && (
+                            <>
+                              <FormField
+                                control={form.control}
+                                name="proxy_settings.wireguard.private_key"
+                                render={({ field }) => (
+                                  <FormItem className="mb-2">
+                                    <FormLabel>{t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}</FormLabel>
+                                    <FormControl>
+                                      <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                        <Input
+                                          {...field}
+                                          value={field.value ?? ''}
+                                          placeholder={t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}
+                                          onChange={e => {
+                                            field.onChange(e)
+                                            syncWireGuardPublicKey(e.target.value)
+                                            form.trigger('proxy_settings.wireguard.private_key')
+                                            handleFieldChange('proxy_settings.wireguard.private_key', e.target.value)
+                                          }}
+                                        />
+                                        <Button
+                                          size="icon"
+                                          type="button"
+                                          variant="ghost"
+                                          onClick={generateWireGuardProxySettings}
+                                          title={t('userDialog.proxySettings.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
+                                        >
+                                          <RefreshCcw className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="proxy_settings.wireguard.public_key"
+                                render={({ field }) => (
+                                  <FormItem className="mb-2">
+                                    <FormLabel>{t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        dir="ltr"
+                                        {...field}
+                                        value={field.value ?? ''}
+                                        placeholder={t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}
+                                        disabled
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="proxy_settings.wireguard.peer_ips"
+                                render={({ field }) => (
+                                  <FormItem className="mb-2">
+                                    <FormLabel>{t('userDialog.proxySettings.wireguardPeerIps', { defaultValue: 'WireGuard Peer IPs' })}</FormLabel>
+                                    <FormControl>
+                                      <Textarea
+                                        dir="ltr"
+                                        value={Array.isArray(field.value) ? field.value.join('\n') : ''}
+                                        placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.0.0.10/32' })}
+                                        onChange={e => {
+                                          const peerIps = parseWireGuardPeerIps(e.target.value)
+                                          field.onChange(peerIps)
+                                          form.trigger('proxy_settings.wireguard.peer_ips')
+                                          handleFieldChange('proxy_settings.wireguard.peer_ips', peerIps)
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <p className="text-xs text-muted-foreground">
+                                      {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. For manual entries, enter one CIDR per line, and keep each value within that pool.' })}
+                                    </p>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </>
+                          )}
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>

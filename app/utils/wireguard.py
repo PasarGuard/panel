@@ -12,6 +12,7 @@ from app.db.crud.user import get_all_wireguard_peer_ips_raw
 from app.db.models import CoreConfig, CoreType, User
 from app.models.proxy import ProxyTable
 from app.node.sync import sync_users
+from app.settings import general_settings
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.ip_pool import (
     WireGuardPeerIPAllocator,
@@ -111,6 +112,9 @@ async def prepare_wireguard_proxy_settings(
     exclude_user_id: int | None = None,
 ) -> ProxyTable:
     """Prepare WireGuard proxy settings with key generation and global pool IP allocation."""
+    if not (await general_settings()).wireguard_enabled:
+        return proxy_settings
+
     wireguard_tags = await get_wireguard_tags_from_groups(groups)
     if not wireguard_tags:
         return proxy_settings
@@ -144,6 +148,9 @@ async def prepare_wireguard_keys_only(
     Used when peer_ips haven't changed during user modification.
     Avoids expensive database scans for unchanged peer networks.
     """
+    if not (await general_settings()).wireguard_enabled:
+        return proxy_settings
+
     wireguard_tags = await get_wireguard_tags_from_groups(groups)
     if not wireguard_tags:
         return proxy_settings
@@ -189,6 +196,16 @@ async def bulk_reallocate_wireguard_peer_ips(
 
     ``target_users`` should be the users allowed by bulk scope (group/admin/user filters).
     """
+    if not (await general_settings()).wireguard_enabled:
+        return {
+            "wireguard_inbound_tags": 0,
+            "candidates": 0,
+            "updated": 0,
+            "dry_run": dry_run,
+            "sample_usernames": [],
+            "affected_users": 0,
+        }
+
     wg_tags = await get_wireguard_inbound_tags_from_db(db)
     if not wg_tags:
         return {

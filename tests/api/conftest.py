@@ -428,7 +428,7 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
                 },
             ],
         },
-        "general": {"default_flow": "", "default_method": "chacha20-ietf-poly1305"},
+        "general": {"default_flow": "", "default_method": "chacha20-ietf-poly1305", "wireguard_enabled": True},
     }
     db_settings = Settings(**settings)
 

@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
 
-from app.models.settings import ConfigFormat, SubRule, Subscription
+from app.models.settings import ConfigFormat, General, SubRule, Subscription
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
@@ -470,6 +470,62 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert f"PublicKey = {interface_public_key}" in body
         assert "AllowedIPs = 0.0.0.0/0, ::/0" in body
         assert f"Endpoint = {endpoint}:51820" in body
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_wireguard_disabled_skips_allocation_and_subscription_outputs(access_token, monkeypatch):
+    async def disabled_general_settings():
+        return General(wireguard_enabled=False)
+
+    monkeypatch.setattr("app.utils.wireguard.general_settings", disabled_general_settings)
+    monkeypatch.setattr("app.subscription.share.general_settings", disabled_general_settings)
+    monkeypatch.setattr("app.operation.subscription.general_settings", disabled_general_settings)
+
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_disabled")
+    endpoint = "198.51.100.20"
+
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_disabled_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.40.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "Disabled WG {USERNAME}",
+            "address": [endpoint],
+            "port": 51820,
+            "inbound_tag": interface_name,
+            "priority": 1,
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+    group = create_group(access_token, name=unique_name("wg_disabled_group"), inbound_tags=[interface_name])
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_disabled_user")})
+
+    try:
+        assert user["proxy_settings"]["wireguard"]["peer_ips"] == []
+
+        links_response = client.get(f"{user['subscription_url']}/links")
+        wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
+
+        assert links_response.status_code == status.HTTP_200_OK
+        assert "wireguard://" not in links_response.text
+        assert wireguard_response.status_code == status.HTTP_406_NOT_ACCEPTABLE
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])

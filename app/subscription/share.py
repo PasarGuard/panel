@@ -11,6 +11,7 @@ from app.core.hosts import host_manager
 from app.db.models import UserStatus
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
+from app.settings import general_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
@@ -350,6 +351,7 @@ async def process_inbounds_and_tags(
 ) -> list | str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
+    wireguard_enabled = (await general_settings()).wireguard_enabled
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
@@ -365,6 +367,9 @@ async def process_inbounds_and_tags(
         return xray_template_overrides.get(template_id)
 
     for host_data in hosts:
+        if host_data.protocol == "wireguard" and not wireguard_enabled:
+            continue
+
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
         if not result:
             continue

@@ -425,6 +425,10 @@
         "title": "روش پیش‌فرض Shadowsocks",
         "description": "پر کردن خودکار روش رمزنگاری برای کاربران جدید Shadowsocks"
       },
+      "wireguardEnabled": {
+        "title": "Enable WireGuard",
+        "description": "Generate WireGuard peer settings and include WireGuard hosts in subscriptions"
+      },
       "errorLoadingSettings": "خطا در بارگذاری تنظیمات"
     }
   },
