@@ -14,13 +14,14 @@ from app.db.models import (
     NodeUsage,
     NodeUserUsage,
     User,
+    UserStatus,
     Admin,
     Node,
 )
-from app.models.stats import Period, NodeUsageStatsList, UserUsageStatsList
+from app.models.stats import Period, NodeUsageStatsList, UserCountStatsList, UserUsageStatsList
 from app.models.proxy import ProxyTable
 from app.db.crud.node import get_nodes_usage
-from app.db.crud.user import get_user_usages, get_all_users_usages
+from app.db.crud.user import get_user_count_stats, get_user_usages, get_all_users_usages
 from app.db.crud.admin import get_admin_usages
 from tests.api import TestSession
 
@@ -790,3 +791,194 @@ class TestGetAdminUsagesTimezone:
             # STRICT: Total traffic should be from all records
             assert total_traffic > 0, "Should have non-zero total traffic"
             assert total_traffic % 5000000 == 0, "Total traffic must be multiple of 5000000"
+
+
+class TestGetUserCountStats:
+    """Test user activity/status count aggregation over node_user_usages."""
+
+    @pytest.mark.asyncio
+    async def test_timezone_filtering_distinct_counts_and_current_statuses(self):
+        async with TestSession() as session:
+            admin_id, active_user_id, node_id = await setup_test_data(session)
+            admin_username = (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
+
+            expired_user = User(
+                username=f"expired_count_{uuid4().hex[:8]}",
+                admin_id=admin_id,
+                status=UserStatus.expired,
+                proxy_settings=ProxyTable().dict(no_obj=True),
+            )
+            limited_user = User(
+                username=f"limited_count_{uuid4().hex[:8]}",
+                admin_id=admin_id,
+                status=UserStatus.limited,
+                proxy_settings=ProxyTable().dict(no_obj=True),
+            )
+            session.add_all([expired_user, limited_user])
+            await session.flush()
+
+            tehran_tz = timezone(timedelta(hours=3, minutes=30))
+            start = datetime(2026, 12, 10, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2026, 12, 10, 3, 0, 0, tzinfo=tehran_tz)
+            rows = [
+                (active_user_id, datetime(2026, 12, 9, 23, 50, 0, tzinfo=tehran_tz)),
+                (active_user_id, datetime(2026, 12, 10, 0, 10, 0, tzinfo=tehran_tz)),
+                (active_user_id, datetime(2026, 12, 10, 0, 20, 0, tzinfo=tehran_tz)),
+                (expired_user.id, datetime(2026, 12, 10, 0, 30, 0, tzinfo=tehran_tz)),
+                (limited_user.id, datetime(2026, 12, 10, 1, 5, 0, tzinfo=tehran_tz)),
+                (active_user_id, datetime(2026, 12, 10, 1, 10, 0, tzinfo=tehran_tz)),
+                (active_user_id, datetime(2026, 12, 10, 3, 0, 0, tzinfo=tehran_tz)),
+            ]
+            for idx, (user_id, local_ts) in enumerate(rows):
+                session.add(
+                    NodeUserUsage(
+                        created_at=local_ts.astimezone(timezone.utc),
+                        user_id=user_id,
+                        node_id=node_id,
+                        used_traffic=idx + 1,
+                    )
+                )
+            await session.commit()
+
+            result = await get_user_count_stats(
+                session,
+                admins=[admin_username],
+                start=start,
+                end=end,
+                period=Period.hour,
+            )
+
+            assert isinstance(result, UserCountStatsList)
+            stats = result.stats[-1]
+            assert [stat.period_start for stat in stats] == [
+                datetime(2026, 12, 10, 0, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 12, 10, 1, 0, 0, tzinfo=tehran_tz),
+            ]
+            assert [(stat.online_count, stat.expired_count, stat.limited_count) for stat in stats] == [
+                (2, 1, 0),
+                (2, 0, 1),
+            ]
+
+    @pytest.mark.asyncio
+    async def test_partial_first_bucket_is_excluded(self):
+        async with TestSession() as session:
+            _admin_id, user_id, node_id = await setup_test_data(session)
+
+            tehran_tz = timezone(timedelta(hours=3, minutes=30))
+            start = datetime(2026, 5, 9, 14, 2, 37, tzinfo=tehran_tz)
+            end = datetime(2026, 5, 9, 18, 0, 0, tzinfo=tehran_tz)
+            local_timestamps = [
+                datetime(2026, 5, 9, 14, 10, 0, tzinfo=tehran_tz),
+                datetime(2026, 5, 9, 15, 10, 0, tzinfo=tehran_tz),
+                datetime(2026, 5, 9, 16, 10, 0, tzinfo=tehran_tz),
+            ]
+            for idx, local_ts in enumerate(local_timestamps):
+                session.add(
+                    NodeUserUsage(
+                        created_at=local_ts.astimezone(timezone.utc),
+                        user_id=user_id,
+                        node_id=node_id,
+                        used_traffic=idx + 1,
+                    )
+                )
+            await session.commit()
+
+            result = await get_user_count_stats(
+                session,
+                admins=None,
+                start=start,
+                end=end,
+                period=Period.hour,
+            )
+
+            stats = result.stats[-1]
+            assert [stat.period_start for stat in stats] == [
+                datetime(2026, 5, 9, 15, 0, 0, tzinfo=tehran_tz),
+                datetime(2026, 5, 9, 16, 0, 0, tzinfo=tehran_tz),
+            ]
+            assert [stat.online_count for stat in stats] == [1, 1]
+
+    @pytest.mark.asyncio
+    async def test_node_grouping_node_filter_and_admin_filter(self):
+        async with TestSession() as session:
+            admin_id, user_id, node_id = await setup_test_data(session)
+            admin_username = (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
+
+            admin_two = Admin(username=f"admin_counts_{uuid4().hex[:8]}", hashed_password="secret")
+            node_two = Node(
+                name=f"node_counts_{uuid4().hex[:8]}",
+                address="127.0.0.1",
+                port=8081,
+                api_port=62051,
+                server_ca="ca",
+                api_key="key",
+                core_config_id=None,
+            )
+            session.add_all([admin_two, node_two])
+            await session.flush()
+
+            other_user = User(
+                username=f"other_count_{uuid4().hex[:8]}",
+                admin_id=admin_two.id,
+                status=UserStatus.expired,
+                proxy_settings=ProxyTable().dict(no_obj=True),
+            )
+            session.add(other_user)
+            await session.flush()
+
+            start = datetime(2026, 12, 11, 0, 0, 0, tzinfo=timezone.utc)
+            end = datetime(2026, 12, 11, 1, 0, 0, tzinfo=timezone.utc)
+            rows = [
+                (user_id, node_id, start + timedelta(minutes=10)),
+                (user_id, node_two.id, start + timedelta(minutes=20)),
+                (other_user.id, node_id, start + timedelta(minutes=30)),
+                (other_user.id, node_two.id, start + timedelta(minutes=40)),
+            ]
+            for idx, (row_user_id, row_node_id, created_at) in enumerate(rows):
+                session.add(
+                    NodeUserUsage(
+                        created_at=created_at,
+                        user_id=row_user_id,
+                        node_id=row_node_id,
+                        used_traffic=idx + 1,
+                    )
+                )
+            await session.commit()
+
+            grouped = await get_user_count_stats(
+                session,
+                admins=None,
+                start=start,
+                end=end,
+                period=Period.hour,
+                group_by_node=True,
+            )
+            assert grouped.stats[node_id][0].online_count == 2
+            assert grouped.stats[node_id][0].expired_count == 1
+            assert grouped.stats[node_two.id][0].online_count == 2
+            assert grouped.stats[node_two.id][0].expired_count == 1
+
+            admin_filtered = await get_user_count_stats(
+                session,
+                admins=[admin_username],
+                start=start,
+                end=end,
+                period=Period.hour,
+                group_by_node=True,
+            )
+            assert admin_filtered.stats[node_id][0].online_count == 1
+            assert admin_filtered.stats[node_id][0].expired_count == 0
+            assert admin_filtered.stats[node_two.id][0].online_count == 1
+            assert admin_filtered.stats[node_two.id][0].expired_count == 0
+
+            node_filtered = await get_user_count_stats(
+                session,
+                admins=None,
+                start=start,
+                end=end,
+                period=Period.hour,
+                node_id=node_id,
+            )
+            assert list(node_filtered.stats) == [node_id]
+            assert node_filtered.stats[node_id][0].online_count == 2
+            assert node_filtered.stats[node_id][0].expired_count == 1

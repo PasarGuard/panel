@@ -48,6 +48,28 @@ class UserUsageStatsList(StatList):
     stats: dict[int, list[UserUsageStat]]
 
 
+class UserCountStat(BaseModel):
+    online_count: int
+    expired_count: int
+    limited_count: int
+    period_start: dt
+
+    @field_validator("online_count", "expired_count", "limited_count", mode="before")
+    def cast_to_int(cls, v):
+        return NumericValidatorMixin.cast_to_int(v)
+
+    @field_validator("period_start", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return ensure_datetime_timezone(v)
+
+
+class UserCountStatsList(StatList):
+    stats: dict[int, list[UserCountStat]]
+
+
 class NodeUsageStat(BaseModel):
     uplink: int
     downlink: int

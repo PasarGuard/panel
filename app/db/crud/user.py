@@ -25,7 +25,7 @@ from app.db.models import (
     users_groups_association,
 )
 from app.models.proxy import ProxyTable
-from app.models.stats import Period, UserUsageStat, UserUsageStatsList
+from app.models.stats import Period, UserCountStat, UserCountStatsList, UserUsageStat, UserUsageStatsList
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
 from config import user_cleanup_settings
 
@@ -1374,6 +1374,96 @@ async def get_all_users_usages(
         stats[node_id_val].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+async def get_user_count_stats(
+    db: AsyncSession,
+    admins: Sequence[str] | None,
+    start: datetime,
+    end: datetime,
+    period: Period = Period.hour,
+    node_id: int | None = None,
+    group_by_node: bool = False,
+) -> UserCountStatsList:
+    """
+    Retrieves distinct active-in-bucket user counts from node_user_usages.
+
+    Status counts use the user's current status, joined onto each historical
+    activity bucket.
+    """
+    admins_filter = admins or None
+    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
+
+    start_utc = get_complete_period_start_for_filter(start, period)
+    end_utc = to_utc_for_filter(end)
+    conditions = [
+        NodeUserUsage.created_at >= start_utc,
+        NodeUserUsage.created_at < end_utc,
+    ]
+
+    if admins_filter:
+        conditions.append(Admin.username.in_(admins_filter))
+
+    if node_id is not None:
+        conditions.append(NodeUserUsage.node_id == node_id)
+    else:
+        node_id = -1
+
+    dialect = db.bind.dialect.name
+    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    if admins_filter:
+        from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
+
+    online_count = func.count(func.distinct(NodeUserUsage.user_id)).label("online_count")
+    expired_count = func.count(
+        func.distinct(case((User.status == UserStatus.expired, NodeUserUsage.user_id), else_=None))
+    ).label("expired_count")
+    limited_count = func.count(
+        func.distinct(case((User.status == UserStatus.limited, NodeUserUsage.user_id), else_=None))
+    ).label("limited_count")
+
+    if group_by_node:
+        stmt = (
+            select(
+                trunc_expr.label("period_start"),
+                func.coalesce(NodeUserUsage.node_id, 0).label("node_id"),
+                online_count,
+                expired_count,
+                limited_count,
+            )
+            .select_from(from_clause)
+            .where(and_(*conditions))
+            .group_by(trunc_expr, NodeUserUsage.node_id)
+            .order_by(trunc_expr, NodeUserUsage.node_id)
+        )
+    else:
+        stmt = (
+            select(
+                trunc_expr.label("period_start"),
+                online_count,
+                expired_count,
+                limited_count,
+            )
+            .select_from(from_clause)
+            .where(and_(*conditions))
+            .group_by(trunc_expr)
+            .order_by(trunc_expr)
+        )
+
+    result = await db.execute(stmt)
+
+    stats = {}
+    for row in result.mappings():
+        row_dict = dict(row)
+        node_id_val = row_dict.pop("node_id", node_id)
+
+        attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
+
+        if node_id_val not in stats:
+            stats[node_id_val] = []
+        stats[node_id_val].append(UserCountStat(**row_dict))
+
+    return UserCountStatsList(period=period, start=start, end=end, stats=stats)
 
 
 async def update_users_status(db: AsyncSession, users: list[User], status: UserStatus) -> list[User]:

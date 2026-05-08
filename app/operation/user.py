@@ -34,6 +34,7 @@ from app.db.crud.user import (
     get_all_users_usages,
     get_existing_usernames,
     get_expired_users,
+    get_user_count_stats,
     get_user_usages,
     get_users,
     get_users_simple,
@@ -51,7 +52,7 @@ from app.db.crud.user import (
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
-from app.models.stats import Period, UserUsageStatsList
+from app.models.stats import Period, UserCountStatsList, UserUsageStatsList
 from app.models.user import (
     BulkOperationDryRunResponse,
     BulkUser,
@@ -851,6 +852,34 @@ class UserOperation(BaseOperation):
             period=period,
             node_id=node_id,
             admins=owner if admin.is_sudo else [admin.username],
+            group_by_node=group_by_node,
+        )
+
+    async def get_users_counts(
+        self,
+        db: AsyncSession,
+        admin: AdminDetails,
+        start: dt = None,
+        end: dt = None,
+        owner: list[str] | None = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserCountStatsList:
+        """Get all users activity/status counts from usage rows."""
+        start, end = await self.validate_dates(start, end, True)
+
+        if not admin.is_sudo:
+            node_id = None
+            group_by_node = False
+
+        return await get_user_count_stats(
+            db=db,
+            admins=owner if admin.is_sudo else [admin.username],
+            start=start,
+            end=end,
+            period=period,
+            node_id=node_id,
             group_by_node=group_by_node,
         )
 
