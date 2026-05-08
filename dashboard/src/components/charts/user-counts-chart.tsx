@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ComponentProps } from 'react'
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis, TooltipProps } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis, TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
-import { AlertTriangle, Calendar, Gauge, TimerOff, Users, Wifi } from 'lucide-react'
+import { AlertTriangle, BarChart3, Calendar, Gauge, PieChart as PieChartIcon, TimerOff, Users, Wifi } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -41,6 +41,13 @@ type CountSeries = {
   label: string
   color: string
   stackId?: string
+}
+
+type CountPieDataPoint = {
+  name: string
+  count: number
+  percentage: number
+  fill: string
 }
 
 type UserCountsChartProps = {
@@ -138,12 +145,40 @@ function CountTooltip({
   )
 }
 
+function CountPieTooltip({ active, payload }: TooltipProps<number, string>) {
+  const { t } = useTranslation()
+
+  if (!active || !payload || !payload.length) return null
+
+  const data = payload[0].payload as CountPieDataPoint
+
+  return (
+    <div className="border-border bg-background/95 rounded-lg border p-2 text-xs shadow-sm backdrop-blur-sm">
+      <div className="mb-1 flex items-center gap-1.5">
+        <div className="border-border/20 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: data.fill }} />
+        <span className="text-foreground font-medium">{data.name}</span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted-foreground">{t('statistics.totalUsers', { defaultValue: 'Total' })}</span>
+        <span dir="ltr" className="text-foreground font-mono font-semibold">
+          {data.count.toLocaleString()}
+        </span>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <span className="text-muted-foreground">{t('statistics.percentage', { defaultValue: 'Percentage' })}</span>
+        <span dir="ltr" className="text-foreground font-mono">{`${data.percentage.toFixed(1)}%`}</span>
+      </div>
+    </div>
+  )
+}
+
 export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsChartProps) {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const chartViewType = useChartViewType()
 
   const [selectedMetric, setSelectedMetric] = useState<UserCountMetric>(UserCountMetric.online)
+  const [chartView, setChartView] = useState<'bar' | 'pie'>('bar')
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [groupByNode, setGroupByNode] = useState(false)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
@@ -340,6 +375,38 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
     [metricStatsByGroup],
   )
 
+  const pieData = useMemo<CountPieDataPoint[]>(() => {
+    if (!effectiveGroupByNode || chartData.length === 0) return []
+
+    const groupsWithCounts = series
+      .map(item => ({
+        name: item.label,
+        count: chartData.reduce((sum, row) => sum + Number(row[item.key] || 0), 0),
+        fill: item.color,
+      }))
+      .filter(item => item.count > 0)
+
+    const total = groupsWithCounts.reduce((sum, item) => sum + item.count, 0)
+
+    return groupsWithCounts
+      .map(item => ({
+        ...item,
+        percentage: total > 0 ? (item.count * 100) / total : 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+  }, [chartData, effectiveGroupByNode, series])
+
+  const pieChartConfig = useMemo<ChartConfig>(
+    () =>
+      pieData.reduce<ChartConfig>((config, point) => {
+        config[point.name] = { label: point.name, color: point.fill }
+        return config
+      }, {}),
+    [pieData],
+  )
+
+  const piePaddingAngle = pieData.length > 1 ? 1 : 0
+
   const xAxisInterval = useMemo(() => {
     if (showCustomRange && customRange?.from && customRange?.to) {
       if (activePeriod === Period.hour || activePeriod === Period.minute) {
@@ -372,6 +439,12 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
       setGroupByNode(false)
     }
   }, [canGroupByNode, groupByNode])
+
+  useEffect(() => {
+    if (!effectiveGroupByNode && chartView === 'pie') {
+      setChartView('bar')
+    }
+  }, [chartView, effectiveGroupByNode])
 
   useEffect(() => {
     if (isNodeScopedCounts && selectedMetric !== UserCountMetric.online) {
@@ -481,6 +554,26 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
                   <Switch checked={effectiveGroupByNode} onCheckedChange={setGroupByNode} />
                 </label>
               )}
+              {effectiveGroupByNode && (
+                <div className="bg-muted/30 inline-flex h-8 shrink-0 items-center gap-1 rounded-md border p-1">
+                  <button
+                    type="button"
+                    aria-label={chartViewType === 'area' ? t('theme.chartViewArea', { defaultValue: 'Area chart' }) : t('statistics.barChart', { defaultValue: 'Bar chart' })}
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                    onClick={() => setChartView('bar')}
+                  >
+                    <BarChart3 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t('statistics.pieChart', { defaultValue: 'Pie chart' })}
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'pie' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                    onClick={() => setChartView('pie')}
+                  >
+                    <PieChartIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
             {showCustomRange && (
               <div className="flex w-full">
@@ -511,8 +604,8 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
             <EmptyState type="error" className="max-h-[300px] min-h-[150px] sm:max-h-[400px] sm:min-h-[200px]" />
           ) : (
             <div className="mx-auto w-full max-w-7xl">
-              <ChartContainer dir="ltr" config={chartConfig} className="h-[220px] w-full overflow-x-auto sm:h-[320px] lg:h-[400px]">
-                {chartData.length > 0 ? (
+              <ChartContainer dir="ltr" config={effectiveGroupByNode && chartView === 'pie' ? pieChartConfig : chartConfig} className="h-[220px] w-full overflow-x-auto sm:h-[320px] lg:h-[400px]">
+                {chartData.length > 0 && (!effectiveGroupByNode || chartView === 'bar') ? (
                   chartViewType === 'area' ? (
                     <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                       <defs>
@@ -602,6 +695,24 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
                       })}
                     </BarChart>
                   )
+                ) : chartData.length > 0 && effectiveGroupByNode && chartView === 'pie' ? (
+                  pieData.length > 0 ? (
+                    <PieChart>
+                      <ChartTooltip cursor={false} content={props => <CountPieTooltip {...(props as TooltipProps<number, string>)} />} />
+                      <Pie data={pieData} dataKey="count" nameKey="name" innerRadius="45%" outerRadius="88%" paddingAngle={piePaddingAngle} strokeWidth={1.5}>
+                        {pieData.map(point => (
+                          <Cell key={point.name} fill={point.fill} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  ) : (
+                    <EmptyState
+                      type="no-data"
+                      title={t('statistics.noDataInRange')}
+                      description={t('statistics.noDataInRangeDescription')}
+                      className="max-h-[300px] min-h-[150px] sm:max-h-[400px] sm:min-h-[200px]"
+                    />
+                  )
                 ) : (
                   <EmptyState
                     type="no-data"
@@ -614,12 +725,21 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
               {chartData.length > 0 && (
                 <div className="overflow-x-auto pt-3">
                   <div className="flex min-w-max items-center justify-center gap-4">
-                    {series.map(item => (
-                      <div dir="ltr" key={item.key} className="flex items-center gap-1.5">
-                        <div className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
-                        <span className="text-xs whitespace-nowrap">{item.label}</span>
-                      </div>
-                    ))}
+                    {(effectiveGroupByNode && chartView === 'pie' ? pieData : series).map(item => {
+                      const key = 'key' in item ? item.key : item.name
+                      const label = 'label' in item ? item.label : item.name
+                      const color = 'color' in item ? item.color : item.fill
+                      const percentage = 'percentage' in item ? item.percentage : undefined
+                      return (
+                        <div dir="ltr" key={key} className="flex items-center gap-1.5">
+                          <div className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
+                          <span className="text-xs whitespace-nowrap">
+                            {label}
+                            {typeof percentage === 'number' ? ` (${percentage.toFixed(1)}%)` : ''}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
