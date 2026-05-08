@@ -30,6 +30,9 @@ from app.models.stats import (
     NodeRealtimeStats,
     NodeStats,
     NodeStatsList,
+    UserCountMetric,
+    UserCountMetricStat,
+    UserCountMetricStatsList,
     UserCountStat,
     UserCountStatsList,
     NodeUsageStat,
@@ -181,6 +184,18 @@ def user_count_stats_payload() -> UserCountStatsList:
     )
 
 
+def user_count_metric_stats_payload() -> UserCountMetricStatsList:
+    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    end = start + timedelta(days=1)
+    return UserCountMetricStatsList(
+        metric=UserCountMetric.online,
+        start=start,
+        end=end,
+        period=Period.day,
+        stats={1: [UserCountMetricStat(count=3, period_start=start)]},
+    )
+
+
 def node_stats_payload() -> NodeStatsList:
     start = datetime(2024, 1, 1, tzinfo=timezone.utc)
     end = start + timedelta(hours=2)
@@ -240,6 +255,7 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "get_node_stats_periodic",
         "get_node_system_stats",
         "get_user_counts",
+        "get_user_count_metric",
     ]
     for name in async_methods:
         setattr(operator, name, AsyncMock(name=name))
@@ -310,6 +326,34 @@ def test_get_user_counts_passes_filters(access_token, node_operator_mock):
     assert response.json() == counts.model_dump(mode="json")
 
     awaited_kwargs = node_operator_mock.get_user_counts.await_args.kwargs
+    assert awaited_kwargs["node_id"] == 5
+    assert awaited_kwargs["group_by_node"] is True
+    assert awaited_kwargs["period"] == Period.day
+    assert awaited_kwargs["start"] == start
+    assert awaited_kwargs["end"] == end
+
+
+def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
+    counts = user_count_metric_stats_payload()
+    node_operator_mock.get_user_count_metric.return_value = counts
+    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    end = start + timedelta(days=7)
+    response = client.get(
+        "/api/node/user_counts/online",
+        headers=auth_headers(access_token),
+        params={
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "period": "day",
+            "node_id": 5,
+            "group_by_node": True,
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == counts.model_dump(mode="json")
+
+    awaited_kwargs = node_operator_mock.get_user_count_metric.await_args.kwargs
+    assert awaited_kwargs["metric"] == UserCountMetric.online
     assert awaited_kwargs["node_id"] == 5
     assert awaited_kwargs["group_by_node"] is True
     assert awaited_kwargs["period"] == Period.day

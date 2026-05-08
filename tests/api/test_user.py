@@ -15,7 +15,7 @@ from fastapi import status
 from sqlalchemy import update
 
 from app.db.models import User
-from app.models.stats import Period, UserCountStat, UserCountStatsList
+from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList, UserCountStat, UserCountStatsList
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
@@ -611,6 +611,47 @@ def test_get_users_counts_passes_filters(access_token, monkeypatch):
     assert response.json() == counts.model_dump(mode="json")
 
     awaited_kwargs = operator.get_users_counts.await_args.kwargs
+    assert awaited_kwargs["owner"] == ["admin-a", "admin-b"]
+    assert awaited_kwargs["node_id"] == 5
+    assert awaited_kwargs["group_by_node"] is True
+    assert awaited_kwargs["period"] == Period.day
+    assert awaited_kwargs["start"] == start
+    assert awaited_kwargs["end"] == end
+
+
+def test_get_users_count_metric_passes_filters(access_token, monkeypatch):
+    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    end = start + timedelta(days=7)
+    counts = UserCountMetricStatsList(
+        metric=UserCountMetric.expired,
+        start=start,
+        end=end,
+        period=Period.day,
+        stats={5: [UserCountMetricStat(count=2, period_start=start)]},
+    )
+    operator = MagicMock()
+    operator.get_users_count_metric = AsyncMock(return_value=counts)
+    monkeypatch.setattr("app.routers.user.user_operator", operator)
+
+    response = client.get(
+        "/api/users/counts/expired",
+        headers=auth_headers(access_token),
+        params=[
+            ("start", start.isoformat()),
+            ("end", end.isoformat()),
+            ("period", "day"),
+            ("node_id", "5"),
+            ("group_by_node", "true"),
+            ("admin", "admin-a"),
+            ("admin", "admin-b"),
+        ],
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == counts.model_dump(mode="json")
+
+    awaited_kwargs = operator.get_users_count_metric.await_args.kwargs
+    assert awaited_kwargs["metric"] == UserCountMetric.expired
     assert awaited_kwargs["owner"] == ["admin-a", "admin-b"]
     assert awaited_kwargs["node_id"] == 5
     assert awaited_kwargs["group_by_node"] is True

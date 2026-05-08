@@ -18,10 +18,17 @@ from app.db.models import (
     Admin,
     Node,
 )
-from app.models.stats import Period, NodeUsageStatsList, UserCountStatsList, UserUsageStatsList
+from app.models.stats import (
+    Period,
+    NodeUsageStatsList,
+    UserCountMetric,
+    UserCountMetricStatsList,
+    UserCountStatsList,
+    UserUsageStatsList,
+)
 from app.models.proxy import ProxyTable
 from app.db.crud.node import get_nodes_usage
-from app.db.crud.user import get_user_count_stats, get_user_usages, get_all_users_usages
+from app.db.crud.user import get_user_count_metric_stats, get_user_count_stats, get_user_usages, get_all_users_usages
 from app.db.crud.admin import get_admin_usages
 from tests.api import TestSession
 
@@ -858,6 +865,78 @@ class TestGetUserCountStats:
                 (2, 1, 0),
                 (2, 0, 1),
             ]
+
+    @pytest.mark.asyncio
+    async def test_single_metric_responses_share_count_logic(self):
+        async with TestSession() as session:
+            admin_id, active_user_id, node_id = await setup_test_data(session)
+
+            expired_user = User(
+                username=f"expired_metric_{uuid4().hex[:8]}",
+                admin_id=admin_id,
+                status=UserStatus.expired,
+                proxy_settings=ProxyTable().dict(no_obj=True),
+            )
+            limited_user = User(
+                username=f"limited_metric_{uuid4().hex[:8]}",
+                admin_id=admin_id,
+                status=UserStatus.limited,
+                proxy_settings=ProxyTable().dict(no_obj=True),
+            )
+            session.add_all([expired_user, limited_user])
+            await session.flush()
+
+            start = datetime(2026, 12, 12, 0, 0, 0, tzinfo=timezone.utc)
+            end = datetime(2026, 12, 12, 1, 0, 0, tzinfo=timezone.utc)
+            rows = [
+                (active_user_id, start + timedelta(minutes=5)),
+                (active_user_id, start + timedelta(minutes=15)),
+                (expired_user.id, start + timedelta(minutes=25)),
+                (limited_user.id, start + timedelta(minutes=35)),
+            ]
+            for idx, (user_id, created_at) in enumerate(rows):
+                session.add(
+                    NodeUserUsage(
+                        created_at=created_at,
+                        user_id=user_id,
+                        node_id=node_id,
+                        used_traffic=idx + 1,
+                    )
+                )
+            await session.commit()
+
+            online = await get_user_count_metric_stats(
+                session,
+                admins=None,
+                start=start,
+                end=end,
+                period=Period.hour,
+                metric=UserCountMetric.online,
+            )
+            expired = await get_user_count_metric_stats(
+                session,
+                admins=None,
+                start=start,
+                end=end,
+                period=Period.hour,
+                metric=UserCountMetric.expired,
+            )
+            limited = await get_user_count_metric_stats(
+                session,
+                admins=None,
+                start=start,
+                end=end,
+                period=Period.hour,
+                metric=UserCountMetric.limited,
+            )
+
+            assert isinstance(online, UserCountMetricStatsList)
+            assert online.metric == UserCountMetric.online
+            assert online.stats[-1][0].count == 3
+            assert expired.metric == UserCountMetric.expired
+            assert expired.stats[-1][0].count == 1
+            assert limited.metric == UserCountMetric.limited
+            assert limited.stats[-1][0].count == 1
 
     @pytest.mark.asyncio
     async def test_partial_first_bucket_is_excluded(self):

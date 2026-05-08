@@ -26,7 +26,7 @@ from app.db.crud.node import (
     reset_node_usage,
     update_node_status,
 )
-from app.db.crud.user import get_user, get_user_count_stats, get_users_count_by_status
+from app.db.crud.user import get_user, get_user_count_metric_stats, get_user_count_stats, get_users_count_by_status
 from app.db.models import Node, NodeStatus, UserStatus
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
@@ -47,7 +47,15 @@ from app.models.node import (
     UserIPList,
     UserIPListAll,
 )
-from app.models.stats import NodeRealtimeStats, NodeStatsList, NodeUsageStatsList, Period, UserCountStatsList
+from app.models.stats import (
+    NodeRealtimeStats,
+    NodeStatsList,
+    NodeUsageStatsList,
+    Period,
+    UserCountMetric,
+    UserCountMetricStatsList,
+    UserCountStatsList,
+)
 from app.nats.node_rpc import node_nats_client
 from app.node import calculate_max_message_size, core_users, node_manager
 from app.operation import BaseOperation, OperatorType
@@ -455,6 +463,28 @@ class NodeOperation(BaseOperation):
             start=start,
             end=end,
             period=period,
+            node_id=node_id,
+            group_by_node=group_by_node,
+        )
+
+    async def get_user_count_metric(
+        self,
+        db: AsyncSession,
+        metric: UserCountMetric,
+        start: dt = None,
+        end: dt = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserCountMetricStatsList:
+        start, end = await self.validate_dates(start, end, True)
+        return await get_user_count_metric_stats(
+            db,
+            admins=None,
+            start=start,
+            end=end,
+            period=period,
+            metric=metric,
             node_id=node_id,
             group_by_node=group_by_node,
         )
