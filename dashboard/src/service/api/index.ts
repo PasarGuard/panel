@@ -77,6 +77,15 @@ export type GetUsersUsageParams = {
   admin?: string[] | null
 }
 
+export type GetUsersCountMetricParams = {
+  period: Period
+  node_id?: number | null
+  group_by_node?: boolean
+  start?: string | null
+  end?: string | null
+  admin?: string[] | null
+}
+
 export type GetUserUsageByIdParams = {
   period: Period
   node_id?: number | null
@@ -685,6 +694,23 @@ export interface UserUsageStat {
 }
 
 export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
+
+export type UserCountMetricStatsListPeriod = Period | null
+
+export interface UserCountMetricStatsList {
+  period?: UserCountMetricStatsListPeriod
+  start: string
+  end: string
+  metric: UserCountMetric
+  stats: UserCountMetricStatsListStats
+}
+
+export interface UserCountMetricStat {
+  count: number
+  period_start: string
+}
+
+export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
 
 export type UserTemplateSimpleName = string | null
 
@@ -1487,6 +1513,14 @@ export const Period = {
   hour: 'hour',
   day: 'day',
   month: 'month',
+} as const
+
+export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
+
+export const UserCountMetric = {
+  online: 'online',
+  expired: 'expired',
+  limited: 'limited',
 } as const
 
 export type NotificationSettingsOutputProxyUrl = string | null
@@ -10317,6 +10351,74 @@ export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsage>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUsersUsageQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Get one users activity/status count metric from usage rows.
+ * @summary Get Users Count Metric
+ */
+export const getUsersCountMetric = (metric: UserCountMetric, params: GetUsersCountMetricParams, signal?: AbortSignal) => {
+  return orvalFetcher<UserCountMetricStatsList>({ url: `/api/users/counts/${metric}`, method: 'GET', params, signal })
+}
+
+export const getGetUsersCountMetricQueryKey = (metric: UserCountMetric, params: GetUsersCountMetricParams) => {
+  return [`/api/users/counts/${metric}`, ...(params ? [params] : [])] as const
+}
+
+export const getGetUsersCountMetricQueryOptions = <TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params: GetUsersCountMetricParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetUsersCountMetricQueryKey(metric, params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsersCountMetric>>> = ({ signal }) => getUsersCountMetric(metric, params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUsersCountMetricQueryResult = NonNullable<Awaited<ReturnType<typeof getUsersCountMetric>>>
+export type GetUsersCountMetricQueryError = ErrorType<Unauthorized | HTTPValidationError>
+
+export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params: GetUsersCountMetricParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params: GetUsersCountMetricParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params: GetUsersCountMetricParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Users Count Metric
+ */
+
+export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params: GetUsersCountMetricParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUsersCountMetricQueryOptions(metric, params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
