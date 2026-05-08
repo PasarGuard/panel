@@ -7,7 +7,13 @@ from app.db import AsyncSession, get_db
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.settings import ConfigFormat
-from app.models.stats import Period, UserCountMetric, UserCountMetricStatsList, UserCountStatsList, UserUsageStatsList
+from app.models.stats import (
+    Period,
+    UserCountMetric,
+    UserCountMetricStatsList,
+    UserUsageStatsList,
+    validate_user_count_metric_scope,
+)
 from app.models.user import (
     BulkUser,
     BulkUsersActionResponse,
@@ -589,30 +595,6 @@ async def get_users_usage(
     )
 
 
-@router.get("s/counts", response_model=UserCountStatsList)
-async def get_users_counts(
-    period: Period,
-    node_id: int | None = None,
-    group_by_node: bool = False,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
-    db: AsyncSession = Depends(get_db),
-    owner: list[str] | None = Query(None, alias="admin"),
-    admin: AdminDetails = Depends(get_current),
-):
-    """Get all users activity/status counts from usage rows."""
-    return await user_operator.get_users_counts(
-        db,
-        admin=admin,
-        start=start,
-        end=end,
-        owner=owner,
-        period=period,
-        node_id=node_id,
-        group_by_node=group_by_node,
-    )
-
-
 @router.get("s/counts/{metric}", response_model=UserCountMetricStatsList)
 async def get_users_count_metric(
     metric: UserCountMetric,
@@ -626,6 +608,15 @@ async def get_users_count_metric(
     admin: AdminDetails = Depends(get_current),
 ):
     """Get one users activity/status count metric from usage rows."""
+    try:
+        validate_user_count_metric_scope(
+            metric,
+            node_id=node_id if admin.is_sudo else None,
+            group_by_node=group_by_node if admin.is_sudo else False,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
     return await user_operator.get_users_count_metric(
         db,
         admin=admin,

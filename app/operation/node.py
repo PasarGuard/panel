@@ -26,7 +26,7 @@ from app.db.crud.node import (
     reset_node_usage,
     update_node_status,
 )
-from app.db.crud.user import get_user, get_user_count_metric_stats, get_user_count_stats, get_users_count_by_status
+from app.db.crud.user import get_user, get_user_count_metric_stats, get_users_count_by_status
 from app.db.models import Node, NodeStatus, UserStatus
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
@@ -54,7 +54,7 @@ from app.models.stats import (
     Period,
     UserCountMetric,
     UserCountMetricStatsList,
-    UserCountStatsList,
+    validate_user_count_metric_scope,
 )
 from app.nats.node_rpc import node_nats_client
 from app.node import calculate_max_message_size, core_users, node_manager
@@ -447,26 +447,6 @@ class NodeOperation(BaseOperation):
         start, end = await self.validate_dates(start, end, True)
         return await get_nodes_usage(db, start, end, period=period, node_id=node_id, group_by_node=group_by_node)
 
-    async def get_user_counts(
-        self,
-        db: AsyncSession,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
-    ) -> UserCountStatsList:
-        start, end = await self.validate_dates(start, end, True)
-        return await get_user_count_stats(
-            db,
-            admins=None,
-            start=start,
-            end=end,
-            period=period,
-            node_id=node_id,
-            group_by_node=group_by_node,
-        )
-
     async def get_user_count_metric(
         self,
         db: AsyncSession,
@@ -478,6 +458,11 @@ class NodeOperation(BaseOperation):
         group_by_node: bool = False,
     ) -> UserCountMetricStatsList:
         start, end = await self.validate_dates(start, end, True)
+        try:
+            validate_user_count_metric_scope(metric, node_id=node_id, group_by_node=group_by_node)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400)
+
         return await get_user_count_metric_stats(
             db,
             admins=None,

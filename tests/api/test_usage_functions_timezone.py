@@ -23,12 +23,11 @@ from app.models.stats import (
     NodeUsageStatsList,
     UserCountMetric,
     UserCountMetricStatsList,
-    UserCountStatsList,
     UserUsageStatsList,
 )
 from app.models.proxy import ProxyTable
 from app.db.crud.node import get_nodes_usage
-from app.db.crud.user import get_user_count_metric_stats, get_user_count_stats, get_user_usages, get_all_users_usages
+from app.db.crud.user import get_user_count_metric_stats, get_user_usages, get_all_users_usages
 from app.db.crud.admin import get_admin_usages
 from tests.api import TestSession
 
@@ -800,8 +799,8 @@ class TestGetAdminUsagesTimezone:
             assert total_traffic % 5000000 == 0, "Total traffic must be multiple of 5000000"
 
 
-class TestGetUserCountStats:
-    """Test user activity/status count aggregation over node_user_usages."""
+class TestGetUserCountMetricStats:
+    """Test user activity/status metric aggregation over node_user_usages."""
 
     @pytest.mark.asyncio
     async def test_timezone_filtering_distinct_counts_and_current_statuses(self):
@@ -847,24 +846,40 @@ class TestGetUserCountStats:
                 )
             await session.commit()
 
-            result = await get_user_count_stats(
+            online = await get_user_count_metric_stats(
                 session,
                 admins=[admin_username],
                 start=start,
                 end=end,
                 period=Period.hour,
+                metric=UserCountMetric.online,
+            )
+            expired = await get_user_count_metric_stats(
+                session,
+                admins=[admin_username],
+                start=start,
+                end=end,
+                period=Period.hour,
+                metric=UserCountMetric.expired,
+            )
+            limited = await get_user_count_metric_stats(
+                session,
+                admins=[admin_username],
+                start=start,
+                end=end,
+                period=Period.hour,
+                metric=UserCountMetric.limited,
             )
 
-            assert isinstance(result, UserCountStatsList)
-            stats = result.stats[-1]
+            assert isinstance(online, UserCountMetricStatsList)
+            stats = online.stats[-1]
             assert [stat.period_start for stat in stats] == [
                 datetime(2026, 12, 10, 0, 0, 0, tzinfo=tehran_tz),
                 datetime(2026, 12, 10, 1, 0, 0, tzinfo=tehran_tz),
             ]
-            assert [(stat.online_count, stat.expired_count, stat.limited_count) for stat in stats] == [
-                (2, 1, 0),
-                (2, 0, 1),
-            ]
+            assert [stat.count for stat in online.stats[-1]] == [2, 2]
+            assert [stat.count for stat in expired.stats[-1]] == [1, 0]
+            assert [stat.count for stat in limited.stats[-1]] == [0, 1]
 
     @pytest.mark.asyncio
     async def test_single_metric_responses_share_count_logic(self):
@@ -962,12 +977,13 @@ class TestGetUserCountStats:
                 )
             await session.commit()
 
-            result = await get_user_count_stats(
+            result = await get_user_count_metric_stats(
                 session,
                 admins=None,
                 start=start,
                 end=end,
                 period=Period.hour,
+                metric=UserCountMetric.online,
             )
 
             stats = result.stats[-1]
@@ -975,7 +991,7 @@ class TestGetUserCountStats:
                 datetime(2026, 5, 9, 15, 0, 0, tzinfo=tehran_tz),
                 datetime(2026, 5, 9, 16, 0, 0, tzinfo=tehran_tz),
             ]
-            assert [stat.online_count for stat in stats] == [1, 1]
+            assert [stat.count for stat in stats] == [1, 1]
 
     @pytest.mark.asyncio
     async def test_node_grouping_node_filter_and_admin_filter(self):
@@ -1024,40 +1040,68 @@ class TestGetUserCountStats:
                 )
             await session.commit()
 
-            grouped = await get_user_count_stats(
+            grouped_online = await get_user_count_metric_stats(
                 session,
                 admins=None,
                 start=start,
                 end=end,
                 period=Period.hour,
+                metric=UserCountMetric.online,
                 group_by_node=True,
             )
-            assert grouped.stats[node_id][0].online_count == 2
-            assert grouped.stats[node_id][0].expired_count == 1
-            assert grouped.stats[node_two.id][0].online_count == 2
-            assert grouped.stats[node_two.id][0].expired_count == 1
+            assert grouped_online.stats[node_id][0].count == 2
+            assert grouped_online.stats[node_two.id][0].count == 2
 
-            admin_filtered = await get_user_count_stats(
+            admin_filtered_online = await get_user_count_metric_stats(
                 session,
                 admins=[admin_username],
                 start=start,
                 end=end,
                 period=Period.hour,
+                metric=UserCountMetric.online,
                 group_by_node=True,
             )
-            assert admin_filtered.stats[node_id][0].online_count == 1
-            assert admin_filtered.stats[node_id][0].expired_count == 0
-            assert admin_filtered.stats[node_two.id][0].online_count == 1
-            assert admin_filtered.stats[node_two.id][0].expired_count == 0
+            assert admin_filtered_online.stats[node_id][0].count == 1
+            assert admin_filtered_online.stats[node_two.id][0].count == 1
 
-            node_filtered = await get_user_count_stats(
+            node_filtered_online = await get_user_count_metric_stats(
                 session,
                 admins=None,
                 start=start,
                 end=end,
                 period=Period.hour,
+                metric=UserCountMetric.online,
                 node_id=node_id,
             )
-            assert list(node_filtered.stats) == [node_id]
-            assert node_filtered.stats[node_id][0].online_count == 2
-            assert node_filtered.stats[node_id][0].expired_count == 1
+            assert list(node_filtered_online.stats) == [node_id]
+            assert node_filtered_online.stats[node_id][0].count == 2
+
+    @pytest.mark.asyncio
+    async def test_status_metrics_reject_node_scope(self):
+        async with TestSession() as session:
+            _admin_id, _user_id, node_id = await setup_test_data(session)
+
+            start = datetime(2026, 12, 11, 0, 0, 0, tzinfo=timezone.utc)
+            end = datetime(2026, 12, 11, 1, 0, 0, tzinfo=timezone.utc)
+
+            with pytest.raises(ValueError, match="Only online user counts"):
+                await get_user_count_metric_stats(
+                    session,
+                    admins=None,
+                    start=start,
+                    end=end,
+                    period=Period.hour,
+                    metric=UserCountMetric.expired,
+                    node_id=node_id,
+                )
+
+            with pytest.raises(ValueError, match="Only online user counts"):
+                await get_user_count_metric_stats(
+                    session,
+                    admins=None,
+                    start=start,
+                    end=end,
+                    period=Period.hour,
+                    metric=UserCountMetric.limited,
+                    group_by_node=True,
+                )

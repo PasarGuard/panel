@@ -33,8 +33,6 @@ from app.models.stats import (
     UserCountMetric,
     UserCountMetricStat,
     UserCountMetricStatsList,
-    UserCountStat,
-    UserCountStatsList,
     NodeUsageStat,
     NodeUsageStatsList,
     Period,
@@ -163,27 +161,6 @@ def usage_stats_payload() -> NodeUsageStatsList:
     )
 
 
-def user_count_stats_payload() -> UserCountStatsList:
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    end = start + timedelta(days=1)
-    return UserCountStatsList(
-        start=start,
-        end=end,
-        period=Period.day,
-        stats={
-            1: [
-                UserCountStat(online_count=3, expired_count=1, limited_count=1, period_start=start),
-                UserCountStat(
-                    online_count=2,
-                    expired_count=0,
-                    limited_count=1,
-                    period_start=start + timedelta(hours=1),
-                ),
-            ]
-        },
-    )
-
-
 def user_count_metric_stats_payload() -> UserCountMetricStatsList:
     start = datetime(2024, 1, 1, tzinfo=timezone.utc)
     end = start + timedelta(days=1)
@@ -254,7 +231,6 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "remove_node",
         "get_node_stats_periodic",
         "get_node_system_stats",
-        "get_user_counts",
         "get_user_count_metric",
     ]
     for name in async_methods:
@@ -306,33 +282,6 @@ def test_get_usage_passes_filters(access_token, node_operator_mock):
     assert awaited_kwargs["end"] == end
 
 
-def test_get_user_counts_passes_filters(access_token, node_operator_mock):
-    counts = user_count_stats_payload()
-    node_operator_mock.get_user_counts.return_value = counts
-    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
-    end = start + timedelta(days=7)
-    response = client.get(
-        "/api/node/user_counts",
-        headers=auth_headers(access_token),
-        params={
-            "start": start.isoformat(),
-            "end": end.isoformat(),
-            "period": "day",
-            "node_id": 5,
-            "group_by_node": True,
-        },
-    )
-    assert response.status_code == status.HTTP_200_OK
-    assert response.json() == counts.model_dump(mode="json")
-
-    awaited_kwargs = node_operator_mock.get_user_counts.await_args.kwargs
-    assert awaited_kwargs["node_id"] == 5
-    assert awaited_kwargs["group_by_node"] is True
-    assert awaited_kwargs["period"] == Period.day
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
-
-
 def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
     counts = user_count_metric_stats_payload()
     node_operator_mock.get_user_count_metric.return_value = counts
@@ -359,6 +308,18 @@ def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
     assert awaited_kwargs["period"] == Period.day
     assert awaited_kwargs["start"] == start
     assert awaited_kwargs["end"] == end
+
+
+def test_get_user_count_metric_rejects_status_metric_node_scope(access_token, node_operator_mock):
+    response = client.get(
+        "/api/node/user_counts/limited",
+        headers=auth_headers(access_token),
+        params={"period": "day", "group_by_node": True},
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Only online user counts" in response.json()["detail"]
+    node_operator_mock.get_user_count_metric.assert_not_called()
 
 
 def test_get_nodes_forwards_query_params(access_token, node_operator_mock):

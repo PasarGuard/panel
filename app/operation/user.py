@@ -35,7 +35,6 @@ from app.db.crud.user import (
     get_existing_usernames,
     get_expired_users,
     get_user_count_metric_stats,
-    get_user_count_stats,
     get_user_usages,
     get_users,
     get_users_simple,
@@ -53,7 +52,13 @@ from app.db.crud.user import (
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
-from app.models.stats import Period, UserCountMetric, UserCountMetricStatsList, UserCountStatsList, UserUsageStatsList
+from app.models.stats import (
+    Period,
+    UserCountMetric,
+    UserCountMetricStatsList,
+    UserUsageStatsList,
+    validate_user_count_metric_scope,
+)
 from app.models.user import (
     BulkOperationDryRunResponse,
     BulkUser,
@@ -856,34 +861,6 @@ class UserOperation(BaseOperation):
             group_by_node=group_by_node,
         )
 
-    async def get_users_counts(
-        self,
-        db: AsyncSession,
-        admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
-        owner: list[str] | None = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
-    ) -> UserCountStatsList:
-        """Get all users activity/status counts from usage rows."""
-        start, end = await self.validate_dates(start, end, True)
-
-        if not admin.is_sudo:
-            node_id = None
-            group_by_node = False
-
-        return await get_user_count_stats(
-            db=db,
-            admins=owner if admin.is_sudo else [admin.username],
-            start=start,
-            end=end,
-            period=period,
-            node_id=node_id,
-            group_by_node=group_by_node,
-        )
-
     async def get_users_count_metric(
         self,
         db: AsyncSession,
@@ -902,6 +879,11 @@ class UserOperation(BaseOperation):
         if not admin.is_sudo:
             node_id = None
             group_by_node = False
+
+        try:
+            validate_user_count_metric_scope(metric, node_id=node_id, group_by_node=group_by_node)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400)
 
         return await get_user_count_metric_stats(
             db=db,

@@ -30,10 +30,9 @@ from app.models.stats import (
     UserCountMetric,
     UserCountMetricStat,
     UserCountMetricStatsList,
-    UserCountStat,
-    UserCountStatsList,
     UserUsageStat,
     UserUsageStatsList,
+    validate_user_count_metric_scope,
 )
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
 from config import user_cleanup_settings
@@ -1385,68 +1384,6 @@ async def get_all_users_usages(
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
 
 
-async def get_user_count_stats(
-    db: AsyncSession,
-    admins: Sequence[str] | None,
-    start: datetime,
-    end: datetime,
-    period: Period = Period.hour,
-    node_id: int | None = None,
-    group_by_node: bool = False,
-) -> UserCountStatsList:
-    """
-    Retrieves distinct active-in-bucket user counts from node_user_usages.
-
-    Status counts use the user's current status, joined onto each historical
-    activity bucket.
-    """
-    query_parts = _build_user_count_query_parts(db, admins, start, end, period, node_id)
-    online_count, expired_count, limited_count = _build_user_count_expressions()
-
-    if group_by_node:
-        stmt = (
-            select(
-                query_parts["trunc_expr"].label("period_start"),
-                func.coalesce(NodeUserUsage.node_id, 0).label("node_id"),
-                online_count,
-                expired_count,
-                limited_count,
-            )
-            .select_from(query_parts["from_clause"])
-            .where(and_(*query_parts["conditions"]))
-            .group_by(query_parts["trunc_expr"], NodeUserUsage.node_id)
-            .order_by(query_parts["trunc_expr"], NodeUserUsage.node_id)
-        )
-    else:
-        stmt = (
-            select(
-                query_parts["trunc_expr"].label("period_start"),
-                online_count,
-                expired_count,
-                limited_count,
-            )
-            .select_from(query_parts["from_clause"])
-            .where(and_(*query_parts["conditions"]))
-            .group_by(query_parts["trunc_expr"])
-            .order_by(query_parts["trunc_expr"])
-        )
-
-    result = await db.execute(stmt)
-
-    stats = {}
-    for row in result.mappings():
-        row_dict = dict(row)
-        node_id_val = row_dict.pop("node_id", query_parts["stats_key"])
-
-        attach_timezone_to_period_start(row_dict, start.tzinfo, query_parts["dialect"])
-
-        if node_id_val not in stats:
-            stats[node_id_val] = []
-        stats[node_id_val].append(UserCountStat(**row_dict))
-
-    return UserCountStatsList(period=period, start=start, end=end, stats=stats)
-
-
 async def get_user_count_metric_stats(
     db: AsyncSession,
     admins: Sequence[str] | None,
@@ -1458,6 +1395,8 @@ async def get_user_count_metric_stats(
     group_by_node: bool = False,
 ) -> UserCountMetricStatsList:
     """Retrieves one distinct user count metric from node_user_usages."""
+    validate_user_count_metric_scope(metric, node_id=node_id, group_by_node=group_by_node)
+
     query_parts = _build_user_count_query_parts(db, admins, start, end, period, node_id)
     count_expr = _build_user_count_metric_expression(metric).label("count")
 
@@ -1535,14 +1474,6 @@ def _build_user_count_query_parts(
         "stats_key": stats_key,
         "trunc_expr": trunc_expr,
     }
-
-
-def _build_user_count_expressions():
-    return (
-        _build_user_count_metric_expression(UserCountMetric.online).label("online_count"),
-        _build_user_count_metric_expression(UserCountMetric.expired).label("expired_count"),
-        _build_user_count_metric_expression(UserCountMetric.limited).label("limited_count"),
-    )
 
 
 def _build_user_count_metric_expression(metric: UserCountMetric):

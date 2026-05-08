@@ -15,7 +15,7 @@ from fastapi import status
 from sqlalchemy import update
 
 from app.db.models import User
-from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList, UserCountStat, UserCountStatsList
+from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
@@ -571,59 +571,11 @@ def test_user_routes_by_id_and_by_username(access_token):
         cleanup_groups(access_token, core, groups)
 
 
-def test_get_users_counts_passes_filters(access_token, monkeypatch):
-    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
-    end = start + timedelta(days=7)
-    counts = UserCountStatsList(
-        start=start,
-        end=end,
-        period=Period.day,
-        stats={
-            5: [
-                UserCountStat(
-                    online_count=4,
-                    expired_count=1,
-                    limited_count=2,
-                    period_start=start,
-                )
-            ]
-        },
-    )
-    operator = MagicMock()
-    operator.get_users_counts = AsyncMock(return_value=counts)
-    monkeypatch.setattr("app.routers.user.user_operator", operator)
-
-    response = client.get(
-        "/api/users/counts",
-        headers=auth_headers(access_token),
-        params=[
-            ("start", start.isoformat()),
-            ("end", end.isoformat()),
-            ("period", "day"),
-            ("node_id", "5"),
-            ("group_by_node", "true"),
-            ("admin", "admin-a"),
-            ("admin", "admin-b"),
-        ],
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-    assert response.json() == counts.model_dump(mode="json")
-
-    awaited_kwargs = operator.get_users_counts.await_args.kwargs
-    assert awaited_kwargs["owner"] == ["admin-a", "admin-b"]
-    assert awaited_kwargs["node_id"] == 5
-    assert awaited_kwargs["group_by_node"] is True
-    assert awaited_kwargs["period"] == Period.day
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
-
-
 def test_get_users_count_metric_passes_filters(access_token, monkeypatch):
     start = datetime(2024, 2, 1, tzinfo=timezone.utc)
     end = start + timedelta(days=7)
     counts = UserCountMetricStatsList(
-        metric=UserCountMetric.expired,
+        metric=UserCountMetric.online,
         start=start,
         end=end,
         period=Period.day,
@@ -634,7 +586,7 @@ def test_get_users_count_metric_passes_filters(access_token, monkeypatch):
     monkeypatch.setattr("app.routers.user.user_operator", operator)
 
     response = client.get(
-        "/api/users/counts/expired",
+        "/api/users/counts/online",
         headers=auth_headers(access_token),
         params=[
             ("start", start.isoformat()),
@@ -651,13 +603,29 @@ def test_get_users_count_metric_passes_filters(access_token, monkeypatch):
     assert response.json() == counts.model_dump(mode="json")
 
     awaited_kwargs = operator.get_users_count_metric.await_args.kwargs
-    assert awaited_kwargs["metric"] == UserCountMetric.expired
+    assert awaited_kwargs["metric"] == UserCountMetric.online
     assert awaited_kwargs["owner"] == ["admin-a", "admin-b"]
     assert awaited_kwargs["node_id"] == 5
     assert awaited_kwargs["group_by_node"] is True
     assert awaited_kwargs["period"] == Period.day
     assert awaited_kwargs["start"] == start
     assert awaited_kwargs["end"] == end
+
+
+def test_get_users_count_metric_rejects_status_metric_node_scope(access_token, monkeypatch):
+    operator = MagicMock()
+    operator.get_users_count_metric = AsyncMock()
+    monkeypatch.setattr("app.routers.user.user_operator", operator)
+
+    response = client.get(
+        "/api/users/counts/expired",
+        headers=auth_headers(access_token),
+        params={"period": "day", "node_id": "5"},
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Only online user counts" in response.json()["detail"]
+    operator.get_users_count_metric.assert_not_called()
 
 
 def test_subscription_url_new_token_and_legacy_compatibility(access_token):
