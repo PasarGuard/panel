@@ -8,7 +8,7 @@ import { SystemStats, Period, NodeStats, NodeRealtimeStats, useGetNodeStatsPerio
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './empty-state'
 import { Button } from '@/components/ui/button'
-import { Clock, History, Cpu, MemoryStick } from 'lucide-react'
+import { Activity, Clock, History, Cpu, MemoryStick } from 'lucide-react'
 import { formatOffsetDateTime } from '@/utils/dateTimeParsing'
 import { useTheme } from 'next-themes'
 import {
@@ -254,7 +254,10 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
       <CardHeader className="flex flex-col gap-4 p-4 md:p-6">
         <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <div>
-            <CardTitle className="mb-1">{viewMode === 'realtime' ? t('statistics.realTimeData') : t('statistics.historicalData')}</CardTitle>
+            <CardTitle className="mb-1 flex items-center gap-2">
+              {viewMode === 'realtime' ? <Activity className="text-muted-foreground h-4 w-4 shrink-0" /> : <History className="text-muted-foreground h-4 w-4 shrink-0" />}
+              <span>{viewMode === 'realtime' ? t('statistics.realTimeData') : t('statistics.historicalData')}</span>
+            </CardTitle>
             <CardDescription>{viewMode === 'realtime' ? t('statistics.realtimeDescription') : t('statistics.historicalDescription')}</CardDescription>
           </div>
 

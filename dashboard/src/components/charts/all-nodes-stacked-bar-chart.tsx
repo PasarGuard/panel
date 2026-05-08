@@ -513,7 +513,10 @@ export function AllNodesStackedBarChart() {
         <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
           <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
             <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-              <CardTitle className="mb-0.5">{t('statistics.trafficUsage')}</CardTitle>
+              <CardTitle className="mb-0.5 flex items-center gap-2">
+                <BarChart3 className="text-muted-foreground h-4 w-4 shrink-0" />
+                <span>{t('statistics.trafficUsage')}</span>
+              </CardTitle>
               <CardDescription>{t('statistics.trafficUsageDescription')}</CardDescription>
             </div>
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
