@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ComponentProps } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis, TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
-import { Calendar, Gauge, TimerOff, Users, Wifi } from 'lucide-react'
+import { AlertTriangle, Calendar, Gauge, TimerOff, Users, Wifi } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -432,6 +432,14 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
             <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
               <CardTitle className="mb-0.5">{t('statistics.userCountChart', { defaultValue: 'User Count Chart' })}</CardTitle>
               <CardDescription>{t('statistics.userCountChartDescription', { defaultValue: 'Online, expired, and limited user activity counts over time' })}</CardDescription>
+              <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {t('statistics.userCountChartAccuracyNote', {
+                    defaultValue: 'Resetting user usage or changing user status can make this chart show inaccurate historical data.',
+                  })}
+                </span>
+              </p>
             </div>
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
               <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none">
