@@ -503,7 +503,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
         <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
           <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
             <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-              <CardTitle className="mb-0.5">{t('statistics.userCountChart', { defaultValue: 'User Count Chart' })}</CardTitle>
+              <CardTitle className="mb-0.5">{t('statistics.userCountChart', { defaultValue: 'User Count' })}</CardTitle>
               <CardDescription>{t('statistics.userCountChartDescription', { defaultValue: 'Online, expired, and limited user activity counts over time' })}</CardDescription>
               <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />

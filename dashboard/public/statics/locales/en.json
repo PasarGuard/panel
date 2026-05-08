@@ -1934,7 +1934,7 @@
   "statistics.usageDuringPeriod": "Usage During Period",
   "statistics.users": "Users",
   "statistics.onlineUsers": "Online Users",
-  "statistics.userCountChart": "User Count Chart",
+  "statistics.userCountChart": "User Count",
   "statistics.userCountChartDescription": "Online, expired, and limited user activity counts over time",
   "statistics.userCountChartAccuracyNote": "Resetting user usage or changing user status can make this chart show inaccurate historical data.",
   "workersHealth.title": "Workers Health",

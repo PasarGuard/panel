@@ -1849,7 +1849,7 @@
   "statistics.usageDuringPeriod": "Использование за период",
   "statistics.users": "Пользователи",
   "statistics.onlineUsers": "Онлайн пользователи",
-  "statistics.userCountChart": "График количества пользователей",
+  "statistics.userCountChart": "Количество пользователей",
   "statistics.userCountChartDescription": "Количество онлайн, истекших и ограниченных пользователей во времени",
   "statistics.userCountChartAccuracyNote": "Сброс использования пользователя или изменение статуса пользователя может сделать исторические данные на этом графике неточными.",
   "workersHealth.title": "Состояние воркеров",
