@@ -184,46 +184,76 @@ FinalMaskUdpSettings = (
 )
 
 
+FINAL_MASK_TCP_SETTINGS_MODELS = {
+    FinalMaskTcpType.header_custom: FinalMaskTcpHeaderCustomSettings,
+    FinalMaskTcpType.fragment: XrayFragmentSettings,
+    FinalMaskTcpType.sudoku: FinalMaskSudokuSettings,
+}
+
+FINAL_MASK_UDP_SETTINGS_MODELS = {
+    FinalMaskUdpType.header_custom: FinalMaskUdpHeaderCustomSettings,
+    FinalMaskUdpType.header_dns: FinalMaskDomainSettings,
+    FinalMaskUdpType.header_dtls: FinalMaskPasswordSettings,
+    FinalMaskUdpType.header_srtp: FinalMaskPasswordSettings,
+    FinalMaskUdpType.header_utp: FinalMaskPasswordSettings,
+    FinalMaskUdpType.header_wechat: FinalMaskPasswordSettings,
+    FinalMaskUdpType.header_wireguard: FinalMaskPasswordSettings,
+    FinalMaskUdpType.mkcp_original: FinalMaskPasswordSettings,
+    FinalMaskUdpType.mkcp_aes128gcm: FinalMaskPasswordSettings,
+    FinalMaskUdpType.noise: FinalMaskNoiseSettings,
+    FinalMaskUdpType.salamander: FinalMaskPasswordSettings,
+    FinalMaskUdpType.sudoku: FinalMaskSudokuSettings,
+    FinalMaskUdpType.xdns: FinalMaskDomainSettings,
+    FinalMaskUdpType.xicmp: FinalMaskXicmpSettings,
+}
+
+
+def _dispatch_final_mask_settings(
+    value: Any,
+    type_enum: type[Enum],
+    settings_models: dict[Enum, type[BaseModel]],
+):
+    if not isinstance(value, dict):
+        return value
+
+    settings = value.get("settings")
+    if not isinstance(settings, dict):
+        return value
+
+    layer_type = value.get("type")
+    if layer_type is None:
+        return value
+
+    try:
+        layer_type = type_enum(layer_type)
+    except ValueError:
+        return value
+
+    value = {**value}
+    settings_model = settings_models.get(layer_type)
+    if settings_model is not None:
+        value["settings"] = settings_model.model_validate(settings)
+    return value
+
+
 class FinalMaskTcpLayer(FinalMaskBaseModel):
     type: FinalMaskTcpType
     settings: FinalMaskTcpSettings = Field(default_factory=dict)
 
-    @model_validator(mode="after")
-    def parse_settings(self):
-        if not isinstance(self.settings, dict):
-            return self
-
-        settings_model = {
-            FinalMaskTcpType.header_custom: FinalMaskTcpHeaderCustomSettings,
-            FinalMaskTcpType.fragment: XrayFragmentSettings,
-            FinalMaskTcpType.sudoku: FinalMaskSudokuSettings,
-        }.get(FinalMaskTcpType(self.type))
-        self.settings = settings_model.model_validate(self.settings)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def parse_settings(cls, value):
+        return _dispatch_final_mask_settings(value, FinalMaskTcpType, FINAL_MASK_TCP_SETTINGS_MODELS)
 
 
 class FinalMaskUdpLayer(FinalMaskBaseModel):
     type: FinalMaskUdpType
     settings: FinalMaskUdpSettings = Field(default_factory=dict)
 
-    @model_validator(mode="after")
-    def parse_settings(self):
-        if not isinstance(self.settings, dict):
-            return self
-
-        settings_model = {
-            FinalMaskUdpType.header_custom: FinalMaskUdpHeaderCustomSettings,
-            FinalMaskUdpType.header_dns: FinalMaskDomainSettings,
-            FinalMaskUdpType.mkcp_aes128gcm: FinalMaskPasswordSettings,
-            FinalMaskUdpType.noise: FinalMaskNoiseSettings,
-            FinalMaskUdpType.salamander: FinalMaskPasswordSettings,
-            FinalMaskUdpType.sudoku: FinalMaskSudokuSettings,
-            FinalMaskUdpType.xdns: FinalMaskDomainSettings,
-            FinalMaskUdpType.xicmp: FinalMaskXicmpSettings,
-        }.get(FinalMaskUdpType(self.type))
-        if settings_model is not None:
-            self.settings = settings_model.model_validate(self.settings)
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def parse_settings(cls, value):
+        return _dispatch_final_mask_settings(value, FinalMaskUdpType, FINAL_MASK_UDP_SETTINGS_MODELS)
 
 
 class FinalMask(FinalMaskBaseModel):
