@@ -18,7 +18,7 @@ from app.models.admin import AdminDetails, AdminValidationResult, verify_passwor
 from app.models.settings import Telegram
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
-from config import DEBUG, SUDOERS
+from config import auth_settings, runtime_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
 
@@ -76,7 +76,7 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
 
         return _build_admin_details(db_admin)
 
-    elif payload["username"] in SUDOERS and payload["is_sudo"] is True:
+    elif payload["username"] in auth_settings.sudoers and payload["is_sudo"] is True:
         return AdminDetails(username=payload["username"], is_sudo=True)
 
 
@@ -122,7 +122,7 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
 
         return _build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
 
-    elif payload["username"] in SUDOERS and payload["is_sudo"] is True:
+    elif payload["username"] in auth_settings.sudoers and payload["is_sudo"] is True:
         return AdminDetails(username=payload["username"], is_sudo=True)
 
 
@@ -180,8 +180,8 @@ async def validate_admin(db: AsyncSession, username: str, password: str) -> Admi
             is_disabled=db_admin.is_disabled,
         )
 
-    if not db_admin and SUDOERS.get(username) == password:
-        if not DEBUG:
+    if not db_admin and auth_settings.sudoers.get(username) == password:
+        if not runtime_settings.debug:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="env admin not allowed in production")
 
         return AdminValidationResult(username=username, is_sudo=True, is_disabled=False)

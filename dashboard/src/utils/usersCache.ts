@@ -2,6 +2,7 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import type { GetUsersParams, UserResponse, UsersResponse } from '@/service/api'
 
 const USERS_QUERY_KEY = '/api/users'
+const ONLINE_USERS_WINDOW_MS = 2 * 60 * 1000
 
 const toNumber = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -105,6 +106,72 @@ const matchesUserFilters = (user: UserResponse, params?: GetUsersParams): boolea
     }
   }
 
+  if (params.no_data_limit) {
+    const dataLimit = toNumber(user.data_limit)
+    if (dataLimit !== undefined && dataLimit > 0) {
+      return false
+    }
+  } else {
+    if (params.data_limit_min !== undefined && params.data_limit_min !== null) {
+      const dataLimit = toNumber(user.data_limit)
+      if (dataLimit === undefined || dataLimit <= 0 || dataLimit < params.data_limit_min) {
+        return false
+      }
+    }
+
+    if (params.data_limit_max !== undefined && params.data_limit_max !== null) {
+      const dataLimit = toNumber(user.data_limit)
+      if (dataLimit === undefined || dataLimit <= 0 || dataLimit > params.data_limit_max) {
+        return false
+      }
+    }
+  }
+
+  if (params.no_expire) {
+    if (user.expire) {
+      return false
+    }
+  } else {
+    if (params.expire_after) {
+      const expireAt = toTimestamp(user.expire)
+      const expireAfter = toTimestamp(params.expire_after)
+      if (!expireAt || expireAt < expireAfter) {
+        return false
+      }
+    }
+
+    if (params.expire_before) {
+      const expireAt = toTimestamp(user.expire)
+      const expireBefore = toTimestamp(params.expire_before)
+      if (!expireAt || expireAt > expireBefore) {
+        return false
+      }
+    }
+  }
+
+  if (params.online_after) {
+    const onlineAt = toTimestamp(user.online_at)
+    const onlineAfter = toTimestamp(params.online_after)
+    if (!onlineAt || onlineAt < onlineAfter) {
+      return false
+    }
+  }
+
+  if (params.online_before) {
+    const onlineAt = toTimestamp(user.online_at)
+    const onlineBefore = toTimestamp(params.online_before)
+    if (!onlineAt || onlineAt > onlineBefore) {
+      return false
+    }
+  }
+
+  if (params.online) {
+    const onlineAt = toTimestamp(user.online_at)
+    if (!onlineAt || onlineAt < Date.now() - ONLINE_USERS_WINDOW_MS) {
+      return false
+    }
+  }
+
   return true
 }
 
@@ -115,7 +182,7 @@ const compareBySort = (a: UserResponse, b: UserResponse, sort?: string | null): 
 
   let comparison = 0
 
-  if (field === 'created_at' || field === 'edit_at' || field === 'expire') {
+  if (field === 'created_at' || field === 'edit_at' || field === 'expire' || field === 'online_at') {
     const aValue = toTimestamp(getSortableUserValue(a, field))
     const bValue = toTimestamp(getSortableUserValue(b, field))
     comparison = aValue - bValue
@@ -197,6 +264,46 @@ export const upsertUserInUsersCache = (queryClient: QueryClient, user: UserRespo
       queryClient.setQueryData(queryKey, updatedData)
     }
   })
+}
+
+const removeUsersFromSingleUsersQuery = (oldData: UsersResponse, usersToRemove: UserResponse[], params: GetUsersParams | undefined): UsersResponse | undefined => {
+  const oldUsers = oldData.users ?? []
+  const idsToRemove = new Set(usersToRemove.map(user => user.id))
+  const removedFromPageIds = new Set(oldUsers.filter(user => idsToRemove.has(user.id)).map(user => user.id))
+  const users = oldUsers.filter(user => !idsToRemove.has(user.id))
+  const removedTotalCount = usersToRemove.filter(user => removedFromPageIds.has(user.id) || matchesUserFilters(user, params)).length
+
+  if (users.length === oldUsers.length && removedTotalCount === 0) {
+    return undefined
+  }
+
+  return {
+    ...oldData,
+    users,
+    total: Math.max(0, oldData.total - removedTotalCount),
+  }
+}
+
+export const removeUsersFromUsersCache = (queryClient: QueryClient, usersToRemove: UserResponse[]) => {
+  if (usersToRemove.length === 0) return
+
+  const cachedQueries = queryClient.getQueriesData<UsersResponse>({
+    queryKey: [USERS_QUERY_KEY],
+    exact: false,
+  })
+
+  cachedQueries.forEach(([queryKey, oldData]) => {
+    if (!oldData) return
+    const params = readUsersParamsFromKey(queryKey)
+    const updatedData = removeUsersFromSingleUsersQuery(oldData, usersToRemove, params)
+    if (updatedData) {
+      queryClient.setQueryData(queryKey, updatedData)
+    }
+  })
+}
+
+export const removeUserFromUsersCache = (queryClient: QueryClient, user: UserResponse) => {
+  removeUsersFromUsersCache(queryClient, [user])
 }
 
 export const invalidateUserMetricsQueries = (queryClient: QueryClient) => {

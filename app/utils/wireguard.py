@@ -19,6 +19,7 @@ from app.utils.ip_pool import (
     collect_used_peer_networks_from_proxy_settings_rows,
     peer_ips_outside_global_pool,
 )
+from config import wireguard_settings
 
 
 def _normalized_peer_networks(peer_ips: Iterable[str]) -> list[str]:
@@ -125,6 +126,9 @@ async def prepare_wireguard_proxy_settings(
     elif not proxy_settings.wireguard.public_key:
         proxy_settings.wireguard.public_key = get_wireguard_public_key(proxy_settings.wireguard.private_key)
 
+    if not wireguard_settings.enabled:
+        return proxy_settings
+
     peer_ips = list(proxy_settings.wireguard.peer_ips or [])
 
     # Use merged allocate+validate function to avoid double DB scan
@@ -189,6 +193,16 @@ async def bulk_reallocate_wireguard_peer_ips(
 
     ``target_users`` should be the users allowed by bulk scope (group/admin/user filters).
     """
+    if not wireguard_settings.enabled:
+        return {
+            "wireguard_inbound_tags": 0,
+            "candidates": 0,
+            "updated": 0,
+            "dry_run": dry_run,
+            "sample_usernames": [],
+            "affected_users": 0,
+        }
+
     wg_tags = await get_wireguard_inbound_tags_from_db(db)
     if not wg_tags:
         return {

@@ -14,6 +14,7 @@ export default defineConfig({
   build: {
     outDir: 'build',
     assetsDir: 'statics',
+    emptyOutDir: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -138,7 +139,7 @@ export default defineConfig({
     react(),
     svgr(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       injectRegister: false,
       workbox: {
         navigateFallback: '/index.html',
@@ -146,8 +147,9 @@ export default defineConfig({
         // Monaco is loaded lazily in editor dialogs, so its largest chunks
         // should stay network-fetched instead of bloating the app shell precache.
         globIgnores: ['statics/editor.api*.js', 'statics/ts.worker*.js'],
-        skipWaiting: true,
-        clientsClaim: true,
+        cleanupOutdatedCaches: false,
+        skipWaiting: false,
+        clientsClaim: false,
       },
     }),
   ],

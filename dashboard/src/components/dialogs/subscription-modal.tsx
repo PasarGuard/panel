@@ -157,7 +157,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
           throw new Error('WireGuard config not available')
         }
 
-        downloadTextFile(payload.content, payload.fileName)
+        downloadTextFile(payload.content, payload.fileName, payload.mimeType)
         toast.success(t('usersTable.downloadStarted', { defaultValue: 'Download started' }))
       } catch {
         toast.error(t('downloadFailed', { defaultValue: 'Failed to download config' }))

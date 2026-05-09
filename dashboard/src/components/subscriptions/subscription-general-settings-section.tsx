@@ -118,10 +118,13 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
           name="announce"
           render={({ field }) => (
             <FormItem className="space-y-2">
-              <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
-                <Megaphone className="h-4 w-4" />
-                {t('settings.subscriptions.general.announce')}
-              </FormLabel>
+              <div className="flex items-center gap-1.5">
+                <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
+                  <Megaphone className="h-4 w-4" />
+                  {t('settings.subscriptions.general.announce')}
+                </FormLabel>
+                <VariablesPopover />
+              </div>
               <FormControl>
                 <Textarea maxLength={128} placeholder={t('settings.subscriptions.general.announcePlaceholder')} rows={3} className="resize-none text-xs sm:text-sm" {...field} />
               </FormControl>

@@ -226,7 +226,7 @@ export function ListGenerator<T>({
           <div
             role="button"
             tabIndex={0}
-            className="flex w-full items-center justify-between gap-3 rounded-md border bg-background px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="bg-background hover:bg-muted/40 focus-visible:ring-ring flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             onClick={handleGridSelectionToolbarClick}
             onKeyDown={handleGridSelectionToolbarKeyDown}
           >
@@ -242,7 +242,9 @@ export function ListGenerator<T>({
               />
               <span className="truncate">{t('selectAll', { defaultValue: 'Select all' })}</span>
             </div>
-            <span className="shrink-0 text-xs text-muted-foreground">{selectedVisibleRowCount}/{visibleSelectableRowIds.length}</span>
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {selectedVisibleRowCount}/{visibleSelectableRowIds.length}
+            </span>
           </div>
         )}
         {gridContent ? (
@@ -252,7 +254,7 @@ export function ListGenerator<T>({
                 renderGridSkeleton ? (
                   <div key={`grid-skeleton-${index}`}>{renderGridSkeleton(index)}</div>
                 ) : (
-                  <div key={`grid-skeleton-${index}`} className="rounded-md border bg-background p-4">
+                  <div key={`grid-skeleton-${index}`} className="bg-background rounded-md border p-4">
                     <div className="space-y-2">
                       <Skeleton className="h-4 w-2/3" />
                       <Skeleton className="h-3 w-full" />
@@ -292,9 +294,9 @@ export function ListGenerator<T>({
               })}
           </div>
         ) : (
-          <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">Provide `renderGridItem` to render grid mode.</div>
+          <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">Provide `renderGridItem` to render grid mode.</div>
         )}
-        {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}
+        {shouldShowEmptyState && (emptyState ?? <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">No results.</div>)}
       </div>
     )
   }
@@ -302,7 +304,7 @@ export function ListGenerator<T>({
   return (
     <div className={cn('flex w-full flex-col gap-2', className)}>
       {!hideHeader && (
-        <div className={cn(listTemplateClassName, 'gap-3 px-3 text-xs font-semibold uppercase text-muted-foreground', headerClassName)} style={listTemplateStyleVars}>
+        <div className={cn(listTemplateClassName, 'text-muted-foreground gap-3 px-3 text-xs font-semibold uppercase', headerClassName)} style={listTemplateStyleVars}>
           {enableSorting && <div aria-hidden="true" />}
           {enableSelection && (
             <div className="flex items-center justify-center">
@@ -328,7 +330,7 @@ export function ListGenerator<T>({
 
       {isLoading &&
         Array.from({ length: loadingRows }).map((_, rowIndex) => (
-          <div key={`list-skeleton-${rowIndex}`} className={cn(listTemplateClassName, 'gap-3 rounded-md border bg-background px-3 py-3')} style={listTemplateStyleVars}>
+          <div key={`list-skeleton-${rowIndex}`} className={cn(listTemplateClassName, 'bg-background gap-3 rounded-md border px-3 py-3')} style={listTemplateStyleVars}>
             {enableSorting && <div aria-hidden="true" />}
             {enableSelection && <div aria-hidden="true" />}
             {columns.map(column => (
@@ -346,12 +348,13 @@ export function ListGenerator<T>({
           const canSelectRow = enableSelection && (isRowSelectable ? isRowSelectable(item) : true)
           const isSelected = selectedRowSet.has(rowId)
 
-          const RowContent = (props?: { attributes?: ReturnType<typeof useSortable>['attributes']; listeners?: ReturnType<typeof useSortable>['listeners']; style?: React.CSSProperties }) => (
+          const renderRowContent = (props?: { attributes?: ReturnType<typeof useSortable>['attributes']; listeners?: ReturnType<typeof useSortable>['listeners']; style?: React.CSSProperties }) => (
             <div
+              key={!enableSorting ? rowId : undefined}
               className={cn(
                 listTemplateClassName,
-                'gap-3 overflow-hidden rounded-md border bg-background px-3 py-3',
-                onRowClick && 'cursor-pointer transition-colors hover:bg-muted/40',
+                'bg-background gap-3 overflow-hidden rounded-md border px-3 py-3',
+                onRowClick && 'hover:bg-muted/40 cursor-pointer transition-colors',
                 isSelected && 'border-primary/40 bg-muted/40',
                 renderRowClassName(item, index),
               )}
@@ -362,7 +365,7 @@ export function ListGenerator<T>({
               {enableSorting && (
                 <button
                   type="button"
-                  className={cn('flex touch-none items-center justify-center text-muted-foreground', sortingDisabled ? 'cursor-not-allowed opacity-40' : 'z-50 cursor-grab')}
+                  className={cn('text-muted-foreground flex touch-none items-center justify-center', sortingDisabled ? 'cursor-not-allowed opacity-40' : 'z-50 cursor-grab')}
                   onClick={event => event.stopPropagation()}
                   {...props?.listeners}
                   aria-label="Drag to reorder"
@@ -400,7 +403,7 @@ export function ListGenerator<T>({
                   {hasMobileExpandableDetails && (
                     <button
                       type="button"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground/80 transition-all hover:text-foreground active:scale-95"
+                      className="text-muted-foreground/80 hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-full transition-all active:scale-95"
                       onClick={event => {
                         event.stopPropagation()
                         setExpandedRowId(prev => (prev === rowId ? null : rowId))
@@ -422,7 +425,7 @@ export function ListGenerator<T>({
 
                         return (
                           <div key={`mobile-${column.id}-${rowId}`} className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}>
-                            <div className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{column.header}</div>
+                            <div className="text-muted-foreground shrink-0 text-[10px] font-medium tracking-wide uppercase">{column.header}</div>
                             <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{cellContent}</div>
                           </div>
                         )
@@ -435,13 +438,13 @@ export function ListGenerator<T>({
           )
 
           if (!enableSorting) {
-            return <RowContent key={rowId} />
+            return renderRowContent()
           }
 
-          return <SortableListRow key={rowId} rowId={rowId} sortingDisabled={sortingDisabled} renderRow={props => <RowContent {...props} />} />
+          return <SortableListRow key={rowId} rowId={rowId} sortingDisabled={sortingDisabled} renderRow={props => renderRowContent(props)} />
         })}
 
-      {shouldShowEmptyState && (emptyState ?? <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">No results.</div>)}
+      {shouldShowEmptyState && (emptyState ?? <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">No results.</div>)}
     </div>
   )
 }

@@ -25,9 +25,17 @@ from app.db.models import (
     users_groups_association,
 )
 from app.models.proxy import ProxyTable
-from app.models.stats import Period, UserUsageStat, UserUsageStatsList
+from app.models.stats import (
+    Period,
+    UserCountMetric,
+    UserCountMetricStat,
+    UserCountMetricStatsList,
+    UserUsageStat,
+    UserUsageStatsList,
+    validate_user_count_metric_scope,
+)
 from app.models.user import UserCreate, UserModify, UserNotificationResponse
-from config import USERS_AUTODELETE_DAYS
+from config import user_cleanup_settings
 
 from .general import (
     _build_trunc_expression,
@@ -39,6 +47,8 @@ from .general import (
 from .group import get_groups_by_ids
 
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
+_SUBSCRIPTION_UPDATE_IP_MAX_LEN = UserSubscriptionUpdate.__table__.columns.ip.type.length or 64
+_ONLINE_USERS_WINDOW = timedelta(minutes=2)
 
 
 def _build_user_select_stmt(
@@ -285,6 +295,15 @@ async def get_users(
     admin: Admin | None = None,
     admins: list[str] | None = None,
     reset_strategy: DataLimitResetStrategy | list[DataLimitResetStrategy] | None = None,
+    data_limit_min: int | None = None,
+    data_limit_max: int | None = None,
+    expire_after: datetime | None = None,
+    expire_before: datetime | None = None,
+    online_after: datetime | None = None,
+    online_before: datetime | None = None,
+    online: bool = False,
+    no_data_limit: bool = False,
+    no_expire: bool = False,
     return_with_count: bool = False,
     group_ids: list[int] | None = None,
 ) -> list[User] | tuple[list[User], int]:
@@ -302,6 +321,15 @@ async def get_users(
         admin: Admin filter.
         admins: List of admin usernames to filter by.
         reset_strategy: Reset strategy filter (single strategy or list).
+        data_limit_min: Minimum user data limit in bytes.
+        data_limit_max: Maximum user data limit in bytes.
+        expire_after: Include users whose expire date is on or after this datetime.
+        expire_before: Include users whose expire date is on or before this datetime.
+        online_after: Include users whose last online date is on or after this datetime.
+        online_before: Include users whose last online date is on or before this datetime.
+        online: Include only users who were online within the current online window.
+        no_data_limit: Include only users with no data limit set.
+        no_expire: Include only users with no expire date set.
         return_with_count: Whether to return total count.
         group_ids: Filter users by their group IDs.
 
@@ -335,6 +363,26 @@ async def get_users(
             filters.append(User.data_limit_reset_strategy.in_(reset_strategy))
         else:
             filters.append(User.data_limit_reset_strategy == reset_strategy)
+    if no_data_limit:
+        filters.append(or_(User.data_limit.is_(None), User.data_limit == 0))
+    else:
+        if data_limit_min is not None:
+            filters.append(and_(User.data_limit.is_not(None), User.data_limit > 0, User.data_limit >= data_limit_min))
+        if data_limit_max is not None:
+            filters.append(and_(User.data_limit.is_not(None), User.data_limit > 0, User.data_limit <= data_limit_max))
+    if no_expire:
+        filters.append(User.expire.is_(None))
+    else:
+        if expire_after is not None:
+            filters.append(and_(User.expire.is_not(None), User.expire >= expire_after))
+        if expire_before is not None:
+            filters.append(and_(User.expire.is_not(None), User.expire <= expire_before))
+    if online_after is not None:
+        filters.append(and_(User.online_at.is_not(None), User.online_at >= online_after))
+    if online_before is not None:
+        filters.append(and_(User.online_at.is_not(None), User.online_at <= online_before))
+    if online:
+        filters.append(and_(User.online_at.is_not(None), User.online_at >= datetime.now(timezone.utc) - _ONLINE_USERS_WINDOW))
 
     if group_ids:
         filters.append(User.groups.any(Group.id.in_(group_ids)))
@@ -984,7 +1032,7 @@ async def clear_user_node_usages(db: AsyncSession, user_id: int, *, before: date
     await db.execute(stmt)
 
 
-async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
+async def reset_user_data_usage(db: AsyncSession, db_user: User, *, clean_chart_data: bool = False) -> User:
     """
     Resets the data usage of a user and logs the reset.
 
@@ -996,7 +1044,8 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
         User: The updated user object.
     """
     await _reset_user_traffic_and_log(db, db_user)
-    await clear_user_node_usages(db, db_user.id)
+    if clean_chart_data:
+        await clear_user_node_usages(db, db_user.id)
 
     if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
         db_user.status = UserStatus.active
@@ -1006,7 +1055,9 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
     return db_user
 
 
-async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> list[User]:
+async def bulk_reset_user_data_usage(
+    db: AsyncSession, users: list[User], *, clean_chart_data: bool = False
+) -> list[User]:
     """
     Resets the data usage for a list of users and logs the reset.
 
@@ -1019,7 +1070,8 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
     """
     for db_user in users:
         await _reset_user_traffic_and_log(db, db_user)
-        await clear_user_node_usages(db, db_user.id)
+        if clean_chart_data:
+            await clear_user_node_usages(db, db_user.id)
         if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
             db_user.status = UserStatus.active
     await db.commit()
@@ -1038,7 +1090,7 @@ def _build_revoked_proxy_settings(db_user: User) -> dict:
     return proxy_settings.dict()
 
 
-async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
+async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_data: bool = False) -> User:
     """
     Resets the data usage of a user based on next user.
 
@@ -1092,7 +1144,8 @@ async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
         db_user.data_limit_reset_strategy = db_user.next_plan.user_template.data_limit_reset_strategy
 
     await _reset_user_traffic_and_log(db, db_user)
-    await clear_user_node_usages(db, db_user.id)
+    if clean_chart_data:
+        await clear_user_node_usages(db, db_user.id)
     db_user.status = UserStatus.active
 
     await db.commit()
@@ -1140,19 +1193,21 @@ async def bulk_revoke_user_sub(db: AsyncSession, users: list[User]) -> list[User
     return users
 
 
-async def user_sub_update(db: AsyncSession, user_id: User, user_agent: str) -> User:
+async def user_sub_update(db: AsyncSession, user_id: int, user_agent: str, ip: str | None = None) -> None:
     """
     Updates the user's subscription details.
 
     Args:
         db (AsyncSession): Database session.
-        user_id (User): The user id whose subscription is to be updated.
+        user_id (int): The user id whose subscription is to be updated.
         user_agent (str): The user agent string.
+        ip (str | None): The client IP address.
 
     """
     # Clamp to column length; some clients send very long strings (e.g. encoded configs) as User-Agent.
     sanitized_user_agent = (user_agent or "")[:_USER_AGENT_MAX_LEN]
-    agent = UserSubscriptionUpdate(user_id=user_id, user_agent=sanitized_user_agent)
+    sanitized_ip = (ip or "")[:_SUBSCRIPTION_UPDATE_IP_MAX_LEN] or None
+    agent = UserSubscriptionUpdate(user_id=user_id, user_agent=sanitized_user_agent, ip=sanitized_ip)
     db.add(agent)
     await db.commit()
 
@@ -1214,7 +1269,7 @@ async def autodelete_expired_users(
     """
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
-    auto_delete = func.coalesce(User.auto_delete_in_days, literal(USERS_AUTODELETE_DAYS))
+    auto_delete = func.coalesce(User.auto_delete_in_days, literal(user_cleanup_settings.autodelete_days))
 
     query = (
         select(
@@ -1332,6 +1387,108 @@ async def get_all_users_usages(
         stats[node_id_val].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+async def get_user_count_metric_stats(
+    db: AsyncSession,
+    admins: Sequence[str] | None,
+    start: datetime,
+    end: datetime,
+    period: Period = Period.hour,
+    metric: UserCountMetric = UserCountMetric.online,
+    node_id: int | None = None,
+    group_by_node: bool = False,
+) -> UserCountMetricStatsList:
+    """Retrieves one distinct user count metric from node_user_usages."""
+    validate_user_count_metric_scope(metric, node_id=node_id, group_by_node=group_by_node)
+
+    query_parts = _build_user_count_query_parts(db, admins, start, end, period, node_id)
+    count_expr = _build_user_count_metric_expression(metric).label("count")
+
+    if group_by_node:
+        stmt = (
+            select(
+                query_parts["trunc_expr"].label("period_start"),
+                func.coalesce(NodeUserUsage.node_id, 0).label("node_id"),
+                count_expr,
+            )
+            .select_from(query_parts["from_clause"])
+            .where(and_(*query_parts["conditions"]))
+            .group_by(query_parts["trunc_expr"], NodeUserUsage.node_id)
+            .order_by(query_parts["trunc_expr"], NodeUserUsage.node_id)
+        )
+    else:
+        stmt = (
+            select(query_parts["trunc_expr"].label("period_start"), count_expr)
+            .select_from(query_parts["from_clause"])
+            .where(and_(*query_parts["conditions"]))
+            .group_by(query_parts["trunc_expr"])
+            .order_by(query_parts["trunc_expr"])
+        )
+
+    result = await db.execute(stmt)
+
+    stats = {}
+    for row in result.mappings():
+        row_dict = dict(row)
+        node_id_val = row_dict.pop("node_id", query_parts["stats_key"])
+
+        attach_timezone_to_period_start(row_dict, start.tzinfo, query_parts["dialect"])
+
+        if node_id_val not in stats:
+            stats[node_id_val] = []
+        stats[node_id_val].append(UserCountMetricStat(**row_dict))
+
+    return UserCountMetricStatsList(metric=metric, period=period, start=start, end=end, stats=stats)
+
+
+def _build_user_count_query_parts(
+    db: AsyncSession,
+    admins: Sequence[str] | None,
+    start: datetime,
+    end: datetime,
+    period: Period,
+    node_id: int | None,
+) -> dict:
+    admins_filter = admins or None
+    trunc_expr = _build_trunc_expression(db, period, NodeUserUsage.created_at, start)
+    start_utc = get_complete_period_start_for_filter(start, period)
+    end_utc = to_utc_for_filter(end)
+    conditions = [
+        NodeUserUsage.created_at >= start_utc,
+        NodeUserUsage.created_at < end_utc,
+    ]
+
+    if admins_filter:
+        conditions.append(Admin.username.in_(admins_filter))
+
+    stats_key = node_id
+    if node_id is not None:
+        conditions.append(NodeUserUsage.node_id == node_id)
+    else:
+        stats_key = -1
+
+    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    if admins_filter:
+        from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
+
+    return {
+        "conditions": conditions,
+        "dialect": db.bind.dialect.name,
+        "from_clause": from_clause,
+        "stats_key": stats_key,
+        "trunc_expr": trunc_expr,
+    }
+
+
+def _build_user_count_metric_expression(metric: UserCountMetric):
+    if metric == UserCountMetric.online:
+        return func.count(func.distinct(NodeUserUsage.user_id))
+    if metric == UserCountMetric.expired:
+        return func.count(func.distinct(case((User.status == UserStatus.expired, NodeUserUsage.user_id), else_=None)))
+    if metric == UserCountMetric.limited:
+        return func.count(func.distinct(case((User.status == UserStatus.limited, NodeUserUsage.user_id), else_=None)))
+    raise ValueError(f"Unsupported user count metric: {metric}")
 
 
 async def update_users_status(db: AsyncSession, users: list[User], status: UserStatus) -> list[User]:

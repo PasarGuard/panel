@@ -4,6 +4,7 @@ export type SubscriptionContentFormat = 'links' | 'links_base64' | 'xray' | 'wir
 
 const WIREGUARD_PROTOCOL = 'wireguard://'
 const TEXT_FILE_MIME_TYPE = 'text/plain;charset=utf-8'
+const WIREGUARD_CONFIG_MIME_TYPE = 'application/octet-stream'
 
 const safeDecodeURIComponent = (value: string) => {
   try {
@@ -39,9 +40,20 @@ const getWireGuardEndpointHost = (hostname: string) => {
   return hostname
 }
 
+const removeWireGuardUriParam = (value: string, param: string) => {
+  try {
+    const parsed = new URL(value)
+    parsed.searchParams.delete(param)
+    return parsed.toString()
+  } catch {
+    return value
+  }
+}
+
 type ParsedWireGuardUri = {
   address: string
   allowedIps: string
+  dns: string
   endpoint: string
   hostname: string
   mtu: string
@@ -70,6 +82,7 @@ const parseWireGuardUri = (value: string): ParsedWireGuardUri | null => {
     return {
       address: parsed.searchParams.get('address') || '',
       allowedIps: parsed.searchParams.get('allowedips') || '',
+      dns: parsed.searchParams.get('dns') || '',
       endpoint: port ? `${endpointHost}:${port}` : endpointHost,
       hostname,
       mtu: parsed.searchParams.get('mtu') || '',
@@ -79,7 +92,7 @@ const parseWireGuardUri = (value: string): ParsedWireGuardUri | null => {
       publicKey: parsed.searchParams.get('publickey') || '',
       remark: safeDecodeURIComponent(parsed.hash.replace(/^#/, '')),
       reserved: parsed.searchParams.get('reserved') || '',
-      source,
+      source: removeWireGuardUriParam(source, 'dns'),
       keepalive: parsed.searchParams.get('keepalive') || '',
     }
   } catch {
@@ -233,6 +246,10 @@ export const convertWireGuardUrlToConfig = (value: string) => {
   lines.push(`PrivateKey = ${parsed.privateKey}`)
   lines.push(`Address = ${formatCommaSeparatedValue(parsed.address)}`)
 
+  if (parsed.dns) {
+    lines.push(`DNS = ${formatCommaSeparatedValue(parsed.dns)}`)
+  }
+
   if (parsed.mtu) {
     lines.push(`MTU = ${parsed.mtu}`)
   }
@@ -295,6 +312,7 @@ export const getWireGuardDownloadPayload = (value: string) => {
   return {
     content,
     fileName: buildWireGuardDownloadFileName(value),
+    mimeType: WIREGUARD_CONFIG_MIME_TYPE,
   }
 }
 

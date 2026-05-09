@@ -2,29 +2,23 @@ from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 from sqlalchemy import MetaData
 
-from config import (
-    ECHO_SQL_QUERIES,
-    SQLALCHEMY_DATABASE_URL,
-    SQLALCHEMY_MAX_OVERFLOW,
-    SQLALCHEMY_POOL_RECYCLE,
-    SQLALCHEMY_POOL_SIZE,
-)
+from config import database_settings
 
-IS_SQLITE = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
+IS_SQLITE = database_settings.is_sqlite
 
 if IS_SQLITE:
     engine = create_async_engine(
-        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}, echo=ECHO_SQL_QUERIES
+        database_settings.url, connect_args={"check_same_thread": False}, echo=database_settings.echo_queries
     )
 else:
     engine = create_async_engine(
-        SQLALCHEMY_DATABASE_URL,
-        pool_size=SQLALCHEMY_POOL_SIZE,
-        max_overflow=SQLALCHEMY_MAX_OVERFLOW,
-        pool_recycle=SQLALCHEMY_POOL_RECYCLE,
+        database_settings.url,
+        pool_size=database_settings.pool_size,
+        max_overflow=database_settings.max_overflow,
+        pool_recycle=database_settings.pool_recycle,
         pool_timeout=5,
         pool_pre_ping=True,
-        echo=ECHO_SQL_QUERIES,
+        echo=database_settings.echo_queries,
     )
 
 SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)

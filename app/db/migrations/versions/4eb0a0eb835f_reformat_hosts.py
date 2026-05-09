@@ -5,20 +5,30 @@ Revises: be0c5f840473
 Create Date: 2024-12-04 14:32:38.599601
 
 """
+
 from alembic import op
 from sqlalchemy.orm import Session
 import commentjson
-import json
-from decouple import config as decouple_config
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.db.models import ProxyHost
 
 
 # revision identifiers, used by Alembic.
-revision = '4eb0a0eb835f'
-down_revision = 'be0c5f840473'
+revision = "4eb0a0eb835f"
+down_revision = "be0c5f840473"
 branch_labels = None
 depends_on = None
+
+
+class MigrationSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    xray_json: str = Field(default="./xray_config.json", validation_alias="XRAY_JSON")
+
+
+migration_settings = MigrationSettings()
 
 
 base_xray = {
@@ -36,25 +46,16 @@ base_xray = {
     "outbounds": [{"protocol": "freedom", "tag": "DIRECT"}, {"protocol": "blackhole", "tag": "BLOCK"}],
 }
 
-def get_config(key, default=None, cast=None):
-    if cast is not None:
-        return decouple_config(key, default=default, cast=cast)
-    else:
-        return decouple_config(key, default=default)
-
-
-XRAY_JSON = get_config("XRAY_JSON", default="./xray_config.json")
-
 
 def upgrade() -> None:
     try:
-        with open(XRAY_JSON, 'r') as file:
+        with open(migration_settings.xray_json, "r") as file:
             config = commentjson.loads(file.read())
     except Exception:
         config = base_xray
 
     # find current inbound tags
-    inbounds = [inbound['tag'] for inbound in config['inbounds'] if 'tag' in inbound]
+    inbounds = [inbound["tag"] for inbound in config["inbounds"] if "tag" in inbound]
 
     connection = op.get_bind()
     session = Session(bind=connection)
@@ -64,6 +65,7 @@ def upgrade() -> None:
         session.commit()
     finally:
         session.close()
+
 
 def downgrade() -> None:
     pass

@@ -4,11 +4,7 @@ from app import scheduler
 from app.db import GetDB
 from app.db.models import UserSubscriptionUpdate
 from app.utils.logger import get_logger
-from config import (
-    USER_SUBSCRIPTION_CLIENTS_LIMIT,
-    JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL,
-    ROLE,
-)
+from config import job_settings, runtime_settings, subscription_env_settings
 
 logger = get_logger("jobs")
 
@@ -21,7 +17,7 @@ async def cleanup_user_subscription_updates():
         users_with_excess = await db.execute(
             select(UserSubscriptionUpdate.user_id)
             .group_by(UserSubscriptionUpdate.user_id)
-            .having(func.count(UserSubscriptionUpdate.id) > USER_SUBSCRIPTION_CLIENTS_LIMIT)
+            .having(func.count(UserSubscriptionUpdate.id) > subscription_env_settings.clients_limit)
         )
         user_ids = [row.user_id for row in users_with_excess]
 
@@ -41,7 +37,7 @@ async def cleanup_user_subscription_updates():
                     select(UserSubscriptionUpdate.id)
                     .where(UserSubscriptionUpdate.user_id == user_id)
                     .order_by(UserSubscriptionUpdate.created_at.desc())
-                    .limit(USER_SUBSCRIPTION_CLIENTS_LIMIT)
+                    .limit(subscription_env_settings.clients_limit)
                 )
                 keep_ids = [row.id for row in keep_ids_result]
 
@@ -63,7 +59,7 @@ async def cleanup_user_subscription_updates():
                 select(sub.c.id)
                 .where(sub.c.user_id == UserSubscriptionUpdate.user_id)
                 .order_by(sub.c.created_at.desc())
-                .limit(USER_SUBSCRIPTION_CLIENTS_LIMIT)
+                .limit(subscription_env_settings.clients_limit)
             )
 
             result = await db.execute(
@@ -76,12 +72,16 @@ async def cleanup_user_subscription_updates():
         await db.commit()
 
 
-if USER_SUBSCRIPTION_CLIENTS_LIMIT and USER_SUBSCRIPTION_CLIENTS_LIMIT >= 0 and ROLE.runs_scheduler:
+if (
+    subscription_env_settings.clients_limit
+    and subscription_env_settings.clients_limit >= 0
+    and runtime_settings.role.runs_scheduler
+):
     # Schedule the cleanup job to run every few minutes
     scheduler.add_job(
         cleanup_user_subscription_updates,
         "interval",
-        seconds=JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL,
+        seconds=job_settings.cleanup_subscription_updates_interval,
         max_instances=1,
         id="cleanup_user_subscription_updates",
         replace_existing=True,

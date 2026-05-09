@@ -1,7 +1,9 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DecimalInput } from '@/components/common/decimal-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DatePicker } from '@/components/common/date-picker'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -29,6 +31,9 @@ interface AdvanceSearchModalProps {
 export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, onSubmit, isSudo, isApplying = false }: AdvanceSearchModalProps) {
   const dir = useDirDetection()
   const { t } = useTranslation()
+  const noDataLimitOnly = form.watch('no_data_limit')
+  const noExpireOnly = form.watch('no_expire')
+  const onlineOnly = form.watch('online')
 
   const { data: groupsData } = useGetGroupsSimple({ all: true })
 
@@ -51,7 +56,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                 <section className="w-full space-y-4">
                   <div className="space-y-1">
                     <h3 className="text-sm font-semibold">{t('advanceSearch.searchMode', { defaultValue: 'Search mode' })}</h3>
-                    <p className="text-xs text-muted-foreground">{t('advanceSearch.searchModeDescription', { defaultValue: 'Choose how the main search field should be interpreted.' })}</p>
+                    <p className="text-muted-foreground text-xs">{t('advanceSearch.searchModeDescription', { defaultValue: 'Choose how the main search field should be interpreted.' })}</p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -70,7 +75,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                                 form.setValue('is_protocol', false, { shouldDirty: true })
                               }}
                               className={cn(
-                                'flex w-full h-full flex-col items-start justify-between rounded-md border px-4 py-3 text-left transition-colors',
+                                'flex h-full w-full flex-col items-start justify-between rounded-md border px-4 py-3 text-left transition-colors',
                                 field.value ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-background hover:border-primary/40 hover:bg-accent/30',
                                 isApplying && 'cursor-not-allowed opacity-60',
                               )}
@@ -79,7 +84,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                                 <span className="text-sm font-medium">{t('advanceSearch.byUsername')}</span>
                                 <span className={cn('mt-1 h-2.5 w-2.5 rounded-full', field.value ? 'bg-primary' : 'bg-muted-foreground/25')} />
                               </div>
-                              <p className="text-xs text-muted-foreground text-start">{t('advanceSearch.byUsernameDescription', { defaultValue: 'Search usernames and notes.' })}</p>
+                              <p className="text-muted-foreground text-start text-xs">{t('advanceSearch.byUsernameDescription', { defaultValue: 'Search usernames and notes.' })}</p>
                             </button>
                           </FormControl>
                           <FormMessage />
@@ -102,7 +107,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                                 form.setValue('is_username', false, { shouldDirty: true })
                               }}
                               className={cn(
-                                'flex w-full h-full flex-col items-start justify-between rounded-md border px-4 py-3 text-left transition-colors',
+                                'flex h-full w-full flex-col items-start justify-between rounded-md border px-4 py-3 text-left transition-colors',
                                 field.value ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-background hover:border-primary/40 hover:bg-accent/30',
                                 isApplying && 'cursor-not-allowed opacity-60',
                               )}
@@ -111,7 +116,9 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                                 <span className="text-sm font-medium">{t('advanceSearch.byProtocol')}</span>
                                 <span className={cn('mt-1 h-2.5 w-2.5 rounded-full', field.value ? 'bg-primary' : 'bg-muted-foreground/25')} />
                               </div>
-                              <p className="text-xs text-muted-foreground text-start">{t('advanceSearch.byProtocolDescription', { defaultValue: 'Search protocol details and configuration data.' })}</p>
+                              <p className="text-muted-foreground text-start text-xs">
+                                {t('advanceSearch.byProtocolDescription', { defaultValue: 'Search protocol details and configuration data.' })}
+                              </p>
                             </button>
                           </FormControl>
                           <FormMessage />
@@ -124,7 +131,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                 <section className="w-full space-y-4">
                   <div className="space-y-1">
                     <h3 className="text-sm font-semibold">{t('advanceSearch.filtersSection', { defaultValue: 'Refine results' })}</h3>
-                    <p className="text-xs text-muted-foreground">{t('advanceSearch.filtersSectionDescription', { defaultValue: 'Use one or more filters to narrow the list.' })}</p>
+                    <p className="text-muted-foreground text-xs">{t('advanceSearch.filtersSectionDescription', { defaultValue: 'Use one or more filters to narrow the list.' })}</p>
                   </div>
 
                   <Separator />
@@ -167,6 +174,225 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                       }}
                     />
 
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="data_limit_min"
+                        render={({ field }) => (
+                          <FormItem className="w-full">
+                            <FormLabel>{t('advanceSearch.dataLimitMin', { defaultValue: 'Minimum data limit (GB)' })}</FormLabel>
+                            <FormDescription>{t('advanceSearch.dataLimitDescription', { defaultValue: 'Filter users by data-limit range in gigabytes.' })}</FormDescription>
+                            <FormControl>
+                              <DecimalInput
+                                placeholder={t('advanceSearch.dataLimitMinPlaceholder', { defaultValue: 'e.g. 10' })}
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                disabled={isApplying || noDataLimitOnly}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="data_limit_max"
+                        render={({ field }) => (
+                          <FormItem className="w-full">
+                            <FormLabel>{t('advanceSearch.dataLimitMax', { defaultValue: 'Maximum data limit (GB)' })}</FormLabel>
+                            <FormDescription>{t('advanceSearch.dataLimitDescription', { defaultValue: 'Filter users by data-limit range in gigabytes.' })}</FormDescription>
+                            <FormControl>
+                              <DecimalInput
+                                placeholder={t('advanceSearch.dataLimitMaxPlaceholder', { defaultValue: 'e.g. 100' })}
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                disabled={isApplying || noDataLimitOnly}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="no_data_limit"
+                      render={({ field }) => (
+                        <FormItem className="flex w-full items-start justify-between gap-4 rounded-md border p-4 space-y-0">
+                          <div className="space-y-1">
+                            <FormLabel>{t('advanceSearch.noDataLimit', { defaultValue: 'Only users with no data limit' })}</FormLabel>
+                            <FormDescription>{t('advanceSearch.noDataLimitDescription', { defaultValue: 'Shows users whose data limit is unlimited.' })}</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              disabled={isApplying}
+                              onCheckedChange={checked => {
+                                field.onChange(checked)
+                                if (checked) {
+                                  form.setValue('data_limit_min', undefined, { shouldDirty: true })
+                                  form.setValue('data_limit_max', undefined, { shouldDirty: true })
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="expire_after"
+                        render={({ field }) => (
+                          <FormItem className="w-full">
+                            <FormControl>
+                              <div className={cn((isApplying || noExpireOnly) && 'pointer-events-none opacity-60')}>
+                                <DatePicker
+                                  mode="single"
+                                  date={field.value}
+                                  onDateChange={field.onChange}
+                                  label={t('advanceSearch.expireAfter', { defaultValue: 'Expire after' })}
+                                  placeholder={t('advanceSearch.expireAfterPlaceholder', { defaultValue: 'Select start date' })}
+                                  minDate={new Date('1900-01-01')}
+                                  className="[&_label]:text-sm"
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="expire_before"
+                        render={({ field }) => (
+                          <FormItem className="w-full">
+                            <FormControl>
+                              <div className={cn((isApplying || noExpireOnly) && 'pointer-events-none opacity-60')}>
+                                <DatePicker
+                                  mode="single"
+                                  date={field.value}
+                                  onDateChange={field.onChange}
+                                  label={t('advanceSearch.expireBefore', { defaultValue: 'Expire before' })}
+                                  placeholder={t('advanceSearch.expireBeforePlaceholder', { defaultValue: 'Select end date' })}
+                                  minDate={new Date('1900-01-01')}
+                                  className="[&_label]:text-sm"
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="no_expire"
+                      render={({ field }) => (
+                        <FormItem className="flex w-full items-start justify-between gap-4 rounded-md border p-4 space-y-0">
+                          <div className="space-y-1">
+                            <FormLabel>{t('advanceSearch.noExpire', { defaultValue: 'Only users with no expire date' })}</FormLabel>
+                            <FormDescription>{t('advanceSearch.noExpireDescription', { defaultValue: 'Shows users whose account has no expire date.' })}</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              disabled={isApplying}
+                              onCheckedChange={checked => {
+                                field.onChange(checked)
+                                if (checked) {
+                                  form.setValue('expire_after', undefined, { shouldDirty: true })
+                                  form.setValue('expire_before', undefined, { shouldDirty: true })
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="online_after"
+                        render={({ field }) => (
+                          <FormItem className="w-full">
+                            <FormControl>
+                              <div className={cn((isApplying || onlineOnly) && 'pointer-events-none opacity-60')}>
+                                <DatePicker
+                                  mode="single"
+                                  date={field.value}
+                                  onDateChange={field.onChange}
+                                  label={t('advanceSearch.onlineAfter', { defaultValue: 'Online after' })}
+                                  placeholder={t('advanceSearch.onlineAfterPlaceholder', { defaultValue: 'Select start date' })}
+                                  minDate={new Date('1900-01-01')}
+                                  className="[&_label]:text-sm"
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="online_before"
+                        render={({ field }) => (
+                          <FormItem className="w-full">
+                            <FormControl>
+                              <div className={cn((isApplying || onlineOnly) && 'pointer-events-none opacity-60')}>
+                                <DatePicker
+                                  mode="single"
+                                  date={field.value}
+                                  onDateChange={field.onChange}
+                                  label={t('advanceSearch.onlineBefore', { defaultValue: 'Online before' })}
+                                  placeholder={t('advanceSearch.onlineBeforePlaceholder', { defaultValue: 'Select end date' })}
+                                  minDate={new Date('1900-01-01')}
+                                  className="[&_label]:text-sm"
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="online"
+                      render={({ field }) => (
+                        <FormItem className="flex w-full items-start justify-between gap-4 rounded-md border p-4 space-y-0">
+                          <div className="space-y-1">
+                            <FormLabel>{t('advanceSearch.online', { defaultValue: 'Only online users' })}</FormLabel>
+                            <FormDescription>{t('advanceSearch.onlineDescription', { defaultValue: 'Shows users active in the current online window.' })}</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              disabled={isApplying}
+                              onCheckedChange={checked => {
+                                field.onChange(checked)
+                                if (checked) {
+                                  form.setValue('online_after', undefined, { shouldDirty: true })
+                                  form.setValue('online_before', undefined, { shouldDirty: true })
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <FormField
                       control={form.control}
                       name="group"
@@ -193,9 +419,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                               </div>
                               <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="group-select" className="border-none [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
-                                  <AccordionTrigger className="rounded-md border px-3 py-3 text-sm hover:no-underline">
-                                    {t('advanceSearch.selectGroup')}
-                                  </AccordionTrigger>
+                                  <AccordionTrigger className="rounded-md border px-3 py-3 text-sm hover:no-underline">{t('advanceSearch.selectGroup')}</AccordionTrigger>
                                   <AccordionContent>
                                     <div className="mt-2">
                                       <GroupsSelector control={form.control} name="group" onGroupsChange={field.onChange} disabled={isApplying} />
@@ -237,9 +461,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                                 </div>
                                 <Accordion type="single" collapsible className="w-full">
                                   <AccordionItem value="admin-select" className="border-none [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
-                                    <AccordionTrigger className="rounded-md border px-3 py-3 text-sm hover:no-underline">
-                                      {t('advanceSearch.selectAdmin')}
-                                    </AccordionTrigger>
+                                    <AccordionTrigger className="rounded-md border px-3 py-3 text-sm hover:no-underline">{t('advanceSearch.selectAdmin')}</AccordionTrigger>
                                     <AccordionContent>
                                       <div className="mt-2">
                                         <AdminsSelector control={form.control} name="admin" onAdminsChange={field.onChange} disabled={isApplying} />
@@ -256,14 +478,14 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                     )}
                   </div>
                 </section>
-                
+
                 <Separator />
 
                 <section className="w-full space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <h3 className="text-sm font-semibold">{t('advanceSearch.displaySection', { defaultValue: 'Table display' })}</h3>
-                      <p className="text-xs text-muted-foreground">{t('advanceSearch.displaySectionDescription', { defaultValue: 'These options only change how the user list is shown.' })}</p>
+                      <p className="text-muted-foreground text-xs">{t('advanceSearch.displaySectionDescription', { defaultValue: 'These options only change how the user list is shown.' })}</p>
                     </div>
                     <Badge variant="outline" className="shrink-0">
                       {t('advanceSearch.uiOnly', { defaultValue: 'UI only' })}

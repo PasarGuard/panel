@@ -10,7 +10,7 @@ import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsageById, u
 import { formatBytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './empty-state'
-import { Calendar, Download, Upload } from 'lucide-react'
+import { BarChart3, Calendar, Download, Upload } from 'lucide-react'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
@@ -76,13 +76,13 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
   const hasDirectionalTraffic = (data._uplink || 0) > 0 || (data._downlink || 0) > 0
 
   return (
-    <div className={`min-w-[140px] rounded border border-border bg-background p-2 text-[11px] shadow ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={`border-border bg-background min-w-[140px] rounded border p-2 text-[11px] shadow ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
       <div className={`mb-1.5 text-[11px] font-semibold opacity-70 ${isRTL ? 'text-right' : 'text-center'}`}>
         <span dir="ltr" className="inline-block">
           {formattedDate}
         </span>
       </div>
-      <div className={`mb-1.5 text-[11px] text-muted-foreground ${isRTL ? 'text-right' : 'text-center'}`}>
+      <div className={`text-muted-foreground mb-1.5 text-[11px] ${isRTL ? 'text-right' : 'text-center'}`}>
         <span>{t('statistics.totalUsage', { defaultValue: 'Total' })}: </span>
         <span dir="ltr" className="inline-block font-mono">
           {data.usage} GB
@@ -90,7 +90,7 @@ function CustomBarTooltip({ active, payload, period }: TooltipProps<number, stri
       </div>
       {hasDirectionalTraffic && (
         <div className="flex flex-col gap-1">
-          <div className={`flex items-center gap-1 text-[10px] text-muted-foreground ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+          <div className={`text-muted-foreground flex items-center gap-1 text-[10px] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
             <Upload className="h-3 w-3 flex-shrink-0" />
             <span dir="ltr" className="inline-block font-mono">
               {formatBytes(data._uplink)}
@@ -150,21 +150,33 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
     [activePeriod, activeQueryRange.startDate, activeQueryRange.endDate, nodeId],
   )
 
-  const { data: nodeUsageData, isLoading: isLoadingNodeUsage, error: nodeUsageError } = useGetUsage(nodeUsageParams, {
+  const {
+    data: nodeUsageData,
+    isLoading: isLoadingNodeUsage,
+    error: nodeUsageError,
+  } = useGetUsage(nodeUsageParams, {
     query: {
       enabled: shouldUseNodeUsage,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const { data: adminUsageByIdData, isLoading: isLoadingAdminUsageById, error: adminUsageByIdError } = useGetAdminUsageById(selectedAdminId ?? 0, adminUsageParams, {
+  const {
+    data: adminUsageByIdData,
+    isLoading: isLoadingAdminUsageById,
+    error: adminUsageByIdError,
+  } = useGetAdminUsageById(selectedAdminId ?? 0, adminUsageParams, {
     query: {
       enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId != null,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const { data: adminUsageByUsernameData, isLoading: isLoadingAdminUsageByUsername, error: adminUsageByUsernameError } = useGetAdminUsageByUsername(selectedAdmin, adminUsageParams, {
+  const {
+    data: adminUsageByUsernameData,
+    isLoading: isLoadingAdminUsageByUsername,
+    error: adminUsageByUsernameError,
+  } = useGetAdminUsageByUsername(selectedAdmin, adminUsageParams, {
     query: {
       enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId == null,
       refetchInterval: 1000 * 60 * 5,
@@ -175,10 +187,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   const isLoading = shouldUseNodeUsage ? isLoadingNodeUsage : selectedAdminId != null ? isLoadingAdminUsageById : isLoadingAdminUsageByUsername
   const error = shouldUseNodeUsage ? nodeUsageError : selectedAdminId != null ? adminUsageByIdError : adminUsageByUsernameError
 
-  const statsArr = useMemo(
-    () => pickStatsArray<NodeUsageStat | UserUsageStat>(usageData?.stats, nodeId !== undefined ? [String(nodeId), '-1'] : ['-1']),
-    [usageData?.stats, nodeId],
-  )
+  const statsArr = useMemo(() => pickStatsArray<NodeUsageStat | UserUsageStat>(usageData?.stats, nodeId !== undefined ? [String(nodeId), '-1'] : ['-1']), [usageData?.stats, nodeId])
 
   const chartData = useMemo<DataPoint[]>(
     () =>
@@ -259,12 +268,15 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
       <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
         <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
           <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-            <CardTitle className='mb-0.5'>{t('statistics.trafficUsage')}</CardTitle>
+            <CardTitle className="mb-0.5 flex items-center gap-2">
+              <BarChart3 className="text-muted-foreground h-4 w-4 shrink-0" />
+              <span>{t('statistics.trafficUsage')}</span>
+            </CardTitle>
             <CardDescription>{t('statistics.trafficUsageDescription')}</CardDescription>
           </div>
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-              <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full" />
+            <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none">
+              <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
               <button
                 type="button"
                 aria-label="Custom Range"
@@ -297,8 +309,9 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
           )}
         </div>
         <div className="m-0 flex flex-col justify-center p-4 xl:border-l xl:p-5 xl:px-6">
-          <span className="text-xs text-muted-foreground">{t('statistics.usageDuringPeriod')}</span>
-          <span dir="ltr" className="flex justify-center text-base text-foreground sm:text-lg">
+          <span className="text-muted-foreground text-xs">{t('statistics.usageDuringPeriod')}</span>
+          <span dir="ltr" className="text-foreground flex items-center justify-center gap-2 text-base sm:text-lg">
+            <BarChart3 className="text-muted-foreground h-4 w-4" />
             {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage ? totalUsage : <span className="text-muted-foreground">—</span>}
           </span>
         </div>
@@ -312,11 +325,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
           <EmptyState type="error" className="max-h-[300px] min-h-[150px] sm:max-h-[400px] sm:min-h-[200px]" />
         ) : (
           <div className="mx-auto w-full max-w-7xl">
-            <ChartContainer
-              dir="ltr"
-              config={chartConfig}
-              className="h-[200px] w-full overflow-x-auto sm:h-[320px] lg:h-[400px]"
-            >
+            <ChartContainer dir="ltr" config={chartConfig} className="h-[200px] w-full overflow-x-auto sm:h-[320px] lg:h-[400px]">
               {chartData.length > 0 ? (
                 chartViewType === 'area' ? (
                   <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
@@ -355,12 +364,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                       width={28}
                       tickMargin={2}
                     />
-                    <ChartTooltip
-                      cursor={false}
-                      content={props => (
-                        <CustomBarTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} />
-                      )}
-                    />
+                    <ChartTooltip cursor={false} content={props => <CustomBarTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} />} />
                     <Area dataKey="usage" type="monotone" fill="url(#usageGradient)" stroke="var(--color-usage)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 ) : (
@@ -393,12 +397,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                       width={28}
                       tickMargin={2}
                     />
-                    <ChartTooltip
-                      cursor={false}
-                      content={props => (
-                        <CustomBarTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} />
-                      )}
-                    />
+                    <ChartTooltip cursor={false} content={props => <CustomBarTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} />} />
                     <Bar dataKey="usage" fill="var(--color-usage)" radius={6} />
                   </BarChart>
                 )

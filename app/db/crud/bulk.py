@@ -23,7 +23,12 @@ from .general import get_datetime_add_expression
 from .user import load_user_attrs
 
 
-async def reset_all_users_data_usage(db: AsyncSession, admin: Optional[Admin] = None):
+async def reset_all_users_data_usage(
+    db: AsyncSession,
+    admin: Optional[Admin] = None,
+    *,
+    clean_chart_data: bool = False,
+):
     """
     Efficiently resets data usage for all users, or users under a specific admin if provided.
 
@@ -33,7 +38,8 @@ async def reset_all_users_data_usage(db: AsyncSession, admin: Optional[Admin] = 
     Operations performed:
         - Sets `used_traffic` to 0 for all target users.
         - Sets `status` to `active` for all users, unless filtered by admin.
-        - Deletes all related `UserUsageResetLogs`, `NodeUserUsage`, and `NextPlan` entries.
+        - Deletes all related `UserUsageResetLogs` and `NextPlan` entries.
+        - Deletes `NodeUserUsage` chart rows when `clean_chart_data` is enabled.
 
     Args:
         db (AsyncSession): The SQLAlchemy async session used for database operations.
@@ -54,7 +60,8 @@ async def reset_all_users_data_usage(db: AsyncSession, admin: Optional[Admin] = 
     await db.execute(update(User).where(User.id.in_(user_ids)).values(used_traffic=0, status=UserStatus.active))
 
     await db.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)))
-    await db.execute(delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)))
+    if clean_chart_data:
+        await db.execute(delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)))
     await db.execute(delete(NextPlan).where(NextPlan.user_id.in_(user_ids)))
 
     await db.commit()

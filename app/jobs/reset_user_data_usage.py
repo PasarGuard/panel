@@ -9,7 +9,7 @@ from app.operation.user import UserOperation
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
-from config import JOB_RESET_USER_DATA_USAGE_INTERVAL, ROLE
+from config import job_settings, runtime_settings, usage_settings
 
 logger = get_logger("jobs")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
@@ -20,7 +20,11 @@ async def reset_data_usage():
         users = await get_users_to_reset_data_usage(db)
         old_statuses = {user.id: user.status for user in users}
 
-        updated_users = await bulk_reset_user_data_usage(db, users)
+        updated_users = await bulk_reset_user_data_usage(
+            db,
+            users,
+            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+        )
 
         for db_user in updated_users:
             user = await user_operator.update_user(db_user)
@@ -32,11 +36,11 @@ async def reset_data_usage():
             logger.info(f'User data usage reset for User "{user.username}"')
 
 
-if ROLE.runs_scheduler:
+if runtime_settings.role.runs_scheduler:
     scheduler.add_job(
         reset_data_usage,
         "interval",
-        seconds=JOB_RESET_USER_DATA_USAGE_INTERVAL,
+        seconds=job_settings.reset_user_data_usage_interval,
         coalesce=True,
         start_date=dt.now(tz.utc) + td(minutes=1),
         max_instances=1,

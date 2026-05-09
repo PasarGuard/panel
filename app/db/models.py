@@ -331,6 +331,7 @@ class UserSubscriptionUpdate(Base):
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
+    ip: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, default=None)
 
 
 template_group_association = Table(

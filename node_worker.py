@@ -1,9 +1,9 @@
 import asyncio
 import signal
-import config as app_config  # noqa: E402
+from config import runtime_settings  # noqa: E402
 from role import Role  # noqa: E402
 
-app_config.ROLE = Role.NODE
+runtime_settings.role = Role.NODE
 
 from app import create_app  # noqa: E402
 from app.lifecycle import lifespan  # noqa: E402

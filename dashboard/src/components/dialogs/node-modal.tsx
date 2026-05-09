@@ -1,4 +1,5 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { DecimalInput } from '@/components/common/decimal-input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -47,21 +48,20 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [debouncedValues, setDebouncedValues] = useState<NodeFormValues | null>(null)
   const [isFetchingNodeData, setIsFetchingNodeData] = useState(false)
-  const dataLimitInputRef = React.useRef<string>('')
 
   const { data: node, refetch: refetchNode } = useGetNode(
     editingNodeId || 0,
     editingNode && editingNodeId
       ? {
-        query: {
-          enabled: editingNode && !!editingNodeId && isDialogOpen,
-          initialData: initialNodeData,
-          refetchInterval: 5000,
-          refetchOnMount: false,
-          staleTime: 0,
-          gcTime: 0,
-        },
-      }
+          query: {
+            enabled: editingNode && !!editingNodeId && isDialogOpen,
+            initialData: initialNodeData,
+            refetchInterval: 5000,
+            refetchOnMount: false,
+            staleTime: 0,
+            gcTime: 0,
+          },
+        }
       : { query: { enabled: false } },
   )
 
@@ -72,7 +72,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
     if (isDialogOpen) {
       setErrorDetails(null)
       setAutoCheck(true)
-      dataLimitInputRef.current = ''
       setIsFetchingNodeData(false)
       lastSyncedNodeRef.current = null
     }
@@ -107,13 +106,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
     // Update form with new node data
     const dataLimitBytes = node.data_limit ?? null
     const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0 ? dataLimitBytes / (1024 * 1024 * 1024) : 0
-
-    if (dataLimitGB > 0) {
-      const formatted = parseFloat(dataLimitGB.toFixed(9))
-      dataLimitInputRef.current = String(formatted)
-    } else {
-      dataLimitInputRef.current = ''
-    }
 
     form.reset(
       {
@@ -172,13 +164,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         const dataLimitBytes = nodeData.data_limit ?? null
         const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0 ? dataLimitBytes / (1024 * 1024 * 1024) : 0
 
-        if (dataLimitGB > 0) {
-          const formatted = parseFloat(dataLimitGB.toFixed(9))
-          dataLimitInputRef.current = String(formatted)
-        } else {
-          dataLimitInputRef.current = ''
-        }
-
         form.reset({
           name: nodeData.name,
           address: nodeData.address,
@@ -208,13 +193,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
             const dataLimitBytes = nodeData.data_limit ?? null
             const dataLimitGB = dataLimitBytes !== null && dataLimitBytes !== undefined && dataLimitBytes > 0 ? dataLimitBytes / (1024 * 1024 * 1024) : 0
-
-            if (dataLimitGB > 0) {
-              const formatted = parseFloat(dataLimitGB.toFixed(9))
-              dataLimitInputRef.current = String(formatted)
-            } else {
-              dataLimitInputRef.current = ''
-            }
 
             form.reset({
               name: nodeData.name,
@@ -400,18 +378,19 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div
-                className={`h-2 w-2 rounded-full ${currentNode?.status === 'connecting' || (statusChecking && !currentNode?.status)
-                  ? 'bg-yellow-500 dark:bg-yellow-400'
-                  : currentNode?.status === 'connected'
-                    ? 'bg-green-500 dark:bg-green-400'
-                    : currentNode?.status === 'error'
-                      ? 'bg-red-500 dark:bg-red-400'
-                      : currentNode?.status === 'limited'
-                        ? 'bg-orange-500 dark:bg-orange-400'
-                        : 'bg-gray-500 dark:bg-gray-400'
-                  }`}
+                className={`h-2 w-2 rounded-full ${
+                  currentNode?.status === 'connecting' || (statusChecking && !currentNode?.status)
+                    ? 'bg-yellow-500 dark:bg-yellow-400'
+                    : currentNode?.status === 'connected'
+                      ? 'bg-green-500 dark:bg-green-400'
+                      : currentNode?.status === 'error'
+                        ? 'bg-red-500 dark:bg-red-400'
+                        : currentNode?.status === 'limited'
+                          ? 'bg-orange-500 dark:bg-orange-400'
+                          : 'bg-gray-500 dark:bg-gray-400'
+                }`}
               />
-              <span className="text-sm font-medium text-foreground">
+              <span className="text-foreground text-sm font-medium">
                 {currentNode?.status === 'connecting' || (statusChecking && !currentNode?.status)
                   ? t('nodeModal.status.connecting')
                   : currentNode?.status === 'connected'
@@ -423,7 +402,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                         : t('nodeModal.status.disabled')}
               </span>
               {currentNode?.status === 'error' && (
-                <Button variant="ghost" size="sm" onClick={() => setShowErrorDetails(!showErrorDetails)} className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground">
+                <Button variant="ghost" size="sm" onClick={() => setShowErrorDetails(!showErrorDetails)} className="text-muted-foreground hover:text-foreground h-6 px-2 text-xs">
                   {showErrorDetails ? t('nodeModal.hideDetails') : t('nodeModal.showDetails')}
                 </Button>
               )}
@@ -445,7 +424,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           {showErrorDetails && currentNode?.status === 'error' && (
             <div
               dir="ltr"
-              className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded bg-red-50 p-3 text-xs text-red-500 dark:bg-red-900/20 dark:text-red-400"
+              className="max-h-32 overflow-y-auto rounded bg-red-50 p-3 text-xs break-words whitespace-pre-wrap text-red-500 dark:bg-red-900/20 dark:text-red-400"
               style={{ whiteSpace: 'pre-line' }}
             >
               {errorDetails || currentNode?.message}
@@ -559,24 +538,18 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                         <FormItem>
                           <FormLabel>{t('nodeModal.apiKey')}</FormLabel>
                           <FormControl>
-                            <div className={cn('flex w-full min-w-0 items-stretch gap-0', dir === 'rtl' && 'flex-row-reverse')}>
+                            <div className={cn('flex w-full min-w-0 items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
                               <Input
                                 isError={!!form.formState.errors.api_key}
                                 type="text"
                                 placeholder={t('nodeModal.apiKeyPlaceholder')}
                                 autoComplete="off"
-                                className="min-w-0 rounded-e-none border-e-0 shadow-none focus-visible:z-10"
+                                className="min-w-0"
                                 {...field}
                                 onChange={e => field.onChange(e.target.value)}
                               />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={generateUUID}
-                                className="shrink-0 rounded-s-none px-3 focus-visible:z-10"
-                              >
-                                <RefreshCw className="!h-4 !w-4" aria-hidden />
+                              <Button type="button" variant="ghost" size="icon" onClick={generateUUID} className="shrink-0" title={t('nodeModal.generateApiKey', { defaultValue: 'Generate API key' })}>
+                                <RefreshCw className="h-3 w-3" aria-hidden />
                               </Button>
                             </div>
                           </FormControl>
@@ -703,7 +676,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                 <FormItem>
                                   <FormLabel>{t('nodeModal.keepAlive')}</FormLabel>
                                   <div className="flex flex-col gap-1.5">
-                                    <p className="text-xs text-muted-foreground">{t('nodeModal.keepAliveDescription')}</p>
+                                    <p className="text-muted-foreground text-xs">{t('nodeModal.keepAliveDescription')}</p>
                                     <div className="flex flex-col gap-2 sm:flex-row">
                                       <FormControl>
                                         <Input
@@ -748,88 +721,29 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                             <FormField
                               control={form.control}
                               name="data_limit"
-                              render={({ field }) => {
-                                if (dataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
-                                  const formatted = parseFloat(field.value.toFixed(9))
-                                  dataLimitInputRef.current = String(formatted)
-                                } else if ((field.value === null || field.value === undefined) && dataLimitInputRef.current !== '') {
-                                  dataLimitInputRef.current = ''
-                                }
-
-                                const displayValue =
-                                  dataLimitInputRef.current !== ''
-                                    ? dataLimitInputRef.current
-                                    : field.value !== null && field.value !== undefined && field.value > 0
-                                      ? (() => {
-                                        const formatted = parseFloat(field.value.toFixed(9))
-                                        return String(formatted)
-                                      })()
-                                      : ''
-
-                                return (
-                                  <FormItem className="relative h-full flex-1">
-                                    <FormLabel>{t('nodeModal.dataLimit')}</FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        isError={!!form.formState.errors.data_limit}
-                                        type="text"
-                                        inputMode="decimal"
-                                        placeholder={t('nodeModal.dataLimitPlaceholder', { defaultValue: 'e.g. 1' })}
-                                        value={displayValue}
-                                        onChange={e => {
-                                          const rawValue = e.target.value.trim()
-
-                                          dataLimitInputRef.current = rawValue
-
-                                          if (rawValue === '') {
-                                            field.onChange(0)
-                                            return
-                                          }
-
-                                          const validNumberPattern = /^-?\d*\.?\d*$/
-                                          if (validNumberPattern.test(rawValue)) {
-                                            if (rawValue.endsWith('.') && rawValue.length > 1) {
-                                              const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
-                                              field.onChange(prevValue)
-                                            } else if (rawValue === '.') {
-                                              field.onChange(0)
-                                            } else {
-                                              const numValue = parseFloat(rawValue)
-                                              if (!isNaN(numValue) && numValue >= 0) {
-                                                field.onChange(numValue)
-                                              }
-                                            }
-                                          }
-                                        }}
-                                        onBlur={() => {
-                                          const rawValue = dataLimitInputRef.current.trim()
-                                          if (rawValue === '' || rawValue === '.' || rawValue === '0') {
-                                            dataLimitInputRef.current = ''
-                                            field.onChange(0)
-                                          } else {
-                                            const numValue = parseFloat(rawValue)
-                                            if (!isNaN(numValue) && numValue >= 0) {
-                                              const finalValue = numValue
-                                              const formatted = parseFloat(finalValue.toFixed(9))
-                                              dataLimitInputRef.current = formatted > 0 ? String(formatted) : ''
-                                              field.onChange(formatted)
-                                            } else {
-                                              dataLimitInputRef.current = ''
-                                              field.onChange(0)
-                                            }
-                                          }
-                                        }}
-                                      />
-                                    </FormControl>
-                                    {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                      <p dir='ltr' className={cn('absolute w-full right-0 top-full mt-1 text-xs text-muted-foreground', dir === 'rtl' ? 'text-left' : 'text-end')}>
-                                        {formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}
-                                      </p>
-                                    )}
-                                    <FormMessage />
-                                  </FormItem>
-                                )
-                              }}
+                              render={({ field }) => (
+                                <FormItem className="relative h-full flex-1">
+                                  <FormLabel>{t('nodeModal.dataLimit')}</FormLabel>
+                                  <FormControl>
+                                    <DecimalInput
+                                      isError={!!form.formState.errors.data_limit}
+                                      placeholder={t('nodeModal.dataLimitPlaceholder', { defaultValue: 'e.g. 1' })}
+                                      value={field.value}
+                                      emptyValue={0}
+                                      zeroValue={0}
+                                      formatDisplayValue={value => String(parseFloat(value.toFixed(9)))}
+                                      normalizeDisplayValueOnBlur={value => parseFloat(value.toFixed(9))}
+                                      onValueChange={value => field.onChange(value ?? 0)}
+                                    />
+                                  </FormControl>
+                                  {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
+                                    <p dir="ltr" className={cn('text-muted-foreground absolute top-full right-0 mt-1 w-full text-xs', dir === 'rtl' ? 'text-left' : 'text-end')}>
+                                      {formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}
+                                    </p>
+                                  )}
+                                  <FormMessage />
+                                </FormItem>
+                              )}
                             />
 
                             {form.watch('data_limit') !== null && form.watch('data_limit') !== undefined && Number(form.watch('data_limit')) > 0 && (
@@ -1043,7 +957,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                       <div className="flex items-center justify-between">
                                         <FormLabel>{t('nodeModal.resetTime')}</FormLabel>
                                         <div className="flex items-center gap-2">
-                                          <span className="text-xs text-muted-foreground">
+                                          <span className="text-muted-foreground text-xs">
                                             {useIntervalBased ? t('nodeModal.intervalBased', { defaultValue: 'Interval-based' }) : t('nodeModal.absoluteTime', { defaultValue: 'Absolute time' })}
                                           </span>
                                           <Switch
@@ -1124,7 +1038,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                       )}
 
                                       {useIntervalBased && (
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-muted-foreground text-xs">
                                           {t('nodeModal.intervalBasedDescription', {
                                             defaultValue: 'Reset will occur every period from the last reset time',
                                           })}

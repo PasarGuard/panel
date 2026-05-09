@@ -1,6 +1,7 @@
 import { DatePicker, type DatePickerAlign, type DatePickerSide } from '@/components/common/date-picker'
+import { DecimalInput } from '@/components/common/decimal-input'
 import GroupsSelector from '@/components/common/groups-selector'
-import { TimeUnitSelect, TIME_UNIT_SECONDS, secondsToTimeUnit, type TimeUnit } from '@/components/common/time-unit-select'
+import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import UsageModal from '@/components/dialogs/usage-modal'
 import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscription-clients-modal'
@@ -36,7 +37,8 @@ import {
   type UserResponse,
 } from '@/service/api'
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
-import { formatOffsetDateTime, parseDateInput, toDisplayDate, toUnixSeconds } from '@/utils/dateTimeParsing'
+import { normalizeDatePickerValueForSubmit, serializeDatePickerValue, toDatePickerDisplayDate } from '@/utils/datePickerUtils'
+import { parseDateInput } from '@/utils/dateTimeParsing'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
@@ -58,8 +60,6 @@ interface UserModalProps {
   editingUserData?: any // The user data object when editing
   onSuccessCallback?: (user: UserResponse) => void
 }
-
-const isDate = (v: unknown): v is Date => typeof v === 'object' && v !== null && v instanceof Date
 
 // Add template validation schema
 const templateUserSchema = z.object({
@@ -104,8 +104,7 @@ const ExpiryDateField = ({
   const handleDateChange = React.useCallback(
     (date: Date | undefined) => {
       if (date) {
-        // Use the same logic as centralized DatePicker
-        const value = useUtcTimestamp ? toUnixSeconds(date) : formatOffsetDateTime(date)
+        const value = serializeDatePickerValue(date, { useUtcTimestamp })
         field.onChange(value)
         handleFieldChange(fieldName, value)
       } else {
@@ -156,7 +155,7 @@ const ExpiryDateField = ({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground h-7 px-2.5 text-xs"
               onClick={e => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -188,7 +187,7 @@ const ExpiryDateField = ({
             <p
               className={cn(
                 fieldName !== 'on_hold_timeout' && 'lg:w-48',
-                'absolute right-0 top-full mt-1 whitespace-nowrap text-end text-xs text-muted-foreground lg:overflow-hidden lg:text-ellipsis',
+                'text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs whitespace-nowrap lg:overflow-hidden lg:text-ellipsis',
                 dir === 'rtl' ? 'right-0' : 'left-0',
               )}
             >
@@ -290,7 +289,7 @@ const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) 
 
   return (
     <div
-      className="relative flex w-full min-w-0 cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+      className="hover:bg-accent hover:text-accent-foreground relative flex w-full min-w-0 cursor-pointer items-center rounded-sm px-2 py-2 text-sm transition-colors outline-none select-none"
       onClick={() => onSelect?.(value)}
     >
       <span className="min-w-0 flex-1 truncate pr-2">{children}</span>
@@ -391,10 +390,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }, [isDialogOpen, editingUser, form, editingUserData])
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [isFormValid, setIsFormValid] = useState(false)
-  const dataLimitInputRef = React.useRef<string>('')
-  const onHoldExpireDurationInputRef = React.useRef<string>('')
-  const nextPlanExpireInputRef = React.useRef<string>('')
-  const nextPlanDataLimitInputRef = React.useRef<string>('')
+  const previousStatusRef = React.useRef(status)
 
   const handleModalOpenChange = React.useCallback(
     (open: boolean) => {
@@ -417,11 +413,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         setSelectedTemplateId(null)
         setNextPlanEnabled(false)
         setNextPlanManuallyDisabled(false)
-        dataLimitInputRef.current = ''
-        onHoldExpireDurationInputRef.current = ''
         setOnHoldExpireUnit('days')
-        nextPlanExpireInputRef.current = ''
-        nextPlanDataLimitInputRef.current = ''
       }
       onOpenChange(open)
     },
@@ -457,44 +449,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   // Get the expire value from the form
   const expireValue = form.watch('expire')
   const onHoldValue = form.watch('on_hold_timeout')
-  const dataLimitValue = form.watch('data_limit')
 
-  let displayDate: Date | null = null
-  let onHoldDisplayDate: Date | null = null
-
-  // Handle various formats of expire value using the same logic as OnlineBadge/OnlineStatus
-  const parseDateValue = (value: unknown): Date | null => {
-    if (isDate(value)) {
-      return value
-    } else if (typeof value === 'string') {
-      if (value === '') {
-        return null
-      } else {
-        try {
-          const trimmedValue = value.trim()
-          const dayjsDate = parseDateInput(trimmedValue)
-          if (dayjsDate.isValid()) {
-            return toDisplayDate(trimmedValue)
-          }
-        } catch (error) {
-          // Ignore invalid values and return null.
-        }
-      }
-    } else if (typeof value === 'number') {
-      try {
-        const dayjsDate = parseDateInput(value)
-        if (dayjsDate.isValid()) {
-          return toDisplayDate(value)
-        }
-      } catch (error) {
-        // Ignore invalid values and return null.
-      }
-    }
-    return null
-  }
-
-  displayDate = parseDateValue(expireValue)
-  onHoldDisplayDate = parseDateValue(onHoldValue)
+  const displayDate = toDatePickerDisplayDate(expireValue)
+  const onHoldDisplayDate = toDatePickerDisplayDate(onHoldValue)
 
   // Query client for data refetching
   const queryClient = useQueryClient()
@@ -633,16 +590,24 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }, [selectedTemplateId, form, t])
 
   useEffect(() => {
+    const previousStatus = previousStatusRef.current
+
     if (status === 'on_hold') {
       form.setValue('expire', undefined)
       form.clearErrors('expire')
     } else {
-      onHoldExpireDurationInputRef.current = ''
+      if (previousStatus === 'on_hold') {
+        form.setValue('expire', undefined)
+        form.clearErrors('expire')
+        setExpireCalendarOpen(false)
+      }
       form.setValue('on_hold_expire_duration', undefined)
       form.clearErrors('on_hold_expire_duration')
       form.setValue('on_hold_timeout', undefined)
       form.clearErrors('on_hold_timeout')
     }
+
+    previousStatusRef.current = status
   }, [status, form])
 
   useEffect(() => {
@@ -708,29 +673,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     }
   }, [isDialogOpen, editingUser, hasNextPlanData, nextPlanManuallyDisabled, form, nextPlanUserTemplateId, nextPlanExpire, nextPlanDataLimit, nextPlanAddRemainingTraffic, editingUserData])
 
-  // Helper to convert expire field to needed schema using the same logic as other components
-  function normalizeExpire(expire: Date | string | number | null | undefined, useUtcTimestamp: boolean = false): string | number | undefined {
-    if (expire === '') return 0
-    if (expire === undefined || expire === null) return undefined
-
-    // For Date objects, convert to appropriate format
-    if (expire instanceof Date) {
-      return useUtcTimestamp ? toUnixSeconds(expire) : formatOffsetDateTime(expire)
-    }
-
-    // For strings and numbers, normalize via centralized parser.
-    try {
-      const dayjsDate = parseDateInput(expire)
-      if (dayjsDate.isValid()) {
-        return useUtcTimestamp ? toUnixSeconds(expire) : formatOffsetDateTime(expire)
-      }
-    } catch (error) {
-      // If dayjs parsing fails, return undefined
-    }
-
-    return undefined
-  }
-
   // Helper to clear group selection
   const clearGroups = () => form.setValue('group_ids', [])
   // Helper to clear template selection
@@ -781,7 +723,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
           })
           return false
         }
-
       }
 
       // Special case for Next Plan enabled - if Next Plan is enabled and no other fields are touched,
@@ -798,11 +739,11 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       const fieldsToValidate = isSubmit
         ? currentValues
         : Object.keys(touchedFields).reduce((acc, key) => {
-          if (touchedFields[key]) {
-            acc[key] = currentValues[key]
-          }
-          return acc
-        }, {} as any)
+            if (touchedFields[key]) {
+              acc[key] = currentValues[key]
+            }
+            return acc
+          }, {} as any)
 
       // If no fields are touched, clear errors and return true
       if (!isSubmit && Object.keys(fieldsToValidate).length === 0) {
@@ -822,9 +763,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       } else {
         // ZodEffects from .superRefine() has no .partial(); use base object schemas for touched-field validation
         if (selectedTemplateId) {
-          ; (editingUser ? templateModifySchema : templateUserSchema).partial().parse(fieldsToValidate)
+          ;(editingUser ? templateModifySchema : templateUserSchema).partial().parse(fieldsToValidate)
         } else {
-          ; (editingUser ? userEditObjectSchema : userCreateObjectSchema).partial().parse(fieldsToValidate)
+          ;(editingUser ? userEditObjectSchema : userCreateObjectSchema).partial().parse(fieldsToValidate)
         }
       }
 
@@ -990,10 +931,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
               missingFields.push(t('status', { defaultValue: 'Status' }))
             }
 
-            if (
-              values.status === 'on_hold' &&
-              (!values.on_hold_expire_duration || !Number.isFinite(Number(values.on_hold_expire_duration)) || Number(values.on_hold_expire_duration) <= 0)
-            ) {
+            if (values.status === 'on_hold' && (!values.on_hold_expire_duration || !Number.isFinite(Number(values.on_hold_expire_duration)) || Number(values.on_hold_expire_duration) <= 0)) {
               missingFields.push(t('templates.expire'))
             }
 
@@ -1017,13 +955,14 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         const preparedValues = {
           ...valuesWithoutNextPlan,
           data_limit: typeof values.data_limit === 'string' ? parseFloat(values.data_limit) : values.data_limit,
-          on_hold_expire_duration: values.on_hold_expire_duration
-            ? typeof values.on_hold_expire_duration === 'string'
-              ? parseFloat(values.on_hold_expire_duration)
-              : values.on_hold_expire_duration
-            : undefined,
-          expire: status === 'on_hold' ? undefined : normalizeExpire(values.expire),
-          on_hold_timeout: status === 'on_hold' ? normalizeExpire(values.on_hold_timeout) : undefined,
+          on_hold_expire_duration:
+            status === 'on_hold' && values.on_hold_expire_duration
+              ? typeof values.on_hold_expire_duration === 'string'
+                ? parseFloat(values.on_hold_expire_duration)
+                : values.on_hold_expire_duration
+              : undefined,
+          expire: status === 'on_hold' ? undefined : normalizeDatePickerValueForSubmit(values.expire),
+          on_hold_timeout: status === 'on_hold' ? normalizeDatePickerValueForSubmit(values.on_hold_timeout) : undefined,
           group_ids: Array.isArray(values.group_ids) ? values.group_ids : [],
           status: values.status,
         }
@@ -1167,7 +1106,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     const arr = password.split('')
     for (let i = arr.length - 1; i > 0; i--) {
       const j = getRandomInt(i + 1)
-        ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
     }
     return arr.join('')
   }
@@ -1373,17 +1312,17 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     return (
       <div className={cn('mt-3 space-y-3', extraClassName)}>
         <Accordion type="multiple" className="w-full">
-          <AccordionItem value="meta-details" className="mt-2 rounded-sm border bg-background px-2">
-            <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+          <AccordionItem value="meta-details" className="bg-background mt-2 rounded-sm border px-2">
+            <AccordionTrigger className="text-muted-foreground py-2 text-xs font-medium tracking-wide uppercase hover:no-underline">
               <span className="flex items-center gap-1.5">
                 <Info className="h-3.5 w-3.5" />
                 {t('details', { defaultValue: 'Details' })}
               </span>
             </AccordionTrigger>
             <AccordionContent className="pb-2">
-              <div className="space-y-1.5 rounded-md bg-background py-2 text-xs">
+              <div className="bg-background space-y-1.5 rounded-md py-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
                     <CalendarPlus className="h-3.5 w-3.5" />
                     {t('createdAt', { defaultValue: 'Created at' })}
                   </span>
@@ -1393,7 +1332,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                 </div>
                 {editedAtText && (
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
                       <CalendarClock className="h-3.5 w-3.5" />
                       {t('editedAt', { defaultValue: 'Edited at' })}
                     </span>
@@ -1411,33 +1350,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }
 
   useEffect(() => {
-    if (isDialogOpen && editingUser && dataLimitValue !== null && dataLimitValue !== undefined) {
-      if (dataLimitValue > 0) {
-        dataLimitInputRef.current = String(dataLimitValue)
-      } else {
-        dataLimitInputRef.current = ''
-      }
-    }
-  }, [isDialogOpen, editingUser, dataLimitValue])
-
-  useEffect(() => {
-    if (isDialogOpen && editingUser && nextPlanEnabled) {
-      const nextPlan = form.getValues('next_plan')
-      if (nextPlan?.expire !== undefined && nextPlan?.expire !== null && nextPlan.expire > 0) {
-        const days = dateUtils.secondsToDays(nextPlan.expire)
-        nextPlanExpireInputRef.current = String(days)
-      }
-      if (nextPlan?.data_limit !== undefined && nextPlan?.data_limit !== null && nextPlan.data_limit > 0) {
-        nextPlanDataLimitInputRef.current = String(bytesToFormGigabytes(nextPlan.data_limit))
-      }
-    }
-  }, [isDialogOpen, editingUser, nextPlanEnabled, form])
-
-  useEffect(() => {
     if (isDialogOpen) {
       if (!editingUser) {
         form.setValue('proxy_settings', undefined)
-        dataLimitInputRef.current = ''
         form.setValue('data_limit', 0)
         if (generalSettings) {
           form.setValue('proxy_settings.vless.flow', generalSettings.default_flow || '')
@@ -1446,13 +1361,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
           if (method) {
             form.setValue('proxy_settings.shadowsocks.method', method)
           }
-        }
-      } else {
-        const currentDataLimit = form.getValues('data_limit')
-        if (currentDataLimit !== null && currentDataLimit !== undefined && currentDataLimit > 0) {
-          dataLimitInputRef.current = String(currentDataLimit)
-        } else {
-          dataLimitInputRef.current = ''
         }
       }
     }
@@ -1613,83 +1521,30 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                           <FormField
                             control={form.control}
                             name="data_limit"
-                            render={({ field }) => {
-                              if (dataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
-                                dataLimitInputRef.current = String(field.value)
-                              } else if ((field.value === null || field.value === undefined) && dataLimitInputRef.current !== '') {
-                                dataLimitInputRef.current = ''
-                              }
-
-                              const displayValue =
-                                dataLimitInputRef.current !== '' ? dataLimitInputRef.current : field.value !== null && field.value !== undefined && field.value > 0 ? String(field.value) : ''
-
-                              return (
-                                <FormItem className="relative h-full flex-1">
-                                  <FormLabel>{t('userDialog.dataLimit', { defaultValue: 'Data Limit (GB)' })}</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      type="text"
-                                      inputMode="decimal"
-                                      placeholder={t('userDialog.dataLimit', { defaultValue: 'e.g. 1' })}
-                                      value={displayValue}
-                                      onChange={e => {
-                                        const rawValue = e.target.value.trim()
-
-                                        dataLimitInputRef.current = rawValue
-
-                                        if (rawValue === '') {
-                                          field.onChange(0)
-                                          handleFieldChange('data_limit', 0)
-                                          return
-                                        }
-
-                                        const validNumberPattern = /^-?\d*\.?\d*$/
-                                        if (validNumberPattern.test(rawValue)) {
-                                          if (rawValue.endsWith('.') && rawValue.length > 1) {
-                                            const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
-                                            field.onChange(prevValue)
-                                            handleFieldChange('data_limit', prevValue)
-                                          } else if (rawValue === '.') {
-                                            field.onChange(0)
-                                            handleFieldChange('data_limit', 0)
-                                          } else {
-                                            const numValue = parseFloat(rawValue)
-                                            if (!isNaN(numValue) && numValue >= 0) {
-                                              field.onChange(numValue)
-                                              handleFieldChange('data_limit', numValue)
-                                            }
-                                          }
-                                        }
-                                      }}
-                                      onBlur={() => {
-                                        const rawValue = dataLimitInputRef.current.trim()
-                                        if (rawValue === '' || rawValue === '.' || rawValue === '0') {
-                                          dataLimitInputRef.current = ''
-                                          field.onChange(0)
-                                          handleFieldChange('data_limit', 0)
-                                        } else {
-                                          const numValue = parseFloat(rawValue)
-                                          if (!isNaN(numValue) && numValue >= 0) {
-                                            const finalValue = numValue
-                                            dataLimitInputRef.current = finalValue > 0 ? String(finalValue) : ''
-                                            field.onChange(finalValue)
-                                            handleFieldChange('data_limit', finalValue)
-                                          } else {
-                                            dataLimitInputRef.current = ''
-                                            field.onChange(0)
-                                            handleFieldChange('data_limit', 0)
-                                          }
-                                        }
-                                      }}
-                                    />
-                                  </FormControl>
-                                  {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                    <p dir="ltr" className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
-                                  )}
-                                  <FormMessage />
-                                </FormItem>
-                              )
-                            }}
+                            render={({ field }) => (
+                              <FormItem className="relative h-full flex-1">
+                                <FormLabel>{t('userDialog.dataLimit', { defaultValue: 'Data Limit (GB)' })}</FormLabel>
+                                <FormControl>
+                                  <DecimalInput
+                                    placeholder={t('userDialog.dataLimit', { defaultValue: 'e.g. 1' })}
+                                    value={field.value}
+                                    emptyValue={0}
+                                    zeroValue={0}
+                                    onValueChange={value => {
+                                      const nextValue = value ?? 0
+                                      field.onChange(nextValue)
+                                      handleFieldChange('data_limit', nextValue)
+                                    }}
+                                  />
+                                </FormControl>
+                                {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
+                                  <p dir="ltr" className="text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs">
+                                    {formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}
+                                  </p>
+                                )}
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
                           {form.watch('data_limit') !== undefined && form.watch('data_limit') !== null && Number(form.watch('data_limit')) > 0 && (
                             <FormField
@@ -1732,105 +1587,30 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                             name="on_hold_expire_duration"
                             render={({ field }) => {
                               const unitSeconds = TIME_UNIT_SECONDS[onHoldExpireUnit]
-                              if (
-                                onHoldExpireDurationInputRef.current === '' &&
-                                field.value != null &&
-                                field.value !== undefined &&
-                                field.value > 0
-                              ) {
-                                onHoldExpireDurationInputRef.current = secondsToTimeUnit(field.value, onHoldExpireUnit)
-                              } else if (
-                                (field.value === null || field.value === undefined || field.value === 0) &&
-                                onHoldExpireDurationInputRef.current !== ''
-                                && !onHoldExpireDurationInputRef.current.endsWith('.')
-                              ) {
-                                onHoldExpireDurationInputRef.current = ''
-                              }
-
-                              const displayValue =
-                                onHoldExpireDurationInputRef.current !== ''
-                                  ? onHoldExpireDurationInputRef.current
-                                  : field.value != null && field.value !== undefined && field.value > 0
-                                    ? secondsToTimeUnit(field.value, onHoldExpireUnit)
-                                    : ''
 
                               return (
                                 <FormItem className="min-w-0 flex-1">
                                   <FormLabel className="text-left">{t('templates.expire')}</FormLabel>
                                   <FormControl>
                                     <div className="relative" dir="ltr">
-                                      <Input
-                                        type="text"
-                                        inputMode="decimal"
+                                      <DecimalInput
                                         placeholder={t('templates.expire')}
-                                        value={displayValue}
-                                        onChange={e => {
-                                          const rawValue = e.target.value.trim()
-                                          onHoldExpireDurationInputRef.current = rawValue
-
-                                          if (rawValue === '') {
-                                            field.onChange(0)
-                                            handleFieldChange('on_hold_expire_duration', 0)
-                                            void form.trigger('on_hold_expire_duration')
-                                            return
-                                          }
-
-                                          const validNumberPattern = /^-?\d*\.?\d*$/
-                                          if (!validNumberPattern.test(rawValue)) return
-
-                                          if (rawValue.endsWith('.') && rawValue.length > 1) {
-                                            const prevSeconds =
-                                              field.value != null && field.value !== undefined ? field.value : 0
-                                            field.onChange(prevSeconds)
-                                            handleFieldChange('on_hold_expire_duration', prevSeconds)
-                                            void form.trigger('on_hold_expire_duration')
-                                          } else if (rawValue === '.') {
-                                            field.onChange(0)
-                                            handleFieldChange('on_hold_expire_duration', 0)
-                                            void form.trigger('on_hold_expire_duration')
-                                          } else {
-                                            const numValue = parseFloat(rawValue)
-                                            if (!isNaN(numValue) && numValue >= 0) {
-                                              const seconds = numValue * unitSeconds
-                                              field.onChange(seconds)
-                                              handleFieldChange('on_hold_expire_duration', seconds)
-                                              void form.trigger('on_hold_expire_duration')
-                                            }
-                                          }
-                                        }}
-                                        onBlur={() => {
-                                          const rawValue = onHoldExpireDurationInputRef.current.trim()
-                                          if (rawValue === '' || rawValue === '.' || rawValue === '0') {
-                                            onHoldExpireDurationInputRef.current = ''
-                                            field.onChange(0)
-                                            handleFieldChange('on_hold_expire_duration', 0)
-                                            void form.trigger('on_hold_expire_duration')
-                                          } else {
-                                            const numValue = parseFloat(rawValue)
-                                            if (!isNaN(numValue) && numValue >= 0) {
-                                              const finalAmount = numValue
-                                              const finalSeconds = finalAmount * unitSeconds
-                                              onHoldExpireDurationInputRef.current =
-                                                finalAmount > 0 ? String(finalAmount) : ''
-                                              field.onChange(finalSeconds)
-                                              handleFieldChange('on_hold_expire_duration', finalSeconds)
-                                              void form.trigger('on_hold_expire_duration')
-                                            } else {
-                                              onHoldExpireDurationInputRef.current = ''
-                                              field.onChange(0)
-                                              handleFieldChange('on_hold_expire_duration', 0)
-                                              void form.trigger('on_hold_expire_duration')
-                                            }
-                                          }
+                                        value={field.value}
+                                        emptyValue={0}
+                                        zeroValue={0}
+                                        toDisplayValue={value => value / unitSeconds}
+                                        toValue={displayValue => displayValue * unitSeconds}
+                                        onValueChange={value => {
+                                          const nextValue = value ?? 0
+                                          field.onChange(nextValue)
+                                          handleFieldChange('on_hold_expire_duration', nextValue)
+                                          void form.trigger('on_hold_expire_duration')
                                         }}
                                         className={cn(dir === 'rtl' ? 'pl-20' : 'pr-20')}
                                       />
                                       <TimeUnitSelect
                                         value={onHoldExpireUnit}
-                                        onValueChange={nextUnit => {
-                                          setOnHoldExpireUnit(nextUnit)
-                                          onHoldExpireDurationInputRef.current = secondsToTimeUnit(field.value, nextUnit)
-                                        }}
+                                        onValueChange={setOnHoldExpireUnit}
                                         triggerClassName={cn(
                                           'absolute top-0 h-full w-20 rounded-none border-y-0 focus:ring-0 focus:ring-offset-0',
                                           dir === 'rtl' ? 'left-0 border-l-0' : 'right-0 border-r-0',
@@ -1916,7 +1696,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                         </AccordionTrigger>
                         <AccordionContent className="px-2">
                           <div className="mb-2 flex items-center justify-between">
-                            <div className="text-xs text-muted-foreground">{t('userDialog.proxySettings.desc')}</div>
+                            <div className="text-muted-foreground text-xs">{t('userDialog.proxySettings.desc')}</div>
                             <GenerateProxySettingsButton />
                           </div>
                           {/* VMess */}
@@ -2271,8 +2051,10 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                     }}
                                   />
                                 </FormControl>
-                                <p className="text-xs text-muted-foreground">
-                                  {t('userDialog.proxySettings.peerIpsHint', { defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. For manual entries, enter one CIDR per line, and keep each value within that pool.' })}
+                                <p className="text-muted-foreground text-xs">
+                                  {t('userDialog.proxySettings.peerIpsHint', {
+                                    defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. For manual entries, enter one CIDR per line, and keep each value within that pool.',
+                                  })}
                                 </p>
                                 <FormMessage />
                               </FormItem>
@@ -2284,7 +2066,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                   )}
                   {/* Next Plan Section (toggleable) */}
                   {activeTab === 'groups' && editingUser && (
-                    <div className="rounded-(--radius) border border-border p-4">
+                    <div className="border-border rounded-(--radius) border p-4">
                       <div className="flex items-center justify-between">
                         <div
                           className="flex cursor-pointer items-center gap-2"
@@ -2360,166 +2142,54 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                               <FormField
                                 control={form.control}
                                 name="next_plan.expire"
-                                render={({ field }) => {
-                                  if (nextPlanExpireInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
-                                    nextPlanExpireInputRef.current = String(dateUtils.secondsToDays(field.value))
-                                  }
-                                  const displayValue =
-                                    nextPlanExpireInputRef.current !== ''
-                                      ? nextPlanExpireInputRef.current
-                                      : field.value !== null && field.value !== undefined && field.value > 0
-                                        ? String(dateUtils.secondsToDays(field.value))
-                                        : ''
-                                  return (
-                                    <FormItem>
-                                      <FormLabel>{t('userDialog.nextPlanExpire', { defaultValue: 'Expire' })}</FormLabel>
-                                      <FormControl>
-                                        <Input
-                                          type="text"
-                                          inputMode="decimal"
-                                          value={displayValue}
-                                          onChange={e => {
-                                            const rawValue = e.target.value.trim()
-                                            nextPlanExpireInputRef.current = rawValue
-                                            if (rawValue === '') {
-                                              field.onChange(0)
-                                              handleFieldChange('next_plan.expire', 0)
-                                              return
-                                            }
-                                            const validNumberPattern = /^-?\d*\.?\d*$/
-                                            if (validNumberPattern.test(rawValue)) {
-                                              if (rawValue.endsWith('.') && rawValue.length > 1) {
-                                                const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
-                                                field.onChange(prevValue)
-                                                handleFieldChange('next_plan.expire', prevValue)
-                                              } else if (rawValue === '.') {
-                                                field.onChange(0)
-                                                handleFieldChange('next_plan.expire', 0)
-                                              } else {
-                                                const numValue = parseFloat(rawValue)
-                                                if (!isNaN(numValue) && numValue >= 0) {
-                                                  if (numValue === 0) {
-                                                    field.onChange(0)
-                                                    handleFieldChange('next_plan.expire', 0)
-                                                  } else {
-                                                    const seconds = dateUtils.daysToSeconds(numValue)
-                                                    field.onChange(seconds)
-                                                    handleFieldChange('next_plan.expire', seconds)
-                                                  }
-                                                }
-                                              }
-                                            }
-                                          }}
-                                          onBlur={() => {
-                                            const rawValue = nextPlanExpireInputRef.current.trim()
-                                            if (rawValue === '' || rawValue === '.') {
-                                              nextPlanExpireInputRef.current = ''
-                                              field.onChange(0)
-                                              handleFieldChange('next_plan.expire', 0)
-                                            } else {
-                                              const numValue = parseFloat(rawValue)
-                                              if (!isNaN(numValue) && numValue >= 0) {
-                                                const finalValue = numValue
-                                                nextPlanExpireInputRef.current = String(finalValue)
-                                                const seconds = dateUtils.daysToSeconds(finalValue)
-                                                field.onChange(seconds)
-                                                handleFieldChange('next_plan.expire', seconds)
-                                              } else {
-                                                nextPlanExpireInputRef.current = ''
-                                                field.onChange(0)
-                                                handleFieldChange('next_plan.expire', 0)
-                                              }
-                                            }
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <span className="text-xs text-muted-foreground">{t('userDialog.days', { defaultValue: 'Days' })}</span>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )
-                                }}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('userDialog.nextPlanExpire', { defaultValue: 'Expire' })}</FormLabel>
+                                    <FormControl>
+                                      <DecimalInput
+                                        value={field.value}
+                                        emptyValue={0}
+                                        zeroValue={0}
+                                        keepZeroOnBlur
+                                        toDisplayValue={dateUtils.secondsToDays}
+                                        toValue={displayValue => dateUtils.daysToSeconds(displayValue) ?? 0}
+                                        onValueChange={value => {
+                                          const nextValue = value ?? 0
+                                          field.onChange(nextValue)
+                                          handleFieldChange('next_plan.expire', nextValue)
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <span className="text-muted-foreground text-xs">{t('userDialog.days', { defaultValue: 'Days' })}</span>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
                               />
                               <FormField
                                 control={form.control}
                                 name="next_plan.data_limit"
-                                render={({ field }) => {
-                                  if (nextPlanDataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
-                                    nextPlanDataLimitInputRef.current = String(bytesToFormGigabytes(field.value))
-                                  }
-                                  const displayValue =
-                                    nextPlanDataLimitInputRef.current !== ''
-                                      ? nextPlanDataLimitInputRef.current
-                                      : field.value !== null && field.value !== undefined && field.value > 0
-                                        ? String(bytesToFormGigabytes(field.value))
-                                        : ''
-                                  return (
-                                    <FormItem>
-                                      <FormLabel>{t('userDialog.nextPlanDataLimit', { defaultValue: 'Data Limit' })}</FormLabel>
-                                      <FormControl>
-                                        <Input
-                                          type="text"
-                                          inputMode="decimal"
-                                          value={displayValue}
-                                          onChange={e => {
-                                            const rawValue = e.target.value.trim()
-                                            nextPlanDataLimitInputRef.current = rawValue
-                                            if (rawValue === '') {
-                                              field.onChange(0)
-                                              handleFieldChange('next_plan.data_limit', 0)
-                                              return
-                                            }
-                                            const validNumberPattern = /^-?\d*\.?\d*$/
-                                            if (validNumberPattern.test(rawValue)) {
-                                              if (rawValue.endsWith('.') && rawValue.length > 1) {
-                                                const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
-                                                field.onChange(prevValue)
-                                                handleFieldChange('next_plan.data_limit', prevValue)
-                                              } else if (rawValue === '.') {
-                                                field.onChange(0)
-                                                handleFieldChange('next_plan.data_limit', 0)
-                                              } else {
-                                                const numValue = parseFloat(rawValue)
-                                                if (!isNaN(numValue) && numValue >= 0) {
-                                                  if (numValue === 0) {
-                                                    field.onChange(0)
-                                                    handleFieldChange('next_plan.data_limit', 0)
-                                                  } else {
-                                                    const bytesValue = gbToBytes(numValue) ?? 0
-                                                    field.onChange(bytesValue)
-                                                    handleFieldChange('next_plan.data_limit', bytesValue)
-                                                  }
-                                                }
-                                              }
-                                            }
-                                          }}
-                                          onBlur={() => {
-                                            const rawValue = nextPlanDataLimitInputRef.current.trim()
-                                            if (rawValue === '' || rawValue === '.') {
-                                              nextPlanDataLimitInputRef.current = ''
-                                              field.onChange(0)
-                                              handleFieldChange('next_plan.data_limit', 0)
-                                            } else {
-                                              const numValue = parseFloat(rawValue)
-                                              if (!isNaN(numValue) && numValue >= 0) {
-                                                const finalValue = numValue
-                                                nextPlanDataLimitInputRef.current = String(finalValue)
-                                                const bytesValue = gbToBytes(finalValue) ?? 0
-                                                field.onChange(bytesValue)
-                                                handleFieldChange('next_plan.data_limit', bytesValue)
-                                              } else {
-                                                nextPlanDataLimitInputRef.current = ''
-                                                field.onChange(0)
-                                                handleFieldChange('next_plan.data_limit', 0)
-                                              }
-                                            }
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <span className="text-xs text-muted-foreground">GB</span>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )
-                                }}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('userDialog.nextPlanDataLimit', { defaultValue: 'Data Limit' })}</FormLabel>
+                                    <FormControl>
+                                      <DecimalInput
+                                        value={field.value}
+                                        emptyValue={0}
+                                        zeroValue={0}
+                                        keepZeroOnBlur
+                                        toDisplayValue={bytesToFormGigabytes}
+                                        toValue={displayValue => gbToBytes(displayValue) ?? 0}
+                                        onValueChange={value => {
+                                          const nextValue = value ?? 0
+                                          field.onChange(nextValue)
+                                          handleFieldChange('next_plan.data_limit', nextValue)
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <span className="text-muted-foreground text-xs">GB</span>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
                               />
                             </div>
                           )}
@@ -2555,8 +2225,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                          className={`relative flex-1 px-3 py-2 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                            }`}
+                          className={`relative flex-1 px-3 py-2 text-sm font-medium transition-colors ${
+                            activeTab === tab.id ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground'
+                          }`}
                           type="button"
                         >
                           <div className="flex items-center justify-center gap-1.5">
@@ -2587,7 +2258,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                               </SelectContent>
                             </Select>
                             {selectedTemplateId && (
-                              <div className="text-sm text-muted-foreground">
+                              <div className="text-muted-foreground text-sm">
                                 {t('userDialog.selectedTemplates', {
                                   count: 1,
                                   defaultValue: '1 template selected',
@@ -2629,7 +2300,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
               {renderUserMetaPanel('mt-4 lg:hidden')}
             </div>
             {/* Cancel/Create buttons - always visible */}
-            <div className="mt-4 flex flex-row items-center justify-end gap-3 overflow-x-auto">
+            <div className="-mx-1 mt-2 flex flex-row items-center justify-end gap-3 overflow-x-auto px-1 py-1 sm:mx-0 sm:px-0 sm:pt-2 sm:pb-0">
               {editingUser && (
                 <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
                   <DropdownMenuTrigger asChild>
@@ -2638,9 +2309,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                       variant="outline"
                       size="icon"
                       aria-label={t('actions', { defaultValue: 'Actions' })}
-                      className="group h-10 w-10 border-border/70 bg-background/80 shadow-sm backdrop-blur transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=open]:border-primary/50 data-[state=open]:bg-primary/10"
+                      className="group border-border/70 bg-background/80 hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-primary/30 data-[state=open]:border-primary/50 data-[state=open]:bg-primary/10 h-10 w-10 shadow-sm backdrop-blur transition-all hover:shadow-md focus-visible:ring-2"
                     >
-                      <EllipsisVertical className="h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground group-data-[state=open]:rotate-90 group-data-[state=open]:text-foreground" />
+                      <EllipsisVertical className="text-muted-foreground group-hover:text-foreground group-data-[state=open]:text-foreground h-4 w-4 transition-all duration-200 group-data-[state=open]:rotate-90" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
@@ -2747,9 +2418,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
 
                         if (
                           currentValues.status === 'on_hold' &&
-                          (!currentValues.on_hold_expire_duration ||
-                            !Number.isFinite(Number(currentValues.on_hold_expire_duration)) ||
-                            Number(currentValues.on_hold_expire_duration) <= 0)
+                          (!currentValues.on_hold_expire_duration || !Number.isFinite(Number(currentValues.on_hold_expire_duration)) || Number(currentValues.on_hold_expire_duration) <= 0)
                         ) {
                           missingFields.push(t('templates.expire'))
                         }
@@ -2813,14 +2482,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
 
       {isSudo && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
       {currentUserId && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={currentUserId} />}
-      {currentUserId && (
-        <UserSubscriptionClientsModal
-          isOpen={isSubscriptionClientsModalOpen}
-          onOpenChange={setSubscriptionClientsModalOpen}
-          userId={currentUserId}
-          username={currentUsername}
-        />
-      )}
+      {currentUserId && <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} userId={currentUserId} username={currentUsername} />}
     </Dialog>
   )
 }

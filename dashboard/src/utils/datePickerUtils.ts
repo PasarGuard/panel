@@ -1,10 +1,87 @@
 import { DateRange } from 'react-day-picker'
 import { Period } from '@/service/api'
 import { format } from 'date-fns'
+import { type DateInput, formatOffsetDateTime, parseDateInput, toDisplayDate, toLocalOffsetDateTime, toUnixSeconds } from './dateTimeParsing'
+
+type DatePickerValue = Date | string | number | null | undefined
+
+type DatePickerSerializeOptions = {
+  useUtcTimestamp?: boolean
+}
+
+const UTC_SUFFIX_PATTERN = /Z$/i
 
 /** True when the app language is Persian (e.g. `fa`, `fa-IR` from i18next or the browser). */
 export const isPersianLocaleLanguage = (language: string | undefined): boolean =>
   (language ?? '').toLowerCase().startsWith('fa')
+
+export const serializeDatePickerValue = (value: DateInput, { useUtcTimestamp = false }: DatePickerSerializeOptions = {}): string | number => {
+  return useUtcTimestamp ? toUnixSeconds(value) : formatOffsetDateTime(value)
+}
+
+export const normalizeDatePickerValueForEditForm = (value: string | number | null | undefined) => {
+  if (typeof value === 'string' && UTC_SUFFIX_PATTERN.test(value.trim())) {
+    return toLocalOffsetDateTime(value)
+  }
+
+  return value
+}
+
+export const toDatePickerDisplayDate = (value: unknown): Date | null => {
+  if (value instanceof Date) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim()
+    if (trimmedValue === '') return null
+
+    try {
+      const parsed = parseDateInput(trimmedValue)
+      return parsed.isValid() ? toDisplayDate(trimmedValue) : null
+    } catch {
+      return null
+    }
+  }
+
+  if (typeof value === 'number') {
+    try {
+      const parsed = parseDateInput(value)
+      return parsed.isValid() ? toDisplayDate(value) : null
+    } catch {
+      return null
+    }
+  }
+
+  return null
+}
+
+export const normalizeDatePickerValueForSubmit = (value: DatePickerValue | '', options: DatePickerSerializeOptions = {}): string | number | undefined => {
+  if (value === undefined || value === null) return undefined
+
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim()
+    if (trimmedValue === '') return 0
+
+    try {
+      const parsed = parseDateInput(trimmedValue)
+      return parsed.isValid() ? serializeDatePickerValue(trimmedValue, options) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  if (value instanceof Date || typeof value === 'number') {
+    try {
+      const parsed = parseDateInput(value)
+      return parsed.isValid() ? serializeDatePickerValue(value, options) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  return undefined
+}
 
 /**
  * Determines the appropriate period (hour or day) based on the date range

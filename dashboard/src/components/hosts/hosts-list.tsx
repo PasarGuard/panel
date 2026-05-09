@@ -326,6 +326,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
             mtu: host.wireguard_overrides.mtu ?? undefined,
             reserved: host.wireguard_overrides.reserved ?? '',
             keepalive_seconds: host.wireguard_overrides.keepalive_seconds ?? undefined,
+            dns: host.wireguard_overrides.dns ?? [],
           }
         : undefined,
     }
@@ -888,7 +889,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               getRowId={host => host.id ?? host.remark ?? 'host'}
               isLoading={isCurrentlyLoading}
               loadingRows={6}
-              className="max-w-screen-[2000px] min-h-screen gap-3 overflow-hidden"
+              className="max-w-screen-[2000px] min-h-screen gap-4 overflow-hidden"
               mode="grid"
               enableSelection
               enableGridSelection

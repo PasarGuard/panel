@@ -7,7 +7,7 @@ from nats.aio.subscription import Subscription
 
 from app.nats import is_nats_enabled
 from app.nats.client import create_nats_client
-from config import ROLE
+from config import runtime_settings
 
 
 class BaseRpcService:
@@ -37,7 +37,7 @@ class BaseRpcService:
     async def start(self):
         if not self._role_check():
             return
-        if ROLE.requires_nats and not is_nats_enabled():
+        if runtime_settings.role.requires_nats and not is_nats_enabled():
             return
 
         self._nc = await create_nats_client()

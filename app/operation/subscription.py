@@ -16,7 +16,7 @@ from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
-from config import SUBSCRIPTION_PAGE_TEMPLATE
+from config import template_settings, wireguard_settings
 
 from . import BaseOperation
 from .user import UserOperation
@@ -120,6 +120,17 @@ class SubscriptionOperation(BaseOperation):
             return profile_title
 
     @staticmethod
+    def _format_announce(sub_settings: SubSettings, format_variables: dict) -> str:
+        """Format announcement text with dynamic variables, falling back to raw text if needed."""
+        if not sub_settings.announce:
+            return ""
+
+        try:
+            return sub_settings.announce.format_map(format_variables)
+        except (ValueError, KeyError):
+            return sub_settings.announce
+
+    @staticmethod
     def create_response_headers(
         user: UsersResponseWithInbounds,
         request_url: str,
@@ -141,6 +152,7 @@ class SubscriptionOperation(BaseOperation):
         # Format profile title with dynamic variables
         format_variables = setup_format_variables(user)
         formatted_title = SubscriptionOperation._format_profile_title(user, format_variables, sub_settings)
+        formatted_announce = SubscriptionOperation._format_announce(sub_settings, format_variables)
 
         # Prefer admin's support_url over subscription settings
         support_url = (getattr(user.admin, "support_url", None) if user.admin else None) or sub_settings.support_url
@@ -155,7 +167,7 @@ class SubscriptionOperation(BaseOperation):
             "profile-title": encode_title(formatted_title),
             "profile-update-interval": str(sub_settings.update_interval),
             "subscription-userinfo": "; ".join(f"{key}={val}" for key, val in user_info.items()),
-            "announce": encode_title(sub_settings.announce),
+            "announce": encode_title(formatted_announce),
             "announce-url": sub_settings.announce_url,
         }
         if extra_headers:
@@ -207,10 +219,11 @@ class SubscriptionOperation(BaseOperation):
         """Create response headers for /info endpoint with only support-url, announce, and announce-url."""
         # Prefer admin's support_url over subscription settings
         support_url = (getattr(user.admin, "support_url", None) if user.admin else None) or sub_settings.support_url
+        formatted_announce = SubscriptionOperation._format_announce(sub_settings, setup_format_variables(user))
 
         headers = {
             "support-url": support_url,
-            "announce": encode_title(sub_settings.announce),
+            "announce": encode_title(formatted_announce),
             "announce-url": sub_settings.announce_url,
         }
 
@@ -240,6 +253,7 @@ class SubscriptionOperation(BaseOperation):
         token: str,
         accept_header: str = "",
         user_agent: str = "",
+        ip: str | None = None,
         request_url: str = "",
     ):
         """
@@ -256,7 +270,7 @@ class SubscriptionOperation(BaseOperation):
             template = (
                 db_user.admin.sub_template
                 if db_user.admin and db_user.admin.sub_template
-                else SUBSCRIPTION_PAGE_TEMPLATE
+                else template_settings.subscription_page_template
             )
             links = []
             if sub_settings.allow_browser_config:
@@ -267,6 +281,7 @@ class SubscriptionOperation(BaseOperation):
                 links = conf.splitlines()
 
             format_variables = await self.get_format_variables(user)
+            formatted_announce = self._format_announce(sub_settings, format_variables)
 
             return HTMLResponse(
                 render_template(
@@ -274,7 +289,7 @@ class SubscriptionOperation(BaseOperation):
                     {
                         "user": user,
                         "links": links,
-                        "announce": sub_settings.announce,
+                        "announce": formatted_announce,
                         "announce_url": sub_settings.announce_url,
                         "apps": self._make_apps_import_urls(sub_settings.applications, format_variables),
                     },
@@ -285,9 +300,11 @@ class SubscriptionOperation(BaseOperation):
             client_type = matched_rule.target if matched_rule else None
             if client_type == ConfigFormat.block or not client_type:
                 await self.raise_error(message="Client not supported", code=406)
+            if client_type == ConfigFormat.wireguard and not wireguard_settings.enabled:
+                await self.raise_error(message="Client not supported", code=406)
 
             # Update user subscription info
-            await user_sub_update(db, db_user.id, user_agent)
+            await user_sub_update(db, db_user.id, user_agent, ip=ip)
             conf, media_type = await self.fetch_config(user, client_type)
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
@@ -298,7 +315,6 @@ class SubscriptionOperation(BaseOperation):
                 sub_settings,
                 inline=inline_view,
                 extra_headers={},
-                extension=client_config.get(client_type, {}).get("extension", "") if client_type else "",
             )
             try:
                 response_headers.update(
@@ -338,6 +354,9 @@ class SubscriptionOperation(BaseOperation):
         """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
         sub_settings: SubSettings = await subscription_settings()
 
+        if client_type == ConfigFormat.wireguard and not wireguard_settings.enabled:
+            await self.raise_error(message="Client not supported", code=406)
+
         if client_type == ConfigFormat.block or not getattr(sub_settings.manual_sub_request, client_type):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token)
@@ -361,6 +380,9 @@ class SubscriptionOperation(BaseOperation):
         client_type: ConfigFormat,
         request_url: str = "",
     ):
+        if client_type == ConfigFormat.wireguard and not wireguard_settings.enabled:
+            await self.raise_error(message="Client not supported", code=406)
+
         if client_type == ConfigFormat.block:
             await self.raise_error(message="Client not supported", code=406)
 
@@ -384,7 +406,9 @@ class SubscriptionOperation(BaseOperation):
         db_user = await self.get_validated_user_by_id(db, user_id, admin)
         return await self.user_subscription_by_user(db_user, client_type, request_url)
 
-    async def user_subscription_info(self, db: AsyncSession, token: str) -> tuple[SubscriptionUserResponse, dict]:
+    async def user_subscription_info(
+        self, db: AsyncSession, token: str, ip: str | None = None
+    ) -> tuple[SubscriptionUserResponse, dict]:
         """Retrieves detailed information about the user's subscription."""
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token=token)
@@ -396,6 +420,7 @@ class SubscriptionOperation(BaseOperation):
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
         user_response = SubscriptionUserResponse.model_validate(db_user)
+        user_response.ip = ip
 
         return user_response, response_headers
 

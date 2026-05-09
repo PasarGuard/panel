@@ -25,7 +25,7 @@ from app.models.user import UserNotificationResponse
 from app.node import node_manager as node_manager
 from app.settings import webhook_settings
 from app.utils.logger import get_logger
-from config import JOB_REVIEW_USERS_INTERVAL, ROLE
+from config import job_settings, runtime_settings, usage_settings
 
 logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
@@ -34,7 +34,11 @@ user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
 async def change_status(db: AsyncSession, db_user: User, status: UserStatus):
     next_plan_activated = bool(db_user.next_plan) and status != UserStatus.active
     if next_plan_activated:
-        db_user = await reset_user_by_next(db, db_user)
+        db_user = await reset_user_by_next(
+            db,
+            db_user,
+            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+        )
 
     user = await user_operator.update_user(db_user)
 
@@ -150,15 +154,15 @@ async def days_left_notification_job():
                 await notification.wh.bulk_notify(webhook_data)
 
 
-if ROLE.runs_scheduler:
+if runtime_settings.role.runs_scheduler:
     now = dt.now(tz.utc)
-    interval = int(JOB_REVIEW_USERS_INTERVAL / 5)
+    interval = int(job_settings.review_users_interval / 5)
 
     # Register each job separately
     scheduler.add_job(
         expire_users_job,
         "interval",
-        seconds=JOB_REVIEW_USERS_INTERVAL,
+        seconds=job_settings.review_users_interval,
         coalesce=True,
         max_instances=1,
         start_date=now,
@@ -168,7 +172,7 @@ if ROLE.runs_scheduler:
     scheduler.add_job(
         limit_users_job,
         "interval",
-        seconds=JOB_REVIEW_USERS_INTERVAL,
+        seconds=job_settings.review_users_interval,
         coalesce=True,
         max_instances=1,
         start_date=now + td(seconds=interval),
@@ -178,7 +182,7 @@ if ROLE.runs_scheduler:
     scheduler.add_job(
         on_hold_to_active_users_job,
         "interval",
-        seconds=JOB_REVIEW_USERS_INTERVAL,
+        seconds=job_settings.review_users_interval,
         coalesce=True,
         max_instances=1,
         start_date=now + td(seconds=interval * 2),
@@ -188,7 +192,7 @@ if ROLE.runs_scheduler:
     scheduler.add_job(
         usage_percent_notification_job,
         "interval",
-        seconds=JOB_REVIEW_USERS_INTERVAL,
+        seconds=job_settings.review_users_interval,
         coalesce=True,
         max_instances=1,
         start_date=now + td(seconds=interval * 3),
@@ -198,7 +202,7 @@ if ROLE.runs_scheduler:
     scheduler.add_job(
         days_left_notification_job,
         "interval",
-        seconds=JOB_REVIEW_USERS_INTERVAL,
+        seconds=job_settings.review_users_interval,
         coalesce=True,
         max_instances=1,
         start_date=now + td(seconds=interval * 4),

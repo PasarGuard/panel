@@ -455,6 +455,8 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
     """
 
     node_data = modify.model_dump(exclude_none=True)
+    if "proxy_url" in modify.model_fields_set and modify.proxy_url is None:
+        node_data["proxy_url"] = None
 
     for key, value in node_data.items():
         setattr(db_node, key, value)

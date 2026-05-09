@@ -116,7 +116,7 @@ export function SubscriptionRuleAdvancedSheet({
               </Button>
             </div>
 
-            <div className="max-h-[min(50dvh,24rem)] space-y-3 overflow-y-auto pr-0.5">
+            <div className="max-h-[min(50dvh,24rem)] space-y-3 overflow-y-auto p-px">
               {responseHeaderCount > 0 ? (
                 responseHeaderEntries.map(([headerKey, headerValue], index) => (
                   <div key={`${rowId}-header-${index}`} className="space-y-2 rounded-lg border bg-card/50 p-3">

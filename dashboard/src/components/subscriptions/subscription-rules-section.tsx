@@ -3,14 +3,18 @@ import type { SubscriptionFormData } from '@/components/subscriptions/subscripti
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { closestCenter, DndContext, DragEndEvent } from '@dnd-kit/core'
+import type { Modifier } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 import { FileText, Plus, RotateCcw } from 'lucide-react'
 import type { ComponentProps } from 'react'
+import { useMemo, useRef } from 'react'
 import type { FieldArrayWithId } from 'react-hook-form'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 type DndContextSensors = NonNullable<ComponentProps<typeof DndContext>['sensors']>
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 export interface SubscriptionRulesSectionProps {
   form: UseFormReturn<SubscriptionFormData>
@@ -34,9 +38,28 @@ export function SubscriptionRulesSection({
   isSaving,
 }: SubscriptionRulesSectionProps) {
   const { t } = useTranslation()
+  const rulesListRef = useRef<HTMLDivElement>(null)
+  const rulesModifiers = useMemo<Modifier[]>(
+    () => [
+      ({ transform, draggingNodeRect }) => {
+        const listRect = rulesListRef.current?.getBoundingClientRect()
+        if (!draggingNodeRect || !listRect) {
+          return { ...transform, x: 0 }
+        }
+        const edgeAllowance = clamp(draggingNodeRect.height, 56, 120)
+
+        return {
+          ...transform,
+          x: 0,
+          y: clamp(transform.y, listRect.top - draggingNodeRect.top - edgeAllowance, listRect.bottom - draggingNodeRect.bottom + edgeAllowance),
+        }
+      },
+    ],
+    [],
+  )
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3 overflow-hidden">
       <div className="rounded-lg border bg-card p-3 shadow-sm sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0 flex-1 space-y-1">
@@ -70,10 +93,10 @@ export function SubscriptionRulesSection({
           <p className="mb-1 text-xs font-medium sm:text-sm">{t('settings.subscriptions.rules.noRules')}</p>
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <div dir="ltr">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={rulesModifiers} onDragEnd={onDragEnd}>
+          <div dir="ltr" className="min-w-0 overflow-hidden">
             <SortableContext items={ruleFields.map(field => field.id)} strategy={rectSortingStrategy}>
-              <div className="scrollbar-thin flex max-h-[min(70vh,500px)] touch-pan-y flex-col gap-2 overflow-y-auto py-1 sm:max-h-[500px] sm:gap-2.5 sm:py-1">
+              <div ref={rulesListRef} className="scrollbar-thin flex max-h-[min(70vh,500px)] min-w-0 touch-pan-y flex-col gap-2 overflow-y-auto overflow-x-hidden py-1 sm:max-h-[500px] sm:gap-2.5 sm:py-1">
                 {ruleFields.map((field, index) => (
                   <SortableSubscriptionRule key={field.id} id={field.id} index={index} onRemove={onRemoveRule} form={form} />
                 ))}

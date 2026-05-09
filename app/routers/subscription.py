@@ -9,9 +9,9 @@ from app.models.stats import Period, UserUsageStatsList
 from app.models.user import SubscriptionUserResponse
 from app.operation import OperatorType
 from app.operation.subscription import SubscriptionOperation
-from config import SUBSCRIPTION_PATH
+from config import subscription_env_settings
 
-router = APIRouter(tags=["Subscription"], prefix=f"/{SUBSCRIPTION_PATH}")
+router = APIRouter(tags=["Subscription"], prefix=f"/{subscription_env_settings.path}")
 subscription_operator = SubscriptionOperation(operator_type=OperatorType.API)
 
 
@@ -29,6 +29,7 @@ async def user_subscription(
         token=token,
         accept_header=request.headers.get("Accept", ""),
         user_agent=user_agent,
+        ip=request.client.host if request.client else None,
         request_url=str(request.url),
     )
 
@@ -36,7 +37,9 @@ async def user_subscription(
 @router.get("/{token}/info", response_model=SubscriptionUserResponse)
 async def user_subscription_info(request: Request, token: str, db: AsyncSession = Depends(get_db)):
     """Retrieves detailed information about the user's subscription."""
-    user_data, response_headers = await subscription_operator.user_subscription_info(db, token=token)
+    user_data, response_headers = await subscription_operator.user_subscription_info(
+        db, token=token, ip=request.client.host if request.client else None
+    )
     return JSONResponse(content=user_data.model_dump(mode="json"), headers=response_headers)
 
 

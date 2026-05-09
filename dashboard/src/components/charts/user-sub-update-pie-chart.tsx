@@ -268,7 +268,10 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     <Card>
       <CardHeader className="flex flex-col gap-4 px-4 py-6 xl:px-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <CardTitle className="mb-1">{t('statistics.subscriptionDistribution')}</CardTitle>
+          <CardTitle className="mb-1 flex items-center gap-2">
+            <Users className="text-muted-foreground h-4 w-4 shrink-0" />
+            <span>{t('statistics.subscriptionDistribution')}</span>
+          </CardTitle>
           <CardDescription>{t('statistics.subscriptionDistributionDescription')}</CardDescription>
         </div>
         <div className="flex w-full flex-col gap-2 lg:max-w-xs">

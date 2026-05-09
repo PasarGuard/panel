@@ -11,8 +11,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input'
 import { useTranslation } from 'react-i18next'
 import { Calendar as PersianCalendar } from '@/components/ui/persian-calendar'
-import { formatDateByLocale, formatDateShort, isDateDisabled, isPersianLocaleLanguage } from '@/utils/datePickerUtils'
-import { formatOffsetDateTime, parseDateInput, toUnixSeconds } from '@/utils/dateTimeParsing'
+import { formatDateByLocale, formatDateShort, isDateDisabled, isPersianLocaleLanguage, serializeDatePickerValue } from '@/utils/datePickerUtils'
+import { parseDateInput } from '@/utils/dateTimeParsing'
 import { useTheme } from '@/components/common/theme-provider'
 import { DATE_PICKER_PREFERENCE_KEY, getDatePickerPreference, type DatePickerPreference } from '@/utils/userPreferenceStorage'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -92,7 +92,7 @@ interface BaseDatePickerProps {
   popoverAlignDesktop?: DatePickerAlign
   /**
    * When `side` is unset: side on viewports wider than mobile (mobile uses `bottom`).
-   * @default 'left'
+   * @default 'bottom'
    */
   popoverSideDesktop?: DatePickerSide
 }
@@ -175,7 +175,7 @@ export function DatePicker({
   align,
   side,
   popoverAlignDesktop = 'end',
-  popoverSideDesktop = 'left',
+  popoverSideDesktop = 'bottom',
 }: DatePickerProps) {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
@@ -263,7 +263,7 @@ export function DatePicker({
       }
 
       setInternalDate(selectedDate)
-      const value = useUtcTimestamp ? toUnixSeconds(selectedDate) : formatOffsetDateTime(selectedDate)
+      const value = serializeDatePickerValue(selectedDate, { useUtcTimestamp })
       handleSingleDateChange(selectedDate)
       onFieldChange?.(fieldName, value)
       setTimeout(() => {
@@ -294,7 +294,7 @@ export function DatePicker({
           newDate.setTime(now.getTime())
         }
 
-        const value = useUtcTimestamp ? toUnixSeconds(newDate) : formatOffsetDateTime(newDate)
+        const value = serializeDatePickerValue(newDate, { useUtcTimestamp })
         setInternalDate(newDate)
         handleSingleDateChange(newDate)
         onFieldChange?.(fieldName, value)

@@ -49,7 +49,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
         header: t('address'),
         width: '2fr',
         cell: node => (
-          <div dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
+          <div dir="ltr" className="text-muted-foreground truncate font-mono text-xs">
             {node.address}:{node.port}
           </div>
         ),
@@ -62,7 +62,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
         cell: node => {
           if (!node.xray_version && !node.node_version) return null
           return (
-            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <div className="text-muted-foreground flex flex-col gap-1 text-xs">
               {node.xray_version && (
                 <div className="flex items-center gap-1.5">
                   <Server className="h-3.5 w-3.5 shrink-0" />
@@ -93,7 +93,7 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
         width: '64px',
         align: 'end',
         hideOnMobile: true,
-        cell: node => <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} />,
+        cell: node => <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} isModalHost={false} />,
       },
     ],
     [t, onEdit, onToggleStatus, coresData],

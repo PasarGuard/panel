@@ -7,12 +7,12 @@ from app.nats.proto_utils import serialize_proto_message, serialize_proto_messag
 from app.node import node_manager
 from app.node.user import serialize_users_for_node, serialize_user, _serialize_user_for_node
 from app.utils.logger import get_logger
-from config import ROLE
+from config import runtime_settings
 
 logger = get_logger("node-sync")
 
 
-if ROLE.runs_node:
+if runtime_settings.role.runs_node:
 
     async def _dispatch_user_update(proto_user):
         await node_manager.update_user(proto_user)

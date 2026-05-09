@@ -201,7 +201,7 @@ async def remove_group(
     response_description="Success confirmation",
 )
 async def bulk_add_groups_to_users(
-    bulk_group: BulkGroup, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    bulk_group: BulkGroup, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
 ):
     """
     Bulk assign groups to multiple users, users under specific admins, or all users.
@@ -224,7 +224,7 @@ async def bulk_add_groups_to_users(
     response_description="Success confirmation",
 )
 async def bulk_remove_users_from_groups(
-    bulk_group: BulkGroup, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    bulk_group: BulkGroup, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
 ):
     """
     Bulk remove groups from multiple users, users under specific admins, or all users.

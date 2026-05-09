@@ -48,7 +48,10 @@ class WireGuardConfiguration(BaseSubscription):
         if reserved := payload.get("reserved"):
             config_data["Interface"]["Reserved"] = str(reserved)
         if dns_servers := payload.get("dns"):
-            config_data["Interface"]["DNS"] = ", ".join(dns_servers)
+            if isinstance(dns_servers, str):
+                config_data["Interface"]["DNS"] = dns_servers.replace(",", ", ")
+            else:
+                config_data["Interface"]["DNS"] = ", ".join(dns_servers)
 
         # Optional Peer settings
         if preshared_key := payload.get("presharedkey"):

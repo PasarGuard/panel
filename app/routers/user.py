@@ -7,7 +7,13 @@ from app.db import AsyncSession, get_db
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.settings import ConfigFormat
-from app.models.stats import Period, UserUsageStatsList
+from app.models.stats import (
+    Period,
+    UserCountMetric,
+    UserCountMetricStatsList,
+    UserUsageStatsList,
+    validate_user_count_metric_scope,
+)
 from app.models.user import (
     BulkUser,
     BulkUsersActionResponse,
@@ -418,6 +424,15 @@ async def get_users(
     status: UserStatus | None = None,
     sort: str | None = None,
     proxy_id: str | None = None,
+    data_limit_min: int | None = Query(None, ge=0),
+    data_limit_max: int | None = Query(None, ge=0),
+    expire_after: dt | None = Query(None, examples=["2026-01-01T00:00:00+03:30"]),
+    expire_before: dt | None = Query(None, examples=["2026-01-31T23:59:59+03:30"]),
+    online_after: dt | None = Query(None, examples=["2026-01-01T00:00:00+03:30"]),
+    online_before: dt | None = Query(None, examples=["2026-01-31T23:59:59+03:30"]),
+    online: bool = False,
+    no_data_limit: bool = False,
+    no_expire: bool = False,
     load_sub: bool = False,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
@@ -435,6 +450,15 @@ async def get_users(
         sort=sort,
         load_sub=load_sub,
         proxy_id=proxy_id,
+        data_limit_min=data_limit_min,
+        data_limit_max=data_limit_max,
+        expire_after=expire_after,
+        expire_before=expire_before,
+        online_after=online_after,
+        online_before=online_before,
+        online=online,
+        no_data_limit=no_data_limit,
+        no_expire=no_expire,
         group_ids=group_ids,
     )
 
@@ -562,6 +586,41 @@ async def get_users_usage(
     return await user_operator.get_users_usage(
         db,
         admin=admin,
+        start=start,
+        end=end,
+        owner=owner,
+        period=period,
+        node_id=node_id,
+        group_by_node=group_by_node,
+    )
+
+
+@router.get("s/counts/{metric}", response_model=UserCountMetricStatsList)
+async def get_users_count_metric(
+    metric: UserCountMetric,
+    period: Period,
+    node_id: int | None = None,
+    group_by_node: bool = False,
+    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    db: AsyncSession = Depends(get_db),
+    owner: list[str] | None = Query(None, alias="admin"),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Get one users activity/status count metric from usage rows."""
+    try:
+        validate_user_count_metric_scope(
+            metric,
+            node_id=node_id if admin.is_sudo else None,
+            group_by_node=group_by_node if admin.is_sudo else False,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return await user_operator.get_users_count_metric(
+        db,
+        admin=admin,
+        metric=metric,
         start=start,
         end=end,
         owner=owner,

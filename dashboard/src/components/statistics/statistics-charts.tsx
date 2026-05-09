@@ -9,11 +9,12 @@ import SystemStatisticsSection from './system-statistics-section'
 import { AllNodesStackedBarChart } from '../charts/all-nodes-stacked-bar-chart'
 import { AreaCostumeChart } from '../charts/area-costume-chart'
 import { BarChart3 } from 'lucide-react'
+import { UserCountsChart } from '../charts/user-counts-chart'
 
 interface StatisticsChartsProps {
   data?: SystemStats
   isLoading: boolean
-  error: any
+  error?: { message?: string } | null
   selectedServer: string
   is_sudo: boolean
   nodesData?: NodeSimple[]
@@ -97,7 +98,7 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
+            <BarChart3 className="text-primary h-5 w-5" />
             <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
           </div>
         </div>
@@ -117,11 +118,11 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
+              <BarChart3 className="text-primary h-5 w-5" />
               <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
             </div>
           </div>
-          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
             <SystemStatisticsSection currentStats={currentStats} />
           </div>
         </div>
@@ -130,16 +131,19 @@ export default function StatisticsCharts({ data, isLoading, error, selectedServe
       {/* Charts Section */}
       <div className="space-y-8">
         {is_sudo && (
-          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '260ms', animationFillMode: 'both' }}>
+          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '260ms', animationFillMode: 'both' }}>
             {actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}
           </div>
         )}
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '300ms', animationFillMode: 'both' }}>
+          <UserCountsChart nodeId={selectedNodeId} isSudo={is_sudo} nodesData={nodesData} />
+        </div>
         {actualSelectedServer === 'master' && (
-          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '200ms', animationFillMode: 'both' }}>
+          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '310ms', animationFillMode: 'both' }}>
             <UserSubUpdatePieChart />
           </div>
         )}
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '320ms', animationFillMode: 'both' }}>
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '320ms', animationFillMode: 'both' }}>
           <AreaCostumeChart
             key={chartRefreshKey}
             nodeId={selectedNodeId}

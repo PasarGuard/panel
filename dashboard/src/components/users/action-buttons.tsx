@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CopyButton } from '@/components/common/copy-button'
 import { bytesToFormGigabytes } from '@/utils/formatByte'
-import { normalizeExpireForEditForm } from '@/utils/userEditDateUtils'
+import { normalizeDatePickerValueForEditForm } from '@/utils/userEditDateUtils'
 import SubscriptionModal from '@/components/dialogs/subscription-modal'
 import SetOwnerModal from '@/components/dialogs/set-owner-modal'
 import UsageModal from '@/components/dialogs/usage-modal'
@@ -23,7 +23,7 @@ import { UserSubscriptionClientsModal } from '@/components/dialogs/user-subscrip
 import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
+import { invalidateUserMetricsQueries, removeUserFromUsersCache, upsertUserInUsersCache } from '@/utils/usersCache'
 import { buildSubscriptionFormatUrl, fetchSubscriptionBlobFromUrl, fetchUserSubscriptionContent, resolveSubscriptionPublicUrl, type SubscriptionContentFormat } from '@/utils/subscription-config'
 
 type ActionButtonsProps = {
@@ -193,12 +193,12 @@ const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
   username: user.username,
   status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as UseEditFormValues['status']) : 'active',
   data_limit: user.data_limit ? bytesToFormGigabytes(Number(user.data_limit)) : 0,
-  expire: normalizeExpireForEditForm(user.expire),
+  expire: normalizeDatePickerValueForEditForm(user.expire),
   note: user.note || '',
   data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
   group_ids: user.group_ids || [],
   on_hold_expire_duration: user.on_hold_expire_duration || undefined,
-  on_hold_timeout: user.on_hold_timeout || undefined,
+  on_hold_timeout: normalizeDatePickerValueForEditForm(user.on_hold_timeout),
   proxy_settings: user.proxy_settings || undefined,
   next_plan: user.next_plan
     ? {
@@ -382,11 +382,6 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     pendingContentFetchRef.current = {}
   }, [subscribeLinks])
 
-  // Refresh user data function (only for delete operations)
-  const refreshUserData = () => {
-    queryClient.invalidateQueries({ queryKey: ['/api/users'] })
-  }
-
   // Handlers for menu items
   const handleEdit = () => {
     if (clearSelectedUserTimeoutRef.current) {
@@ -495,7 +490,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       await removeUserMutation.mutateAsync({ userId: user.id })
       toast.success(t('usersTable.deleteSuccess', { name: user.username }))
       setDeleteDialogOpen(false)
-      refreshUserData()
+      removeUserFromUsersCache(queryClient, user)
     } catch (error: any) {
       toast.error(t('usersTable.deleteFailed', { name: user.username, error: error?.message || '' }))
     }
@@ -923,4 +918,3 @@ export const ActionButtonsModalHost: FC = () => {
 }
 
 export default ActionButtons
-

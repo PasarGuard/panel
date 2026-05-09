@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import notification
 from app.core.manager import core_manager
-from app.db import AsyncSession
+from app.db import AsyncSession, GetDB
 from app.db.crud.node import (
     NodeSortingOptionsSimple,
     bulk_reset_node_usage,
@@ -26,7 +26,7 @@ from app.db.crud.node import (
     reset_node_usage,
     update_node_status,
 )
-from app.db.crud.user import get_user, get_users_count_by_status
+from app.db.crud.user import get_user, get_user_count_metric_stats, get_users_count_by_status
 from app.db.models import Node, NodeStatus, UserStatus
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
@@ -47,12 +47,20 @@ from app.models.node import (
     UserIPList,
     UserIPListAll,
 )
-from app.models.stats import NodeRealtimeStats, NodeStatsList, NodeUsageStatsList, Period
+from app.models.stats import (
+    NodeRealtimeStats,
+    NodeStatsList,
+    NodeUsageStatsList,
+    Period,
+    UserCountMetric,
+    UserCountMetricStatsList,
+    validate_user_count_metric_scope,
+)
 from app.nats.node_rpc import node_nats_client
 from app.node import calculate_max_message_size, core_users, node_manager
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
-from config import ROLE
+from config import runtime_settings
 
 MAX_MESSAGE_LENGTH = 128
 
@@ -62,7 +70,7 @@ logger = get_logger("node-operation")
 class NodeOperation(BaseOperation):
     def __init__(self, operator_type: OperatorType):
         super().__init__(operator_type)
-        if ROLE.runs_node:
+        if runtime_settings.role.runs_node:
             self._update_node_impl = self._update_node_local
             self._remove_node_impl = self._remove_node_local
             self._connect_single_impl = self._connect_single_node_local
@@ -277,6 +285,13 @@ class NodeOperation(BaseOperation):
                 "old_status": old_status,
             }
 
+    async def _connect_single_node_background(self, node_id: int) -> None:
+        try:
+            async with GetDB() as db:
+                await self._connect_single_impl(db, node_id)
+        except Exception as exc:
+            logger.error(f"Background node connection failed for node {node_id}: {exc}")
+
     async def create_node(self, db: AsyncSession, new_node: NodeCreate, admin: AdminDetails) -> NodeResponse:
         await self.get_validated_core_config(db, new_node.core_config_id)
         try:
@@ -286,7 +301,7 @@ class NodeOperation(BaseOperation):
 
         try:
             await self._update_node_impl(db_node)
-            asyncio.create_task(self._connect_single_impl(db, db_node.id))
+            asyncio.create_task(self._connect_single_node_background(db_node.id))
         except NodeAPIError as e:
             await self._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
 
@@ -312,7 +327,7 @@ class NodeOperation(BaseOperation):
         else:
             try:
                 await self._update_node_impl(db_node)
-                asyncio.create_task(self._connect_single_impl(db, db_node.id))
+                asyncio.create_task(self._connect_single_node_background(db_node.id))
             except NodeAPIError as e:
                 await self._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
 
@@ -431,6 +446,33 @@ class NodeOperation(BaseOperation):
     ) -> NodeUsageStatsList:
         start, end = await self.validate_dates(start, end, True)
         return await get_nodes_usage(db, start, end, period=period, node_id=node_id, group_by_node=group_by_node)
+
+    async def get_user_count_metric(
+        self,
+        db: AsyncSession,
+        metric: UserCountMetric,
+        start: dt = None,
+        end: dt = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserCountMetricStatsList:
+        start, end = await self.validate_dates(start, end, True)
+        try:
+            validate_user_count_metric_scope(metric, node_id=node_id, group_by_node=group_by_node)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400)
+
+        return await get_user_count_metric_stats(
+            db,
+            admins=None,
+            start=start,
+            end=end,
+            period=period,
+            metric=metric,
+            node_id=node_id,
+            group_by_node=group_by_node,
+        )
 
     async def get_logs(self, node_id: int) -> Callable[[], AsyncIterator[asyncio.Queue]]:
         return await self._get_logs_impl(node_id)

@@ -480,7 +480,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                   control={form.control}
                   name="is_sudo"
                   render={({ field }) => (
-                    <FormItem className="flex w-full cursor-pointer mb-2 flex-row items-center justify-between rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                    <FormItem className="mb-2 flex w-full cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
                       <div className="space-y-0.5 mb-0">
                         <FormLabel className="text-base">{t('admins.sudo')}</FormLabel>
                       </div>

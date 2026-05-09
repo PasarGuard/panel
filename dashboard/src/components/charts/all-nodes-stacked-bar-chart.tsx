@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import type { ComponentProps } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis, TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,6 +64,26 @@ const getDirectionalTraffic = (point: NodeUsageStat | UserUsageStat) => {
   }
 }
 
+const STACKED_BAR_RADIUS = 4
+type StackBarRadius = [number, number, number, number]
+type CellRadiusProps = Partial<ComponentProps<typeof Cell>>
+const SQUARE_STACK_RADIUS: StackBarRadius = [0, 0, 0, 0]
+
+const getCellRadiusProps = (radius: StackBarRadius) => ({ radius }) as unknown as CellRadiusProps
+
+const getStackedNodeRadius = (row: NodeChartDataPoint, nodeName: string, nodeList: NodeSimple[]): StackBarRadius => {
+  const visibleNodes = nodeList.filter(node => Number(row[node.name] || 0) > 0)
+  const visibleIndex = visibleNodes.findIndex(node => node.name === nodeName)
+
+  if (visibleIndex < 0) return SQUARE_STACK_RADIUS
+  if (visibleNodes.length === 1) return [STACKED_BAR_RADIUS, STACKED_BAR_RADIUS, STACKED_BAR_RADIUS, STACKED_BAR_RADIUS]
+
+  const isBottomSegment = visibleIndex === 0
+  const isTopSegment = visibleIndex === visibleNodes.length - 1
+
+  return [isTopSegment ? STACKED_BAR_RADIUS : 0, isTopSegment ? STACKED_BAR_RADIUS : 0, isBottomSegment ? STACKED_BAR_RADIUS : 0, isBottomSegment ? STACKED_BAR_RADIUS : 0]
+}
+
 function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<number, string> & { chartConfig?: ChartConfig; dir: string; period: Period }) {
   const { t, i18n } = useTranslation()
   const [isMobile, setIsMobile] = useState(false)
@@ -101,7 +122,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
 
   return (
     <div
-      className={`min-w-[120px] max-w-[280px] rounded border border-border bg-background p-1.5 text-[10px] shadow sm:min-w-[140px] sm:max-w-[300px] sm:p-2 sm:text-xs ${isRTL ? 'text-right' : 'text-left'} ${isMobile ? 'max-h-[200px] overflow-y-auto' : ''}`}
+      className={`border-border bg-background max-w-[280px] min-w-[120px] rounded border p-1.5 text-[10px] shadow sm:max-w-[300px] sm:min-w-[140px] sm:p-2 sm:text-xs ${isRTL ? 'text-right' : 'text-left'} ${isMobile ? 'max-h-[200px] overflow-y-auto' : ''}`}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       <div className="mb-1 text-center text-[10px] font-semibold opacity-70 sm:text-xs">
@@ -109,7 +130,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
           {formattedDate}
         </span>
       </div>
-      <div className="mb-1.5 flex items-center justify-center gap-1.5 text-center text-[10px] text-muted-foreground sm:text-xs">
+      <div className="text-muted-foreground mb-1.5 flex items-center justify-center gap-1.5 text-center text-[10px] sm:text-xs">
         <span>{t('statistics.totalUsage', { defaultValue: 'Total' })}: </span>
         <span dir="ltr" className="inline-block truncate font-mono">
           {formatGigabytes(activeNodes.reduce((sum, node) => sum + node.usage, 0))}
@@ -120,22 +141,22 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
           <div key={node.name} className={`flex flex-col gap-0.5 ${isRTL ? 'items-end' : 'items-start'}`}>
             <span className={`flex items-center gap-0.5 text-[10px] font-semibold sm:text-xs ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
               <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full sm:h-2 sm:w-2" style={{ backgroundColor: getNodeColor(node.name) }} />
-              <span className="max-w-[60px] overflow-hidden truncate text-ellipsis sm:max-w-[80px]" title={node.name}>
+              <span className="max-w-[60px] truncate overflow-hidden text-ellipsis sm:max-w-[80px]" title={node.name}>
                 {node.name}
               </span>
             </span>
-            <span dir="ltr" className="text-[9px] font-mono text-muted-foreground sm:text-[10px]">
+            <span dir="ltr" className="text-muted-foreground font-mono text-[9px] sm:text-[10px]">
               {formatGigabytes(node.usage)}
             </span>
             {hasDirectionalTraffic && (
-              <span className={`flex items-center gap-0.5 text-[9px] text-muted-foreground sm:text-[10px] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+              <span className={`text-muted-foreground flex items-center gap-0.5 text-[9px] sm:text-[10px] ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
                 <Upload className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
-                <span dir="ltr" className="inline-block max-w-[40px] overflow-hidden truncate text-ellipsis font-mono sm:max-w-[50px]" title={String(formatBytes(node.uplink))}>
+                <span dir="ltr" className="inline-block max-w-[40px] truncate overflow-hidden font-mono text-ellipsis sm:max-w-[50px]" title={String(formatBytes(node.uplink))}>
                   {formatBytes(node.uplink)}
                 </span>
                 <span className="mx-0.5 text-[8px] opacity-60 sm:text-[10px]">|</span>
                 <Download className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
-                <span dir="ltr" className="inline-block max-w-[40px] overflow-hidden truncate text-ellipsis font-mono sm:max-w-[50px]" title={String(formatBytes(node.downlink))}>
+                <span dir="ltr" className="inline-block max-w-[40px] truncate overflow-hidden font-mono text-ellipsis sm:max-w-[50px]" title={String(formatBytes(node.downlink))}>
                   {formatBytes(node.downlink)}
                 </span>
               </span>
@@ -143,7 +164,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
           </div>
         ))}
         {hasMoreNodes && (
-          <div className="col-span-full mt-1 flex w-full items-center justify-center gap-0.5 text-[9px] text-muted-foreground sm:text-[10px]">
+          <div className="text-muted-foreground col-span-full mt-1 flex w-full items-center justify-center gap-0.5 text-[9px] sm:text-[10px]">
             <Info className="h-2.5 w-2.5 flex-shrink-0 sm:h-3 sm:w-3" />
             <span className="text-center">{t('statistics.clickForMore', { defaultValue: 'Click for more details' })}</span>
           </div>
@@ -161,20 +182,20 @@ function NodePieTooltip({ active, payload }: TooltipProps<number, string>) {
   const data = payload[0].payload as NodePieChartDataPoint
 
   return (
-    <div className="rounded-lg border border-border bg-background/95 p-2 text-xs shadow-sm backdrop-blur-sm">
+    <div className="border-border bg-background/95 rounded-lg border p-2 text-xs shadow-sm backdrop-blur-sm">
       <div className="mb-1 flex items-center gap-1.5">
-        <div className="h-2.5 w-2.5 rounded-full border border-border/20" style={{ backgroundColor: data.fill }} />
-        <span className="font-medium text-foreground">{data.name}</span>
+        <div className="border-border/20 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: data.fill }} />
+        <span className="text-foreground font-medium">{data.name}</span>
       </div>
       <div className="flex items-center justify-between gap-3">
         <span className="text-muted-foreground">{t('statistics.totalUsage', { defaultValue: 'Total Usage' })}</span>
-        <span dir="ltr" className="font-mono font-semibold text-foreground">
+        <span dir="ltr" className="text-foreground font-mono font-semibold">
           {formatBytes(data.bytes)}
         </span>
       </div>
       <div className="mt-1 flex items-center justify-between gap-3">
         <span className="text-muted-foreground">{t('statistics.percentage', { defaultValue: 'Percentage' })}</span>
-        <span dir="ltr" className="font-mono text-foreground">{`${data.percentage.toFixed(1)}%`}</span>
+        <span dir="ltr" className="text-foreground font-mono">{`${data.percentage.toFixed(1)}%`}</span>
       </div>
     </div>
   )
@@ -257,21 +278,33 @@ export function AllNodesStackedBarChart() {
     [activePeriod, activeQueryRange.startDate, activeQueryRange.endDate],
   )
 
-  const { data: nodeUsageData, isLoading: isLoadingNodesUsage, error: nodesUsageError } = useGetUsage(usageParams, {
+  const {
+    data: nodeUsageData,
+    isLoading: isLoadingNodesUsage,
+    error: nodesUsageError,
+  } = useGetUsage(usageParams, {
     query: {
       enabled: shouldUseNodeUsage,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const { data: adminUsageByIdData, isLoading: isLoadingAdminUsageById, error: adminUsageByIdError } = useGetAdminUsageById(selectedAdminId ?? 0, usageParams, {
+  const {
+    data: adminUsageByIdData,
+    isLoading: isLoadingAdminUsageById,
+    error: adminUsageByIdError,
+  } = useGetAdminUsageById(selectedAdminId ?? 0, usageParams, {
     query: {
       enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId != null,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const { data: adminUsageByUsernameData, isLoading: isLoadingAdminUsageByUsername, error: adminUsageByUsernameError } = useGetAdminUsageByUsername(selectedAdmin, usageParams, {
+  const {
+    data: adminUsageByUsernameData,
+    isLoading: isLoadingAdminUsageByUsername,
+    error: adminUsageByUsernameError,
+  } = useGetAdminUsageByUsername(selectedAdmin, usageParams, {
     query: {
       enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId == null,
       refetchInterval: 1000 * 60 * 5,
@@ -450,9 +483,10 @@ export function AllNodesStackedBarChart() {
   }, [])
 
   const handleChartPointClick = useCallback(
-    (data: any) => {
-      const clickedIndex = typeof data?.activeTooltipIndex === 'number' ? data.activeTooltipIndex : -1
-      const clickedData = (data?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? chartData[clickedIndex] : undefined)) as NodeChartDataPoint | undefined
+    (data: unknown) => {
+      const chartClick = data as { activeTooltipIndex?: unknown; activePayload?: Array<{ payload?: unknown }> } | null
+      const clickedIndex = typeof chartClick?.activeTooltipIndex === 'number' ? chartClick.activeTooltipIndex : -1
+      const clickedData = (chartClick?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? chartData[clickedIndex] : undefined)) as NodeChartDataPoint | undefined
       if (!clickedData) return
 
       const activeNodesCount = Object.keys(clickedData).filter(key => {
@@ -479,12 +513,15 @@ export function AllNodesStackedBarChart() {
         <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
           <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
             <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-              <CardTitle className='mb-0.5'>{t('statistics.trafficUsage')}</CardTitle>
+              <CardTitle className="mb-0.5 flex items-center gap-2">
+                <BarChart3 className="text-muted-foreground h-4 w-4 shrink-0" />
+                <span>{t('statistics.trafficUsage')}</span>
+              </CardTitle>
               <CardDescription>{t('statistics.trafficUsageDescription')}</CardDescription>
             </div>
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-              <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full" />
+              <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none">
+                <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
                 <button
                   type="button"
                   aria-label="Custom Range"
@@ -510,7 +547,7 @@ export function AllNodesStackedBarChart() {
                   onAdminSelect={admin => setSelectedAdminId(admin?.id ?? null)}
                   className="min-w-0 flex-1 sm:w-[220px] sm:flex-none"
                 />
-                <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border bg-muted/30 p-1">
+                <div className="bg-muted/30 inline-flex h-8 shrink-0 items-center gap-1 rounded-md border p-1">
                   <button
                     type="button"
                     aria-label={chartViewType === 'area' ? t('theme.chartViewArea', { defaultValue: 'Area chart' }) : t('statistics.barChart', { defaultValue: 'Bar chart' })}
@@ -537,8 +574,9 @@ export function AllNodesStackedBarChart() {
             )}
           </div>
           <div className="m-0 flex flex-col justify-center p-4 xl:border-l xl:p-5 xl:px-6">
-            <span className="text-xs text-muted-foreground sm:text-sm">{t('statistics.usageDuringPeriod')}</span>
-            <span dir="ltr" className="flex justify-center text-lg text-foreground">
+            <span className="text-muted-foreground text-xs sm:text-sm">{t('statistics.usageDuringPeriod')}</span>
+            <span dir="ltr" className="text-foreground flex items-center justify-center gap-2 text-lg">
+              <BarChart3 className="text-muted-foreground h-4 w-4" />
               {isLoading ? <Skeleton className="h-5 w-20" /> : totalUsage ? totalUsage : <span className="text-muted-foreground">—</span>}
             </span>
           </div>
@@ -554,11 +592,7 @@ export function AllNodesStackedBarChart() {
             <EmptyState type="no-nodes" className="max-h-[400px] min-h-[200px]" />
           ) : (
             <div className="mx-auto w-full">
-              <ChartContainer
-                dir="ltr"
-                config={chartView === 'pie' ? pieChartConfig : chartConfig}
-                className="h-[200px] w-full sm:h-[320px] lg:h-[400px]"
-              >
+              <ChartContainer dir="ltr" config={chartView === 'pie' ? pieChartConfig : chartConfig} className="h-[200px] w-full sm:h-[320px] lg:h-[400px]">
                 {chartData.length > 0 && chartView === 'bar' ? (
                   chartViewType === 'area' ? (
                     <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
@@ -589,17 +623,7 @@ export function AllNodesStackedBarChart() {
                         width={32}
                         tickMargin={2}
                       />
-                      <ChartTooltip
-                        cursor={false}
-                        content={props => (
-                          <CustomTooltip
-                            {...(props as TooltipProps<number, string>)}
-                            chartConfig={chartConfig}
-                            dir={dir}
-                            period={activePeriod}
-                          />
-                        )}
-                      />
+                      <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
                       {nodeList.map((node, index) => (
                         <Area
                           key={node.id}
@@ -632,38 +656,20 @@ export function AllNodesStackedBarChart() {
                         width={32}
                         tickMargin={2}
                       />
-                      <ChartTooltip
-                        cursor={false}
-                        content={props => (
-                          <CustomTooltip
-                            {...(props as TooltipProps<number, string>)}
-                            chartConfig={chartConfig}
-                            dir={dir}
-                            period={activePeriod}
-                          />
-                        )}
-                      />
+                      <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
                       {nodeList.map((node, index) => (
-                        <Bar
-                          key={node.id}
-                          dataKey={node.name}
-                          stackId="a"
-                          minPointSize={1}
-                          fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
-                          radius={nodeList.length === 1 ? [4, 4, 4, 4] : index === 0 ? [0, 0, 4, 4] : index === nodeList.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                          cursor="pointer"
-                          className="overflow-hidden rounded-t-xl"
-                        />
+                        <Bar key={node.id} dataKey={node.name} stackId="a" fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`} radius={SQUARE_STACK_RADIUS} cursor="pointer">
+                          {chartData.map(row => (
+                            <Cell key={`${node.id}-${row._period_start}`} {...getCellRadiusProps(getStackedNodeRadius(row, node.name, nodeList))} />
+                          ))}
+                        </Bar>
                       ))}
                     </BarChart>
                   )
                 ) : chartData.length > 0 && chartView === 'pie' ? (
                   pieData.length > 0 ? (
                     <PieChart>
-                      <ChartTooltip
-                        cursor={false}
-                        content={props => <NodePieTooltip {...(props as TooltipProps<number, string>)} />}
-                      />
+                      <ChartTooltip cursor={false} content={props => <NodePieTooltip {...(props as TooltipProps<number, string>)} />} />
                       <Pie data={pieData} dataKey="bytes" nameKey="name" innerRadius="45%" outerRadius="88%" paddingAngle={piePaddingAngle} strokeWidth={1.5}>
                         {pieData.map(point => (
                           <Cell key={point.name} fill={point.fill} />
@@ -685,14 +691,14 @@ export function AllNodesStackedBarChart() {
                       const itemConfig = chartConfig[nodeName]
                       const percentage = typeof item === 'object' && 'percentage' in item ? item.percentage : undefined
                       return (
-                        <div dir="ltr" key={nodeName} className="flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground">
+                        <div dir="ltr" key={nodeName} className="[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3">
                           <div
                             className="h-2 w-2 shrink-0 rounded-[2px]"
                             style={{
                               backgroundColor: itemConfig?.color || (typeof item === 'object' && 'fill' in item ? item.fill : 'hsl(var(--chart-1))'),
                             }}
                           />
-                          <span className="whitespace-nowrap text-xs">
+                          <span className="text-xs whitespace-nowrap">
                             {nodeName}
                             {typeof percentage === 'number' ? ` (${percentage.toFixed(1)}%)` : ''}
                           </span>

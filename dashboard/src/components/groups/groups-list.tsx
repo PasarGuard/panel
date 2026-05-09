@@ -332,7 +332,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           getRowId={group => group.id}
           isLoading={isCurrentlyLoading}
           loadingRows={6}
-          className="gap-3"
+          className={viewMode === 'grid' ? 'gap-4' : 'gap-3'}
           onRowClick={handleEdit}
           mode={viewMode}
           enableSelection

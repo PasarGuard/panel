@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
+from config import usage_settings
 from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import get_admin
@@ -34,6 +35,7 @@ from app.db.crud.user import (
     get_all_users_usages,
     get_existing_usernames,
     get_expired_users,
+    get_user_count_metric_stats,
     get_user_usages,
     get_users,
     get_users_simple,
@@ -51,7 +53,13 @@ from app.db.crud.user import (
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
-from app.models.stats import Period, UserUsageStatsList
+from app.models.stats import (
+    Period,
+    UserCountMetric,
+    UserCountMetricStatsList,
+    UserUsageStatsList,
+    validate_user_count_metric_scope,
+)
 from app.models.user import (
     BulkOperationDryRunResponse,
     BulkUser,
@@ -89,7 +97,7 @@ from app.utils.wireguard import (
     prepare_wireguard_keys_only,
     prepare_wireguard_proxy_settings,
 )
-from config import SUBSCRIPTION_PATH
+from config import subscription_env_settings
 
 logger = get_logger("user-operation")
 
@@ -118,7 +126,7 @@ class UserOperation(BaseOperation):
             else (settings.url_prefix).replace("*", salt)
         )
         token = await create_subscription_token(user.id)
-        return f"{url_prefix}/{SUBSCRIPTION_PATH}/{token}"
+        return f"{url_prefix}/{subscription_env_settings.path}/{token}"
 
     async def _generate_usernames(
         self,
@@ -454,11 +462,15 @@ class UserOperation(BaseOperation):
         db_user: User,
         admin: AdminDetails,
         *,
+        clean_chart_data: bool | None = None,
         emit_status_change_notification: bool = True,
     ):
         old_status = db_user.status
 
-        db_user = await reset_user_data_usage(db=db, db_user=db_user)
+        if clean_chart_data is None:
+            clean_chart_data = usage_settings.reset_user_usage_clean_chart_data
+
+        db_user = await reset_user_data_usage(db=db, db_user=db_user, clean_chart_data=clean_chart_data)
         user = await self.update_user(db_user)
 
         if emit_status_change_notification and user.status != old_status:
@@ -491,7 +503,11 @@ class UserOperation(BaseOperation):
         db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
         old_statuses = {user.id: user.status for user in db_users}
 
-        db_users = await bulk_reset_user_data_usage(db, db_users)
+        db_users = await bulk_reset_user_data_usage(
+            db,
+            db_users,
+            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+        )
         await sync_users(db_users)
 
         users = [await self.validate_user(db_user) for db_user in db_users]
@@ -570,14 +586,22 @@ class UserOperation(BaseOperation):
     async def reset_users_data_usage(self, db: AsyncSession, admin: AdminDetails):
         """Reset all users data usage"""
         db_admin = await self.get_validated_admin(db, admin.username)
-        await reset_all_users_data_usage(db=db, admin=db_admin)
+        await reset_all_users_data_usage(
+            db=db,
+            admin=db_admin,
+            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+        )
 
     async def _active_next_plan(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> UserResponse:
         if db_user is None or db_user.next_plan is None:
             await self.raise_error(message="User doesn't have next plan", code=404)
 
         old_status = db_user.status
-        db_user = await reset_user_by_next(db=db, db_user=db_user)
+        db_user = await reset_user_by_next(
+            db=db,
+            db_user=db_user,
+            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+        )
         user = await self.update_user(db_user)
 
         if user.status != old_status:
@@ -723,6 +747,15 @@ class UserOperation(BaseOperation):
         status: UserStatus | None = None,
         sort: str | None = None,
         proxy_id: str | None = None,
+        data_limit_min: int | None = None,
+        data_limit_max: int | None = None,
+        expire_after: dt | None = None,
+        expire_before: dt | None = None,
+        online_after: dt | None = None,
+        online_before: dt | None = None,
+        online: bool = False,
+        no_data_limit: bool = False,
+        no_expire: bool = False,
         load_sub: bool = False,
         group_ids: list[int] | None = None,
     ) -> UsersResponse:
@@ -750,6 +783,15 @@ class UserOperation(BaseOperation):
             status=status,
             sort=sort_list,
             proxy_id=proxy_id,
+            data_limit_min=data_limit_min,
+            data_limit_max=data_limit_max,
+            expire_after=expire_after,
+            expire_before=expire_before,
+            online_after=online_after,
+            online_before=online_before,
+            online=online,
+            no_data_limit=no_data_limit,
+            no_expire=no_expire,
             admins=owner if admin.is_sudo else [admin.username],
             return_with_count=True,
             group_ids=group_ids,
@@ -833,6 +875,41 @@ class UserOperation(BaseOperation):
             period=period,
             node_id=node_id,
             admins=owner if admin.is_sudo else [admin.username],
+            group_by_node=group_by_node,
+        )
+
+    async def get_users_count_metric(
+        self,
+        db: AsyncSession,
+        admin: AdminDetails,
+        metric: UserCountMetric,
+        start: dt = None,
+        end: dt = None,
+        owner: list[str] | None = None,
+        period: Period = Period.hour,
+        node_id: int | None = None,
+        group_by_node: bool = False,
+    ) -> UserCountMetricStatsList:
+        """Get one users activity/status count metric from usage rows."""
+        start, end = await self.validate_dates(start, end, True)
+
+        if not admin.is_sudo:
+            node_id = None
+            group_by_node = False
+
+        try:
+            validate_user_count_metric_scope(metric, node_id=node_id, group_by_node=group_by_node)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400)
+
+        return await get_user_count_metric_stats(
+            db=db,
+            admins=owner if admin.is_sudo else [admin.username],
+            start=start,
+            end=end,
+            period=period,
+            metric=metric,
+            node_id=node_id,
             group_by_node=group_by_node,
         )
 

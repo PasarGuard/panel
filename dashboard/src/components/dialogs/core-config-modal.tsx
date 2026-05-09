@@ -95,6 +95,13 @@ const createDefaultVlessOptions = (): VlessBuilderOptions => ({
 
 const defaultXrayConfig = JSON.stringify(
   {
+    policy: {
+      levels: {
+        '0': {
+          statsUserOnline: true,
+        },
+      },
+    },
     log: {
       loglevel: 'info',
     },

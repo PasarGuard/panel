@@ -132,6 +132,7 @@ class SubscriptionUserResponse(UserResponse):
     note: str | None = Field(None, exclude=True)
     auto_delete_in_days: int | None = Field(None, exclude=True)
     subscription_url: str | None = Field(None, exclude=True)
+    ip: str | None = Field(default=None)
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -164,6 +165,7 @@ class UsersSimpleResponse(BaseModel):
 class UserSubscriptionUpdateSchema(BaseModel):
     created_at: dt
     user_agent: str
+    ip: str | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 

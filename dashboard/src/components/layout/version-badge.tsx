@@ -48,11 +48,11 @@ export function VersionBadge({ currentVersion, className }: VersionBadgeProps) {
             href={releaseLink}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn('inline-flex items-center gap-0.5 text-[10px] opacity-70 text-amber-600 dark:text-amber-400 hover:opacity-100 hover:underline min-w-0 max-w-full transition-opacity', className)}
+            className={cn('inline-flex min-w-max items-center gap-0.5 whitespace-nowrap text-[10px] leading-none text-amber-600 opacity-70 transition-opacity hover:opacity-100 hover:underline dark:text-amber-400', className)}
             onClick={(e) => e.stopPropagation()}
           >
             <span className="h-1 w-1 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
-            <span className="truncate min-w-0">{t('version.needsUpdate')}</span>
+            <span className="whitespace-nowrap leading-none">{t('version.needsUpdate')}</span>
           </a>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="p-1.5">
@@ -73,9 +73,9 @@ export function VersionBadge({ currentVersion, className }: VersionBadgeProps) {
     return (
       <Tooltip delayDuration={100}>
         <TooltipTrigger asChild>
-          <span className={cn('inline-flex items-center gap-0.5 text-[10px] opacity-70 text-emerald-600 dark:text-emerald-400 min-w-0 max-w-full', className)}>
+          <span className={cn('inline-flex min-w-max items-center gap-0.5 whitespace-nowrap text-[10px] leading-none text-emerald-600 opacity-70 dark:text-emerald-400', className)}>
             <span className="h-1 w-1 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
-            <span className="truncate min-w-0">{t('version.upToDate')}</span>
+            <span className="whitespace-nowrap leading-none">{t('version.upToDate')}</span>
           </span>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="p-1.5">

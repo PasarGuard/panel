@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   useGetGroupsSimple,
   useGetUsersSimple,
@@ -17,7 +17,6 @@ import {
 } from '@/service/api'
 import { Button } from '@/components/ui/button'
 import { LoaderButton } from '@/components/ui/loader-button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -28,26 +27,9 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import {
-  Settings,
-  Group,
-  User,
-  Shield,
-  CheckCircle,
-  AlertTriangle,
-  Plus,
-  Minus,
-  X,
-  HardDrive,
-  Calendar,
-  Network,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Loader2,
-} from 'lucide-react'
+import { Settings, Group, User, Shield, CheckCircle, AlertTriangle, Plus, Minus, X, HardDrive, Calendar, Network, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2 } from 'lucide-react'
 import { BulkExpiredDateFilters } from '@/components/bulk/bulk-expired-date-filters'
+import { DecimalInput } from '@/components/common/decimal-input'
 import { SelectorPanel } from '@/components/bulk/selector-panel'
 import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
@@ -80,13 +62,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
   const [dataLimit, setDataLimit] = useState<number | undefined>(undefined)
   const [dataOperation, setDataOperation] = useState<'add' | 'subtract'>('add')
-  const dataLimitInputRef = useRef<string>('')
-  const [dataLimitInput, setDataLimitInput] = useState('')
-
-  const setDataLimitRawInput = (value: string) => {
-    dataLimitInputRef.current = value
-    setDataLimitInput(value)
-  }
 
   const [expireSeconds, setExpireSeconds] = useState<number | undefined>(undefined)
   const [expireUnit, setExpireUnit] = useState<ExpiryUnit>('days')
@@ -336,15 +311,9 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       { data: payload as any },
       {
         onSuccess: response => {
-          if (
-            response &&
-            typeof response === 'object' &&
-            'wireguard_inbound_tags' in response &&
-            'dry_run' in response &&
-            (response as { dry_run?: boolean }).dry_run === false
-          ) {
+          if (response && typeof response === 'object' && 'wireguard_inbound_tags' in response && 'dry_run' in response && (response as { dry_run?: boolean }).dry_run === false) {
             const r = response as { affected_users?: number; updated?: number; wireguard_inbound_tags: number }
-            const n = typeof r.affected_users === 'number' ? r.affected_users : r.updated ?? 0
+            const n = typeof r.affected_users === 'number' ? r.affected_users : (r.updated ?? 0)
             toast.success(t('operationSuccess', { defaultValue: 'Done' }), {
               description: t('bulk.applySuccessWithInbounds', {
                 count: n,
@@ -382,7 +351,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           setSelectedFlow(undefined)
           setSelectedMethod(undefined)
           setDataLimit(undefined)
-          setDataLimitRawInput('')
           setExpireSeconds(undefined)
           setExpireAmount(undefined)
           setSelectedGroups([])
@@ -499,8 +467,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   // For groups operation, groups are the operation target, not user targets
   // So isApplyToAll should only check users, admins, and hasGroups
   const totalTargets = selectedUsers.length + selectedAdmins.length + (operationType === 'groups' ? selectedHasGroups.length : selectedGroups.length)
-  const hasStatusFilter =
-    (operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && selectedStatuses.length > 0
+  const hasStatusFilter = (operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && selectedStatuses.length > 0
   const statusTargetCount = hasStatusFilter ? selectedStatuses.length : 0
   const hasExpireDateFilter = (operationType === 'data' || operationType === 'expire') && Boolean(expiredAfter || expiredBefore)
   const expireDateFilterCount = hasExpireDateFilter ? Number(Boolean(expiredAfter)) + Number(Boolean(expiredBefore)) : 0
@@ -538,17 +505,17 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                       className={cn(
                         'relative flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 sm:h-9 sm:w-9',
                         isCompleted && 'border-primary bg-primary text-primary-foreground shadow-sm',
-                        isActive && 'scale-105 border-primary bg-background text-primary shadow-md',
+                        isActive && 'border-primary bg-background text-primary scale-105 shadow-md',
                         isUpcoming && 'border-muted-foreground/30 bg-background text-muted-foreground',
                       )}
                     >
                       {isCompleted ? <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" /> : <Icon className={cn('h-4 w-4 sm:h-5 sm:w-5', isActive && 'text-primary')} />}
-                      {isActive && <div className="absolute inset-0 animate-pulse rounded-full border-2 border-primary/20" />}
+                      {isActive && <div className="border-primary/20 absolute inset-0 animate-pulse rounded-full border-2" />}
                     </div>
                     <span
                       className={cn(
-                        'hidden max-w-[60px] text-center text-[10px] font-medium leading-tight sm:block sm:max-w-[80px] sm:text-xs',
-                        isActive && 'font-semibold text-primary',
+                        'hidden max-w-[60px] text-center text-[10px] leading-tight font-medium sm:block sm:max-w-[80px] sm:text-xs',
+                        isActive && 'text-primary font-semibold',
                         isCompleted && 'text-primary',
                         isUpcoming && 'text-muted-foreground',
                       )}
@@ -577,7 +544,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="flow" className="flex items-center gap-1.5 text-sm font-medium">
-                        <Network className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Network className="text-muted-foreground h-3.5 w-3.5" />
                         {t('bulk.flowLabel', { defaultValue: 'Flow' })}
                       </Label>
                       <Select value={selectedFlow || ''} onValueChange={value => setSelectedFlow(value as XTLSFlows | 'none')}>
@@ -598,7 +565,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="method" className="flex items-center gap-1.5 text-sm font-medium">
-                        <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Settings className="text-muted-foreground h-3.5 w-3.5" />
                         {t('bulk.methodLabel', { defaultValue: 'Method' })}
                       </Label>
                       <Select value={selectedMethod || ''} onValueChange={value => setSelectedMethod(value as ShadowsocksMethods)}>
@@ -622,7 +589,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                 <div className="space-y-3 sm:space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="data-limit" className="flex items-center gap-1.5 text-sm font-medium">
-                      <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
+                      <HardDrive className="text-muted-foreground h-3.5 w-3.5" />
                       {t('bulk.dataLimitLabel', { defaultValue: 'Data Limit (GB)' })}
                     </Label>
                     <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
@@ -633,80 +600,31 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         className="h-9 w-full rounded-md border p-0.5 sm:w-auto"
                         defaultValue="add"
                       >
-                        <ToggleGroupItem value="add" aria-label="Add" size="sm" className="h-8 flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
+                        <ToggleGroupItem value="add" aria-label="Add" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 sm:flex-initial">
                           <Plus className="h-4 w-4" />
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="subtract" aria-label="Subtract" size="sm" className="h-8 flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
+                        <ToggleGroupItem value="subtract" aria-label="Subtract" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 sm:flex-initial">
                           <Minus className="h-4 w-4" />
                         </ToggleGroupItem>
                       </ToggleGroup>
                       <div className="relative flex-1 sm:max-w-xs">
-                        <Input
+                        <DecimalInput
                           id="data-limit"
-                          type="text"
-                          inputMode="decimal"
                           placeholder={t('bulk.dataLimitPlaceholder', { defaultValue: 'Enter amount' })}
-                          value={dataLimitInput !== '' ? dataLimitInput : dataLimit !== undefined && dataLimit > 0 ? String(dataLimit) : ''}
-                          onChange={e => {
-                            const rawValue = e.target.value.trim()
-
-                            setDataLimitRawInput(rawValue)
-
-                            if (rawValue === '') {
-                              setDataLimit(undefined)
-                              return
-                            }
-
-                            const validNumberPattern = /^-?\d*\.?\d*$/
-                            if (validNumberPattern.test(rawValue)) {
-                              if (rawValue.endsWith('.') && rawValue.length > 1) {
-                                const prevValue = dataLimit !== undefined ? dataLimit : 0
-                                setDataLimit(prevValue)
-                              } else if (rawValue === '.') {
-                                setDataLimit(undefined)
-                              } else {
-                                const numValue = parseFloat(rawValue)
-                                if (!isNaN(numValue) && numValue >= 0) {
-                                  setDataLimit(numValue)
-                                }
-                              }
-                            }
-                          }}
-                          onBlur={() => {
-                            const rawValue = dataLimitInputRef.current.trim()
-                            if (rawValue === '' || rawValue === '.' || rawValue === '0') {
-                              setDataLimitRawInput('')
-                              setDataLimit(undefined)
-                            } else {
-                              const numValue = parseFloat(rawValue)
-                              if (!isNaN(numValue) && numValue >= 0) {
-                                const finalValue = numValue
-                                setDataLimitRawInput(finalValue > 0 ? String(finalValue) : '')
-                                setDataLimit(finalValue > 0 ? finalValue : undefined)
-                              } else {
-                                setDataLimitRawInput('')
-                                setDataLimit(undefined)
-                              }
-                            }
-                          }}
-                          className={cn(isRTL ? 'pl-12 pr-3' : 'pr-12 pl-3')}
+                          value={dataLimit}
+                          zeroValue={0}
+                          onValueChange={setDataLimit}
+                          className={cn(isRTL ? 'pr-3 pl-12' : 'pr-12 pl-3')}
                         />
-                        <span
-                          className={cn(
-                            'pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm text-muted-foreground',
-                            isRTL ? 'left-3' : 'right-3',
-                          )}
-                        >
-                          GB
-                        </span>
+                        <span className={cn('text-muted-foreground pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm', isRTL ? 'left-3' : 'right-3')}>GB</span>
                         {dataLimit !== undefined && dataLimit > 0 && dataLimit < 1 && (
-                          <p dir="ltr" className="absolute right-0 top-full mt-1 text-end text-xs text-muted-foreground">
+                          <p dir="ltr" className="text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs">
                             {formatBytes(Math.round(dataLimit * 1024 * 1024 * 1024))}
                           </p>
                         )}
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       {dataOperation === 'add' ? t('bulk.addDataLimit', { defaultValue: 'Add Data Limit' }) : t('bulk.subtractDataLimit', { defaultValue: 'Subtract Data Limit' })}
                     </p>
                     {dataOperation === 'subtract' && (
@@ -724,7 +642,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                 <div className="space-y-3 sm:space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="expire-amount" className="flex items-center gap-1.5 text-sm font-medium">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Calendar className="text-muted-foreground h-3.5 w-3.5" />
                       {t('bulk.expireDate', { defaultValue: 'Expire Date' })}
                     </Label>
                     <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
@@ -735,40 +653,29 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         className="h-9 w-full rounded-md border p-0.5 sm:w-auto"
                         defaultValue="add"
                       >
-                        <ToggleGroupItem value="add" aria-label="Add" size="sm" className="h-8 flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
+                        <ToggleGroupItem value="add" aria-label="Add" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 sm:flex-initial">
                           <Plus className="h-4 w-4" />
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="subtract" aria-label="Subtract" size="sm" className="h-8 flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial">
+                        <ToggleGroupItem value="subtract" aria-label="Subtract" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 sm:flex-initial">
                           <Minus className="h-4 w-4" />
                         </ToggleGroupItem>
                       </ToggleGroup>
                       <div className="relative flex-1 sm:max-w-xs">
-                        <Input
+                        <DecimalInput
                           id="expire-amount"
-                          type="number"
                           placeholder={t('bulk.expire.placeholder', { defaultValue: 'Enter amount' })}
-                          value={expireAmount === undefined ? '' : expireAmount}
-                          onChange={e => {
-                            const value = Number.parseFloat(e.target.value)
-                            if (!isNaN(value) && value > 0) setExpireAmount(value)
-                            else if (e.target.value === '') setExpireAmount(undefined)
-                          }}
-                          step="1"
-                          min="1"
-                          dir="ltr"
-                          className={cn(isRTL ? 'pl-[4.5rem] pr-3' : 'pr-[4.5rem] pl-3')}
+                          value={expireAmount}
+                          onValueChange={value => setExpireAmount(value && value > 0 ? value : undefined)}
+                          className={cn(isRTL ? 'pr-3 pl-[4.5rem]' : 'pr-[4.5rem] pl-3')}
                         />
                         <TimeUnitSelect
                           value={expireUnit}
                           onValueChange={setExpireUnit}
-                          triggerClassName={cn(
-                            'pointer-events-auto absolute top-0 h-full w-[4.5rem] px-2',
-                            isRTL ? 'left-0 rounded-r-none border-r-0' : 'right-0 rounded-l-none border-l-0',
-                          )}
+                          triggerClassName={cn('pointer-events-auto absolute top-0 h-full w-[4.5rem] px-2', isRTL ? 'left-0 rounded-r-none border-r-0' : 'right-0 rounded-l-none border-l-0')}
                         />
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       {expireOperation === 'add' ? t('bulk.addExpiry', { defaultValue: 'Add to Expiry' }) : t('bulk.subtractExpiry', { defaultValue: 'Subtract from Expiry' })}
                     </p>
                   </div>
@@ -779,7 +686,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                 <div className="space-y-4 sm:space-y-5">
                   <div className="space-y-2.5 sm:space-y-3">
                     <Label className="flex items-center gap-1.5 text-sm font-medium">
-                      <Group className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Group className="text-muted-foreground h-3.5 w-3.5" />
                       {t('bulk.groups', { defaultValue: 'Groups' })}
                     </Label>
                     <div>
@@ -790,11 +697,11 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         className="inline-flex w-full rounded-md border p-1 sm:w-auto"
                         defaultValue="add"
                       >
-                        <ToggleGroupItem value="add" aria-label="Add" className="flex-1 px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial sm:px-4">
+                        <ToggleGroupItem value="add" aria-label="Add" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground flex-1 px-3 sm:flex-initial sm:px-4">
                           <Plus className="h-4 w-4" />
                           <span className="ml-1.5 text-xs sm:ml-2 sm:text-sm">{t('bulk.addGroups', { defaultValue: 'Add Groups' })}</span>
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="remove" aria-label="Remove" className="flex-1 px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:flex-initial sm:px-4">
+                        <ToggleGroupItem value="remove" aria-label="Remove" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground flex-1 px-3 sm:flex-initial sm:px-4">
                           <Minus className="h-4 w-4" />
                           <span className="ml-1.5 text-xs sm:ml-2 sm:text-sm">{t('bulk.removeGroups', { defaultValue: 'Remove Groups' })}</span>
                         </ToggleGroupItem>
@@ -805,7 +712,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                   <div className="space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <Label className="flex items-center gap-1.5 text-sm font-medium">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        <CheckCircle2 className="text-muted-foreground h-3.5 w-3.5" />
                         {groupsOperation === 'add' ? t('bulk.groupsToAdd', { defaultValue: 'Groups to Add' }) : t('bulk.groupsToRemove', { defaultValue: 'Groups to Remove' })}
                       </Label>
                       {!groupsLoading && filteredGroups.length > 0 && (
@@ -835,7 +742,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         disabled={groupsLoading}
                       />
                       {groupsLoading ? (
-                        <div className="flex min-h-[10rem] flex-col items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                        <div className="text-muted-foreground flex min-h-[10rem] flex-col items-center justify-center gap-2 py-6 text-sm">
                           <Loader2 className="h-5 w-5 animate-spin sm:h-6 sm:w-6" aria-hidden />
                           <span>{t('loading', { defaultValue: 'Loading...' })}</span>
                         </div>
@@ -856,8 +763,10 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                                     }
                                   }}
                                 >
-                                  <div className={cn('mr-2 flex h-4 w-4 items-center justify-center rounded-sm border', selectedGroups.includes(group.id) ? 'border-primary bg-primary' : 'border-muted')}>
-                                    {selectedGroups.includes(group.id) && <CheckCircle className="h-3 w-3 text-primary-foreground" />}
+                                  <div
+                                    className={cn('mr-2 flex h-4 w-4 items-center justify-center rounded-sm border', selectedGroups.includes(group.id) ? 'border-primary bg-primary' : 'border-muted')}
+                                  >
+                                    {selectedGroups.includes(group.id) && <CheckCircle className="text-primary-foreground h-3 w-3" />}
                                   </div>
                                   {group.name}
                                 </CommandItem>
@@ -874,7 +783,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                             <Badge key={group.id} variant="secondary" className="flex items-center gap-1.5 px-2.5 py-1">
                               {group.name}
                               <X
-                                className="h-3 w-3 cursor-pointer transition-colors hover:text-destructive"
+                                className="hover:text-destructive h-3 w-3 cursor-pointer transition-colors"
                                 onClick={() => {
                                   setSelectedGroups(selectedGroups.filter(id => id !== group.id))
                                 }}
@@ -889,20 +798,14 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
               {operationType === 'wireguard' && (
                 <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="replace-all-wg"
-                    checked={replaceAllPeerIps}
-                    onCheckedChange={v => setReplaceAllPeerIps(v === true)}
-                    className="mt-0.5"
-                  />
+                  <Checkbox id="replace-all-wg" checked={replaceAllPeerIps} onCheckedChange={v => setReplaceAllPeerIps(v === true)} className="mt-0.5" />
                   <div className="space-y-1">
-                    <Label htmlFor="replace-all-wg" className="cursor-pointer text-sm font-medium leading-snug">
+                    <Label htmlFor="replace-all-wg" className="cursor-pointer text-sm leading-snug font-medium">
                       {t('bulk.replaceAllPeerIps', { defaultValue: 'Replace all IPs' })}
                     </Label>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       {t('bulk.replaceAllPeerIpsHint', {
-                        defaultValue:
-                          'When enabled, every affected user gets a new peer IP from the pool. When disabled, only invalid or missing peer IPs are updated.',
+                        defaultValue: 'When enabled, every affected user gets a new peer IP from the pool. When disabled, only invalid or missing peer IPs are updated.',
                       })}
                     </p>
                   </div>
@@ -915,11 +818,11 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <div className="space-y-3 sm:space-y-4">
               <div className="space-y-2">
                 {isApplyToAll && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950/20 sm:p-3">
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5 sm:p-3 dark:border-blue-800 dark:bg-blue-950/20">
                     <div className="flex items-start gap-2">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-blue-600 dark:text-blue-400 sm:h-4 sm:w-4" />
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-blue-600 sm:h-4 sm:w-4 dark:text-blue-400" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium leading-relaxed text-blue-800 dark:text-blue-200 sm:text-sm">
+                        <p className="text-xs leading-relaxed font-medium text-blue-800 sm:text-sm dark:text-blue-200">
                           {t('bulk.noSelectionInfo', { defaultValue: 'No targets selected. This operation will apply to ALL users, admins, and groups in the system.' })}
                         </p>
                       </div>
@@ -940,7 +843,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                             const option = statusOptions.find(opt => opt.value === status)
                             if (!option) return null
                             return (
-                              <span key={status} className="flex items-center gap-2 rounded-md bg-muted/80 px-2 py-1 text-sm">
+                              <span key={status} className="bg-muted/80 flex items-center gap-2 rounded-md px-2 py-1 text-sm">
                                 {option.label}
                                 <button
                                   type="button"
@@ -955,7 +858,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                             )
                           })
                         ) : (
-                          <span className="text-sm text-muted-foreground">{t('hostsDialog.noStatus', { defaultValue: 'No status selected' })}</span>
+                          <span className="text-muted-foreground text-sm">{t('hostsDialog.noStatus', { defaultValue: 'No status selected' })}</span>
                         )}
                       </div>
                       <Select
@@ -975,7 +878,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                             <SelectItem
                               key={option.value}
                               value={option.value}
-                              className="flex cursor-pointer items-center gap-2 px-4 py-2 focus:bg-accent"
+                              className="focus:bg-accent flex cursor-pointer items-center gap-2 px-4 py-2"
                               disabled={selectedStatuses.includes(option.value)}
                             >
                               <div className="flex w-full items-center gap-3">
@@ -998,12 +901,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
               {(operationType === 'data' || operationType === 'expire') && (
                 <Card>
                   <CardContent className="p-3 sm:p-4">
-                    <BulkExpiredDateFilters
-                      expiredAfter={expiredAfter}
-                      expiredBefore={expiredBefore}
-                      onExpiredAfterChange={setExpiredAfter}
-                      onExpiredBeforeChange={setExpiredBefore}
-                    />
+                    <BulkExpiredDateFilters expiredAfter={expiredAfter} expiredBefore={expiredBefore} onExpiredAfterChange={setExpiredAfter} onExpiredBeforeChange={setExpiredBefore} />
                   </CardContent>
                 </Card>
               )}
@@ -1094,7 +992,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
           {currentStep === 3 && (
             <div className="space-y-3 sm:space-y-4">
-              <div className="space-y-2 rounded-lg bg-muted/50 p-3 sm:space-y-3 sm:p-4">
+              <div className="bg-muted/50 space-y-2 rounded-lg p-3 sm:space-y-3 sm:p-4">
                 <h3 className="text-sm font-medium">{t('bulk.operationSummary', { defaultValue: 'Operation Summary' })}</h3>
 
                 <div className="space-y-2 text-sm">
@@ -1113,9 +1011,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
                       <span className="text-sm">
-                        {replaceAllPeerIps
-                          ? t('bulk.replaceAllPeerIps', { defaultValue: 'Replace all IPs' })
-                          : t('bulk.replaceInvalidPeerIpsOnly', { defaultValue: 'Invalid or missing IPs only' })}
+                        {replaceAllPeerIps ? t('bulk.replaceAllPeerIps', { defaultValue: 'Replace all IPs' }) : t('bulk.replaceInvalidPeerIpsOnly', { defaultValue: 'Invalid or missing IPs only' })}
                       </span>
                     </div>
                   )}
@@ -1147,37 +1043,31 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                     </div>
                   )}
 
-                  {(operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') &&
-                    selectedStatuses.length > 0 && (
+                  {(operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && selectedStatuses.length > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('status', { defaultValue: 'Status' })}:</span>
-                      <span className="text-sm">
-                        {selectedStatuses.map(status => t(`status.${status}`, { defaultValue: status.replace(/_/g, ' ') })).join(', ')}
-                      </span>
+                      <span className="text-sm">{selectedStatuses.map(status => t(`status.${status}`, { defaultValue: status.replace(/_/g, ' ') })).join(', ')}</span>
                     </div>
                   )}
 
-                  {(operationType === 'data' || operationType === 'expire') &&
-                    (expiredAfter || expiredBefore) && (
-                      <div className="space-y-1.5 text-sm">
-                        {expiredAfter && (
-                          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                            <span className="text-muted-foreground">{t('bulk.expiredFilterAfter')}:</span>
-                            <span className="sm:text-end">
-                              {formatExpiryFilterDate(expiredAfter)}
-                            </span>
-                          </div>
-                        )}
-                        {expiredBefore && (
-                          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                            <span className="text-muted-foreground">{t('bulk.expiredFilterBefore')}:</span>
-                            <span className="sm:text-end" dir="ltr">
-                              {formatExpiryFilterDate(expiredBefore)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                  {(operationType === 'data' || operationType === 'expire') && (expiredAfter || expiredBefore) && (
+                    <div className="space-y-1.5 text-sm">
+                      {expiredAfter && (
+                        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                          <span className="text-muted-foreground">{t('bulk.expiredFilterAfter')}:</span>
+                          <span className="sm:text-end">{formatExpiryFilterDate(expiredAfter)}</span>
+                        </div>
+                      )}
+                      {expiredBefore && (
+                        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                          <span className="text-muted-foreground">{t('bulk.expiredFilterBefore')}:</span>
+                          <span className="sm:text-end" dir="ltr">
+                            {formatExpiryFilterDate(expiredBefore)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {operationType === 'groups' && (
                     <>
@@ -1206,22 +1096,18 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">{t('bulk.targets', { defaultValue: 'Targets' })}:</span>
-                    <span>
-                      {isApplyToAll
-                        ? t('bulk.allTargets', { defaultValue: 'All users, admins, and groups' })
-                        : t('bulk.targetsCount', { count: displayTargetCount })}
-                    </span>
+                    <span>{isApplyToAll ? t('bulk.allTargets', { defaultValue: 'All users, admins, and groups' }) : t('bulk.targetsCount', { count: displayTargetCount })}</span>
                   </div>
                 </div>
               </div>
 
               {isApplyToAll && (
-                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-2.5 dark:border-yellow-800 dark:bg-yellow-950/20 sm:p-3">
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-2.5 sm:p-3 dark:border-yellow-800 dark:bg-yellow-950/20">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-yellow-600 dark:text-yellow-400 sm:h-4 sm:w-4" />
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-yellow-600 sm:h-4 sm:w-4 dark:text-yellow-400" />
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-medium text-yellow-800 dark:text-yellow-200 sm:text-sm">{t('bulk.warning', { defaultValue: 'Warning' })}</h4>
-                      <p className="mt-1 text-xs leading-relaxed text-yellow-700 dark:text-yellow-300 sm:text-sm">
+                      <h4 className="text-xs font-medium text-yellow-800 sm:text-sm dark:text-yellow-200">{t('bulk.warning', { defaultValue: 'Warning' })}</h4>
+                      <p className="mt-1 text-xs leading-relaxed text-yellow-700 sm:text-sm dark:text-yellow-300">
                         {t('bulk.applyToAllWarning', { defaultValue: 'This operation will apply to ALL users, admins, and groups in the system.' })}
                       </p>
                     </div>
@@ -1233,10 +1119,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
         </CardContent>
       </Card>
 
-      <div
-        dir={dir}
-        className={cn('flex flex-col-reverse gap-2 px-2 sm:flex-row sm:px-0', currentStep === 1 ? 'justify-end' : 'justify-between')}
-      >
+      <div dir={dir} className={cn('flex flex-col-reverse gap-2 px-2 sm:flex-row sm:px-0', currentStep === 1 ? 'justify-end' : 'justify-between')}>
         {currentStep > 1 && (
           <Button variant="outline" onClick={prevStep} size="sm" className="w-full sm:w-auto">
             <ChevronLeft className={cn('h-4 w-4', isRTL ? 'ml-1.5 rotate-180' : 'mr-1.5')} />
@@ -1301,20 +1184,10 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <AlertDialogAction
               onClick={confirmApply}
               disabled={
-                proxyMutation.isPending ||
-                dataMutation.isPending ||
-                expireMutation.isPending ||
-                addGroupsMutation.isPending ||
-                removeGroupsMutation.isPending ||
-                wireguardPeerIpsMutation.isPending
+                proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending || wireguardPeerIpsMutation.isPending
               }
             >
-              {proxyMutation.isPending ||
-              dataMutation.isPending ||
-              expireMutation.isPending ||
-              addGroupsMutation.isPending ||
-              removeGroupsMutation.isPending ||
-              wireguardPeerIpsMutation.isPending
+              {proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending || wireguardPeerIpsMutation.isPending
                 ? t('applying', { defaultValue: 'Applying...' })
                 : t('confirm', { defaultValue: 'Confirm' })}
             </AlertDialogAction>

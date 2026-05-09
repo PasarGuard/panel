@@ -51,7 +51,7 @@ export function EmptyState({ type, title, description, icon, className = 'max-h-
   const content = getEmptyStateContent()
 
   return (
-    <div className={`flex w-full flex-col items-center justify-center ${className}`}>
+    <div className={`flex h-full w-full flex-col items-center justify-center ${className}`}>
       <div className="flex max-w-md flex-col items-center gap-4 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted/30">{content.icon}</div>
         <div className="space-y-2">

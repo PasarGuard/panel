@@ -21,12 +21,7 @@ from app.db.base import engine
 from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
 from app.node import node_manager
 from app.utils.logger import get_logger
-from config import (
-    DISABLE_RECORDING_NODE_USAGE,
-    JOB_RECORD_NODE_USAGES_INTERVAL,
-    JOB_RECORD_USER_USAGES_INTERVAL,
-    ROLE,
-)
+from config import job_settings, runtime_settings, usage_settings
 
 logger = get_logger("record-usages")
 
@@ -678,7 +673,7 @@ async def _record_user_usages_impl():
                 await safe_execute(admin_stmt, admin_data)
             logger.debug(f"Updated {len(admin_data)} admins")
 
-        if DISABLE_RECORDING_NODE_USAGE:
+        if usage_settings.disable_recording_node_usage:
             return
 
         # Batch all node user usage writes into single operation
@@ -788,7 +783,7 @@ async def _record_node_usages_impl():
         async with JOB_SEM:
             await safe_execute(system_update_stmt)
 
-        if DISABLE_RECORDING_NODE_USAGE:
+        if usage_settings.disable_recording_node_usage:
             return
 
         # Batch all node usage writes
@@ -819,11 +814,11 @@ async def record_node_usages():
         logger.warning("record_node_usages was cancelled")
 
 
-if ROLE.runs_node:
+if runtime_settings.role.runs_node:
     scheduler.add_job(
         record_user_usages,
         "interval",
-        seconds=JOB_RECORD_USER_USAGES_INTERVAL,
+        seconds=job_settings.record_user_usages_interval,
         start_date=dt.now(tz.utc) + td(seconds=30),
         id="record_user_usages",
     )
@@ -831,7 +826,7 @@ if ROLE.runs_node:
     scheduler.add_job(
         record_node_usages,
         "interval",
-        seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
+        seconds=job_settings.record_node_usages_interval,
         start_date=dt.now(tz.utc) + td(seconds=15),
         id="record_node_usages",
     )

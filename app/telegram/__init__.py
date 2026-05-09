@@ -17,7 +17,7 @@ from app.nats import is_nats_enabled
 from app.nats.client import setup_nats_kv
 from app.settings import telegram_settings
 from app.utils.logger import get_logger
-from config import NATS_TELEGRAM_KV_BUCKET
+from config import nats_settings
 
 from .fsm_storage import NatsFSMStorage
 from .handlers import include_routers
@@ -42,7 +42,7 @@ class TelegramBotManager:
     @staticmethod
     def _create_dispatcher() -> Dispatcher:
         if is_nats_enabled():
-            storage = NatsFSMStorage(NATS_TELEGRAM_KV_BUCKET)
+            storage = NatsFSMStorage(nats_settings.telegram_kv_bucket)
             return Dispatcher(storage=storage, events_isolation=storage.create_isolation())
         return Dispatcher(storage=MemoryStorage())
 
@@ -82,7 +82,7 @@ class TelegramBotManager:
         try:
             # Set up KV connection if not already done
             if not self._kv:
-                self._nats_conn, js, self._kv = await setup_nats_kv(NATS_TELEGRAM_KV_BUCKET)
+                self._nats_conn, js, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
                 if not self._kv:
                     logger.warning("NATS KV unavailable, allowing this worker to set webhook")
                     return True

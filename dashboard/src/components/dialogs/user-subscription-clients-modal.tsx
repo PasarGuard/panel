@@ -2,10 +2,11 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { CopyButton } from '@/components/common/copy-button'
 import { useGetUserSubUpdateListById, UserSubscriptionUpdateSchema } from '@/service/api'
 import { parseUserAgent, formatClientInfo } from '@/utils/userAgentParser'
 import { dateUtils } from '@/utils/dateFormatter'
-import { Monitor, Smartphone, Globe, HelpCircle, Users, ChevronLeft, ChevronRight, Tv } from 'lucide-react'
+import { Monitor, Smartphone, Globe, HelpCircle, Users, ChevronLeft, ChevronRight, Tv, Network } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
@@ -325,6 +326,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
     // Extract version and OS from user agent
     const version = detectVersion(update.user_agent)
     const os = detectOS(update.user_agent, clientInfo)
+    const ipAddress = update.ip?.trim()
 
     return (
       <div key={index} className="rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50" dir={dir}>
@@ -350,6 +352,35 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
         </div>
 
         <TooltipProvider>
+          {ipAddress && (
+            <div className="bg-muted/50 mt-3 rounded-md px-2.5 py-2">
+              <div className={`flex min-w-0 items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                <Network className="text-muted-foreground h-3.5 w-3.5 flex-shrink-0" />
+                <span className="text-muted-foreground flex-shrink-0 text-xs font-medium">{t('subscriptionClients.ipAddress', { defaultValue: 'IP Address' })}</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-foreground min-w-0 flex-1 truncate font-mono text-xs" dir="ltr">
+                      {ipAddress}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p className="font-mono text-xs break-all" dir="ltr">
+                      {ipAddress}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+                <CopyButton
+                  value={ipAddress}
+                  className="text-muted-foreground hover:text-foreground h-6 w-6 flex-shrink-0"
+                  copiedMessage="subscriptionClients.ipCopied"
+                  defaultMessage="subscriptionClients.copyIp"
+                  showToast
+                  toastSuccessMessage="subscriptionClients.ipCopied"
+                />
+              </div>
+            </div>
+          )}
+
           <Tooltip>
             <TooltipTrigger asChild>
               <p className="mt-2 cursor-help truncate text-xs text-muted-foreground" dir="ltr">
@@ -404,6 +435,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
               <Skeleton className="h-5 w-12 rounded-full" />
               <Skeleton className="h-5 w-16 rounded-full" />
             </div>
+            <Skeleton className="mt-3 h-8 w-full" />
             <Skeleton className="mt-3 h-3 w-full" />
           </div>
         ))}

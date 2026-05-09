@@ -1,5 +1,6 @@
 import GroupsSelector from '@/components/common/groups-selector'
-import { TimeUnitSelect, TIME_UNIT_SECONDS, secondsToTimeUnit, type TimeUnit } from '@/components/common/time-unit-select'
+import { DecimalInput } from '@/components/common/decimal-input'
+import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -23,7 +24,7 @@ import {
 } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client.ts'
-import React, { useEffect, useLayoutEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -44,17 +45,7 @@ type StatusSelectItemProps = {
   onSelect?: (value: string) => void
 }
 
-const StatusSelect = ({
-  value,
-  onValueChange,
-  placeholder,
-  children,
-}: {
-  value?: string
-  onValueChange?: (value: string) => void
-  placeholder?: string
-  children: React.ReactNode
-}) => {
+const StatusSelect = ({ value, onValueChange, placeholder, children }: { value?: string; onValueChange?: (value: string) => void; placeholder?: string; children: React.ReactNode }) => {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation()
 
@@ -112,7 +103,7 @@ const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) 
 
   return (
     <div
-      className="relative flex w-full min-w-0 cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+      className="hover:bg-accent hover:text-accent-foreground relative flex w-full min-w-0 cursor-pointer items-center rounded-sm px-2 py-2 text-sm transition-colors outline-none select-none"
       onClick={() => onSelect?.(value)}
     >
       <span className="min-w-0 flex-1 truncate pr-2">{children}</span>
@@ -132,8 +123,6 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const [timeType, setTimeType] = useState<TimeUnit>('seconds')
   const [expireDurationUnit, setExpireDurationUnit] = useState<TimeUnit>('days')
   const [loading, setLoading] = useState(false)
-  const dataLimitInputRef = React.useRef<string>('')
-  const expireDurationInputRef = React.useRef<string>('')
   const prevStatusForSyncRef = React.useRef<string | undefined>(undefined)
 
   useEffect(() => {
@@ -146,8 +135,6 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   useEffect(() => {
     if (!isDialogOpen || editingUserTemplate) return
     form.reset(userTemplateFormDefaultValues)
-    dataLimitInputRef.current = ''
-    expireDurationInputRef.current = ''
     setExpireDurationUnit('days')
     setTimeType('seconds')
     prevStatusForSyncRef.current = undefined
@@ -155,29 +142,9 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
 
   useEffect(() => {
     if (!isDialogOpen) {
-      dataLimitInputRef.current = ''
-      expireDurationInputRef.current = ''
       setExpireDurationUnit('days')
     }
   }, [isDialogOpen])
-
-  /** Keep display refs aligned with form when opening the dialog or switching which template is edited (refs are not part of RHF state). */
-  useLayoutEffect(() => {
-    if (!isDialogOpen) return
-    const daySec = 24 * 60 * 60
-    const dl = form.getValues('data_limit')
-    if (dl == null || dl === undefined || Number(dl) <= 0) {
-      dataLimitInputRef.current = ''
-    } else {
-      dataLimitInputRef.current = String(dl)
-    }
-    const ed = form.getValues('expire_duration')
-    if (ed == null || ed === undefined || Number(ed) <= 0) {
-      expireDurationInputRef.current = ''
-    } else {
-      expireDurationInputRef.current = String(Number(ed) / daySec)
-    }
-  }, [isDialogOpen, editingUserTemplateId])
 
   const status = form.watch('status')
 
@@ -224,9 +191,9 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         extra_settings:
           values.method || values.flow
             ? {
-              method: values.method,
-              flow: values.flow,
-            }
+                method: values.method,
+                flow: values.flow,
+              }
             : undefined,
       }
 
@@ -286,14 +253,12 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
             {editingUserTemplate ? <Pencil className="h-5 w-5" /> : <FileUser className="h-5 w-5" />}
             <span>{editingUserTemplate ? t('editUserTemplateModal.title') : t('userTemplateModal.title')}</span>
           </DialogTitle>
-          <DialogDescription className="sr-only">
-            {t('userTemplateModal.description', { defaultValue: 'Configure user template settings.' })}
-          </DialogDescription>
+          <DialogDescription className="sr-only">{t('userTemplateModal.description', { defaultValue: 'Configure user template settings.' })}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
-            <div className="-mr-4 flex max-h-[80dvh] flex-col items-start gap-4 overflow-y-auto px-2 pb-6 pr-4 sm:max-h-[75dvh] sm:flex-row">
+            <div className="-mr-4 flex max-h-[80dvh] flex-col items-start gap-4 overflow-y-auto px-2 pr-4 pb-6 sm:max-h-[75dvh] sm:flex-row">
               <div className="w-full flex-1 space-y-4">
                 <div className="flex w-full flex-row gap-2">
                   <FormField
@@ -317,11 +282,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                       <FormItem className="w-full">
                         <FormLabel>{t('templates.status')}</FormLabel>
                         <FormControl>
-                          <StatusSelect
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            placeholder={t('status.active', { defaultValue: 'Active' })}
-                          >
+                          <StatusSelect value={field.value} onValueChange={field.onChange} placeholder={t('status.active', { defaultValue: 'Active' })}>
                             <StatusSelectItem value={UserStatusCreate.active}>{t('status.active', { defaultValue: 'Active' })}</StatusSelectItem>
                             <StatusSelectItem value={UserStatusCreate.on_hold}>{t('status.on_hold', { defaultValue: 'On Hold' })}</StatusSelectItem>
                           </StatusSelect>
@@ -334,84 +295,23 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                 <FormField
                   control={form.control}
                   name="data_limit"
-                  render={({ field }) => {
-                    if (dataLimitInputRef.current === '' && field.value !== null && field.value !== undefined && field.value > 0) {
-                      dataLimitInputRef.current = String(field.value)
-                    } else if (
-                      (field.value === null || field.value === undefined || field.value === 0) &&
-                      dataLimitInputRef.current !== '' &&
-                      !dataLimitInputRef.current.endsWith('.')
-                    ) {
-                      dataLimitInputRef.current = ''
-                    }
-
-                    const displayValue =
-                      dataLimitInputRef.current !== '' ? dataLimitInputRef.current : field.value !== null && field.value !== undefined && field.value > 0 ? String(field.value) : ''
-
-                    return (
-                      <FormItem className="relative flex-1">
-                        <FormLabel>{t('templates.dataLimit')}</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              placeholder={t('templates.dataLimit')}
-                              value={displayValue}
-                              onChange={e => {
-                                const rawValue = e.target.value.trim()
-
-                                dataLimitInputRef.current = rawValue
-
-                                if (rawValue === '') {
-                                  field.onChange(0)
-                                  return
-                                }
-
-                                const validNumberPattern = /^-?\d*\.?\d*$/
-                                if (validNumberPattern.test(rawValue)) {
-                                  if (rawValue.endsWith('.') && rawValue.length > 1) {
-                                    const prevValue = field.value !== null && field.value !== undefined ? field.value : 0
-                                    field.onChange(prevValue)
-                                  } else if (rawValue === '.') {
-                                    field.onChange(0)
-                                  } else {
-                                    const numValue = parseFloat(rawValue)
-                                    if (!isNaN(numValue) && numValue >= 0) {
-                                      field.onChange(numValue)
-                                    }
-                                  }
-                                }
-                              }}
-                              onBlur={() => {
-                                const rawValue = dataLimitInputRef.current.trim()
-                                if (rawValue === '' || rawValue === '.' || rawValue === '0') {
-                                  dataLimitInputRef.current = ''
-                                  field.onChange(0)
-                                } else {
-                                  const numValue = parseFloat(rawValue)
-                                  if (!isNaN(numValue) && numValue >= 0) {
-                                    const finalValue = numValue
-                                    dataLimitInputRef.current = finalValue > 0 ? String(finalValue) : ''
-                                    field.onChange(finalValue)
-                                  } else {
-                                    dataLimitInputRef.current = ''
-                                    field.onChange(0)
-                                  }
-                                }
-                              }}
-                              className="pr-10"
-                            />
-                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{t('userDialog.gb', { defaultValue: 'GB' })}</span>
-                          </div>
-                        </FormControl>
-                        {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                          <p dir='ltr' className="w-full mt-2 text-end text-xs text-muted-foreground">{formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}</p>
-                        )}
-                        <FormMessage />
-                      </FormItem>
-                    )
-                  }}
+                  render={({ field }) => (
+                    <FormItem className="relative flex-1">
+                      <FormLabel>{t('templates.dataLimit')}</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <DecimalInput placeholder={t('templates.dataLimit')} value={field.value} emptyValue={0} zeroValue={0} onValueChange={value => field.onChange(value ?? 0)} className="pr-10" />
+                          <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm font-medium">{t('userDialog.gb', { defaultValue: 'GB' })}</span>
+                        </div>
+                      </FormControl>
+                      {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
+                        <p dir="ltr" className="text-muted-foreground mt-2 w-full text-end text-xs">
+                          {formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
 
                 <FormField
@@ -451,96 +351,28 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                   name="expire_duration"
                   render={({ field }) => {
                     const unitSeconds = TIME_UNIT_SECONDS[expireDurationUnit]
-                    if (
-                      expireDurationInputRef.current === '' &&
-                      field.value != null &&
-                      field.value !== undefined &&
-                      field.value > 0
-                    ) {
-                      expireDurationInputRef.current = secondsToTimeUnit(field.value, expireDurationUnit)
-                    } else if (
-                      (field.value === null || field.value === undefined || field.value === 0) &&
-                      expireDurationInputRef.current !== '' &&
-                      !expireDurationInputRef.current.endsWith('.')
-                    ) {
-                      expireDurationInputRef.current = ''
-                    }
-
-                    const displayValue =
-                      expireDurationInputRef.current !== ''
-                        ? expireDurationInputRef.current
-                        : field.value != null && field.value !== undefined && field.value > 0
-                          ? secondsToTimeUnit(field.value, expireDurationUnit)
-                          : ''
 
                     return (
                       <FormItem className="flex-1">
                         <FormLabel className="text-left">{t('templates.expire')}</FormLabel>
                         <FormControl>
                           <div className="relative" dir="ltr">
-                            <Input
-                              type="text"
-                              inputMode="decimal"
+                            <DecimalInput
                               placeholder={t('templates.expire')}
-                              value={displayValue}
-                              onChange={e => {
-                                const rawValue = e.target.value.trim()
-                                expireDurationInputRef.current = rawValue
-
-                                if (rawValue === '') {
-                                  field.onChange(0)
-                                  void form.trigger('expire_duration')
-                                  return
-                                }
-
-                                const validNumberPattern = /^-?\d*\.?\d*$/
-                                if (!validNumberPattern.test(rawValue)) return
-
-                                if (rawValue.endsWith('.') && rawValue.length > 1) {
-                                  const prevSeconds =
-                                    field.value != null && field.value !== undefined ? field.value : 0
-                                  field.onChange(prevSeconds)
-                                  void form.trigger('expire_duration')
-                                } else if (rawValue === '.') {
-                                  field.onChange(0)
-                                  void form.trigger('expire_duration')
-                                } else {
-                                  const numValue = parseFloat(rawValue)
-                                  if (!isNaN(numValue) && numValue >= 0) {
-                                    field.onChange(numValue * unitSeconds)
-                                    void form.trigger('expire_duration')
-                                  }
-                                }
-                              }}
-                              onBlur={() => {
-                                const rawValue = expireDurationInputRef.current.trim()
-                                if (rawValue === '' || rawValue === '.' || rawValue === '0') {
-                                  expireDurationInputRef.current = ''
-                                  field.onChange(0)
-                                  void form.trigger('expire_duration')
-                                } else {
-                                  const numValue = parseFloat(rawValue)
-                                  if (!isNaN(numValue) && numValue >= 0) {
-                                    const finalAmount = numValue
-                                    const finalSeconds = finalAmount * unitSeconds
-                                    expireDurationInputRef.current = finalAmount > 0 ? String(finalAmount) : ''
-                                    field.onChange(finalSeconds)
-                                    void form.trigger('expire_duration')
-                                  } else {
-                                    expireDurationInputRef.current = ''
-                                    field.onChange(0)
-                                    void form.trigger('expire_duration')
-                                  }
-                                }
+                              value={field.value}
+                              emptyValue={0}
+                              zeroValue={0}
+                              toDisplayValue={value => value / unitSeconds}
+                              toValue={displayValue => displayValue * unitSeconds}
+                              onValueChange={value => {
+                                field.onChange(value ?? 0)
+                                void form.trigger('expire_duration')
                               }}
                               className={dir === 'rtl' ? 'pl-20' : 'pr-20'}
                             />
                             <TimeUnitSelect
                               value={expireDurationUnit}
-                              onValueChange={nextUnit => {
-                                setExpireDurationUnit(nextUnit)
-                                expireDurationInputRef.current = secondsToTimeUnit(field.value, nextUnit)
-                              }}
+                              onValueChange={setExpireDurationUnit}
                               triggerClassName={`absolute top-0 h-full w-20 rounded-none border-y-0 focus:ring-0 focus:ring-offset-0 ${dir === 'rtl' ? 'left-0 border-l-0' : 'right-0 border-r-0'}`}
                             />
                           </div>
@@ -554,7 +386,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                   control={form.control}
                   name="reset_usages"
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <FormItem className="flex flex-row items-center justify-between space-y-0 rounded-lg border p-4">
                       <div className="space-y-0.5">
                         <FormLabel className="text-base">
                           {t('templates.resetUsages', {
@@ -590,7 +422,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                       <FormItem className="flex-1">
                         <FormLabel>{t('templates.onHoldTimeout')}</FormLabel>
                         <FormControl>
-                          <div className="flex flex-row overflow-hidden rounded-md border border-border">
+                          <div className="border-border flex flex-row overflow-hidden rounded-md border">
                             <div className="flex-[3]">
                               <Input
                                 type="number"
@@ -606,11 +438,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                               />
                             </div>
                             <div className="w-20 shrink-0">
-                              <TimeUnitSelect
-                                value={timeType}
-                                onValueChange={setTimeType}
-                                triggerClassName="w-full rounded-none border-0 px-2 focus:ring-0 focus:ring-offset-0"
-                              />
+                              <TimeUnitSelect value={timeType} onValueChange={setTimeType} triggerClassName="w-full rounded-none border-0 px-2 focus:ring-0 focus:ring-offset-0" />
                             </div>
                           </div>
                         </FormControl>
@@ -698,7 +526,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                 <FormField control={form.control} name="groups" render={({ field }) => <GroupsSelector control={form.control} name="groups" onGroupsChange={field.onChange} />} />
               </div>
             </div>
-            <div className="mt-4 flex justify-end gap-2 ">
+            <div className="mt-4 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>

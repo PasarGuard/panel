@@ -96,6 +96,15 @@ interface FiltersProps {
     load_sub: boolean
     admin?: string[]
     group?: number[]
+    data_limit_min?: number | null
+    data_limit_max?: number | null
+    expire_after?: string | null
+    expire_before?: string | null
+    online_after?: string | null
+    online_before?: string | null
+    online?: boolean
+    no_data_limit?: boolean
+    no_expire?: boolean
   }
   onFilterChange: (filters: Partial<FiltersProps['filters']>) => void
   refetch?: (options?: RefetchOptions) => Promise<unknown>
@@ -297,7 +306,14 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     const admin = filters.admin
     const group = filters.group
     const status = filters.status
-    return (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null)
+    const hasDataLimit = (
+      (filters.data_limit_min !== undefined && filters.data_limit_min !== null) ||
+      (filters.data_limit_max !== undefined && filters.data_limit_max !== null) ||
+      Boolean(filters.no_data_limit)
+    )
+    const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
+    const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
+    return (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null) || hasDataLimit || hasExpireDate || hasOnlineDate
   }
 
   // Get the count of active advance filters
@@ -306,10 +322,20 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     const admin = filters.admin
     const group = filters.group
     const status = filters.status
+    const hasDataLimit = (
+      (filters.data_limit_min !== undefined && filters.data_limit_min !== null) ||
+      (filters.data_limit_max !== undefined && filters.data_limit_max !== null) ||
+      Boolean(filters.no_data_limit)
+    )
+    const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
+    const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
     let count = 0
     if (admin && admin.length > 0) count++
     if (group && group.length > 0) count++
     if (status !== undefined && status !== null) count++
+    if (hasDataLimit) count++
+    if (hasExpireDate) count++
+    if (hasOnlineDate) count++
     return count
   }
 

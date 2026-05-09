@@ -48,6 +48,38 @@ class UserUsageStatsList(StatList):
     stats: dict[int, list[UserUsageStat]]
 
 
+class UserCountMetric(str, Enum):
+    online = "online"
+    expired = "expired"
+    limited = "limited"
+
+
+def validate_user_count_metric_scope(metric: UserCountMetric, node_id: int | None = None, group_by_node: bool = False) -> None:
+    if metric != UserCountMetric.online and (node_id is not None or group_by_node):
+        raise ValueError("Only online user counts support node_id or group_by_node")
+
+
+class UserCountMetricStat(BaseModel):
+    count: int
+    period_start: dt
+
+    @field_validator("count", mode="before")
+    def cast_to_int(cls, v):
+        return NumericValidatorMixin.cast_to_int(v)
+
+    @field_validator("period_start", mode="before")
+    @classmethod
+    def validator_date(cls, v):
+        if not v:
+            return v
+        return ensure_datetime_timezone(v)
+
+
+class UserCountMetricStatsList(StatList):
+    metric: UserCountMetric
+    stats: dict[int, list[UserCountMetricStat]]
+
+
 class NodeUsageStat(BaseModel):
     uplink: int
     downlink: int

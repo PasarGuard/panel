@@ -1,7 +1,7 @@
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubItem, useSidebar } from '@/components/ui/sidebar'
+import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, useSidebar } from '@/components/ui/sidebar'
 import { NavLink, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 
@@ -57,14 +57,12 @@ export function NavMain({
                     <SidebarMenuSub>
                       {item.items?.map(subItem => (
                         <SidebarMenuSubItem key={subItem.title}>
-                          <NavLink to={subItem.url} end onClick={handleNavigation}>
-                            {({ isActive }) => (
-                              <SidebarMenuButton className="flex items-center gap-2" isActive={isActive}>
-                                <subItem.icon />
-                                <span>{t(subItem.title)}</span>
-                              </SidebarMenuButton>
-                            )}
-                          </NavLink>
+                          <SidebarMenuSubButton asChild className="flex items-center gap-2 h-8" isActive={location.pathname === subItem.url}>
+                            <NavLink to={subItem.url} end onClick={handleNavigation}>
+                              <subItem.icon />
+                              <span>{t(subItem.title)}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       ))}
                     </SidebarMenuSub>

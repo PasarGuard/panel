@@ -1,11 +1,5 @@
-import { toLocalOffsetDateTime } from './dateTimeParsing'
+import { normalizeDatePickerValueForEditForm } from './datePickerUtils'
 
-const UTC_SUFFIX_PATTERN = /Z$/i
+export { normalizeDatePickerValueForEditForm }
 
-export const normalizeExpireForEditForm = (expire: string | number | null | undefined) => {
-  if (typeof expire === 'string' && UTC_SUFFIX_PATTERN.test(expire.trim())) {
-    return toLocalOffsetDateTime(expire)
-  }
-
-  return expire
-}
+export const normalizeExpireForEditForm = normalizeDatePickerValueForEditForm

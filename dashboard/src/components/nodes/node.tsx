@@ -95,7 +95,7 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
 
   return (
     <TooltipProvider>
-      <Card className={cn('group relative h-full cursor-pointer overflow-hidden border transition-colors hover:bg-accent', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(node)}>
+      <Card className={cn('group hover:bg-accent relative h-full cursor-pointer overflow-hidden border transition-colors', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(node)}>
         <div className="flex items-start gap-3 p-3">
           {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
           <div className="min-w-0 flex-1">
@@ -111,11 +111,11 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
                       <p>{statusConfig.label}</p>
                     </TooltipContent>
                   </Tooltip>
-                  <h3 className="truncate text-sm font-semibold leading-tight tracking-tight sm:text-base">{node.name}</h3>
+                  <h3 className="truncate text-sm leading-tight font-semibold tracking-tight sm:text-base">{node.name}</h3>
                   {node.status === 'error' && node.message ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <AlertCircle className="h-3.5 w-3.5 shrink-0 cursor-help text-destructive sm:h-4 sm:w-4" />
+                        <AlertCircle className="text-destructive h-3.5 w-3.5 shrink-0 cursor-help sm:h-4 sm:w-4" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs" side="top">
                         <p className="text-xs">{node.message}</p>
@@ -124,12 +124,12 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
                   ) : null}
                 </div>
               </div>
-              <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} />
+              <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} isModalHost={false} />
             </div>
 
             {/* Connection Info */}
             <div className="mb-2 space-y-1.5">
-              <div className={cn('flex items-center gap-1.5 text-[10px] text-muted-foreground sm:text-xs', dir === 'rtl' ? 'flex-row-reverse justify-end' : 'flex-row')}>
+              <div className={cn('text-muted-foreground flex items-center gap-1.5 text-[10px] sm:text-xs', dir === 'rtl' ? 'flex-row-reverse justify-end' : 'flex-row')}>
                 <Link2 className="h-3 w-3 shrink-0 opacity-70 sm:h-3.5 sm:w-3.5" />
                 <span dir="ltr" className="truncate font-mono">
                   {node.address}:{node.port}
@@ -147,7 +147,7 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
                           onClick={handleCoreVersionClick}
                           className={cn(
                             'group/version inline-flex items-center rounded-sm bg-transparent p-0 text-left',
-                            hasCoreUpdate && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                            hasCoreUpdate && 'focus-visible:ring-ring cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
                             !hasCoreUpdate && 'cursor-default',
                             dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
                           )}
