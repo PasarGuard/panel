@@ -13,6 +13,7 @@ from app.models.subscription import (
     TLSConfig,
     WebSocketTransportConfig,
     XHTTPTransportConfig,
+    FinalMask,
 )
 from config import EXTERNAL_CONFIG
 
