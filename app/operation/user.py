@@ -753,10 +753,12 @@ class UserOperation(BaseOperation):
         query: UserListQuery,
     ) -> UsersResponse:
         """Get all users"""
+        if not admin.is_sudo:
+            query = query.model_copy(update={"owner": [admin.username], "admin_ids": None})
+
         users, count = await get_users(
             db=db,
             query=query,
-            admins=query.owner if admin.is_sudo else [admin.username],
             return_with_count=True,
         )
 

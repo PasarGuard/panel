@@ -287,8 +287,6 @@ async def get_users(
     db: AsyncSession,
     query: UserListQuery,
     admin: Admin | None = None,
-    admins: list[str] | None = None,
-    reset_strategy: DataLimitResetStrategy | list[DataLimitResetStrategy] | None = None,
     return_with_count: bool = False,
 ) -> list[User] | tuple[list[User], int]:
     """
@@ -298,8 +296,6 @@ async def get_users(
         db: Database session.
         query: Structured user list query filters.
         admin: Admin filter.
-        admins: List of admin usernames to filter by.
-        reset_strategy: Reset strategy filter (single strategy or list).
         return_with_count: Whether to return total count.
 
     Returns:
@@ -325,13 +321,17 @@ async def get_users(
             filters.append(User.status == query.status)
     if admin:
         filters.append(User.admin_id == admin.id)
-    if admins:
-        stmt = stmt.join(User.admin).filter(Admin.username.in_(admins))
-    if reset_strategy:
-        if isinstance(reset_strategy, list):
-            filters.append(User.data_limit_reset_strategy.in_(reset_strategy))
+    if query.owner or query.admin_ids:
+        stmt = stmt.join(User.admin)
+        if query.owner:
+            filters.append(Admin.username.in_(query.owner))
+        if query.admin_ids:
+            filters.append(Admin.id.in_(query.admin_ids))
+    if query.data_limit_reset_strategy:
+        if isinstance(query.data_limit_reset_strategy, list):
+            filters.append(User.data_limit_reset_strategy.in_(query.data_limit_reset_strategy))
         else:
-            filters.append(User.data_limit_reset_strategy == reset_strategy)
+            filters.append(User.data_limit_reset_strategy == query.data_limit_reset_strategy)
     if query.no_data_limit:
         filters.append(or_(User.data_limit.is_(None), User.data_limit == 0))
     else:

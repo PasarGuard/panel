@@ -10,7 +10,10 @@ get_user_list_query = make_query_dependency(
     field_overrides={
         "username": Query(None),
         "owner": Query(None, alias="admin"),
+        "admin_ids": Query(None, alias="admin_ids"),
         "group_ids": Query(None, alias="group"),
+        "sort": query_param(str | None, None),
+        "data_limit_reset_strategy": Query(None, alias="data_limit_reset_strategy"),
         "data_limit_min": Query(None, ge=0),
         "data_limit_max": Query(None, ge=0),
         "expire_after": Query(None, examples=["2026-01-01T00:00:00+03:30"]),

@@ -25,12 +25,14 @@ from config import usage_settings
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
+    create_admin,
     create_client_template,
     create_core,
     create_group,
     create_hosts_for_inbounds,
     create_user,
     create_user_template,
+    delete_admin,
     delete_client_template,
     delete_core,
     delete_group,
@@ -512,6 +514,92 @@ def test_users_get_filters_by_no_expire(access_token):
     finally:
         delete_user(access_token, no_expire_user["username"])
         delete_user(access_token, expiring_user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_users_get_filters_by_admin_ids(access_token):
+    core, groups = setup_groups(access_token, 1)
+    admin_a = create_admin(access_token, is_sudo=False)
+    admin_b = create_admin(access_token, is_sudo=False)
+    user_a = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_user_admin_id_a")},
+    )
+    user_b = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_user_admin_id_b")},
+    )
+
+    try:
+        set_owner_a = client.put(
+            f"/api/user/{user_a['username']}/set_owner",
+            headers=auth_headers(access_token),
+            params={"admin_username": admin_a["username"]},
+        )
+        assert set_owner_a.status_code == status.HTTP_200_OK
+
+        set_owner_b = client.put(
+            f"/api/user/{user_b['username']}/set_owner",
+            headers=auth_headers(access_token),
+            params={"admin_username": admin_b["username"]},
+        )
+        assert set_owner_b.status_code == status.HTTP_200_OK
+
+        response = client.get(
+            "/api/users",
+            headers=auth_headers(access_token),
+            params={"admin_ids": admin_a["id"]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        listed_usernames = {user["username"] for user in response.json()["users"]}
+        assert user_a["username"] in listed_usernames
+        assert user_b["username"] not in listed_usernames
+    finally:
+        delete_user(access_token, user_a["username"])
+        delete_user(access_token, user_b["username"])
+        delete_admin(access_token, admin_a["username"])
+        delete_admin(access_token, admin_b["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_users_get_filters_by_data_limit_reset_strategy(access_token):
+    core, groups = setup_groups(access_token, 1)
+    daily_user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("test_user_reset_daily"),
+            "data_limit": 1024,
+            "data_limit_reset_strategy": "day",
+        },
+    )
+    no_reset_user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("test_user_reset_no_reset"),
+            "data_limit": 1024,
+            "data_limit_reset_strategy": "no_reset",
+        },
+    )
+
+    try:
+        response = client.get(
+            "/api/users",
+            headers=auth_headers(access_token),
+            params={"data_limit_reset_strategy": "day"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        listed_usernames = {user["username"] for user in response.json()["users"]}
+        assert daily_user["username"] in listed_usernames
+        assert no_reset_user["username"] not in listed_usernames
+    finally:
+        delete_user(access_token, daily_user["username"])
+        delete_user(access_token, no_reset_user["username"])
         cleanup_groups(access_token, core, groups)
 
 
