@@ -1,17 +1,10 @@
 from app.models.core import CoreListQuery, CoreSimpleListQuery
 
-from ._common import build_query
+from ._common import make_query_dependency, query_param
 
 
-def get_core_list_query(offset: int | None = None, limit: int | None = None) -> CoreListQuery:
-    return build_query(CoreListQuery, offset=offset, limit=limit)
-
-
-def get_core_simple_list_query(
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: str | None = None,
-    all: bool = False,
-) -> CoreSimpleListQuery:
-    return build_query(CoreSimpleListQuery, offset=offset, limit=limit, search=search, sort=sort, all=all)
+get_core_list_query = make_query_dependency(CoreListQuery)
+get_core_simple_list_query = make_query_dependency(
+    CoreSimpleListQuery,
+    field_overrides={"sort": query_param(str | None, None)},
+)
