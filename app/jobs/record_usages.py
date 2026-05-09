@@ -434,7 +434,7 @@ def _process_users_stats_response(stats_response):
         try:
             uid_int = int(uid)
             validated_params.append({"uid": uid_int, "value": value})
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             # Collect invalid UIDs to log outside thread
             invalid_uids.append(uid)
             continue

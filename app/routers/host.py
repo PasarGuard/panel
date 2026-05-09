@@ -8,6 +8,7 @@ from app.operation.host import HostOperation
 from app.utils import responses
 
 from .authentication import check_sudo_admin
+from .dependencies import get_host_list_query
 
 host_operator = HostOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Host"], prefix="/api/host", responses={401: responses._401, 403: responses._403})
@@ -23,12 +24,14 @@ async def get_host(host_id: int, db: AsyncSession = Depends(get_db), _: AdminDet
 
 @router.get("s", response_model=list[BaseHost])
 async def get_hosts(
-    offset: int = 0, limit: int = 0, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
+    query=Depends(get_host_list_query),
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(check_sudo_admin),
 ):
     """
     Get proxy hosts.
     """
-    return await host_operator.get_hosts(db=db, offset=offset, limit=limit)
+    return await host_operator.get_hosts(db=db, query=query)
 
 
 @router.post("/", response_model=BaseHost, status_code=status.HTTP_201_CREATED)

@@ -365,3 +365,8 @@ class BulkHostsActionResponse(BaseModel):
 
     hosts: list[str]
     count: int
+
+
+class HostListQuery(BaseModel):
+    offset: int = 0
+    limit: int = 0

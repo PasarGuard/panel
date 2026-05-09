@@ -60,7 +60,7 @@ def check_and_modify_ip(ip_address: str) -> str:
         else:
             return "localhost"
 
-    except (ValueError, socket.gaierror):
+    except ValueError, socket.gaierror:
         return "localhost"
 
 

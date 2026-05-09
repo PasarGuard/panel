@@ -1,6 +1,5 @@
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
-from enum import Enum
 from typing import List, Literal, Optional, Sequence
 
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
@@ -34,7 +33,19 @@ from app.models.stats import (
     UserUsageStatsList,
     validate_user_count_metric_scope,
 )
-from app.models.user import UserCreate, UserModify, UserNotificationResponse
+from app.models.user import (
+    ExpiredUsersQuery,
+    SortDirection,
+    UserCreate,
+    UserListQuery,
+    UserModify,
+    UserNotificationResponse,
+    UserSimpleListQuery,
+    UserSimpleSortField,
+    UserSimpleSortOption,
+    UserSortField,
+    UserSortOption,
+)
 from config import user_cleanup_settings
 
 from .general import (
@@ -239,99 +250,57 @@ async def get_all_wireguard_peer_ips_raw(
     return {row[0]: {"proxy_settings": row[1]} for row in rows}
 
 
-UsersSortingOptions = Enum(
-    "UsersSortingOptions",
-    {
-        "username": User.username.asc(),
-        "used_traffic": User.used_traffic.asc(),
-        "data_limit": User.data_limit.asc(),
-        "expire": User.expire.asc(),
-        "created_at": User.created_at.asc(),
-        "edit_at": (
-            case((User.edit_at.is_(None), 1), else_=0).asc(),
-            User.edit_at.asc(),
-        ),
-        "online_at": (
-            case((User.online_at.is_(None), 1), else_=0).asc(),
-            User.online_at.asc(),
-        ),
-        "-username": User.username.desc(),
-        "-used_traffic": User.used_traffic.desc(),
-        "-data_limit": User.data_limit.desc(),
-        "-expire": User.expire.desc(),
-        "-created_at": User.created_at.desc(),
-        "-edit_at": (
-            case((User.edit_at.is_(None), 1), else_=0).asc(),
-            User.edit_at.desc(),
-        ),
-        "-online_at": (
-            case((User.online_at.is_(None), 1), else_=0).asc(),
-            User.online_at.desc(),
-        ),
-    },
-)
+def _build_user_sort_clause(sort_option: UserSortOption):
+    field_map = {
+        UserSortField.username: User.username,
+        UserSortField.used_traffic: User.used_traffic,
+        UserSortField.data_limit: User.data_limit,
+        UserSortField.expire: User.expire,
+        UserSortField.created_at: User.created_at,
+    }
+    nullable_field_map = {
+        UserSortField.edit_at: User.edit_at,
+        UserSortField.online_at: User.online_at,
+    }
+
+    if sort_option.field in field_map:
+        column = field_map[sort_option.field]
+        return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+
+    column = nullable_field_map[sort_option.field]
+    return (
+        case((column.is_(None), 1), else_=0).asc(),
+        column.desc() if sort_option.direction == SortDirection.desc else column.asc(),
+    )
 
 
-UsersSortingOptionsSimple = Enum(
-    "UsersSortingOptionsSimple",
-    {
-        "id": User.id.asc(),
-        "-id": User.id.desc(),
-        "username": User.username.asc(),
-        "-username": User.username.desc(),
-    },
-)
+def _build_user_simple_sort_clause(sort_option: UserSimpleSortOption):
+    field_map = {
+        UserSimpleSortField.id: User.id,
+        UserSimpleSortField.username: User.username,
+    }
+    column = field_map[sort_option.field]
+    return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
 
 
 async def get_users(
     db: AsyncSession,
-    offset: int | None = None,
-    limit: int | None = None,
-    usernames: list[str] | None = None,
-    search: str | None = None,
-    proxy_id: str | None = None,
-    status: UserStatus | list[UserStatus] | None = None,
-    sort: list[UsersSortingOptions] | None = None,
+    query: UserListQuery,
     admin: Admin | None = None,
     admins: list[str] | None = None,
     reset_strategy: DataLimitResetStrategy | list[DataLimitResetStrategy] | None = None,
-    data_limit_min: int | None = None,
-    data_limit_max: int | None = None,
-    expire_after: datetime | None = None,
-    expire_before: datetime | None = None,
-    online_after: datetime | None = None,
-    online_before: datetime | None = None,
-    online: bool = False,
-    no_data_limit: bool = False,
-    no_expire: bool = False,
     return_with_count: bool = False,
-    group_ids: list[int] | None = None,
 ) -> list[User] | tuple[list[User], int]:
     """
     Retrieves users based on various filters.
 
     Args:
         db: Database session.
-        offset: Number of records to skip.
-        limit: Number of records to retrieve.
-        usernames: List of usernames to filter by.
-        search: Search term for username.
-        status: User status filter (single status or list).
-        sort: Sort options.
+        query: Structured user list query filters.
         admin: Admin filter.
         admins: List of admin usernames to filter by.
         reset_strategy: Reset strategy filter (single strategy or list).
-        data_limit_min: Minimum user data limit in bytes.
-        data_limit_max: Maximum user data limit in bytes.
-        expire_after: Include users whose expire date is on or after this datetime.
-        expire_before: Include users whose expire date is on or before this datetime.
-        online_after: Include users whose last online date is on or after this datetime.
-        online_before: Include users whose last online date is on or before this datetime.
-        online: Include only users who were online within the current online window.
-        no_data_limit: Include only users with no data limit set.
-        no_expire: Include only users with no expire date set.
         return_with_count: Whether to return total count.
-        group_ids: Filter users by their group IDs.
 
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
@@ -344,16 +313,16 @@ async def get_users(
     )
 
     filters = []
-    if usernames:
-        filters.append(User.username.in_(usernames))
-    if search:
-        filters.append(or_(User.username.ilike(f"%{search}%"), User.note.ilike(f"%{search}%")))
+    if query.username:
+        filters.append(User.username.in_(query.username))
+    if query.search:
+        filters.append(or_(User.username.ilike(f"%{query.search}%"), User.note.ilike(f"%{query.search}%")))
 
-    if status:
-        if isinstance(status, list):
-            filters.append(User.status.in_(status))
+    if query.status:
+        if isinstance(query.status, list):
+            filters.append(User.status.in_(query.status))
         else:
-            filters.append(User.status == status)
+            filters.append(User.status == query.status)
     if admin:
         filters.append(User.admin_id == admin.id)
     if admins:
@@ -363,37 +332,50 @@ async def get_users(
             filters.append(User.data_limit_reset_strategy.in_(reset_strategy))
         else:
             filters.append(User.data_limit_reset_strategy == reset_strategy)
-    if no_data_limit:
+    if query.no_data_limit:
         filters.append(or_(User.data_limit.is_(None), User.data_limit == 0))
     else:
-        if data_limit_min is not None:
-            filters.append(and_(User.data_limit.is_not(None), User.data_limit > 0, User.data_limit >= data_limit_min))
-        if data_limit_max is not None:
-            filters.append(and_(User.data_limit.is_not(None), User.data_limit > 0, User.data_limit <= data_limit_max))
-    if no_expire:
+        if query.data_limit_min is not None:
+            filters.append(
+                and_(User.data_limit.is_not(None), User.data_limit > 0, User.data_limit >= query.data_limit_min)
+            )
+        if query.data_limit_max is not None:
+            filters.append(
+                and_(User.data_limit.is_not(None), User.data_limit > 0, User.data_limit <= query.data_limit_max)
+            )
+    if query.no_expire:
         filters.append(User.expire.is_(None))
     else:
-        if expire_after is not None:
-            filters.append(and_(User.expire.is_not(None), User.expire >= expire_after))
-        if expire_before is not None:
-            filters.append(and_(User.expire.is_not(None), User.expire <= expire_before))
-    if online_after is not None:
-        filters.append(and_(User.online_at.is_not(None), User.online_at >= online_after))
-    if online_before is not None:
-        filters.append(and_(User.online_at.is_not(None), User.online_at <= online_before))
-    if online:
-        filters.append(and_(User.online_at.is_not(None), User.online_at >= datetime.now(timezone.utc) - _ONLINE_USERS_WINDOW))
+        if query.expire_after is not None:
+            filters.append(and_(User.expire.is_not(None), User.expire >= query.expire_after))
+        if query.expire_before is not None:
+            filters.append(and_(User.expire.is_not(None), User.expire <= query.expire_before))
+    if query.online_after is not None:
+        filters.append(and_(User.online_at.is_not(None), User.online_at >= query.online_after))
+    if query.online_before is not None:
+        filters.append(and_(User.online_at.is_not(None), User.online_at <= query.online_before))
+    if query.online:
+        filters.append(
+            and_(User.online_at.is_not(None), User.online_at >= datetime.now(timezone.utc) - _ONLINE_USERS_WINDOW)
+        )
 
-    if group_ids:
-        filters.append(User.groups.any(Group.id.in_(group_ids)))
-    if proxy_id:
-        filters.append(build_json_proxy_settings_search_condition(db, User.proxy_settings, proxy_id))
+    if query.group_ids:
+        filters.append(User.groups.any(Group.id.in_(query.group_ids)))
+    if query.proxy_id:
+        filters.append(build_json_proxy_settings_search_condition(db, User.proxy_settings, query.proxy_id))
 
     if filters:
         stmt = stmt.where(and_(*filters))
 
-    if sort:
-        stmt = stmt.order_by(*sort)
+    if query.sort:
+        sort_clauses = []
+        for sort_option in query.sort:
+            clause = _build_user_sort_clause(sort_option)
+            if isinstance(clause, tuple):
+                sort_clauses.extend(clause)
+            else:
+                sort_clauses.append(clause)
+        stmt = stmt.order_by(*sort_clauses)
 
     total = None
     if return_with_count:
@@ -401,10 +383,10 @@ async def get_users(
         result = await db.execute(count_stmt)
         total = result.scalar()
 
-    if offset:
-        stmt = stmt.offset(offset)
-    if limit:
-        stmt = stmt.limit(limit)
+    if query.offset:
+        stmt = stmt.offset(query.offset)
+    if query.limit:
+        stmt = stmt.limit(query.limit)
 
     result = await db.execute(stmt)
     users = list(result.unique().scalars().all())
@@ -416,24 +398,16 @@ async def get_users(
 
 async def get_users_simple(
     db: AsyncSession,
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: list[UsersSortingOptionsSimple] | None = None,
+    query: UserSimpleListQuery,
     admin: Admin | None = None,
-    skip_pagination: bool = False,
 ) -> tuple[list[tuple[int, str]], int]:
     """
     Retrieves lightweight user data with only id and username.
 
     Args:
         db: Database session.
-        offset: Number of records to skip.
-        limit: Number of records to retrieve.
-        search: Search term for username.
-        sort: Sort options.
+        query: Structured lightweight user list filters.
         admin: Admin filter (for non-sudo authorization).
-        skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
 
     Returns:
         Tuple of (list of (id, username) tuples, total_count).
@@ -441,21 +415,22 @@ async def get_users_simple(
     stmt = select(User.id, User.username)
 
     filters = []
-    if search:
-        filters.append(User.username.ilike(f"%{search}%"))
+    if query.search:
+        filters.append(User.username.ilike(f"%{query.search}%"))
     if admin:
         filters.append(User.admin_id == admin.id)
 
     if filters:
         stmt = stmt.where(and_(*filters))
 
-    if sort:
+    if query.sort:
         sort_list = []
-        for s in sort:
-            if isinstance(s.value, tuple):
-                sort_list.extend(s.value)
+        for sort_option in query.sort:
+            clause = _build_user_simple_sort_clause(sort_option)
+            if isinstance(clause, tuple):
+                sort_list.extend(clause)
             else:
-                sort_list.append(s.value)
+                sort_list.append(clause)
         stmt = stmt.order_by(*sort_list)
 
     # Get count BEFORE pagination (always)
@@ -463,11 +438,11 @@ async def get_users_simple(
     total = (await db.execute(count_stmt)).scalar()
 
     # Apply pagination or safety limit
-    if not skip_pagination:
-        if offset:
-            stmt = stmt.offset(offset)
-        if limit:
-            stmt = stmt.limit(limit)
+    if not query.all:
+        if query.offset:
+            stmt = stmt.offset(query.offset)
+        if query.limit:
+            stmt = stmt.limit(query.limit)
     else:
         stmt = stmt.limit(10000)  # Safety limit when all=true
 
@@ -480,15 +455,13 @@ async def get_users_simple(
 
 async def get_expired_users(
     db: AsyncSession,
-    expired_after: datetime | None = None,
-    expired_before: datetime | None = None,
+    query: ExpiredUsersQuery,
     admin_id: int | None = None,
-    target: Literal["expired", "limited"] = "expired",
 ):
-    conditions = _cleanup_target_user_conditions(expired_after, expired_before, admin_id, target)
-    query = select(User).where(*conditions)
+    conditions = _cleanup_target_user_conditions(query.expired_after, query.expired_before, admin_id, query.target)
+    stmt = select(User).where(*conditions)
 
-    return (await db.execute(query)).unique().scalars().all()
+    return (await db.execute(stmt)).unique().scalars().all()
 
 
 def _cleanup_target_user_conditions(

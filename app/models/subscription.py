@@ -5,9 +5,13 @@ Broken down into small, focused models - each transport/protocol gets only what 
 
 from __future__ import annotations
 
+from datetime import datetime as dt
 from typing import Any
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
+
+from app.models.stats import Period
+from app.utils.helpers import fix_datetime_timezone
 
 
 class TLSConfig(BaseModel):
@@ -266,3 +270,16 @@ class SubscriptionInboundData(BaseModel):
     subscription_templates: dict[str, Any] | None = Field(default=None)
 
     model_config = {"validate_assignment": True}
+
+
+class SubscriptionUsageQuery(BaseModel):
+    period: Period = Field(default=Period.hour)
+    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def validate_datetimes(cls, value):
+        if not value:
+            return value
+        return fix_datetime_timezone(value)

@@ -17,7 +17,15 @@ from aiogram.exceptions import TelegramBadRequest
 
 from app.db.models import UserStatus
 from app.models.settings import ConfigFormat
-from app.models.user import UserCreate, UserModify, UserStatusModify, CreateUserFromTemplate, ModifyUserByTemplate
+from app.models.user import (
+    CreateUserFromTemplate,
+    ModifyUserByTemplate,
+    UserCreate,
+    UserListQuery,
+    UserModify,
+    UserStatusModify,
+)
+from app.models.user_template import UserTemplateListQuery
 from app.models.validators import UserValidator
 from app.operation import OperatorType
 from app.operation.subscription import SubscriptionOperation
@@ -462,7 +470,7 @@ async def activate_next_plan(
 
 @router.callback_query(UserPanel.Callback.filter(UserPanelAction.modify_with_template == F.action))
 async def modify_with_template(event: CallbackQuery, db: AsyncSession, callback_data: UserPanel.Callback):
-    templates = await user_templates.get_user_templates(db)
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
     if not templates:
         return await event.answer(Texts.there_is_no_template)
 
@@ -488,7 +496,7 @@ async def modify_with_template_done(
 
 @router.callback_query(AdminPanel.Callback.filter(AdminPanelAction.create_user_from_template == F.action))
 async def create_user_from_template(event: CallbackQuery, db: AsyncSession):
-    templates = await user_templates.get_user_templates(db)
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
     if not templates:
         return await event.answer(Texts.there_is_no_template)
     await event.message.edit_text(Texts.choose_a_template, reply_markup=ChooseTemplate(templates).as_markup())
@@ -636,7 +644,11 @@ async def get_user(event: Message | CallbackQuery, admin: AdminDetails, db: Asyn
 
 @router.inline_query()
 async def search_user(event: InlineQuery, admin: AdminDetails, db: AsyncSession):
-    search = await user_operations.get_users(db, admin, search=event.query.strip(), limit=50)
+    search = await user_operations.get_users(
+        db,
+        admin,
+        UserListQuery(search=event.query.strip(), limit=50),
+    )
     result = [
         InlineQueryResultArticle(
             id=str(user.id),

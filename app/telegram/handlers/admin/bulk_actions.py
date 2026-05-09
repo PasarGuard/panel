@@ -7,7 +7,8 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import AdminDetails
-from app.models.user import BulkUser, BulkUsersFromTemplate, UsernameGenerationStrategy
+from app.models.user import BulkUser, BulkUsersFromTemplate, ExpiredUsersQuery, UsernameGenerationStrategy
+from app.models.user_template import UserTemplateListQuery
 from app.models.validators import UserValidator
 from app.operation import OperatorType
 from app.operation.user import UserOperation
@@ -64,7 +65,7 @@ async def bulk_actions(event: CallbackQuery):
 
 @router.callback_query(BulkActionPanel.Callback.filter(BulkAction.create_from_template == F.action))
 async def bulk_create_from_template(event: CallbackQuery, db: AsyncSession, state: FSMContext):
-    templates = await user_templates.get_user_templates(db)
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
     if not templates:
         return await event.answer(Texts.there_is_no_template)
 
@@ -89,7 +90,7 @@ async def bulk_template_count(event: Message, state: FSMContext):
 
     try:
         count = int(event.text)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         msg = await event.reply(text=Texts.bulk_count_not_valid, reply_markup=CancelKeyboard().as_markup())
         await add_to_messages_to_delete(state, msg)
         return
@@ -283,8 +284,10 @@ async def delete_expired_done(
     result = await user_operations.delete_expired_users(
         db,
         admin,
-        expired_before=expire_before,
-        expired_after=dt.fromtimestamp(0, tz.utc),
+        ExpiredUsersQuery(
+            expired_before=expire_before,
+            expired_after=dt.fromtimestamp(0, tz.utc),
+        ),
     )
     await event.answer(Texts.users_deleted(result.count))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())

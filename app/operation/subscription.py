@@ -1,5 +1,4 @@
 import re
-from datetime import datetime as dt
 from json import dumps as json_dumps
 from typing import Any
 
@@ -11,7 +10,8 @@ from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, SubRule, Subscription as SubSettings
-from app.models.stats import Period, UserUsageStatsList
+from app.models.stats import UserUsageStatsList
+from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
@@ -115,7 +115,7 @@ class SubscriptionOperation(BaseOperation):
 
         try:
             return profile_title.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             # Invalid format string, return original title
             return profile_title
 
@@ -127,7 +127,7 @@ class SubscriptionOperation(BaseOperation):
 
         try:
             return sub_settings.announce.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             return sub_settings.announce
 
     @staticmethod
@@ -206,7 +206,7 @@ class SubscriptionOperation(BaseOperation):
                 return ""
             try:
                 return header_value.format_map(format_variables)
-            except (ValueError, KeyError):
+            except ValueError, KeyError:
                 return header_value
 
         if isinstance(value, (dict, list, tuple, bool, int, float)):
@@ -447,13 +447,11 @@ class SubscriptionOperation(BaseOperation):
         self,
         db: AsyncSession,
         token: str,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
+        query: SubscriptionUsageQuery,
     ) -> UserUsageStatsList:
         """Fetches the usage statistics for the user within a specified date range."""
-        start, end = await self.validate_dates(start, end, True)
+        start, end = await self.validate_dates(query.start, query.end, True)
 
         db_user = await self.get_validated_sub(db, token=token)
 
-        return await get_user_usages(db, db_user.id, start, end, period)
+        return await get_user_usages(db, db_user.id, start, end, query.period)

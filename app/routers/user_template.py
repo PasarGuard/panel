@@ -15,6 +15,7 @@ from app.models.user_template import (
 from app.operation import OperatorType
 from app.operation.user_template import UserTemplateOperation
 from app.utils import responses
+from .dependencies import get_user_template_list_query, get_user_template_simple_list_query
 
 
 router = APIRouter(tags=["User Template"], prefix="/api/user_template")
@@ -77,10 +78,12 @@ async def remove_user_template(
 
 @router.get("s", response_model=list[UserTemplateResponse])
 async def get_user_templates(
-    offset: int = None, limit: int = None, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    query=Depends(get_user_template_list_query),
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(get_current),
 ):
     """Get a list of User Templates with optional pagination"""
-    return await template_operator.get_user_templates(db, offset, limit)
+    return await template_operator.get_user_templates(db, query)
 
 
 @router.get(
@@ -90,23 +93,12 @@ async def get_user_templates(
     description="Returns only id and name for user templates. Optimized for dropdowns and autocomplete.",
 )
 async def get_user_templates_simple(
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: str | None = None,
-    all: bool = False,
+    query=Depends(get_user_template_simple_list_query),
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(get_current),
 ):
     """Get lightweight user template list with only id and name"""
-    return await template_operator.get_user_templates_simple(
-        db=db,
-        offset=offset,
-        limit=limit,
-        search=search,
-        sort=sort,
-        all=all,
-    )
+    return await template_operator.get_user_templates_simple(db=db, query=query)
 
 
 @router.post(

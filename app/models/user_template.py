@@ -1,4 +1,5 @@
 import json
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -95,6 +96,49 @@ class UserTemplatesSimpleResponse(BaseModel):
 
     templates: list[UserTemplateSimple]
     total: int
+
+
+class UserTemplateSimpleSortField(str, Enum):
+    id = "id"
+    template_name = "name"
+
+
+class SortDirection(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+class UserTemplateSimpleSortOption(str, Enum):
+    id = "id"
+    template_name = "name"
+    desc_id = "-id"
+    desc_template_name = "-name"
+
+    @property
+    def field(self) -> UserTemplateSimpleSortField:
+        return UserTemplateSimpleSortField(self.value.lstrip("-"))
+
+    @property
+    def direction(self) -> SortDirection:
+        return SortDirection.desc if self.value.startswith("-") else SortDirection.asc
+
+
+class UserTemplateListQuery(BaseModel):
+    offset: int | None = None
+    limit: int | None = None
+
+
+class UserTemplateSimpleListQuery(BaseModel):
+    offset: int | None = None
+    limit: int | None = None
+    search: str | None = None
+    sort: list[UserTemplateSimpleSortOption] = Field(default_factory=list)
+    all: bool = False
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def validate_sort(cls, value):
+        return ListValidator.normalize_enum_list_input(value, UserTemplateSimpleSortOption)
 
 
 class BulkUserTemplateSelection(BaseModel):

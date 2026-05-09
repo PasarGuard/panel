@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from typing_extensions import Annotated
 
 from app.db.base import GetDB
-from app.models.admin import AdminCreate, AdminModify
+from app.models.admin import AdminCreate, AdminListQuery, AdminModify
 from app.models.notification_enable import UserNotificationEnable
 from app.utils.system import readable_size
 from cli import SYSTEM_ADMIN, BaseCLI, console, get_admin_operation
@@ -21,7 +21,7 @@ class AdminCLI(BaseCLI):
     async def list_admins(self, db):
         """List all admin accounts."""
         admin_op = get_admin_operation()
-        admins = await admin_op.get_admins(db)
+        admins = await admin_op.get_admins(db, AdminListQuery())
 
         if not admins:
             self.console.print("[yellow]No admins found[/yellow]")
@@ -52,7 +52,7 @@ class AdminCLI(BaseCLI):
         admin_op = get_admin_operation()
 
         # Check if admin already exists
-        admins = await admin_op.get_admins(db)
+        admins = await admin_op.get_admins(db, AdminListQuery())
         if any(admin.username == username for admin in admins):
             self.console.print(f"[red]Admin '{username}' already exists[/red]")
             return
@@ -116,7 +116,7 @@ class AdminCLI(BaseCLI):
         admin_op = get_admin_operation()
 
         # Check if admin exists
-        admins = await admin_op.get_admins(db)
+        admins = await admin_op.get_admins(db, AdminListQuery())
         target_admin = next((admin for admin in admins if admin.username == username), None)
         if not target_admin:
             self.console.print(f"[red]Admin '{username}' not found[/red]")
@@ -148,7 +148,7 @@ class AdminCLI(BaseCLI):
         """Delete all users belonging to an admin."""
         admin_op = get_admin_operation()
 
-        admins = await admin_op.get_admins(db)
+        admins = await admin_op.get_admins(db, AdminListQuery())
         target_admin = next((admin for admin in admins if admin.username == username), None)
         if not target_admin:
             self.console.print(f"[red]Admin '{username}' not found[/red]")
@@ -174,7 +174,7 @@ class AdminCLI(BaseCLI):
         admin_op = get_admin_operation()
 
         # Check if admin exists
-        admins = await admin_op.get_admins(db)
+        admins = await admin_op.get_admins(db, AdminListQuery())
         if not any(admin.username == username for admin in admins):
             self.console.print(f"[red]Admin '{username}' not found[/red]")
             return
@@ -310,7 +310,7 @@ class AdminCLI(BaseCLI):
         admin_op = get_admin_operation()
 
         # Check if admin exists
-        admins = await admin_op.get_admins(db)
+        admins = await admin_op.get_admins(db, AdminListQuery())
         if not any(admin.username == username for admin in admins):
             self.console.print(f"[red]Admin '{username}' not found[/red]")
             return

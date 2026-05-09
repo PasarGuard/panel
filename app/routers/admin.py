@@ -1,7 +1,7 @@
 import asyncio
-from datetime import datetime as dt
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app import notification
@@ -9,19 +9,23 @@ from app.db import AsyncSession, get_db
 from app.models.admin import (
     AdminCreate,
     AdminDetails,
+    AdminListQuery,
     AdminModify,
+    AdminSimpleListQuery,
     Token,
+    AdminUsageQuery,
     AdminsResponse,
     AdminsSimpleResponse,
     BulkAdminsActionResponse,
     BulkAdminSelection,
     RemoveAdminsResponse,
 )
-from app.models.stats import Period, UserUsageStatsList
+from app.models.stats import UserUsageStatsList
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
 from app.utils.jwt import create_admin_token
+from .dependencies import get_admin_list_query, get_admin_simple_list_query, get_admin_usage_query
 
 from .authentication import (
     check_sudo_admin,
@@ -197,15 +201,12 @@ def get_current_admin(admin: AdminDetails = Depends(get_current_with_metrics)):
 
 @router.get("s", response_model=AdminsResponse)
 async def get_admins(
-    username: str | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
-    sort: str | None = None,
+    query: Annotated[AdminListQuery, Depends(get_admin_list_query)],
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(check_sudo_admin),
 ):
     """Fetch a list of admins with optional filters for pagination and username."""
-    return await admin_operator.get_admins(db, username=username, offset=offset, limit=limit, sort=sort)
+    return await admin_operator.get_admins(db, query=query)
 
 
 @router.get(
@@ -216,22 +217,11 @@ async def get_admins(
     dependencies=[Depends(check_sudo_admin)],
 )
 async def get_admins_simple(
-    search: str | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
-    sort: str | None = None,
-    all: bool = False,
+    query: Annotated[AdminSimpleListQuery, Depends(get_admin_simple_list_query)],
     db: AsyncSession = Depends(get_db),
 ):
     """Get lightweight admin list with only id and username"""
-    return await admin_operator.get_admins_simple(
-        db=db,
-        search=search,
-        offset=offset,
-        limit=limit,
-        sort=sort,
-        all=all,
-    )
+    return await admin_operator.get_admins_simple(db=db, query=query)
 
 
 @router.get(
@@ -241,25 +231,12 @@ async def get_admins_simple(
 )
 async def get_admin_usage(
     username: str,
-    period: Period,
-    node_id: int | None = None,
-    group_by_node: bool = False,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
 ):
     """Get admin usage aggregated from user traffic."""
-    return await admin_operator.get_admin_usage(
-        db,
-        username=username,
-        admin=admin,
-        start=start,
-        end=end,
-        period=period,
-        node_id=node_id,
-        group_by_node=group_by_node,
-    )
+    return await admin_operator.get_admin_usage(db, username=username, admin=admin, query=query)
 
 
 @router.get(
@@ -269,24 +246,11 @@ async def get_admin_usage(
 )
 async def get_admin_usage_by_username(
     username: str,
-    period: Period,
-    node_id: int | None = None,
-    group_by_node: bool = False,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
 ):
-    return await admin_operator.get_admin_usage(
-        db,
-        username=username,
-        admin=admin,
-        start=start,
-        end=end,
-        period=period,
-        node_id=node_id,
-        group_by_node=group_by_node,
-    )
+    return await admin_operator.get_admin_usage(db, username=username, admin=admin, query=query)
 
 
 @router.get(
@@ -296,24 +260,11 @@ async def get_admin_usage_by_username(
 )
 async def get_admin_usage_by_id(
     admin_id: int,
-    period: Period,
-    node_id: int | None = None,
-    group_by_node: bool = False,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
 ):
-    return await admin_operator.get_admin_usage_by_id(
-        db,
-        admin_id=admin_id,
-        admin=admin,
-        start=start,
-        end=end,
-        period=period,
-        node_id=node_id,
-        group_by_node=group_by_node,
-    )
+    return await admin_operator.get_admin_usage_by_id(db, admin_id=admin_id, admin=admin, query=query)
 
 
 @router.post("/{username}/users/disable", responses={404: responses._404})

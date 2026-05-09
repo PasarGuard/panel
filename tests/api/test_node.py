@@ -275,11 +275,12 @@ def test_get_usage_passes_filters(access_token, node_operator_mock):
     assert response.json() == usage.model_dump(mode="json")
 
     awaited_kwargs = node_operator_mock.get_usage.await_args.kwargs
-    assert awaited_kwargs["node_id"] == 5
-    assert awaited_kwargs["group_by_node"] is True
-    assert awaited_kwargs["period"] == Period.day
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
+    query = awaited_kwargs["query"]
+    assert query.node_id == 5
+    assert query.group_by_node is True
+    assert query.period == Period.day
+    assert query.start == start
+    assert query.end == end
 
 
 def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
@@ -303,11 +304,12 @@ def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
 
     awaited_kwargs = node_operator_mock.get_user_count_metric.await_args.kwargs
     assert awaited_kwargs["metric"] == UserCountMetric.online
-    assert awaited_kwargs["node_id"] == 5
-    assert awaited_kwargs["group_by_node"] is True
-    assert awaited_kwargs["period"] == Period.day
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
+    query = awaited_kwargs["query"]
+    assert query.node_id == 5
+    assert query.group_by_node is True
+    assert query.period == Period.day
+    assert query.start == start
+    assert query.end == end
 
 
 def test_get_user_count_metric_rejects_status_metric_node_scope(access_token, node_operator_mock):
@@ -342,13 +344,14 @@ def test_get_nodes_forwards_query_params(access_token, node_operator_mock):
     assert response.json() == nodes_response.model_dump(mode="json")
 
     awaited_kwargs = node_operator_mock.get_db_nodes.await_args.kwargs
-    assert awaited_kwargs["core_id"] == 2
-    assert awaited_kwargs["offset"] == 5
-    assert awaited_kwargs["limit"] == 25
-    assert awaited_kwargs["enabled"] is True
-    assert awaited_kwargs["ids"] == [1, 2]
-    assert awaited_kwargs["search"] == "test"
-    assert awaited_kwargs["status"] == [NodeStatus.connected, NodeStatus.error]
+    query = awaited_kwargs["query"]
+    assert query.core_id == 2
+    assert query.offset == 5
+    assert query.limit == 25
+    assert query.enabled is True
+    assert query.ids == [1, 2]
+    assert query.search == "test"
+    assert query.status == [NodeStatus.connected, NodeStatus.error]
 
 
 def test_reconnect_all_nodes_triggers_restart(access_token, node_operator_mock):
@@ -546,9 +549,10 @@ def test_get_node_stats(access_token, node_operator_mock):
     assert response.json() == stats.model_dump(mode="json")
     awaited_kwargs = node_operator_mock.get_node_stats_periodic.await_args.kwargs
     assert awaited_kwargs["node_id"] == 8
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
-    assert awaited_kwargs["period"] == Period.hour
+    query = awaited_kwargs["query"]
+    assert query.start == start
+    assert query.end == end
+    assert query.period == Period.hour
 
 
 def test_realtime_node_stats(access_token, node_operator_mock):

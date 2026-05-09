@@ -5,7 +5,6 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
 from app.db.crud.client_template import (
-    ClientTemplateSortingOptionsSimple,
     clear_host_subscription_template_overrides,
     count_client_templates_by_type,
     create_client_template,
@@ -21,10 +20,12 @@ from app.models.admin import AdminDetails
 from app.models.client_template import (
     BulkClientTemplateSelection,
     ClientTemplateCreate,
+    ClientTemplateListQuery,
     ClientTemplateModify,
     ClientTemplateResponse,
     ClientTemplateResponseList,
     ClientTemplateSimple,
+    ClientTemplateSimpleListQuery,
     ClientTemplatesSimpleResponse,
     ClientTemplateType,
     RemoveClientTemplatesResponse,
@@ -108,42 +109,15 @@ class ClientTemplateOperation(BaseOperation):
     async def get_client_templates(
         self,
         db: AsyncSession,
-        template_type: ClientTemplateType | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
+        query: ClientTemplateListQuery,
     ) -> ClientTemplateResponseList:
-        templates, count = await get_client_templates(db, template_type=template_type, offset=offset, limit=limit)
+        templates, count = await get_client_templates(db, query=query)
         return ClientTemplateResponseList(templates=templates, count=count)
 
     async def get_client_templates_simple(
-        self,
-        db: AsyncSession,
-        offset: int | None = None,
-        limit: int | None = None,
-        search: str | None = None,
-        template_type: ClientTemplateType | None = None,
-        sort: str | None = None,
-        all: bool = False,
+        self, db: AsyncSession, query: ClientTemplateSimpleListQuery
     ) -> ClientTemplatesSimpleResponse:
-        sort_list = []
-        if sort is not None:
-            opts = sort.strip(",").split(",")
-            for opt in opts:
-                try:
-                    enum_member = ClientTemplateSortingOptionsSimple[opt]
-                    sort_list.append(enum_member)
-                except KeyError:
-                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
-
-        rows, total = await get_client_templates_simple(
-            db=db,
-            offset=offset,
-            limit=limit,
-            search=search,
-            template_type=template_type,
-            sort=sort_list if sort_list else None,
-            skip_pagination=all,
-        )
+        rows, total = await get_client_templates_simple(db=db, query=query)
 
         templates = [
             ClientTemplateSimple(id=row[0], name=row[1], template_type=row[2], is_default=row[3]) for row in rows

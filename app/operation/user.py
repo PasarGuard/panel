@@ -4,8 +4,6 @@ import secrets
 import warnings
 from collections import Counter
 from datetime import datetime as dt, timedelta as td, timezone as tz
-from typing import Literal
-
 from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -25,8 +23,6 @@ from app.db.crud.bulk import (
     update_users_proxy_settings,
 )
 from app.db.crud.user import (
-    UsersSortingOptions,
-    UsersSortingOptionsSimple,
     bulk_reset_user_data_usage,
     bulk_revoke_user_sub,
     bulk_set_owner,
@@ -72,16 +68,21 @@ from app.models.user import (
     BulkUsersSetOwner,
     BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
+    ExpiredUsersQuery,
     ModifyUserByTemplate,
     RemoveUsersResponse,
     UserCreate,
+    UserListQuery,
     UserModify,
     UsernameGenerationStrategy,
     UserNotificationResponse,
     UserResponse,
     UserSimple,
+    UserSimpleListQuery,
+    UserUsageQuery,
     UsersResponse,
     UsersSimpleResponse,
+    UsersUsageQuery,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateList,
@@ -693,11 +694,7 @@ class UserOperation(BaseOperation):
         db: AsyncSession,
         username: str,
         admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
+        query: UserUsageQuery,
     ) -> UserUsageStatsList:
         warnings.warn(
             "get_user_usage(username, ...) is deprecated and will be removed in v6.0.0. "
@@ -706,21 +703,35 @@ class UserOperation(BaseOperation):
             stacklevel=2,
         )
         db_user = await self.get_validated_user(db, username, admin)
-        return await self._get_user_usage(db, db_user, admin, start, end, period, node_id, group_by_node)
+        return await self._get_user_usage(
+            db,
+            db_user,
+            admin,
+            query.start,
+            query.end,
+            query.period,
+            query.node_id,
+            query.group_by_node,
+        )
 
     async def get_user_usage_by_id(
         self,
         db: AsyncSession,
         user_id: int,
         admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
+        query: UserUsageQuery,
     ) -> UserUsageStatsList:
         db_user = await self.get_validated_user_by_id(db, user_id, admin)
-        return await self._get_user_usage(db, db_user, admin, start, end, period, node_id, group_by_node)
+        return await self._get_user_usage(
+            db,
+            db_user,
+            admin,
+            query.start,
+            query.end,
+            query.period,
+            query.node_id,
+            query.group_by_node,
+        )
 
     async def get_user(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserNotificationResponse:
         warnings.warn(
@@ -739,65 +750,17 @@ class UserOperation(BaseOperation):
         self,
         db: AsyncSession,
         admin: AdminDetails,
-        offset: int = None,
-        limit: int = None,
-        username: list[str] = None,
-        search: str | None = None,
-        owner: list[str] | None = None,
-        status: UserStatus | None = None,
-        sort: str | None = None,
-        proxy_id: str | None = None,
-        data_limit_min: int | None = None,
-        data_limit_max: int | None = None,
-        expire_after: dt | None = None,
-        expire_before: dt | None = None,
-        online_after: dt | None = None,
-        online_before: dt | None = None,
-        online: bool = False,
-        no_data_limit: bool = False,
-        no_expire: bool = False,
-        load_sub: bool = False,
-        group_ids: list[int] | None = None,
+        query: UserListQuery,
     ) -> UsersResponse:
         """Get all users"""
-        sort_list = []
-        if sort is not None:
-            opts = sort.strip(",").split(",")
-            for opt in opts:
-                try:
-                    enum_member = UsersSortingOptions[opt]
-                    value = enum_member.value
-                    if isinstance(value, tuple):
-                        sort_list.extend(value)
-                    else:
-                        sort_list.append(value)
-                except KeyError:
-                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
-
         users, count = await get_users(
             db=db,
-            offset=offset,
-            limit=limit,
-            search=search,
-            usernames=username,
-            status=status,
-            sort=sort_list,
-            proxy_id=proxy_id,
-            data_limit_min=data_limit_min,
-            data_limit_max=data_limit_max,
-            expire_after=expire_after,
-            expire_before=expire_before,
-            online_after=online_after,
-            online_before=online_before,
-            online=online,
-            no_data_limit=no_data_limit,
-            no_expire=no_expire,
-            admins=owner if admin.is_sudo else [admin.username],
+            query=query,
+            admins=query.owner if admin.is_sudo else [admin.username],
             return_with_count=True,
-            group_ids=group_ids,
         )
 
-        if load_sub:
+        if query.load_sub:
             tasks = [self.generate_subscription_url(user) for user in users]
             urls = await asyncio.gather(*tasks)
 
@@ -812,23 +775,9 @@ class UserOperation(BaseOperation):
         self,
         db: AsyncSession,
         admin: AdminDetails,
-        offset: int = None,
-        limit: int = None,
-        search: str | None = None,
-        sort: str | None = None,
-        all: bool = False,
+        query: UserSimpleListQuery,
     ) -> UsersSimpleResponse:
         """Get lightweight user list with only id and username"""
-        sort_list = []
-        if sort is not None:
-            opts = sort.strip(",").split(",")
-            for opt in opts:
-                try:
-                    enum_member = UsersSortingOptionsSimple[opt]
-                    sort_list.append(enum_member)
-                except KeyError:
-                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
-
         # Authorization: non-sudo admins see only their users
         admin_filter = (
             None if admin.is_sudo else await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
@@ -837,12 +786,8 @@ class UserOperation(BaseOperation):
         # Call CRUD function
         rows, total = await get_users_simple(
             db=db,
-            offset=offset,
-            limit=limit,
-            search=search,
-            sort=sort_list,
+            query=query,
             admin=admin_filter,
-            skip_pagination=all,
         )
 
         # Convert tuples to Pydantic models
@@ -854,15 +799,12 @@ class UserOperation(BaseOperation):
         self,
         db: AsyncSession,
         admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
-        owner: list[str] | None = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
+        query: UsersUsageQuery,
     ) -> UserUsageStatsList:
         """Get all users usage"""
-        start, end = await self.validate_dates(start, end, True)
+        start, end = await self.validate_dates(query.start, query.end, True)
+        node_id = query.node_id
+        group_by_node = query.group_by_node
 
         if not admin.is_sudo:
             node_id = None
@@ -872,9 +814,9 @@ class UserOperation(BaseOperation):
             db=db,
             start=start,
             end=end,
-            period=period,
+            period=query.period,
             node_id=node_id,
-            admins=owner if admin.is_sudo else [admin.username],
+            admins=query.owner if admin.is_sudo else [admin.username],
             group_by_node=group_by_node,
         )
 
@@ -883,15 +825,12 @@ class UserOperation(BaseOperation):
         db: AsyncSession,
         admin: AdminDetails,
         metric: UserCountMetric,
-        start: dt = None,
-        end: dt = None,
-        owner: list[str] | None = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
+        query: UsersUsageQuery,
     ) -> UserCountMetricStatsList:
         """Get one users activity/status count metric from usage rows."""
-        start, end = await self.validate_dates(start, end, True)
+        start, end = await self.validate_dates(query.start, query.end, True)
+        node_id = query.node_id
+        group_by_node = query.group_by_node
 
         if not admin.is_sudo:
             node_id = None
@@ -904,10 +843,10 @@ class UserOperation(BaseOperation):
 
         return await get_user_count_metric_stats(
             db=db,
-            admins=owner if admin.is_sudo else [admin.username],
+            admins=query.owner if admin.is_sudo else [admin.username],
             start=start,
             end=end,
-            period=period,
+            period=query.period,
             metric=metric,
             node_id=node_id,
             group_by_node=group_by_node,
@@ -921,10 +860,7 @@ class UserOperation(BaseOperation):
     async def get_expired_users(
         self,
         db: AsyncSession,
-        expired_after: dt = None,
-        expired_before: dt = None,
-        admin_username: str = None,
-        target: Literal["expired", "limited"] = "expired",
+        query: ExpiredUsersQuery,
     ) -> list[str]:
         """
         Get users who have expired within the specified date range.
@@ -936,22 +872,23 @@ class UserOperation(BaseOperation):
         - If both dates are omitted, returns all users matching target.
         """
 
-        expired_after, expired_before = await self.validate_dates(expired_after, expired_before, False)
-        if admin_username:
-            admin_id = (await self.get_validated_admin(db, admin_username)).id
+        expired_after, expired_before = await self.validate_dates(query.expired_after, query.expired_before, False)
+        if query.admin_username:
+            admin_id = (await self.get_validated_admin(db, query.admin_username)).id
         else:
             admin_id = None
-        users = await get_expired_users(db, expired_after, expired_before, admin_id, target=target)
+        users = await get_expired_users(
+            db,
+            query=query.model_copy(update={"expired_after": expired_after, "expired_before": expired_before}),
+            admin_id=admin_id,
+        )
         return [row.username for row in users]
 
     async def delete_expired_users(
         self,
         db: AsyncSession,
         admin: AdminDetails,
-        expired_after: dt | None = None,
-        expired_before: dt | None = None,
-        admin_username: str = None,
-        target: Literal["expired", "limited"] = "expired",
+        query: ExpiredUsersQuery,
     ) -> RemoveUsersResponse:
         """
         Delete users who have expired within the specified date range.
@@ -962,13 +899,19 @@ class UserOperation(BaseOperation):
         - Date range filters are applied only when target is `expired`.
         """
 
-        expired_after, expired_before = await self.validate_dates(expired_after, expired_before, False)
+        expired_after, expired_before = await self.validate_dates(query.expired_after, query.expired_before, False)
 
-        if admin_username:
-            admin_id = (await self.get_validated_admin(db, admin_username)).id
+        if query.admin_username:
+            admin_id = (await self.get_validated_admin(db, query.admin_username)).id
         else:
             admin_id = None
-        username_list = await remove_expired_users(db, expired_after, expired_before, admin_id, target=target)
+        username_list = await remove_expired_users(
+            db,
+            expired_after,
+            expired_before,
+            admin_id,
+            target=query.target,
+        )
         await self.remove_users_logger(users=username_list, by=admin.username)
 
         return RemoveUsersResponse(users=username_list, count=len(username_list))

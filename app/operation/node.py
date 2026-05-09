@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime as dt
 from typing import AsyncIterator, Callable
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
@@ -10,7 +9,6 @@ from app import notification
 from app.core.manager import core_manager
 from app.db import AsyncSession, GetDB
 from app.db.crud.node import (
-    NodeSortingOptionsSimple,
     bulk_reset_node_usage,
     bulk_update_node_status,
     clear_usage_data,
@@ -33,13 +31,18 @@ from app.models.core import CoreType
 from app.models.node import (
     BulkNodesActionResponse,
     BulkNodeSelection,
+    NodeClearUsageQuery,
     NodeCoreUpdate,
     NodeCreate,
     NodeGeoFilesUpdate,
+    NodeListQuery,
     NodeModify,
     NodeNotification,
     NodeResponse,
+    NodeSimpleListQuery,
     NodeSimple,
+    NodeStatsPeriodQuery,
+    NodeUsageQuery,
     NodesResponse,
     NodesSimpleResponse,
     RemoveNodesResponse,
@@ -51,7 +54,6 @@ from app.models.stats import (
     NodeRealtimeStats,
     NodeStatsList,
     NodeUsageStatsList,
-    Period,
     UserCountMetric,
     UserCountMetricStatsList,
     validate_user_count_metric_scope,
@@ -108,55 +110,19 @@ class NodeOperation(BaseOperation):
     async def get_db_nodes(
         self,
         db: AsyncSession,
-        core_id: int | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-        enabled: bool = False,
-        status: NodeStatus | list[NodeStatus] | None = None,
-        ids: list[int] | None = None,
-        search: str | None = None,
+        query: NodeListQuery,
     ) -> NodesResponse:
-        db_nodes, count = await get_nodes(
-            db=db,
-            core_id=core_id,
-            offset=offset,
-            limit=limit,
-            enabled=enabled,
-            status=status,
-            ids=ids,
-            search=search,
-        )
+        db_nodes, count = await get_nodes(db=db, query=query)
         node_responses = [NodeResponse.model_validate(node) for node in db_nodes]
         return NodesResponse(nodes=node_responses, total=count)
 
     async def get_nodes_simple(
         self,
         db: AsyncSession,
-        offset: int | None = None,
-        limit: int | None = None,
-        search: str | None = None,
-        sort: str | None = None,
-        all: bool = False,
+        query: NodeSimpleListQuery,
     ) -> NodesSimpleResponse:
         """Get lightweight node list with only id and name"""
-        sort_list = []
-        if sort is not None:
-            opts = sort.strip(",").split(",")
-            for opt in opts:
-                try:
-                    enum_member = NodeSortingOptionsSimple[opt]
-                    sort_list.append(enum_member)
-                except KeyError:
-                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
-
-        rows, total = await get_nodes_simple(
-            db=db,
-            offset=offset,
-            limit=limit,
-            search=search,
-            sort=sort_list if sort_list else None,
-            skip_pagination=all,
-        )
+        rows, total = await get_nodes_simple(db=db, query=query)
 
         nodes = [NodeSimple(id=row[0], name=row[1], status=row[2]) for row in rows]
 
@@ -438,28 +404,27 @@ class NodeOperation(BaseOperation):
     async def get_usage(
         self,
         db: AsyncSession,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
+        query: NodeUsageQuery,
     ) -> NodeUsageStatsList:
-        start, end = await self.validate_dates(start, end, True)
-        return await get_nodes_usage(db, start, end, period=period, node_id=node_id, group_by_node=group_by_node)
+        start, end = await self.validate_dates(query.start, query.end, True)
+        return await get_nodes_usage(
+            db,
+            start,
+            end,
+            period=query.period,
+            node_id=query.node_id,
+            group_by_node=query.group_by_node,
+        )
 
     async def get_user_count_metric(
         self,
         db: AsyncSession,
         metric: UserCountMetric,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
+        query: NodeUsageQuery,
     ) -> UserCountMetricStatsList:
-        start, end = await self.validate_dates(start, end, True)
+        start, end = await self.validate_dates(query.start, query.end, True)
         try:
-            validate_user_count_metric_scope(metric, node_id=node_id, group_by_node=group_by_node)
+            validate_user_count_metric_scope(metric, node_id=query.node_id, group_by_node=query.group_by_node)
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
 
@@ -468,21 +433,21 @@ class NodeOperation(BaseOperation):
             admins=None,
             start=start,
             end=end,
-            period=period,
+            period=query.period,
             metric=metric,
-            node_id=node_id,
-            group_by_node=group_by_node,
+            node_id=query.node_id,
+            group_by_node=query.group_by_node,
         )
 
     async def get_logs(self, node_id: int) -> Callable[[], AsyncIterator[asyncio.Queue]]:
         return await self._get_logs_impl(node_id)
 
     async def get_node_stats_periodic(
-        self, db: AsyncSession, node_id: int, start: dt = None, end: dt = None, period: Period = Period.hour
+        self, db: AsyncSession, node_id: int, query: NodeStatsPeriodQuery
     ) -> NodeStatsList:
-        start, end = await self.validate_dates(start, end, True)
+        start, end = await self.validate_dates(query.start, query.end, True)
 
-        return await get_node_stats(db, node_id, start, end, period=period)
+        return await get_node_stats(db, node_id, start, end, period=query.period)
 
     async def get_node_system_stats(self, node_id: int) -> NodeRealtimeStats:
         return await self._get_node_stats_impl(node_id)
@@ -527,14 +492,12 @@ class NodeOperation(BaseOperation):
     async def sync_node_users(self, db: AsyncSession, node_id: int, flush_users: bool = False) -> NodeResponse:
         return await self._sync_node_users_impl(db, node_id, flush_users)
 
-    async def clear_usage_data(
-        self, db: AsyncSession, table: UsageTable, start: dt | None = None, end: dt | None = None
-    ):
-        if start and end and start >= end:
+    async def clear_usage_data(self, db: AsyncSession, table: UsageTable, query: NodeClearUsageQuery):
+        if query.start and query.end and query.start >= query.end:
             await self.raise_error(code=400, message="Start time must be before end time.")
 
         try:
-            await clear_usage_data(db, table, start, end)
+            await clear_usage_data(db, table, query.start, query.end)
             return {"detail": f"All data from '{table}' has been deleted successfully."}
         except Exception as e:
             await self.raise_error(code=400, message=f"Deletion failed due to server error: {str(e)}")

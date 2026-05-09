@@ -9,7 +9,6 @@ from app.models.client_template import (
     ClientTemplateResponse,
     ClientTemplateResponseList,
     ClientTemplatesSimpleResponse,
-    ClientTemplateType,
     RemoveClientTemplatesResponse,
 )
 from app.operation import OperatorType
@@ -17,6 +16,7 @@ from app.operation.client_template import ClientTemplateOperation
 from app.utils import responses
 
 from .authentication import check_sudo_admin, get_current
+from .dependencies import get_client_template_list_query, get_client_template_simple_list_query
 
 router = APIRouter(
     tags=["Client Template"],
@@ -67,37 +67,20 @@ async def remove_client_template(
 
 @router.get("s", response_model=ClientTemplateResponseList)
 async def get_client_templates(
-    template_type: ClientTemplateType | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
+    query=Depends(get_client_template_list_query),
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(get_current),
 ):
-    return await client_template_operator.get_client_templates(
-        db, template_type=template_type, offset=offset, limit=limit
-    )
+    return await client_template_operator.get_client_templates(db, query=query)
 
 
 @router.get("s/simple", response_model=ClientTemplatesSimpleResponse)
 async def get_client_templates_simple(
-    template_type: ClientTemplateType | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: str | None = None,
-    all: bool = False,
+    query=Depends(get_client_template_simple_list_query),
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(get_current),
 ):
-    return await client_template_operator.get_client_templates_simple(
-        db=db,
-        template_type=template_type,
-        offset=offset,
-        limit=limit,
-        search=search,
-        sort=sort,
-        all=all,
-    )
+    return await client_template_operator.get_client_templates_simple(db=db, query=query)
 
 
 @router.post(

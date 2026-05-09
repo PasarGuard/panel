@@ -433,7 +433,7 @@ class HostManager:
             # Deserialize state using JSON
             try:
                 cached_state = json.loads(value.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError, UnicodeDecodeError:
                 self._logger.warning("Failed to decode HostManager state as JSON, ignoring...")
                 return False
 
@@ -446,7 +446,7 @@ class HostManager:
                         converted_state[host_id] = SubscriptionInboundData.model_validate(host_data)
                     else:
                         converted_state[host_id] = host_data
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     self._logger.warning(f"Failed to convert host data for host ID {host_id_str}: {host_data}")
                     continue
 

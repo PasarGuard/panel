@@ -616,12 +616,13 @@ def test_get_users_count_metric_passes_filters(access_token, monkeypatch):
 
     awaited_kwargs = operator.get_users_count_metric.await_args.kwargs
     assert awaited_kwargs["metric"] == UserCountMetric.online
-    assert awaited_kwargs["owner"] == ["admin-a", "admin-b"]
-    assert awaited_kwargs["node_id"] == 5
-    assert awaited_kwargs["group_by_node"] is True
-    assert awaited_kwargs["period"] == Period.day
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
+    query = awaited_kwargs["query"]
+    assert query.owner == ["admin-a", "admin-b"]
+    assert query.node_id == 5
+    assert query.group_by_node is True
+    assert query.period == Period.day
+    assert query.start == start
+    assert query.end == end
 
 
 def test_get_users_count_metric_rejects_status_metric_node_scope(access_token, monkeypatch):

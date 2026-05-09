@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
@@ -7,8 +9,10 @@ from app.models.group import (
     BulkGroupsActionResponse,
     BulkGroupSelection,
     GroupCreate,
+    GroupListQuery,
     GroupModify,
     GroupResponse,
+    GroupSimpleListQuery,
     GroupsResponse,
     GroupsSimpleResponse,
     RemoveGroupsResponse,
@@ -16,6 +20,7 @@ from app.models.group import (
 from app.operation import OperatorType
 from app.operation.group import GroupOperation
 from app.utils import responses
+from .dependencies import get_group_list_query, get_group_simple_list_query
 
 from .authentication import check_sudo_admin, get_current
 
@@ -60,7 +65,9 @@ async def create_group(
     description="Retrieves a paginated list of all groups in the system. Requires admin authentication.",
 )
 async def get_all_groups(
-    offset: int = None, limit: int = None, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    query: Annotated[GroupListQuery, Depends(get_group_list_query)],
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(get_current),
 ):
     """
     Retrieve a list of all groups with optional pagination.
@@ -80,7 +87,7 @@ async def get_all_groups(
     Raises:
         401: Unauthorized - If not authenticated
     """
-    return await group_operator.get_all_groups(db, offset, limit)
+    return await group_operator.get_all_groups(db, query)
 
 
 @router.get(
@@ -90,23 +97,12 @@ async def get_all_groups(
     description="Returns only id and name for groups. Optimized for dropdowns and autocomplete.",
 )
 async def get_groups_simple(
-    offset: int = None,
-    limit: int = None,
-    search: str | None = None,
-    sort: str | None = None,
-    all: bool = False,
+    query: Annotated[GroupSimpleListQuery, Depends(get_group_simple_list_query)],
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(get_current),
 ):
     """Get lightweight group list with only id and name"""
-    return await group_operator.get_groups_simple(
-        db=db,
-        offset=offset,
-        limit=limit,
-        search=search,
-        sort=sort,
-        all=all,
-    )
+    return await group_operator.get_groups_simple(db=db, query=query)
 
 
 @router.get(

@@ -1,9 +1,14 @@
 import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime as dt
+from enum import Enum
 
 import bcrypt
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.models.stats import Period
+from app.utils.helpers import fix_datetime_timezone
 
 from .notification_enable import UserNotificationEnable
 from .validators import DiscordValidator, ListValidator, NumericValidatorMixin, PasswordValidator
@@ -167,6 +172,94 @@ class AdminsSimpleResponse(BaseModel):
 
     admins: list[AdminSimple]
     total: int
+
+
+class AdminSortField(str, Enum):
+    username = "username"
+    created_at = "created_at"
+    used_traffic = "used_traffic"
+
+
+class AdminSimpleSortField(str, Enum):
+    id = "id"
+    username = "username"
+
+
+class SortDirection(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+class AdminSortOption(str, Enum):
+    username = "username"
+    created_at = "created_at"
+    used_traffic = "used_traffic"
+    desc_username = "-username"
+    desc_created_at = "-created_at"
+    desc_used_traffic = "-used_traffic"
+
+    @property
+    def field(self) -> AdminSortField:
+        return AdminSortField(self.value.lstrip("-"))
+
+    @property
+    def direction(self) -> SortDirection:
+        return SortDirection.desc if self.value.startswith("-") else SortDirection.asc
+
+
+class AdminSimpleSortOption(str, Enum):
+    id = "id"
+    username = "username"
+    desc_id = "-id"
+    desc_username = "-username"
+
+    @property
+    def field(self) -> AdminSimpleSortField:
+        return AdminSimpleSortField(self.value.lstrip("-"))
+
+    @property
+    def direction(self) -> SortDirection:
+        return SortDirection.desc if self.value.startswith("-") else SortDirection.asc
+
+
+class AdminListQuery(BaseModel):
+    username: str | None = None
+    offset: int | None = None
+    limit: int | None = None
+    sort: list[AdminSortOption] = Field(default_factory=list)
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def validate_sort(cls, value):
+        return ListValidator.normalize_enum_list_input(value, AdminSortOption)
+
+
+class AdminSimpleListQuery(BaseModel):
+    search: str | None = None
+    offset: int | None = None
+    limit: int | None = None
+    sort: list[AdminSimpleSortOption] = Field(default_factory=list)
+    all: bool = False
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def validate_sort(cls, value):
+        return ListValidator.normalize_enum_list_input(value, AdminSimpleSortOption)
+
+
+class AdminUsageQuery(BaseModel):
+    period: Period = Field(default=Period.hour)
+    node_id: int | None = None
+    group_by_node: bool = False
+    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def validate_datetimes(cls, value):
+        if not value:
+            return value
+        return fix_datetime_timezone(value)
 
 
 class BulkAdminSelection(BaseModel):

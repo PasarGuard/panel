@@ -4,7 +4,14 @@ from app.db import AsyncSession
 from app.db.models import ProxyHost
 from app.models.admin import AdminDetails
 from app.models.client_template import ClientTemplateType
-from app.models.host import BaseHost, BulkHostSelection, BulkHostsActionResponse, CreateHost, RemoveHostsResponse
+from app.models.host import (
+    BaseHost,
+    BulkHostSelection,
+    BulkHostsActionResponse,
+    CreateHost,
+    HostListQuery,
+    RemoveHostsResponse,
+)
 from app.operation import BaseOperation
 from app.db.crud.host import (
     create_host,
@@ -24,8 +31,8 @@ logger = get_logger("host-operation")
 
 
 class HostOperation(BaseOperation):
-    async def get_hosts(self, db: AsyncSession, offset: int = 0, limit: int = 0) -> list[BaseHost]:
-        return await get_hosts(db=db, offset=offset, limit=limit)
+    async def get_hosts(self, db: AsyncSession, query: HostListQuery) -> list[BaseHost]:
+        return await get_hosts(db=db, query=query)
 
     async def validate_subscription_templates(self, db: AsyncSession, host: CreateHost) -> None:
         if not host.subscription_templates or host.subscription_templates.xray is None:

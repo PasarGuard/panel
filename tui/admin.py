@@ -11,7 +11,7 @@ from textual.widgets import Button, DataTable, Input, Static, Switch, TextArea
 from app.db import AsyncSession
 from app.db.base import get_db
 from app.db.models import Admin, User
-from app.models.admin import AdminCreate, AdminDetails, AdminModify
+from app.models.admin import AdminCreate, AdminDetails, AdminListQuery, AdminModify
 from app.models.notification_enable import UserNotificationEnable
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
@@ -695,7 +695,10 @@ class AdminContent(Static):
         self.total_admins = await self.admin_operator.get_admins_count(self.db)
         offset = (self.current_page - 1) * self.page_size
         limit = self.page_size
-        admins = await self.admin_operator.get_admins(self.db, offset=offset, limit=limit)
+        admins = await self.admin_operator.get_admins(
+            self.db,
+            AdminListQuery(offset=offset, limit=limit),
+        )
         if not admins:
             self.no_admins.styles.display = "block"
             self.pagination_info.update("")

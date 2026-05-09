@@ -89,6 +89,8 @@ async def webhook_handler(request: Request, X_Telegram_Bot_Api_Secret_Token: str
         raise HTTPException(status_code=403, detail="Forbidden: Invalid secret key")
 
     bot = get_bot()
+    if not bot:
+        return JSONResponse(status_code=200, content={"status": "ok"})
     dp = get_dispatcher()
 
     update_data = await request.json()

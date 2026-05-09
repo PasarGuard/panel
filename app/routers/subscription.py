@@ -1,15 +1,14 @@
-from datetime import datetime as dt
-
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import JSONResponse
 
 from app.db import AsyncSession, get_db
 from app.models.settings import Application, ConfigFormat
-from app.models.stats import Period, UserUsageStatsList
+from app.models.stats import UserUsageStatsList
 from app.models.user import SubscriptionUserResponse
 from app.operation import OperatorType
 from app.operation.subscription import SubscriptionOperation
 from config import subscription_env_settings
+from .dependencies import get_subscription_usage_query
 
 router = APIRouter(tags=["Subscription"], prefix=f"/{subscription_env_settings.path}")
 subscription_operator = SubscriptionOperation(operator_type=OperatorType.API)
@@ -54,13 +53,11 @@ async def user_subscription_apps(token: str, db: AsyncSession = Depends(get_db))
 @router.get("/{token}/usage", response_model=UserUsageStatsList)
 async def get_sub_user_usage(
     token: str,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
-    period: Period = Period.hour,
+    query=Depends(get_subscription_usage_query),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetches the usage statistics for the user within a specified date range."""
-    return await subscription_operator.get_user_usage(db, token=token, start=start, end=end, period=period)
+    return await subscription_operator.get_user_usage(db, token=token, query=query)
 
 
 @router.get("/{token}/{client_type}")

@@ -1,11 +1,13 @@
 from datetime import datetime as dt
 from enum import Enum
+from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.admin import AdminBase, AdminContactInfo
 from app.models.proxy import ProxyTable, ShadowsocksMethods, XTLSFlows
+from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
 from .validators import ListValidator, NumericValidatorMixin, UserValidator
@@ -160,6 +162,148 @@ class UsersSimpleResponse(BaseModel):
 
     users: list[UserSimple]
     total: int
+
+
+class UserSortField(str, Enum):
+    username = "username"
+    used_traffic = "used_traffic"
+    data_limit = "data_limit"
+    expire = "expire"
+    created_at = "created_at"
+    edit_at = "edit_at"
+    online_at = "online_at"
+
+
+class UserSimpleSortField(str, Enum):
+    id = "id"
+    username = "username"
+
+
+class SortDirection(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+class UserSortOption(str, Enum):
+    username = "username"
+    used_traffic = "used_traffic"
+    data_limit = "data_limit"
+    expire = "expire"
+    created_at = "created_at"
+    edit_at = "edit_at"
+    online_at = "online_at"
+    desc_username = "-username"
+    desc_used_traffic = "-used_traffic"
+    desc_data_limit = "-data_limit"
+    desc_expire = "-expire"
+    desc_created_at = "-created_at"
+    desc_edit_at = "-edit_at"
+    desc_online_at = "-online_at"
+
+    @property
+    def field(self) -> UserSortField:
+        return UserSortField(self.value.lstrip("-"))
+
+    @property
+    def direction(self) -> SortDirection:
+        return SortDirection.desc if self.value.startswith("-") else SortDirection.asc
+
+
+class UserSimpleSortOption(str, Enum):
+    id = "id"
+    username = "username"
+    desc_id = "-id"
+    desc_username = "-username"
+
+    @property
+    def field(self) -> UserSimpleSortField:
+        return UserSimpleSortField(self.value.lstrip("-"))
+
+    @property
+    def direction(self) -> SortDirection:
+        return SortDirection.desc if self.value.startswith("-") else SortDirection.asc
+
+
+class UserListQuery(BaseModel):
+    offset: int | None = Field(default=None)
+    limit: int | None = Field(default=None)
+    username: list[str] | None = Field(default=None)
+    owner: list[str] | None = Field(default=None, alias="admin")
+    group_ids: list[int] | None = Field(default=None, alias="group")
+    search: str | None = Field(default=None)
+    status: UserStatus | list[UserStatus] | None = Field(default=None)
+    sort: list[UserSortOption] = Field(default_factory=list)
+    proxy_id: str | None = Field(default=None)
+    data_limit_min: int | None = Field(default=None, ge=0)
+    data_limit_max: int | None = Field(default=None, ge=0)
+    expire_after: dt | None = Field(default=None, examples=["2026-01-01T00:00:00+03:30"])
+    expire_before: dt | None = Field(default=None, examples=["2026-01-31T23:59:59+03:30"])
+    online_after: dt | None = Field(default=None, examples=["2026-01-01T00:00:00+03:30"])
+    online_before: dt | None = Field(default=None, examples=["2026-01-31T23:59:59+03:30"])
+    online: bool = Field(default=False)
+    no_data_limit: bool = Field(default=False)
+    no_expire: bool = Field(default=False)
+    load_sub: bool = Field(default=False)
+    model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator("expire_after", "expire_before", "online_after", "online_before", mode="before")
+    @classmethod
+    def validate_datetimes(cls, value):
+        if not value:
+            return value
+        return fix_datetime_timezone(value)
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def validate_sort(cls, value):
+        return ListValidator.normalize_enum_list_input(value, UserSortOption)
+
+
+class UserSimpleListQuery(BaseModel):
+    offset: int | None = Field(default=None)
+    limit: int | None = Field(default=None)
+    search: str | None = Field(default=None)
+    sort: list[UserSimpleSortOption] = Field(default_factory=list)
+    all: bool = Field(default=False)
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def validate_sort(cls, value):
+        return ListValidator.normalize_enum_list_input(value, UserSimpleSortOption)
+
+
+class UserUsageQuery(BaseModel):
+    period: Period = Field(default=Period.hour)
+    node_id: int | None = Field(default=None)
+    group_by_node: bool = Field(default=False)
+    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def validate_datetimes(cls, value):
+        if not value:
+            return value
+        return fix_datetime_timezone(value)
+
+
+class UsersUsageQuery(UserUsageQuery):
+    owner: list[str] | None = Field(default=None, alias="admin")
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ExpiredUsersQuery(BaseModel):
+    admin_username: str | None = Field(default=None)
+    target: Literal["expired", "limited"] = Field(default="expired")
+    expired_after: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    expired_before: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+
+    @field_validator("expired_after", "expired_before", mode="before")
+    @classmethod
+    def validate_datetimes(cls, value):
+        if not value:
+            return value
+        return fix_datetime_timezone(value)
 
 
 class UserSubscriptionUpdateSchema(BaseModel):

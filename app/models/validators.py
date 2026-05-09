@@ -57,7 +57,7 @@ class NumericValidatorMixin:
 
 class ListValidator:
     @staticmethod
-    def nullable_list(list: list[Any] | None, name: str) -> list[Any]:
+    def nullable_list(list: list[Any] | None, name: str) -> list[Any] | None:
         if list and len(list) < 1:
             raise ValueError(f"you must select at least one {name}")
         return list
@@ -74,6 +74,22 @@ class ListValidator:
         Remove duplicates from list while preserving order using dict.fromkeys()
         """
         return list(dict.fromkeys(list_))
+
+    @staticmethod
+    def normalize_enum_list_input(value, enum_cls) -> list:
+        if value in (None, "", []):
+            return []
+        if isinstance(value, str):
+            raw_values = [item for item in value.strip(",").split(",") if item]
+        elif isinstance(value, list):
+            raw_values = value
+        else:
+            raw_values = [value]
+
+        normalized = []
+        for item in raw_values:
+            normalized.append(item if isinstance(item, enum_cls) else enum_cls(item))
+        return normalized
 
 
 class PasswordValidator:

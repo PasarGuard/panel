@@ -7,8 +7,6 @@ from sqlalchemy.exc import IntegrityError
 from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import (
-    AdminsSortingOptions,
-    AdminsSortingOptionsSimple,
     create_admin,
     find_admins_by_telegram_id,
     get_admin_usages,
@@ -25,15 +23,19 @@ from app.db.crud.user import get_users, remove_users
 from app.db.models import Admin
 from app.models.admin import (
     AdminCreate,
+    AdminListQuery,
     BulkAdminsActionResponse,
     AdminDetails,
     AdminModify,
+    AdminSimpleListQuery,
     AdminSimple,
     AdminsResponse,
     AdminsSimpleResponse,
+    AdminUsageQuery,
     BulkAdminSelection,
     RemoveAdminsResponse,
 )
+from app.models.user import UserListQuery
 from app.node.sync import (
     sync_users,
     remove_user as sync_remove_user,
@@ -159,28 +161,12 @@ class AdminOperation(BaseOperation):
     async def get_admins(
         self,
         db: AsyncSession,
-        username: str | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-        sort: str | None = None,
+        query: AdminListQuery,
     ) -> AdminsResponse:
-        sort_list = []
-        if sort is not None:
-            opts = sort.strip(",").split(",")
-            for opt in opts:
-                try:
-                    enum_member = AdminsSortingOptions[opt]
-                    sort_list.append(enum_member.value)
-                except KeyError:
-                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
-
         use_compact = self.operator_type in (OperatorType.API, OperatorType.WEB)
         admins, total, active, disabled = await get_admins(
             db,
-            offset,
-            limit,
-            username,
-            sort_list if sort_list else None,
+            query,
             return_with_count=True,
             compact=use_compact,
         )
@@ -197,32 +183,11 @@ class AdminOperation(BaseOperation):
     async def get_admins_simple(
         self,
         db: AsyncSession,
-        search: str | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-        sort: str | None = None,
-        all: bool = False,
+        query: AdminSimpleListQuery,
     ) -> AdminsSimpleResponse:
         """Get lightweight admin list with only id and username"""
-        sort_list = []
-        if sort is not None:
-            opts = sort.strip(",").split(",")
-            for opt in opts:
-                try:
-                    enum_member = AdminsSortingOptionsSimple[opt]
-                    sort_list.append(enum_member)
-                except KeyError:
-                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
-
         # Call CRUD function
-        rows, total = await get_admins_simple(
-            db=db,
-            offset=offset,
-            limit=limit,
-            search=search,
-            sort=sort_list if sort_list else None,
-            skip_pagination=all,
-        )
+        rows, total = await get_admins_simple(db=db, query=query)
 
         # Convert tuples to Pydantic models
         admins = [AdminSimple(id=row[0], username=row[1]) for row in rows]
@@ -249,7 +214,7 @@ class AdminOperation(BaseOperation):
 
         await disable_all_active_users(db=db, admin=db_admin)
 
-        users = await get_users(db, admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin)
         await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" users has been disabled by admin "{admin.username}"')
@@ -275,7 +240,7 @@ class AdminOperation(BaseOperation):
 
         await activate_all_disabled_users(db=db, admin=db_admin)
 
-        users = await get_users(db, admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin)
         await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" users has been activated by admin "{admin.username}"')
@@ -301,7 +266,7 @@ class AdminOperation(BaseOperation):
         if self.operator_type != OperatorType.CLI and db_admin.is_sudo:
             await self.raise_error(message="You're not allowed to delete sudo admin users.", code=403)
 
-        users = await get_users(db, admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin)
         if not users:
             return 0
 
@@ -353,11 +318,7 @@ class AdminOperation(BaseOperation):
         db: AsyncSession,
         username: str,
         admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
+        query: AdminUsageQuery,
     ) -> UserUsageStatsList:
         warnings.warn(
             "get_admin_usage(username, ...) is deprecated and will be removed in v6.0.0. "
@@ -370,11 +331,11 @@ class AdminOperation(BaseOperation):
             db,
             db_admin,
             admin,
-            start=start,
-            end=end,
-            period=period,
-            node_id=node_id,
-            group_by_node=group_by_node,
+            start=query.start,
+            end=query.end,
+            period=query.period,
+            node_id=query.node_id,
+            group_by_node=query.group_by_node,
         )
 
     async def _get_admin_usage(
@@ -412,22 +373,18 @@ class AdminOperation(BaseOperation):
         db: AsyncSession,
         admin_id: int,
         admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
-        period: Period = Period.hour,
-        node_id: int | None = None,
-        group_by_node: bool = False,
+        query: AdminUsageQuery,
     ) -> UserUsageStatsList:
         db_admin = await self.get_validated_admin_by_id(db, admin_id)
         return await self._get_admin_usage(
             db,
             db_admin,
             admin,
-            start=start,
-            end=end,
-            period=period,
-            node_id=node_id,
-            group_by_node=group_by_node,
+            start=query.start,
+            end=query.end,
+            period=query.period,
+            node_id=query.node_id,
+            group_by_node=query.group_by_node,
         )
 
     async def bulk_remove_admins(

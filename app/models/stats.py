@@ -54,7 +54,9 @@ class UserCountMetric(str, Enum):
     limited = "limited"
 
 
-def validate_user_count_metric_scope(metric: UserCountMetric, node_id: int | None = None, group_by_node: bool = False) -> None:
+def validate_user_count_metric_scope(
+    metric: UserCountMetric, node_id: int | None = None, group_by_node: bool = False
+) -> None:
     if metric != UserCountMetric.online and (node_id is not None or group_by_node):
         raise ValueError("Only online user counts support node_id or group_by_node")
 

@@ -5,7 +5,6 @@ from app.core.hosts import host_manager
 from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud.core import (
-    CoreSortingOptionsSimple,
     create_core_config,
     get_core_configs,
     get_cores_simple,
@@ -17,8 +16,10 @@ from app.models.admin import AdminDetails
 from app.models.core import (
     BulkCoreSelection,
     CoreCreate,
+    CoreListQuery,
     CoreResponse,
     CoreResponseList,
+    CoreSimpleListQuery,
     CoreSimple,
     CoresSimpleResponse,
     RemoveCoresResponse,
@@ -52,38 +53,13 @@ class CoreOperation(BaseOperation):
 
         return core
 
-    async def get_all_cores(self, db: AsyncSession, offset: int, limit: int) -> CoreResponseList:
-        db_cores, count = await get_core_configs(db, offset, limit)
+    async def get_all_cores(self, db: AsyncSession, query: CoreListQuery) -> CoreResponseList:
+        db_cores, count = await get_core_configs(db, query)
         return CoreResponseList(cores=db_cores, count=count)
 
-    async def get_cores_simple(
-        self,
-        db: AsyncSession,
-        offset: int | None = None,
-        limit: int | None = None,
-        search: str | None = None,
-        sort: str | None = None,
-        all: bool = False,
-    ) -> CoresSimpleResponse:
+    async def get_cores_simple(self, db: AsyncSession, query: CoreSimpleListQuery) -> CoresSimpleResponse:
         """Get lightweight core list with only id and name"""
-        sort_list = []
-        if sort is not None:
-            opts = sort.strip(",").split(",")
-            for opt in opts:
-                try:
-                    enum_member = CoreSortingOptionsSimple[opt]
-                    sort_list.append(enum_member)
-                except KeyError:
-                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
-
-        rows, total = await get_cores_simple(
-            db=db,
-            offset=offset,
-            limit=limit,
-            search=search,
-            sort=sort_list if sort_list else None,
-            skip_pagination=all,
-        )
+        rows, total = await get_cores_simple(db=db, query=query)
 
         cores = [CoreSimple(id=row[0], name=row[1], type=row[2]) for row in rows]
 
