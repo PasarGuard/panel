@@ -1,7 +1,7 @@
 """add final_mask_settings to hosts table
 
 Revision ID: f976bfcf4738
-Revises: b7d9e1a2c3f4
+Revises: af2d644dda44
 Create Date: 2026-05-02 13:46:21.008567
 
 """
