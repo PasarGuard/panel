@@ -43,7 +43,7 @@ class NodeManager:
         except Exception:
             pass
 
-    async def update_node(self, node: Node, max_message_size: int | None = None) -> PasarGuardNode:
+    async def update_node(self, node: Node) -> PasarGuardNode:
         async with self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
 
@@ -58,7 +58,6 @@ class NodeManager:
                 logger=self.logger,
                 default_timeout=node.default_timeout,
                 internal_timeout=node.internal_timeout,
-                max_message_size=max_message_size,
                 proxy=node.proxy_url,
                 extra={"id": node.id, "usage_coefficient": node.usage_coefficient},
             )

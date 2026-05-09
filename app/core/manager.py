@@ -301,6 +301,13 @@ class CoreManager:
 
             return core
 
+    async def get_cores(self, core_ids: list[int] | set[int] | None = None) -> dict[int, AbstractCore]:
+        async with self._lock:
+            if core_ids is None:
+                return deepcopy(self._cores)
+
+            return {core_id: deepcopy(core) for core_id, core in self._cores.items() if core_id in core_ids}
+
     @cached()
     async def get_inbounds(self) -> list[str]:
         async with self._lock:

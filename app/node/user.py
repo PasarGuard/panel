@@ -73,8 +73,9 @@ def _serialize_user_for_node(id: int, username: str, user_settings: dict, inboun
     )
 
 
-async def core_users(db: AsyncSession):
+async def core_users(db: AsyncSession, inbound_tags: list[str] | set[str] | None = None):
     dialect = db.bind.dialect.name
+    inbound_tags = list(dict.fromkeys(inbound_tags or []))
 
     # Use dialect-specific aggregation and grouping
     if dialect == "postgresql":
@@ -99,7 +100,13 @@ async def core_users(db: AsyncSession):
             ),
         )
         .outerjoin(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
-        .outerjoin(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+        .outerjoin(
+            ProxyInbound,
+            and_(
+                inbounds_groups_association.c.inbound_id == ProxyInbound.id,
+                ProxyInbound.tag.in_(inbound_tags) if inbound_tags else True,
+            ),
+        )
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
         .group_by(User.id)
     )

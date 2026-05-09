@@ -24,8 +24,8 @@ from app.db.crud.node import (
     reset_node_usage,
     update_node_status,
 )
-from app.db.crud.user import get_user, get_user_count_metric_stats, get_users_count_by_status
-from app.db.models import Node, NodeStatus, UserStatus
+from app.db.crud.user import get_user, get_user_count_metric_stats
+from app.db.models import Node, NodeStatus
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
 from app.models.node import (
@@ -39,12 +39,12 @@ from app.models.node import (
     NodeModify,
     NodeNotification,
     NodeResponse,
-    NodeSimpleListQuery,
     NodeSimple,
-    NodeStatsPeriodQuery,
-    NodeUsageQuery,
+    NodeSimpleListQuery,
     NodesResponse,
     NodesSimpleResponse,
+    NodeStatsPeriodQuery,
+    NodeUsageQuery,
     RemoveNodesResponse,
     UsageTable,
     UserIPList,
@@ -191,12 +191,34 @@ class NodeOperation(BaseOperation):
             asyncio.create_task(notification.error_node(node_notif))
 
     @staticmethod
-    async def connect_node(db_node: Node, users: list) -> dict | None:
+    async def _get_core_users_map(db: AsyncSession, core_ids: set[int]) -> tuple[dict[int, object | None], dict[int, list]]:
+        if not core_ids:
+            return {}, {}
+
+        resolved_cores = await core_manager.get_cores(core_ids | {1})
+        default_core = resolved_cores.get(1)
+        cores_by_id: dict[int, object | None] = {}
+        users_by_core: dict[int, list] = {}
+
+        for core_id in core_ids:
+            core = resolved_cores.get(core_id) or default_core
+            cores_by_id[core_id] = core
+            if core is None:
+                users_by_core[core_id] = []
+                continue
+
+            users_by_core[core_id] = await core_users(db=db, inbound_tags=core.inbounds)
+
+        return cores_by_id, users_by_core
+
+    @staticmethod
+    async def connect_node(db_node: Node, core, users: list) -> dict | None:
         """
         Connect to a node and return status result (does NOT update database).
 
         Args:
             db_node (Node): Node object from database.
+            core: Pre-fetched core config for this node.
             users (list): Pre-fetched core users list.
 
         Returns:
@@ -206,11 +228,11 @@ class NodeOperation(BaseOperation):
         pg_node: PasarGuardNode | None = await node_manager.get_node(db_node.id)
         if pg_node is None:
             return None
+        if core is None:
+            return None
 
         old_status = db_node.status
         logger.info(f'Connecting to "{db_node.name}" node')
-
-        core = await core_manager.get_core(db_node.core_config_id if db_node.core_config_id else 1)
         type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
 
         try:
@@ -530,20 +552,15 @@ class NodeOperation(BaseOperation):
         if not nodes:
             return
 
-        # Fetch users ONCE for all nodes
-        users = await core_users(db=db)
-
-        # Calculate max_message_size based on active users count (once for all nodes)
-        user_counts = await get_users_count_by_status(db, [UserStatus.active])
-        active_users_count = user_counts.get(UserStatus.active.value, 0)
-        max_message_size = calculate_max_message_size(active_users_count)
+        core_ids = {node.core_config_id or 1 for node in nodes}
+        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids)
 
         async def connect_single(node: Node) -> dict | None:
             if node is None or node.status in (NodeStatus.disabled, NodeStatus.limited):
                 return
 
             try:
-                await node_manager.update_node(node, max_message_size=max_message_size)
+                await node_manager.update_node(node)
             except NodeAPIError as e:
                 return {
                     "node_id": node.id,
@@ -554,7 +571,8 @@ class NodeOperation(BaseOperation):
                     "old_status": node.status,
                 }
 
-            return await self.connect_node(node, users)
+            core_id = node.core_config_id or 1
+            return await self.connect_node(node, cores_by_id.get(core_id), users_by_core.get(core_id, []))
 
         results = await asyncio.gather(*[connect_single(node) for node in nodes])
 
@@ -606,10 +624,12 @@ class NodeOperation(BaseOperation):
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             return
 
-        # Get core users once
-        users = await core_users(db=db)
+        core_id = db_node.core_config_id or 1
+        cores_by_id, users_by_core = await self._get_core_users_map(db, {core_id})
+        core = cores_by_id.get(core_id)
+        users = users_by_core.get(core_id, [])
 
-        # Calculate max_message_size based on active users count
+        # Calculate max_message_size based on this node's payload size
         max_message_size = calculate_max_message_size(len(users))
 
         # Update node manager
@@ -634,7 +654,7 @@ class NodeOperation(BaseOperation):
             return
 
         # Connect the node
-        result = await NodeOperation.connect_node(db_node, users)
+        result = await NodeOperation.connect_node(db_node, core, users)
 
         if not result:
             return
@@ -838,7 +858,10 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="Node is not connected", code=409)
 
         try:
-            await pg_node.sync_users(await core_users(db=db), flush_pending=flush_users)
+            core_id = db_node.core_config_id or 1
+            _, users_by_core = await self._get_core_users_map(db, {core_id})
+            users = users_by_core.get(core_id, [])
+            await pg_node.sync_users(users, flush_pending=flush_users)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
