@@ -4,6 +4,7 @@ from datetime import datetime as dt, timedelta as td, timezone as tz
 from app import scheduler
 from app.db import GetDB
 from app.db.crud.user import get_users_to_reset_data_usage, bulk_reset_user_data_usage
+from app.db.models import UserUsageResetSource
 from app.operation import OperatorType
 from app.operation.user import UserOperation
 from app import notification
@@ -24,6 +25,7 @@ async def reset_data_usage():
             db,
             users,
             clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+            reset_source=UserUsageResetSource.scheduled,
         )
 
         for db_user in updated_users:
