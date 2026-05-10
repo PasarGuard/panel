@@ -82,6 +82,8 @@ class SubscriptionOperation(BaseOperation):
         user.inbounds = await db_user.inbounds()
         user.expire = db_user.expire
         user.lifetime_used_traffic = db_user.lifetime_used_traffic
+        user.last_traffic_reset_at = db_user.last_traffic_reset_at
+        user.next_traffic_reset_at = db_user.next_traffic_reset_at
 
         return user
 
