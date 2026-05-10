@@ -225,8 +225,8 @@ export default function CleanupSettings() {
     }
 
     const params: any = {}
-    if (clearDataAfter) params.start = clearDataAfter.toISOString()
-    if (clearDataBefore) params.end = clearDataBefore.toISOString()
+    if (clearDataAfter) params.start = startOfDay(clearDataAfter).toISOString()
+    if (clearDataBefore) params.end = endOfDay(clearDataBefore).toISOString()
 
     clearUsageDataMutation.mutate(
       {
