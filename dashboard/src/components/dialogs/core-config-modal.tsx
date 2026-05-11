@@ -187,9 +187,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const [generatedMldsa65, setGeneratedMldsa65] = useState<{ seed: string; verify: string } | null>(null)
   const [generatedVLESS, setGeneratedVLESS] = useState<any>(null)
 
-  // Unsaved changes tracking
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  // Unsaved changes confirmation dialog state
   const [isConfirmExitDialogOpen, setIsConfirmExitDialogOpen] = useState(false)
+
   const handleVlessVariantChange = useCallback(
     (value: string) => {
       if (value === 'x25519' || value === 'mlkem768') {
@@ -198,14 +198,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     },
     [setSelectedVlessVariant],
   )
-
-  // Track unsaved changes
-  useEffect(() => {
-    const subscription = form.watch(() => {
-      setHasUnsavedChanges(form.formState.isDirty)
-    })
-    return () => subscription.unsubscribe()
-  }, [form])
 
   // Helper function to show results in dialog
   const showResultDialog = useCallback((type: string, data: any) => {
@@ -216,22 +208,22 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
   // Handle modal close with unsaved changes check
   const handleModalCloseWithCheck = useCallback((open: boolean) => {
-    if (!open && hasUnsavedChanges) {
+    if (!open && form.formState.isDirty) {
       setIsConfirmExitDialogOpen(true)
     } else {
       onOpenChange(open)
       if (!open) {
-        setHasUnsavedChanges(false)
+        form.reset()
       }
     }
-  }, [hasUnsavedChanges, onOpenChange])
+  }, [form, onOpenChange])
 
   // Confirm exit without saving
   const handleConfirmExit = useCallback(() => {
     setIsConfirmExitDialogOpen(false)
-    setHasUnsavedChanges(false)
+    form.reset()
     onOpenChange(false)
-  }, [onOpenChange])
+  }, [form, onOpenChange])
 
   // Cancel exit
   const handleCancelExit = useCallback(() => {
@@ -638,7 +630,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       // Invalidate core config queries after successful action
       queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
       queryClient.invalidateQueries({ queryKey: ['/api/cores/simple'] })
-      setHasUnsavedChanges(false)
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
@@ -774,7 +765,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       setValidation({ isValid: true })
       setEditorInstance(null)
       setIsEditorReady(false)
-      setHasUnsavedChanges(false)
       setIsConfirmExitDialogOpen(false)
       // Don't clear generated values - keep them for reuse
     }
