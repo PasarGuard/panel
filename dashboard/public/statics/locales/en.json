@@ -1877,7 +1877,11 @@
     "shadowsocksPasswordGenerationFailed": "Failed to generate password",
     "realityTab": "Reality",
     "vlessTab": "VLESS",
-    "shadowsocksTab": "ShadowSocks"
+    "shadowsocksTab": "ShadowSocks",
+    "unsavedChanges": "Unsaved Changes",
+    "unsavedChangesMessage": "You have unsaved changes. Are you sure you want to exit without saving?",
+    "keepEditing": "Keep Editing",
+    "discardChanges": "Discard Changes"
   },
   "settings.cores.title": "Cores",
   "settings.cores.description": "Manage Your Cores",

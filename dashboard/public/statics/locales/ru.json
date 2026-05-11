@@ -1766,7 +1766,11 @@
     "shadowsocksPasswordGenerationFailed": "Не удалось сгенерировать пароль",
     "realityTab": "Reality",
     "vlessTab": "VLESS",
-    "shadowsocksTab": "ShadowSocks"
+    "shadowsocksTab": "ShadowSocks",
+    "unsavedChanges": "Несохраненные изменения",
+    "unsavedChangesMessage": "У вас есть несохраненные изменения. Вы уверены, что хотите выйти без сохранения?",
+    "keepEditing": "Продолжить редактирование",
+    "discardChanges": "Отменить изменения"
   },
   "settings.cores.title": "Ядра",
   "settings.cores.description": "Управление вашими ядрами",

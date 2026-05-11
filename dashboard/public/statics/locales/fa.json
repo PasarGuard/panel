@@ -1792,7 +1792,11 @@
     "shadowsocksPasswordGenerationFailed": "تولید رمز عبور ناموفق بود",
     "realityTab": "Reality",
     "vlessTab": "VLESS",
-    "shadowsocksTab": "ShadowSocks"
+    "shadowsocksTab": "ShadowSocks",
+    "unsavedChanges": "تغییرات ذخیره نشده",
+    "unsavedChangesMessage": "شما تغییرات ذخیره نشده‌ای دارید. آیا مطمئن هستید که می‌خواهید بدون ذخیره خارج شوید؟",
+    "keepEditing": "ادامه ویرایش",
+    "discardChanges": "لغو تغییرات"
   },
   "settings.cores.title": "هسته‌ها",
   "settings.cores.description": "مدیریت هسته‌های شما",
