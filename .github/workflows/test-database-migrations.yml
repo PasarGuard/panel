@@ -32,9 +32,13 @@ jobs:
 
       - name: Run Alembic Migrations
         run: make run-migration
+        env:
+          PYTHON_GIL: 1
 
       - name: Check Migrations
         run: make check-migrations
+        env:
+          PYTHON_GIL: 1
 
       - name: Run Tests
         run: make test
@@ -71,9 +75,13 @@ jobs:
 
       - name: Run Alembic Migrations
         run: make run-migration
+        env:
+          PYTHON_GIL: 1
 
       - name: Check Migrations
         run: make check-migrations
+        env:
+          PYTHON_GIL: 1
 
       - name: Run Tests
         run: make test
@@ -152,9 +160,13 @@ jobs:
 
       - name: Run Alembic Migrations
         run: make run-migration
+        env:
+          PYTHON_GIL: 1
 
       - name: Check Migrations
         run: make check-migrations
+        env:
+          PYTHON_GIL: 1
 
       - name: Run Tests (multi-worker)
         run: |
@@ -195,9 +207,13 @@ jobs:
 
       - name: Run Alembic Migrations
         run: make run-migration
+        env:
+          PYTHON_GIL: 1
 
       - name: Check Migrations
         run: make check-migrations
+        env:
+          PYTHON_GIL: 1
 
       - name: Run Tests
         run: make test
@@ -324,9 +340,13 @@ jobs:
 
       - name: Run Alembic Migrations
         run: make run-migration
+        env:
+          PYTHON_GIL: 1
 
       - name: Check Migrations
         run: make check-migrations
+        env:
+          PYTHON_GIL: 1
 
       - name: Run Tests (multi-worker)
         run: |
