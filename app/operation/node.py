@@ -59,7 +59,7 @@ from app.models.stats import (
     validate_user_count_metric_scope,
 )
 from app.nats.node_rpc import node_nats_client
-from app.node import calculate_max_message_size, core_users, node_manager
+from app.node import core_users, node_manager
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from config import runtime_settings
@@ -191,7 +191,9 @@ class NodeOperation(BaseOperation):
             asyncio.create_task(notification.error_node(node_notif))
 
     @staticmethod
-    async def _get_core_users_map(db: AsyncSession, core_ids: set[int]) -> tuple[dict[int, object | None], dict[int, list]]:
+    async def _get_core_users_map(
+        db: AsyncSession, core_ids: set[int]
+    ) -> tuple[dict[int, object | None], dict[int, list]]:
         if not core_ids:
             return {}, {}
 
@@ -629,12 +631,9 @@ class NodeOperation(BaseOperation):
         core = cores_by_id.get(core_id)
         users = users_by_core.get(core_id, [])
 
-        # Calculate max_message_size based on this node's payload size
-        max_message_size = calculate_max_message_size(len(users))
-
         # Update node manager
         try:
-            await node_manager.update_node(db_node, max_message_size=max_message_size)
+            await node_manager.update_node(db_node)
         except NodeAPIError as e:
             # Update status to error using simple CRUD
             await update_node_status(

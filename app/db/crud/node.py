@@ -44,7 +44,7 @@ def _build_node_simple_sort_clause(sort_option: NodeSimpleSortOption):
         NodeSimpleSortField.node_name: Node.name,
     }
     column = field_map[sort_option.field]
-    return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def load_node_attrs(node: Node):

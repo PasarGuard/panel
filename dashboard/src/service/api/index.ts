@@ -3,8 +3,9 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 3.1.0
+ * OpenAPI spec version: 3.2.1
  */
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -18,10 +19,10 @@ import type {
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import type { BodyType, ErrorType } from '../http'
 import { orvalFetcher } from '../http'
+import type { ErrorType, BodyType } from '../http'
 export type GetUserTemplatesSimpleParams = {
+  ids?: number[] | null
   offset?: number | null
   limit?: number | null
   search?: string | null
@@ -30,18 +31,20 @@ export type GetUserTemplatesSimpleParams = {
 }
 
 export type GetUserTemplatesParams = {
-  offset?: number
-  limit?: number
+  ids?: number[] | null
+  offset?: number | null
+  limit?: number | null
 }
 
 export type GetSubUserUsageParams = {
+  period?: Period
   start?: string | null
   end?: string | null
-  period?: Period
 }
 
 export type DeleteExpiredUsersTarget = (typeof DeleteExpiredUsersTarget)[keyof typeof DeleteExpiredUsersTarget]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const DeleteExpiredUsersTarget = {
   expired: 'expired',
   limited: 'limited',
@@ -56,6 +59,7 @@ export type DeleteExpiredUsersParams = {
 
 export type GetExpiredUsersTarget = (typeof GetExpiredUsersTarget)[keyof typeof GetExpiredUsersTarget]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GetExpiredUsersTarget = {
   expired: 'expired',
   limited: 'limited',
@@ -68,8 +72,8 @@ export type GetExpiredUsersParams = {
   expired_before?: string | null
 }
 
-export type GetUsersUsageParams = {
-  period: Period
+export type GetUsersCountMetricParams = {
+  period?: Period
   node_id?: number | null
   group_by_node?: boolean
   start?: string | null
@@ -77,8 +81,8 @@ export type GetUsersUsageParams = {
   admin?: string[] | null
 }
 
-export type GetUsersCountMetricParams = {
-  period: Period
+export type GetUsersUsageParams = {
+  period?: Period
   node_id?: number | null
   group_by_node?: boolean
   start?: string | null
@@ -87,7 +91,7 @@ export type GetUsersCountMetricParams = {
 }
 
 export type GetUserUsageByIdParams = {
-  period: Period
+  period?: Period
   node_id?: number | null
   group_by_node?: boolean
   start?: string | null
@@ -95,7 +99,7 @@ export type GetUserUsageByIdParams = {
 }
 
 export type GetUserUsageByUsernameParams = {
-  period: Period
+  period?: Period
   node_id?: number | null
   group_by_node?: boolean
   start?: string | null
@@ -103,7 +107,7 @@ export type GetUserUsageByUsernameParams = {
 }
 
 export type GetUserUsageParams = {
-  period: Period
+  period?: Period
   node_id?: number | null
   group_by_node?: boolean
   start?: string | null
@@ -111,23 +115,29 @@ export type GetUserUsageParams = {
 }
 
 export type GetUsersSimpleParams = {
-  offset?: number
-  limit?: number
+  ids?: number[] | null
+  usernames?: string[] | null
+  offset?: number | null
+  limit?: number | null
   search?: string | null
   sort?: string | null
   all?: boolean
 }
 
 export type GetUsersParams = {
-  offset?: number
-  limit?: number
-  username?: string[]
+  offset?: number | null
+  limit?: number | null
+  ids?: number[] | null
+  username?: string[] | null
+  usernames?: string[] | null
   admin?: string[] | null
+  admin_ids?: number[] | null
   group?: number[] | null
   search?: string | null
-  status?: UserStatus | null
+  status?: UserStatus | UserStatus[] | null
   sort?: string | null
   proxy_id?: string | null
+  data_limit_reset_strategy?: DataLimitResetStrategy | DataLimitResetStrategy[] | null
   data_limit_min?: number | null
   data_limit_max?: number | null
   expire_after?: string | null
@@ -183,9 +193,9 @@ export type UserOnlineStats200 = { [key: string]: number }
 export type RealtimeNodesStats200 = { [key: string]: NodeRealtimeStats | null }
 
 export type GetNodeStatsPeriodicParams = {
+  period?: Period
   start?: string | null
   end?: string | null
-  period?: Period
 }
 
 export type SyncNodeParams = {
@@ -197,6 +207,7 @@ export type ReconnectAllNodeParams = {
 }
 
 export type GetNodesSimpleParams = {
+  ids?: number[] | null
   offset?: number | null
   limit?: number | null
   search?: string | null
@@ -208,26 +219,36 @@ export type GetNodesParams = {
   core_id?: number | null
   offset?: number | null
   limit?: number | null
-  status?: NodeStatus[] | null
-  enabled?: boolean
   ids?: number[] | null
+  status?: NodeStatus | NodeStatus[] | null
+  enabled?: boolean
   search?: string | null
 }
 
-export type GetUsageParams = {
-  start?: string | null
-  end?: string | null
+export type GetUserCountMetricParams = {
   period?: Period
   node_id?: number | null
   group_by_node?: boolean
+  start?: string | null
+  end?: string | null
+}
+
+export type GetUsageParams = {
+  period?: Period
+  node_id?: number | null
+  group_by_node?: boolean
+  start?: string | null
+  end?: string | null
 }
 
 export type GetHostsParams = {
+  ids?: number[] | null
   offset?: number
   limit?: number
 }
 
 export type GetClientTemplatesSimpleParams = {
+  ids?: number[] | null
   template_type?: ClientTemplateType | null
   offset?: number | null
   limit?: number | null
@@ -237,12 +258,14 @@ export type GetClientTemplatesSimpleParams = {
 }
 
 export type GetClientTemplatesParams = {
+  ids?: number[] | null
   template_type?: ClientTemplateType | null
   offset?: number | null
   limit?: number | null
 }
 
 export type GetCoresSimpleParams = {
+  ids?: number[] | null
   offset?: number | null
   limit?: number | null
   search?: string | null
@@ -251,6 +274,7 @@ export type GetCoresSimpleParams = {
 }
 
 export type GetAllCoresParams = {
+  ids?: number[] | null
   offset?: number | null
   limit?: number | null
 }
@@ -264,16 +288,18 @@ export type ModifyCoreConfigParams = {
 }
 
 export type GetGroupsSimpleParams = {
-  offset?: number
-  limit?: number
+  ids?: number[] | null
+  offset?: number | null
+  limit?: number | null
   search?: string | null
   sort?: string | null
   all?: boolean
 }
 
 export type GetAllGroupsParams = {
-  offset?: number
-  limit?: number
+  ids?: number[] | null
+  offset?: number | null
+  limit?: number | null
 }
 
 export type GetSystemStatsParams = {
@@ -281,7 +307,7 @@ export type GetSystemStatsParams = {
 }
 
 export type GetAdminUsageByIdParams = {
-  period: Period
+  period?: Period
   node_id?: number | null
   group_by_node?: boolean
   start?: string | null
@@ -289,7 +315,7 @@ export type GetAdminUsageByIdParams = {
 }
 
 export type GetAdminUsageByUsernameParams = {
-  period: Period
+  period?: Period
   node_id?: number | null
   group_by_node?: boolean
   start?: string | null
@@ -297,7 +323,7 @@ export type GetAdminUsageByUsernameParams = {
 }
 
 export type GetAdminUsageParams = {
-  period: Period
+  period?: Period
   node_id?: number | null
   group_by_node?: boolean
   start?: string | null
@@ -305,6 +331,8 @@ export type GetAdminUsageParams = {
 }
 
 export type GetAdminsSimpleParams = {
+  ids?: number[] | null
+  usernames?: string[] | null
   search?: string | null
   offset?: number | null
   limit?: number | null
@@ -313,6 +341,8 @@ export type GetAdminsSimpleParams = {
 }
 
 export type GetAdminsParams = {
+  ids?: number[] | null
+  usernames?: string[] | null
   username?: string | null
   offset?: number | null
   limit?: number | null
@@ -338,16 +368,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -360,21 +390,23 @@ export interface XrayFragmentSettings {
 
 export type Xudp = (typeof Xudp)[keyof typeof Xudp]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Xudp = {
   reject: 'reject',
   allow: 'allow',
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsInput {
+export interface XrayMuxSettingsOutput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
 }
 
 export type XTLSFlows = (typeof XTLSFlows)[keyof typeof XTLSFlows]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const XTLSFlows = {
   '': '',
   'xtls-rprx-vision': 'xtls-rprx-vision',
@@ -524,6 +556,18 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -546,17 +590,6 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
-
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
 
 export interface WorkersHealth {
   scheduler: WorkerHealth
@@ -674,19 +707,13 @@ export interface UsersResponse {
 
 export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UsernameGenerationStrategy = {
   random: 'random',
   sequence: 'sequence',
 } as const
 
 export type UserUsageStatsListPeriod = Period | null
-
-export interface UserUsageStatsList {
-  period?: UserUsageStatsListPeriod
-  start: string
-  end: string
-  stats: UserUsageStatsListStats
-}
 
 export interface UserUsageStat {
   total_traffic: number
@@ -695,22 +722,12 @@ export interface UserUsageStat {
 
 export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
 
-export type UserCountMetricStatsListPeriod = Period | null
-
-export interface UserCountMetricStatsList {
-  period?: UserCountMetricStatsListPeriod
+export interface UserUsageStatsList {
+  period?: UserUsageStatsListPeriod
   start: string
   end: string
-  metric: UserCountMetric
-  stats: UserCountMetricStatsListStats
+  stats: UserUsageStatsListStats
 }
-
-export interface UserCountMetricStat {
-  count: number
-  period_start: string
-}
-
-export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
 
 export type UserTemplateSimpleName = string | null
 
@@ -862,10 +879,12 @@ export interface UserTemplateCreate {
   is_disabled?: UserTemplateCreateIsDisabled
 }
 
+export type UserSubscriptionUpdateSchemaIp = string | null
+
 export interface UserSubscriptionUpdateSchema {
   created_at: string
   user_agent: string
-  ip?: string | null
+  ip?: UserSubscriptionUpdateSchemaIp
 }
 
 export interface UserSubscriptionUpdateList {
@@ -886,6 +905,7 @@ export interface UserSubscriptionUpdateChart {
 
 export type UserStatusCreate = (typeof UserStatusCreate)[keyof typeof UserStatusCreate]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UserStatusCreate = {
   active: 'active',
   on_hold: 'on_hold',
@@ -893,6 +913,7 @@ export const UserStatusCreate = {
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UserStatus = {
   active: 'active',
   disabled: 'disabled',
@@ -937,7 +958,7 @@ export type UserResponseDataLimit = number | null
 export type UserResponseExpire = string | number | null
 
 export interface UserResponse {
-  proxy_settings?: ProxyTableOutput
+  proxy_settings?: ProxyTable
   expire?: UserResponseExpire
   /** data_limit can be 0 or greater */
   data_limit?: UserResponseDataLimit
@@ -993,7 +1014,7 @@ export type UserModifyDataLimit = number | null
 
 export type UserModifyExpire = string | number | null
 
-export type UserModifyProxySettings = ProxyTableInput | null
+export type UserModifyProxySettings = ProxyTable | null
 
 export interface UserModify {
   proxy_settings?: UserModifyProxySettings
@@ -1010,15 +1031,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-export type UserIPListIps = { [key: string]: number }
-
-/**
- * User IP list - mapping of IP addresses to connection counts
- */
-export interface UserIPList {
-  ips: UserIPListIps
-}
-
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
 
 /**
@@ -1026,6 +1038,15 @@ export type UserIPListAllNodes = { [key: string]: UserIPList | null }
  */
 export interface UserIPListAll {
   nodes: UserIPListAllNodes
+}
+
+export type UserIPListIps = { [key: string]: number }
+
+/**
+ * User IP list - mapping of IP addresses to connection counts
+ */
+export interface UserIPList {
+  ips: UserIPListIps
 }
 
 export type UserCreateStatus = UserStatus | null
@@ -1052,7 +1073,7 @@ export type UserCreateDataLimit = number | null
 export type UserCreateExpire = string | number | null
 
 export interface UserCreate {
-  proxy_settings?: ProxyTableInput
+  proxy_settings?: ProxyTable
   expire?: UserCreateExpire
   /** data_limit can be 0 or greater */
   data_limit?: UserCreateDataLimit
@@ -1067,8 +1088,35 @@ export interface UserCreate {
   status?: UserCreateStatus
 }
 
+export type UserCountMetricStatsListPeriod = Period | null
+
+export interface UserCountMetricStat {
+  count: number
+  period_start: string
+}
+
+export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
+
+export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UserCountMetric = {
+  online: 'online',
+  expired: 'expired',
+  limited: 'limited',
+} as const
+
+export interface UserCountMetricStatsList {
+  period?: UserCountMetricStatsListPeriod
+  start: string
+  end: string
+  metric: UserCountMetric
+  stats: UserCountMetricStatsListStats
+}
+
 export type UsageTable = (typeof UsageTable)[keyof typeof UsageTable]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UsageTable = {
   node_user_usages: 'node_user_usages',
   node_usages: 'node_usages',
@@ -1188,6 +1236,8 @@ export interface SystemStats {
   outgoing_bandwidth: number
 }
 
+export type SubscriptionUserResponseIp = string | null
+
 export type SubscriptionUserResponseOnlineAt = string | null
 
 export type SubscriptionUserResponseEditAt = string | null
@@ -1210,7 +1260,7 @@ export type SubscriptionUserResponseDataLimit = number | null
 export type SubscriptionUserResponseExpire = string | number | null
 
 export interface SubscriptionUserResponse {
-  proxy_settings?: ProxyTableOutput
+  proxy_settings?: ProxyTable
   expire?: SubscriptionUserResponseExpire
   /** data_limit can be 0 or greater */
   data_limit?: SubscriptionUserResponseDataLimit
@@ -1227,6 +1277,7 @@ export interface SubscriptionUserResponse {
   created_at: string
   edit_at?: SubscriptionUserResponseEditAt
   online_at?: SubscriptionUserResponseOnlineAt
+  ip?: SubscriptionUserResponseIp
 }
 
 export type SubscriptionTemplatesXray = number | null
@@ -1254,7 +1305,7 @@ export interface SubFormatEnable {
   outline?: boolean
 }
 
-export interface SubscriptionOutput {
+export interface Subscription {
   url_prefix?: string
   update_interval?: number
   support_url?: string
@@ -1264,23 +1315,7 @@ export interface SubscriptionOutput {
   announce_url?: string
   rules: SubRule[]
   manual_sub_request?: SubFormatEnable
-  applications?: ApplicationOutput[]
-  allow_browser_config?: boolean
-  disable_sub_template?: boolean
-  randomize_order?: boolean
-}
-
-export interface SubscriptionInput {
-  url_prefix?: string
-  update_interval?: number
-  support_url?: string
-  profile_title?: string
-  /** @maxLength 128 */
-  announce?: string
-  announce_url?: string
-  rules: SubRule[]
-  manual_sub_request?: SubFormatEnable
-  applications?: ApplicationInput[]
+  applications?: Application[]
   allow_browser_config?: boolean
   disable_sub_template?: boolean
   randomize_order?: boolean
@@ -1313,6 +1348,7 @@ export interface SingBoxFragmentSettings {
 
 export type ShadowsocksMethods = (typeof ShadowsocksMethods)[keyof typeof ShadowsocksMethods]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ShadowsocksMethods = {
   'aes-128-gcm': 'aes-128-gcm',
   'aes-256-gcm': 'aes-256-gcm',
@@ -1326,56 +1362,33 @@ export interface ShadowsocksSettings {
   method?: ShadowsocksMethods
 }
 
-export type SettingsSchemaOutputGeneral = General | null
+export type SettingsSchemaGeneral = General | null
 
-export type SettingsSchemaOutputSubscription = SubscriptionOutput | null
+export type SettingsSchemaSubscription = Subscription | null
 
-export type SettingsSchemaOutputNotificationEnable = NotificationEnable | null
+export type SettingsSchemaNotificationEnable = NotificationEnable | null
 
-export type SettingsSchemaOutputNotificationSettings = NotificationSettingsOutput | null
+export type SettingsSchemaNotificationSettings = NotificationSettings | null
 
-export type SettingsSchemaOutputWebhook = Webhook | null
+export type SettingsSchemaWebhook = Webhook | null
 
-export type SettingsSchemaOutputDiscord = Discord | null
+export type SettingsSchemaDiscord = Discord | null
 
-export type SettingsSchemaOutputTelegram = Telegram | null
+export type SettingsSchemaTelegram = Telegram | null
 
-export interface SettingsSchemaOutput {
-  telegram?: SettingsSchemaOutputTelegram
-  discord?: SettingsSchemaOutputDiscord
-  webhook?: SettingsSchemaOutputWebhook
-  notification_settings?: SettingsSchemaOutputNotificationSettings
-  notification_enable?: SettingsSchemaOutputNotificationEnable
-  subscription?: SettingsSchemaOutputSubscription
-  general?: SettingsSchemaOutputGeneral
-}
-
-export type SettingsSchemaInputGeneral = General | null
-
-export type SettingsSchemaInputSubscription = SubscriptionInput | null
-
-export type SettingsSchemaInputNotificationEnable = NotificationEnable | null
-
-export type SettingsSchemaInputNotificationSettings = NotificationSettingsInput | null
-
-export type SettingsSchemaInputWebhook = Webhook | null
-
-export type SettingsSchemaInputDiscord = Discord | null
-
-export type SettingsSchemaInputTelegram = Telegram | null
-
-export interface SettingsSchemaInput {
-  telegram?: SettingsSchemaInputTelegram
-  discord?: SettingsSchemaInputDiscord
-  webhook?: SettingsSchemaInputWebhook
-  notification_settings?: SettingsSchemaInputNotificationSettings
-  notification_enable?: SettingsSchemaInputNotificationEnable
-  subscription?: SettingsSchemaInputSubscription
-  general?: SettingsSchemaInputGeneral
+export interface SettingsSchema {
+  telegram?: SettingsSchemaTelegram
+  discord?: SettingsSchemaDiscord
+  webhook?: SettingsSchemaWebhook
+  notification_settings?: SettingsSchemaNotificationSettings
+  notification_enable?: SettingsSchemaNotificationEnable
+  subscription?: SettingsSchemaSubscription
+  general?: SettingsSchemaGeneral
 }
 
 export type RunMethod = (typeof RunMethod)[keyof typeof RunMethod]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const RunMethod = {
   webhook: 'webhook',
   'long-polling': 'long-polling',
@@ -1442,16 +1455,7 @@ export interface RemoveAdminsResponse {
   count: number
 }
 
-export interface ProxyTableOutput {
-  vmess?: VMessSettings
-  vless?: VlessSettings
-  trojan?: TrojanSettings
-  shadowsocks?: ShadowsocksSettings
-  wireguard?: WireGuardSettings
-  hysteria?: HysteriaSettings
-}
-
-export interface ProxyTableInput {
+export interface ProxyTable {
   vmess?: VMessSettings
   vless?: VlessSettings
   trojan?: TrojanSettings
@@ -1462,6 +1466,7 @@ export interface ProxyTableInput {
 
 export type ProxyHostSecurity = (typeof ProxyHostSecurity)[keyof typeof ProxyHostSecurity]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ProxyHostSecurity = {
   inbound_default: 'inbound_default',
   none: 'none',
@@ -1470,6 +1475,7 @@ export const ProxyHostSecurity = {
 
 export type ProxyHostFingerprint = (typeof ProxyHostFingerprint)[keyof typeof ProxyHostFingerprint]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ProxyHostFingerprint = {
   '': '',
   chrome: 'chrome',
@@ -1488,6 +1494,7 @@ export const ProxyHostFingerprint = {
 
 export type ProxyHostALPN = (typeof ProxyHostALPN)[keyof typeof ProxyHostALPN]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ProxyHostALPN = {
   'http/11': 'http/1.1',
   h2: 'h2',
@@ -1496,6 +1503,7 @@ export const ProxyHostALPN = {
 
 export type Platform = (typeof Platform)[keyof typeof Platform]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Platform = {
   android: 'android',
   ios: 'ios',
@@ -1508,6 +1516,7 @@ export const Platform = {
 
 export type Period = (typeof Period)[keyof typeof Period]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Period = {
   minute: 'minute',
   hour: 'hour',
@@ -1515,69 +1524,15 @@ export const Period = {
   month: 'month',
 } as const
 
-export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
+export type NotificationSettingsProxyUrl = string | null
 
-export const UserCountMetric = {
-  online: 'online',
-  expired: 'expired',
-  limited: 'limited',
-} as const
+export type NotificationSettingsDiscordWebhookUrl = string | null
 
-export type NotificationSettingsOutputProxyUrl = string | null
+export type NotificationSettingsTelegramTopicId = number | null
 
-export type NotificationSettingsOutputDiscordWebhookUrl = string | null
+export type NotificationSettingsTelegramChatId = number | null
 
-export type NotificationSettingsOutputTelegramTopicId = number | null
-
-export type NotificationSettingsOutputTelegramChatId = number | null
-
-export type NotificationSettingsOutputTelegramApiToken = string | null
-
-export interface NotificationSettingsOutput {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsOutputTelegramApiToken
-  telegram_chat_id?: NotificationSettingsOutputTelegramChatId
-  telegram_topic_id?: NotificationSettingsOutputTelegramTopicId
-  discord_webhook_url?: NotificationSettingsOutputDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsOutputProxyUrl
-  /** */
-  max_retries: number
-}
-
-export type NotificationSettingsInputProxyUrl = string | null
-
-export type NotificationSettingsInputDiscordWebhookUrl = string | null
-
-export type NotificationSettingsInputTelegramTopicId = number | null
-
-export type NotificationSettingsInputTelegramChatId = number | null
-
-export type NotificationSettingsInputTelegramApiToken = string | null
-
-export interface NotificationSettingsInput {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsInputTelegramApiToken
-  telegram_chat_id?: NotificationSettingsInputTelegramChatId
-  telegram_topic_id?: NotificationSettingsInputTelegramTopicId
-  discord_webhook_url?: NotificationSettingsInputDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsInputProxyUrl
-  /** */
-  max_retries: number
-}
-
-export interface NodeNotificationEnable {
-  create?: boolean
-  modify?: boolean
-  delete?: boolean
-  connect?: boolean
-  error?: boolean
-  limited?: boolean
-  reset_usage?: boolean
-}
+export type NotificationSettingsTelegramApiToken = string | null
 
 export interface NotificationEnable {
   admin?: AdminNotificationEnable
@@ -1589,6 +1544,32 @@ export interface NotificationEnable {
   user_template?: BaseNotificationEnable
   days_left?: boolean
   percentage_reached?: boolean
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
+export interface NotificationSettings {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsTelegramApiToken
+  telegram_chat_id?: NotificationSettingsTelegramChatId
+  telegram_topic_id?: NotificationSettingsTelegramTopicId
+  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsProxyUrl
+  /** */
+  max_retries: number
 }
 
 export type NotificationChannelDiscordWebhookUrl = string | null
@@ -1604,19 +1585,6 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
-}
-
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1642,15 +1610,9 @@ export interface NodesResponse {
   total: number
 }
 
-export type NodeUsageStatsListPeriod = Period | null
-
-export interface NodeUsageStat {
-  uplink: number
-  downlink: number
-  period_start: string
-}
-
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStatsList {
   period?: NodeUsageStatsListPeriod
@@ -1659,8 +1621,15 @@ export interface NodeUsageStatsList {
   stats: NodeUsageStatsListStats
 }
 
+export interface NodeUsageStat {
+  uplink: number
+  downlink: number
+  period_start: string
+}
+
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const NodeStatus = {
   connected: 'connected',
   connecting: 'connecting',
@@ -1765,6 +1734,16 @@ export interface NodeRealtimeStats {
   uptime: number
 }
 
+export interface NodeNotificationEnable {
+  create?: boolean
+  modify?: boolean
+  delete?: boolean
+  connect?: boolean
+  error?: boolean
+  limited?: boolean
+  reset_usage?: boolean
+}
+
 export type NodeModifyStatus = NodeStatus | null
 
 export type NodeModifyProxyUrl = string | null
@@ -1823,18 +1802,6 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
-
 export interface NodeCreate {
   name: string
   address: string
@@ -1862,6 +1829,19 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
+
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -1902,6 +1882,7 @@ export interface MuxSettingsInput {
 
 export type MultiplexProtocol = (typeof MultiplexProtocol)[keyof typeof MultiplexProtocol]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const MultiplexProtocol = {
   smux: 'smux',
   yamux: 'yamux',
@@ -1917,6 +1898,7 @@ export interface ModifyUserByTemplate {
 
 export type Language = (typeof Language)[keyof typeof Language]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Language = {
   fa: 'fa',
   en: 'en',
@@ -2002,11 +1984,6 @@ export interface HTTPException {
   detail: string
 }
 
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
-}
-
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -2037,6 +2014,11 @@ export interface GroupResponse {
   total_users?: number
 }
 
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
+}
+
 export type GroupModifyInboundTags = string[] | null
 
 export interface GroupModify {
@@ -2061,6 +2043,7 @@ export interface GroupCreate {
 
 export type GeoFilseRegion = (typeof GeoFilseRegion)[keyof typeof GeoFilseRegion]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GeoFilseRegion = {
   iran: 'iran',
   china: 'china',
@@ -2110,6 +2093,7 @@ export interface ExtraSettings {
 
 export type ECHQueryStrategy = (typeof ECHQueryStrategy)[keyof typeof ECHQueryStrategy]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ECHQueryStrategy = {
   none: 'none',
   half: 'half',
@@ -2135,6 +2119,7 @@ export interface Discord {
 
 export type DataLimitResetStrategy = (typeof DataLimitResetStrategy)[keyof typeof DataLimitResetStrategy]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const DataLimitResetStrategy = {
   no_reset: 'no_reset',
   day: 'day',
@@ -2227,8 +2212,17 @@ export interface CreateHost {
   subscription_templates?: CreateHostSubscriptionTemplates
 }
 
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
+}
+
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const CoreType = {
   xray: 'xray',
   wg: 'wg',
@@ -2247,19 +2241,6 @@ export interface CoreSimple {
   type?: CoreSimpleType
 }
 
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
-}
-
 export type CoreResponseType = CoreType | null
 
 export type CoreResponseConfig = { [key: string]: unknown }
@@ -2272,6 +2253,11 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
+}
+
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2298,6 +2284,7 @@ export interface Conflict {
 
 export type ConfigFormat = (typeof ConfigFormat)[keyof typeof ConfigFormat]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ConfigFormat = {
   links: 'links',
   links_base64: 'links_base64',
@@ -2310,13 +2297,9 @@ export const ConfigFormat = {
   block: 'block',
 } as const
 
-export interface ClientTemplatesSimpleResponse {
-  templates: ClientTemplateSimple[]
-  total: number
-}
-
 export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ClientTemplateType = {
   clash_subscription: 'clash_subscription',
   xray_subscription: 'xray_subscription',
@@ -2330,6 +2313,11 @@ export interface ClientTemplateSimple {
   name: string
   template_type: ClientTemplateType
   is_default: boolean
+}
+
+export interface ClientTemplatesSimpleResponse {
+  templates: ClientTemplateSimple[]
+  total: number
 }
 
 export interface ClientTemplateResponse {
@@ -2364,6 +2352,12 @@ export interface ClientTemplateCreate {
   template_type: ClientTemplateType
   content: string
   is_default?: boolean
+}
+
+export interface Brutal {
+  enable?: boolean
+  up_mbps: number
+  down_mbps: number
 }
 
 export type ClashMuxSettingsBrutal = Brutal | null
@@ -2589,12 +2583,6 @@ export interface BulkAdminSelection {
   usernames?: string[]
 }
 
-export interface Brutal {
-  enable?: boolean
-  up_mbps: number
-  down_mbps: number
-}
-
 export type BodyAdminTokenApiAdminTokenPostClientSecret = string | null
 
 export type BodyAdminTokenApiAdminTokenPostClientId = string | null
@@ -2640,6 +2628,26 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -2672,51 +2680,16 @@ export interface BaseHost {
   subscription_templates?: BaseHostSubscriptionTemplates
 }
 
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+export type ApplicationDescription = { [key: string]: string }
 
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
-
-export type ApplicationOutputDescription = { [key: string]: string }
-
-export interface ApplicationOutput {
+export interface Application {
   /** @maxLength 32 */
   name: string
   /** @maxLength 512 */
   icon_url?: string
   /** @maxLength 256 */
   import_url?: string
-  description?: ApplicationOutputDescription
-  recommended?: boolean
-  platform: Platform
-  download_links: DownloadLink[]
-}
-
-export type ApplicationInputDescription = { [key: string]: string }
-
-export interface ApplicationInput {
-  /** @maxLength 32 */
-  name: string
-  /** @maxLength 512 */
-  icon_url?: string
-  /** @maxLength 256 */
-  import_url?: string
-  description?: ApplicationInputDescription
+  description?: ApplicationDescription
   recommended?: boolean
   platform: Platform
   download_links: DownloadLink[]
@@ -3624,17 +3597,17 @@ export function useGetAdminsSimple<TData = Awaited<ReturnType<typeof getAdminsSi
  * Get admin usage aggregated from user traffic.
  * @summary Get Admin Usage
  */
-export const getAdminUsage = (username: string, params: GetAdminUsageParams, signal?: AbortSignal) => {
+export const getAdminUsage = (username: string, params?: GetAdminUsageParams, signal?: AbortSignal) => {
   return orvalFetcher<UserUsageStatsList>({ url: `/api/admin/${username}/usage`, method: 'GET', params, signal })
 }
 
-export const getGetAdminUsageQueryKey = (username: string, params: GetAdminUsageParams) => {
+export const getGetAdminUsageQueryKey = (username: string, params?: GetAdminUsageParams) => {
   return [`/api/admin/${username}/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetAdminUsageQueryOptions = <TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageParams,
+  params?: GetAdminUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -3651,14 +3624,14 @@ export type GetAdminUsageQueryError = ErrorType<Unauthorized | Forbidden | NotFo
 
 export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageParams,
+  params: undefined | GetAdminUsageParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>, 'initialData'>
   },
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageParams,
+  params?: GetAdminUsageParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>, 'initialData'>
@@ -3666,7 +3639,7 @@ export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageParams,
+  params?: GetAdminUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -3675,7 +3648,7 @@ export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage
 
 export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageParams,
+  params?: GetAdminUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsage>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetAdminUsageQueryOptions(username, params, options)
@@ -3690,17 +3663,17 @@ export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage
 /**
  * @summary Get Admin Usage By Username
  */
-export const getAdminUsageByUsername = (username: string, params: GetAdminUsageByUsernameParams, signal?: AbortSignal) => {
+export const getAdminUsageByUsername = (username: string, params?: GetAdminUsageByUsernameParams, signal?: AbortSignal) => {
   return orvalFetcher<UserUsageStatsList>({ url: `/api/admin/by-username/${username}/usage`, method: 'GET', params, signal })
 }
 
-export const getGetAdminUsageByUsernameQueryKey = (username: string, params: GetAdminUsageByUsernameParams) => {
+export const getGetAdminUsageByUsernameQueryKey = (username: string, params?: GetAdminUsageByUsernameParams) => {
   return [`/api/admin/by-username/${username}/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetAdminUsageByUsernameQueryOptions = <TData = Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageByUsernameParams,
+  params?: GetAdminUsageByUsernameParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -3719,7 +3692,7 @@ export type GetAdminUsageByUsernameQueryError = ErrorType<Unauthorized | Forbidd
 
 export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageByUsernameParams,
+  params: undefined | GetAdminUsageByUsernameParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError, TData>, 'initialData'>
@@ -3727,7 +3700,7 @@ export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof get
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageByUsernameParams,
+  params?: GetAdminUsageByUsernameParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError, TData>, 'initialData'>
@@ -3735,7 +3708,7 @@ export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof get
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageByUsernameParams,
+  params?: GetAdminUsageByUsernameParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -3744,7 +3717,7 @@ export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof get
 
 export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetAdminUsageByUsernameParams,
+  params?: GetAdminUsageByUsernameParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageByUsername>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetAdminUsageByUsernameQueryOptions(username, params, options)
@@ -3759,17 +3732,17 @@ export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof get
 /**
  * @summary Get Admin Usage By Id
  */
-export const getAdminUsageById = (adminId: number, params: GetAdminUsageByIdParams, signal?: AbortSignal) => {
+export const getAdminUsageById = (adminId: number, params?: GetAdminUsageByIdParams, signal?: AbortSignal) => {
   return orvalFetcher<UserUsageStatsList>({ url: `/api/admin/by-id/${adminId}/usage`, method: 'GET', params, signal })
 }
 
-export const getGetAdminUsageByIdQueryKey = (adminId: number, params: GetAdminUsageByIdParams) => {
+export const getGetAdminUsageByIdQueryKey = (adminId: number, params?: GetAdminUsageByIdParams) => {
   return [`/api/admin/by-id/${adminId}/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetAdminUsageByIdQueryOptions = <TData = Awaited<ReturnType<typeof getAdminUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   adminId: number,
-  params: GetAdminUsageByIdParams,
+  params?: GetAdminUsageByIdParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageById>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -3786,7 +3759,7 @@ export type GetAdminUsageByIdQueryError = ErrorType<Unauthorized | Forbidden | N
 
 export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   adminId: number,
-  params: GetAdminUsageByIdParams,
+  params: undefined | GetAdminUsageByIdParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageById>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminUsageById>>, TError, TData>, 'initialData'>
@@ -3794,7 +3767,7 @@ export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminU
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   adminId: number,
-  params: GetAdminUsageByIdParams,
+  params?: GetAdminUsageByIdParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageById>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getAdminUsageById>>, TError, TData>, 'initialData'>
@@ -3802,7 +3775,7 @@ export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminU
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   adminId: number,
-  params: GetAdminUsageByIdParams,
+  params?: GetAdminUsageByIdParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageById>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -3811,7 +3784,7 @@ export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminU
 
 export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   adminId: number,
-  params: GetAdminUsageByIdParams,
+  params?: GetAdminUsageByIdParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminUsageById>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetAdminUsageByIdQueryOptions(adminId, params, options)
@@ -4983,7 +4956,7 @@ export function useGetWorkersHealth<TData = Awaited<ReturnType<typeof getWorkers
  * @summary Get Settings
  */
 export const getSettings = (signal?: AbortSignal) => {
-  return orvalFetcher<SettingsSchemaOutput>({ url: `/api/settings`, method: 'GET', signal })
+  return orvalFetcher<SettingsSchema>({ url: `/api/settings`, method: 'GET', signal })
 }
 
 export const getGetSettingsQueryKey = () => {
@@ -5033,12 +5006,12 @@ export function useGetSettings<TData = Awaited<ReturnType<typeof getSettings>>, 
 /**
  * @summary Modify Settings
  */
-export const modifySettings = (settingsSchemaInput: BodyType<SettingsSchemaInput>) => {
-  return orvalFetcher<SettingsSchemaOutput>({ url: `/api/settings`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: settingsSchemaInput })
+export const modifySettings = (settingsSchema: BodyType<SettingsSchema>) => {
+  return orvalFetcher<SettingsSchema>({ url: `/api/settings`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: settingsSchema })
 }
 
 export const getModifySettingsMutationOptions = <TData = Awaited<ReturnType<typeof modifySettings>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<SettingsSchemaInput> }, TContext>
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<SettingsSchema> }, TContext>
 }) => {
   const mutationKey = ['modifySettings']
   const { mutation: mutationOptions } = options
@@ -5047,25 +5020,25 @@ export const getModifySettingsMutationOptions = <TData = Awaited<ReturnType<type
       : { ...options, mutation: { ...options.mutation, mutationKey } }
     : { mutation: { mutationKey } }
 
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifySettings>>, { data: BodyType<SettingsSchemaInput> }> = props => {
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifySettings>>, { data: BodyType<SettingsSchema> }> = props => {
     const { data } = props ?? {}
 
     return modifySettings(data)
   }
 
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<SettingsSchemaInput> }, TContext>
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<SettingsSchema> }, TContext>
 }
 
 export type ModifySettingsMutationResult = NonNullable<Awaited<ReturnType<typeof modifySettings>>>
-export type ModifySettingsMutationBody = BodyType<SettingsSchemaInput>
+export type ModifySettingsMutationBody = BodyType<SettingsSchema>
 export type ModifySettingsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
 /**
  * @summary Modify Settings
  */
 export const useModifySettings = <TData = Awaited<ReturnType<typeof modifySettings>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<SettingsSchemaInput> }, TContext>
-}): UseMutationResult<TData, TError, { data: BodyType<SettingsSchemaInput> }, TContext> => {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<SettingsSchema> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<SettingsSchema> }, TContext> => {
   const mutationOptions = getModifySettingsMutationOptions(options)
 
   return useMutation(mutationOptions)
@@ -7058,6 +7031,74 @@ export function useGetUsage<TData = Awaited<ReturnType<typeof getUsage>>, TError
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsage>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUsageQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Retrieve one user activity/status count metric from node user usage rows.
+ * @summary Get User Count Metric
+ */
+export const getUserCountMetric = (metric: UserCountMetric, params?: GetUserCountMetricParams, signal?: AbortSignal) => {
+  return orvalFetcher<UserCountMetricStatsList>({ url: `/api/node/user_counts/${metric}`, method: 'GET', params, signal })
+}
+
+export const getGetUserCountMetricQueryKey = (metric: UserCountMetric, params?: GetUserCountMetricParams) => {
+  return [`/api/node/user_counts/${metric}`, ...(params ? [params] : [])] as const
+}
+
+export const getGetUserCountMetricQueryOptions = <TData = Awaited<ReturnType<typeof getUserCountMetric>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params?: GetUserCountMetricParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserCountMetric>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetUserCountMetricQueryKey(metric, params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserCountMetric>>> = ({ signal }) => getUserCountMetric(metric, params, signal)
+
+  return { queryKey, queryFn, enabled: !!metric, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getUserCountMetric>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUserCountMetricQueryResult = NonNullable<Awaited<ReturnType<typeof getUserCountMetric>>>
+export type GetUserCountMetricQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetUserCountMetric<TData = Awaited<ReturnType<typeof getUserCountMetric>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params: undefined | GetUserCountMetricParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserCountMetric>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUserCountMetric>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserCountMetric<TData = Awaited<ReturnType<typeof getUserCountMetric>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params?: GetUserCountMetricParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserCountMetric>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUserCountMetric>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserCountMetric<TData = Awaited<ReturnType<typeof getUserCountMetric>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params?: GetUserCountMetricParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserCountMetric>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get User Count Metric
+ */
+
+export function useGetUserCountMetric<TData = Awaited<ReturnType<typeof getUserCountMetric>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  metric: UserCountMetric,
+  params?: GetUserCountMetricParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserCountMetric>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUserCountMetricQueryOptions(metric, params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
@@ -10098,17 +10139,17 @@ export function useGetUsersSimple<TData = Awaited<ReturnType<typeof getUsersSimp
  * Get users usage
  * @summary Get User Usage
  */
-export const getUserUsage = (username: string, params: GetUserUsageParams, signal?: AbortSignal) => {
+export const getUserUsage = (username: string, params?: GetUserUsageParams, signal?: AbortSignal) => {
   return orvalFetcher<UserUsageStatsList>({ url: `/api/user/${username}/usage`, method: 'GET', params, signal })
 }
 
-export const getGetUserUsageQueryKey = (username: string, params: GetUserUsageParams) => {
+export const getGetUserUsageQueryKey = (username: string, params?: GetUserUsageParams) => {
   return [`/api/user/${username}/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUserUsageQueryOptions = <TData = Awaited<ReturnType<typeof getUserUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageParams,
+  params?: GetUserUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsage>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -10125,14 +10166,14 @@ export type GetUserUsageQueryError = ErrorType<Unauthorized | Forbidden | NotFou
 
 export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageParams,
+  params: undefined | GetUserUsageParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsage>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUserUsage>>, TError, TData>, 'initialData'>
   },
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageParams,
+  params?: GetUserUsageParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsage>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUserUsage>>, TError, TData>, 'initialData'>
@@ -10140,7 +10181,7 @@ export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageParams,
+  params?: GetUserUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsage>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -10149,7 +10190,7 @@ export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>
 
 export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageParams,
+  params?: GetUserUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsage>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUserUsageQueryOptions(username, params, options)
@@ -10164,17 +10205,17 @@ export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>
 /**
  * @summary Get User Usage By Username
  */
-export const getUserUsageByUsername = (username: string, params: GetUserUsageByUsernameParams, signal?: AbortSignal) => {
+export const getUserUsageByUsername = (username: string, params?: GetUserUsageByUsernameParams, signal?: AbortSignal) => {
   return orvalFetcher<UserUsageStatsList>({ url: `/api/user/by-username/${username}/usage`, method: 'GET', params, signal })
 }
 
-export const getGetUserUsageByUsernameQueryKey = (username: string, params: GetUserUsageByUsernameParams) => {
+export const getGetUserUsageByUsernameQueryKey = (username: string, params?: GetUserUsageByUsernameParams) => {
   return [`/api/user/by-username/${username}/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUserUsageByUsernameQueryOptions = <TData = Awaited<ReturnType<typeof getUserUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageByUsernameParams,
+  params?: GetUserUsageByUsernameParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageByUsername>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -10193,7 +10234,7 @@ export type GetUserUsageByUsernameQueryError = ErrorType<Unauthorized | Forbidde
 
 export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getUserUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageByUsernameParams,
+  params: undefined | GetUserUsageByUsernameParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageByUsername>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUserUsageByUsername>>, TError, TData>, 'initialData'>
@@ -10201,7 +10242,7 @@ export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getU
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getUserUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageByUsernameParams,
+  params?: GetUserUsageByUsernameParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageByUsername>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUserUsageByUsername>>, TError, TData>, 'initialData'>
@@ -10209,7 +10250,7 @@ export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getU
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getUserUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageByUsernameParams,
+  params?: GetUserUsageByUsernameParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageByUsername>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -10218,7 +10259,7 @@ export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getU
 
 export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getUserUsageByUsername>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   username: string,
-  params: GetUserUsageByUsernameParams,
+  params?: GetUserUsageByUsernameParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageByUsername>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUserUsageByUsernameQueryOptions(username, params, options)
@@ -10233,17 +10274,17 @@ export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getU
 /**
  * @summary Get User Usage By Id
  */
-export const getUserUsageById = (userId: number, params: GetUserUsageByIdParams, signal?: AbortSignal) => {
+export const getUserUsageById = (userId: number, params?: GetUserUsageByIdParams, signal?: AbortSignal) => {
   return orvalFetcher<UserUsageStatsList>({ url: `/api/user/by-id/${userId}/usage`, method: 'GET', params, signal })
 }
 
-export const getGetUserUsageByIdQueryKey = (userId: number, params: GetUserUsageByIdParams) => {
+export const getGetUserUsageByIdQueryKey = (userId: number, params?: GetUserUsageByIdParams) => {
   return [`/api/user/by-id/${userId}/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUserUsageByIdQueryOptions = <TData = Awaited<ReturnType<typeof getUserUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   userId: number,
-  params: GetUserUsageByIdParams,
+  params?: GetUserUsageByIdParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageById>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -10260,7 +10301,7 @@ export type GetUserUsageByIdQueryError = ErrorType<Unauthorized | Forbidden | No
 
 export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   userId: number,
-  params: GetUserUsageByIdParams,
+  params: undefined | GetUserUsageByIdParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageById>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUserUsageById>>, TError, TData>, 'initialData'>
@@ -10268,7 +10309,7 @@ export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsa
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   userId: number,
-  params: GetUserUsageByIdParams,
+  params?: GetUserUsageByIdParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageById>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUserUsageById>>, TError, TData>, 'initialData'>
@@ -10276,7 +10317,7 @@ export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsa
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   userId: number,
-  params: GetUserUsageByIdParams,
+  params?: GetUserUsageByIdParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageById>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -10285,7 +10326,7 @@ export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsa
 
 export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsageById>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
   userId: number,
-  params: GetUserUsageByIdParams,
+  params?: GetUserUsageByIdParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserUsageById>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUserUsageByIdQueryOptions(userId, params, options)
@@ -10301,16 +10342,16 @@ export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsa
  * Get all users usage
  * @summary Get Users Usage
  */
-export const getUsersUsage = (params: GetUsersUsageParams, signal?: AbortSignal) => {
+export const getUsersUsage = (params?: GetUsersUsageParams, signal?: AbortSignal) => {
   return orvalFetcher<UserUsageStatsList>({ url: `/api/users/usage`, method: 'GET', params, signal })
 }
 
-export const getGetUsersUsageQueryKey = (params: GetUsersUsageParams) => {
+export const getGetUsersUsageQueryKey = (params?: GetUsersUsageParams) => {
   return [`/api/users/usage`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUsersUsageQueryOptions = <TData = Awaited<ReturnType<typeof getUsersUsage>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params: GetUsersUsageParams,
+  params?: GetUsersUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsage>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -10326,20 +10367,20 @@ export type GetUsersUsageQueryResult = NonNullable<Awaited<ReturnType<typeof get
 export type GetUsersUsageQueryError = ErrorType<Unauthorized | HTTPValidationError>
 
 export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params: GetUsersUsageParams,
+  params: undefined | GetUsersUsageParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsage>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersUsage>>, TError, TData>, 'initialData'>
   },
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params: GetUsersUsageParams,
+  params?: GetUsersUsageParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsage>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersUsage>>, TError, TData>, 'initialData'>
   },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params: GetUsersUsageParams,
+  params?: GetUsersUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsage>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -10347,7 +10388,7 @@ export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage
  */
 
 export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params: GetUsersUsageParams,
+  params?: GetUsersUsageParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsage>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUsersUsageQueryOptions(params, options)
@@ -10363,17 +10404,17 @@ export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage
  * Get one users activity/status count metric from usage rows.
  * @summary Get Users Count Metric
  */
-export const getUsersCountMetric = (metric: UserCountMetric, params: GetUsersCountMetricParams, signal?: AbortSignal) => {
+export const getUsersCountMetric = (metric: UserCountMetric, params?: GetUsersCountMetricParams, signal?: AbortSignal) => {
   return orvalFetcher<UserCountMetricStatsList>({ url: `/api/users/counts/${metric}`, method: 'GET', params, signal })
 }
 
-export const getGetUsersCountMetricQueryKey = (metric: UserCountMetric, params: GetUsersCountMetricParams) => {
+export const getGetUsersCountMetricQueryKey = (metric: UserCountMetric, params?: GetUsersCountMetricParams) => {
   return [`/api/users/counts/${metric}`, ...(params ? [params] : [])] as const
 }
 
 export const getGetUsersCountMetricQueryOptions = <TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
   metric: UserCountMetric,
-  params: GetUsersCountMetricParams,
+  params?: GetUsersCountMetricParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -10382,7 +10423,7 @@ export const getGetUsersCountMetricQueryOptions = <TData = Awaited<ReturnType<ty
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsersCountMetric>>> = ({ signal }) => getUsersCountMetric(metric, params, signal)
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  return { queryKey, queryFn, enabled: !!metric, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type GetUsersCountMetricQueryResult = NonNullable<Awaited<ReturnType<typeof getUsersCountMetric>>>
@@ -10390,7 +10431,7 @@ export type GetUsersCountMetricQueryError = ErrorType<Unauthorized | HTTPValidat
 
 export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
   metric: UserCountMetric,
-  params: GetUsersCountMetricParams,
+  params: undefined | GetUsersCountMetricParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>, 'initialData'>
@@ -10398,7 +10439,7 @@ export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUser
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
   metric: UserCountMetric,
-  params: GetUsersCountMetricParams,
+  params?: GetUsersCountMetricParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>, 'initialData'>
@@ -10406,7 +10447,7 @@ export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUser
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
   metric: UserCountMetric,
-  params: GetUsersCountMetricParams,
+  params?: GetUsersCountMetricParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -10415,7 +10456,7 @@ export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUser
 
 export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUsersCountMetric>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
   metric: UserCountMetric,
-  params: GetUsersCountMetricParams,
+  params?: GetUsersCountMetricParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersCountMetric>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetUsersCountMetricQueryOptions(metric, params, options)
@@ -11476,7 +11517,7 @@ export function useUserSubscriptionInfo<TData = Awaited<ReturnType<typeof userSu
  * @summary User Subscription Apps
  */
 export const userSubscriptionApps = (token: string, signal?: AbortSignal) => {
-  return orvalFetcher<ApplicationOutput[]>({ url: `/sub/${token}/apps`, method: 'GET', signal })
+  return orvalFetcher<Application[]>({ url: `/sub/${token}/apps`, method: 'GET', signal })
 }
 
 export const getUserSubscriptionAppsQueryKey = (token: string) => {

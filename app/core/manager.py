@@ -236,13 +236,14 @@ class CoreManager:
             await self.get_inbounds.cache.clear()
             await self.get_inbounds_by_tag.cache.clear()
 
-    async def _update_core_local(self, db_core_config: CoreConfig):
-        core_config = self.validate_core(
-            db_core_config.config,
-            db_core_config.exclude_inbound_tags,
-            db_core_config.fallbacks_inbound_tags,
-            db_core_config.type,
-        )
+    async def _update_core_local(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
+        if core_config is None:
+            core_config = self.validate_core(
+                db_core_config.config,
+                db_core_config.exclude_inbound_tags,
+                db_core_config.fallbacks_inbound_tags,
+                db_core_config.type,
+            )
 
         async with self._lock:
             self._cores.update({db_core_config.id: core_config})
@@ -250,25 +251,17 @@ class CoreManager:
         await self.update_inbounds()
         await self._persist_state()
 
-    async def _update_core_nats(self, db_core_config: CoreConfig):
+    async def _update_core_nats(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
         # Persist local state (and KV snapshot) before broadcasting.
         # This lets node workers refresh from KV and avoids reconnect races.
-        await self._update_core_local(db_core_config)
-
-        # Validate payload before publishing the broadcast message.
-        self.validate_core(
-            db_core_config.config,
-            db_core_config.exclude_inbound_tags,
-            db_core_config.fallbacks_inbound_tags,
-            db_core_config.type,
-        )
+        await self._update_core_local(db_core_config, core_config)
         try:
             await self._publish_invalidation({"action": "update", "core": self._core_payload_from_db(db_core_config)})
         except Exception as exc:
             self._logger.warning(f"Failed to publish core update via NATS: {exc}")
 
-    async def update_core(self, db_core_config: CoreConfig):
-        await self._update_core_impl(db_core_config)
+    async def update_core(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
+        await self._update_core_impl(db_core_config, core_config)
 
     async def _remove_core_local(self, core_id: int):
         async with self._lock:

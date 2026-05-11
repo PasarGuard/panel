@@ -23,7 +23,7 @@ def _build_user_template_simple_sort_clause(sort_option: UserTemplateSimpleSortO
         UserTemplateSimpleSortField.template_name: UserTemplate.name,
     }
     column = field_map[sort_option.field]
-    return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def load_user_template_attrs(template: UserTemplate):

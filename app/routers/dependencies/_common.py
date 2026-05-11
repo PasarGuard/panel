@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from inspect import Parameter, Signature
 from typing import Any, Callable, cast
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Query, status
+from fastapi.params import Query as QueryParam
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticUndefined
 
@@ -46,6 +47,11 @@ def make_query_dependency(
             default = Parameter.empty
         else:
             default = field_info.default
+
+        # Ensure everything is explicitly a Query parameter to prevent Orval body generation
+        if not isinstance(default, (QueryParam, ParameterOverride)) and default is not Parameter.empty:
+            default = Query(default)
+
         parameters.append(
             Parameter(
                 field_name,

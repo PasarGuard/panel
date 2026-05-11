@@ -4,12 +4,15 @@ from app.models.admin import AdminListQuery, AdminSimpleListQuery, AdminUsageQue
 
 from ._common import make_query_dependency, query_param
 
-
 get_admin_list_query = make_query_dependency(
     AdminListQuery,
     field_overrides={
         "ids": Query(None),
         "usernames": Query(None),
+        "username": Query(None),
+        "offset": Query(None),
+        "limit": Query(None),
+        "sort": query_param(str | None, None),
     },
 )
 get_admin_simple_list_query = make_query_dependency(
@@ -17,7 +20,11 @@ get_admin_simple_list_query = make_query_dependency(
     field_overrides={
         "ids": Query(None),
         "usernames": Query(None),
+        "search": Query(None),
+        "offset": Query(None),
+        "limit": Query(None),
         "sort": query_param(str | None, None),
+        "all": Query(False),
     },
 )
 get_admin_usage_query = make_query_dependency(

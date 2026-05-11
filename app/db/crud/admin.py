@@ -46,7 +46,7 @@ def _build_admin_sort_clause(sort_option: AdminSortOption):
         AdminSortField.used_traffic: Admin.used_traffic,
     }
     column = field_map[sort_option.field]
-    return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 def _build_admin_simple_sort_clause(sort_option: AdminSimpleSortOption):
@@ -55,7 +55,7 @@ def _build_admin_simple_sort_clause(sort_option: AdminSimpleSortOption):
         AdminSimpleSortField.username: Admin.username,
     }
     column = field_map[sort_option.field]
-    return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def get_admin(
@@ -267,13 +267,6 @@ async def get_admins(
         List[Admin] | tuple[list[Admin], int, int, int]: A list of admin objects or tuple with counts.
     """
     params = query
-    base_query = select(Admin)
-    if params.ids:
-        base_query = base_query.where(Admin.id.in_(params.ids))
-    if params.usernames:
-        base_query = base_query.where(Admin.username.in_(params.usernames))
-    if params.username:
-        base_query = base_query.where(Admin.username.ilike(f"%{params.username}%"))
 
     total = None
     active = None
@@ -285,22 +278,18 @@ async def get_admins(
             func.sum(case((Admin.is_disabled.is_(False), 1), else_=0)).label("active"),
             func.sum(case((Admin.is_disabled.is_(True), 1), else_=0)).label("disabled"),
         )
+        if params.ids:
+            counts_stmt = counts_stmt.where(Admin.id.in_(params.ids))
+        if params.usernames:
+            counts_stmt = counts_stmt.where(Admin.username.in_(params.usernames))
         if params.username:
             counts_stmt = counts_stmt.where(Admin.username.ilike(f"%{params.username}%"))
+
         result = await db.execute(counts_stmt)
         row = result.one()
         total = row.total or 0
         active = row.active or 0
         disabled = row.disabled or 0
-
-    stmt = base_query
-    if params.sort:
-        stmt = stmt.order_by(*[_build_admin_sort_clause(sort_option) for sort_option in params.sort])
-
-    if params.offset:
-        stmt = stmt.offset(params.offset)
-    if params.limit:
-        stmt = stmt.limit(params.limit)
 
     if compact:
         users_count_subq = (
@@ -317,25 +306,36 @@ async def get_admins(
             .subquery()
         )
 
-        stmt = (
-            select(
-                Admin,
-                func.coalesce(users_count_subq.c.total_users, 0).label("total_users"),
-                func.coalesce(reset_usage_subq.c.reseted_usage, 0).label("reseted_usage"),
-            )
-            .outerjoin(users_count_subq, users_count_subq.c.admin_id == Admin.id)
-            .outerjoin(reset_usage_subq, reset_usage_subq.c.admin_id == Admin.id)
+        stmt = select(
+            Admin,
+            func.coalesce(users_count_subq.c.total_users, 0).label("total_users"),
+            func.coalesce(reset_usage_subq.c.reseted_usage, 0).label("reseted_usage"),
         )
-        if params.username:
-            stmt = stmt.where(Admin.username.ilike(f"%{params.username}%"))
-        if params.sort:
-            stmt = stmt.order_by(*[_build_admin_sort_clause(sort_option) for sort_option in params.sort])
-        if params.offset:
-            stmt = stmt.offset(params.offset)
-        if params.limit:
-            stmt = stmt.limit(params.limit)
+        stmt = stmt.outerjoin(users_count_subq, users_count_subq.c.admin_id == Admin.id)
+        stmt = stmt.outerjoin(reset_usage_subq, reset_usage_subq.c.admin_id == Admin.id)
+    else:
+        stmt = select(Admin)
 
-        rows = (await db.execute(stmt)).all()
+    # Apply filters consistently
+    if params.ids:
+        stmt = stmt.where(Admin.id.in_(params.ids))
+    if params.usernames:
+        stmt = stmt.where(Admin.username.in_(params.usernames))
+    if params.username:
+        stmt = stmt.where(Admin.username.ilike(f"%{params.username}%"))
+
+    # Apply sorting
+    if params.sort:
+        stmt = stmt.order_by(*[_build_admin_sort_clause(sort_option) for sort_option in params.sort])
+
+    # Apply pagination
+    if params.offset is not None:
+        stmt = stmt.offset(params.offset)
+    if params.limit is not None:
+        stmt = stmt.limit(params.limit)
+
+    if compact:
+        rows = (await db.execute(stmt)).unique().all()
         admins = []
         for admin, total_users, reseted_usage in rows:
             lifetime_used_traffic = int((reseted_usage or 0) + (admin.used_traffic or 0))
@@ -359,14 +359,10 @@ async def get_admins(
                     lifetime_used_traffic=lifetime_used_traffic,
                 )
             )
-
-        if return_with_count:
-            return admins, total, active, disabled
-        return admins
-
-    admins = (await db.execute(stmt)).scalars().all()
-    for admin in admins:
-        await load_admin_attrs(admin)
+    else:
+        admins = list((await db.execute(stmt)).scalars().all())
+        for admin in admins:
+            await load_admin_attrs(admin)
 
     if return_with_count:
         return admins, total, active, disabled
@@ -401,13 +397,13 @@ async def get_admins_simple(
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())
-    total = (await db.execute(count_stmt)).scalar()
+    total = (await db.execute(count_stmt)).scalar() or 0
 
     # Apply pagination or safety limit
     if not query.all:
-        if query.offset:
+        if query.offset is not None:
             stmt = stmt.offset(query.offset)
-        if query.limit:
+        if query.limit is not None:
             stmt = stmt.limit(query.limit)
     else:
         stmt = stmt.limit(10000)  # Safety limit when all=true

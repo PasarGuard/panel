@@ -33,7 +33,7 @@ logger = get_logger("core-operation")
 class CoreOperation(BaseOperation):
     async def create_core(self, db: AsyncSession, new_core: CoreCreate, admin: AdminDetails) -> CoreResponse:
         try:
-            core_manager.validate_core(
+            validated_core = core_manager.validate_core(
                 new_core.config,
                 new_core.exclude_inbound_tags,
                 new_core.fallbacks_inbound_tags,
@@ -43,7 +43,7 @@ class CoreOperation(BaseOperation):
         except Exception as e:
             await self.raise_error(message=e, code=400, db=db)
 
-        await core_manager.update_core(db_core)
+        await core_manager.update_core(db_core, validated_core)
         logger.info(f'Core config "{db_core.id}" created by admin "{admin.username}"')
 
         core = CoreResponse.model_validate(db_core)
@@ -70,7 +70,7 @@ class CoreOperation(BaseOperation):
     ) -> CoreResponse:
         db_core = await self.get_validated_core_config(db, core_id)
         try:
-            core_manager.validate_core(
+            validated_core = core_manager.validate_core(
                 modified_core.config,
                 modified_core.exclude_inbound_tags,
                 modified_core.fallbacks_inbound_tags,
@@ -80,7 +80,7 @@ class CoreOperation(BaseOperation):
         except Exception as e:
             await self.raise_error(message=e, code=400, db=db)
 
-        await core_manager.update_core(db_core)
+        await core_manager.update_core(db_core, validated_core)
 
         logger.info(f'Core config "{db_core.name}" modified by admin "{admin.username}"')
 

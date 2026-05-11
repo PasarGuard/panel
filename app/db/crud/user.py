@@ -265,12 +265,12 @@ def _build_user_sort_clause(sort_option: UserSortOption):
 
     if sort_option.field in field_map:
         column = field_map[sort_option.field]
-        return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+        return column.desc() if sort_option.value.startswith("-") else column.asc()
 
     column = nullable_field_map[sort_option.field]
     return (
         case((column.is_(None), 1), else_=0).asc(),
-        column.desc() if sort_option.direction == SortDirection.desc else column.asc(),
+        column.desc() if sort_option.value.startswith("-") else column.asc(),
     )
 
 
@@ -280,7 +280,7 @@ def _build_user_simple_sort_clause(sort_option: UserSimpleSortOption):
         UserSimpleSortField.username: User.username,
     }
     column = field_map[sort_option.field]
-    return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def get_users(

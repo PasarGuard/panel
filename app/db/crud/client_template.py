@@ -32,7 +32,7 @@ def _build_client_template_simple_sort_clause(sort_option: ClientTemplateSimpleS
         ClientTemplateSimpleSortField.template_type: ClientTemplate.template_type,
     }
     column = field_map[sort_option.field]
-    return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def get_client_template_values(db: AsyncSession) -> dict[str, str]:

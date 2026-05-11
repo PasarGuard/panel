@@ -19,7 +19,7 @@ def _build_core_simple_sort_clause(sort_option: CoreSimpleSortOption):
         CoreSimpleSortField.created_at: CoreConfig.created_at,
     }
     column = field_map[sort_option.field]
-    return column.desc() if sort_option.direction == SortDirection.desc else column.asc()
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def get_core_config_by_id(db: AsyncSession, core_id: int) -> CoreConfig | None:

@@ -14,19 +14,6 @@ type_map = {
 }
 
 
-def calculate_max_message_size(active_users_count: int) -> int:
-    """
-    max_message_size to 64MB.
-
-    Args:
-        active_users_count: Number of active users in the system
-
-    Returns:
-        int: Max message size in bytes (64MB)
-    """
-    return 64 * 1024 * 1024  # 64MB
-
-
 class NodeManager:
     def __init__(self):
         self._nodes: dict[int, PasarGuardNode] = {}
@@ -136,4 +123,4 @@ class NodeManager:
 node_manager: NodeManager = NodeManager()
 
 
-__all__ = ["calculate_max_message_size", "core_users", "node_manager"]
+__all__ = ["core_users", "node_manager"]
