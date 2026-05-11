@@ -913,6 +913,10 @@ export type UserResponseAdmin = AdminBase | null
 
 export type UserResponseOnlineAt = string | null
 
+export type UserResponseLastTrafficResetAt = string | null
+
+export type UserResponseNextTrafficResetAt = string | null
+
 export type UserResponseEditAt = string | null
 
 export type UserResponseNextPlan = NextPlanModel | null
@@ -956,6 +960,8 @@ export interface UserResponse {
   created_at: string
   edit_at?: UserResponseEditAt
   online_at?: UserResponseOnlineAt
+  last_traffic_reset_at?: UserResponseLastTrafficResetAt
+  next_traffic_reset_at?: UserResponseNextTrafficResetAt
   subscription_url?: string
   admin?: UserResponseAdmin
 }
@@ -1190,6 +1196,10 @@ export interface SystemStats {
 
 export type SubscriptionUserResponseOnlineAt = string | null
 
+export type SubscriptionUserResponseLastTrafficResetAt = string | null
+
+export type SubscriptionUserResponseNextTrafficResetAt = string | null
+
 export type SubscriptionUserResponseEditAt = string | null
 
 export type SubscriptionUserResponseNextPlan = NextPlanModel | null
@@ -1227,6 +1237,8 @@ export interface SubscriptionUserResponse {
   created_at: string
   edit_at?: SubscriptionUserResponseEditAt
   online_at?: SubscriptionUserResponseOnlineAt
+  last_traffic_reset_at?: SubscriptionUserResponseLastTrafficResetAt
+  next_traffic_reset_at?: SubscriptionUserResponseNextTrafficResetAt
 }
 
 export type SubscriptionTemplatesXray = number | null

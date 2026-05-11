@@ -1,5 +1,5 @@
 import os
-from datetime import datetime as dt, timezone as tz
+from datetime import datetime as dt, timedelta as td, timezone as tz
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -140,6 +140,12 @@ class DataLimitResetStrategy(str, Enum):
     year = "year"
 
 
+class UserUsageResetSource(str, Enum):
+    manual = "manual"
+    scheduled = "scheduled"
+    next_plan = "next_plan"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -157,7 +163,11 @@ class User(Base):
     subscription_updates: Mapped[List["UserSubscriptionUpdate"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
-    usage_logs: Mapped[List["UserUsageResetLogs"]] = relationship(back_populates="user", init=False)
+    usage_logs: Mapped[List["UserUsageResetLogs"]] = relationship(
+        back_populates="user",
+        init=False,
+        order_by="UserUsageResetLogs.reset_at",
+    )
     admin: Mapped["Admin"] = relationship(back_populates="users", init=False)
     next_plan: Mapped[Optional["NextPlan"]] = relationship(
         uselist=False, back_populates="user", cascade="all, delete-orphan", init=False
@@ -221,6 +231,35 @@ class User(Base):
     @property
     def last_traffic_reset_time(self):
         return self.usage_logs[-1].reset_at if self.usage_logs else self.created_at
+
+    @property
+    def last_traffic_reset_at(self):
+        return self.usage_logs[-1].reset_at if self.usage_logs else None
+
+    @property
+    def last_scheduled_traffic_reset_at(self):
+        scheduled_sources = {UserUsageResetSource.scheduled.value, UserUsageResetSource.next_plan.value}
+        for log in reversed(self.usage_logs):
+            if log.reset_source in scheduled_sources:
+                return log.reset_at
+        return None
+
+    @property
+    def next_traffic_reset_at(self):
+        reset_days = {
+            DataLimitResetStrategy.day: 1,
+            DataLimitResetStrategy.week: 7,
+            DataLimitResetStrategy.month: 30,
+            DataLimitResetStrategy.year: 365,
+        }
+        days = reset_days.get(self.data_limit_reset_strategy)
+        if days is None:
+            return None
+
+        cycle_start = self.last_scheduled_traffic_reset_at or self.created_at
+        if cycle_start.tzinfo is None:
+            cycle_start = cycle_start.replace(tzinfo=tz.utc)
+        return cycle_start + td(days=days)
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
@@ -405,6 +444,11 @@ class UserUsageResetLogs(Base):
     user_id: Mapped[Optional[int]] = fk_id_column("users.id", ondelete="CASCADE", nullable=True)
     user: Mapped["User"] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    reset_source: Mapped[str] = mapped_column(
+        String(32),
+        default=UserUsageResetSource.manual.value,
+        server_default=UserUsageResetSource.manual.value,
+    )
     reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
 
 

@@ -106,6 +106,8 @@ class UserNotificationResponse(User):
     created_at: dt
     edit_at: dt | None = Field(default=None)
     online_at: dt | None = Field(default=None)
+    last_traffic_reset_at: dt | None = Field(default=None)
+    next_traffic_reset_at: dt | None = Field(default=None)
     subscription_url: str = Field(default="")
     admin: AdminContactInfo | None = Field(default=None)
     group_names: list[str] | None = Field(default_factory=list)
@@ -116,7 +118,14 @@ class UserNotificationResponse(User):
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
 
-    @field_validator("created_at", "edit_at", "online_at", mode="before")
+    @field_validator(
+        "created_at",
+        "edit_at",
+        "online_at",
+        "last_traffic_reset_at",
+        "next_traffic_reset_at",
+        mode="before",
+    )
     @classmethod
     def validator_date(cls, v):
         if not v:

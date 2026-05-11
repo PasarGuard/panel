@@ -1284,6 +1284,14 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     return formatMetaDate(editingUserData?.edit_at)
   }, [editingUserData?.edit_at, formatMetaDate])
 
+  const lastTrafficResetAtText = React.useMemo(() => {
+    return formatMetaDate(editingUserData?.last_traffic_reset_at)
+  }, [editingUserData?.last_traffic_reset_at, formatMetaDate])
+
+  const nextTrafficResetAtText = React.useMemo(() => {
+    return formatMetaDate(editingUserData?.next_traffic_reset_at)
+  }, [editingUserData?.next_traffic_reset_at, formatMetaDate])
+
   const confirmResetUsage = async () => {
     if (!currentUserId || !currentUsername) return
     try {
@@ -1338,6 +1346,28 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                     </span>
                     <span dir="ltr" className="text-right">
                       {editedAtText}
+                    </span>
+                  </div>
+                )}
+                {lastTrafficResetAtText && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      {t('lastTrafficResetAt', { defaultValue: 'Last traffic reset' })}
+                    </span>
+                    <span dir="ltr" className="text-right">
+                      {lastTrafficResetAtText}
+                    </span>
+                  </div>
+                )}
+                {nextTrafficResetAtText && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      {t('nextTrafficResetAt', { defaultValue: 'Next traffic reset' })}
+                    </span>
+                    <span dir="ltr" className="text-right">
+                      {nextTrafficResetAtText}
                     </span>
                   </div>
                 )}

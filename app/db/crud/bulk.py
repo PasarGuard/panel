@@ -13,6 +13,7 @@ from app.db.models import (
     NodeUserUsage,
     User,
     UserStatus,
+    UserUsageResetSource,
     UserUsageResetLogs,
     users_groups_association,
 )
@@ -38,7 +39,8 @@ async def reset_all_users_data_usage(
     Operations performed:
         - Sets `used_traffic` to 0 for all target users.
         - Sets `status` to `active` for all users, unless filtered by admin.
-        - Deletes all related `UserUsageResetLogs` and `NextPlan` entries.
+        - Adds a manual `UserUsageResetLogs` row for lifetime traffic accounting.
+        - Deletes all related `NextPlan` entries.
         - Deletes `NodeUserUsage` chart rows when `clean_chart_data` is enabled.
 
     Args:
@@ -51,15 +53,29 @@ async def reset_all_users_data_usage(
         - This function assumes proper foreign key constraints and cascading rules are in place.
         - The function commits changes at the end of the operation.
     """
-    user_ids_query = select(User.id).where(User.admin_id == admin.id) if admin else select(User.id)
-    user_ids = (await db.execute(user_ids_query)).scalars().all()
+    users_query = (
+        select(User.id, User.used_traffic).where(User.admin_id == admin.id)
+        if admin
+        else select(User.id, User.used_traffic)
+    )
+    user_rows = (await db.execute(users_query)).all()
+    user_ids = [row.id for row in user_rows]
 
     if not user_ids:
         return
 
+    db.add_all(
+        [
+            UserUsageResetLogs(
+                user_id=row.id,
+                used_traffic_at_reset=row.used_traffic,
+                reset_source=UserUsageResetSource.manual.value,
+            )
+            for row in user_rows
+        ]
+    )
     await db.execute(update(User).where(User.id.in_(user_ids)).values(used_traffic=0, status=UserStatus.active))
 
-    await db.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)))
     if clean_chart_data:
         await db.execute(delete(NodeUserUsage).where(NodeUserUsage.user_id.in_(user_ids)))
     await db.execute(delete(NextPlan).where(NextPlan.user_id.in_(user_ids)))

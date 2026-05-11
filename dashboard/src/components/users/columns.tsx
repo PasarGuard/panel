@@ -199,10 +199,16 @@ export const setupColumns = ({
         )
       },
       sortingFn: (rowA, rowB) => {
-        const expireA = rowA.original.expire || Infinity
-        const expireB = rowB.original.expire || Infinity
+        const toExpireSortValue = (expire: UserResponse['expire']) => {
+          if (!expire) return Infinity
+          const parsed = dateUtils.toDayjs(expire)
+          return parsed.isValid() ? parsed.valueOf() : Infinity
+        }
 
-        if (expireA !== expireB) return +expireA - +expireB
+        const expireA = toExpireSortValue(rowA.original.expire)
+        const expireB = toExpireSortValue(rowB.original.expire)
+
+        if (expireA !== expireB) return expireA - expireB
 
         return rowA.original.used_traffic - rowB.original.used_traffic
       },

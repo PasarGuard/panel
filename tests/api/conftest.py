@@ -13,6 +13,7 @@ def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     db_session = MagicMock(spec=TestSession)
     monkeypatch.setattr("app.settings.GetDB", db_session)
     monkeypatch.setattr("app.subscription.client_templates.GetDB", GetTestDB)
+    monkeypatch.setattr("app.utils.jwt.GetDB", GetTestDB)
     return db_session
 
 

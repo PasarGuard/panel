@@ -19,6 +19,7 @@ from app.db.models import (
     ReminderType,
     User,
     UserStatus,
+    UserUsageResetSource,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
     users_groups_association,
@@ -552,6 +553,11 @@ async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
             UserUsageResetLogs.user_id,
             func.max(UserUsageResetLogs.reset_at).label("last_reset_at"),
         )
+        .where(
+            UserUsageResetLogs.reset_source.in_(
+                [UserUsageResetSource.scheduled.value, UserUsageResetSource.next_plan.value]
+            )
+        )
         .group_by(UserUsageResetLogs.user_id)
         .subquery()
     )
@@ -990,12 +996,18 @@ async def modify_user(
     return db_user
 
 
-async def _reset_user_traffic_and_log(db: AsyncSession, db_user: User):
+async def _reset_user_traffic_and_log(
+    db: AsyncSession,
+    db_user: User,
+    *,
+    reset_source: UserUsageResetSource = UserUsageResetSource.manual,
+):
     """Helper to reset user traffic and log the action."""
     await db_user.awaitable_attrs.next_plan
     usage_log = UserUsageResetLogs(
         user_id=db_user.id,
         used_traffic_at_reset=db_user.used_traffic,
+        reset_source=reset_source.value,
     )
     db.add(usage_log)
 
@@ -1013,7 +1025,13 @@ async def clear_user_node_usages(db: AsyncSession, user_id: int, *, before: date
     await db.execute(stmt)
 
 
-async def reset_user_data_usage(db: AsyncSession, db_user: User, *, clean_chart_data: bool = False) -> User:
+async def reset_user_data_usage(
+    db: AsyncSession,
+    db_user: User,
+    *,
+    clean_chart_data: bool = False,
+    reset_source: UserUsageResetSource = UserUsageResetSource.manual,
+) -> User:
     """
     Resets the data usage of a user and logs the reset.
 
@@ -1024,7 +1042,7 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User, *, clean_chart_
     Returns:
         User: The updated user object.
     """
-    await _reset_user_traffic_and_log(db, db_user)
+    await _reset_user_traffic_and_log(db, db_user, reset_source=reset_source)
     if clean_chart_data:
         await clear_user_node_usages(db, db_user.id)
 
@@ -1037,7 +1055,11 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User, *, clean_chart_
 
 
 async def bulk_reset_user_data_usage(
-    db: AsyncSession, users: list[User], *, clean_chart_data: bool = False
+    db: AsyncSession,
+    users: list[User],
+    *,
+    clean_chart_data: bool = False,
+    reset_source: UserUsageResetSource = UserUsageResetSource.manual,
 ) -> list[User]:
     """
     Resets the data usage for a list of users and logs the reset.
@@ -1050,7 +1072,7 @@ async def bulk_reset_user_data_usage(
         list[User]: The updated list of user objects.
     """
     for db_user in users:
-        await _reset_user_traffic_and_log(db, db_user)
+        await _reset_user_traffic_and_log(db, db_user, reset_source=reset_source)
         if clean_chart_data:
             await clear_user_node_usages(db, db_user.id)
         if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
@@ -1124,7 +1146,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
             db_user.proxy_settings = proxy_settings
         db_user.data_limit_reset_strategy = db_user.next_plan.user_template.data_limit_reset_strategy
 
-    await _reset_user_traffic_and_log(db, db_user)
+    await _reset_user_traffic_and_log(db, db_user, reset_source=UserUsageResetSource.next_plan)
     if clean_chart_data:
         await clear_user_node_usages(db, db_user.id)
     db_user.status = UserStatus.active
