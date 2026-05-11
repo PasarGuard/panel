@@ -1835,7 +1835,11 @@
     "shadowsocksPasswordGenerationFailed": "密码生成失败",
     "realityTab": "Reality",
     "vlessTab": "VLESS",
-    "shadowsocksTab": "ShadowSocks"
+    "shadowsocksTab": "ShadowSocks",
+    "unsavedChanges": "未保存的更改",
+    "unsavedChangesMessage": "您有未保存的更改。您确定要在不保存的情况下退出吗？",
+    "keepEditing": "继续编辑",
+    "discardChanges": "放弃更改"
   },
   "settings.cores.title": "核心",
   "settings.cores.description": "管理您的核心",

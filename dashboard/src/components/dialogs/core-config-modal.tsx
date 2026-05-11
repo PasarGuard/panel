@@ -2,6 +2,7 @@ import { CopyButton } from '@/components/common/copy-button'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,7 +21,7 @@ import { generateWireGuardKeyPair } from '@/utils/wireguard'
 import { encodeURLSafe } from '@stablelib/base64'
 import { generateKeyPair } from '@stablelib/x25519'
 import { debounce } from 'es-toolkit'
-import { Info, Key, Maximize2, Minimize2, Sparkles, Shield, Pencil, Cpu } from 'lucide-react'
+import { Info, Key, Maximize2, Minimize2, Sparkles, Shield, Pencil, Cpu, AlertTriangle } from 'lucide-react'
 import { MlKem768 } from 'mlkem'
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -185,6 +186,10 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const [generatedShadowsocksPassword, setGeneratedShadowsocksPassword] = useState<{ password: string; encryptionMethod: string } | null>(null)
   const [generatedMldsa65, setGeneratedMldsa65] = useState<{ seed: string; verify: string } | null>(null)
   const [generatedVLESS, setGeneratedVLESS] = useState<any>(null)
+
+  // Unsaved changes tracking
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isConfirmExitDialogOpen, setIsConfirmExitDialogOpen] = useState(false)
   const handleVlessVariantChange = useCallback(
     (value: string) => {
       if (value === 'x25519' || value === 'mlkem768') {
@@ -194,11 +199,43 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     [setSelectedVlessVariant],
   )
 
+  // Track unsaved changes
+  useEffect(() => {
+    const subscription = form.watch(() => {
+      setHasUnsavedChanges(form.formState.isDirty)
+    })
+    return () => subscription.unsubscribe()
+  }, [form])
+
   // Helper function to show results in dialog
   const showResultDialog = useCallback((type: string, data: any) => {
     setResultType(type)
     setResultData(data)
     setIsResultsDialogOpen(true)
+  }, [])
+
+  // Handle modal close with unsaved changes check
+  const handleModalCloseWithCheck = useCallback((open: boolean) => {
+    if (!open && hasUnsavedChanges) {
+      setIsConfirmExitDialogOpen(true)
+    } else {
+      onOpenChange(open)
+      if (!open) {
+        setHasUnsavedChanges(false)
+      }
+    }
+  }, [hasUnsavedChanges, onOpenChange])
+
+  // Confirm exit without saving
+  const handleConfirmExit = useCallback(() => {
+    setIsConfirmExitDialogOpen(false)
+    setHasUnsavedChanges(false)
+    onOpenChange(false)
+  }, [onOpenChange])
+
+  // Cancel exit
+  const handleCancelExit = useCallback(() => {
+    setIsConfirmExitDialogOpen(false)
   }, [])
 
   const relayoutEditor = useCallback(
@@ -601,6 +638,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       // Invalidate core config queries after successful action
       queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
       queryClient.invalidateQueries({ queryKey: ['/api/cores/simple'] })
+      setHasUnsavedChanges(false)
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
@@ -736,6 +774,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       setValidation({ isValid: true })
       setEditorInstance(null)
       setIsEditorReady(false)
+      setHasUnsavedChanges(false)
+      setIsConfirmExitDialogOpen(false)
       // Don't clear generated values - keep them for reuse
     }
   }, [isDialogOpen])
@@ -1325,7 +1365,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     <>
       {renderVlessAdvancedModal()}
       {renderResultDialog()}
-      <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
+      <Dialog open={isDialogOpen} onOpenChange={handleModalCloseWithCheck}>
         <DialogContent className="h-full w-full max-w-5xl md:h-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1809,7 +1849,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                   )}
 
                   <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createCoreMutation.isPending || modifyCoreMutation.isPending}>
+                    <Button type="button" variant="outline" onClick={() => handleModalCloseWithCheck(false)} disabled={createCoreMutation.isPending || modifyCoreMutation.isPending}>
                       {t('cancel')}
                     </Button>
                     <LoaderButton
@@ -1827,6 +1867,31 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <AlertDialog open={isConfirmExitDialogOpen} onOpenChange={setIsConfirmExitDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {t('coreConfigModal.unsavedChanges', { defaultValue: 'Unsaved Changes' })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('coreConfigModal.unsavedChangesMessage', { 
+                defaultValue: 'You have unsaved changes. Are you sure you want to exit without saving?' 
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelExit}>
+              {t('coreConfigModal.keepEditing', { defaultValue: 'Keep Editing' })}
+            </AlertDialogCancel>
+            <Button variant="destructive" onClick={handleConfirmExit}>
+              {t('coreConfigModal.discardChanges', { defaultValue: 'Discard Changes' })}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
