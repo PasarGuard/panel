@@ -946,7 +946,7 @@ requires-dist = [
     { name = "qrcode", specifier = ">=8.1" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.49" },
-    { name = "sse-starlette", specifier = ">=3.4.2" },
+    { name = "sse-starlette", specifier = ">=3.4.3" },
     { name = "textual", specifier = ">=8.2.5" },
     { name = "typer", specifier = ">=0.25.1" },
     { name = "uvicorn", specifier = "==0.46.0" },
@@ -1458,15 +1458,15 @@ wheels = [
 
 [[package]]
 name = "sse-starlette"
-version = "3.4.2"
+version = "3.4.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "starlette" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/82/10cdfab4ab663a6b6bd624d33f55b2cfa41af5105be033a6d5d135a92c5f/sse_starlette-3.4.2.tar.gz", hash = "sha256:2f9a7f51ed84395a0427fb9f66cb1ec11f7899d977a72cbc9070b962a2e14489", size = 35236, upload-time = "2026-05-06T19:42:13.727Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/64/13/3cafb96bceb02949f265bbdf1cbcea2810271ae709e4aa35e980f90c07fd/sse_starlette-3.4.3.tar.gz", hash = "sha256:a7f6d87cf482cf38b911c31075811c7f8b4efbada8ac9d5199a8e239fed513c9", size = 35247, upload-time = "2026-05-11T17:23:41.987Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/27/351c71e803c56090d8d3bf9520422debeb8ed938871fd4f7ef519805a6c5/sse_starlette-3.4.2-py3-none-any.whl", hash = "sha256:6ea5d35b7ce979a3de5a0db5f77fe886b1616e4b3e1ad93fba502bd9b5fb662f", size = 16516, upload-time = "2026-05-06T19:42:12.201Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/a4/c888212b19dd432110d4a78dbc5e6c1bc7476e5fff2f2df2ea9f298b0003/sse_starlette-3.4.3-py3-none-any.whl", hash = "sha256:bf8a90d76192062f01b55095593606bfc7edd0e3ad481339a6e16e7890bc9367", size = 16514, upload-time = "2026-05-11T17:23:40.352Z" },
 ]
 
 [[package]]
