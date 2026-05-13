@@ -273,8 +273,7 @@ class SingBoxConfiguration(BaseSubscription):
             id = self.vless_route(id, inbound.vless_route)
         user_settings = {"uuid": id}
 
-        # Only add flow if inbound supports it
-        if inbound.flow_enabled and (flow := settings.get("flow", "")):
+        if inbound.flow_enabled and (flow := inbound.inbound_flow):
             user_settings["flow"] = flow
 
         return self._build_outbound(

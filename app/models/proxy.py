@@ -21,7 +21,6 @@ class XTLSFlows(StrEnum):
 
 class VlessSettings(BaseModel):
     id: UUID = Field(default_factory=uuid4)
-    flow: XTLSFlows = XTLSFlows.NONE
 
 
 class TrojanSettings(BaseModel):

@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
-import { ShadowsocksMethods, XTLSFlows, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
+import { ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, RefreshCcw } from 'lucide-react'
@@ -17,12 +17,8 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { useSettingsContext } from './_dashboard.settings'
 
-/** Radix Select forbids `SelectItem value=""`; map API empty flow to this UI value. */
-const DEFAULT_FLOW_SELECT_NONE = '__pg_default_flow_none__'
-
 // general settings validation schema
 const generalSettingsSchema = z.object({
-  default_flow: z.string().default(''),
   default_method: z.string().default(''),
 })
 
@@ -43,28 +39,24 @@ export default function General() {
     () =>
       generalSettings
         ? {
-            default_flow: generalSettings.default_flow || '',
             default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
           }
         : {
-            default_flow: '',
             default_method: '',
           },
-    [generalSettings?.default_flow, generalSettings?.default_method],
+    [generalSettings?.default_method],
   )
 
   const form = useForm<GeneralSettingsFormInput>({
     resolver: zodResolver(generalSettingsSchema),
     values: generalFormValues,
   })
-
   const onSubmit = async (data: GeneralSettingsFormInput) => {
     try {
       // Filter out empty values and prepare the payload
       const filteredData: any = {
         general: {
           ...data,
-          default_flow: data.default_flow || undefined,
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
         },
       }
@@ -78,7 +70,6 @@ export default function General() {
   const handleCancel = () => {
     if (!generalSettings) return
     form.reset({
-      default_flow: generalSettings.default_flow ?? '',
       default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
     })
     toast.success(t('settings.general.cancelSuccess'))
@@ -171,39 +162,6 @@ export default function General() {
           <div className="mb-4 sm:mb-6 lg:mb-8">
             {/* General Settings */}
             <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="default_flow"
-                render={({ field }) => (
-                  <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">{t('settings.general.defaultFlow.title')}</FormLabel>
-                    <FormControl>
-                      <Select
-                        value={field.value ? field.value : DEFAULT_FLOW_SELECT_NONE}
-                        onValueChange={v => field.onChange(v === DEFAULT_FLOW_SELECT_NONE ? '' : v)}
-                      >
-                        <SelectTrigger className="text-xs sm:text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={DEFAULT_FLOW_SELECT_NONE} className="text-xs sm:text-sm">
-                            {t('settings.general.defaultFlow.none')}
-                          </SelectItem>
-                          {Object.values(XTLSFlows)
-                            .filter((flow): flow is Exclude<typeof flow, ''> => flow !== '')
-                            .map(flow => (
-                              <SelectItem value={flow} key={flow} className="text-xs sm:text-sm">
-                                {flow}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.defaultFlow.description')}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="default_method"

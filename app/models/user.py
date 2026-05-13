@@ -6,7 +6,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.admin import AdminBase, AdminContactInfo
-from app.models.proxy import ProxyTable, ShadowsocksMethods, XTLSFlows
+from app.models.proxy import ProxyTable, ShadowsocksMethods
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
@@ -413,7 +413,6 @@ class BulkUser(BulkUserFilter):
 
 
 class BulkUsersProxy(BulkUserFilter):
-    flow: XTLSFlows | None = Field(default=None)
     method: ShadowsocksMethods | None = Field(default=None)
 
 

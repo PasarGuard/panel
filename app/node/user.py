@@ -57,11 +57,7 @@ def _serialize_user_for_node(
     if ProxyProtocol.vmess in allowed_protocols:
         proxy_kwargs["vmess_id"] = user_settings.get("vmess", {}).get("id")
     if ProxyProtocol.vless in allowed_protocols:
-        vless_settings = dict(user_settings.get("vless", {}))
-        if vless_settings.get("flow") == "xtls-rprx-vision-udp443":
-            vless_settings["flow"] = "xtls-rprx-vision"
-        proxy_kwargs["vless_id"] = vless_settings.get("id")
-        proxy_kwargs["vless_flow"] = vless_settings.get("flow")
+        proxy_kwargs["vless_id"] = user_settings.get("vless", {}).get("id")
     if ProxyProtocol.trojan in allowed_protocols:
         proxy_kwargs["trojan_password"] = user_settings.get("trojan", {}).get("password")
     if ProxyProtocol.shadowsocks in allowed_protocols:

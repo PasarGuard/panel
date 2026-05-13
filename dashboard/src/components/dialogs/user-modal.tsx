@@ -1119,7 +1119,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       },
       vless: {
         id: uuidv4(),
-        flow: '' as '' | 'xtls-rprx-vision' | 'xtls-rprx-vision-udp443' | undefined,
       },
       trojan: {
         password: generatePassword(),
@@ -1212,9 +1211,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
             {} as Record<string, unknown>,
           )
 
-          if (protocol === 'vless' && !cleanedProtocolSettings.flow) {
-            delete cleanedProtocolSettings.flow
-          }
           if (protocol === 'shadowsocks' && !cleanedProtocolSettings.method) {
             delete cleanedProtocolSettings.method
           }
@@ -1355,7 +1351,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         form.setValue('proxy_settings', undefined)
         form.setValue('data_limit', 0)
         if (generalSettings) {
-          form.setValue('proxy_settings.vless.flow', generalSettings.default_flow || '')
           const validMethods = ['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305', 'xchacha20-poly1305'] as const
           const method = validMethods.find(m => m === generalSettings.default_method)
           if (method) {
@@ -1788,38 +1783,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                 </FormItem>
                               )
                             }}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="proxy_settings.vless.flow"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>
-                                  {t('userDialog.proxySettings.vless')} {t('userDialog.proxySettings.flow')}
-                                </FormLabel>
-                                <FormControl>
-                                  <Select
-                                    value={field.value ?? 'none'}
-                                    onValueChange={val => {
-                                      const flowValue = val === 'none' ? '' : val
-                                      field.onChange(flowValue)
-                                      handleFieldChange('proxy_settings.vless.flow', flowValue)
-                                    }}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder={t('userDialog.proxySettings.flow')} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="none">{t('userDialog.proxySettings.flow.none', { defaultValue: 'None' })}</SelectItem>
-                                      <SelectItem value="xtls-rprx-vision">xtls-rprx-vision</SelectItem>
-                                      <SelectItem value="xtls-rprx-vision-udp443">xtls-rprx-vision-udp443</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </FormControl>
-                                <p className="text-xs text-amber-600 dark:text-amber-400">{t('userDialog.proxySettings.flowDeprecated')}</p>
-                                <FormMessage />
-                              </FormItem>
-                            )}
                           />
                           {/* Trojan */}
                           <FormField

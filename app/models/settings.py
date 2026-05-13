@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.proxy import ShadowsocksMethods, XTLSFlows
+from app.models.proxy import ShadowsocksMethods
 
 from .notification_enable import NotificationEnable
 from .validators import DiscordValidator, ProxyValidator, URLValidator
@@ -286,7 +286,6 @@ class Subscription(BaseModel):
 
 
 class General(BaseModel):
-    default_flow: XTLSFlows = Field(default=XTLSFlows.NONE)
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
 
 

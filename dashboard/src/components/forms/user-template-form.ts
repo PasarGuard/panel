@@ -1,4 +1,4 @@
-import { DataLimitResetStrategy, ShadowsocksMethods, UserStatusCreate, XTLSFlows } from '@/service/api'
+import { DataLimitResetStrategy, ShadowsocksMethods, UserStatusCreate } from '@/service/api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { TFunction } from 'i18next'
 import type { FieldError, FieldErrors, Resolver } from 'react-hook-form'
@@ -15,7 +15,6 @@ const userTemplateFormObjectSchema = z.object({
   method: z
     .enum([ShadowsocksMethods['aes-128-gcm'], ShadowsocksMethods['aes-256-gcm'], ShadowsocksMethods['chacha20-ietf-poly1305'], ShadowsocksMethods['xchacha20-poly1305']])
     .default(ShadowsocksMethods['chacha20-ietf-poly1305']),
-  flow: z.enum([XTLSFlows[''], XTLSFlows['xtls-rprx-vision'], XTLSFlows['xtls-rprx-vision-udp443']]).default(XTLSFlows['']),
   groups: z.array(z.number()).min(1, 'validation.required'),
   data_limit_reset_strategy: z
     .enum([
@@ -55,7 +54,6 @@ export const userTemplateFormDefaultValues: Partial<UserTemplatesFromValueInput>
   data_limit: 0,
   expire_duration: 0,
   method: ShadowsocksMethods['chacha20-ietf-poly1305'],
-  flow: XTLSFlows[''],
   on_hold_timeout: undefined,
   groups: [],
   reset_usages: false,
