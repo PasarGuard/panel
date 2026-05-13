@@ -25,7 +25,7 @@ dependencies = [
     "qrcode>=8.1",
     "rich>=15.0.0",
     "uvicorn==0.46.0",
-    "sse-starlette>=3.4.2",
+    "sse-starlette>=3.4.4",
     "aiohttp>=3.13.5",
     "packaging>=26.2",
     "sqlalchemy[asyncio]>=2.0.49",
