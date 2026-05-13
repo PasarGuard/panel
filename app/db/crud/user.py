@@ -790,7 +790,7 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     db_user.groups = groups
     db_user.expire = new_user.expire or None
     db_user.on_hold_timeout = new_user.on_hold_timeout or None
-    db_user.proxy_settings = new_user.proxy_settings
+    db_user.proxy_settings = new_user.proxy_settings.dict()
 
     db.add(db_user)
     await db.flush()
@@ -821,7 +821,7 @@ async def create_users_bulk(
         db_user.groups = list(groups)
         db_user.expire = new_user.expire or None
         db_user.on_hold_timeout = new_user.on_hold_timeout or None
-        db_user.proxy_settings = new_user.proxy_settings
+        db_user.proxy_settings = new_user.proxy_settings.dict()
         db_users.append(db_user)
 
     db.add_all(db_users)
@@ -909,7 +909,7 @@ async def modify_user(
     remove_expiration_reminder = False
 
     if modify.proxy_settings is not None:
-        db_user.proxy_settings = modify.proxy_settings
+        db_user.proxy_settings = modify.proxy_settings.dict()
     if modify.group_ids:
         db_user.groups = groups or await get_groups_by_ids(db, modify.group_ids, load_users=False, load_inbounds=True)
 
@@ -1066,7 +1066,7 @@ def _build_revoked_proxy_settings(db_user: User) -> dict:
         "method", "chacha20-ietf-poly1305"
     )
     proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
-    return proxy_settings
+    return proxy_settings.dict()
 
 
 async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_data: bool = False) -> User:
