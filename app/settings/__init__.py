@@ -60,6 +60,15 @@ async def subscription_settings() -> settings.Subscription:
 
 
 @cached()
+async def hwid_settings() -> settings.HWIDSettings:
+    async with GetDB() as db:
+        db_settings = await get_settings(db)
+
+    validated_settings = settings.HWIDSettings.model_validate(db_settings.hwid)
+    return validated_settings
+
+
+@cached()
 async def general_settings() -> settings.General:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -75,6 +84,7 @@ async def refresh_caches() -> None:
     await notification_settings.cache.clear()
     await notification_enable.cache.clear()
     await subscription_settings.cache.clear()
+    await hwid_settings.cache.clear()
     await general_settings.cache.clear()
 
 

@@ -1,11 +1,23 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import aiocache
 import pytest
 from aiorwlock import RWLock
 
 from app.db.models import Settings
 
 from . import GetTestDB, TestSession, client
+
+
+# Disable caching for all tests
+def dummy_cached(*args, **kwargs):
+    def wrapper(func):
+        return func
+
+    return wrapper
+
+
+aiocache.cached = dummy_cached
 
 
 @pytest.fixture(autouse=True)
@@ -427,6 +439,13 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
                     ],
                 },
             ],
+        },
+        "hwid": {
+            "enabled": True,
+            "forced": False,
+            "fallback_limit": 3,
+            "min_limit": 1,
+            "max_limit": 0,
         },
         "general": {"default_flow": "", "default_method": "chacha20-ietf-poly1305"},
     }

@@ -10,7 +10,7 @@ from .node import (
     get_node_stats_period_query,
     get_node_usage_query,
 )
-from .subscription import get_subscription_usage_query
+from .subscription import get_subscription_headers, get_subscription_usage_query
 from .user import (
     get_expired_users_query,
     get_user_list_query,
@@ -43,6 +43,7 @@ __all__ = [
     "get_node_stats_period_query",
     "get_node_usage_query",
     # subscription
+    "get_subscription_headers",
     "get_subscription_usage_query",
     # user
     "get_expired_users_query",

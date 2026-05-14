@@ -285,3 +285,12 @@ class SubscriptionUsageQuery(BaseModel):
         if not value:
             return value
         return fix_datetime_timezone(value)
+
+
+class SubscriptionHeaders(BaseModel):
+    x_hwid: str | None = Field(default=None, alias="X-HWID")
+    x_device_os: str | None = Field(default=None, alias="X-Device-OS")
+    x_ver_os: str | None = Field(default=None, alias="X-Ver-OS")
+    x_device_model: str | None = Field(default=None, alias="X-Device-Model")
+
+    model_config = {"populate_by_name": True}

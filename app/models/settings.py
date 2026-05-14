@@ -285,6 +285,14 @@ class Subscription(BaseModel):
         return v
 
 
+class HWIDSettings(BaseModel):
+    enabled: bool = Field(default=False)
+    forced: bool = Field(default=False)
+    fallback_limit: int = Field(default=0, ge=0)
+    min_limit: int = Field(default=0, ge=0)
+    max_limit: int = Field(default=0, ge=0)
+
+
 class General(BaseModel):
     default_flow: XTLSFlows = Field(default=XTLSFlows.NONE)
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
@@ -297,6 +305,7 @@ class SettingsSchema(BaseModel):
     notification_settings: NotificationSettings | None = Field(default=None)
     notification_enable: NotificationEnable | None = Field(default=None)
     subscription: Subscription | None = Field(default=None)
+    hwid: HWIDSettings | None = Field(default=None)
     general: General | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
