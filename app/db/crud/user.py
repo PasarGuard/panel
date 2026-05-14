@@ -794,6 +794,8 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     if new_user.hwid_limit is not None:
         db_user.hwid_limit = new_user.hwid_limit
 
+    db_user.proxy_settings = new_user.proxy_settings.dict()
+
     db.add(db_user)
     await db.flush()
 

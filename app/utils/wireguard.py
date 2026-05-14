@@ -116,6 +116,10 @@ async def prepare_wireguard_proxy_settings(
     if not wireguard_tags:
         return proxy_settings
 
+    if not wireguard_settings.enabled:
+        return proxy_settings
+
+
     if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:
         raise ValueError("wireguard private_key is required when user is assigned to a WireGuard interface")
 

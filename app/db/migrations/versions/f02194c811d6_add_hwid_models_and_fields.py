@@ -38,8 +38,14 @@ def upgrade() -> None:
         batch_op.create_index('ix_user_hwids_created_at', ['created_at'], unique=False)
         batch_op.create_index('ix_user_hwids_last_used_at', ['last_used_at'], unique=False)
 
+    # Fixed MySQL JSON default: Add as nullable, update, then set NOT NULL
     with op.batch_alter_table('settings', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('hwid', sa.JSON(), server_default='{}', nullable=False))
+        batch_op.add_column(sa.Column('hwid', sa.JSON(), nullable=True))
+    
+    op.execute("UPDATE settings SET hwid = '{}'")
+    
+    with op.batch_alter_table('settings', schema=None) as batch_op:
+        batch_op.alter_column('hwid', nullable=False)
 
     with op.batch_alter_table('user_subscription_updates', schema=None) as batch_op:
         batch_op.add_column(sa.Column('hwid', sa.String(length=256), nullable=True))

@@ -250,7 +250,7 @@ class UserOperation(BaseOperation):
         for db_user in db_users:
             users_list.append(await self.validate_user(db_user))
 
-        return self._build_bulk_action_response(users_list)
+        return [user.subscription_url for user in users_list]
 
     async def validate_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
         user = UserNotificationResponse.model_validate(db_user)
