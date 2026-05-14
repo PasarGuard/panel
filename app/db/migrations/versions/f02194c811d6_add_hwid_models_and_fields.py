@@ -45,7 +45,7 @@ def upgrade() -> None:
     op.execute("UPDATE settings SET hwid = '{}'")
     
     with op.batch_alter_table('settings', schema=None) as batch_op:
-        batch_op.alter_column('hwid', nullable=False)
+        batch_op.alter_column('hwid', type_=sa.JSON(), nullable=False)
 
     with op.batch_alter_table('user_subscription_updates', schema=None) as batch_op:
         batch_op.add_column(sa.Column('hwid', sa.String(length=256), nullable=True))

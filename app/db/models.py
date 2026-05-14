@@ -819,5 +819,5 @@ class Settings(Base):
     notification_settings: Mapped[dict] = mapped_column(JSON())
     notification_enable: Mapped[dict] = mapped_column(JSON())
     subscription: Mapped[dict] = mapped_column(JSON())
-    hwid: Mapped[dict] = mapped_column(JSON(), server_default="{}")
+    hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())
