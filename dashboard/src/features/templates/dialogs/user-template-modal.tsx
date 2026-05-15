@@ -1,6 +1,6 @@
-import GroupsSelector from '@/components/common/groups-selector'
 import { DecimalInput } from '@/components/common/decimal-input'
-import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
+import GroupsSelector from '@/components/common/groups-selector'
+import { TIME_UNIT_SECONDS, TimeUnitSelect, type TimeUnit } from '@/components/common/time-unit-select'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -9,6 +9,7 @@ import { LoaderButton } from '@/components/ui/loader-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/features/templates/forms/user-template-form'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import {
@@ -20,16 +21,14 @@ import {
   useCreateUserTemplate,
   useModifyUserTemplate,
   UserStatusCreate,
-  XTLSFlows,
 } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client.ts'
+import { ChevronDown, FileUser, Pencil } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ChevronDown, FileUser, Pencil } from 'lucide-react'
-import { userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/features/templates/forms/user-template-form'
 
 interface UserTemplatesModalprops {
   isDialogOpen: boolean
@@ -190,13 +189,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         on_hold_timeout: status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
         data_limit_reset_strategy: hasDataLimit ? values.data_limit_reset_strategy : undefined,
         reset_usages: values.reset_usages,
-        extra_settings:
-          values.method || values.flow
-            ? {
-              method: values.method,
-              flow: values.flow,
-            }
-            : undefined,
+        extra_settings: values.method ? { method: values.method } : undefined,
       }
 
       if (editingUserTemplate && editingUserTemplateId) {
@@ -520,29 +513,6 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                           <SelectItem value={ShadowsocksMethods['aes-256-gcm']}>aes-256-gcm</SelectItem>
                           <SelectItem value={ShadowsocksMethods['chacha20-ietf-poly1305']}>chacha20-ietf-poly1305</SelectItem>
                           <SelectItem value={ShadowsocksMethods['xchacha20-poly1305']}>xchacha20-poly1305</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="flow"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('templates.flow')}</FormLabel>
-                      <Select onValueChange={value => field.onChange(value === 'null' ? undefined : value)} value={field.value ?? 'null'}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('userDialog.proxySettings.flow', { defaultValue: 'Flow' })} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="null">{t('userDialog.proxySettings.flow.none', { defaultValue: 'None' })}</SelectItem>
-                          <SelectItem value={XTLSFlows['xtls-rprx-vision']}>xtls-rprx-vision</SelectItem>
-                          <SelectItem value={XTLSFlows['xtls-rprx-vision-udp443']}>xtls-rprx-vision-udp443</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

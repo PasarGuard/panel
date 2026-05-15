@@ -8,10 +8,11 @@ export default defineConfig({
       target: './src/service/api/index.ts',
       mode: 'single',
       clean: false,
-      prettier: true,
-      tslint: true,
       headers: false,
       override: {
+        fetch: {
+          includeHttpResponseReturnType: false,
+        },
         mutator: {
           path: './src/service/http.ts',
           name: 'orvalFetcher',

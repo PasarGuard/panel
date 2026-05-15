@@ -1,27 +1,27 @@
-import UserTemplate from '@/features/templates/components/user-template'
-import { useBulkDeleteUserTemplates, useBulkDisableUserTemplates, useBulkEnableUserTemplates, useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from '@/service/api'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Card, CardContent } from '@/components/ui/card'
-import UserTemplateModal from '@/features/templates/dialogs/user-template-modal'
-import { createUserTemplateFormResolver, userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/features/templates/forms/user-template-form'
-import { useState, useMemo, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { queryClient } from '@/utils/query-client.ts'
-import { toast } from 'sonner'
-import { useTranslation } from 'react-i18next'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Power, PowerOff, RefreshCw, Search, Trash2, X } from 'lucide-react'
-import useDirDetection from '@/hooks/use-dir-detection'
-import { cn } from '@/lib/utils'
-import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
 import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
+import ViewToggle from '@/components/common/view-toggle'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useUserTemplatesListColumns } from '@/features/templates/components/use-user-templates-list-columns'
-import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { bytesToFormGigabytes } from '@/utils/formatByte'
-import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
+import UserTemplate from '@/features/templates/components/user-template'
+import UserTemplateModal from '@/features/templates/dialogs/user-template-modal'
+import { createUserTemplateFormResolver, userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/features/templates/forms/user-template-form'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
+import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { cn } from '@/lib/utils'
+import { useBulkDeleteUserTemplates, useBulkDisableUserTemplates, useBulkEnableUserTemplates, useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from '@/service/api'
+import { bytesToFormGigabytes } from '@/utils/formatByte'
+import { queryClient } from '@/utils/query-client.ts'
+import { Power, PowerOff, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 type BulkUserTemplateActionType = 'delete' | 'disable' | 'enable'
 
@@ -72,7 +72,6 @@ export default function UserTemplates() {
       hwid_limit: userTemplate.hwid_limit ?? undefined,
       expire_duration: userTemplate.expire_duration || undefined,
       method: userTemplate.extra_settings?.method || undefined,
-      flow: userTemplate.extra_settings?.flow || undefined,
       groups: userTemplate.group_ids || undefined,
       username_prefix: userTemplate.username_prefix || undefined,
       username_suffix: userTemplate.username_suffix || undefined,
@@ -298,10 +297,14 @@ export default function UserTemplates() {
       <div className="w-full flex-1 space-y-4 px-4">
         <div dir={dir} className="flex items-center gap-2 pt-4 md:gap-4">
           <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-            <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
-            <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
+            <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-muted-foreground top-1/2 h-4 w-4 -translate-y-1/2')} />
+            <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pr-10 pl-8', dir === 'rtl' && 'pr-8 pl-10')} />
             {searchQuery && (
-              <button type="button" onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'text-muted-foreground hover:text-foreground top-1/2 -translate-y-1/2')}
+              >
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -377,7 +380,7 @@ export default function UserTemplates() {
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">{t('templates.noTemplates')}</h3>
-                <p className="mx-auto max-w-2xl text-muted-foreground">{t('templates.noTemplatesDescription')}</p>
+                <p className="text-muted-foreground mx-auto max-w-2xl">{t('templates.noTemplatesDescription')}</p>
               </div>
             </CardContent>
           </Card>
@@ -387,7 +390,7 @@ export default function UserTemplates() {
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">{t('noResults')}</h3>
-                <p className="mx-auto max-w-2xl text-muted-foreground">{t('templates.noSearchResults')}</p>
+                <p className="text-muted-foreground mx-auto max-w-2xl">{t('templates.noSearchResults')}</p>
               </div>
             </CardContent>
           </Card>

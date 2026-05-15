@@ -1,27 +1,27 @@
-import { Card, CardContent } from '@/components/ui/card'
-import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
-import { HostFormSchema, hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
-import HostAdvanceSearchModal from '@/features/hosts/dialogs/host-advance-search-modal'
-import { type HostListFilters, HostFilters } from '@/features/hosts/components/host-filters'
 import { ListGenerator } from '@/components/common/list-generator'
 import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { type HostListFilters, HostFilters } from '@/features/hosts/components/host-filters'
 import { useHostsListColumns } from '@/features/hosts/components/use-hosts-list-columns'
+import HostAdvanceSearchModal from '@/features/hosts/dialogs/host-advance-search-modal'
+import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
+import { type HostFormValues, hostFormDefaultValues, HostFormSchema } from '@/features/hosts/forms/host-form'
+import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
+import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { BaseHost, CreateHost, createHost, modifyHosts, useBulkDeleteHosts, useBulkDisableHosts, useBulkEnableHosts, useGetInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Power, PowerOff, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Resolver, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Power, PowerOff, Trash2 } from 'lucide-react'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
-import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
-import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
-import { Skeleton } from '@/components/ui/skeleton'
 
 export interface HostsListProps {
   data?: BaseHost[]
@@ -258,7 +258,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                   seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
                   uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
                   uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
-                  uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
+                  uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size != null ? Number(host.transport_settings.xhttp_settings.uplink_chunk_size) : undefined,
                   sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                   sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                   download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,
@@ -620,7 +620,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                     seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
                     uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
                     uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
-                    uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
+                    uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size != null ? Number(host.transport_settings.xhttp_settings.uplink_chunk_size) : undefined,
                     sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                     sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                     download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,
@@ -796,7 +796,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   const selectedCount = selectedHostIds.length
   const selectedHosts = (hosts || []).filter(host => typeof host.id === 'number' && selectedHostIds.includes(host.id))
   const selectedEnableEligibleIds = selectedHosts.filter(host => Boolean(host.is_disabled)).map(host => host.id as number)
-  const selectedDisableEligibleIds = selectedHosts.filter(host => !Boolean(host.is_disabled)).map(host => host.id as number)
+  const selectedDisableEligibleIds = selectedHosts.filter(host => !host.is_disabled).map(host => host.id as number)
   const enableEligibleCount = selectedEnableEligibleIds.length
   const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
@@ -811,23 +811,23 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         },
         ...(disableEligibleCount > 0
           ? [
-            {
-              key: 'disable',
-              label: t('disable'),
-              icon: PowerOff,
-              onClick: () => setBulkAction('disable'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'disable',
+                label: t('disable'),
+                icon: PowerOff,
+                onClick: () => setBulkAction('disable'),
+              } as BulkActionItem,
+            ]
           : []),
         ...(enableEligibleCount > 0
           ? [
-            {
-              key: 'enable',
-              label: t('enable'),
-              icon: Power,
-              onClick: () => setBulkAction('enable'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'enable',
+                label: t('enable'),
+                icon: Power,
+                onClick: () => setBulkAction('enable'),
+              } as BulkActionItem,
+            ]
           : []),
       ]
     : []
@@ -896,9 +896,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               onSelectionChange={ids => setSelectedHostIds(ids.map(id => Number(id)))}
               isRowSelectable={host => typeof host.id === 'number'}
               showEmptyState={false}
-              renderItem={host => (
-                <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} />
-              )}
+              renderItem={host => <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} />}
               renderSkeleton={index => (
                 <Card key={index} className="group relative h-full p-4">
                   <div className="flex items-start gap-3">
@@ -952,7 +950,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">{t('host.noHosts')}</h3>
-              <p className="mx-auto max-w-2xl text-muted-foreground">{t('host.noHostsDescription')}</p>
+              <p className="text-muted-foreground mx-auto max-w-2xl">{t('host.noHostsDescription')}</p>
             </div>
           </CardContent>
         </Card>
@@ -962,7 +960,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">{t('noResults')}</h3>
-              <p className="mx-auto max-w-2xl text-muted-foreground">{t('host.noSearchResults')}</p>
+              <p className="text-muted-foreground mx-auto max-w-2xl">{t('host.noSearchResults')}</p>
             </div>
           </CardContent>
         </Card>

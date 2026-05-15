@@ -1,10 +1,12 @@
-import { Suspense } from 'react'
-import { useAdmin } from '@/hooks/use-admin'
-import { getCurrentAdmin } from '@/service/api'
-import { createHashRouter, Navigate, RouteObject } from 'react-router'
 import { LoadingSpinner } from '@/components/common/loading-spinner'
 import { TabbedRouteSuspenseFallback } from '@/components/layout/tabbed-route-suspense-fallback'
+import { useAdmin } from '@/hooks/use-admin'
+import { AdminDetails, getCurrentAdmin } from '@/service/api'
+import { clearAuthSession } from '@/utils/authSession'
+import { getAuthToken } from '@/utils/authStorage'
 import { lazyWithChunkRecovery } from '@/utils/chunk-recovery'
+import { Suspense } from 'react'
+import { createHashRouter, Navigate, RouteObject } from 'react-router'
 // Replace direct imports with lazy imports for route-level components
 const CoresLayout = lazyWithChunkRecovery(() => import('@/pages/_dashboard.nodes.cores'))
 const CoresIndex = lazyWithChunkRecovery(() => import('@/pages/_dashboard.nodes.cores._index'))
@@ -52,11 +54,16 @@ function SettingsIndex() {
   return <Navigate to={defaultPath} replace />
 }
 
-const fetchAdminLoader = async (): Promise<any> => {
+const fetchAdminLoader = async (): Promise<AdminDetails> => {
+  if (!getAuthToken()) {
+    throw Response.redirect('/login')
+  }
+
   try {
     const response = await getCurrentAdmin()
     return response
-  } catch (error) {
+  } catch {
+    await clearAuthSession()
     throw Response.redirect('/login')
   }
 }

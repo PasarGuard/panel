@@ -1,43 +1,42 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { DecimalInput } from '@/components/common/decimal-input'
+import { TIME_UNIT_SECONDS, TimeUnitSelect, type TimeUnit } from '@/components/common/time-unit-select'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
+import { Label } from '@/components/ui/label'
+import { LoaderButton } from '@/components/ui/loader-button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { BulkExpiredDateFilters } from '@/features/bulk/components/bulk-expired-date-filters'
+import { SelectorPanel } from '@/features/bulk/components/selector-panel'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
 import {
-  useGetGroupsSimple,
-  useGetUsersSimple,
-  useGetAdminsSimple,
-  useBulkModifyUsersProxySettings,
+  ShadowsocksMethods,
+  useBulkAddGroupsToUsers,
   useBulkModifyUsersDatalimit,
   useBulkModifyUsersExpire,
-  useBulkAddGroupsToUsers,
-  useBulkRemoveUsersFromGroups,
+  useBulkModifyUsersProxySettings,
   useBulkReallocateWireguardPeerIps,
-  XTLSFlows,
-  ShadowsocksMethods,
+  useBulkRemoveUsersFromGroups,
+  useGetAdminsSimple,
+  useGetGroupsSimple,
+  useGetUsersSimple,
   UserStatus,
 } from '@/service/api'
-import { Button } from '@/components/ui/button'
-import { LoaderButton } from '@/components/ui/loader-button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
-import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import { Settings, Group, User, Shield, CheckCircle, AlertTriangle, Plus, Minus, X, HardDrive, Calendar, Network, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2 } from 'lucide-react'
-import { BulkExpiredDateFilters } from '@/features/bulk/components/bulk-expired-date-filters'
-import { DecimalInput } from '@/components/common/decimal-input'
-import { SelectorPanel } from '@/features/bulk/components/selector-panel'
-import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
-import { useDebouncedSearch } from '@/hooks/use-debounced-search'
-import { cn } from '@/lib/utils'
-import useDirDetection from '@/hooks/use-dir-detection'
 import { endOfDay, startOfDay } from 'date-fns'
+import { AlertTriangle, Calendar, CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, Eye, Group, HardDrive, Loader2, Minus, Plus, Settings, Shield, User, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 const PAGE_SIZE = 50
 
@@ -57,7 +56,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
 
-  const [selectedFlow, setSelectedFlow] = useState<XTLSFlows | 'none' | undefined>(undefined)
   const [selectedMethod, setSelectedMethod] = useState<ShadowsocksMethods | undefined>(undefined)
 
   const [dataLimit, setDataLimit] = useState<number | undefined>(undefined)
@@ -157,7 +155,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return true
         }
         if (operationType === 'proxy') {
-          return selectedFlow || selectedMethod
+          return selectedMethod
         }
         if (operationType === 'groups') {
           return selectedGroups.length > 0
@@ -172,7 +170,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       case 2:
         switch (operationType) {
           case 'proxy':
-            return selectedFlow || selectedMethod
+            return selectedMethod
           case 'data':
             return dataLimit !== undefined
           case 'expire':
@@ -246,7 +244,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
         case 'proxy':
           return {
             ...basePayload,
-            flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
             method: selectedMethod,
             dry_run: false,
           }
@@ -348,7 +345,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           toast.success(t('operationSuccess', { defaultValue: 'Operation successful!' }), { description })
 
           setCurrentStep(1)
-          setSelectedFlow(undefined)
           setSelectedMethod(undefined)
           setDataLimit(undefined)
           setExpireSeconds(undefined)
@@ -386,7 +382,6 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
         case 'proxy':
           return {
             ...basePayload,
-            flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
             method: selectedMethod,
             dry_run: true,
           }
@@ -541,28 +536,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             <div className="space-y-3 sm:space-y-4">
               {operationType === 'proxy' && (
                 <div className="space-y-3 sm:space-y-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="flow" className="flex items-center gap-1.5 text-sm font-medium">
-                        <Network className="text-muted-foreground h-3.5 w-3.5" />
-                        {t('bulk.flowLabel', { defaultValue: 'Flow' })}
-                      </Label>
-                      <Select value={selectedFlow || ''} onValueChange={value => setSelectedFlow(value as XTLSFlows | 'none')}>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('bulk.selectFlowPlaceholder', { defaultValue: 'Select flow' })} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">{t('none', { defaultValue: 'None' })}</SelectItem>
-                          {Object.values(XTLSFlows)
-                            .filter(flow => flow !== '')
-                            .map(flow => (
-                              <SelectItem key={flow} value={flow}>
-                                {flow}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="grid grid-cols-1 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="method" className="flex items-center gap-1.5 text-sm font-medium">
                         <Settings className="text-muted-foreground h-3.5 w-3.5" />
@@ -1018,8 +992,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
                   {operationType === 'proxy' && (
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
-                      <span>{t('bulk.flowMethod', { flow: selectedFlow === 'none' || !selectedFlow ? t('none') : selectedFlow, method: selectedMethod || t('none') })}</span>
+                      <span className="text-muted-foreground">{t('bulk.methodLabel', { defaultValue: 'Method' })}:</span>
+                      <span>{selectedMethod || t('none')}</span>
                     </div>
                   )}
 

@@ -1,26 +1,27 @@
+import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
+import PageHeader from '@/components/layout/page-header'
+import { Separator } from '@/components/ui/separator'
+import AdminModal from '@/features/admins/dialogs/admin-modal'
+import { adminFormDefaultValues, adminFormSchema, type AdminFormValuesInput } from '@/features/admins/forms/admin-form'
 import AdminStatisticsCard from '@/features/dashboard/components/admin-statistics-card'
 import DashboardStatistics from '@/features/dashboard/components/dashboard-statistics'
 import WorkersHealthCard from '@/features/dashboard/components/workers-health-card'
-import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
-import AdminModal from '@/features/admins/dialogs/admin-modal'
-import { adminFormDefaultValues, adminFormSchema, type AdminFormValuesInput } from '@/features/admins/forms/admin-form'
-import { coreConfigFormDefaultValues, coreConfigFormSchema, type CoreConfigFormValues } from '@/features/nodes/forms/core-config-form'
+import QuickActionsModal from '@/features/dashboard/dialogs/shortcuts-modal'
 import GroupModal from '@/features/groups/dialogs/group-modal'
 import { groupFormDefaultValues, groupFormSchema, type GroupFormValues } from '@/features/groups/forms/group-form'
 import HostModal from '@/features/hosts/dialogs/host-modal'
+import { hostFormDefaultValues, HostFormSchema, type HostFormValues } from '@/features/hosts/forms/host-form'
 import NodeModal from '@/features/nodes/dialogs/node-modal'
+import { coreConfigFormDefaultValues, coreConfigFormSchema, type CoreConfigFormValues } from '@/features/nodes/forms/core-config-form'
 import { nodeFormDefaultValues, nodeFormSchema, type NodeFormValues } from '@/features/nodes/forms/node-form'
-import QuickActionsModal from '@/features/dashboard/dialogs/shortcuts-modal'
-import UserModal from '@/features/users/dialogs/user-modal'
 import UserTemplateModal from '@/features/templates/dialogs/user-template-modal'
 import { createUserTemplateFormResolver, userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/features/templates/forms/user-template-form'
-import { HostFormSchema, hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
-import { Separator } from '@/components/ui/separator'
+import UserModal from '@/features/users/dialogs/user-modal'
+import { getDefaultUserForm, type UseEditFormValues, type UseFormValues } from '@/features/users/forms/user-form'
 import { useAdmin } from '@/hooks/use-admin'
 import { useClipboard } from '@/hooks/use-clipboard'
 import type { AdminDetails, UserResponse } from '@/service/api'
-import { useGetSystemStats } from '@/service/api'
-import { getInboundDetails } from '@/service/api'
+import { getInboundDetails, useGetSystemStats } from '@/service/api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bookmark } from 'lucide-react'
@@ -28,8 +29,6 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { type Resolver, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import PageHeader from '@/components/layout/page-header'
-import { type UseEditFormValues, type UseFormValues, getDefaultUserForm } from '@/features/users/forms/user-form'
 // Lazy load CoreConfigModal to prevent Monaco Editor from loading until needed
 const CoreConfigModal = lazy(() => import('@/features/nodes/dialogs/core-config-modal'))
 
@@ -164,7 +163,7 @@ const Dashboard = () => {
 
   const { data: inboundDetails = [], isLoading: isLoadingInbounds } = useQuery({
     queryKey: ['getInboundDetailsQueryKey'],
-    queryFn: ({ signal }) => getInboundDetails(signal),
+    queryFn: ({ signal }) => getInboundDetails({ signal }),
     enabled: isHostModalOpen,
   })
 
@@ -204,23 +203,23 @@ const Dashboard = () => {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
+      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
         <PageHeader title="dashboard" description="dashboardDescription" buttonIcon={Bookmark} buttonText="quickActions.title" onButtonClick={handleOpenQuickActions} />
         <Separator />
       </div>
 
       <div className="w-full px-3 pt-2 sm:px-4">
         <div className="flex flex-col gap-4 sm:gap-6">
-          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
             <DashboardStatistics systemData={systemStatsData} />
           </div>
           {is_sudo && (
-            <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '180ms', animationFillMode: 'both' }}>
+            <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '180ms', animationFillMode: 'both' }}>
               <WorkersHealthCard />
             </div>
           )}
           <Separator className="my-4" />
-          <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
+          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
             {is_sudo ? (
               <>
                 <AdminFilterCombobox

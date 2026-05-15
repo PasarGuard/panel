@@ -1,19 +1,17 @@
 'use client'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
+import { Language } from '@/components/common/language'
+import { ThemeToggle } from '@/components/common/theme-toggle'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useSidebar } from '@/components/ui/sidebar'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
 import { type AdminDetails } from '@/service/api'
-import { ChevronsUpDown, LogOut, UserRoundKey, UsersIcon, UserCircle, ChartPie, ChartNoAxesColumn, UserRound } from 'lucide-react'
+import { clearAuthSession } from '@/utils/authSession'
+import { formatBytes } from '@/utils/formatByte'
+import { ChartNoAxesColumn, ChartPie, ChevronsUpDown, LogOut, UserCircle, UserRound, UserRoundKey, UsersIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
-import { formatBytes } from '@/utils/formatByte'
-import { Badge } from '@/components/ui/badge'
-import { removeAuthToken } from '@/utils/authStorage'
-import { queryClient } from '@/utils/query-client'
-import { ThemeToggle } from '@/components/common/theme-toggle'
-import { Language } from '@/components/common/language'
 
 export function NavUser({
   username,
@@ -28,15 +26,9 @@ export function NavUser({
   const { state, isMobile } = useSidebar()
   const navigate = useNavigate()
 
-  const handleLogout = (e: React.MouseEvent) => {
+  const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault()
-    // Cancel all ongoing queries
-    queryClient.cancelQueries()
-    // Remove auth token
-    removeAuthToken()
-    // Clear React Query cache
-    queryClient.clear()
-    // Navigate to login
+    await clearAuthSession()
     navigate('/login', { replace: true })
   }
 
@@ -49,13 +41,13 @@ export function NavUser({
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md">
-                <UserCircle className="h-4 w-4 text-sidebar-foreground" />
+                <UserCircle className="text-sidebar-foreground h-4 w-4" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-3" side="right" align="start">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <UserCircle className="h-4 w-4 text-primary" />
+                  <UserCircle className="text-primary h-4 w-4" />
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">{username.name}</span>
                     {admin && (
@@ -125,7 +117,7 @@ export function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton size="lg" className="pl-3 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+            <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground pl-3">
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-semibold">{username.name}</span>
@@ -146,7 +138,7 @@ export function NavUser({
                   )}
                 </div>
                 {admin && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="text-muted-foreground flex items-center gap-2 text-xs">
                     <ChartPie className="size-3" />
                     <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
                       {formatBytes(admin?.used_traffic || 0)}
@@ -181,7 +173,7 @@ export function NavUser({
                   </div>
                 </div>
                 {admin && (
-                  <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  <div className="text-muted-foreground flex flex-col gap-1 text-xs">
                     <div className="flex items-center gap-2">
                       <ChartPie className="size-3" />
                       <span>
@@ -211,7 +203,7 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
               <LogOut className="mr-2 size-4" />
               {t('header.logout')}
             </DropdownMenuItem>

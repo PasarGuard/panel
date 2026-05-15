@@ -1,22 +1,21 @@
-import { Footer } from '@/components/layout/footer'
-import { Language } from '@/components/common/language'
 import { useTheme } from '@/app/providers/theme-provider'
+import { Language } from '@/components/common/language'
 import { ThemeToggle } from '@/components/common/theme-toggle'
+import { Footer } from '@/components/layout/footer'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { PasswordInput } from '@/components/ui/password-input'
 import { useAdminMiniAppToken, useAdminToken } from '@/service/api'
 import { $fetch } from '@/service/http'
-import { removeAuthToken, setAuthToken } from '@/utils/authStorage'
-import { queryClient } from '@/utils/query-client'
+import { setAuthToken } from '@/utils/authStorage'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { retrieveRawInitData } from '@telegram-apps/sdk'
 import { CircleAlertIcon, LogInIcon } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -29,7 +28,6 @@ type LoginSchema = z.infer<typeof schema>
 export const Login: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const location = useLocation()
   const { resolvedTheme } = useTheme()
   const {
     register,
@@ -42,17 +40,6 @@ export const Login: FC = () => {
     },
     resolver: zodResolver(schema),
   })
-  useEffect(() => {
-    // Cancel all ongoing queries first to stop any in-flight requests
-    queryClient.cancelQueries()
-    // Remove the auth token
-    removeAuthToken()
-    // Clear all React Query cache to ensure fresh state after logout
-    queryClient.clear()
-    if (location.pathname !== '/login') {
-      navigate('/login', { replace: true })
-    }
-  }, [location.pathname, navigate])
   let isTelegram = false
   let initDataRaw = ''
   try {
