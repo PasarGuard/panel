@@ -205,7 +205,6 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                               dialogOpen={isDialogOpen}
                               onFullscreenChange={setIsCodeEditorFullscreen}
                               embeddedContainerClassName="h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:min-h-[450px]"
-                              fullscreenTitle={title}
                             />
                           </FormControl>
                           {validation.error && !validation.isValid && <FormMessage>{validation.error}</FormMessage>}

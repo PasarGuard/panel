@@ -162,8 +162,11 @@ class User(Base):
     next_plan: Mapped[Optional["NextPlan"]] = relationship(
         uselist=False, back_populates="user", cascade="all, delete-orphan", init=False
     )
+    hwids: Mapped[List["UserHWID"]] = relationship(back_populates="user", cascade="all, delete-orphan", init=False)
     groups: Mapped[List["Group"]] = relationship(secondary=users_groups_association, back_populates="users", init=False)
-    proxy_settings: Mapped[Dict[str, Any]] = mapped_column(JSON(True), server_default=text("'{}'"), default=lambda: {})
+    proxy_settings: Mapped[Dict[str, Any]] = mapped_column(
+        JSON(True), server_default=text("'{}'"), default_factory=dict
+    )
     status: Mapped[UserStatus] = mapped_column(SQLEnum(UserStatus), default=UserStatus.active)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
     data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
@@ -179,6 +182,7 @@ class User(Base):
     on_hold_expire_duration: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     on_hold_timeout: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     auto_delete_in_days: Mapped[Optional[int]] = mapped_column(default=None)
+    hwid_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     edit_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
@@ -332,6 +336,30 @@ class UserSubscriptionUpdate(Base):
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
     ip: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, default=None)
+    hwid: Mapped[Optional[str]] = mapped_column(String(256), nullable=True, default=None)
+
+
+class UserHWID(Base):
+    __tablename__ = "user_hwids"
+    __table_args__ = (
+        UniqueConstraint("user_id", "hwid"),
+        Index("ix_user_hwids_user_id", "user_id"),
+        Index("ix_user_hwids_hwid", "hwid"),
+        Index("ix_user_hwids_created_at", "created_at"),
+        Index("ix_user_hwids_last_used_at", "last_used_at"),
+    )
+
+    id: Mapped[int] = id_column()
+    user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
+    user: Mapped["User"] = relationship(back_populates="hwids", init=False)
+    hwid: Mapped[str] = mapped_column(String(256), nullable=False)
+    device_os: Mapped[Optional[str]] = mapped_column(String(256), default=None)
+    os_version: Mapped[Optional[str]] = mapped_column(String(128), default=None)
+    device_model: Mapped[Optional[str]] = mapped_column(String(256), default=None)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    last_used_at: Mapped[dt] = mapped_column(
+        DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False
+    )
 
 
 template_group_association = Table(
@@ -378,6 +406,7 @@ class UserTemplate(Base):
     )
     groups: Mapped[List["Group"]] = relationship(secondary=template_group_association, back_populates="templates")
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
+    hwid_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     expire_duration: Mapped[int] = mapped_column(BigInteger, default=0)  # in seconds
     on_hold_timeout: Mapped[Optional[int]] = mapped_column(default=None)
     status: Mapped[UserStatusCreate] = mapped_column(SQLEnum(UserStatusCreate), default=UserStatusCreate.active)
@@ -790,4 +819,5 @@ class Settings(Base):
     notification_settings: Mapped[dict] = mapped_column(JSON())
     notification_enable: Mapped[dict] = mapped_column(JSON())
     subscription: Mapped[dict] = mapped_column(JSON())
+    hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())

@@ -124,7 +124,7 @@ export function StringArrayPopoverInput({
           dir="ltr"
           variant="outline"
           role="combobox"
-          className={cn('h-auto w-full min-w-0 justify-between p-2 text-left', className)}
+          className={cn('h-auto w-full min-w-0 overflow-hidden justify-between p-2 text-left', className)}
           title={displayValue || placeholder}
           disabled={disabled}
         >
@@ -193,7 +193,7 @@ export function StringArrayPopoverInput({
               </div>
               <div className="min-h-0 max-h-[min(50dvh,14rem)] space-y-1 overflow-y-auto overscroll-contain pr-1 touch-pan-y">
                 {items.map((item, index) => (
-                  <div key={`${item}-${index}`} className="group flex min-w-0 items-center gap-2 rounded-md border p-2 transition-colors hover:bg-accent/50">
+                  <div key={`${item}-${index}`} className="group flex min-w-0 max-w-full items-center gap-2 rounded-md border p-2 transition-colors hover:bg-accent/50">
                     {editingIndex === index ? (
                       <Input
                         value={editingValue}

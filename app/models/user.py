@@ -37,6 +37,7 @@ class User(BaseModel):
     on_hold_timeout: dt | int | None = Field(default=None)
     group_ids: list[int] | None = Field(default_factory=list)
     auto_delete_in_days: int | None = Field(default=None)
+    hwid_limit: int | None = Field(default=None)
     next_plan: NextPlanModel | None = Field(default=None)
 
 
@@ -318,6 +319,7 @@ class UserSubscriptionUpdateSchema(BaseModel):
     created_at: dt
     user_agent: str
     ip: str | None = Field(default=None)
+    hwid: str | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -343,6 +345,22 @@ class UserSubscriptionUpdateChartSegment(BaseModel):
 class UserSubscriptionUpdateChart(BaseModel):
     total: int
     segments: list[UserSubscriptionUpdateChartSegment] = Field(default_factory=list)
+
+
+class UserHWIDResponse(BaseModel):
+    id: int
+    hwid: str
+    device_os: str | None = None
+    os_version: str | None = None
+    device_model: str | None = None
+    created_at: dt
+    last_used_at: dt
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserHWIDListResponse(BaseModel):
+    hwids: list[UserHWIDResponse]
+    count: int
 
 
 class RemoveUsersResponse(BaseModel):

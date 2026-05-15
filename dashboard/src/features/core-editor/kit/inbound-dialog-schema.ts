@@ -1,6 +1,7 @@
 import { getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
+import { isValidXrayPortList } from '@/features/core-editor/kit/xray-port-list-validation'
 type Caps = ReturnType<typeof getInboundFormCapabilities>
 
 /** Must match `securityFieldName('serverNames')` in xray-inbounds-section (`sec_${jsonKey}`). */
@@ -101,12 +102,11 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
         })
         return
       }
-      const n = Number(rawPort)
-      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 65535) {
+      if (!isValidXrayPortList(rawPort)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: t('coreEditor.inbound.validation.portRange', {
-            defaultValue: 'Port must be a whole number between 1 and 65535.',
+            defaultValue: 'Port must be a port number or list like 443, 1000-2000,444.',
           }),
           path: ['port'],
         })

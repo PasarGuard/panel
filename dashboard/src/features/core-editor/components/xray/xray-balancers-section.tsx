@@ -252,17 +252,14 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
 
   const balancerParityFields = useMemo(() => getGeneratedRoutingBalancerFields(), [])
   const strategyTypeLabel = useMemo(() => {
-    const strategyField = balancerParityFields.find(f => f.json === 'strategy')
-    return strategyField?.go ?? 'Strategy'
-  }, [balancerParityFields])
+    return t('coreEditor.balancer.strategy', { defaultValue: 'Strategy' })
+  }, [t])
   const selectorFieldLabel = useMemo(() => {
-    const f = balancerParityFields.find(x => x.json === 'selector')
-    return f?.go ?? f?.json ?? 'Selectors'
-  }, [balancerParityFields])
+    return t('coreEditor.balancer.selector', { defaultValue: 'Selector (outbounds)' })
+  }, [t])
   const fallbackFieldLabel = useMemo(() => {
-    const f = balancerParityFields.find(x => x.json === 'fallbackTag')
-    return f?.go ?? f?.json ?? 'Fallback'
-  }, [balancerParityFields])
+    return t('coreEditor.balancer.fallback', { defaultValue: 'Fallback' })
+  }, [t])
   /** Tag + strategy object only — selector / fallback use {@link StringTagPicker}. */
   const dialogScalarBalancerFields = useMemo(
     () => {
@@ -575,7 +572,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
           />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 space-y-3">
+      <PopoverContent dir={dir} align={dir === 'rtl' ? 'start' : 'end'} className="w-80 space-y-3 text-start">
         <div className="space-y-1">
           <div className="text-sm font-medium">
             {t('coreEditor.balancer.observationSources', { defaultValue: 'Observation sources' })}
@@ -598,7 +595,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                 )}
               >
                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', item.enabled ? 'bg-green-500' : 'bg-muted-foreground/45')} />
-                {item.enabled ? t('enabled', { defaultValue: 'On' }) : t('disabled', { defaultValue: 'Off' })}
+                {item.enabled
+                  ? t('coreEditor.balancer.observation.enabled', { defaultValue: 'On' })
+                  : t('coreEditor.balancer.observation.disabled', { defaultValue: 'Off' })}
               </span>
             </div>
           ))}
@@ -615,7 +614,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
           }}
         >
           <SlidersHorizontal className="h-4 w-4" />
-          {t('configure', { defaultValue: 'Configure' })}
+          {t('coreEditor.balancer.observation.configure', { defaultValue: 'Configure' })}
         </Button>
       </PopoverContent>
     </Popover>
@@ -726,7 +725,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                           )}
                         >
                           <FormLabel className="text-xs font-medium">
-                            {def.go || def.json}
+                            {jsonKey === 'tag'
+                              ? t('coreEditor.balancer.tag', { defaultValue: 'Tag' })
+                              : def.go || def.json}
                           </FormLabel>
                           <XrayParityFormControl
                             field={def}
@@ -877,8 +878,8 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
         inlinePersistValidation={false}
       >
         <TooltipProvider delayDuration={200}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className={cn('flex min-w-0 items-start justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-3', observatory && 'border-primary/30 bg-primary/5', observatoryDisabledReason && 'opacity-70')}>
+          <div className="grid gap-3 text-start sm:grid-cols-2">
+            <div className={cn('flex min-w-0 items-start justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-3 text-start', observatory && 'border-primary/30 bg-primary/5', observatoryDisabledReason && 'opacity-70')}>
               <div className="min-w-0">
                 <Label className="text-xs font-medium">
                   {t('coreEditor.balancer.observatory', { defaultValue: 'Observatory' })}
@@ -917,7 +918,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
               )}
             </div>
 
-            <div className={cn('flex min-w-0 items-start justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-3', burstObservatory && 'border-primary/30 bg-primary/5')}>
+            <div className={cn('flex min-w-0 items-start justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-3 text-start', burstObservatory && 'border-primary/30 bg-primary/5')}>
               <div className="min-w-0">
                 <Label className="text-xs font-medium">
                   {t('coreEditor.balancer.burstObservatory', { defaultValue: 'Burst observatory' })}
@@ -959,8 +960,13 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
         </TooltipProvider>
 
         {observationEnabled ? (
-          <Tabs value={activeObservationTab} onValueChange={value => setObservationTab(value as ObservationTab)} className="min-w-0">
-            <TabsList className="mx-auto grid w-full grid-cols-2 sm:w-[420px]">
+          <Tabs
+            dir={dir}
+            value={activeObservationTab}
+            onValueChange={value => setObservationTab(value as ObservationTab)}
+            className="min-w-0 text-start"
+          >
+            <TabsList dir={dir} className="mx-auto grid w-full grid-cols-2 sm:w-[420px]">
               <TabsTrigger value="observatory" disabled={observatory === undefined}>
                 {t('coreEditor.balancer.observatory', { defaultValue: 'Observatory' })}
               </TabsTrigger>
@@ -970,7 +976,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
             </TabsList>
 
             {observatory ? (
-              <TabsContent value="observatory" className="mt-4 space-y-3">
+              <TabsContent value="observatory" className="mt-4 space-y-3 text-start">
                 <div className="flex min-w-0 flex-col gap-2.5">
                   <Label className="text-xs font-medium">
                     {t('coreEditor.balancer.subjectSelector', { defaultValue: 'Subject selector' })}
@@ -989,7 +995,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="flex min-w-0 flex-col gap-2.5">
-                    <Label className="text-xs font-medium">probeURL</Label>
+                    <Label className="text-xs font-medium">
+                      {t('coreEditor.balancer.observation.probeURL', { defaultValue: 'Probe URL' })}
+                    </Label>
                     <Input
                       dir="ltr"
                       className="h-9 font-mono text-xs"
@@ -999,7 +1007,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                     />
                   </div>
                   <div className="flex min-w-0 flex-col gap-2.5">
-                    <Label className="text-xs font-medium">probeInterval</Label>
+                    <Label className="text-xs font-medium">
+                      {t('coreEditor.balancer.observation.probeInterval', { defaultValue: 'Probe interval' })}
+                    </Label>
                     <Input
                       dir="ltr"
                       className="h-9 font-mono text-xs"
@@ -1009,7 +1019,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                     />
                   </div>
                   <div className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2 sm:col-span-2">
-                    <Label className="min-w-0 text-xs font-medium">enableConcurrency</Label>
+                    <Label className="min-w-0 text-xs font-medium">
+                      {t('coreEditor.balancer.observation.enableConcurrency', { defaultValue: 'Enable concurrency' })}
+                    </Label>
                     <Switch
                       checked={readBooleanProperty(observatory, 'enableConcurrency')}
                       onCheckedChange={checked => patchTopLevelObject('observatory', { enableConcurrency: checked })}
@@ -1022,7 +1034,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
             {burstObservatory ? (() => {
               const pingConfig = readJsonObject(burstObservatory.pingConfig)
               return (
-                <TabsContent value="burstObservatory" className="mt-4 space-y-3">
+                <TabsContent value="burstObservatory" className="mt-4 space-y-3 text-start">
                   <div className="flex min-w-0 flex-col gap-2.5">
                     <Label className="text-xs font-medium">
                       {t('coreEditor.balancer.subjectSelector', { defaultValue: 'Subject selector' })}
@@ -1041,7 +1053,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
-                      <Label className="text-xs font-medium">destination</Label>
+                      <Label className="text-xs font-medium">
+                        {t('coreEditor.balancer.observation.destination', { defaultValue: 'Destination' })}
+                      </Label>
                       <Input
                         dir="ltr"
                         className="h-9 font-mono text-xs"
@@ -1051,7 +1065,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                       />
                     </div>
                     <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
-                      <Label className="text-xs font-medium">connectivity</Label>
+                      <Label className="text-xs font-medium">
+                        {t('coreEditor.balancer.observation.connectivity', { defaultValue: 'Connectivity' })}
+                      </Label>
                       <Input
                         dir="ltr"
                         className="h-9 font-mono text-xs"
@@ -1061,7 +1077,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                       />
                     </div>
                     <div className="flex min-w-0 flex-col gap-2.5">
-                      <Label className="text-xs font-medium">interval</Label>
+                      <Label className="text-xs font-medium">
+                        {t('coreEditor.balancer.observation.interval', { defaultValue: 'Interval' })}
+                      </Label>
                       <Input
                         dir="ltr"
                         className="h-9 font-mono text-xs"
@@ -1071,7 +1089,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                       />
                     </div>
                     <div className="flex min-w-0 flex-col gap-2.5">
-                      <Label className="text-xs font-medium">timeout</Label>
+                      <Label className="text-xs font-medium">
+                        {t('coreEditor.balancer.observation.timeout', { defaultValue: 'Timeout' })}
+                      </Label>
                       <Input
                         dir="ltr"
                         className="h-9 font-mono text-xs"
@@ -1081,7 +1101,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                       />
                     </div>
                     <div className="flex min-w-0 flex-col gap-2.5">
-                      <Label className="text-xs font-medium">sampling</Label>
+                      <Label className="text-xs font-medium">
+                        {t('coreEditor.balancer.observation.sampling', { defaultValue: 'Sampling' })}
+                      </Label>
                       <Input
                         dir="ltr"
                         inputMode="numeric"
@@ -1092,7 +1114,9 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                       />
                     </div>
                     <div className="flex min-w-0 flex-col gap-2.5">
-                      <Label className="text-xs font-medium">httpMethod</Label>
+                      <Label className="text-xs font-medium">
+                        {t('coreEditor.balancer.observation.httpMethod', { defaultValue: 'HTTP method' })}
+                      </Label>
                       <Select
                         value={readStringProperty(pingConfig, 'httpMethod') || 'HEAD'}
                         onValueChange={value => patchBurstPingConfig({ httpMethod: value })}

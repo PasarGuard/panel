@@ -90,7 +90,7 @@ from app.models.user import (
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
-from app.settings import subscription_settings
+from app.settings import subscription_settings, hwid_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
 from app.utils.wireguard import (
@@ -246,14 +246,11 @@ class UserOperation(BaseOperation):
 
         db_users = await create_users_bulk(db, users_to_create, groups, db_admin)
 
-        subscription_urls: list[str] = []
+        users_list = []
         for db_user in db_users:
-            user: UserNotificationResponse = await self.update_user(db_user)
-            asyncio.create_task(notification.create_user(user, admin))
-            logger.info(f'New user "{db_user.username}" with id "{db_user.id}" added by admin "{admin.username}"')
-            subscription_urls.append(user.subscription_url)
+            users_list.append(await self.validate_user(db_user))
 
-        return subscription_urls
+        return [user.subscription_url for user in users_list]
 
     async def validate_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
         user = UserNotificationResponse.model_validate(db_user)
@@ -297,6 +294,17 @@ class UserOperation(BaseOperation):
             await self.raise_error(message=str(exc), code=400, db=db)
 
     async def create_user(self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails) -> UserResponse:
+        hwid_conf = await hwid_settings()
+
+        if new_user.hwid_limit is None:
+            new_user.hwid_limit = hwid_conf.fallback_limit
+
+        if new_user.hwid_limit is not None and not admin.is_sudo:
+            if new_user.hwid_limit < hwid_conf.min_limit:
+                await self.raise_error(message=f"HWID limit cannot be less than {hwid_conf.min_limit}", code=400, db=db)
+            if hwid_conf.max_limit > 0 and (new_user.hwid_limit > hwid_conf.max_limit or new_user.hwid_limit == 0):
+                await self.raise_error(message=f"HWID limit cannot exceed {hwid_conf.max_limit}", code=400, db=db)
+
         if new_user.next_plan is not None and new_user.next_plan.user_template_id is not None:
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
 
@@ -320,6 +328,26 @@ class UserOperation(BaseOperation):
     async def _modify_user(
         self, db: AsyncSession, db_user: User, modified_user: UserModify, admin: AdminDetails
     ) -> UserResponse:
+        if modified_user.hwid_limit is not None and modified_user.hwid_limit > 0:
+            from app.db.crud.hwid import get_user_hwid_count
+
+            current_count = await get_user_hwid_count(db, db_user.id)
+            if current_count > modified_user.hwid_limit:
+                await self.raise_error(
+                    message=f"Cannot lower HWID limit below current device count ({current_count}). Remove devices first.",
+                    code=400,
+                    db=db,
+                )
+
+        if modified_user.hwid_limit is not None and not admin.is_sudo:
+            hwid_conf = await hwid_settings()
+            if modified_user.hwid_limit < hwid_conf.min_limit:
+                await self.raise_error(message=f"HWID limit cannot be less than {hwid_conf.min_limit}", code=400, db=db)
+            if hwid_conf.max_limit > 0 and (
+                modified_user.hwid_limit > hwid_conf.max_limit or modified_user.hwid_limit == 0
+            ):
+                await self.raise_error(message=f"HWID limit cannot exceed {hwid_conf.max_limit}", code=400, db=db)
+
         validated_groups = None
         if modified_user.group_ids:
             validated_groups = await self.validate_all_groups(db, modified_user)
@@ -925,6 +953,7 @@ class UserOperation(BaseOperation):
             "group_ids": template.group_ids,
             "data_limit_reset_strategy": template.data_limit_reset_strategy,
             "status": template.status,
+            "hwid_limit": template.hwid_limit,
         }
 
         if template.status == UserStatus.active:

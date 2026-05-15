@@ -604,6 +604,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       setOutboundJsonText(JSON.stringify(outboundEditorBodyFromOutbound(normalized), null, 2))
       setSettingsFormSeed(s => s + 1)
       form.reset(buildOutboundDetailFormValues(normalized, outboundCapsRef.current))
+      setUriDraft('')
       toast.success(t('success', { defaultValue: 'Success' }))
     } catch (e) {
       toast.error(t('coreEditor.outbound.uriImportFailed', { defaultValue: 'Could not parse that share link.' }), {
@@ -777,7 +778,9 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                 <Input
                   value={uriDraft}
                   onChange={e => setUriDraft(e.target.value)}
-                  placeholder="vmess://  vless://  trojan://  ss://  hysteria2://  …"
+                  placeholder={t('coreEditor.outbound.linkPlaceholder', {
+                    defaultValue: 'vmess:// vless:// trojan:// ss:// hysteria2:// ...',
+                  })}
                   className="text-xs"
                   dir="ltr"
                   onKeyDown={e => {
@@ -800,12 +803,12 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
               </div>
             </div>
 
-            <TabsList className="grid h-13 w-full grid-cols-2 gap-1 p-1">
-              <TabsTrigger value="form" className="h-full rounded-md py-2.5 text-sm sm:py-3">
+            <TabsList className="mx-auto grid h-11 w-full max-w-xs grid-cols-2 gap-1 p-1">
+              <TabsTrigger value="form" className="h-9 rounded-sm px-4 py-1 text-xs">
                 {t('coreEditor.outbound.tabForm', { defaultValue: 'Form' })}
               </TabsTrigger>
-              <TabsTrigger value="json" className="h-full rounded-md py-2.5 text-sm sm:py-3">
-                {t('coreEditor.outbound.tabJson', { defaultValue: 'JSON' })}
+              <TabsTrigger value="json" className="h-9 rounded-sm px-4 py-1 text-xs">
+                {t('coreEditor.outbound.tabJson', { defaultValue: 'Advanced' })}
               </TabsTrigger>
             </TabsList>
 

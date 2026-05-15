@@ -790,6 +790,10 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     db_user.groups = groups
     db_user.expire = new_user.expire or None
     db_user.on_hold_timeout = new_user.on_hold_timeout or None
+
+    if new_user.hwid_limit is not None:
+        db_user.hwid_limit = new_user.hwid_limit
+
     db_user.proxy_settings = new_user.proxy_settings.dict()
 
     db.add(db_user)
@@ -821,6 +825,7 @@ async def create_users_bulk(
         db_user.groups = list(groups)
         db_user.expire = new_user.expire or None
         db_user.on_hold_timeout = new_user.on_hold_timeout or None
+        db_user.hwid_limit = new_user.hwid_limit if new_user.hwid_limit is not None else None
         db_user.proxy_settings = new_user.proxy_settings.dict()
         db_users.append(db_user)
 
@@ -960,6 +965,9 @@ async def modify_user(
 
     if modify.on_hold_expire_duration is not None:
         db_user.on_hold_expire_duration = modify.on_hold_expire_duration
+
+    if modify.hwid_limit is not None:
+        db_user.hwid_limit = modify.hwid_limit
 
     if modify.next_plan is not None:
         db_user.next_plan = NextPlan(
@@ -1167,7 +1175,9 @@ async def bulk_revoke_user_sub(db: AsyncSession, users: list[User]) -> list[User
     return users
 
 
-async def user_sub_update(db: AsyncSession, user_id: int, user_agent: str, ip: str | None = None) -> None:
+async def user_sub_update(
+    db: AsyncSession, user_id: int, user_agent: str, ip: str | None = None, hwid: str | None = None
+) -> None:
     """
     Updates the user's subscription details.
 
@@ -1176,12 +1186,15 @@ async def user_sub_update(db: AsyncSession, user_id: int, user_agent: str, ip: s
         user_id (int): The user id whose subscription is to be updated.
         user_agent (str): The user agent string.
         ip (str | None): The client IP address.
-
+        hwid (str | None): The hardware ID of the client.
     """
     # Clamp to column length; some clients send very long strings (e.g. encoded configs) as User-Agent.
     sanitized_user_agent = (user_agent or "")[:_USER_AGENT_MAX_LEN]
     sanitized_ip = (ip or "")[:_SUBSCRIPTION_UPDATE_IP_MAX_LEN] or None
-    agent = UserSubscriptionUpdate(user_id=user_id, user_agent=sanitized_user_agent, ip=sanitized_ip)
+    sanitized_hwid = (hwid or "")[:256] or None
+    agent = UserSubscriptionUpdate(
+        user_id=user_id, user_agent=sanitized_user_agent, ip=sanitized_ip, hwid=sanitized_hwid
+    )
     db.add(agent)
     await db.commit()
 

@@ -27,7 +27,6 @@ export function CoreEditorRowActionsMenu({ onEdit, onRemove, removeDisabled, cla
   }
 
   const handleRemoveSelect = (event: Event) => {
-    event.preventDefault()
     event.stopPropagation()
     if (removeDisabled) return
     onRemove()

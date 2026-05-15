@@ -1,5 +1,6 @@
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import { CopyButton } from '@/components/common/copy-button'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -79,6 +80,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const [selectedVlessVariant, setSelectedVlessVariant] = useState<VlessKeyVariant>('x25519')
   const [vlessAdvancedSeed, setVlessAdvancedSeed] = useState<VlessBuilderOptions | undefined>(undefined)
   const [isVlessAdvancedModalOpen, setIsVlessAdvancedModalOpen] = useState(false)
+  const [discardChangesOpen, setDiscardChangesOpen] = useState(false)
 
   // Results dialog state
   const [isResultsDialogOpen, setIsResultsDialogOpen] = useState(false)
@@ -278,6 +280,32 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     generateWireGuardKeys()
   }, [generateWireGuardKeys, generatedWireGuardKeyPair, showResultDialog])
 
+  const closeModal = useCallback(() => {
+    setDiscardChangesOpen(false)
+    onOpenChange(false)
+  }, [onOpenChange])
+
+  const handleDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        onOpenChange(true)
+        return
+      }
+      if (createCoreMutation.isPending || modifyCoreMutation.isPending || form.formState.isSubmitting) return
+      if (form.formState.isDirty) {
+        setDiscardChangesOpen(true)
+        return
+      }
+      closeModal()
+    },
+    [closeModal, createCoreMutation.isPending, form.formState.isDirty, form.formState.isSubmitting, modifyCoreMutation.isPending, onOpenChange],
+  )
+
+  const confirmDiscardChanges = useCallback(() => {
+    form.reset()
+    closeModal()
+  }, [closeModal, form])
+
   const onSubmit = async (values: CoreConfigFormValues) => {
     try {
       // Validate JSON first
@@ -335,8 +363,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       // Invalidate core config queries after successful action
       queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
       queryClient.invalidateQueries({ queryKey: ['/api/cores/simple'] })
-      onOpenChange(false)
-      form.reset()
+      form.reset(values)
+      closeModal()
     } catch (error: any) {
       console.error('Core config operation failed:', error)
       console.error('Error response:', error?.response)
@@ -782,7 +810,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         }}
       />
       {renderResultDialog()}
-      <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="h-full w-full max-w-5xl md:h-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -813,11 +841,6 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                 dialogOpen={isDialogOpen}
                                 onFullscreenChange={setIsCodeEditorFullscreen}
                                 embeddedContainerClassName="h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:h-[600px]"
-                                fullscreenTitle={
-                                  isXrayBackend
-                                    ? t('coreConfigModal.xrayConfigurationTitle', { defaultValue: 'Xray Core Configuration' })
-                                    : t('coreConfigModal.wireguardConfigurationTitle', { defaultValue: 'WireGuard Core Configuration' })
-                                }
                               />
                             </FormControl>
                             {validation.error && !validation.isValid && <FormMessage>{validation.error}</FormMessage>}
@@ -1072,7 +1095,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                   )}
 
                   <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createCoreMutation.isPending || modifyCoreMutation.isPending}>
+                    <Button type="button" variant="outline" onClick={() => handleDialogOpenChange(false)} disabled={createCoreMutation.isPending || modifyCoreMutation.isPending}>
                       {t('cancel')}
                     </Button>
                     <LoaderButton
@@ -1090,6 +1113,22 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           </Form>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={discardChangesOpen} onOpenChange={setDiscardChangesOpen}>
+        <AlertDialogContent dir={dir}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('coreConfigModal.discardChangesTitle', { defaultValue: 'Discard changes?' })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('coreConfigModal.discardChangesDescription', {
+                defaultValue: 'Your unsaved kernel configuration changes will be lost if you close this editor.',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDiscardChanges}>{t('coreEditor.leave', { defaultValue: 'Leave' })}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

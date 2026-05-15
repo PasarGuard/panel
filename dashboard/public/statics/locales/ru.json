@@ -357,6 +357,45 @@
       "resetToDefault": "Сбросить к умолчанию",
       "resetToDefaultSuccess": "Правила подписки сброшены к умолчанию"
     },
+    "hwid": {
+      "title": "Аппаратный ID",
+      "description": "Настройка регистрации аппаратных ID и лимитов устройств",
+      "loadError": "Не удалось загрузить настройки HWID",
+      "saveSuccess": "Настройки HWID успешно сохранены",
+      "saveFailed": "Не удалось сохранить настройки HWID",
+      "cancelSuccess": "Изменения отменены, исходные настройки HWID восстановлены",
+      "policy": {
+        "title": "Политика регистрации устройств",
+        "description": "Управляйте доступом к подписке по зарегистрированным аппаратным ID."
+      },
+      "enabled": {
+        "title": "Включить проверки HWID",
+        "description": "Регистрируйте и проверяйте ID устройств в запросах подписки."
+      },
+      "forced": {
+        "title": "Требовать заголовок HWID",
+        "description": "Отклонять запросы подписки без заголовка X-HWID."
+      },
+      "limits": {
+        "title": "Лимиты устройств",
+        "description": "Задайте число устройств по умолчанию и необязательные границы лимитов HWID для пользователей."
+      },
+      "fallbackLimit": {
+        "title": "Лимит по умолчанию",
+        "description": "Используется, когда у пользователя нет явного лимита HWID."
+      },
+      "minLimit": {
+        "title": "Минимальный лимит",
+        "description": "Нижняя граница для лимитов пользователей. Укажите 0, чтобы отключить."
+      },
+      "maxLimit": {
+        "title": "Максимальный лимит",
+        "description": "Верхняя граница для лимитов пользователей. Укажите 0, чтобы отключить."
+      },
+      "validation": {
+        "minMax": "Минимальный лимит не может быть больше максимального"
+      }
+    },
     "telegram": {
       "title": "Telegram",
       "description": "Настройка интеграции Telegram бота и связанных настроек для вашей системы",
@@ -710,6 +749,8 @@
     "prefix": "Префикс имени пользователя",
     "suffix": "Суффикс имени пользователя",
     "dataLimit": "Лимит данных",
+    "hwidLimit": "Лимит HWID",
+    "hwidLimitPlaceholder": "По умолчанию, 0 = без лимита",
     "expire": "Срок действия",
     "onHoldTimeout": "Тайм-аут при ожидании",
     "method": "Метод",
@@ -936,6 +977,25 @@
   "revokeUserSub.prompt": "Вы уверены, что хотите отозвать подписку для пользователя «{{username}}»?",
   "revokeUserSub.success": "Подписка пользователя {{username}} успешно отозвана.",
   "revokeUserSub.title": "Отозвать подписку пользователя",
+  "hwids": {
+    "title": "Аппаратные ID",
+    "description": "Управляйте зарегистрированными аппаратными ID этого пользователя.",
+    "copy": "Скопировать аппаратный ID",
+    "copied": "Аппаратный ID скопирован",
+    "createdAt": "Создан",
+    "lastUsedAt": "Последнее использование",
+    "reset": "Сбросить все",
+    "loadFailed": "Не удалось загрузить аппаратные ID",
+    "empty": "Аппаратные ID еще не зарегистрированы",
+    "deleteTitle": "Удалить аппаратный ID",
+    "deletePrompt": "Это устройство должно будет зарегистрироваться снова при следующем запросе подписки.",
+    "deleteSuccess": "Аппаратный ID удален",
+    "deleteFailed": "Не удалось удалить аппаратный ID",
+    "resetTitle": "Сбросить все аппаратные ID",
+    "resetPrompt": "Все зарегистрированные устройства этого пользователя будут удалены.",
+    "resetSuccess": "Все аппаратные ID сброшены",
+    "resetFailed": "Не удалось сбросить аппаратные ID"
+  },
   "subscriptionClients": {
     "title": "Клиенты подписки",
     "viewAllClients": "Показать клиентов",
@@ -984,6 +1044,8 @@
   "userDialog.absolute": "Абсолютно",
   "userDialog.custom": "Пользовательский",
   "userDialog.dataLimit": "Лимит трафика",
+  "userDialog.hwidLimit": "Лимит HWID",
+  "userDialog.hwidLimitPlaceholder": "По умолчанию, 0 = без лимита",
   "userDialog.days": "Дни",
   "userDialog.editUser": "Редактировать",
   "userDialog.editUserTitle": "Редактировать пользователя",
@@ -1760,13 +1822,21 @@
     "keyPairGenerationFailed": "Не удалось сгенерировать пару ключей",
     "shortIdGenerationFailed": "Не удалось сгенерировать короткий ID",
     "shadowsocksPasswordGenerated": "Пароль успешно сгенерирован",
-    "shadowsocksPasswordGenerationFailed": "Не удалось сгенерировать пароль"
+    "shadowsocksPasswordGenerationFailed": "Не удалось сгенерировать пароль",
+    "discardChangesTitle": "Отменить изменения?",
+    "discardChangesDescription": "Несохранённые изменения конфигурации ядра будут потеряны, если закрыть редактор."
   },
   "coreEditor": {
     "nameRequired": "Укажите имя",
     "fixValidation": "Исправьте ошибки проверки перед сохранением",
+    "validationErrors": "Ошибки проверки",
+    "validationWarnings": "Предупреждения",
     "importWarnings": "Замечания импорта",
     "loadFailed": "Не удалось загрузить это ядро.",
+    "loading": {
+      "title": "Загрузка редактора ядра",
+      "description": "Подготовка интерфейса редактора."
+    },
     "backToList": "Назад к списку ядер",
     "invalidId": "Неверный идентификатор ядра.",
     "discardTitle": "Отменить изменения?",
@@ -1787,7 +1857,13 @@
       "selectCustomFromJson": "Пользовательский (из JSON)",
       "selectValuePlaceholder": "Выберите значение",
       "rangeMinPlaceholder": "Мин.",
-      "rangeMaxPlaceholder": "Макс."
+      "rangeMaxPlaceholder": "Макс.",
+      "networkAny": "Любая",
+      "protocolAny": "Любой протокол",
+      "jsonMapEmpty": "Полей пока нет. Нажмите +, чтобы добавить.",
+      "jsonMapKeyPlaceholder": "Ключ",
+      "jsonMapValuePlaceholder": "Значение",
+      "portListPlaceholder": "напр. 53,443,1000-2000"
     },
     "section": {
       "label": "Раздел",
@@ -1814,7 +1890,18 @@
       "interfaceBlurb": "Настройки интерфейса WireGuard и ключи для этого ядра.",
       "keysRegenerated": "Создана новая пара ключей",
       "keysFailed": "Не удалось сгенерировать ключи",
-      "regenerateKeys": "Пересоздать пару ключей"
+      "regenerateKeys": "Пересоздать пару ключей",
+      "generatePreSharedKey": "Сгенерировать предварительный общий ключ",
+      "preSharedKeyGenerated": "Предварительный общий ключ сгенерирован",
+      "preSharedKeyFailed": "Не удалось сгенерировать предварительный общий ключ",
+      "fields": {
+        "interfaceName": "Имя интерфейса",
+        "privateKey": "Приватный ключ",
+        "publicKey": "Публичный ключ",
+        "preSharedKey": "Предварительный общий ключ",
+        "listenPort": "Порт прослушивания",
+        "address": "Адрес"
+      }
     },
     "field": {
       "tag": "Тег",
@@ -1827,6 +1914,25 @@
       "decryption": "Расшифрование",
       "flow": "Поток (Flow)",
       "sendThrough": "Отправлять через",
+      "sendThroughLabel": "Отправлять через (локальный IP)",
+      "serverAddress": "Адрес",
+      "uuid": "UUID",
+      "encryption": "Шифрование",
+      "alterId": "Alter ID",
+      "method": "Метод шифрования",
+      "password": "Пароль",
+      "serverName": "Имя сервера (SNI)",
+      "fingerprint": "TLS-отпечаток",
+      "alpn": "Протоколы ALPN",
+      "allowInsecure": "Разрешить небезопасное",
+      "allowInsecureHint": "Пропустить проверку сертификата (не рекомендуется)",
+      "publicKey": "Открытый ключ сервера",
+      "shortId": "Short ID",
+      "spiderX": "Путь SpiderX",
+      "network": "Транспортный протокол",
+      "path": "Путь",
+      "host": "Заголовок Host",
+      "serviceName": "Имя сервиса",
       "streamSettingsJson": "Поток (JSON)",
       "curvePreferencesPlaceholder": "Выберите кривые TLS (ECDHE)",
       "curvePreferencesHint": "Можно добавлять только документированные имена кривых Xray. Неподдерживаемые значения из JSON показаны выше — их можно удалить.",
@@ -1910,7 +2016,27 @@
       "xpaddingmethod": "X-Padding Method",
       "xpaddingobfsmode": "X-Padding Obfs Mode",
       "xpaddingplacement": "X-Padding Placement",
-      "xmux": "XMUX"
+      "xmux": "XMUX",
+      "ruletag": "Тег правила",
+      "outboundtag": "Тег исходящего",
+      "balancertag": "Тег балансировщика",
+      "inboundtag": "Тег входящего",
+      "domain": "Домен",
+      "domains": "Домены",
+      "ip": "IP",
+      "port": "Порт",
+      "network": "Сеть",
+      "sourceip": "IP источника",
+      "source": "Источник",
+      "sourceport": "Порт источника",
+      "user": "Пользователь",
+      "vlessroute": "Маршрут VLESS",
+      "protocols": "Протоколы",
+      "attributes": "Атрибуты",
+      "localip": "Локальный IP",
+      "localport": "Локальный порт",
+      "process": "Процесс",
+      "webhook": "Вебхук"
     },
     "col": {
       "tag": "Тег",
@@ -2094,7 +2220,7 @@
       },
       "validation": {
         "protocolInvalid": "Выберите допустимый протокол.",
-        "portRange": "Порт должен быть целым числом от 1 до 65535.",
+        "portRange": "Порт должен быть номером или списком портов, например 443, 1000-2000,444.",
         "destinationPortRange": "Порт назначения должен быть целым числом от 0 до 65535.",
         "realityServerNamesRequired": "Для REALITY нужно хотя бы одно имя сервера (server name).",
         "realityServerNamesFormat": "Имена серверов REALITY должны быть списком непустых строк.",
@@ -2103,6 +2229,8 @@
       "discardDraftTitle": "Отменить новый входящий?",
       "discardDraftDescription": "Этот входящий ещё не в списке. Закрытие без добавления отменит изменения.",
       "discardDraftAction": "Отменить",
+      "discardEditTitle": "Отменить изменения?",
+      "discardEditDescription": "Ваши изменения этого входящего будут потеряны, если закрыть окно сейчас.",
       "finishCurrentTitle": "Сначала завершите текущий входящий",
       "finishCurrentDescription": "Добавьте его в список или закройте диалог и отмените черновик перед созданием другого входящего."
     },
@@ -2119,8 +2247,15 @@
       "discardDraftTitle": "Отменить новый исходящий?",
       "discardDraftDescription": "Этот исходящий ещё не в списке. Закрытие без добавления отменит изменения.",
       "discardDraftAction": "Отменить",
+      "discardEditTitle": "Отменить изменения?",
+      "discardEditDescription": "Ваши изменения этого исходящего будут потеряны, если закрыть окно сейчас.",
       "finishCurrentTitle": "Сначала завершите текущий исходящий",
       "finishCurrentDescription": "Добавьте его в список или закройте диалог и отмените черновик перед созданием другого исходящего.",
+      "tabForm": "Форма",
+      "tabJson": "Дополнительно",
+      "linkLabel": "Импорт из ссылки",
+      "linkPlaceholder": "vmess:// vless:// trojan:// ss:// hysteria2:// ...",
+      "linkImportApply": "Применить ссылку",
       "freedom": {
         "blurb": "Freedom пересылает трафик как есть. Ниже — необязательные поля; редкие схемы правьте во вкладке JSON.",
         "domainStrategy": "Стратегия домена",
@@ -2172,6 +2307,49 @@
         "domainPlaceholder": "geosite:cn\ndomain:example.com",
         "addRule": "Добавить правило",
         "removeRule": "Удалить правило"
+      },
+      "ech": {
+        "sectionTitle": "ECH (Encrypted Client Hello)",
+        "sectionHint": "Настройте клиентские ключи и поведение ECH.",
+        "configList": "Список конфигурации ECH",
+        "forceQuery": "Принудительный запрос ECH",
+        "forceQueryDefault": "По умолчанию"
+      },
+      "realityUnavailableTransport": "Reality (недоступно для этого транспорта)",
+      "tlsSettings": "Настройки TLS",
+      "realitySettings": "Настройки Reality",
+      "keepAtLeastOne": "Необходим хотя бы один исходящий.",
+      "endpointSection": "Удалённый сервер",
+      "streamSection": "Поток и безопасность",
+      "wsSettings": "Настройки WebSocket",
+      "grpcSettings": "Настройки gRPC",
+      "xhttpSettings": "Настройки XHTTP",
+      "uriImportFailed": "Не удалось разобрать ссылку.",
+      "jsonInvalid": "Исправьте ошибки JSON перед выходом из вкладки JSON.",
+      "muxSection": "Мультиплексирование (Mux)",
+      "mux": {
+        "enabled": "Включить Mux",
+        "enabledHint": "Объединить несколько потоков в одно соединение",
+        "concurrency": "Параллелизм",
+        "xudpConcurrency": "Параллелизм XUDP",
+        "xudpProxyUDP443": "Обработка UDP-порта 443"
+      },
+      "proxySection": "Цепочка прокси",
+      "proxy": {
+        "tag": "Маршрутизировать через тег исходящего",
+        "transportLayer": "Прокси транспортного уровня",
+        "transportLayerHint": "Также проксировать поток транспортного уровня"
+      },
+      "validation": {
+        "tagRequired": "Введите тег для этого исходящего.",
+        "addressRequired": "Адрес сервера обязателен.",
+        "portInvalid": "Введите допустимый порт (1–65535).",
+        "uuidRequired": "UUID обязателен.",
+        "passwordRequired": "Пароль обязателен.",
+        "methodRequired": "Метод шифрования обязателен.",
+        "wireguardSecretRequired": "Секретный ключ WireGuard обязателен.",
+        "inboundTagRequired": "Тег входящего обязателен для loopback.",
+        "requiredFieldsTitle": "Не заполнены обязательные поля"
       }
     },
     "routing": {
@@ -2193,7 +2371,29 @@
       "discardDraftDescription": "Это правило ещё не в списке. Закрытие без добавления отменит изменения.",
       "discardDraftAction": "Отменить",
       "finishCurrentTitle": "Сначала завершите текущее правило",
-      "finishCurrentDescription": "Добавьте его в список или закройте диалог и отмените черновик перед созданием другого правила."
+      "finishCurrentDescription": "Добавьте его в список или закройте диалог и отмените черновик перед созданием другого правила.",
+      "validation": {
+        "requiresOutboundOrBalancer": "Укажите тег исходящего или тег балансировщика, чтобы правило знало, куда отправлять трафик.",
+        "unknownOutboundTag": "Тег исходящего \"{{tag}}\" не определён в этом профиле.",
+        "unknownBalancerTag": "Тег балансировщика \"{{tag}}\" не определён в routing.balancers.",
+        "portRange": "Порт должен быть номером или списком портов, например 443, 1000-2000,444."
+      },
+      "sectionRoutingAction": "Действие маршрутизации",
+      "routingActionHint": "Выберите одну цель для совпадающего трафика. Если заданы оба, outboundTag имеет приоритет над balancerTag.",
+      "sectionMatchConditions": "Условия совпадения",
+      "matchConditionsHint": "Все указанные условия должны выполняться, чтобы правило применилось.",
+      "sectionAdvanced": "Дополнительно",
+      "sectionIdentification": "Идентификация",
+      "identificationHint": "Необязательная метка для отладки. Если задана, совпавшие правила записываются на уровне Info.",
+      "webhook": {
+        "url": "URL",
+        "urlPlaceholder": "https://example.com/alert или /var/run/webhook.sock",
+        "urlHint": "HTTP(S) URL или путь Unix-сокета. Используйте sock:/path для корня, sock:/path:/endpoint — для конкретной точки.",
+        "deduplication": "Дедупликация (секунды)",
+        "deduplicationHint": "Окно для игнорирования повторяющихся событий. Оставьте пустым, чтобы отключить.",
+        "headers": "Заголовки",
+        "headersEmpty": "Заголовков нет. Нажмите +, чтобы добавить."
+      }
     },
     "balancer": {
       "add": "Добавить балансировщик",
@@ -2203,6 +2403,7 @@
       "searchPlaceholder": "Поиск по тегу, исходящим селектора, стратегии…",
       "bulkDeleteTitle": "Удалить выбранные балансировщики",
       "emptyBalancers": "Нет балансировщиков",
+      "tag": "Тег",
       "strategy": "Стратегия",
       "dialogTitleAdd": "Добавить балансировщик",
       "dialogTitleEdit": "Редактировать балансировщик",
@@ -2213,7 +2414,43 @@
       "discardDraftDescription": "Этот балансировщик ещё не в списке. Закрытие без добавления отменит изменения.",
       "discardDraftAction": "Отменить",
       "finishCurrentTitle": "Сначала завершите текущий балансировщик",
-      "finishCurrentDescription": "Добавьте его в список или закройте диалог и отмените черновик перед созданием другого балансировщика."
+      "finishCurrentDescription": "Добавьте его в список или закройте диалог и отмените черновик перед созданием другого балансировщика.",
+      "observationRequiredWithBalancers": "Пока в профиле есть балансировщики, должен оставаться включённым хотя бы один источник наблюдений.",
+      "observatoryRequiresLeastPing": "Наблюдатель требует хотя бы один балансировщик со стратегией leastPing. До этого используйте Burst-наблюдатель.",
+      "observationActiveSummary": "Источники проверок балансировщика настроены.",
+      "observationInactiveSummary": "Источник проверок не настроен.",
+      "observatoryShort": "Наблюдатель",
+      "burstShort": "Пакетный",
+      "observationSources": "Источники наблюдений",
+      "selectorEmpty": "Добавьте теги исходящих подключений для участия в этом балансировщике.",
+      "selectorPlaceholder": "Выберите теги исходящих подключений…",
+      "clearSelectors": "Очистить всё",
+      "addOutboundTag": "Добавить тег",
+      "fallbackPlaceholder": "Выберите резервное исходящее подключение…",
+      "strategyPlaceholder": "Стратегия",
+      "strategyNone": "По умолчанию (нет)",
+      "strategyFromConfig": "из конфигурации",
+      "observatory": "Наблюдатель",
+      "observatoryHint": "Фоновые HTTP-проверки с фиксированным интервалом.",
+      "burstObservatory": "Пакетный наблюдатель",
+      "burstObservatoryHint": "Случайные проверки, настроенные через pingConfig.",
+      "subjectSelector": "Селектор объекта",
+      "subjectSelectorPlaceholder": "Выберите префиксы тегов исходящих подключений...",
+      "noObservationSources": "Включите здесь источник наблюдений при использовании leastPing или leastLoad, либо когда random/roundRobin должны отфильтровывать недоступные исходящие подключения.",
+      "observation": {
+        "enabled": "Вкл.",
+        "disabled": "Выкл.",
+        "configure": "Настроить",
+        "probeURL": "URL проверки",
+        "probeInterval": "Интервал проверки",
+        "enableConcurrency": "Включить параллельность",
+        "destination": "Назначение",
+        "connectivity": "Проверка связи",
+        "interval": "Интервал",
+        "timeout": "Тайм-аут",
+        "sampling": "Выборка",
+        "httpMethod": "Метод HTTP"
+      }
     },
     "dns": {
       "edit": "Редактировать DNS",
@@ -2331,6 +2568,8 @@
   "userDialog": {
     "revokeSubscription": "Отозвать подписку",
     "usage": "Использование",
+    "hwidLimit": "Лимит HWID",
+    "hwidLimitPlaceholder": "По умолчанию, 0 = без лимита",
     "deleteSuccess": "Пользователь «{{name}}» был успешно удалён.",
     "resetUsageSuccess": "Использование пользователя «{{name}}» было сброшено.",
     "revokeSubSuccess": "Подписка пользователя «{{name}}» была отозвана.",

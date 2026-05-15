@@ -198,7 +198,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
   const isMobile = useIsMobile()
 
   return (
-    <FormItem>
+    <FormItem className="min-w-0">
       <div className="flex items-center gap-2">
         <FormLabel>{label}</FormLabel>
         {infoContent && (
@@ -807,8 +807,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 )}
               />
 
-              <div className="!mb-4 flex justify-between gap-4">
-                <div className="flex-[2]">
+              <div className="!mb-4 grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(7rem,1fr)]">
+                <div className="min-w-0">
                   <FormField
                     control={form.control}
                     name="address"
@@ -819,7 +819,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     }}
                   />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0">
                   <FormField
                     control={form.control}
                     name="port"

@@ -9,7 +9,7 @@ from app.operation import OperatorType
 from app.operation.subscription import SubscriptionOperation
 from config import subscription_env_settings
 
-from .dependencies import get_subscription_usage_query
+from .dependencies import get_subscription_headers, get_subscription_usage_query
 
 router = APIRouter(tags=["Subscription"], prefix=f"/{subscription_env_settings.path}")
 subscription_operator = SubscriptionOperation(operator_type=OperatorType.API)
@@ -22,6 +22,7 @@ async def user_subscription(
     token: str,
     db: AsyncSession = Depends(get_db),
     user_agent: str = Header(default=""),
+    headers=Depends(get_subscription_headers),
 ):
     """Provides a subscription link based on the user agent (Clash, V2Ray, etc.)."""
     return await subscription_operator.user_subscription(
@@ -31,6 +32,7 @@ async def user_subscription(
         user_agent=user_agent,
         ip=request.client.host if request.client else None,
         request_url=str(request.url),
+        **headers.model_dump(),
     )
 
 
@@ -49,12 +51,14 @@ async def user_subscription_raw(
     token: str,
     db: AsyncSession = Depends(get_db),
     update_user_agent: str = Header(default="", alias="X-Subscription-User-Agent"),
+    headers=Depends(get_subscription_headers),
 ):
     return await subscription_operator.user_subscription_raw(
         db,
         token=token,
         update_user_agent=update_user_agent,
         ip=request.client.host if request.client else None,
+        **headers.model_dump(),
     )
 
 
@@ -82,6 +86,7 @@ async def user_subscription_with_client_type(
     token: str,
     client_type: ConfigFormat,
     db: AsyncSession = Depends(get_db),
+    headers=Depends(get_subscription_headers),
 ):
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
     return await subscription_operator.user_subscription_with_client_type(
@@ -90,4 +95,5 @@ async def user_subscription_with_client_type(
         client_type=client_type,
         request_url=str(request.url),
         accept_header=request.headers.get("Accept", ""),
+        **headers.model_dump(),
     )

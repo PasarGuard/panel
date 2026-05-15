@@ -11,7 +11,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Form, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { XrayParityFormControl, isBooleanParityField, type XrayProfileTagOptions } from '@/features/core-editor/components/shared/xray-parity-form-control'
+import { XrayParityFormControl, isBooleanParityField, transportParityFieldLabel, type XrayProfileTagOptions } from '@/features/core-editor/components/shared/xray-parity-form-control'
 import { CoreEditorDataTable } from '@/features/core-editor/components/shared/core-editor-data-table'
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
@@ -19,6 +19,7 @@ import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import {
+  collectRoutingRuleDialogFormErrors,
   collectRoutingRuleDialogIssues,
   routingRuleDialogHasBlockingErrors,
 } from '@/features/core-editor/kit/routing-rule-dialog-validation'
@@ -393,8 +394,19 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
     finalizeDetailClose()
   }
 
+  const validateRoutingRuleForm = () => {
+    const errors = collectRoutingRuleDialogFormErrors(form.getValues(), t)
+    form.clearErrors()
+    if (errors.length === 0) return true
+    for (const error of errors) {
+      form.setError(error.name, { type: 'validate', message: error.message })
+    }
+    return false
+  }
+
   const commitAddRule = () => {
     if (!draftRule) return
+    if (!validateRoutingRuleForm()) return
     const ruleTagTrim = String(routingRuleAsRecord(draftRule).tag ?? '').trim()
     if (ruleTagTrim && profile && profileTagHasDuplicateUsage(profile, ruleTagTrim)) {
       form.setError('tag', { type: 'validate', message: profileDuplicateTagMessage(t, ruleTagTrim) })
@@ -421,6 +433,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
 
   const commitEditRule = () => {
     if (dialogMode !== 'edit' || !rule) return
+    if (!validateRoutingRuleForm()) return
     const ruleTagTrim = String(routingRuleAsRecord(rule).tag ?? '').trim()
     if (ruleTagTrim && profile && profileTagHasDuplicateUsage(profile, ruleTagTrim, { owner: 'routingRule', index: selected })) {
       form.setError('tag', { type: 'validate', message: profileDuplicateTagMessage(t, ruleTagTrim) })
@@ -468,7 +481,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
             )}
           >
             <FormLabel className="text-xs font-medium">
-              {def.go || def.json}
+              {transportParityFieldLabel(def, t)}
             </FormLabel>
             <XrayParityFormControl
               field={def}
@@ -652,7 +665,11 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
                           })}
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
-                          {sectionKeys.map(k => renderField(k))}
+                          {sectionKeys.map((k, idx) => {
+                            // Force the trailing field of an odd-count grid to span both columns.
+                            const isLastSolo = idx === sectionKeys.length - 1 && sectionKeys.length % 2 === 1
+                            return renderField(k, isLastSolo ? 'full' : undefined)
+                          })}
                         </div>
                       </AccordionContent>
                     </AccordionItem>

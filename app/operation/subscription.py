@@ -7,13 +7,19 @@ from fastapi.responses import HTMLResponse
 
 from app.db import AsyncSession
 from app.db.crud.user import get_user_usages, user_sub_update
+from app.db.crud.hwid import (
+    get_user_hwid_by_value,
+    get_user_hwid_count,
+    register_user_hwid,
+    update_hwid_last_used,
+)
 from app.db.models import User
 from app.models.admin import AdminDetails
-from app.models.settings import Application, ConfigFormat, SubRule, Subscription as SubSettings
+from app.models.settings import Application, ConfigFormat, SubRule, Subscription as SubSettings, HWIDSettings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
-from app.settings import subscription_settings
+from app.settings import subscription_settings, hwid_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
 from config import template_settings, wireguard_settings
@@ -247,6 +253,41 @@ class SubscriptionOperation(BaseOperation):
             config["media_type"],
         )
 
+    async def validate_and_register_hwid(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        user_hwid_limit: int | None,
+        x_hwid: str | None,
+        x_device_os: str | None,
+        x_ver_os: str | None,
+        x_device_model: str | None,
+    ):
+        hwid_conf: HWIDSettings = await hwid_settings()
+        if not hwid_conf.enabled:
+            return
+
+        if not x_hwid:
+            if hwid_conf.forced:
+                await self.raise_error(message="HWID header required", code=403)
+            return
+
+        existing_hwid = await get_user_hwid_by_value(db, user_id, x_hwid)
+        if existing_hwid:
+            await update_hwid_last_used(db, existing_hwid)
+            return
+
+        # It's a new HWID, check limit
+        limit = user_hwid_limit if user_hwid_limit is not None else hwid_conf.fallback_limit
+        if limit == 0:
+            pass  # unlimited
+        else:
+            current_count = await get_user_hwid_count(db, user_id)
+            if current_count >= limit:
+                await self.raise_error(message="Device limit reached", code=403)
+
+        await register_user_hwid(db, user_id, x_hwid, x_device_os, x_ver_os, x_device_model)
+
     async def user_subscription(
         self,
         db: AsyncSession,
@@ -255,6 +296,10 @@ class SubscriptionOperation(BaseOperation):
         user_agent: str = "",
         ip: str | None = None,
         request_url: str = "",
+        x_hwid: str | None = None,
+        x_device_os: str | None = None,
+        x_ver_os: str | None = None,
+        x_device_model: str | None = None,
     ):
         """
         Provides a subscription link based on the user agent (Clash, V2Ray, etc.).
@@ -263,6 +308,10 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token)
         user = await self.validated_user(db_user)
+
+        await self.validate_and_register_hwid(
+            db, db_user.id, db_user.hwid_limit, x_hwid, x_device_os, x_ver_os, x_device_model
+        )
 
         is_browser_request = "text/html" in accept_header
 
@@ -300,7 +349,7 @@ class SubscriptionOperation(BaseOperation):
                 await self.raise_error(message="Client not supported", code=406)
 
             # Update user subscription info
-            await user_sub_update(db, db_user.id, user_agent, ip=ip)
+            await user_sub_update(db, db_user.id, user_agent, ip=ip, hwid=x_hwid)
             conf, media_type = await self.fetch_config(user, client_type)
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
@@ -345,7 +394,16 @@ class SubscriptionOperation(BaseOperation):
         return format_variables
 
     async def user_subscription_with_client_type(
-        self, db: AsyncSession, token: str, client_type: ConfigFormat, request_url: str = "", accept_header: str = ""
+        self,
+        db: AsyncSession,
+        token: str,
+        client_type: ConfigFormat,
+        request_url: str = "",
+        accept_header: str = "",
+        x_hwid: str | None = None,
+        x_device_os: str | None = None,
+        x_ver_os: str | None = None,
+        x_device_model: str | None = None,
     ):
         """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
         sub_settings: SubSettings = await subscription_settings()
@@ -357,6 +415,10 @@ class SubscriptionOperation(BaseOperation):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token)
         user = await self.validated_user(db_user)
+
+        await self.validate_and_register_hwid(
+            db, db_user.id, db_user.hwid_limit, x_hwid, x_device_os, x_ver_os, x_device_model
+        )
 
         response_headers = self.create_response_headers(
             user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
@@ -392,13 +454,21 @@ class SubscriptionOperation(BaseOperation):
         token: str,
         update_user_agent: str = "",
         ip: str | None = None,
+        x_hwid: str | None = None,
+        x_device_os: str | None = None,
+        x_ver_os: str | None = None,
+        x_device_model: str | None = None,
     ):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token)
         user = await self.validated_user(db_user)
 
+        await self.validate_and_register_hwid(
+            db, db_user.id, db_user.hwid_limit, x_hwid, x_device_os, x_ver_os, x_device_model
+        )
+
         if update_user_agent:
-            await user_sub_update(db, db_user.id, update_user_agent, ip=ip)
+            await user_sub_update(db, db_user.id, update_user_agent, ip=ip, hwid=x_hwid)
 
         links = []
         if sub_settings.allow_browser_config:

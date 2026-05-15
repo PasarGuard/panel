@@ -1,11 +1,11 @@
 import { useTheme } from '@/app/providers/theme-provider'
 import { Button } from '@/components/ui/button'
 import { DEFAULT_MONACO_CODE_EDITOR_OPTIONS } from '@/components/common/code-editor-defaults'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 const MonacoEditor = lazy(() => import('@/components/common/monaco-editor'))
@@ -26,7 +26,6 @@ export type CodeEditorPanelProps = {
   onDidBlur?: () => void
   /** Show maximize/minimize chrome (matches core-config / client-template modals). */
   enableFullscreen?: boolean
-  fullscreenTitle?: ReactNode
   /** Notified when fullscreen toggles (e.g. hide modal footer while expanded). */
   onFullscreenChange?: (fullscreen: boolean) => void
   /**
@@ -65,7 +64,6 @@ export function CodeEditorPanel({
   onMount,
   onDidBlur,
   enableFullscreen = false,
-  fullscreenTitle,
   onFullscreenChange,
   dialogOpen = true,
   embeddedContainerClassName = 'h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:h-[calc(55vh-1rem)]',
@@ -214,52 +212,6 @@ export function CodeEditorPanel({
     )
   }
 
-  // `PageTransition` uses `transform`, so `position: fixed` is trapped; portal to `document.body`.
-  // Avoid `items-center` on the shell: it sets `align-self: center` on children so they don't stretch,
-  // `h-full` collapses, and Monaco (`height: 100%`) renders as a thin strip.
-  const fullscreenLayer =
-    isEditorFullscreen && typeof document !== 'undefined' ? (
-      <div className="fixed inset-0 z-[200] flex min-h-0 flex-col bg-background" dir="ltr">
-        <div className="absolute inset-0 bg-background/95 backdrop-blur-sm" onClick={handleToggleFullscreen} />
-        {!isEditorReady && (
-          <div className="absolute inset-0 z-[70] flex items-center justify-center bg-background/80 backdrop-blur-sm">
-            <span className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-primary" />
-          </div>
-        )}
-        <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col bg-background sm:mx-auto sm:my-8 sm:h-[calc(100vh-4rem)] sm:max-w-[95vw] sm:flex-none sm:rounded-lg sm:border sm:shadow-xl">
-          <div className="hidden shrink-0 items-center justify-between rounded-t-lg border-b bg-background px-3 py-2.5 sm:flex">
-            <div className="flex items-center gap-2">
-              {fullscreenTitle ? <span className="text-sm font-medium">{fullscreenTitle}</span> : null}
-            </div>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 shrink-0"
-              onClick={handleToggleFullscreen}
-              aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
-            >
-              <Minimize2 className="h-4 w-4" />
-            </Button>
-          </div>
-          <Button
-            type="button"
-            size="icon"
-            variant="default"
-            className="absolute right-2 top-2 z-20 h-9 w-9 rounded-full shadow-lg sm:hidden"
-            onClick={handleToggleFullscreen}
-            aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
-          >
-            <Minimize2 className="h-4 w-4" />
-          </Button>
-          <div className="relative min-h-0 w-full flex-1">
-            {renderEditor()}
-          </div>
-          {footer}
-        </div>
-      </div>
-    ) : null
-
   return (
     <>
       {!isEditorFullscreen && (
@@ -292,7 +244,53 @@ export function CodeEditorPanel({
           {footer}
         </div>
       )}
-      {fullscreenLayer ? createPortal(fullscreenLayer, document.body) : null}
+
+      {/* Fullscreen uses a nested Radix Dialog so it gets its own focus trap,
+          which works correctly even when this component is inside another Dialog. */}
+      <Dialog open={isEditorFullscreen} onOpenChange={open => { if (!open) handleToggleFullscreen() }}>
+        <DialogContent
+          className="flex h-[100dvh] max-h-[100dvh] w-[100dvw] max-w-[100dvw] flex-col gap-0 rounded-none border-none p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-4rem)] sm:max-w-[95vw] sm:rounded-lg sm:border sm:p-0 [&>button[class*='absolute']]:hidden"
+          dir="ltr"
+          onOpenAutoFocus={e => {
+            e.preventDefault()
+            // Focus the editor after the dialog opens
+            setTimeout(() => {
+              if (editorInstance) {
+                if (typeof editorInstance.focus === 'function') editorInstance.focus()
+              }
+            }, 100)
+          }}
+          onPointerDownOutside={e => e.preventDefault()}
+          onInteractOutside={e => e.preventDefault()}
+        >
+          <div className="hidden shrink-0 items-center justify-between border-b bg-background px-3 py-2.5 sm:flex sm:rounded-t-lg">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 shrink-0"
+              onClick={handleToggleFullscreen}
+              aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
+            >
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="default"
+            className="absolute right-2 top-2 z-20 h-9 w-9 rounded-full shadow-lg sm:hidden"
+            onClick={handleToggleFullscreen}
+            aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
+          <div className="relative min-h-0 w-full flex-1">
+            {isEditorFullscreen && renderEditor()}
+          </div>
+          {footer}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

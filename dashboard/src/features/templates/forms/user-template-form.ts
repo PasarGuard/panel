@@ -10,6 +10,7 @@ const userTemplateFormObjectSchema = z.object({
   username_prefix: z.string().optional(),
   username_suffix: z.string().optional(),
   data_limit: z.number().min(0).optional(),
+  hwid_limit: z.number().min(0).nullable().optional(),
   expire_duration: z.number().min(0).optional(),
   on_hold_timeout: z.number().optional(),
   method: z
@@ -53,6 +54,7 @@ export const userTemplateFormDefaultValues: Partial<UserTemplatesFromValueInput>
   username_prefix: '',
   username_suffix: '',
   data_limit: 0,
+  hwid_limit: undefined,
   expire_duration: 0,
   method: ShadowsocksMethods['chacha20-ietf-poly1305'],
   flow: XTLSFlows[''],

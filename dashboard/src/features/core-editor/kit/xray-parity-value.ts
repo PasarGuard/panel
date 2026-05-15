@@ -133,6 +133,7 @@ export function parseRoutingRuleFieldValue(
   }
   if (mode === 'stringList') {
     if (!t) return { value: undefined }
+    if (field.type.includes('PortList')) return { value: t }
     const arr = raw
       .split(/[\n,]+/)
       .map(s => s.trim())

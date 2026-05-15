@@ -340,6 +340,45 @@
       "resetToDefault": "Reset to Default",
       "resetToDefaultSuccess": "Subscription rules reset to default"
     },
+    "hwid": {
+      "title": "HWID",
+      "description": "Configure hardware ID registration and device limits",
+      "loadError": "Failed to load HWID settings",
+      "saveSuccess": "HWID settings saved successfully",
+      "saveFailed": "Failed to save HWID settings",
+      "cancelSuccess": "Changes cancelled and original HWID settings restored",
+      "policy": {
+        "title": "Device registration policy",
+        "description": "Control subscription access by registered hardware IDs."
+      },
+      "enabled": {
+        "title": "Enable HWID checks",
+        "description": "Register and enforce device IDs on subscription requests."
+      },
+      "forced": {
+        "title": "Require HWID header",
+        "description": "Reject subscription requests that do not send X-HWID."
+      },
+      "limits": {
+        "title": "Device limits",
+        "description": "Set the default device count and optional bounds for user HWID limits."
+      },
+      "fallbackLimit": {
+        "title": "Fallback limit",
+        "description": "Used when a user does not have an explicit HWID limit."
+      },
+      "minLimit": {
+        "title": "Minimum limit",
+        "description": "Lower bound applied to per-user limits. Use 0 to disable."
+      },
+      "maxLimit": {
+        "title": "Maximum limit",
+        "description": "Upper bound applied to per-user limits. Use 0 to disable."
+      },
+      "validation": {
+        "minMax": "Minimum limit cannot be greater than maximum limit"
+      }
+    },
     "telegram": {
       "title": "Telegram",
       "description": "Configure Telegram bot integration and related settings for your system",
@@ -724,6 +763,8 @@
     "prefix": "Username Prefix",
     "suffix": "Username Suffix",
     "dataLimit": "Data Limit",
+    "hwidLimit": "HWID Limit",
+    "hwidLimitPlaceholder": "Default, 0 = unlimited",
     "expire": "Expire duration",
     "onHoldTimeout": "OnHold Timeout",
     "method": "Method",
@@ -1308,6 +1349,25 @@
   "revokeUserSub.prompt": "Are you sure you want to revoke «{{username}}»'s subscription?",
   "revokeUserSub.success": "{{username}}'s subscription has revoked successfully.",
   "revokeUserSub.title": "Revoke User Subscription",
+  "hwids": {
+    "title": "Hardware IDs",
+    "description": "Manage this user's registered hardware IDs.",
+    "copy": "Copy hardware ID",
+    "copied": "Hardware ID copied",
+    "createdAt": "Created at",
+    "lastUsedAt": "Last used at",
+    "reset": "Reset all",
+    "loadFailed": "Failed to load hardware IDs",
+    "empty": "No hardware IDs have been registered yet",
+    "deleteTitle": "Remove hardware ID",
+    "deletePrompt": "This device will need to register again on its next subscription request.",
+    "deleteSuccess": "Hardware ID removed",
+    "deleteFailed": "Failed to remove hardware ID",
+    "resetTitle": "Reset all hardware IDs",
+    "resetPrompt": "All registered devices for this user will be removed.",
+    "resetSuccess": "All hardware IDs reset",
+    "resetFailed": "Failed to reset hardware IDs"
+  },
   "subscriptionClients": {
     "title": "Subscription Clients",
     "viewAllClients": "View Clients",
@@ -1357,6 +1417,8 @@
     "absolute": "Absolute",
     "custom": "Custom",
     "dataLimit": "Data Limit",
+    "hwidLimit": "HWID Limit",
+    "hwidLimitPlaceholder": "Fallback, 0 = unlimited",
     "days": "Days",
     "editUser": "Modify user",
     "editUserTitle": "Modify user",
@@ -1869,13 +1931,21 @@
     "keyPairGenerationFailed": "Failed to generate key pair",
     "shortIdGenerationFailed": "Failed to generate short ID",
     "shadowsocksPasswordGenerated": "Password generated successfully",
-    "shadowsocksPasswordGenerationFailed": "Failed to generate password"
+    "shadowsocksPasswordGenerationFailed": "Failed to generate password",
+    "discardChangesTitle": "Discard changes?",
+    "discardChangesDescription": "Your unsaved kernel configuration changes will be lost if you close this editor."
   },
   "coreEditor": {
     "nameRequired": "Name is required",
     "fixValidation": "Fix validation errors before saving",
+    "validationErrors": "Validation errors",
+    "validationWarnings": "Warnings",
     "importWarnings": "Import notes",
     "loadFailed": "Could not load this core.",
+    "loading": {
+      "title": "Loading core editor",
+      "description": "Preparing the editor layout."
+    },
     "backToList": "Back to cores",
     "invalidId": "Invalid core id.",
     "discardTitle": "Discard changes?",
@@ -1897,7 +1967,13 @@
       "selectCustomFromJson": "Custom (from JSON)",
       "selectValuePlaceholder": "Select value",
       "rangeMinPlaceholder": "Min",
-      "rangeMaxPlaceholder": "Max"
+      "rangeMaxPlaceholder": "Max",
+      "networkAny": "Any",
+      "protocolAny": "Any protocol",
+      "jsonMapEmpty": "No fields yet. Click + to add one.",
+      "jsonMapKeyPlaceholder": "Key",
+      "jsonMapValuePlaceholder": "Value",
+      "portListPlaceholder": "e.g. 53,443,1000-2000"
     },
     "section": {
       "label": "Section",
@@ -1924,7 +2000,18 @@
       "interfaceBlurb": "WireGuard interface settings and key material for this core.",
       "keysRegenerated": "New keypair generated",
       "keysFailed": "Could not generate keys",
-      "regenerateKeys": "Regenerate keypair"
+      "regenerateKeys": "Regenerate keypair",
+      "generatePreSharedKey": "Generate pre-shared key",
+      "preSharedKeyGenerated": "Pre-shared key generated",
+      "preSharedKeyFailed": "Could not generate pre-shared key",
+      "fields": {
+        "interfaceName": "Interface name",
+        "privateKey": "Private key",
+        "publicKey": "Public key",
+        "preSharedKey": "Pre-shared key",
+        "listenPort": "Listen port",
+        "address": "Address"
+      }
     },
     "field": {
       "tag": "Tag",
@@ -1937,6 +2024,25 @@
       "decryption": "Decryption",
       "flow": "Flow",
       "sendThrough": "Send through",
+      "sendThroughLabel": "Send Through (local IP)",
+      "serverAddress": "Address",
+      "uuid": "UUID",
+      "encryption": "Encryption",
+      "alterId": "Alter ID",
+      "method": "Method",
+      "password": "Password",
+      "serverName": "Server Name (SNI)",
+      "fingerprint": "TLS Fingerprint",
+      "alpn": "ALPN Protocols",
+      "allowInsecure": "Allow Insecure",
+      "allowInsecureHint": "Skip certificate verification (not recommended)",
+      "publicKey": "Server Public Key",
+      "shortId": "Short ID",
+      "spiderX": "SpiderX Path",
+      "network": "Transport Protocol",
+      "path": "Path",
+      "host": "Host Header",
+      "serviceName": "Service Name",
       "streamSettingsJson": "Stream settings (JSON)",
       "curvePreferencesPlaceholder": "Select TLS curves (ECDHE)",
       "curvePreferencesHint": "Only documented Xray curve names can be added. Unsupported values from JSON are shown above and can be removed.",
@@ -2020,7 +2126,27 @@
       "xpaddingmethod": "X-Padding Method",
       "xpaddingobfsmode": "X-Padding Obfs Mode",
       "xpaddingplacement": "X-Padding Placement",
-      "xmux": "XMUX"
+      "xmux": "XMUX",
+      "ruletag": "Rule tag",
+      "outboundtag": "Outbound tag",
+      "balancertag": "Balancer tag",
+      "inboundtag": "Inbound tag",
+      "domain": "Domain",
+      "domains": "Domains",
+      "ip": "IP",
+      "port": "Port",
+      "network": "Network",
+      "sourceip": "Source IP",
+      "source": "Source",
+      "sourceport": "Source port",
+      "user": "User",
+      "vlessroute": "VLESS route",
+      "protocols": "Protocols",
+      "attributes": "Attributes",
+      "localip": "Local IP",
+      "localport": "Local port",
+      "process": "Process",
+      "webhook": "Webhook"
     },
     "col": {
       "tag": "Tag",
@@ -2205,7 +2331,7 @@
       },
       "validation": {
         "protocolInvalid": "Select a valid protocol.",
-        "portRange": "Port must be a whole number between 1 and 65535.",
+        "portRange": "Port must be a port number or list like 443, 1000-2000,444.",
         "destinationPortRange": "Destination port must be a whole number from 0 to 65535.",
         "realityServerNamesRequired": "REALITY requires at least one server name.",
         "realityServerNamesFormat": "REALITY server names must be a list of non-empty strings.",
@@ -2214,6 +2340,8 @@
       "discardDraftTitle": "Discard new inbound?",
       "discardDraftDescription": "This inbound is not in the list yet. Close without adding it will discard your changes.",
       "discardDraftAction": "Discard",
+      "discardEditTitle": "Discard changes?",
+      "discardEditDescription": "Your modifications to this inbound will be lost if you close now.",
       "finishCurrentTitle": "Finish the current inbound first",
       "finishCurrentDescription": "Add it to the list, or close the dialog and discard the draft, before starting another inbound."
     },
@@ -2231,10 +2359,12 @@
       "discardDraftTitle": "Discard new outbound?",
       "discardDraftDescription": "This outbound is not in the list yet. Closing without adding will discard your changes.",
       "discardDraftAction": "Discard",
+      "discardEditTitle": "Discard changes?",
+      "discardEditDescription": "Your modifications to this outbound will be lost if you close now.",
       "finishCurrentTitle": "Finish the current outbound first",
       "finishCurrentDescription": "Add it to the list, or close the dialog and discard the draft, before starting another outbound.",
       "tabForm": "Form",
-      "tabJson": "JSON",
+      "tabJson": "Advanced",
       "linkLabel": "Link",
       "linkPlaceholder": "vmess:// vless:// trojan:// ss:// hysteria2:// …",
       "linkImportApply": "Apply share link",
@@ -2301,7 +2431,38 @@
         "forceQueryDefault": "Default"
       },
       "realityUnavailableTransport": "Reality (not available for this transport)",
-      "tlsSettings": "TLS Settings"
+      "tlsSettings": "TLS Settings",
+      "realitySettings": "Reality Settings",
+      "endpointSection": "Remote server",
+      "streamSection": "Stream & Security",
+      "wsSettings": "WebSocket Settings",
+      "grpcSettings": "gRPC Settings",
+      "xhttpSettings": "XHTTP Settings",
+      "muxSection": "Multiplexing (Mux)",
+      "mux": {
+        "enabled": "Enable Mux",
+        "enabledHint": "Multiplex multiple streams over one connection",
+        "concurrency": "Concurrency",
+        "xudpConcurrency": "XUDP Concurrency",
+        "xudpProxyUDP443": "UDP Port 443 Handling"
+      },
+      "proxySection": "Chain Proxy",
+      "proxy": {
+        "tag": "Route Through Outbound Tag",
+        "transportLayer": "Transport Layer Proxy",
+        "transportLayerHint": "Also proxy the transport layer stream"
+      },
+      "validation": {
+        "tagRequired": "Enter a tag for this outbound.",
+        "addressRequired": "Server address is required.",
+        "portInvalid": "Enter a valid port (1–65535).",
+        "uuidRequired": "UUID is required.",
+        "passwordRequired": "Password is required.",
+        "methodRequired": "Cipher method is required.",
+        "wireguardSecretRequired": "WireGuard secret key is required.",
+        "inboundTagRequired": "Inbound tag is required for loopback.",
+        "requiredFieldsTitle": "Required fields missing"
+      }
     },
     "routing": {
       "outbound": "Outbound",
@@ -2322,7 +2483,29 @@
       "discardDraftDescription": "This rule is not in the list yet. Closing without adding will discard your changes.",
       "discardDraftAction": "Discard",
       "finishCurrentTitle": "Finish the current rule first",
-      "finishCurrentDescription": "Add it to the list, or close the dialog and discard the draft, before starting another rule."
+      "finishCurrentDescription": "Add it to the list, or close the dialog and discard the draft, before starting another rule.",
+      "validation": {
+        "requiresOutboundOrBalancer": "Set an outbound tag or a balancer tag so the rule knows where to send traffic.",
+        "unknownOutboundTag": "Outbound tag \"{{tag}}\" is not defined on this profile.",
+        "unknownBalancerTag": "Balancer tag \"{{tag}}\" is not defined under routing.balancers.",
+        "portRange": "Port must be a port number or list like 443, 1000-2000,444."
+      },
+      "sectionRoutingAction": "Routing Action",
+      "routingActionHint": "Choose one target for matched traffic. When both are set, outboundTag takes precedence over balancerTag.",
+      "sectionMatchConditions": "Match Conditions",
+      "matchConditionsHint": "All specified conditions must be satisfied for this rule to apply.",
+      "sectionAdvanced": "Advanced",
+      "sectionIdentification": "Identification",
+      "identificationHint": "Optional label for debugging. When set, matched rules are logged at Info level.",
+      "webhook": {
+        "url": "URL",
+        "urlPlaceholder": "https://example.com/alert or /var/run/webhook.sock",
+        "urlHint": "HTTP(S) URL or a Unix socket path. Use sock:/path for the root, sock:/path:/endpoint to target a specific endpoint.",
+        "deduplication": "Deduplication (seconds)",
+        "deduplicationHint": "Time window for ignoring duplicate events. Leave empty to disable.",
+        "headers": "Headers",
+        "headersEmpty": "No headers. Click + to add one."
+      }
     },
     "balancer": {
       "add": "Add balancer",
@@ -2332,6 +2515,7 @@
       "searchPlaceholder": "Search by tag, selector outbounds, strategy…",
       "bulkDeleteTitle": "Remove selected balancers",
       "emptyBalancers": "No balancers",
+      "tag": "Tag",
       "strategy": "Strategy",
       "dialogTitleAdd": "Add balancer",
       "dialogTitleEdit": "Edit balancer",
@@ -2342,7 +2526,43 @@
       "discardDraftDescription": "This balancer is not in the list yet. Closing without adding will discard your changes.",
       "discardDraftAction": "Discard",
       "finishCurrentTitle": "Finish the current balancer first",
-      "finishCurrentDescription": "Add it to the list, or close the dialog and discard the draft, before starting another balancer."
+      "finishCurrentDescription": "Add it to the list, or close the dialog and discard the draft, before starting another balancer.",
+      "observationRequiredWithBalancers": "At least one observation source must stay enabled while this profile has balancers.",
+      "observatoryRequiresLeastPing": "Observatory needs at least one balancer with the leastPing strategy. Use Burst observatory until then.",
+      "observationActiveSummary": "Balancer probe sources are configured.",
+      "observationInactiveSummary": "No probe source is configured.",
+      "observatoryShort": "Observatory",
+      "burstShort": "Burst",
+      "observationSources": "Observation sources",
+      "selectorEmpty": "Add outbound tags to participate in this balancer.",
+      "selectorPlaceholder": "Select outbound tags…",
+      "clearSelectors": "Clear all",
+      "addOutboundTag": "Add tag",
+      "fallbackPlaceholder": "Choose fallback outbound…",
+      "strategyPlaceholder": "Strategy",
+      "strategyNone": "Default (none)",
+      "strategyFromConfig": "from config",
+      "observatory": "Observatory",
+      "observatoryHint": "Fixed-interval background HTTP probes.",
+      "burstObservatory": "Burst observatory",
+      "burstObservatoryHint": "Randomized probes configured through pingConfig.",
+      "subjectSelector": "Subject selector",
+      "subjectSelectorPlaceholder": "Select outbound tag prefixes...",
+      "noObservationSources": "Enable an observation source here when using leastPing or leastLoad, or when random/roundRobin should filter unavailable outbounds.",
+      "observation": {
+        "enabled": "On",
+        "disabled": "Off",
+        "configure": "Configure",
+        "probeURL": "Probe URL",
+        "probeInterval": "Probe interval",
+        "enableConcurrency": "Enable concurrency",
+        "destination": "Destination",
+        "connectivity": "Connectivity",
+        "interval": "Interval",
+        "timeout": "Timeout",
+        "sampling": "Sampling",
+        "httpMethod": "HTTP method"
+      }
     },
     "dns": {
       "edit": "Edit DNS",

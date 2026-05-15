@@ -54,7 +54,7 @@ export function StickySaveBar({
               <span className="relative inline-flex rounded-md">
                 {dirty ? (
                   <span
-                    className="absolute -end-1 -top-1 z-10 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-background"
+                    className="absolute -right-1 -top-1 z-10 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-background"
                     aria-hidden
                   />
                 ) : null}

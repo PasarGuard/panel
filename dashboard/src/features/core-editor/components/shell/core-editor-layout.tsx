@@ -34,7 +34,7 @@ export function CoreEditorLayout({
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col gap-0', className)}>
       <CoreCommandMenu />
-      <div className="px-4 pt-3 md:pt-6">{header}</div>
+      <div className="px-4 pt-3 md:pt-6 pb-2 md:pb-0">{header}</div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {sectionHeader}
         <CoreSectionTabs />

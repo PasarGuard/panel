@@ -29,6 +29,7 @@ import {
   Database,
   FileCode2,
   FileUser,
+  Fingerprint,
   GithubIcon,
   Group,
   Layers,
@@ -252,6 +253,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: 'settings.subscriptions.title',
                 url: '/settings/subscriptions',
                 icon: ListTodo,
+              },
+              {
+                title: 'settings.hwid.title',
+                url: '/settings/hwid',
+                icon: Fingerprint
               },
               {
                 title: 'settings.telegram.title',

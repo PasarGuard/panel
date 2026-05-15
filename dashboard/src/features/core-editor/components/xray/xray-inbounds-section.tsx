@@ -20,7 +20,6 @@ import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shar
 import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { InboundTlsFallbacksEditor } from '@/features/core-editor/components/xray/inbound-tls-fallbacks-editor'
 import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
-import { outboundVlessVisionFlowAllowed, vlessVisionFlowIncompatibleWithStreamSecurity, VLESS_VISION_FLOW_VALUES } from '@/features/core-editor/kit/outbound-stream-dynamic'
 import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue } from '@/features/core-editor/kit/xray-parity-value'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
@@ -222,8 +221,10 @@ function getInboundSecurityRecord(inbound: Inbound): Record<string, unknown> | n
   return inbound.security as unknown as Record<string, unknown>
 }
 
+const VLESS_INBOUND_FLOW_VALUES = ['xtls-rprx-vision'] as const
+
 /** TLS/REALITY on inbound, else form `security` (Flow sits above inbound.security in the grid until moved). */
-function effectiveSecurityTypeForVlessVisionFlow(inbound: Inbound | undefined, formSecurity: unknown): string {
+function effectiveSecurityTypeForVlessInboundFlow(inbound: Inbound | undefined, formSecurity: unknown): string {
   if (inbound && 'security' in inbound && inbound.security && typeof inbound.security === 'object') {
     const ibType = String((inbound.security as { type?: unknown }).type ?? '')
       .trim()
@@ -233,6 +234,33 @@ function effectiveSecurityTypeForVlessVisionFlow(inbound: Inbound | undefined, f
   const f = typeof formSecurity === 'string' ? formSecurity.trim().toLowerCase() : ''
   if (f === 'tls' || f === 'reality' || f === 'none') return f || 'none'
   return 'none'
+}
+
+function effectiveTransportTypeForVlessInboundFlow(inbound: Inbound | undefined): string {
+  if (!inbound || !('transport' in inbound) || !inbound.transport) return 'tcp'
+  return String((inbound.transport as { type?: unknown }).type ?? 'tcp')
+    .trim()
+    .toLowerCase() || 'tcp'
+}
+
+function vlessInboundEncryptionEnabled(raw: unknown): boolean {
+  if (typeof raw !== 'string') return false
+  const v = raw.trim().toLowerCase()
+  return v !== '' && v !== 'none'
+}
+
+function vlessInboundFlowAllowed(input: { securityType: string | undefined; transportType: string | undefined; encryption: unknown }): boolean {
+  if (vlessInboundEncryptionEnabled(input.encryption)) return true
+  const security = String(input.securityType ?? 'none').trim().toLowerCase()
+  const transport = String(input.transportType ?? 'tcp').trim().toLowerCase() || 'tcp'
+  return transport === 'tcp' && (security === 'tls' || security === 'reality')
+}
+
+function vlessInboundFlowIncompatible(input: { securityType: string | undefined; transportType: string | undefined; encryption: unknown; flow: string | undefined }): boolean {
+  const flow = String(input.flow ?? '').trim()
+  if (!flow) return false
+  if (!(VLESS_INBOUND_FLOW_VALUES as readonly string[]).includes(flow)) return true
+  return !vlessInboundFlowAllowed(input)
 }
 
 interface TlsCertificateUiItem {
@@ -1071,8 +1099,18 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const inboundSecurityType = useMemo(() => (typeof inboundSecurity?.type === 'string' ? inboundSecurity.type : undefined), [inboundSecurity])
   const vlessStoredFlow = useMemo(() => (inbound && inbound.protocol === 'vless' ? vlessInboundFlowForForm(inbound) : ''), [inbound])
   const watchedInboundSecurity = form.watch('security')
-  const securityForVlessVisionFlow = useMemo(() => effectiveSecurityTypeForVlessVisionFlow(inbound, watchedInboundSecurity), [inbound, watchedInboundSecurity])
-  const vlessInboundVisionFlowsOk = useMemo(() => outboundVlessVisionFlowAllowed(securityForVlessVisionFlow), [securityForVlessVisionFlow])
+  const watchedVlessEncryption = form.watch('encryption')
+  const securityForVlessInboundFlow = useMemo(() => effectiveSecurityTypeForVlessInboundFlow(inbound, watchedInboundSecurity), [inbound, watchedInboundSecurity])
+  const transportForVlessInboundFlow = useMemo(() => effectiveTransportTypeForVlessInboundFlow(inbound), [inbound])
+  const vlessInboundFlowsOk = useMemo(
+    () =>
+      vlessInboundFlowAllowed({
+        securityType: securityForVlessInboundFlow,
+        transportType: transportForVlessInboundFlow,
+        encryption: watchedVlessEncryption,
+      }),
+    [securityForVlessInboundFlow, transportForVlessInboundFlow, watchedVlessEncryption],
+  )
   const tlsCertificates = useMemo(
     () => (inboundSecurityType === 'tls' ? tlsCertificatesForUi((inboundSecurity as Record<string, unknown> | null)?.certificates) : []),
     [inboundSecurityType, inboundSecurity],
@@ -1637,8 +1675,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   useEffect(() => {
     if (!detailOpen || inbound?.protocol !== 'vless') return
-    const sec = effectiveSecurityTypeForVlessVisionFlow(inbound, form.getValues('security'))
-    if (!vlessVisionFlowIncompatibleWithStreamSecurity(sec, vlessStoredFlow)) return
+    if (
+      !vlessInboundFlowIncompatible({
+        securityType: effectiveSecurityTypeForVlessInboundFlow(inbound, form.getValues('security')),
+        transportType: effectiveTransportTypeForVlessInboundFlow(inbound),
+        encryption: form.getValues('encryption'),
+        flow: vlessStoredFlow,
+      })
+    ) {
+      return
+    }
     form.setValue('vlessFlow', '')
     patchInboundRef.current?.({ flow: '' } as Partial<Inbound>)
   }, [detailOpen, inbound, vlessStoredFlow, form])
@@ -2354,6 +2400,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           {...field}
                           className="h-10"
                           dir="ltr"
+                          placeholder="0.0.0.0"
                           onChange={e => {
                             const v = e.target.value
                             field.onChange(v)
@@ -2379,6 +2426,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           className="h-10"
                           dir="ltr"
                           isError={!!fieldState.error}
+                          placeholder="443 or 1000-2000,444"
                           onChange={e => {
                             const v = e.target.value
                             field.onChange(v)
@@ -3273,7 +3321,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.field.flow', { defaultValue: 'Flow' })}</FormLabel>
                           <Select
                             dir="ltr"
-                            value={vlessInboundVisionFlowsOk || !(VLESS_VISION_FLOW_VALUES as readonly string[]).includes(flow) ? flow || '__none' : '__none'}
+                            value={vlessInboundFlowsOk && (VLESS_INBOUND_FLOW_VALUES as readonly string[]).includes(flow) ? flow : '__none'}
                             onValueChange={v => {
                               const next = v === '__none' ? '' : v
                               field.onChange(next)
@@ -3287,9 +3335,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="__none">{t('coreEditor.inbound.vlessFlowDefault', { defaultValue: 'Default (none)' })}</SelectItem>
-                              {vlessInboundVisionFlowsOk
-                                ? VLESS_VISION_FLOW_VALUES.map(f => (
+                              <SelectItem value="__none">{t('coreEditor.inbound.vlessFlowDefault', { defaultValue: 'Default (standard TLS proxy)' })}</SelectItem>
+                              {vlessInboundFlowsOk
+                                ? VLESS_INBOUND_FLOW_VALUES.map(f => (
                                     <SelectItem key={f} value={f}>
                                       {f}
                                     </SelectItem>
@@ -3297,10 +3345,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 : null}
                             </SelectContent>
                           </Select>
-                          {!vlessInboundVisionFlowsOk ? (
+                          {!vlessInboundFlowsOk ? (
                             <p className="text-muted-foreground text-xs">
                               {t('coreEditor.inbound.vlessFlowVisionRequiresTls', {
-                                defaultValue: 'Vision flows require inbound security TLS or REALITY (not “none”).',
+                                defaultValue: 'XTLS Vision requires TCP with TLS/REALITY, or VLESS Encryption.',
                               })}
                             </p>
                           ) : null}
@@ -3883,6 +3931,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           {...field}
                           className="h-10"
                           dir="ltr"
+                          placeholder="0.0.0.0"
                           onChange={e => {
                             const v = e.target.value
                             field.onChange(v)
@@ -3907,6 +3956,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           className="h-10"
                           dir="ltr"
                           isError={!!fieldState.error}
+                          placeholder="443 or 1000-2000,444"
                           onChange={e => {
                             const v = e.target.value
                             field.onChange(v)
@@ -4277,6 +4327,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           {...field}
                           className="h-10"
                           dir="ltr"
+                          placeholder="0.0.0.0"
                           onChange={e => {
                             const v = e.target.value
                             field.onChange(v)
@@ -4302,6 +4353,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             className="h-10"
                             dir="ltr"
                             isError={!!fieldState.error}
+                            placeholder="443 or 1000-2000,444"
                             onChange={e => {
                               const v = e.target.value
                               field.onChange(v)

@@ -163,7 +163,12 @@ export function isBooleanParityField(field: XrayGeneratedFormField): boolean {
 
 export function isStringMapField(field: XrayGeneratedFormField): boolean {
   const key = normalizeFieldName(field)
-  return key === 'requestheaders' || key === 'responseheaders' || key === 'headers'
+  return key === 'requestheaders' || key === 'responseheaders' || key === 'headers' || key === 'attributes'
+}
+
+export function isWebhookField(field: XrayGeneratedFormField): boolean {
+  const key = normalizeFieldName(field)
+  return key === 'webhook'
 }
 
 export function isJsonRawMessageField(field: XrayGeneratedFormField): boolean {
@@ -615,7 +620,7 @@ export function XrayParityFormControl({
         <Input
           className={cn('w-full min-w-0 text-xs', className)}
           dir="ltr"
-          placeholder="e.g. 53,443,1000-2000"
+          placeholder={t('coreEditor.parityUi.portListPlaceholder', { defaultValue: 'e.g. 53,443,1000-2000' })}
           value={value}
           onChange={e => onChange(e.target.value)}
           disabled={disabled}
@@ -634,10 +639,10 @@ export function XrayParityFormControl({
           disabled={disabled}
         >
           <SelectTrigger className={cn('h-10 w-full min-w-0', className)}>
-            <SelectValue placeholder="Any" />
+            <SelectValue placeholder={t('coreEditor.parityUi.networkAny', { defaultValue: 'Any' })} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__empty__">Any</SelectItem>
+            <SelectItem value="__empty__">{t('coreEditor.parityUi.networkAny', { defaultValue: 'Any' })}</SelectItem>
             <SelectItem value="tcp">TCP</SelectItem>
             <SelectItem value="udp">UDP</SelectItem>
             <SelectItem value="tcp,udp">TCP + UDP</SelectItem>
@@ -676,7 +681,7 @@ export function XrayParityFormControl({
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-sm text-muted-foreground">Any protocol</span>
+                  <span className="text-sm text-muted-foreground">{t('coreEditor.parityUi.protocolAny', { defaultValue: 'Any protocol' })}</span>
                 )}
               </div>
             </Button>
@@ -758,6 +763,181 @@ export function XrayParityFormControl({
     )
   }
 
+  if (isWebhookField(field)) {
+    const parsed = parseJsonObject(value) ?? {}
+    const url = typeof parsed.url === 'string' ? parsed.url : ''
+    const deduplicationRaw = parsed.deduplication
+    const deduplication =
+      typeof deduplicationRaw === 'number' && Number.isFinite(deduplicationRaw)
+        ? String(deduplicationRaw)
+        : typeof deduplicationRaw === 'string'
+          ? deduplicationRaw
+          : ''
+    const headersObj =
+      parsed.headers && typeof parsed.headers === 'object' && !Array.isArray(parsed.headers)
+        ? (parsed.headers as Record<string, unknown>)
+        : null
+    const headerEntries: Array<{ key: string; value: string }> = headersObj
+      ? Object.entries(headersObj).map(([k, v]) => ({ key: String(k), value: v == null ? '' : String(v) }))
+      : []
+
+    const writeNext = (next: Record<string, unknown>) => {
+      const cleaned: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(next)) {
+        if (v === undefined || v === null) continue
+        if (typeof v === 'string' && v.trim() === '') continue
+        if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v as object).length === 0) continue
+        cleaned[k] = v
+      }
+      if (Object.keys(cleaned).length === 0) {
+        onChange('')
+        return
+      }
+      onChange(stringifyJsonFormRecord(cleaned))
+    }
+
+    const setUrl = (next: string) => writeNext({ ...parsed, url: next })
+    const setDeduplication = (next: string) => {
+      const trimmed = next.trim()
+      if (!trimmed) {
+        const { deduplication: _drop, ...rest } = parsed
+        void _drop
+        writeNext(rest)
+        return
+      }
+      const num = Number(trimmed)
+      writeNext({ ...parsed, deduplication: Number.isFinite(num) && /^-?\d+(\.\d+)?$/.test(trimmed) ? num : trimmed })
+    }
+    const writeHeaders = (next: Array<{ key: string; value: string }>) => {
+      const headers: Record<string, string> = {}
+      for (const entry of next) {
+        const k = entry.key.trim()
+        if (!k) continue
+        headers[k] = entry.value
+      }
+      const { headers: _drop, ...rest } = parsed
+      void _drop
+      if (Object.keys(headers).length === 0) {
+        writeNext(rest)
+        return
+      }
+      writeNext({ ...rest, headers })
+    }
+    const updateHeader = (index: number, patch: Partial<{ key: string; value: string }>) => {
+      writeHeaders(headerEntries.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)))
+    }
+    const removeHeader = (index: number) => {
+      writeHeaders(headerEntries.filter((_, i) => i !== index))
+    }
+    const addHeader = () => {
+      writeHeaders([...headerEntries, { key: `Header_${headerEntries.length + 1}`, value: '' }])
+    }
+
+    return (
+      <FormControl>
+        <div className={cn('flex flex-col gap-3 rounded-md border bg-muted/20 p-3', className)}>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium">
+              {t('coreEditor.routing.webhook.url', { defaultValue: 'URL' })}
+            </span>
+            <Input
+              dir="ltr"
+              className="h-9 min-w-0 text-xs"
+              value={url}
+              placeholder={t('coreEditor.routing.webhook.urlPlaceholder', {
+                defaultValue: 'https://example.com/alert or /var/run/webhook.sock',
+              })}
+              onChange={e => setUrl(e.target.value)}
+              disabled={disabled}
+            />
+            <span className="text-[11px] leading-snug text-muted-foreground">
+              {t('coreEditor.routing.webhook.urlHint', {
+                defaultValue: 'HTTP(S) URL or a Unix socket path. Use sock:/path for the root, sock:/path:/endpoint to target a specific endpoint.',
+              })}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium">
+              {t('coreEditor.routing.webhook.deduplication', { defaultValue: 'Deduplication (seconds)' })}
+            </span>
+            <Input
+              type="number"
+              dir="ltr"
+              inputMode="numeric"
+              className="h-9 min-w-0 text-xs"
+              value={deduplication}
+              placeholder="0"
+              onChange={e => setDeduplication(e.target.value)}
+              disabled={disabled}
+            />
+            <span className="text-[11px] leading-snug text-muted-foreground">
+              {t('coreEditor.routing.webhook.deduplicationHint', {
+                defaultValue: 'Time window for ignoring duplicate events. Leave empty to disable.',
+              })}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">
+                {t('coreEditor.routing.webhook.headers', { defaultValue: 'Headers' })}
+              </span>
+              <Button type="button" variant="outline" size="icon" className="size-7" onClick={addHeader} disabled={disabled}>
+                <Plus />
+              </Button>
+            </div>
+            {headerEntries.length === 0 ? (
+              <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                {t('coreEditor.routing.webhook.headersEmpty', { defaultValue: 'No headers. Click + to add one.' })}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {headerEntries.map((entry, index) => (
+                  <div
+                    key={`${entry.key}-${index}`}
+                    className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap"
+                  >
+                    <Input
+                      dir="ltr"
+                      className="min-h-9 min-w-[7rem] flex-1 text-xs sm:min-w-[8rem]"
+                      defaultValue={entry.key}
+                      onBlur={e => {
+                        if (e.target.value !== entry.key) updateHeader(index, { key: e.target.value })
+                      }}
+                      disabled={disabled}
+                      placeholder={t('coreEditor.inbound.tcp.header.name', { defaultValue: 'Header name' })}
+                    />
+                    <Input
+                      dir="ltr"
+                      className="min-h-9 min-w-0 flex-[2] text-xs"
+                      defaultValue={entry.value}
+                      onBlur={e => {
+                        if (e.target.value !== entry.value) updateHeader(index, { value: e.target.value })
+                      }}
+                      disabled={disabled}
+                      placeholder={t('coreEditor.inbound.tcp.header.value', { defaultValue: 'Header value' })}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-9 shrink-0 self-center border-red-500/20 transition-colors hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                      onClick={() => removeHeader(index)}
+                      disabled={disabled}
+                    >
+                      <Trash2 className="text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </FormControl>
+    )
+  }
+
   if (mode === 'json') {
     const objectValue = parseJsonObject(value)
     if (objectValue && Object.keys(objectValue).length > 0) {
@@ -818,7 +998,7 @@ export function XrayParityFormControl({
             <div className="flex flex-col gap-2">
               {entries.length === 0 ? (
                 <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                  No fields yet. Click + to add one.
+                  {t('coreEditor.parityUi.jsonMapEmpty', { defaultValue: 'No fields yet. Click + to add one.' })}
                 </div>
               ) : (
                 entries.map(([entryKey, entryValue]) => (
@@ -834,7 +1014,7 @@ export function XrayParityFormControl({
                         if (e.target.value !== entryKey) updateKey(entryKey, e.target.value)
                       }}
                       disabled={disabled}
-                      placeholder="Key"
+                      placeholder={t('coreEditor.parityUi.jsonMapKeyPlaceholder', { defaultValue: 'Key' })}
                     />
                     <Input
                       dir="ltr"
@@ -845,7 +1025,7 @@ export function XrayParityFormControl({
                         if (e.target.value !== prev) updateValue(entryKey, e.target.value)
                       }}
                       disabled={disabled}
-                      placeholder="Value"
+                      placeholder={t('coreEditor.parityUi.jsonMapValuePlaceholder', { defaultValue: 'Value' })}
                     />
                     <Button
                       type="button"

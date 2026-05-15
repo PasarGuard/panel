@@ -29,29 +29,39 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 
-function loadingSectionPageHeaderProps(coreKind?: 'wg'): { title: string; description?: string } {
+type LoadingCoreKind = 'xray' | 'wg'
+
+function loadingSectionPageHeaderProps(coreKind?: LoadingCoreKind): { title: string; description?: string } {
   if (coreKind === 'wg') {
     return {
       title: 'coreEditor.section.interface',
       description: 'coreEditor.sectionDesc.wgInterface',
     }
   }
+  if (coreKind === 'xray') {
+    return {
+      title: 'coreEditor.section.inbounds',
+      description: 'coreEditor.sectionDesc.inbounds',
+    }
+  }
   return {
-    title: 'coreEditor.section.inbounds',
-    description: 'coreEditor.sectionDesc.inbounds',
+    title: 'coreEditor.loading.title',
+    description: 'coreEditor.loading.description',
   }
 }
 
 /** Mirrors {@link CoreEditorLayout} shell: header → section header → tabs → list toolbar + table rows → sticky save bar. */
-function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: 'wg' }) {
+function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind }) {
   const listGridCols =
     '24px 28px 52px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 44px' as const
   const pageHeader = loadingSectionPageHeaderProps(coreKind)
+  const neutral = coreKind === undefined
+  const formLike = neutral || coreKind === 'wg'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-0" aria-busy="true">
       <CoreCommandMenu />
-      <div className="px-4 pt-3 md:pt-6">
+      <div className="px-4 pt-3 md:pt-6 pb-2 md:pb-0">
         <div className="flex min-w-0 items-start gap-2 sm:items-center sm:gap-3">
           <Skeleton className="h-10 w-10 shrink-0 rounded-md" />
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
@@ -68,48 +78,75 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: 'wg' }) {
           className="flex-wrap gap-x-3 gap-y-2 py-2.5 sm:gap-4 sm:py-4 md:pt-6"
         />
 
-        <CoreSectionTabsPlaceholder kind={coreKind === 'wg' ? 'wg' : 'xray'} />
+        {neutral ? (
+          <div className="border-b px-4">
+            <div className="flex min-w-0 gap-2 overflow-hidden py-2">
+              {Array.from({ length: 4 }, (_, i) => (
+                <Skeleton key={i} className="h-9 w-24 shrink-0 rounded-md sm:w-32" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <CoreSectionTabsPlaceholder kind={coreKind} />
+        )}
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Skeleton className="h-10 w-full max-w-md rounded-md" />
-              <div className="flex shrink-0 justify-end gap-2">
-                <Skeleton className="h-9 w-16 rounded-md" />
-                <Skeleton className="h-9 w-16 rounded-md" />
+          {formLike ? (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full rounded-md" />
+                  </div>
+                ))}
+                <div className="space-y-2 sm:col-span-2">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-28 w-full rounded-md" />
+                </div>
               </div>
             </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Skeleton className="h-10 w-full max-w-md rounded-md" />
+                <div className="flex shrink-0 justify-end gap-2">
+                  <Skeleton className="h-9 w-16 rounded-md" />
+                  <Skeleton className="h-9 w-16 rounded-md" />
+                </div>
+              </div>
 
-            <div
-              className="text-muted-foreground grid min-w-0 items-center gap-3 rounded-md border bg-background/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide"
-              style={{ gridTemplateColumns: listGridCols }}
-              aria-hidden
-            >
-              <Skeleton className="mx-auto h-3 w-3 justify-self-center rounded-sm" />
-              <Skeleton className="mx-auto h-3 w-3.5 rounded-[3px]" />
-              <Skeleton className="h-3 w-6" />
-              <Skeleton className="h-3 w-8" />
-              <Skeleton className="h-3 w-14" />
-              <Skeleton className="h-3 w-10" />
-              <Skeleton className="h-3 w-6 justify-self-end" />
-            </div>
-
-            {Array.from({ length: 4 }, (_, row) => (
               <div
-                key={row}
-                className="bg-background grid min-w-0 items-center gap-3 overflow-hidden rounded-md border px-3 py-3"
+                className="text-muted-foreground grid min-w-0 items-center gap-3 rounded-md border bg-background/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide"
                 style={{ gridTemplateColumns: listGridCols }}
+                aria-hidden
               >
-                <Skeleton className="mx-auto size-5 rounded-md" />
-                <Skeleton className="mx-auto h-3.5 w-3.5 rounded-[3px]" />
-                <Skeleton className="h-4 w-6 shrink-0" />
-                <Skeleton className="h-4 w-full max-w-40 min-w-0" />
-                <Skeleton className="h-4 w-full max-w-36 min-w-0" />
-                <Skeleton className="h-4 max-w-16 w-full min-w-0" />
-                <Skeleton className="size-8 justify-self-end rounded-md" />
+                <Skeleton className="mx-auto h-3 w-3 justify-self-center rounded-sm" />
+                <Skeleton className="mx-auto h-3 w-3.5 rounded-[3px]" />
+                <Skeleton className="h-3 w-6" />
+                <Skeleton className="h-3 w-8" />
+                <Skeleton className="h-3 w-14" />
+                <Skeleton className="h-3 w-10" />
+                <Skeleton className="h-3 w-6 justify-self-end" />
               </div>
-            ))}
-          </div>
+
+              {Array.from({ length: 4 }, (_, row) => (
+                <div
+                  key={row}
+                  className="bg-background grid min-w-0 items-center gap-3 overflow-hidden rounded-md border px-3 py-3"
+                  style={{ gridTemplateColumns: listGridCols }}
+                >
+                  <Skeleton className="mx-auto size-5 rounded-md" />
+                  <Skeleton className="mx-auto h-3.5 w-3.5 rounded-[3px]" />
+                  <Skeleton className="h-4 w-6 shrink-0" />
+                  <Skeleton className="h-4 w-full max-w-40 min-w-0" />
+                  <Skeleton className="h-4 w-full max-w-36 min-w-0" />
+                  <Skeleton className="h-4 max-w-16 w-full min-w-0" />
+                  <Skeleton className="size-8 justify-self-end rounded-md" />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -376,11 +413,11 @@ export default function CoreEditorPage() {
           type="button"
           variant="ghost"
           size="icon"
-          className={cn("mt-0.5 shrink-0 sm:mt-0",dir==='rtl' && 'rotate-180')}
+          className={cn('mt-0.5 h-11 w-11 shrink-0 sm:mt-0', dir === 'rtl' && 'rotate-180')}
           onClick={handleBack}
           aria-label={t('back', { defaultValue: 'Back' })}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex min-w-0 flex-row flex-wrap items-center gap-2 sm:gap-3">
@@ -525,7 +562,7 @@ export default function CoreEditorPage() {
   if (!hydrated && !isNew && validId) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <CoreEditorLoadingSkeleton coreKind={coreData?.type === 'wg' ? 'wg' : undefined} />
+        <CoreEditorLoadingSkeleton coreKind={coreData?.type === 'wg' ? 'wg' : 'xray'} />
       </div>
     )
   }

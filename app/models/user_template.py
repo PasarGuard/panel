@@ -21,6 +21,7 @@ class ExtraSettings(BaseModel):
 class UserTemplate(BaseModel):
     name: str | None = None
     data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
+    hwid_limit: int | None = Field(default=None)
     expire_duration: int | None = Field(
         ge=0, default=None, description="expire_duration can be 0 or greater in seconds"
     )

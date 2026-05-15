@@ -42,6 +42,16 @@ const UserTemplate = ({
                 <span dir="ltr">{!template.data_limit || template.data_limit === 0 ? <Infinity className="h-4 w-4" /> : formatBytes(template.data_limit ? template.data_limit : 0)}</span>
               </p>
               <p className="flex items-center gap-x-1">
+                {t('templates.hwidLimit', { defaultValue: 'HWID Limit' })}:{' '}
+                <span dir="ltr">
+                  {template.hwid_limit === null || template.hwid_limit === undefined
+                    ? t('default', { defaultValue: 'Default' })
+                    : template.hwid_limit === 0
+                      ? <Infinity className="h-4 w-4" />
+                      : template.hwid_limit}
+                </span>
+              </p>
+              <p className="flex items-center gap-x-1">
                 {t('expire')}:
                 <span>
                   {!template.expire_duration || template.expire_duration === 0 ? (

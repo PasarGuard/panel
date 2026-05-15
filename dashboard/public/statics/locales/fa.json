@@ -225,6 +225,45 @@
       "resetToDefault": "بازگشت به پیش‌فرض",
       "resetToDefaultSuccess": "قوانین اشتراک به پیش‌فرض بازنشانی شد"
     },
+    "hwid": {
+      "title": "شناسه سخت‌افزار",
+      "description": "پیکربندی ثبت شناسه سخت‌افزار و محدودیت دستگاه‌ها",
+      "loadError": "بارگیری تنظیمات شناسه سخت‌افزار ناموفق بود",
+      "saveSuccess": "تنظیمات شناسه سخت‌افزار با موفقیت ذخیره شد",
+      "saveFailed": "ذخیره تنظیمات شناسه سخت‌افزار ناموفق بود",
+      "cancelSuccess": "تغییرات لغو شد و تنظیمات اصلی شناسه سخت‌افزار بازیابی شد",
+      "policy": {
+        "title": "سیاست ثبت دستگاه",
+        "description": "دسترسی به اشتراک را بر اساس شناسه‌های سخت‌افزاری ثبت‌شده کنترل کنید."
+      },
+      "enabled": {
+        "title": "فعال‌سازی بررسی شناسه سخت‌افزار",
+        "description": "شناسه دستگاه‌ها را هنگام درخواست اشتراک ثبت و اعمال کنید."
+      },
+      "forced": {
+        "title": "الزام هدر شناسه سخت‌افزار",
+        "description": "درخواست‌های اشتراکی را که هدر X-HWID ارسال نمی‌کنند رد کنید."
+      },
+      "limits": {
+        "title": "محدودیت دستگاه‌ها",
+        "description": "تعداد پیش‌فرض دستگاه‌ها و کران‌های اختیاری محدودیت شناسه سخت‌افزار کاربران را تنظیم کنید."
+      },
+      "fallbackLimit": {
+        "title": "محدودیت پیش‌فرض",
+        "description": "زمانی استفاده می‌شود که کاربر محدودیت شناسه سخت‌افزار اختصاصی ندارد."
+      },
+      "minLimit": {
+        "title": "حداقل محدودیت",
+        "description": "کران پایین برای محدودیت‌های هر کاربر. برای غیرفعال‌سازی ۰ وارد کنید."
+      },
+      "maxLimit": {
+        "title": "حداکثر محدودیت",
+        "description": "کران بالا برای محدودیت‌های هر کاربر. برای غیرفعال‌سازی ۰ وارد کنید."
+      },
+      "validation": {
+        "minMax": "حداقل محدودیت نمی‌تواند از حداکثر محدودیت بیشتر باشد"
+      }
+    },
     "telegram": {
       "title": "تلگرام",
       "description": "پیکربندی ادغام ربات تلگرام و تنظیمات مرتبط برای سیستم شما",
@@ -588,6 +627,8 @@
     "prefix": "پیشوند نام کاربری",
     "suffix": "پسوند نام کاربری",
     "dataLimit": "محدودیت داده",
+    "hwidLimit": "محدودیت شناسه سخت‌افزار",
+    "hwidLimitPlaceholder": "پیش‌فرض، ۰ = نامحدود",
     "expire": "مدت انقضا",
     "onHoldTimeout": "زمان انتظار توقف",
     "method": "روش",
@@ -1156,6 +1197,25 @@
   "revokeUserSub.prompt": "آیا مطمئن هستید که می خواهید اشتراک «{{username}}» را بازنشانی کنید؟",
   "revokeUserSub.success": "اشتراک {{username}} با موفقیت بازنشانی شد.",
   "revokeUserSub.title": "بازنشانی اشتراک کاربر",
+  "hwids": {
+    "title": "شناسه‌های سخت‌افزار",
+    "description": "شناسه‌های سخت‌افزاری ثبت‌شده این کاربر را مدیریت کنید.",
+    "copy": "کپی شناسه سخت‌افزار",
+    "copied": "شناسه سخت‌افزار کپی شد",
+    "createdAt": "ایجاد شده",
+    "lastUsedAt": "آخرین استفاده",
+    "reset": "بازنشانی همه",
+    "loadFailed": "بارگیری شناسه‌های سخت‌افزار ناموفق بود",
+    "empty": "هنوز شناسه سخت‌افزاری ثبت نشده است",
+    "deleteTitle": "حذف شناسه سخت‌افزار",
+    "deletePrompt": "این دستگاه در درخواست بعدی اشتراک باید دوباره ثبت شود.",
+    "deleteSuccess": "شناسه سخت‌افزار حذف شد",
+    "deleteFailed": "حذف شناسه سخت‌افزار ناموفق بود",
+    "resetTitle": "بازنشانی همه شناسه‌های سخت‌افزار",
+    "resetPrompt": "همه دستگاه‌های ثبت‌شده این کاربر حذف می‌شوند.",
+    "resetSuccess": "همه شناسه‌های سخت‌افزار بازنشانی شدند",
+    "resetFailed": "بازنشانی شناسه‌های سخت‌افزار ناموفق بود"
+  },
   "subscriptionClients": {
     "title": "کلاینت‌های اشتراک",
     "viewAllClients": "مشاهده کلاینت‌ها",
@@ -1204,6 +1264,8 @@
   "userDialog.absolute": "مطلق",
   "userDialog.custom": "انتخابی",
   "userDialog.dataLimit": "حد مصرف داده",
+  "userDialog.hwidLimit": "محدودیت شناسه سخت‌افزار",
+  "userDialog.hwidLimitPlaceholder": "پیش‌فرض، ۰ = نامحدود",
   "userDialog.days": "روزها",
   "userDialog.editUser": "ویرایش کاربر",
   "userDialog.editUserTitle": "ویرایش کاربر",
@@ -1784,13 +1846,21 @@
     "keyPairGenerationFailed": "تولید جفت کلید ناموفق بود",
     "shortIdGenerationFailed": "تولید شناسه کوتاه ناموفق بود",
     "shadowsocksPasswordGenerated": "رمز عبور با موفقیت تولید شد",
-    "shadowsocksPasswordGenerationFailed": "تولید رمز عبور ناموفق بود"
+    "shadowsocksPasswordGenerationFailed": "تولید رمز عبور ناموفق بود",
+    "discardChangesTitle": "لغو تغییرات؟",
+    "discardChangesDescription": "اگر این ویرایشگر را ببندید، تغییرات ذخیره‌نشدهٔ پیکربندی هسته از بین خواهد رفت."
   },
   "coreEditor": {
     "nameRequired": "نام الزامی است",
     "fixValidation": "قبل از ذخیره خطاهای اعتبارسنجی را برطرف کنید",
+    "validationErrors": "خطاهای اعتبارسنجی",
+    "validationWarnings": "هشدارها",
     "importWarnings": "یادداشت‌های واردات",
     "loadFailed": "بارگیری این هسته ناموفق بود.",
+    "loading": {
+      "title": "در حال بارگیری ویرایشگر هسته",
+      "description": "در حال آماده‌سازی چیدمان ویرایشگر."
+    },
     "backToList": "بازگشت به فهرست هسته‌ها",
     "invalidId": "شناسهٔ هسته نامعتبر است.",
     "discardTitle": "لغو تغییرات؟",
@@ -1811,7 +1881,13 @@
       "selectCustomFromJson": "سفارشی (از JSON)",
       "selectValuePlaceholder": "انتخاب مقدار",
       "rangeMinPlaceholder": "حداقل",
-      "rangeMaxPlaceholder": "حداکثر"
+      "rangeMaxPlaceholder": "حداکثر",
+      "networkAny": "هر کدام",
+      "protocolAny": "هر پروتکل",
+      "jsonMapEmpty": "هیچ فیلدی وجود ندارد. برای افزودن روی + کلیک کنید.",
+      "jsonMapKeyPlaceholder": "کلید",
+      "jsonMapValuePlaceholder": "مقدار",
+      "portListPlaceholder": "مثلاً 53,443,1000-2000"
     },
     "section": {
       "label": "بخش",
@@ -1838,7 +1914,18 @@
       "interfaceBlurb": "تنظیمات رابط وایرگارد و مواد کلیدی این هسته.",
       "keysRegenerated": "جفت کلید جدید تولید شد",
       "keysFailed": "تولید کلیدهای ناموفق بود",
-      "regenerateKeys": "تولید مجدد جفت کلید"
+      "regenerateKeys": "تولید مجدد جفت کلید",
+      "generatePreSharedKey": "تولید کلید ازپیش‌اشتراک‌گذاری‌شده",
+      "preSharedKeyGenerated": "کلید ازپیش‌اشتراک‌گذاری‌شده تولید شد",
+      "preSharedKeyFailed": "تولید کلید ازپیش‌اشتراک‌گذاری‌شده ناموفق بود",
+      "fields": {
+        "interfaceName": "نام رابط",
+        "privateKey": "کلید خصوصی",
+        "publicKey": "کلید عمومی",
+        "preSharedKey": "کلید ازپیش‌اشتراک‌گذاری‌شده",
+        "listenPort": "پورت شنود",
+        "address": "آدرس"
+      }
     },
     "field": {
       "tag": "برچسب",
@@ -1851,6 +1938,25 @@
       "decryption": "رمزگشایی",
       "flow": "جریان (Flow)",
       "sendThrough": "ارسال از طریق",
+      "sendThroughLabel": "ارسال از طریق (IP محلی)",
+      "serverAddress": "آدرس",
+      "uuid": "UUID",
+      "encryption": "رمزنگاری",
+      "alterId": "شناسهٔ جایگزین (Alter ID)",
+      "method": "روش رمزنگاری",
+      "password": "رمز عبور",
+      "serverName": "نام سرور (SNI)",
+      "fingerprint": "اثر انگشت TLS",
+      "alpn": "پروتکل‌های ALPN",
+      "allowInsecure": "مجاز کردن ناامن",
+      "allowInsecureHint": "رد تأیید گواهی (توصیه نمی‌شود)",
+      "publicKey": "کلید عمومی سرور",
+      "shortId": "شناسهٔ کوتاه",
+      "spiderX": "مسیر SpiderX",
+      "network": "پروتکل حمل",
+      "path": "مسیر",
+      "host": "هدر Host",
+      "serviceName": "نام سرویس",
       "streamSettingsJson": "تنظیمات استریم (JSON)",
       "curvePreferencesPlaceholder": "انتخاب منحنی‌های TLS (ECDHE)",
       "curvePreferencesHint": "فقط نام‌های منحنی مستندشدهٔ Xray قابل افزودن‌اند. مقادیر نامعتبر از JSON بالا نشان داده می‌شوند و می‌توان حذفشان کرد.",
@@ -1933,8 +2039,28 @@
       "xpaddingkey": "کلید X-Padding",
       "xpaddingmethod": "روش X-Padding",
       "xpaddingobfsmode": "حالت Obfs پدینگ X",
-      "xpaddingplacement": "محل قرارگیری X-Padding",
-      "xmux": "XMUX"
+      "xpaddingplacement": "X-Padding Placement",
+      "xmux": "XMUX",
+      "ruletag": "برچسب قانون",
+      "outboundtag": "برچسب خروجی",
+      "balancertag": "برچسب متعادل‌کننده",
+      "inboundtag": "برچسب ورودی",
+      "domain": "دامنه",
+      "domains": "دامنه‌ها",
+      "ip": "IP",
+      "port": "پورت",
+      "network": "شبکه",
+      "sourceip": "IP مبدأ",
+      "source": "مبدأ",
+      "sourceport": "پورت مبدأ",
+      "user": "کاربر",
+      "vlessroute": "مسیر VLESS",
+      "protocols": "پروتکل‌ها",
+      "attributes": "ویژگی‌ها",
+      "localip": "IP محلی",
+      "localport": "پورت محلی",
+      "process": "فرآیند",
+      "webhook": "وب‌هوک"
     },
     "col": {
       "tag": "برچسب",
@@ -2118,7 +2244,7 @@
       },
       "validation": {
         "protocolInvalid": "یک پروتکل معتبر انتخاب کنید.",
-        "portRange": "پورت باید عدد صحیح بین ۱ و ۶۵۵۳۵ باشد.",
+        "portRange": "پورت باید عدد یا فهرست پورت مانند 443, 1000-2000,444 باشد.",
         "destinationPortRange": "پورت مقصد باید عدد صحیح از ۰ تا ۶۵۵۳۵ باشد.",
         "realityServerNamesRequired": "REALITY حداقل به یک نام سرور نیاز دارد.",
         "realityServerNamesFormat": "نام‌های سرور REALITY باید فهرستی از رشته‌های غیرخالی باشد.",
@@ -2127,6 +2253,8 @@
       "discardDraftTitle": "ورودی جدید را دور بیندازید؟",
       "discardDraftDescription": "این ورودی هنوز در فهرست نیست. بستن بدون افزودن، تغییرات را دور می‌اندازد.",
       "discardDraftAction": "صرف‌نظر",
+      "discardEditTitle": "لغو تغییرات؟",
+      "discardEditDescription": "اگر اکنون ببندید، تغییرات شما روی این ورودی از بین می‌رود.",
       "finishCurrentTitle": "ابتدا ورودی فعلی را تمام کنید",
       "finishCurrentDescription": "آن را به فهرست اضافه کنید، یا دیالوگ را ببندید و پیش‌نویس را دور بیندازید، قبل از شروع ورودی دیگر."
     },
@@ -2143,8 +2271,15 @@
       "discardDraftTitle": "خروجی جدید را دور بیندازید؟",
       "discardDraftDescription": "این خروجی هنوز در فهرست نیست. بستن بدون افزودن، تغییرات را دور می‌اندازد.",
       "discardDraftAction": "صرف‌نظر",
+      "discardEditTitle": "لغو تغییرات؟",
+      "discardEditDescription": "اگر اکنون ببندید، تغییرات شما روی این خروجی از بین می‌رود.",
       "finishCurrentTitle": "ابتدا خروجی فعلی را تمام کنید",
       "finishCurrentDescription": "آن را به فهرست اضافه کنید، یا دیالوگ را ببندید و پیش‌نویس را دور بیندازید، قبل از شروع خروجی دیگر.",
+      "tabForm": "فرم",
+      "tabJson": "پیشرفته",
+      "linkLabel": "درون‌ریزی از لینک اشتراک‌گذاری",
+      "linkPlaceholder": "vmess:// vless:// trojan:// ss:// hysteria2:// ...",
+      "linkImportApply": "اعمال لینک اشتراک‌گذاری",
       "freedom": {
         "blurb": "Freedom ترافیک را بدون تغییر هدایت می‌کند. فیلدهای زیر اختیاری‌اند؛ برای اشکال نادر از تب JSON استفاده کنید.",
         "domainStrategy": "استراتژی دامنه",
@@ -2196,6 +2331,49 @@
         "domainPlaceholder": "geosite:cn\ndomain:example.com",
         "addRule": "افزودن قانون",
         "removeRule": "حذف قانون"
+      },
+      "ech": {
+        "sectionTitle": "ECH (Client Hello رمزنگاری‌شده)",
+        "sectionHint": "کلیدها و رفتار ECH کلاینت را پیکربندی کنید.",
+        "configList": "فهرست پیکربندی ECH",
+        "forceQuery": "پرسش اجباری ECH",
+        "forceQueryDefault": "پیش‌فرض"
+      },
+      "realityUnavailableTransport": "Reality (برای این حمل در دسترس نیست)",
+      "tlsSettings": "تنظیمات TLS",
+      "realitySettings": "تنظیمات Reality",
+      "keepAtLeastOne": "حداقل یک خروجی الزامی است.",
+      "endpointSection": "سرور راه‌دور",
+      "streamSection": "استریم و امنیت",
+      "wsSettings": "تنظیمات WebSocket",
+      "grpcSettings": "تنظیمات gRPC",
+      "xhttpSettings": "تنظیمات XHTTP",
+      "uriImportFailed": "تجزیهٔ لینک اشتراک‌گذاری ناموفق بود.",
+      "jsonInvalid": "قبل از ترک تب JSON، خطاها را برطرف کنید.",
+      "muxSection": "چندگانه‌سازی (Mux)",
+      "mux": {
+        "enabled": "فعال‌سازی Mux",
+        "enabledHint": "چند جریان را روی یک اتصال ادغام کنید",
+        "concurrency": "هم‌زمانی",
+        "xudpConcurrency": "هم‌زمانی XUDP",
+        "xudpProxyUDP443": "مدیریت پورت UDP 443"
+      },
+      "proxySection": "پروکسی زنجیره‌ای",
+      "proxy": {
+        "tag": "مسیریابی از طریق برچسب خروجی",
+        "transportLayer": "پروکسی لایهٔ حمل",
+        "transportLayerHint": "لایهٔ حمل استریم را نیز پروکسی کنید"
+      },
+      "validation": {
+        "tagRequired": "یک برچسب برای این خروجی وارد کنید.",
+        "addressRequired": "آدرس سرور الزامی است.",
+        "portInvalid": "یک پورت معتبر وارد کنید (۱–۶۵۵۳۵).",
+        "uuidRequired": "UUID الزامی است.",
+        "passwordRequired": "رمز عبور الزامی است.",
+        "methodRequired": "روش رمزنگاری الزامی است.",
+        "wireguardSecretRequired": "کلید خصوصی وایرگارد الزامی است.",
+        "inboundTagRequired": "برچسب ورودی برای loopback الزامی است.",
+        "requiredFieldsTitle": "فیلدهای الزامی خالی هستند"
       }
     },
     "routing": {
@@ -2217,7 +2395,29 @@
       "discardDraftDescription": "این قانون هنوز در فهرست نیست. بستن بدون افزودن، تغییرات را دور می‌اندازد.",
       "discardDraftAction": "صرف‌نظر",
       "finishCurrentTitle": "ابتدا قانون فعلی را تمام کنید",
-      "finishCurrentDescription": "آن را به فهرست اضافه کنید، یا دیالوگ را ببندید و پیش‌نویس را دور بیندازید، قبل از شروع قانون دیگر."
+      "finishCurrentDescription": "آن را به فهرست اضافه کنید، یا دیالوگ را ببندید و پیش‌نویس را دور بیندازید، قبل از شروع قانون دیگر.",
+      "validation": {
+        "requiresOutboundOrBalancer": "یک برچسب خروجی یا برچسب متعادل‌کننده تنظیم کنید تا قانون بداند ترافیک را کجا بفرستد.",
+        "unknownOutboundTag": "برچسب خروجی «{{tag}}» در این پروفایل تعریف نشده است.",
+        "unknownBalancerTag": "برچسب متعادل‌کننده «{{tag}}» در routing.balancers تعریف نشده است.",
+        "portRange": "پورت باید عدد یا فهرست پورت مانند 443, 1000-2000,444 باشد."
+      },
+      "sectionRoutingAction": "اقدام مسیریابی",
+      "routingActionHint": "برای ترافیک منطبق یک مقصد انتخاب کنید. وقتی هر دو تنظیم شوند، outboundTag بر balancerTag اولویت دارد.",
+      "sectionMatchConditions": "شرایط تطبیق",
+      "matchConditionsHint": "برای اعمال این قانون، تمام شرایط مشخص‌شده باید برقرار باشند.",
+      "sectionAdvanced": "پیشرفته",
+      "sectionIdentification": "شناسه‌گذاری",
+      "identificationHint": "برچسب اختیاری برای اشکال‌زدایی. در صورت تنظیم، قوانین منطبق در سطح Info ثبت می‌شوند.",
+      "webhook": {
+        "url": "آدرس URL",
+        "urlPlaceholder": "https://example.com/alert یا /var/run/webhook.sock",
+        "urlHint": "آدرس HTTP(S) یا مسیر Unix socket. از sock:/path برای ریشه و sock:/path:/endpoint برای نقطه پایانی خاص استفاده کنید.",
+        "deduplication": "حذف تکرار (ثانیه)",
+        "deduplicationHint": "بازه زمانی برای نادیده‌گرفتن رویدادهای تکراری. برای غیرفعال‌سازی خالی بگذارید.",
+        "headers": "هدرها",
+        "headersEmpty": "هدری وجود ندارد. برای افزودن روی + کلیک کنید."
+      }
     },
     "balancer": {
       "add": "افزودن متعادل‌کننده",
@@ -2227,6 +2427,7 @@
       "searchPlaceholder": "جستجو بر اساس برچسب، خروجی‌های انتخابگر، استراتژی…",
       "bulkDeleteTitle": "حذف متعادل‌کننده‌های انتخاب‌شده",
       "emptyBalancers": "متعادل‌کننده‌ای نیست",
+      "tag": "برچسب",
       "strategy": "استراتژی",
       "dialogTitleAdd": "افزودن متعادل‌کننده",
       "dialogTitleEdit": "ویرایش متعادل‌کننده",
@@ -2237,7 +2438,43 @@
       "discardDraftDescription": "این متعادل‌کننده هنوز در فهرست نیست. بستن بدون افزودن، تغییرات را دور می‌اندازد.",
       "discardDraftAction": "صرف‌نظر",
       "finishCurrentTitle": "ابتدا متعادل‌کننده فعلی را تمام کنید",
-      "finishCurrentDescription": "آن را به فهرست اضافه کنید، یا دیالوگ را ببندید و پیش‌نویس را دور بیندازید، قبل از شروع متعادل‌کننده دیگر."
+      "finishCurrentDescription": "آن را به فهرست اضافه کنید، یا دیالوگ را ببندید و پیش‌نویس را دور بیندازید، قبل از شروع متعادل‌کننده دیگر.",
+      "observationRequiredWithBalancers": "تا وقتی این پروفایل متعادل‌کننده دارد، حداقل یک منبع مشاهده باید فعال بماند.",
+      "observatoryRequiresLeastPing": "مشاهده‌گر به حداقل یک متعادل‌کننده با استراتژی leastPing نیاز دارد. تا آن زمان از مشاهده‌گر Burst استفاده کنید.",
+      "observationActiveSummary": "منابع پایش متعادل‌کننده پیکربندی شده‌اند.",
+      "observationInactiveSummary": "هیچ منبع پایشی پیکربندی نشده است.",
+      "observatoryShort": "مشاهده‌گر",
+      "burstShort": "جهشی",
+      "observationSources": "منابع مشاهده",
+      "selectorEmpty": "برچسب‌های خروجی را اضافه کنید تا در این متعادل‌کننده شرکت کنند.",
+      "selectorPlaceholder": "برچسب‌های خروجی را انتخاب کنید…",
+      "clearSelectors": "پاک کردن همه",
+      "addOutboundTag": "افزودن برچسب",
+      "fallbackPlaceholder": "خروجی پشتیبان را انتخاب کنید…",
+      "strategyPlaceholder": "استراتژی",
+      "strategyNone": "پیش‌فرض (هیچ‌کدام)",
+      "strategyFromConfig": "از پیکربندی",
+      "observatory": "مشاهده‌گر",
+      "observatoryHint": "پایش‌های HTTP پس‌زمینه با بازه ثابت.",
+      "burstObservatory": "مشاهده‌گر جهشی",
+      "burstObservatoryHint": "پایش‌های تصادفی که از طریق pingConfig پیکربندی می‌شوند.",
+      "subjectSelector": "انتخابگر موضوع",
+      "subjectSelectorPlaceholder": "پیشوندهای برچسب خروجی را انتخاب کنید...",
+      "noObservationSources": "هنگام استفاده از leastPing یا leastLoad، یا وقتی random/roundRobin باید خروجی‌های در دسترس نبودنی را فیلتر کند، یک منبع مشاهده را اینجا فعال کنید.",
+      "observation": {
+        "enabled": "فعال",
+        "disabled": "غیرفعال",
+        "configure": "پیکربندی",
+        "probeURL": "آدرس پایش",
+        "probeInterval": "بازه پایش",
+        "enableConcurrency": "فعال‌سازی هم‌زمانی",
+        "destination": "مقصد",
+        "connectivity": "اتصال‌پذیری",
+        "interval": "بازه",
+        "timeout": "مهلت زمانی",
+        "sampling": "نمونه‌برداری",
+        "httpMethod": "روش HTTP"
+      }
     },
     "dns": {
       "edit": "ویرایش DNS",
@@ -2387,6 +2624,8 @@
   "userDialog": {
     "revokeSubscription": "بازنشانی اشتراک",
     "usage": "مصرف",
+    "hwidLimit": "محدودیت شناسه سخت‌افزار",
+    "hwidLimitPlaceholder": "پیش‌فرض، ۰ = نامحدود",
     "deleteSuccess": "کاربر «{{name}}» با موفقیت حذف شد.",
     "resetUsageSuccess": "مصرف کاربر «{{name}}» بازنشانی شد.",
     "revokeSubSuccess": "اشتراک کاربر «{{name}}» بازنشانی شد.",

@@ -322,6 +322,45 @@
       "resetToDefault": "重置为默认",
       "resetToDefaultSuccess": "订阅规则已重置为默认"
     },
+    "hwid": {
+      "title": "硬件 ID",
+      "description": "配置硬件 ID 注册和设备限制",
+      "loadError": "加载 HWID 设置失败",
+      "saveSuccess": "HWID 设置已保存",
+      "saveFailed": "保存 HWID 设置失败",
+      "cancelSuccess": "已取消更改并恢复原始 HWID 设置",
+      "policy": {
+        "title": "设备注册策略",
+        "description": "按已注册的硬件 ID 控制订阅访问。"
+      },
+      "enabled": {
+        "title": "启用 HWID 检查",
+        "description": "在订阅请求中注册并校验设备 ID。"
+      },
+      "forced": {
+        "title": "要求 HWID 请求头",
+        "description": "拒绝未发送 X-HWID 的订阅请求。"
+      },
+      "limits": {
+        "title": "设备限制",
+        "description": "设置默认设备数量，以及用户 HWID 限制的可选边界。"
+      },
+      "fallbackLimit": {
+        "title": "默认限制",
+        "description": "当用户没有明确的 HWID 限制时使用。"
+      },
+      "minLimit": {
+        "title": "最小限制",
+        "description": "应用到每个用户限制的下限。使用 0 可禁用。"
+      },
+      "maxLimit": {
+        "title": "最大限制",
+        "description": "应用到每个用户限制的上限。使用 0 可禁用。"
+      },
+      "validation": {
+        "minMax": "最小限制不能大于最大限制"
+      }
+    },
     "telegram": {
       "title": "Telegram",
       "description": "配置 Telegram 机器人集成和系统相关设置",
@@ -724,6 +763,8 @@
     "prefix": "用户名前缀",
     "suffix": "用户名后缀",
     "dataLimit": "数据限制",
+    "hwidLimit": "HWID 限制",
+    "hwidLimitPlaceholder": "默认，0 = 无限制",
     "expire": "过期时间",
     "onHoldTimeout": "挂起超时",
     "method": "方法",
@@ -1290,6 +1331,25 @@
   "revokeUserSub.prompt": "您确定要撤销用户 «{{username}}» 的订阅吗？",
   "revokeUserSub.success": "成功撤销用户 {{username}} 的订阅。",
   "revokeUserSub.title": "撤销用户订阅",
+  "hwids": {
+    "title": "硬件 ID",
+    "description": "管理此用户已注册的硬件 ID。",
+    "copy": "复制硬件 ID",
+    "copied": "硬件 ID 已复制",
+    "createdAt": "创建时间",
+    "lastUsedAt": "最后使用时间",
+    "reset": "全部重置",
+    "loadFailed": "加载硬件 ID 失败",
+    "empty": "尚未注册硬件 ID",
+    "deleteTitle": "删除硬件 ID",
+    "deletePrompt": "此设备需要在下次订阅请求时重新注册。",
+    "deleteSuccess": "硬件 ID 已删除",
+    "deleteFailed": "删除硬件 ID 失败",
+    "resetTitle": "重置所有硬件 ID",
+    "resetPrompt": "将删除此用户的所有已注册设备。",
+    "resetSuccess": "所有硬件 ID 已重置",
+    "resetFailed": "重置硬件 ID 失败"
+  },
   "subscriptionClients": {
     "title": "订阅客户端",
     "viewAllClients": "查看客户端",
@@ -1338,6 +1398,8 @@
   "userDialog.absolute": "选择范围",
   "userDialog.custom": "自定义",
   "userDialog.dataLimit": "流量限制",
+  "userDialog.hwidLimit": "HWID 限制",
+  "userDialog.hwidLimitPlaceholder": "备用，0 = 无限制",
   "userDialog.days": "天",
   "userDialog.editUser": "修改",
   "userDialog.editUserTitle": "用户编辑",
@@ -1831,13 +1893,21 @@
     "keyPairGenerationFailed": "密钥对生成失败",
     "shortIdGenerationFailed": "短 ID 生成失败",
     "shadowsocksPasswordGenerated": "密码生成成功",
-    "shadowsocksPasswordGenerationFailed": "密码生成失败"
+    "shadowsocksPasswordGenerationFailed": "密码生成失败",
+    "discardChangesTitle": "放弃更改？",
+    "discardChangesDescription": "如果关闭此编辑器，未保存的内核配置更改将会丢失。"
   },
   "coreEditor": {
     "nameRequired": "名称为必填项",
     "fixValidation": "保存前请修复校验错误",
+    "validationErrors": "校验错误",
+    "validationWarnings": "警告",
     "importWarnings": "导入提示",
     "loadFailed": "无法加载此核心。",
+    "loading": {
+      "title": "正在加载核心编辑器",
+      "description": "正在准备编辑器布局。"
+    },
     "backToList": "返回核心列表",
     "invalidId": "核心 ID 无效。",
     "discardTitle": "放弃更改？",
@@ -1858,7 +1928,13 @@
       "selectCustomFromJson": "自定义（来自 JSON）",
       "selectValuePlaceholder": "选择值",
       "rangeMinPlaceholder": "最小",
-      "rangeMaxPlaceholder": "最大"
+      "rangeMaxPlaceholder": "最大",
+      "networkAny": "任意",
+      "protocolAny": "任意协议",
+      "jsonMapEmpty": "尚无字段。点击 + 添加一个。",
+      "jsonMapKeyPlaceholder": "键",
+      "jsonMapValuePlaceholder": "值",
+      "portListPlaceholder": "例如 53,443,1000-2000"
     },
     "section": {
       "label": "分区",
@@ -1885,7 +1961,18 @@
       "interfaceBlurb": "此核心的 WireGuard 接口与密钥设置。",
       "keysRegenerated": "已生成新密钥对",
       "keysFailed": "无法生成密钥",
-      "regenerateKeys": "重新生成密钥对"
+      "regenerateKeys": "重新生成密钥对",
+      "generatePreSharedKey": "生成预共享密钥",
+      "preSharedKeyGenerated": "已生成预共享密钥",
+      "preSharedKeyFailed": "无法生成预共享密钥",
+      "fields": {
+        "interfaceName": "接口名称",
+        "privateKey": "私钥",
+        "publicKey": "公钥",
+        "preSharedKey": "预共享密钥",
+        "listenPort": "监听端口",
+        "address": "地址"
+      }
     },
     "field": {
       "tag": "标签",
@@ -1898,6 +1985,25 @@
       "decryption": "解密",
       "flow": "流 (Flow)",
       "sendThrough": "发送经过",
+      "sendThroughLabel": "发送经过（本地 IP）",
+      "serverAddress": "地址",
+      "uuid": "UUID",
+      "encryption": "加密",
+      "alterId": "Alter ID",
+      "method": "加密方式",
+      "password": "密码",
+      "serverName": "服务器名称 (SNI)",
+      "fingerprint": "TLS 指纹",
+      "alpn": "ALPN 协议",
+      "allowInsecure": "允许不安全",
+      "allowInsecureHint": "跳过证书验证（不推荐）",
+      "publicKey": "服务器公钥",
+      "shortId": "Short ID",
+      "spiderX": "SpiderX 路径",
+      "network": "传输协议",
+      "path": "路径",
+      "host": "Host 头",
+      "serviceName": "服务名称",
       "streamSettingsJson": "流设置（JSON）",
       "curvePreferencesPlaceholder": "选择 TLS 曲线（ECDHE）",
       "curvePreferencesHint": "只能添加 Xray 文档中的曲线名称。来自 JSON 的不受支持值会显示在上方，可移除。",
@@ -1981,7 +2087,27 @@
       "xpaddingmethod": "X-Padding Method",
       "xpaddingobfsmode": "X-Padding Obfs Mode",
       "xpaddingplacement": "X-Padding Placement",
-      "xmux": "XMUX"
+      "xmux": "XMUX",
+      "ruletag": "规则标签",
+      "outboundtag": "出站标签",
+      "balancertag": "负载均衡标签",
+      "inboundtag": "入站标签",
+      "domain": "域名",
+      "domains": "域名列表",
+      "ip": "IP",
+      "port": "端口",
+      "network": "网络",
+      "sourceip": "源 IP",
+      "source": "源",
+      "sourceport": "源端口",
+      "user": "用户",
+      "vlessroute": "VLESS 路由",
+      "protocols": "协议",
+      "attributes": "属性",
+      "localip": "本地 IP",
+      "localport": "本地端口",
+      "process": "进程",
+      "webhook": "Webhook"
     },
     "col": {
       "tag": "标签",
@@ -2165,7 +2291,7 @@
       },
       "validation": {
         "protocolInvalid": "请选择有效协议。",
-        "portRange": "端口必须为 1 至 65535 之间的整数。",
+        "portRange": "端口必须是端口号或端口列表，例如 443, 1000-2000,444。",
         "destinationPortRange": "目标端口必须为 0 至 65535 之间的整数。",
         "realityServerNamesRequired": "REALITY 至少需要填写一个 server name。",
         "realityServerNamesFormat": "REALITY 的 server names 必须为非空字符串的列表。",
@@ -2174,6 +2300,8 @@
       "discardDraftTitle": "放弃新入站？",
       "discardDraftDescription": "此入站尚未加入列表。关闭而不添加将丢弃更改。",
       "discardDraftAction": "放弃",
+      "discardEditTitle": "放弃更改？",
+      "discardEditDescription": "如果现在关闭，对此入站的修改将会丢失。",
       "finishCurrentTitle": "请先完成当前入站",
       "finishCurrentDescription": "请先加入列表，或关闭对话框并丢弃草稿，再开始另一个入站。"
     },
@@ -2190,8 +2318,15 @@
       "discardDraftTitle": "放弃新出站？",
       "discardDraftDescription": "此出站尚未加入列表。关闭而不添加将丢弃更改。",
       "discardDraftAction": "放弃",
+      "discardEditTitle": "放弃更改？",
+      "discardEditDescription": "如果现在关闭，对此出站的修改将会丢失。",
       "finishCurrentTitle": "请先完成当前出站",
       "finishCurrentDescription": "请先加入列表，或关闭对话框并丢弃草稿，再开始另一个出站。",
+      "tabForm": "表单",
+      "tabJson": "高级",
+      "linkLabel": "从分享链接导入",
+      "linkPlaceholder": "vmess:// vless:// trojan:// ss:// hysteria2:// ...",
+      "linkImportApply": "应用分享链接",
       "freedom": {
         "blurb": "Freedom 按原样转发流量。以下为可选字段；少见结构请用 JSON 标签页编辑。",
         "domainStrategy": "域名策略",
@@ -2243,6 +2378,49 @@
         "domainPlaceholder": "geosite:cn\ndomain:example.com",
         "addRule": "添加规则",
         "removeRule": "删除规则"
+      },
+      "ech": {
+        "sectionTitle": "ECH（加密客户端问候）",
+        "sectionHint": "配置 ECH 客户端密钥和行为。",
+        "configList": "ECH 配置列表",
+        "forceQuery": "ECH 强制查询",
+        "forceQueryDefault": "默认"
+      },
+      "realityUnavailableTransport": "Reality（此传输不可用）",
+      "tlsSettings": "TLS 设置",
+      "realitySettings": "Reality 设置",
+      "keepAtLeastOne": "至少需要一个出站。",
+      "endpointSection": "远程服务器",
+      "streamSection": "流与安全",
+      "wsSettings": "WebSocket 设置",
+      "grpcSettings": "gRPC 设置",
+      "xhttpSettings": "XHTTP 设置",
+      "uriImportFailed": "无法解析该分享链接。",
+      "jsonInvalid": "离开 JSON 标签页前请修复错误。",
+      "muxSection": "多路复用 (Mux)",
+      "mux": {
+        "enabled": "启用 Mux",
+        "enabledHint": "将多个流复用到一个连接上",
+        "concurrency": "并发数",
+        "xudpConcurrency": "XUDP 并发数",
+        "xudpProxyUDP443": "UDP 端口 443 处理"
+      },
+      "proxySection": "链式代理",
+      "proxy": {
+        "tag": "通过出站标签路由",
+        "transportLayer": "传输层代理",
+        "transportLayerHint": "同时代理传输层流"
+      },
+      "validation": {
+        "tagRequired": "请为此出站输入标签。",
+        "addressRequired": "服务器地址为必填项。",
+        "portInvalid": "请输入有效端口（1–65535）。",
+        "uuidRequired": "UUID 为必填项。",
+        "passwordRequired": "密码为必填项。",
+        "methodRequired": "加密方式为必填项。",
+        "wireguardSecretRequired": "WireGuard 私钥为必填项。",
+        "inboundTagRequired": "Loopback 需要入站标签。",
+        "requiredFieldsTitle": "缺少必填字段"
       }
     },
     "routing": {
@@ -2264,7 +2442,29 @@
       "discardDraftDescription": "此规则尚未加入列表。关闭而不添加将丢弃更改。",
       "discardDraftAction": "放弃",
       "finishCurrentTitle": "请先完成当前规则",
-      "finishCurrentDescription": "请先加入列表，或关闭对话框并丢弃草稿，再开始另一条规则。"
+      "finishCurrentDescription": "请先加入列表，或关闭对话框并丢弃草稿，再开始另一条规则。",
+      "validation": {
+        "requiresOutboundOrBalancer": "请设置出站标签或负载均衡器标签，让规则知道流量应发送到哪里。",
+        "unknownOutboundTag": "此配置中未定义出站标签“{{tag}}”。",
+        "unknownBalancerTag": "routing.balancers 中未定义负载均衡器标签“{{tag}}”。",
+        "portRange": "端口必须是端口号或端口列表，例如 443, 1000-2000,444。"
+      },
+      "sectionRoutingAction": "路由动作",
+      "routingActionHint": "为匹配的流量选择一个目标。当两者都设置时，outboundTag 优先于 balancerTag。",
+      "sectionMatchConditions": "匹配条件",
+      "matchConditionsHint": "必须满足所有指定条件，此规则才会生效。",
+      "sectionAdvanced": "高级",
+      "sectionIdentification": "标识",
+      "identificationHint": "用于调试的可选标签。设置后，匹配的规则将在 Info 级别记录日志。",
+      "webhook": {
+        "url": "URL",
+        "urlPlaceholder": "https://example.com/alert 或 /var/run/webhook.sock",
+        "urlHint": "HTTP(S) URL 或 Unix socket 路径。使用 sock:/path 表示根路径，sock:/path:/endpoint 指向特定端点。",
+        "deduplication": "去重时间（秒）",
+        "deduplicationHint": "忽略重复事件的时间窗口。留空以禁用。",
+        "headers": "请求头",
+        "headersEmpty": "暂无请求头。点击 + 添加一个。"
+      }
     },
     "balancer": {
       "add": "添加负载均衡",
@@ -2274,6 +2474,7 @@
       "searchPlaceholder": "按标签、出站选择器、策略搜索…",
       "bulkDeleteTitle": "删除所选负载均衡",
       "emptyBalancers": "暂无负载均衡",
+      "tag": "标签",
       "strategy": "策略",
       "dialogTitleAdd": "添加负载均衡",
       "dialogTitleEdit": "编辑负载均衡",
@@ -2284,7 +2485,43 @@
       "discardDraftDescription": "此负载均衡尚未加入列表。关闭而不添加将丢弃更改。",
       "discardDraftAction": "放弃",
       "finishCurrentTitle": "请先完成当前负载均衡",
-      "finishCurrentDescription": "请先加入列表，或关闭对话框并丢弃草稿，再开始另一个负载均衡。"
+      "finishCurrentDescription": "请先加入列表，或关闭对话框并丢弃草稿，再开始另一个负载均衡。",
+      "observationRequiredWithBalancers": "当此配置文件包含负载均衡时，至少必须保持一个观测源启用。",
+      "observatoryRequiresLeastPing": "观测器至少需要一个使用 leastPing 策略的负载均衡。在此之前请使用突发观测器。",
+      "observationActiveSummary": "已配置负载均衡探测源。",
+      "observationInactiveSummary": "未配置探测源。",
+      "observatoryShort": "观测器",
+      "burstShort": "突发",
+      "observationSources": "观测源",
+      "selectorEmpty": "添加出站标签以参与此负载均衡。",
+      "selectorPlaceholder": "选择出站标签…",
+      "clearSelectors": "全部清除",
+      "addOutboundTag": "添加标签",
+      "fallbackPlaceholder": "选择回退出站…",
+      "strategyPlaceholder": "策略",
+      "strategyNone": "默认（无）",
+      "strategyFromConfig": "来自配置",
+      "observatory": "观测器",
+      "observatoryHint": "固定间隔的后台 HTTP 探测。",
+      "burstObservatory": "突发观测器",
+      "burstObservatoryHint": "通过 pingConfig 配置的随机探测。",
+      "subjectSelector": "目标选择器",
+      "subjectSelectorPlaceholder": "选择出站标签前缀...",
+      "noObservationSources": "使用 leastPing 或 leastLoad 时，或 random/roundRobin 需要过滤不可用出站时，请在此启用一个观测源。",
+      "observation": {
+        "enabled": "开启",
+        "disabled": "关闭",
+        "configure": "配置",
+        "probeURL": "探测 URL",
+        "probeInterval": "探测间隔",
+        "enableConcurrency": "启用并发",
+        "destination": "目标",
+        "connectivity": "连通性",
+        "interval": "间隔",
+        "timeout": "超时",
+        "sampling": "采样",
+        "httpMethod": "HTTP 方法"
+      }
     },
     "dns": {
       "edit": "编辑 DNS",
@@ -2401,6 +2638,8 @@
   "userDialog": {
     "revokeSubscription": "吊销订阅",
     "usage": "用量",
+    "hwidLimit": "HWID 限制",
+    "hwidLimitPlaceholder": "备用，0 = 无限制",
     "deleteSuccess": "用户「{{name}}」已成功删除。",
     "resetUsageSuccess": "用户「{{name}}」的用量已重置。",
     "revokeSubSuccess": "用户「{{name}}」的订阅已撤销。",
