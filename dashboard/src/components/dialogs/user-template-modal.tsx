@@ -20,6 +20,7 @@ import {
   useCreateUserTemplate,
   useModifyUserTemplate,
   UserStatusCreate,
+  XTLSFlows,
 } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client.ts'
@@ -188,10 +189,11 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         data_limit_reset_strategy: hasDataLimit ? values.data_limit_reset_strategy : undefined,
         reset_usages: values.reset_usages,
         extra_settings:
-          values.method
+          values.method || values.flow
             ? {
-              method: values.method,
-            }
+                method: values.method,
+                flow: values.flow,
+              }
             : undefined,
       }
 
@@ -234,6 +236,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         'on_hold_timeout',
         'data_limit_reset_strategy',
         'method',
+        'flow',
         'reset_usages',
       ]
       handleError({ error, fields, form, contextKey: 'groups' })
@@ -498,6 +501,28 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name="flow"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('templates.flow')}</FormLabel>
+                      <Select onValueChange={value => field.onChange(value === 'null' ? undefined : value)} value={field.value ?? 'null'}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('userDialog.proxySettings.flow', { defaultValue: 'Flow' })} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="null">{t('userDialog.proxySettings.flow.none', { defaultValue: 'None' })}</SelectItem>
+                          <SelectItem value={XTLSFlows['xtls-rprx-vision']}>xtls-rprx-vision</SelectItem>
+                          <SelectItem value={XTLSFlows['xtls-rprx-vision-udp443']}>xtls-rprx-vision-udp443</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField control={form.control} name="groups" render={({ field }) => <GroupsSelector control={form.control} name="groups" onGroupsChange={field.onChange} />} />
               </div>
             </div>

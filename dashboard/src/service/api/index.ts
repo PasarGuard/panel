@@ -673,6 +673,7 @@ export interface WebSocketSettings {
 
 export interface VlessSettings {
   id?: string
+  flow?: XTLSFlows
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown }
@@ -2050,6 +2051,7 @@ export const GeoFilseRegion = {
 } as const
 
 export interface General {
+  default_flow?: XTLSFlows
   default_method?: ShadowsocksMethods
 }
 
@@ -2082,7 +2084,10 @@ export interface Forbidden {
 
 export type ExtraSettingsMethod = ShadowsocksMethods | null
 
+export type ExtraSettingsFlow = XTLSFlows | null
+
 export interface ExtraSettings {
+  flow?: ExtraSettingsFlow
   method?: ExtraSettingsMethod
 }
 
@@ -2405,6 +2410,8 @@ export interface BulkUsersSelection {
 
 export type BulkUsersProxyMethod = ShadowsocksMethods | null
 
+export type BulkUsersProxyFlow = XTLSFlows | null
+
 export type BulkUsersProxyExpireBefore = string | null
 
 export type BulkUsersProxyExpireAfter = string | null
@@ -2414,12 +2421,20 @@ export interface BulkUsersProxy {
   group_ids?: number[]
   admins?: number[]
   users?: number[]
+  status?: UserStatus[]
+  expire_after?: BulkUsersProxyExpireAfter
+  expire_before?: BulkUsersProxyExpireBefore
+  flow?: BulkUsersProxyFlow
   method?: BulkUsersProxyMethod
 }
 
 /**
  * Starting suffix for sequence strategy (defaults to 1; base username digits are ignored)
  */
+export type BulkUsersFromTemplateStartNumber = number | null
+
+export type BulkUsersFromTemplateUsername = string | null
+
 export type BulkUsersFromTemplateNote = string | null
 
 export interface BulkUsersFromTemplate {
@@ -2427,6 +2442,7 @@ export interface BulkUsersFromTemplate {
   note?: BulkUsersFromTemplateNote
   username?: BulkUsersFromTemplateUsername
   /**
+   * @maximum 500
    */
   count: number
   strategy?: UsernameGenerationStrategy
