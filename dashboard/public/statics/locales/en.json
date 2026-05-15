@@ -140,11 +140,6 @@
       "saveSuccess": "General settings saved successfully",
       "saveFailed": "Failed to save general settings",
       "cancelSuccess": "Changes cancelled and original settings restored",
-      "defaultFlow": {
-        "title": "Default VLESS Flow",
-        "description": "Autofill the flow field for new VLESS users",
-        "none": "None"
-      },
       "defaultMethod": {
         "title": "Default Shadowsocks Method",
         "description": "Autofill the encryption method for new Shadowsocks users"
@@ -1423,8 +1418,6 @@
     "proxySettings.id": "ID",
     "proxySettings.password": "Password",
     "proxySettings.method": "Method",
-    "proxySettings.flow": "Flow",
-    "proxySettings.flowDeprecated": "Deprecated. This will be removed in future versions. Use inbound.settings.flow",
     "proxySettings.hysteria": "Hysteria",
     "proxySettings.hysteriaAuth": "Hysteria Auth",
     "proxySettings.wireguardPrivateKey": "WireGuard Private key",

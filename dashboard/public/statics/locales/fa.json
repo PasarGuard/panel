@@ -417,11 +417,6 @@
       "saveSuccess": "تنظیمات عمومی با موفقیت ذخیره شد",
       "saveFailed": "ذخیره تنظیمات عمومی ناموفق بود",
       "cancelSuccess": "تغییرات لغو شد و تنظیمات اصلی بازیابی شد",
-      "defaultFlow": {
-        "title": "جریان VLESS پیش‌فرض",
-        "description": "پر کردن خودکار فیلد جریان برای کاربران جدید VLESS",
-        "none": "بدون"
-      },
       "defaultMethod": {
         "title": "روش پیش‌فرض Shadowsocks",
         "description": "پر کردن خودکار روش رمزنگاری برای کاربران جدید Shadowsocks"
@@ -1260,8 +1255,6 @@
   "userDialog.proxySettings.id": "شناسه (ID)",
   "userDialog.proxySettings.password": "رمز عبور",
   "userDialog.proxySettings.method": "روش رمزنگاری",
-  "userDialog.proxySettings.flow": "جریان (Flow)",
-  "userDialog.proxySettings.flowDeprecated": "این مورد منسوخ شده است و در نسخه‌های بعدی حذف می‌شود. به‌جای آن از inbound.settings.flow استفاده کنید",
   "userDialog.proxySettings.hysteria": "Hysteria",
   "userDialog.proxySettings.hysteriaAuth": "احراز هویت Hysteria",
   "userDialog.proxySettings.wireguardPrivateKey": "کلید خصوصی وایرگارد",

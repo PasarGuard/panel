@@ -561,11 +561,6 @@
       "saveSuccess": "常规设置保存成功",
       "saveFailed": "常规设置保存失败",
       "cancelSuccess": "更改已取消，原始设置已恢复",
-      "defaultFlow": {
-        "title": "默认 VLESS 流",
-        "description": "为新 VLESS 用户自动填写流字段",
-        "none": "无"
-      },
       "defaultMethod": {
         "title": "默认 Shadowsocks 加密方式",
         "description": "为新 Shadowsocks 用户自动填写加密方式"
@@ -1394,8 +1389,6 @@
   "userDialog.proxySettings.id": "ID",
   "userDialog.proxySettings.password": "密码",
   "userDialog.proxySettings.method": "加密方式",
-  "userDialog.proxySettings.flow": "流 (Flow)",
-  "userDialog.proxySettings.flowDeprecated": "此项已弃用，将在后续版本中移除。请改用 inbound.settings.flow",
   "userDialog.proxySettings.hysteria": "Hysteria",
   "userDialog.proxySettings.hysteriaAuth": "Hysteria 认证",
   "userDialog.proxySettings.wireguardPrivateKey": "WireGuard 私钥",

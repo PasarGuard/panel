@@ -549,11 +549,6 @@
       "saveSuccess": "Общие настройки успешно сохранены",
       "saveFailed": "Не удалось сохранить общие настройки",
       "cancelSuccess": "Изменения отменены и исходные настройки восстановлены",
-      "defaultFlow": {
-        "title": "Поток VLESS по умолчанию",
-        "description": "Автоматически заполнять поле потока для новых пользователей VLESS",
-        "none": "Нет"
-      },
       "defaultMethod": {
         "title": "Метод Shadowsocks по умолчанию",
         "description": "Автоматически заполнять метод шифрования для новых пользователей Shadowsocks"
@@ -2358,8 +2353,6 @@
     "proxySettings.id": "ID",
     "proxySettings.password": "Пароль",
     "proxySettings.method": "Метод",
-    "proxySettings.flow": "Поток (Flow)",
-    "proxySettings.flowDeprecated": "Устарело. Будет удалено в следующих версиях. Используйте вместо этого inbound.settings.flow",
     "proxySettings.hysteria": "Hysteria",
     "proxySettings.hysteriaAuth": "Аутентификация Hysteria",
     "proxySettings.wireguardPrivateKey": "Приватный ключ WireGuard",
