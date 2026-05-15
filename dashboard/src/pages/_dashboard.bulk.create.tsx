@@ -438,6 +438,18 @@ export default function BulkCreateUsersPage() {
                       <span className="font-medium" dir="ltr">{formatBytes(selectedTemplate.data_limit)}</span>
                     </div>
                   )}
+                  {selectedTemplate.hwid_limit !== undefined && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('templates.hwidLimit', { defaultValue: 'HWID Limit' })}:</span>
+                      <span className="font-medium" dir="ltr">
+                        {selectedTemplate.hwid_limit === null
+                          ? t('default', { defaultValue: 'Default' })
+                          : selectedTemplate.hwid_limit === 0
+                            ? t('unlimited', { defaultValue: 'Unlimited' })
+                            : selectedTemplate.hwid_limit}
+                      </span>
+                    </div>
+                  )}
                   {selectedTemplate.expire_duration !== null && selectedTemplate.expire_duration !== undefined && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('expire')}:</span>

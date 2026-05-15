@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/features/users/forms/user-form'
 import { useActiveNextPlanById, useGetCurrentAdmin, useRemoveUserById, useResetUserDataUsageById, useRevokeUserSubscriptionById, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Cat, Check, Copy, Cpu, EllipsisVertical, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
+import { Cat, Check, Copy, Cpu, EllipsisVertical, Fingerprint, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
 import { Code } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -19,6 +19,7 @@ import SubscriptionModal from '@/features/subscriptions/dialogs/subscription-mod
 import SetOwnerModal from '@/features/users/dialogs/set-owner-modal'
 import UsageModal from '@/features/users/dialogs/usage-modal'
 import UserModal from '@/features/users/dialogs/user-modal'
+import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
 import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
 import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -50,6 +51,7 @@ type ActionButtonsModalState = {
   isSetOwnerModalOpen: boolean
   isActiveNextPlanModalOpen: boolean
   isSubscriptionClientsModalOpen: boolean
+  isHwidsModalOpen: boolean
   isUserAllIPsModalOpen: boolean
 }
 
@@ -72,6 +74,7 @@ const createDefaultModalState = (user: UserResponse): ActionButtonsModalState =>
   isSetOwnerModalOpen: false,
   isActiveNextPlanModalOpen: false,
   isSubscriptionClientsModalOpen: false,
+  isHwidsModalOpen: false,
   isUserAllIPsModalOpen: false,
 })
 
@@ -96,6 +99,7 @@ const hasOpenModal = (state: ActionButtonsModalState) =>
   state.isSetOwnerModalOpen ||
   state.isActiveNextPlanModalOpen ||
   state.isSubscriptionClientsModalOpen ||
+  state.isHwidsModalOpen ||
   state.isUserAllIPsModalOpen
 
 const notifyGlobalListeners = () => {
@@ -193,6 +197,7 @@ const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
   username: user.username,
   status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as UseEditFormValues['status']) : 'active',
   data_limit: user.data_limit ? bytesToFormGigabytes(Number(user.data_limit)) : 0,
+  hwid_limit: user.hwid_limit ?? undefined,
   expire: normalizeDatePickerValueForEditForm(user.expire),
   note: user.note || '',
   data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
@@ -247,6 +252,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     isSetOwnerModalOpen,
     isActiveNextPlanModalOpen,
     isSubscriptionClientsModalOpen,
+    isHwidsModalOpen,
     isUserAllIPsModalOpen,
   } = modalState
 
@@ -259,6 +265,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const setSetOwnerModalOpen = useCallback((value: boolean) => setModalState({ isSetOwnerModalOpen: value }), [setModalState])
   const setIsActiveNextPlanModalOpen = useCallback((value: boolean) => setModalState({ isActiveNextPlanModalOpen: value }), [setModalState])
   const setSubscriptionClientsModalOpen = useCallback((value: boolean) => setModalState({ isSubscriptionClientsModalOpen: value }), [setModalState])
+  const setHwidsModalOpen = useCallback((value: boolean) => setModalState({ isHwidsModalOpen: value }), [setModalState])
   const setUserAllIPsModalOpen = useCallback((value: boolean) => setModalState({ isUserAllIPsModalOpen: value }), [setModalState])
 
   useEffect(() => {
@@ -750,6 +757,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
               </DropdownMenuItem>
 
+              <DropdownMenuItem onSelect={() => setHwidsModalOpen(true)}>
+                <Fingerprint className="mr-2 h-4 w-4" />
+                <span>{t('hwids.title', { defaultValue: 'Hardware IDs' })}</span>
+              </DropdownMenuItem>
+
               {/* View All IPs: only for sudo admins */}
               {currentAdmin?.is_sudo && (
                 <DropdownMenuItem onSelect={() => setUserAllIPsModalOpen(true)}>
@@ -869,6 +881,13 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
           <UserSubscriptionClientsModal
             isOpen={isSubscriptionClientsModalOpen}
             onOpenChange={setSubscriptionClientsModalOpen}
+            userId={user.id}
+            username={user.username}
+          />
+
+          <UserHwidsModal
+            isOpen={isHwidsModalOpen}
+            onOpenChange={setHwidsModalOpen}
             userId={user.id}
             username={user.username}
           />

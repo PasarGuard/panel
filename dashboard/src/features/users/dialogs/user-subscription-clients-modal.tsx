@@ -6,7 +6,7 @@ import { CopyButton } from '@/components/common/copy-button'
 import { useGetUserSubUpdateListById, UserSubscriptionUpdateSchema } from '@/service/api'
 import { parseUserAgent, formatClientInfo } from '@/utils/userAgentParser'
 import { dateUtils } from '@/utils/dateFormatter'
-import { Monitor, Smartphone, Globe, HelpCircle, Users, ChevronLeft, ChevronRight, Tv, Network } from 'lucide-react'
+import { Monitor, Smartphone, Globe, HelpCircle, Users, ChevronLeft, ChevronRight, Tv, Network, Fingerprint } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
@@ -327,6 +327,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
     const version = detectVersion(update.user_agent)
     const os = detectOS(update.user_agent, clientInfo)
     const ipAddress = update.ip?.trim()
+    const hwid = update.hwid?.trim()
 
     return (
       <div key={index} className="rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50" dir={dir}>
@@ -376,6 +377,35 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
                   defaultMessage="subscriptionClients.copyIp"
                   showToast
                   toastSuccessMessage="subscriptionClients.ipCopied"
+                />
+              </div>
+            </div>
+          )}
+
+          {hwid && (
+            <div className="bg-muted/50 mt-3 rounded-md px-2.5 py-2">
+              <div className={`flex min-w-0 items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                <Fingerprint className="text-muted-foreground h-3.5 w-3.5 flex-shrink-0" />
+                <span className="text-muted-foreground flex-shrink-0 text-xs font-medium">{t('settings.hwid.title')}</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-foreground min-w-0 flex-1 truncate font-mono text-xs" dir="ltr">
+                      {hwid}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p className="font-mono text-xs break-all" dir="ltr">
+                      {hwid}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+                <CopyButton
+                  value={hwid}
+                  className="text-muted-foreground hover:text-foreground h-6 w-6 flex-shrink-0"
+                  copiedMessage="hwids.copied"
+                  defaultMessage="hwids.copy"
+                  showToast
+                  toastSuccessMessage="hwids.copied"
                 />
               </div>
             </div>

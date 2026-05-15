@@ -61,6 +61,21 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus }: UseUserT
         hideOnMobile: true,
       },
       {
+        id: 'hwidLimit',
+        header: t('templates.hwidLimit', { defaultValue: 'HWID' }),
+        width: '1fr',
+        cell: template => (
+          <span dir="ltr" className="text-xs text-muted-foreground">
+            {template.hwid_limit === null || template.hwid_limit === undefined
+              ? t('default', { defaultValue: 'Default' })
+              : template.hwid_limit === 0
+                ? <Infinity className="inline h-4 w-4" />
+                : template.hwid_limit}
+          </span>
+        ),
+        hideOnMobile: true,
+      },
+      {
         id: 'actions',
         header: '',
         width: '64px',

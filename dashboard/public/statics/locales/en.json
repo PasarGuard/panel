@@ -345,6 +345,45 @@
       "resetToDefault": "Reset to Default",
       "resetToDefaultSuccess": "Subscription rules reset to default"
     },
+    "hwid": {
+      "title": "HWID",
+      "description": "Configure hardware ID registration and device limits",
+      "loadError": "Failed to load HWID settings",
+      "saveSuccess": "HWID settings saved successfully",
+      "saveFailed": "Failed to save HWID settings",
+      "cancelSuccess": "Changes cancelled and original HWID settings restored",
+      "policy": {
+        "title": "Device registration policy",
+        "description": "Control subscription access by registered hardware IDs."
+      },
+      "enabled": {
+        "title": "Enable HWID checks",
+        "description": "Register and enforce device IDs on subscription requests."
+      },
+      "forced": {
+        "title": "Require HWID header",
+        "description": "Reject subscription requests that do not send X-HWID."
+      },
+      "limits": {
+        "title": "Device limits",
+        "description": "Set the default device count and optional bounds for user HWID limits."
+      },
+      "fallbackLimit": {
+        "title": "Fallback limit",
+        "description": "Used when a user does not have an explicit HWID limit."
+      },
+      "minLimit": {
+        "title": "Minimum limit",
+        "description": "Lower bound applied to per-user limits. Use 0 to disable."
+      },
+      "maxLimit": {
+        "title": "Maximum limit",
+        "description": "Upper bound applied to per-user limits. Use 0 to disable."
+      },
+      "validation": {
+        "minMax": "Minimum limit cannot be greater than maximum limit"
+      }
+    },
     "telegram": {
       "title": "Telegram",
       "description": "Configure Telegram bot integration and related settings for your system",
@@ -729,6 +768,8 @@
     "prefix": "Username Prefix",
     "suffix": "Username Suffix",
     "dataLimit": "Data Limit",
+    "hwidLimit": "HWID Limit",
+    "hwidLimitPlaceholder": "Default, 0 = unlimited",
     "expire": "Expire duration",
     "onHoldTimeout": "OnHold Timeout",
     "method": "Method",
@@ -1313,6 +1354,25 @@
   "revokeUserSub.prompt": "Are you sure you want to revoke «{{username}}»'s subscription?",
   "revokeUserSub.success": "{{username}}'s subscription has revoked successfully.",
   "revokeUserSub.title": "Revoke User Subscription",
+  "hwids": {
+    "title": "Hardware IDs",
+    "description": "Manage this user's registered hardware IDs.",
+    "copy": "Copy hardware ID",
+    "copied": "Hardware ID copied",
+    "createdAt": "Created at",
+    "lastUsedAt": "Last used at",
+    "reset": "Reset all",
+    "loadFailed": "Failed to load hardware IDs",
+    "empty": "No hardware IDs have been registered yet",
+    "deleteTitle": "Remove hardware ID",
+    "deletePrompt": "This device will need to register again on its next subscription request.",
+    "deleteSuccess": "Hardware ID removed",
+    "deleteFailed": "Failed to remove hardware ID",
+    "resetTitle": "Reset all hardware IDs",
+    "resetPrompt": "All registered devices for this user will be removed.",
+    "resetSuccess": "All hardware IDs reset",
+    "resetFailed": "Failed to reset hardware IDs"
+  },
   "subscriptionClients": {
     "title": "Subscription Clients",
     "viewAllClients": "View Clients",
@@ -1362,6 +1422,8 @@
     "absolute": "Absolute",
     "custom": "Custom",
     "dataLimit": "Data Limit",
+    "hwidLimit": "HWID Limit",
+    "hwidLimitPlaceholder": "Fallback, 0 = unlimited",
     "days": "Days",
     "editUser": "Modify user",
     "editUserTitle": "Modify user",

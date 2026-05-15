@@ -322,6 +322,45 @@
       "resetToDefault": "重置为默认",
       "resetToDefaultSuccess": "订阅规则已重置为默认"
     },
+    "hwid": {
+      "title": "硬件 ID",
+      "description": "配置硬件 ID 注册和设备限制",
+      "loadError": "加载 HWID 设置失败",
+      "saveSuccess": "HWID 设置已保存",
+      "saveFailed": "保存 HWID 设置失败",
+      "cancelSuccess": "已取消更改并恢复原始 HWID 设置",
+      "policy": {
+        "title": "设备注册策略",
+        "description": "按已注册的硬件 ID 控制订阅访问。"
+      },
+      "enabled": {
+        "title": "启用 HWID 检查",
+        "description": "在订阅请求中注册并校验设备 ID。"
+      },
+      "forced": {
+        "title": "要求 HWID 请求头",
+        "description": "拒绝未发送 X-HWID 的订阅请求。"
+      },
+      "limits": {
+        "title": "设备限制",
+        "description": "设置默认设备数量，以及用户 HWID 限制的可选边界。"
+      },
+      "fallbackLimit": {
+        "title": "默认限制",
+        "description": "当用户没有明确的 HWID 限制时使用。"
+      },
+      "minLimit": {
+        "title": "最小限制",
+        "description": "应用到每个用户限制的下限。使用 0 可禁用。"
+      },
+      "maxLimit": {
+        "title": "最大限制",
+        "description": "应用到每个用户限制的上限。使用 0 可禁用。"
+      },
+      "validation": {
+        "minMax": "最小限制不能大于最大限制"
+      }
+    },
     "telegram": {
       "title": "Telegram",
       "description": "配置 Telegram 机器人集成和系统相关设置",
@@ -729,6 +768,8 @@
     "prefix": "用户名前缀",
     "suffix": "用户名后缀",
     "dataLimit": "数据限制",
+    "hwidLimit": "HWID 限制",
+    "hwidLimitPlaceholder": "默认，0 = 无限制",
     "expire": "过期时间",
     "onHoldTimeout": "挂起超时",
     "method": "方法",
@@ -1295,6 +1336,25 @@
   "revokeUserSub.prompt": "您确定要撤销用户 «{{username}}» 的订阅吗？",
   "revokeUserSub.success": "成功撤销用户 {{username}} 的订阅。",
   "revokeUserSub.title": "撤销用户订阅",
+  "hwids": {
+    "title": "硬件 ID",
+    "description": "管理此用户已注册的硬件 ID。",
+    "copy": "复制硬件 ID",
+    "copied": "硬件 ID 已复制",
+    "createdAt": "创建时间",
+    "lastUsedAt": "最后使用时间",
+    "reset": "全部重置",
+    "loadFailed": "加载硬件 ID 失败",
+    "empty": "尚未注册硬件 ID",
+    "deleteTitle": "删除硬件 ID",
+    "deletePrompt": "此设备需要在下次订阅请求时重新注册。",
+    "deleteSuccess": "硬件 ID 已删除",
+    "deleteFailed": "删除硬件 ID 失败",
+    "resetTitle": "重置所有硬件 ID",
+    "resetPrompt": "将删除此用户的所有已注册设备。",
+    "resetSuccess": "所有硬件 ID 已重置",
+    "resetFailed": "重置硬件 ID 失败"
+  },
   "subscriptionClients": {
     "title": "订阅客户端",
     "viewAllClients": "查看客户端",
@@ -1343,6 +1403,8 @@
   "userDialog.absolute": "选择范围",
   "userDialog.custom": "自定义",
   "userDialog.dataLimit": "流量限制",
+  "userDialog.hwidLimit": "HWID 限制",
+  "userDialog.hwidLimitPlaceholder": "备用，0 = 无限制",
   "userDialog.days": "天",
   "userDialog.editUser": "修改",
   "userDialog.editUserTitle": "用户编辑",
@@ -2408,6 +2470,8 @@
   "userDialog": {
     "revokeSubscription": "吊销订阅",
     "usage": "用量",
+    "hwidLimit": "HWID 限制",
+    "hwidLimitPlaceholder": "备用，0 = 无限制",
     "deleteSuccess": "用户「{{name}}」已成功删除。",
     "resetUsageSuccess": "用户「{{name}}」的用量已重置。",
     "revokeSubSuccess": "用户「{{name}}」的订阅已撤销。",

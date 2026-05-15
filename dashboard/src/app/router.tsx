@@ -29,6 +29,7 @@ const Settings = lazyWithChunkRecovery(() => import('../pages/_dashboard.setting
 const CleanupSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.cleanup'))
 const DiscordSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.discord'))
 const GeneralSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.general'))
+const HwidSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.hwid'))
 const NotificationSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.notifications'))
 const SubscriptionSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.subscriptions'))
 const TelegramSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.telegram'))
@@ -245,6 +246,14 @@ export const router = createHashRouter([
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <SubscriptionSettings />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/settings/hwid',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <HwidSettings />
               </Suspense>
             ),
           },

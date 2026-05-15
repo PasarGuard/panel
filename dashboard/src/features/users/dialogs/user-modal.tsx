@@ -4,6 +4,7 @@ import GroupsSelector from '@/components/common/groups-selector'
 import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import UsageModal from '@/features/users/dialogs/usage-modal'
 import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
+import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
 import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
 import { type UseEditFormValues, type UseFormValues, userCreateObjectSchema, userCreateSchema, userEditObjectSchema, userEditSchema } from '@/features/users/forms/user-form'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
@@ -43,7 +44,7 @@ import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Group, Users, Pencil, UserRoundPlus } from 'lucide-react'
+import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Fingerprint, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Group, Users, Pencil, UserRoundPlus } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -322,6 +323,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const [isRevokeSubDialogOpen, setRevokeSubDialogOpen] = useState(false)
   const [isUserAllIPsModalOpen, setUserAllIPsModalOpen] = useState(false)
   const [isUsageModalOpen, setUsageModalOpen] = useState(false)
+  const [isHwidsModalOpen, setHwidsModalOpen] = useState(false)
   const [isSubscriptionClientsModalOpen, setSubscriptionClientsModalOpen] = useState(false)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
   const [onHoldExpireUnit, setOnHoldExpireUnit] = useState<TimeUnit>('days')
@@ -955,6 +957,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         const preparedValues = {
           ...valuesWithoutNextPlan,
           data_limit: typeof values.data_limit === 'string' ? parseFloat(values.data_limit) : values.data_limit,
+          hwid_limit: typeof values.hwid_limit === 'string' ? parseFloat(values.hwid_limit) : values.hwid_limit,
           on_hold_expire_duration:
             status === 'on_hold' && values.on_hold_expire_duration
               ? typeof values.on_hold_expire_duration === 'string'
@@ -980,6 +983,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         const sendValues: any = {
           ...preparedValues,
           data_limit: gbToBytes(normalizedDataLimitGb as any),
+          hwid_limit: preparedValues.hwid_limit == null ? null : Number.isFinite(Number(preparedValues.hwid_limit)) ? Math.round(Number(preparedValues.hwid_limit)) : null,
           data_limit_reset_strategy: hasDataLimit ? preparedValues.data_limit_reset_strategy : 'no_reset',
           expire: preparedValues.expire,
           ...(hasProxySettings ? { proxy_settings: cleanedProxySettings } : {}),
@@ -1059,7 +1063,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         setActiveTab('groups')
         setSelectedTemplateId(null)
       } catch (error: any) {
-        const fields = ['username', 'data_limit', 'expire', 'note', 'data_limit_reset_strategy', 'on_hold_expire_duration', 'on_hold_timeout', 'group_ids']
+        const fields = ['username', 'data_limit', 'hwid_limit', 'expire', 'note', 'data_limit_reset_strategy', 'on_hold_expire_duration', 'on_hold_timeout', 'group_ids']
         handleError({ error, fields, form, contextKey: 'users' })
       } finally {
         setLoading(false)
@@ -1515,132 +1519,165 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                   </div>
                   {/* Data limit and expire fields - show data_limit only when no template is selected */}
                   {activeTab === 'groups' && (
-                    <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
-                      {!selectedTemplateId && (
-                        <>
-                          <FormField
-                            control={form.control}
-                            name="data_limit"
-                            render={({ field }) => (
-                              <FormItem className="relative h-full flex-1">
-                                <FormLabel>{t('userDialog.dataLimit', { defaultValue: 'Data Limit (GB)' })}</FormLabel>
-                                <FormControl>
-                                  <DecimalInput
-                                    placeholder={t('userDialog.dataLimit', { defaultValue: 'e.g. 1' })}
-                                    value={field.value}
-                                    emptyValue={0}
-                                    zeroValue={0}
-                                    onValueChange={value => {
-                                      const nextValue = value ?? 0
-                                      field.onChange(nextValue)
-                                      handleFieldChange('data_limit', nextValue)
-                                    }}
-                                  />
-                                </FormControl>
-                                {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
-                                  <p dir="ltr" className="text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs">
-                                    {formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}
-                                  </p>
-                                )}
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          {form.watch('data_limit') !== undefined && form.watch('data_limit') !== null && Number(form.watch('data_limit')) > 0 && (
-                            <FormField
-                              control={form.control}
-                              name="data_limit_reset_strategy"
-                              render={({ field }) => (
-                                <FormItem className="flex-1">
-                                  <FormLabel>{t('userDialog.periodicUsageReset', { defaultValue: 'Periodic Usage Reset' })}</FormLabel>
-                                  <Select
-                                    onValueChange={value => {
-                                      field.onChange(value)
-                                      handleFieldChange('data_limit_reset_strategy', value)
-                                    }}
-                                    value={field.value || ''}
-                                  >
+                    <div className="flex w-full flex-col gap-4">
+                      {(() => {
+                        const dataLimitValue = form.watch('data_limit')
+                        const showResetStrategy =
+                          !selectedTemplateId && dataLimitValue !== undefined && dataLimitValue !== null && Number(dataLimitValue) > 0
+                        return (
+                          <div className={cn('flex w-full flex-col gap-4 lg:flex-row lg:items-start')}>
+                            {!selectedTemplateId && (
+                              <FormField
+                                control={form.control}
+                                name="data_limit"
+                                render={({ field }) => (
+                                  <FormItem className={cn('relative h-full min-w-0', showResetStrategy ? 'flex-1' : 'flex-1')}>
+                                    <FormLabel>{t('userDialog.dataLimit', { defaultValue: 'Data Limit (GB)' })}</FormLabel>
                                     <FormControl>
-                                      <SelectTrigger>
-                                        <SelectValue placeholder={t('userDialog.resetStrategyNo', { defaultValue: 'No' })} />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                      <SelectItem value="no_reset">{t('userDialog.resetStrategyNo', { defaultValue: 'No' })}</SelectItem>
-                                      <SelectItem value="day">{t('userDialog.resetStrategyDaily', { defaultValue: 'Daily' })}</SelectItem>
-                                      <SelectItem value="week">{t('userDialog.resetStrategyWeekly', { defaultValue: 'Weekly' })}</SelectItem>
-                                      <SelectItem value="month">{t('userDialog.resetStrategyMonthly', { defaultValue: 'Monthly' })}</SelectItem>
-                                      <SelectItem value="year">{t('userDialog.resetStrategyAnnually', { defaultValue: 'Annually' })}</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          )}
-                        </>
-                      )}
-                      <div className="flex h-full w-full items-start gap-4 lg:w-52">
-                        {status === 'on_hold' ? (
-                          <FormField
-                            control={form.control}
-                            name="on_hold_expire_duration"
-                            render={({ field }) => {
-                              const unitSeconds = TIME_UNIT_SECONDS[onHoldExpireUnit]
-
-                              return (
-                                <FormItem className="min-w-0 flex-1">
-                                  <FormLabel className="text-left">{t('templates.expire')}</FormLabel>
-                                  <FormControl>
-                                    <div className="relative" dir="ltr">
                                       <DecimalInput
-                                        placeholder={t('templates.expire')}
+                                        placeholder={t('userDialog.dataLimit', { defaultValue: 'e.g. 1' })}
                                         value={field.value}
                                         emptyValue={0}
                                         zeroValue={0}
-                                        toDisplayValue={value => value / unitSeconds}
-                                        toValue={displayValue => displayValue * unitSeconds}
                                         onValueChange={value => {
                                           const nextValue = value ?? 0
                                           field.onChange(nextValue)
-                                          handleFieldChange('on_hold_expire_duration', nextValue)
-                                          void form.trigger('on_hold_expire_duration')
+                                          handleFieldChange('data_limit', nextValue)
                                         }}
-                                        className={cn(dir === 'rtl' ? 'pl-20' : 'pr-20')}
                                       />
-                                      <TimeUnitSelect
-                                        value={onHoldExpireUnit}
-                                        onValueChange={setOnHoldExpireUnit}
-                                        triggerClassName={cn(
-                                          'absolute top-0 h-full w-20 rounded-none border-y-0 focus:ring-0 focus:ring-offset-0',
-                                          dir === 'rtl' ? 'left-0 border-l-0' : 'right-0 border-r-0',
-                                        )}
-                                      />
-                                    </div>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )
-                            }}
-                          />
-                        ) : (
-                          <FormField
-                            control={form.control}
-                            name="expire"
-                            render={({ field }) => (
-                              <ExpiryDateField
-                                field={field}
-                                displayDate={displayDate}
-                                calendarOpen={expireCalendarOpen}
-                                setCalendarOpen={setExpireCalendarOpen}
-                                handleFieldChange={handleFieldChange}
-                                label={t('userDialog.expiryDate', { defaultValue: 'Expire date' })}
-                                fieldName="expire"
+                                    </FormControl>
+                                    {field.value !== null && field.value !== undefined && field.value > 0 && field.value < 1 && (
+                                      <p dir="ltr" className="text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs">
+                                        {formatBytes(Math.round(field.value * 1024 * 1024 * 1024))}
+                                      </p>
+                                    )}
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
                               />
                             )}
-                          />
-                        )}
-                      </div>
+                            {showResetStrategy && (
+                              <FormField
+                                control={form.control}
+                                name="data_limit_reset_strategy"
+                                render={({ field }) => (
+                                  <FormItem className="min-w-0">
+                                    <FormLabel className="leading-tight">{t('userDialog.periodicUsageReset', { defaultValue: 'Periodic Usage Reset' })}</FormLabel>
+                                    <Select
+                                      onValueChange={value => {
+                                        field.onChange(value)
+                                        handleFieldChange('data_limit_reset_strategy', value)
+                                      }}
+                                      value={field.value || ''}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder={t('userDialog.resetStrategyNo', { defaultValue: 'No' })} />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="no_reset">{t('userDialog.resetStrategyNo', { defaultValue: 'No' })}</SelectItem>
+                                        <SelectItem value="day">{t('userDialog.resetStrategyDaily', { defaultValue: 'Daily' })}</SelectItem>
+                                        <SelectItem value="week">{t('userDialog.resetStrategyWeekly', { defaultValue: 'Weekly' })}</SelectItem>
+                                        <SelectItem value="month">{t('userDialog.resetStrategyMonthly', { defaultValue: 'Monthly' })}</SelectItem>
+                                        <SelectItem value="year">{t('userDialog.resetStrategyAnnually', { defaultValue: 'Annually' })}</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                            <div className={cn('flex h-full min-w-0 items-start gap-4', showResetStrategy ? 'flex-1' : 'w-full lg:w-3/8')}>
+                              {status === 'on_hold' ? (
+                                <FormField
+                                  control={form.control}
+                                  name="on_hold_expire_duration"
+                                  render={({ field }) => {
+                                    const unitSeconds = TIME_UNIT_SECONDS[onHoldExpireUnit]
+
+                                    return (
+                                      <FormItem className="min-w-0 flex-1">
+                                        <FormLabel className="text-left">{t('templates.expire')}</FormLabel>
+                                        <FormControl>
+                                          <div className="relative" dir="ltr">
+                                            <DecimalInput
+                                              placeholder={t('templates.expire')}
+                                              value={field.value}
+                                              emptyValue={0}
+                                              zeroValue={0}
+                                              toDisplayValue={value => value / unitSeconds}
+                                              toValue={displayValue => displayValue * unitSeconds}
+                                              onValueChange={value => {
+                                                const nextValue = value ?? 0
+                                                field.onChange(nextValue)
+                                                handleFieldChange('on_hold_expire_duration', nextValue)
+                                                void form.trigger('on_hold_expire_duration')
+                                              }}
+                                              className={cn(dir === 'rtl' ? 'pl-20' : 'pr-20')}
+                                            />
+                                            <TimeUnitSelect
+                                              value={onHoldExpireUnit}
+                                              onValueChange={setOnHoldExpireUnit}
+                                              triggerClassName={cn(
+                                                'absolute top-0 h-full w-20 rounded-none border-y-0 focus:ring-0 focus:ring-offset-0',
+                                                dir === 'rtl' ? 'left-0 border-l-0' : 'right-0 border-r-0',
+                                              )}
+                                            />
+                                          </div>
+                                        </FormControl>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )
+                                  }}
+                                />
+                              ) : (
+                                <FormField
+                                  control={form.control}
+                                  name="expire"
+                                  render={({ field }) => (
+                                    <ExpiryDateField
+                                      field={field}
+                                      displayDate={displayDate}
+                                      calendarOpen={expireCalendarOpen}
+                                      setCalendarOpen={setExpireCalendarOpen}
+                                      handleFieldChange={handleFieldChange}
+                                      label={t('userDialog.expiryDate', { defaultValue: 'Expire date' })}
+                                      fieldName="expire"
+                                    />
+                                  )}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                      {!selectedTemplateId && (
+                        <FormField
+                          control={form.control}
+                          name="hwid_limit"
+                          render={({ field }) => (
+                            <FormItem className="relative w-full min-w-0">
+                              <FormLabel>{t('userDialog.hwidLimit', { defaultValue: 'HWID Limit' })}</FormLabel>
+                              <FormControl>
+                                <DecimalInput
+                                  placeholder={t('userDialog.hwidLimitPlaceholder', { defaultValue: 'Empty for default, 0 for unlimited' })}
+                                  value={field.value}
+                                  emptyValue={undefined}
+                                  zeroValue={0}
+                                  keepZeroOnBlur
+                                  normalizeDisplayValueOnBlur={Math.floor}
+                                  onValueChange={value => {
+                                    field.onChange(value)
+                                    handleFieldChange('hwid_limit', value)
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </div>
                   )}
                   {activeTab === 'groups' && status === 'on_hold' && (
@@ -2218,7 +2255,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                   )}
                   {renderUserMetaPanel('hidden lg:block')}
                 </div>
-                <div className="h-full w-full flex-1 space-y-6">
+                <div className="h-full w-full min-w-0 flex-1 space-y-6 lg:max-w-[300px] xl:max-w-[340px]">
                   <div className="w-full">
                     <div className="flex items-center border-b">
                       {tabs.map(tab => (
@@ -2348,6 +2385,15 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                     >
                       <Users className="mr-2 h-4 w-4" />
                       <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setActionsMenuOpen(false)
+                        setHwidsModalOpen(true)
+                      }}
+                    >
+                      <Fingerprint className="mr-2 h-4 w-4" />
+                      <span>{t('hwids.title', { defaultValue: 'Hardware IDs' })}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onSelect={() => {
@@ -2482,6 +2528,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
 
       {isSudo && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
       {currentUserId && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={currentUserId} />}
+      {currentUserId && <UserHwidsModal isOpen={isHwidsModalOpen} onOpenChange={setHwidsModalOpen} userId={currentUserId} username={currentUsername} />}
       {currentUserId && <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} userId={currentUserId} username={currentUsername} />}
     </Dialog>
   )

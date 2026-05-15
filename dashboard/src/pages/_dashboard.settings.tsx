@@ -3,7 +3,7 @@ import { useAdmin } from '@/hooks/use-admin'
 import { cn } from '@/lib/utils'
 import { useGetSettings, useModifySettings } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, Database, ListTodo, LucideIcon, MessageCircle, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
+import { Bell, Database, Fingerprint, ListTodo, LucideIcon, MessageCircle, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
 import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
@@ -40,6 +40,7 @@ const sudoTabs: Tab[] = [
   { id: 'general', label: 'settings.general.title', icon: SettingsIcon, url: '/settings/general' },
   { id: 'notifications', label: 'settings.notifications.title', icon: Bell, url: '/settings/notifications' },
   { id: 'subscriptions', label: 'settings.subscriptions.title', icon: ListTodo, url: '/settings/subscriptions' },
+  { id: 'hwid', label: 'settings.hwid.title', icon: Fingerprint, url: '/settings/hwid' },
   { id: 'telegram', label: 'settings.telegram.title', icon: Send, url: '/settings/telegram' },
   { id: 'discord', label: 'settings.discord.title', icon: MessageCircle, url: '/settings/discord' },
   { id: 'webhook', label: 'settings.webhook.title', icon: Webhook, url: '/settings/webhook' },
@@ -169,6 +170,9 @@ export default function Settings() {
             // If data is already wrapped, use it as is
             filteredData = data
           }
+          break
+        case 'hwid':
+          filteredData = data.hwid ? { data: { hwid: data.hwid } } : data
           break
         case 'telegram':
           // Add telegram specific filtering if needed

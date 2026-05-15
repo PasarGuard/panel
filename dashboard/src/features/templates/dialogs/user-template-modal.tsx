@@ -176,10 +176,12 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       const status = values.status ?? UserStatusCreate.active
       const normalizedDataLimitGb = Number(values.data_limit ?? 0)
       const hasDataLimit = Number.isFinite(normalizedDataLimitGb) && normalizedDataLimitGb > 0
+      const normalizedHwidLimit = values.hwid_limit == null ? null : Number(values.hwid_limit)
       // Build payload according to UserTemplateCreate interface
       const submitData = {
         name: values.name,
         data_limit: hasDataLimit ? gbToBytes(normalizedDataLimitGb as any) : 0,
+        hwid_limit: normalizedHwidLimit == null ? null : Number.isFinite(normalizedHwidLimit) ? Math.floor(normalizedHwidLimit) : null,
         expire_duration: values.expire_duration,
         username_prefix: values.username_prefix || '',
         username_suffix: values.username_suffix || '',
@@ -191,9 +193,9 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         extra_settings:
           values.method || values.flow
             ? {
-                method: values.method,
-                flow: values.flow,
-              }
+              method: values.method,
+              flow: values.flow,
+            }
             : undefined,
       }
 
@@ -228,6 +230,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       const fields = [
         'name',
         'data_limit',
+        'hwid_limit',
         'expire_duration',
         'username_prefix',
         'username_suffix',
@@ -400,6 +403,29 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name="hwid_limit"
+                  render={({ field }) => (
+                    <FormItem className="relative flex-1">
+                      <FormLabel>{t('templates.hwidLimit', { defaultValue: 'HWID Limit' })}</FormLabel>
+                      <FormControl>
+                        <DecimalInput
+                          placeholder={t('templates.hwidLimitPlaceholder', { defaultValue: 'Empty for default, 0 for unlimited' })}
+                          value={field.value}
+                          emptyValue={undefined}
+                          zeroValue={0}
+                          keepZeroOnBlur
+                          normalizeDisplayValueOnBlur={Math.floor}
+                          onValueChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormField
                   control={form.control}
                   name="on_hold_timeout"

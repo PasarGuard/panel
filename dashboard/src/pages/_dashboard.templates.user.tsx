@@ -69,6 +69,7 @@ export default function UserTemplates() {
       name: userTemplate.name || undefined,
       status: userTemplate.status || undefined,
       data_limit: bytesToFormGigabytes(userTemplate.data_limit),
+      hwid_limit: userTemplate.hwid_limit ?? undefined,
       expire_duration: userTemplate.expire_duration || undefined,
       method: userTemplate.extra_settings?.method || undefined,
       flow: userTemplate.extra_settings?.flow || undefined,
@@ -90,6 +91,7 @@ export default function UserTemplates() {
         data: {
           name: template.name,
           data_limit: template.data_limit,
+          hwid_limit: template.hwid_limit,
           expire_duration: template.expire_duration,
           username_prefix: template.username_prefix,
           username_suffix: template.username_suffix,
