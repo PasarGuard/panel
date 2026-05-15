@@ -42,8 +42,10 @@ def test_hwid_workflow(access_token):
 
         # 4. Fetch subscription with different HWID (Up to limit)
         # fallback_limit is 3 in conftest.py
-        client.get(sub_url, headers={"X-HWID": "device-2"})
-        client.get(sub_url, headers={"X-HWID": "device-3"})
+        response = client.get(sub_url, headers={"X-HWID": "device-2"})
+        assert response.status_code == status.HTTP_200_OK
+        response = client.get(sub_url, headers={"X-HWID": "device-3"})
+        assert response.status_code == status.HTTP_200_OK
 
         response = client.get(f"/api/user/{user_id}/hwids", headers=auth_headers(access_token))
         assert response.json()["count"] == 3

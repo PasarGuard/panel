@@ -94,9 +94,12 @@ def make_header_dependency(
             default = field_info.default
 
         # Ensure everything is explicitly a Header parameter
-        if not isinstance(default, (HeaderParam, ParameterOverride)) and default is not Parameter.empty:
+        if not isinstance(default, (HeaderParam, ParameterOverride)):
             alias = field_info.alias if field_info.alias else field_name.replace("_", "-").title()
-            default = Header(default, alias=alias)
+            if default is Parameter.empty:
+                default = Header(..., alias=alias)
+            else:
+                default = Header(default, alias=alias)
 
         parameters.append(
             Parameter(
