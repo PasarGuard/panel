@@ -11,7 +11,6 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
-from app.templates import render_template_string
 from app.utils.helpers import UUIDEncoder
 
 from . import BaseSubscription
@@ -29,7 +28,7 @@ class XrayConfiguration(BaseSubscription):
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
         self.config = []
-        self.template = render_template_string(xray_template_content)
+        self.template = json.loads(xray_template_content) if xray_template_content else {}
 
         # Registry for transport handlers
         self.transport_handlers = {
@@ -57,8 +56,7 @@ class XrayConfiguration(BaseSubscription):
         }
 
     def add_config(self, remarks, outbounds, template_content: str | None = None):
-        rendered_template = render_template_string(template_content) if template_content is not None else self.template
-        json_template = json.loads(rendered_template)
+        json_template = json.loads(template_content) if template_content is not None else self.template.copy()
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
         self.config.append(json_template)

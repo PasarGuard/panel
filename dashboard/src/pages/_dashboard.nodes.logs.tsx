@@ -11,10 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { TerminalLine } from '@/components/nodes/terminal-line'
-import { LineCountFilter } from '@/components/nodes/line-count-filter'
-import { SinceLogsFilter, type TimeFilter } from '@/components/nodes/since-logs-filter'
-import { StatusLogsFilter } from '@/components/nodes/status-logs-filter'
+import { TerminalLine } from '@/features/nodes/components/terminal-line'
+import { LineCountFilter } from '@/features/nodes/components/line-count-filter'
+import { SinceLogsFilter, type TimeFilter } from '@/features/nodes/components/since-logs-filter'
+import { StatusLogsFilter } from '@/features/nodes/components/status-logs-filter'
 
 /** Max raw SSE chunks kept in memory; display "lines" is sliced client-side (no reconnect). */
 const RAW_LOG_BUFFER_MAX = 10000
@@ -285,7 +285,7 @@ export default function NodeLogs() {
   }
 
   return (
-    <div className={cn('flex w-full flex-col gap-4 py-4', dir === 'rtl' && 'rtl')}>
+    <div className={cn('flex w-full flex-col gap-4 p-4', dir === 'rtl' && 'rtl')}>
       <div className="flex flex-col gap-4">
         <div className="w-full sm:w-auto">
           <Label htmlFor="node-select" className="mb-1 block text-sm">

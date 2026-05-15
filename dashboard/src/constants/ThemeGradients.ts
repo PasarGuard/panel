@@ -1,4 +1,4 @@
-import type { ColorTheme } from '@/components/common/theme-provider'
+import type { ColorTheme } from '@/app/providers/theme-provider'
 
 export type GradientVariant = 'ad' | 'banner'
 

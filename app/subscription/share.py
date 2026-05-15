@@ -336,7 +336,7 @@ async def process_inbounds_and_tags(
     client_templates: dict[str, str],
     xray_template_overrides: dict[int, str] | None = None,
     randomize_order: bool = False,
-) -> list | str | bytes:
+) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)

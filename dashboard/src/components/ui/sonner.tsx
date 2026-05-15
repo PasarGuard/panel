@@ -1,4 +1,4 @@
-import { useTheme } from '@/components/common/theme-provider'
+import { useTheme } from '@/app/providers/theme-provider'
 import { Toaster as Sonner } from 'sonner'
 import useDirDetection from '@/hooks/use-dir-detection'
 import type { CSSProperties } from 'react'
@@ -14,7 +14,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={resolvedTheme as ToasterProps['theme']}
       className="toaster group font-body"
       dir={dir}
-      position="top-center"
       style={{
         '--normal-bg': 'hsl(var(--background))',
         '--normal-border': 'hsl(var(--border))',
@@ -39,6 +38,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         },
       }}
       {...props}
+      position="top-center"
     />
   )
 }

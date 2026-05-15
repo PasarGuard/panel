@@ -8,7 +8,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, type, error, isError, ...props }, ref) => {
   return (
-    <div className="flex-1">
+    <div className="min-w-0 flex-1">
       <input
         type={type}
         dir="ltr"

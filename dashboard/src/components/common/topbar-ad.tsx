@@ -1,4 +1,4 @@
-import { useTheme } from '@/components/common/theme-provider'
+import { useTheme } from '@/app/providers/theme-provider'
 import { Button } from '@/components/ui/button'
 import { getGradientByColorTheme } from '@/constants/ThemeGradients'
 import useDirDetection from '@/hooks/use-dir-detection'

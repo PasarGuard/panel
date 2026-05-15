@@ -1,6 +1,6 @@
 import { Footer } from '@/components/layout/footer'
 import { Language } from '@/components/common/language'
-import { useTheme } from '@/components/common/theme-provider'
+import { useTheme } from '@/app/providers/theme-provider'
 import { ThemeToggle } from '@/components/common/theme-toggle'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
@@ -192,7 +192,7 @@ export const Login: FC = () => {
               <form onSubmit={handleSubmit(handleLogin)} autoComplete="on">
                 <div className="mt-4 flex flex-col gap-y-2">
                   <Input className="py-5" placeholder={t('username')} autoComplete="username" {...register('username')} error={t(errors?.username?.message as string)} />
-                  <PasswordInput className="py-5" placeholder={t('password')} autoComplete="current-password" {...register('password')} error={t(errors?.password?.message as string)} />
+                  <PasswordInput className="py-5" placeholder={t('password')} allowBrowserSave {...register('password')} error={t(errors?.password?.message as string)} />
                   {((error && error.data) || (miniAppError && miniAppError.data)) && (
                     <Alert className="mt-2" variant="destructive">
                       <CircleAlertIcon size="18px" />

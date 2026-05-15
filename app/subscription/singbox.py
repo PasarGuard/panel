@@ -9,7 +9,6 @@ from app.models.subscription import (
     TLSConfig,
     WebSocketTransportConfig,
 )
-from app.templates import render_template_string
 from app.utils.helpers import UUIDEncoder
 
 from . import BaseSubscription
@@ -26,7 +25,7 @@ class SingBoxConfiguration(BaseSubscription):
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
-        self.config = json.loads(render_template_string(singbox_template_content))
+        self.config = json.loads(singbox_template_content) if singbox_template_content else {}
         self.config.setdefault("endpoints", [])
         self.config.setdefault("outbounds", [])
 
@@ -59,6 +58,10 @@ class SingBoxConfiguration(BaseSubscription):
         self.config["endpoints"].append(endpoint_data)
 
     def render(self):
+        self._finalize_config()
+        return json.dumps(self.config, indent=4, cls=UUIDEncoder)
+
+    def _finalize_config(self):
         urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh"]
         urltest_tags = [outbound["tag"] for outbound in self.config["outbounds"] if outbound["type"] in urltest_types]
         selector_types = [
@@ -84,8 +87,6 @@ class SingBoxConfiguration(BaseSubscription):
         for outbound in self.config["outbounds"]:
             if outbound.get("type") == "selector":
                 outbound["outbounds"] = selector_tags
-
-        return json.dumps(self.config, indent=4, cls=UUIDEncoder)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         """Add outbound using registry pattern"""

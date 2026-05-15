@@ -17,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CopyButton } from '@/components/common/copy-button'
-import QRCodeModal from '@/components/dialogs/qrcode-modal'
+import QRCodeModal from '@/features/bulk/dialogs/qrcode-modal'
 import { useClipboard } from '@/hooks/use-clipboard'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { 

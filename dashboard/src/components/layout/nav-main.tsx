@@ -17,6 +17,8 @@ export function NavMain({
       title: string
       url: string
       icon: LucideIcon
+      /** When true, highlight for paths under `url` (e.g. /nodes/cores/123). */
+      matchPrefix?: boolean
     }[]
   }[]
 }) {
@@ -55,16 +57,23 @@ export function NavMain({
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SidebarMenuSub>
-                      {item.items?.map(subItem => (
+                      {item.items?.map(subItem => {
+                        const base = subItem.url.replace(/\/$/, '')
+                        const subActive =
+                          location.pathname === subItem.url ||
+                          (subItem.matchPrefix &&
+                            (location.pathname === base || location.pathname.startsWith(`${base}/`)))
+                        return (
                         <SidebarMenuSubItem key={subItem.title}>
-                          <SidebarMenuSubButton asChild className="flex items-center gap-2 h-8" isActive={location.pathname === subItem.url}>
-                            <NavLink to={subItem.url} end onClick={handleNavigation}>
+                          <SidebarMenuSubButton asChild className="flex items-center gap-2 h-8" isActive={subActive}>
+                            <NavLink to={subItem.url} end={!subItem.matchPrefix} onClick={handleNavigation}>
                               <subItem.icon />
                               <span>{t(subItem.title)}</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                      ))}
+                        )
+                      })}
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </>

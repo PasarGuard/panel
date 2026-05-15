@@ -1,9 +1,9 @@
-import UserTemplate from '../components/templates/user-template'
+import UserTemplate from '@/features/templates/components/user-template'
 import { useBulkDeleteUserTemplates, useBulkDisableUserTemplates, useBulkEnableUserTemplates, useGetUserTemplates, useModifyUserTemplate, UserTemplateResponse } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
-import UserTemplateModal from '@/components/dialogs/user-template-modal'
-import { createUserTemplateFormResolver, userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/components/forms/user-template-form'
+import UserTemplateModal from '@/features/templates/dialogs/user-template-modal'
+import { createUserTemplateFormResolver, userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/features/templates/forms/user-template-form'
 import { useState, useMemo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { queryClient } from '@/utils/query-client.ts'
@@ -16,11 +16,12 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
-import { useUserTemplatesListColumns } from '@/components/templates/use-user-templates-list-columns'
+import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
+import { useUserTemplatesListColumns } from '@/features/templates/components/use-user-templates-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { bytesToFormGigabytes } from '@/utils/formatByte'
-import { BulkActionItem, BulkActionsBar } from '@/components/users/bulk-actions-bar'
-import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
+import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 
 type BulkUserTemplateActionType = 'delete' | 'disable' | 'enable'
 
@@ -320,43 +321,55 @@ export default function UserTemplates() {
         </div>
         <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
 
-        {(isCurrentlyLoading || (filteredTemplates && filteredTemplates.length > 0)) && (
-          <ListGenerator
-            data={filteredTemplates || []}
-            columns={listColumns}
-            getRowId={template => template.id}
-            isLoading={isCurrentlyLoading}
-            loadingRows={6}
-            className={viewMode === 'grid' ? 'gap-4' : 'gap-3'}
-            onRowClick={handleEdit}
-            mode={viewMode}
-            enableSelection
-            enableGridSelection
-            selectedRowIds={selectedTemplateIds}
-            onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
-            showEmptyState={false}
-            gridClassName="transform-gpu animate-slide-up"
-            gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-            renderGridItem={template => <UserTemplate onEdit={handleEdit} template={template} onToggleStatus={handleToggleStatus} />}
-            renderGridSkeleton={i => (
-              <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
-                <div className="flex items-start justify-between gap-2 sm:gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-x-2">
-                      <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
-                      <Skeleton className="h-5 w-24 sm:w-32" />
+        {(isCurrentlyLoading || (filteredTemplates && filteredTemplates.length > 0)) &&
+          (viewMode === 'grid' ? (
+            <ListGeneratorGrid
+              data={filteredTemplates || []}
+              getRowId={template => template.id}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-4"
+              gridClassName="transform-gpu animate-slide-up"
+              gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+              enableSelection
+              injectSelectionProps
+              selectedRowIds={selectedTemplateIds}
+              onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
+              showEmptyState={false}
+              renderItem={template => <UserTemplate onEdit={handleEdit} template={template} onToggleStatus={handleToggleStatus} />}
+              renderSkeleton={i => (
+                <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
+                  <div className="flex items-start justify-between gap-2 sm:gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-x-2">
+                        <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                        <Skeleton className="h-5 w-24 sm:w-32" />
+                      </div>
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-32 sm:w-40 md:w-48" />
+                        <Skeleton className="h-4 w-28 sm:w-36 md:w-40" />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-32 sm:w-40 md:w-48" />
-                      <Skeleton className="h-4 w-28 sm:w-36 md:w-40" />
-                    </div>
+                    <Skeleton className="h-8 w-8 shrink-0" />
                   </div>
-                  <Skeleton className="h-8 w-8 shrink-0" />
-                </div>
-              </Card>
-            )}
-          />
-        )}
+                </Card>
+              )}
+            />
+          ) : (
+            <ListGenerator
+              data={filteredTemplates || []}
+              columns={listColumns}
+              getRowId={template => template.id}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-3"
+              onRowClick={handleEdit}
+              enableSelection
+              selectedRowIds={selectedTemplateIds}
+              onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
+              showEmptyState={false}
+            />
+          ))}
         {isEmpty && !isCurrentlyLoading && (
           <Card className="mb-12">
             <CardContent className="p-8 text-center">

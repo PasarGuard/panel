@@ -17,6 +17,7 @@ from aiogram.exceptions import TelegramBadRequest
 
 from app.db.models import UserStatus
 from app.models.settings import ConfigFormat
+from app.models.group import GroupListQuery
 from app.models.user import (
     CreateUserFromTemplate,
     ModifyUserByTemplate,
@@ -149,7 +150,7 @@ async def process_expire(event: Message, state: FSMContext, db: AsyncSession):
     else:
         await state.update_data(status=UserStatus.active.value)
         await state.set_state(forms.CreateUser.group_ids)
-        groups = await group_operations.get_all_groups(db)
+        groups = await group_operations.get_all_groups(db, GroupListQuery())
         return await event.answer(Texts.select_groups, reply_markup=GroupsSelector(groups).as_markup())
 
 
@@ -168,7 +169,7 @@ async def process_status(
         await add_to_messages_to_delete(state, msg)
     else:
         await state.set_state(forms.CreateUser.group_ids)
-        groups = await group_operations.get_all_groups(db)
+        groups = await group_operations.get_all_groups(db, GroupListQuery())
         await event.message.answer(Texts.select_groups, reply_markup=GroupsSelector(groups).as_markup())
 
 
@@ -187,7 +188,7 @@ async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSe
         return
 
     await state.update_data(on_hold_timeout=timeout)
-    groups = await group_operations.get_all_groups(db)
+    groups = await group_operations.get_all_groups(db, GroupListQuery())
 
     await add_to_messages_to_delete(state, event)
     await delete_messages(event, state)
@@ -209,7 +210,7 @@ async def select_groups(
         group_ids = [callback_data.group_id]
 
     await state.update_data(group_ids=group_ids)
-    all_groups = await group_operations.get_all_groups(db)
+    all_groups = await group_operations.get_all_groups(db, GroupListQuery())
 
     await event.message.edit_reply_markup(
         reply_markup=GroupsSelector(
@@ -259,7 +260,7 @@ async def modify_groups(
         return await event.answer(Texts.user_not_found)
 
     groups = await user_operations.validate_all_groups(db, user)
-    all_groups = await group_operations.get_all_groups(db)
+    all_groups = await group_operations.get_all_groups(db, GroupListQuery())
     await state.clear()
     await state.update_data(user_id=user.id, group_ids=[group.id for group in groups])
     await event.message.edit_text(

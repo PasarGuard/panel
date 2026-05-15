@@ -30,8 +30,8 @@ export default function DashboardLayout() {
           <SidebarInset className="scroll-smooth">
             <TopbarAd />
             <VersionUpdateBanner />
-            <div className="flex min-h-screen w-full flex-col justify-between gap-y-4">
-              <PageTransition duration={250}>
+            <div className="flex min-h-0 w-full flex-1 flex-col justify-between gap-y-4">
+              <PageTransition duration={250} className="flex min-h-0 flex-1 flex-col">
                 <Outlet />
               </PageTransition>
               <Footer />
