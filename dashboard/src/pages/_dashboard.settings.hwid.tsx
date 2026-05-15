@@ -4,7 +4,6 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Fingerprint } from 'lucide-react'
 import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -113,8 +112,7 @@ export default function HwidSettings() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 p-4 sm:py-6 lg:py-8">
           <section className="space-y-4">
             <div className="space-y-1.5">
-              <h3 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
-                <Fingerprint className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
+              <h3 className="text-base font-semibold sm:text-lg">
                 {t('settings.hwid.policy.title', { defaultValue: 'Device registration policy' })}
               </h3>
               <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
