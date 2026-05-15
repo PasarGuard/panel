@@ -1,6 +1,6 @@
 import { Language } from '@/components/common/language'
 import Snowfall from '@/components/common/snowfall'
-import { useTheme } from '@/components/common/theme-provider'
+import { useTheme } from '@/app/providers/theme-provider'
 import { ThemeToggle } from '@/components/common/theme-toggle'
 import { GithubStar } from '@/components/layout/github-star'
 import { GoalProgress } from '@/components/layout/goal-progress'
@@ -170,6 +170,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: 'settings.cores.title',
                 url: '/nodes/cores',
                 icon: Cpu,
+                matchPrefix: true,
               },
               {
                 title: 'nodes.logs.title',

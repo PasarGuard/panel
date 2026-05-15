@@ -4,9 +4,11 @@ import { cn } from '@/lib/utils'
 import { Button } from './button'
 import { Input, InputProps } from './input'
 
-export interface PasswordInputProps extends InputProps {}
+export interface PasswordInputProps extends InputProps {
+  allowBrowserSave?: boolean
+}
 
-const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(({ className, type, error, isError, value, ...props }, ref) => {
+const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(({ className, type, error, isError, value, allowBrowserSave = false, ...props }, ref) => {
   const [showPassword, setShowPassword] = React.useState(false)
   const [hasValue, setHasValue] = React.useState(false)
 
@@ -23,8 +25,8 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(({ 
   }
 
   return (
-    <div className="relative">
-      <Input type={showPassword ? 'text' : 'password'} className={cn('pr-10', className)} ref={ref} error={error} isError={isError} value={value} {...props} onChange={handleInputChange} />
+    <div className="relative w-full min-w-0">
+      <Input type={showPassword ? 'text' : 'password'} className={cn('pr-10', className)} ref={ref} error={error} isError={isError} value={value} autoComplete={allowBrowserSave ? 'current-password' : 'off'} {...props} onChange={handleInputChange} />
       {(value || hasValue) && (
         <Button
           type="button"

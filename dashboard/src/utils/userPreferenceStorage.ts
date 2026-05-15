@@ -1,3 +1,10 @@
+/** List vs grid for {@link CoreEditorDataTable} sections (inbounds, outbounds, routing, …). */
+export type CoreEditorViewMode = 'list' | 'grid'
+
+export const CORE_EDITOR_VIEW_MODE_STORAGE_KEY = 'view-mode:core-editor-lists'
+
+export const DEFAULT_CORE_EDITOR_VIEW_MODE: CoreEditorViewMode = 'list'
+
 const NUM_USERS_PER_PAGE_LOCAL_STORAGE_KEY = 'pasarguard-num-users-per-page'
 const NUM_ADMINS_PER_PAGE_LOCAL_STORAGE_KEY = 'pasarguard-num-admins-per-page'
 const NUM_ITEMS_PER_PAGE_DEFAULT = 10
@@ -9,6 +16,9 @@ const DEFAULT_USERS_SHOW_CREATED_BY = true
 const USERS_SHOW_SELECTION_CHECKBOX_KEY = 'pasarguard-users-show-selection-checkbox'
 const DEFAULT_USERS_SHOW_SELECTION_CHECKBOX = true
 const CHART_VIEW_TYPE_KEY = 'pasarguard-chart-view-type'
+
+const CORES_LIST_USE_CONFIG_MODAL_KEY = 'pasarguard-cores-list-use-config-modal'
+const DEFAULT_CORES_LIST_USE_CONFIG_MODAL = false
 
 export const DATE_PICKER_PREFERENCE_KEY = 'pasarguard-date-picker-preference'
 export type DatePickerPreference = 'locale' | 'gregorian' | 'persian'
@@ -101,4 +111,14 @@ export const setChartViewTypePreference = (viewType: ChartViewType) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent<ChartViewType>(CHART_VIEW_TYPE_CHANGE_EVENT, { detail: viewType }))
   }
+}
+
+export const getCoresListUseConfigModal = (): boolean => {
+  if (typeof localStorage === 'undefined') return DEFAULT_CORES_LIST_USE_CONFIG_MODAL
+  return localStorage.getItem(CORES_LIST_USE_CONFIG_MODAL_KEY) === 'true'
+}
+
+export const setCoresListUseConfigModal = (value: boolean) => {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(CORES_LIST_USE_CONFIG_MODAL_KEY, value ? 'true' : 'false')
 }

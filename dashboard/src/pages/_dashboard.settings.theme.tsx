@@ -1,15 +1,24 @@
 import { useTranslation } from 'react-i18next'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
-import { useTheme, colorThemes, type ColorTheme, type Radius } from '@/components/common/theme-provider'
+import { useTheme, colorThemes, type ColorTheme, type Radius } from '@/app/providers/theme-provider'
 import { useEffect, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { CheckCircle2, SunMoon, Palette, Ruler, Eye, RotateCcw, Sun, Moon, Monitor, CalendarClock, Languages, BarChart3, TrendingUp } from 'lucide-react'
+import { CheckCircle2, SunMoon, Palette, Ruler, Eye, RotateCcw, Sun, Moon, Monitor, CalendarClock, Languages, BarChart3, TrendingUp, FileJson2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Switch } from '@/components/ui/switch'
-import { getDatePickerPreference, getChartViewTypePreference, setDatePickerPreference, setChartViewTypePreference, type DatePickerPreference, type ChartViewType } from '@/utils/userPreferenceStorage'
+import {
+  getCoresListUseConfigModal,
+  getDatePickerPreference,
+  getChartViewTypePreference,
+  setCoresListUseConfigModal,
+  setDatePickerPreference,
+  setChartViewTypePreference,
+  type DatePickerPreference,
+  type ChartViewType,
+} from '@/utils/userPreferenceStorage'
 import { isPersianLocaleLanguage } from '@/utils/datePickerUtils'
 
 const colorThemeData = [
@@ -52,6 +61,7 @@ export default function ThemeSettings() {
   const [isResetting, setIsResetting] = useState(false)
   const [datePickerPreference, setDatePickerPreferenceState] = useState<DatePickerPreference>('locale')
   const [chartViewType, setChartViewTypeState] = useState<ChartViewType>('bar')
+  const [coresListUseConfigModal, setCoresListUseConfigModalState] = useState(false)
   const isDatePickerFollowingLocale = datePickerPreference === 'locale'
   const defaultManualDatePreference: Exclude<DatePickerPreference, 'locale'> = isPersianLocaleLanguage(
     i18n.resolvedLanguage ?? i18n.language,
@@ -71,6 +81,7 @@ export default function ThemeSettings() {
   useEffect(() => {
     setDatePickerPreferenceState(getDatePickerPreference())
     setChartViewTypeState(getChartViewTypePreference())
+    setCoresListUseConfigModalState(getCoresListUseConfigModal())
   }, [])
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
@@ -155,6 +166,15 @@ export default function ThemeSettings() {
     })
   }
 
+  const handleCoresListUseConfigModalChange = (checked: boolean) => {
+    setCoresListUseConfigModalState(checked)
+    setCoresListUseConfigModal(checked)
+    toast.success(t('success'), {
+      description: `🧩 ${t('theme.coresListEditorSaved')} • ${checked ? t('theme.coresListEditorModal') : t('theme.coresListEditorFullPage')}`,
+      duration: 2000,
+    })
+  }
+
   const handleResetToDefaults = async () => {
     setIsResetting(true)
     try {
@@ -163,6 +183,8 @@ export default function ThemeSettings() {
       setDatePickerPreference('locale')
       setChartViewTypeState('bar')
       setChartViewTypePreference('bar')
+      setCoresListUseConfigModalState(false)
+      setCoresListUseConfigModal(false)
       toast.success(t('success'), {
         description: '🔄 ' + t('theme.resetSuccess'),
         duration: 3000,
@@ -370,6 +392,25 @@ export default function ThemeSettings() {
             </div>
           ))}
         </RadioGroup>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <FileJson2 className="h-4 w-4 text-primary" />
+              <p className="text-base font-semibold sm:text-lg">{t('theme.coresListEditor')}</p>
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.coresListEditorDescription')}</p>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-2">
+            <div className="space-y-0.5">
+              <p className="text-xs font-medium text-foreground">{t('theme.coresListEditorModal')}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{t('theme.coresListEditorModalHint')}</p>
+            </div>
+            <Switch checked={coresListUseConfigModal} onCheckedChange={handleCoresListUseConfigModalChange} aria-label={t('theme.coresListEditorModal')} />
+          </div>
+        </div>
       </section>
 
       <section className="space-y-3">

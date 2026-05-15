@@ -1,0 +1,778 @@
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import { CircleFadingArrowUp, Power, PowerOff, RefreshCcw, Trash2, WifiSync } from 'lucide-react'
+import Node from '@/features/nodes/components/node'
+import {
+  useBulkDeleteNodes,
+  useBulkDisableNodes,
+  useBulkEnableNodes,
+  useBulkReconnectNodes,
+  useBulkResetNodesUsage,
+  useBulkUpdateNodes,
+  useGetNodes,
+  useModifyNode,
+  useGetCoresSimple,
+  NodeResponse,
+  NodeStatus,
+  NodeModify,
+} from '@/service/api'
+import { toast } from 'sonner'
+import { queryClient } from '@/utils/query-client'
+import NodeModal from '@/features/nodes/dialogs/node-modal'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { nodeFormDefaultValues, nodeFormSchema, type NodeFormValues } from '@/features/nodes/forms/node-form'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { NodeFilters, NodePaginationControls } from '@/features/nodes/components/node-filters'
+import NodeAdvanceSearchModal from '@/features/nodes/dialogs/node-advance-search-modal'
+import { nodeAdvanceSearchFormSchema, type NodeAdvanceSearchFormValue } from '@/features/nodes/forms/node-advance-search-form'
+import { ListGenerator } from '@/components/common/list-generator'
+import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
+import { useNodeListColumns } from '@/features/nodes/components/use-node-list-columns'
+import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
+import { NodeActionsMenuModalHost } from '@/features/nodes/components/node-actions-menu'
+
+const NODES_PER_PAGE = 15
+
+type BulkNodeActionType = 'delete' | 'disable' | 'enable' | 'reset' | 'reconnect' | 'update'
+
+interface BulkActionDialogConfig {
+  title: string
+  description: string
+  actionLabel: string
+  onConfirm: () => Promise<void>
+  isPending: boolean
+  destructive?: boolean
+}
+
+export default function NodesList() {
+  const { t } = useTranslation()
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingNode, setEditingNode] = useState<NodeResponse | null>(null)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [isChangingPage, setIsChangingPage] = useState(false)
+  const wasFetchingRef = useRef(false)
+  const isFirstLoadRef = useRef(true)
+  const previousTotalPagesRef = useRef(0)
+  const isAutoRefreshingRef = useRef(false)
+  const modifyNodeMutation = useModifyNode()
+  const [allNodes, setAllNodes] = useState<NodeResponse[]>([])
+  const [localSearchTerm, setLocalSearchTerm] = useState<string>('')
+  const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('view-mode:nodes')
+  const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([])
+  const [bulkAction, setBulkAction] = useState<BulkNodeActionType | null>(null)
+  const bulkDeleteNodesMutation = useBulkDeleteNodes()
+  const bulkDisableNodesMutation = useBulkDisableNodes()
+  const bulkEnableNodesMutation = useBulkEnableNodes()
+  const bulkResetNodesUsageMutation = useBulkResetNodesUsage()
+  const bulkReconnectNodesMutation = useBulkReconnectNodes()
+  const bulkUpdateNodesMutation = useBulkUpdateNodes()
+
+  const [filters, setFilters] = useState<{
+    limit: number
+    offset: number
+    search?: string
+    status?: NodeStatus[]
+    core_id?: number
+  }>({
+    limit: NODES_PER_PAGE,
+    offset: 0,
+    search: undefined,
+    status: undefined,
+    core_id: undefined,
+  })
+
+  const form = useForm<NodeFormValues>({
+    resolver: zodResolver(nodeFormSchema),
+    defaultValues: nodeFormDefaultValues,
+  })
+
+  const advanceSearchForm = useForm<NodeAdvanceSearchFormValue>({
+    resolver: zodResolver(nodeAdvanceSearchFormSchema),
+    defaultValues: {
+      status: filters.status || [],
+      core_id: filters.core_id || undefined,
+    },
+  })
+
+  const {
+    data: nodesResponse,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useGetNodes(filters, {
+    query: {
+      refetchInterval: 10000,
+      staleTime: 0,
+      gcTime: 0,
+      retry: 1,
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+      placeholderData: previousData => previousData,
+    },
+  })
+
+  const { data: coresData } = useGetCoresSimple({ all: true })
+
+  const totalNodesFromResponse = nodesResponse?.total || 0
+  const shouldUseLocalSearch = totalNodesFromResponse > 0 && totalNodesFromResponse <= NODES_PER_PAGE && !filters.search
+
+  useEffect(() => {
+    if (nodesResponse && isFirstLoadRef.current) {
+      isFirstLoadRef.current = false
+    }
+    if (nodesResponse && shouldUseLocalSearch && !filters.search && filters.offset === 0) {
+      setAllNodes(nodesResponse.nodes || [])
+    }
+  }, [nodesResponse, shouldUseLocalSearch, filters.search, filters.offset])
+
+  useEffect(() => {
+    if (isFetching && !isChangingPage && !isFirstLoadRef.current && nodesResponse) {
+      isAutoRefreshingRef.current = true
+    }
+    if (!isFetching && wasFetchingRef.current && isChangingPage) {
+      setIsChangingPage(false)
+      wasFetchingRef.current = false
+    }
+    if (isFetching) {
+      wasFetchingRef.current = true
+    }
+    if (!isFetching && isAutoRefreshingRef.current) {
+      isAutoRefreshingRef.current = false
+    }
+  }, [isFetching, isChangingPage, nodesResponse])
+
+  useEffect(() => {
+    const handleOpenDialog = () => setIsDialogOpen(true)
+    window.addEventListener('openNodeDialog', handleOpenDialog)
+    return () => window.removeEventListener('openNodeDialog', handleOpenDialog)
+  }, [])
+
+  const clearSelection = () => {
+    setSelectedNodeIds([])
+  }
+
+  const invalidateNodeQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+    queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
+  }, [])
+
+  const handleFilterChange = useCallback(
+    (newFilters: Partial<typeof filters>) => {
+      const searchValue = newFilters.search !== undefined ? newFilters.search : filters.search
+      setLocalSearchTerm(searchValue || '')
+
+      if (shouldUseLocalSearch && searchValue) {
+        setCurrentPage(0)
+        return
+      }
+
+      setFilters(prev => ({
+        ...prev,
+        ...newFilters,
+      }))
+      if (newFilters.offset === 0) {
+        setCurrentPage(0)
+      }
+    },
+    [filters.search, shouldUseLocalSearch],
+  )
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage === currentPage || isChangingPage) return
+
+    // If using local search, just update page without API call
+    if (shouldUseLocalSearch && localSearchTerm) {
+      setCurrentPage(newPage)
+      return
+    }
+
+    setIsChangingPage(true)
+    setCurrentPage(newPage)
+    setFilters(prev => ({
+      ...prev,
+      offset: newPage * NODES_PER_PAGE,
+    }))
+  }
+
+  const handleEdit = (node: NodeResponse) => {
+    setEditingNode(node)
+    form.reset({
+      name: node.name,
+      address: node.address,
+      port: node.port || 62050,
+      usage_coefficient: node.usage_coefficient || 1,
+      connection_type: node.connection_type,
+      server_ca: node.server_ca,
+      keep_alive: node.keep_alive,
+      keep_alive_unit: 'seconds',
+      proxy_url: node.proxy_url ?? '',
+    })
+    setIsDialogOpen(true)
+  }
+
+  const handleToggleStatus = async (node: NodeResponse) => {
+    try {
+      const shouldEnable = node.status === 'disabled'
+      const newStatus = shouldEnable ? 'connected' : 'disabled'
+      const toOptional = <T,>(value: T | null | undefined): Exclude<T, null> | undefined => (value === null || value === undefined ? undefined : (value as Exclude<T, null>))
+
+      const data: NodeModify = {
+        name: node.name,
+        address: node.address,
+        port: toOptional(node.port),
+        api_port: toOptional(node.api_port),
+        usage_coefficient: toOptional(node.usage_coefficient),
+        connection_type: node.connection_type,
+        server_ca: node.server_ca,
+        keep_alive: node.keep_alive,
+        core_config_id: toOptional(node.core_config_id),
+        api_key: toOptional(node.api_key),
+        data_limit: toOptional(node.data_limit),
+        data_limit_reset_strategy: toOptional(node.data_limit_reset_strategy),
+        reset_time: toOptional(node.reset_time),
+        default_timeout: toOptional(node.default_timeout),
+        internal_timeout: toOptional(node.internal_timeout),
+        proxy_url: node.proxy_url ?? null,
+        status: newStatus,
+      }
+
+      await modifyNodeMutation.mutateAsync({
+        nodeId: node.id,
+        data,
+      })
+
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t(shouldEnable ? 'nodes.enableSuccess' : 'nodes.disableSuccess', {
+          name: node.name,
+          defaultValue: `Node "{name}" has been ${shouldEnable ? 'enabled' : 'disabled'} successfully`,
+        }),
+      })
+
+      queryClient.invalidateQueries({
+        queryKey: ['/api/nodes'],
+      })
+    } catch (error) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: t(node.status === 'disabled' ? 'nodes.enableFailed' : 'nodes.disableFailed', {
+          name: node.name,
+          defaultValue: `Failed to ${node.status === 'disabled' ? 'enable' : 'disable'} node "{name}"`,
+        }),
+      })
+    }
+  }
+
+  const filteredNodes = useMemo(() => {
+    if (shouldUseLocalSearch && localSearchTerm && allNodes.length > 0) {
+      const searchLower = localSearchTerm.toLowerCase()
+      return allNodes.filter((node: NodeResponse) => node.name.toLowerCase().includes(searchLower) || node.address.toLowerCase().includes(searchLower) || node.port?.toString().includes(searchLower))
+    }
+    return nodesResponse?.nodes || []
+  }, [shouldUseLocalSearch, localSearchTerm, allNodes, nodesResponse?.nodes])
+
+  const hasActiveFilters = !!(filters.search || localSearchTerm || (filters.status && filters.status.length > 0) || filters.core_id)
+
+  const paginatedNodes = useMemo(() => {
+    if (shouldUseLocalSearch && localSearchTerm) {
+      const start = currentPage * NODES_PER_PAGE
+      const end = start + NODES_PER_PAGE
+      return filteredNodes.slice(start, end)
+    }
+    return filteredNodes
+  }, [shouldUseLocalSearch, localSearchTerm, filteredNodes, currentPage])
+
+  const nodesData = paginatedNodes
+  const totalNodes = shouldUseLocalSearch && localSearchTerm ? filteredNodes.length : nodesResponse?.total || 0
+  const showLoadingSpinner = isLoading && isFirstLoadRef.current
+  const isBackgroundRefetch = isFetching && !isChangingPage && !isFirstLoadRef.current && !!nodesResponse
+  const isPageLoading = isChangingPage || (isFetching && !isFirstLoadRef.current && !shouldUseLocalSearch && !isBackgroundRefetch)
+  const showPageLoadingSkeletons = isPageLoading && !showLoadingSpinner
+
+  const calculatedTotalPages = Math.ceil(totalNodes / NODES_PER_PAGE)
+  const totalPages = calculatedTotalPages > 0 ? calculatedTotalPages : isPageLoading ? previousTotalPagesRef.current : 0
+
+  useEffect(() => {
+    if (calculatedTotalPages > 0) {
+      previousTotalPagesRef.current = calculatedTotalPages
+    }
+  }, [calculatedTotalPages])
+
+  useEffect(() => {
+    if (calculatedTotalPages > 0 && currentPage >= calculatedTotalPages) {
+      const lastPage = calculatedTotalPages - 1
+      setCurrentPage(lastPage)
+      setFilters(prev => ({
+        ...prev,
+        offset: lastPage * NODES_PER_PAGE,
+      }))
+    }
+  }, [calculatedTotalPages, currentPage])
+
+  const listColumns = useNodeListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus, coresData })
+
+  const handleAdvanceSearchSubmit = (values: NodeAdvanceSearchFormValue) => {
+    setFilters(prev => ({
+      ...prev,
+      status: values.status && values.status.length > 0 ? values.status : undefined,
+      core_id: values.core_id || undefined,
+      offset: 0,
+    }))
+    setCurrentPage(0)
+    setIsAdvanceSearchOpen(false)
+  }
+
+  const handleClearAdvanceSearch = () => {
+    advanceSearchForm.reset({
+      status: [],
+      core_id: undefined,
+    })
+    setFilters(prev => ({
+      ...prev,
+      status: undefined,
+      core_id: undefined,
+      offset: 0,
+    }))
+    setCurrentPage(0)
+  }
+
+  const handleAdvanceSearchOpen = (open: boolean) => {
+    if (open) {
+      // Sync form with current filters when opening
+      advanceSearchForm.reset({
+        status: filters.status || [],
+        core_id: filters.core_id || undefined,
+      })
+    }
+    setIsAdvanceSearchOpen(open)
+  }
+
+  const handleBulkDelete = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkDeleteNodesMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('nodes.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected nodes.',
+          }),
+      })
+    }
+  }
+
+  const handleBulkDisable = async () => {
+    if (!selectedDisableEligibleIds.length) return
+
+    try {
+      const response = await bulkDisableNodesMutation.mutateAsync({
+        data: {
+          ids: selectedDisableEligibleIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkDisableSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes disabled successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkDisableFailed', { defaultValue: 'Failed to disable selected nodes.' }),
+      })
+    }
+  }
+
+  const handleBulkEnable = async () => {
+    if (!selectedEnableEligibleIds.length) return
+
+    try {
+      const response = await bulkEnableNodesMutation.mutateAsync({
+        data: {
+          ids: selectedEnableEligibleIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkEnableSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes enabled successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkEnableFailed', { defaultValue: 'Failed to enable selected nodes.' }),
+      })
+    }
+  }
+
+  const handleBulkResetUsage = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkResetNodesUsageMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkResetUsageSuccess', {
+          count: response.count,
+          defaultValue: 'Usage reset for {{count}} nodes.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkResetUsageFailed', { defaultValue: 'Failed to reset usage for selected nodes.' }),
+      })
+    }
+  }
+
+  const handleBulkReconnect = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkReconnectNodesMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkReconnectSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes reconnected successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkReconnectFailed', { defaultValue: 'Failed to reconnect selected nodes.' }),
+      })
+    }
+  }
+
+  const handleBulkUpdate = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkUpdateNodesMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkUpdateSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes updated successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkUpdateFailed', { defaultValue: 'Failed to update selected nodes.' }),
+      })
+    }
+  }
+
+  const selectedCount = selectedNodeIds.length
+  const nodeCandidates = (nodesResponse?.nodes || []).concat(allNodes || [])
+  const selectedNodesMap = new Map<number, NodeResponse>()
+  nodeCandidates.forEach(node => {
+    if (selectedNodeIds.includes(node.id)) selectedNodesMap.set(node.id, node)
+  })
+  const selectedNodes = Array.from(selectedNodesMap.values())
+  const selectedEnableEligibleIds = selectedNodes.filter(node => node.status === 'disabled').map(node => node.id)
+  const selectedDisableEligibleIds = selectedNodes.filter(node => node.status !== 'disabled').map(node => node.id)
+  const enableEligibleCount = selectedEnableEligibleIds.length
+  const disableEligibleCount = selectedDisableEligibleIds.length
+  const bulkActions: BulkActionItem[] = selectedCount
+    ? [
+        {
+          key: 'delete',
+          label: t('delete'),
+          icon: Trash2,
+          onClick: () => setBulkAction('delete'),
+          direct: true,
+          destructive: true,
+        },
+        ...(disableEligibleCount > 0
+          ? [
+              {
+                key: 'disable',
+                label: t('disable'),
+                icon: PowerOff,
+                onClick: () => setBulkAction('disable'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(enableEligibleCount > 0
+          ? [
+              {
+                key: 'enable',
+                label: t('enable'),
+                icon: Power,
+                onClick: () => setBulkAction('enable'),
+              } as BulkActionItem,
+            ]
+          : []),
+        {
+          key: 'reset',
+          label: t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' }),
+          icon: RefreshCcw,
+          onClick: () => setBulkAction('reset'),
+        },
+        {
+          key: 'reconnect',
+          label: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
+          icon: WifiSync,
+          onClick: () => setBulkAction('reconnect'),
+        },
+        {
+          key: 'update',
+          label: t('nodeModal.updateNode', { defaultValue: 'Update Node' }),
+          icon: CircleFadingArrowUp,
+          onClick: () => setBulkAction('update'),
+        },
+      ]
+    : []
+
+  const bulkActionConfigs: Record<BulkNodeActionType, BulkActionDialogConfig> = {
+    delete: {
+      title: t('nodes.bulkDeleteTitle', { defaultValue: 'Delete Selected Nodes' }),
+      description: t('nodes.bulkDeletePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to delete {{count}} selected nodes? This action cannot be undone.',
+      }),
+      actionLabel: t('delete'),
+      onConfirm: handleBulkDelete,
+      isPending: bulkDeleteNodesMutation.isPending,
+      destructive: true,
+    },
+    enable: {
+      title: t('nodes.bulkEnableTitle', { defaultValue: 'Enable Selected Nodes' }),
+      description: t('nodes.bulkEnablePrompt', {
+        count: enableEligibleCount,
+        defaultValue: 'Are you sure you want to enable {{count}} selected nodes?',
+      }),
+      actionLabel: t('enable'),
+      onConfirm: handleBulkEnable,
+      isPending: bulkEnableNodesMutation.isPending,
+    },
+    disable: {
+      title: t('nodes.bulkDisableTitle', { defaultValue: 'Disable Selected Nodes' }),
+      description: t('nodes.bulkDisablePrompt', {
+        count: disableEligibleCount,
+        defaultValue: 'Are you sure you want to disable {{count}} selected nodes?',
+      }),
+      actionLabel: t('disable'),
+      onConfirm: handleBulkDisable,
+      isPending: bulkDisableNodesMutation.isPending,
+    },
+    reset: {
+      title: t('nodes.bulkResetUsageTitle', { defaultValue: 'Reset Usage for Selected Nodes' }),
+      description: t('nodes.bulkResetUsagePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to reset usage for {{count}} selected nodes?',
+      }),
+      actionLabel: t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' }),
+      onConfirm: handleBulkResetUsage,
+      isPending: bulkResetNodesUsageMutation.isPending,
+    },
+    reconnect: {
+      title: t('nodes.bulkReconnectTitle', { defaultValue: 'Reconnect Selected Nodes' }),
+      description: t('nodes.bulkReconnectPrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to reconnect {{count}} selected nodes?',
+      }),
+      actionLabel: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
+      onConfirm: handleBulkReconnect,
+      isPending: bulkReconnectNodesMutation.isPending,
+    },
+    update: {
+      title: t('nodes.bulkUpdateTitle', { defaultValue: 'Update Selected Nodes' }),
+      description: t('nodes.bulkUpdatePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to update {{count}} selected nodes?',
+      }),
+      actionLabel: t('nodeModal.updateNode', { defaultValue: 'Update Node' }),
+      onConfirm: handleBulkUpdate,
+      isPending: bulkUpdateNodesMutation.isPending,
+    },
+  }
+  const activeBulkActionConfig = bulkAction ? bulkActionConfigs[bulkAction] : null
+
+  return (
+    <div className="flex w-full flex-col items-start gap-2 px-4">
+      <div className="w-full flex-1 space-y-4 py-4">
+        <NodeFilters
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          refetch={refetch}
+          isFetching={isFetching}
+          advanceSearchOnOpen={handleAdvanceSearchOpen}
+          onClearAdvanceSearch={handleClearAdvanceSearch}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
+        <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
+        <div className="min-h-[55dvh]">
+          {(showLoadingSpinner || showPageLoadingSkeletons || nodesData.length > 0) &&
+            (viewMode === 'grid' ? (
+              <ListGeneratorGrid
+                data={nodesData}
+                getRowId={node => node.id}
+                isLoading={showLoadingSpinner || showPageLoadingSkeletons}
+                loadingRows={6}
+                className="gap-4"
+                gridClassName="transform-gpu animate-slide-up"
+                gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+                enableSelection
+                injectSelectionProps
+                selectedRowIds={selectedNodeIds}
+                onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
+                showEmptyState={false}
+                renderItem={node => <Node node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} coresData={coresData} />}
+                renderSkeleton={i => (
+                  <Card key={i} className="group relative h-full p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                          <Skeleton className="h-5 w-32 sm:w-40" />
+                        </div>
+                        <Skeleton className="mb-1 h-4 w-28 sm:w-36" />
+                        {i % 3 === 0 && <Skeleton className="mt-1 mb-2 h-3 w-40 sm:w-48" />}
+                        <div className="mt-2 space-y-1.5">
+                          <Skeleton className="h-1.5 w-full rounded-full" />
+                          <div className="flex items-center justify-between gap-2">
+                            <Skeleton className="h-3 w-20" />
+                            <Skeleton className="h-3 w-16" />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="h-2.5 w-16" />
+                            <Skeleton className="h-2.5 w-16" />
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                      </div>
+                    </div>
+                  </Card>
+                )}
+              />
+            ) : (
+              <ListGenerator
+                data={nodesData}
+                columns={listColumns}
+                getRowId={node => node.id}
+                isLoading={showLoadingSpinner || showPageLoadingSkeletons}
+                loadingRows={6}
+                className="gap-1.5"
+                rowClassName="py-2"
+                onRowClick={handleEdit}
+                enableSelection
+                selectedRowIds={selectedNodeIds}
+                onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
+                showEmptyState={false}
+              />
+            ))}
+
+          {!showLoadingSpinner && !showPageLoadingSkeletons && !isFetching && nodesData.length === 0 && !hasActiveFilters && totalNodes === 0 && (
+            <Card className="mb-12">
+              <CardContent className="p-8 text-center">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">{t('nodes.noNodes')}</h3>
+                  <p className="text-muted-foreground mx-auto max-w-2xl">
+                    {t('nodes.noNodesDescription')}{' '}
+                    <a href="https://github.com/PasarGuard/node" target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline-offset-4 hover:underline">
+                      PasarGuard/node
+                    </a>{' '}
+                    {t('nodes.noNodesDescription2', { defaultValue: 'and connect it to the panel.' })}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {!showLoadingSpinner && !showPageLoadingSkeletons && !isFetching && nodesData.length === 0 && hasActiveFilters && (
+            <Card className="mb-12">
+              <CardContent className="p-8 text-center">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">{t('nodes.noFilteredResults')}</h3>
+                  <p className="text-muted-foreground mx-auto max-w-2xl">{t('nodes.noSearchResults')}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+        {totalPages > 1 && <NodePaginationControls currentPage={currentPage} totalPages={totalPages} isLoading={isPageLoading} onPageChange={handlePageChange} />}
+
+        <NodeModal
+          isDialogOpen={isDialogOpen}
+          onOpenChange={open => {
+            if (!open) {
+              setEditingNode(null)
+              form.reset(nodeFormDefaultValues)
+            }
+            setIsDialogOpen(open)
+          }}
+          form={form}
+          editingNode={!!editingNode}
+          editingNodeId={editingNode?.id}
+          initialNodeData={editingNode || undefined}
+          coresData={coresData}
+          onSuccess={() => {
+            setTimeout(() => refetch(), 2500)
+          }}
+        />
+
+        <NodeAdvanceSearchModal isDialogOpen={isAdvanceSearchOpen} onOpenChange={setIsAdvanceSearchOpen} form={advanceSearchForm} onSubmit={handleAdvanceSearchSubmit} />
+        {activeBulkActionConfig && (
+          <BulkActionAlertDialog
+            open={!!bulkAction}
+            onOpenChange={open => setBulkAction(open ? bulkAction : null)}
+            title={activeBulkActionConfig.title}
+            description={activeBulkActionConfig.description}
+            actionLabel={activeBulkActionConfig.actionLabel}
+            onConfirm={activeBulkActionConfig.onConfirm}
+            isPending={activeBulkActionConfig.isPending}
+            destructive={activeBulkActionConfig.destructive}
+          />
+        )}
+        <NodeActionsMenuModalHost />
+      </div>
+    </div>
+  )
+}

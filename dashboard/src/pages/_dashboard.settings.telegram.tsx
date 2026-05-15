@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useEffect } from 'react'
-import { SubscriptionFormActions } from '@/components/subscriptions/subscription-form-actions'
+import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -232,7 +232,7 @@ export default function TelegramSettings() {
                 control={form.control}
                 name="enable"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-x-3 space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                  <FormItem className="flex flex-row items-center justify-between gap-x-3 space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Send className="h-4 w-4" />
@@ -421,7 +421,7 @@ export default function TelegramSettings() {
                     control={form.control}
                     name="mini_app_login"
                     render={({ field }) => (
-                      <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                      <FormItem className="flex flex-row items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                         <div className="space-y-0.5">
                           <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                             <Smartphone className="h-4 w-4" />
@@ -461,7 +461,7 @@ export default function TelegramSettings() {
                     control={form.control}
                     name="for_admins_only"
                     render={({ field }) => (
-                      <FormItem className="flex items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                      <FormItem className="flex flex-row items-center justify-between space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
                         <div className="space-y-0.5">
                           <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                             <Users className="h-4 w-4" />

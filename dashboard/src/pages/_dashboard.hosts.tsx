@@ -1,5 +1,5 @@
-import MainSection from '@/components/hosts/hosts-list'
-import { type HostFormValues } from '@/components/forms/host-form'
+import MainSection from '@/features/hosts/components/hosts-list'
+import { type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
 import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'

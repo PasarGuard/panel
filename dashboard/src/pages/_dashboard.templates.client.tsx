@@ -1,9 +1,9 @@
-import ClientTemplate from '@/components/templates/client-template'
+import ClientTemplate from '@/features/templates/components/client-template'
 import { useBulkDeleteClientTemplates, useGetClientTemplates, ClientTemplateResponse } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
-import ClientTemplateModal from '@/components/dialogs/client-template-modal'
-import { clientTemplateFormDefaultValues, clientTemplateFormSchema, type ClientTemplateFormValues } from '@/components/forms/client-template-form'
+import ClientTemplateModal from '@/features/templates/dialogs/client-template-modal'
+import { clientTemplateFormDefaultValues, clientTemplateFormSchema, type ClientTemplateFormValues } from '@/features/templates/forms/client-template-form'
 import { useState, useMemo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,10 +15,11 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
-import { useClientTemplatesListColumns } from '@/components/templates/use-client-templates-list-columns'
+import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
+import { useClientTemplatesListColumns } from '@/features/templates/components/use-client-templates-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
-import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
+import { BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 
@@ -135,42 +136,55 @@ export default function ClientTemplates() {
         </div>
         <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />
 
-        {(isCurrentlyLoading || filteredTemplates.length > 0) && (
-          <ListGenerator
-            data={filteredTemplates}
-            columns={listColumns}
-            getRowId={template => template.id}
-            isLoading={isCurrentlyLoading}
-            loadingRows={6}
-            className={viewMode === 'grid' ? 'gap-4' : 'gap-3'}
-            onRowClick={handleEdit}
-            mode={viewMode}
-            enableSelection
-            enableGridSelection
-            selectedRowIds={selectedTemplateIds}
-            onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
-            isRowSelectable={template => !template.is_system}
-            showEmptyState={false}
-            gridClassName="transform-gpu animate-slide-up"
-            gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-            renderGridItem={template => <ClientTemplate onEdit={handleEdit} template={template} />}
-            renderGridSkeleton={i => (
-              <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
-                <div className="flex items-start justify-between gap-2 sm:gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-x-2">
-                      <Skeleton className="h-5 w-24 sm:w-32" />
+        {(isCurrentlyLoading || filteredTemplates.length > 0) &&
+          (viewMode === 'grid' ? (
+            <ListGeneratorGrid
+              data={filteredTemplates}
+              getRowId={template => template.id}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-4"
+              gridClassName="transform-gpu animate-slide-up"
+              gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+              enableSelection
+              injectSelectionProps
+              selectedRowIds={selectedTemplateIds}
+              onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
+              isRowSelectable={template => !template.is_system}
+              showEmptyState={false}
+              renderItem={template => <ClientTemplate onEdit={handleEdit} template={template} />}
+              renderSkeleton={i => (
+                <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
+                  <div className="flex items-start justify-between gap-2 sm:gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-x-2">
+                        <Skeleton className="h-5 w-24 sm:w-32" />
+                      </div>
+                      <div className="mt-2">
+                        <Skeleton className="h-4 w-16" />
+                      </div>
                     </div>
-                    <div className="mt-2">
-                      <Skeleton className="h-4 w-16" />
-                    </div>
+                    <Skeleton className="h-8 w-8 shrink-0" />
                   </div>
-                  <Skeleton className="h-8 w-8 shrink-0" />
-                </div>
-              </Card>
-            )}
-          />
-        )}
+                </Card>
+              )}
+            />
+          ) : (
+            <ListGenerator
+              data={filteredTemplates}
+              columns={listColumns}
+              getRowId={template => template.id}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-3"
+              onRowClick={handleEdit}
+              enableSelection
+              selectedRowIds={selectedTemplateIds}
+              onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
+              isRowSelectable={template => !template.is_system}
+              showEmptyState={false}
+            />
+          ))}
 
         {isEmpty && !isCurrentlyLoading && (
           <Card className="mb-12">

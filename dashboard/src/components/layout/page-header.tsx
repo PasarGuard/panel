@@ -3,6 +3,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import useDirDetection from '@/hooks/use-dir-detection'
 import { getDocsUrl } from '@/utils/docs-url'
 import Snowfall from '@/components/common/snowfall'
+import { cn } from '@/lib/utils'
 import { HelpCircle, LucideIcon, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
@@ -15,9 +16,19 @@ interface PageHeaderProps {
   buttonIcon?: LucideIcon
   buttonTooltip?: string
   tutorialUrl?: string
+  className?: string
 }
 
-export default function PageHeader({ title, description, buttonText, onButtonClick, buttonIcon: Icon = Plus, buttonTooltip, tutorialUrl }: PageHeaderProps) {
+export default function PageHeader({
+  title,
+  description,
+  buttonText,
+  onButtonClick,
+  buttonIcon: Icon = Plus,
+  buttonTooltip,
+  tutorialUrl,
+  className,
+}: PageHeaderProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const location = useLocation()
@@ -26,11 +37,14 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
   const docsUrl = tutorialUrl || getDocsUrl(location.pathname)
 
   return (
-    <div dir={dir} className="relative mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 md:pt-6">
+    <div
+      dir={dir}
+      className={cn('relative mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 md:pt-6', className)}
+    >
       <Snowfall className="snowfall--header" />
-      <div className="relative z-10 flex flex-col gap-y-1">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-lg font-medium sm:text-xl">{t(title)}</h1>
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="truncate text-lg font-medium sm:text-xl">{t(title)}</h1>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -53,7 +67,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
         {description && <span className="whitespace-normal text-xs text-muted-foreground sm:text-sm">{t(description)}</span>}
       </div>
       {buttonText && onButtonClick && (
-        <div className="relative z-10">
+        <div className="relative z-10 shrink-0">
           {buttonTooltip ? (
             <TooltipProvider>
               <Tooltip>

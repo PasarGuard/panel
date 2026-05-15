@@ -24,8 +24,13 @@ const Settings = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<string>(tabs[0].id)
+  const isCoreEditorPage = /^\/nodes\/cores\/[^/]+$/.test(location.pathname)
 
   useEffect(() => {
+    if (location.pathname.startsWith('/nodes/cores')) {
+      setActiveTab('core')
+      return
+    }
     const currentTab = tabs.find(tab => location.pathname === tab.url)
     if (currentTab) {
       setActiveTab(currentTab.id)
@@ -33,16 +38,14 @@ const Settings = () => {
   }, [location.pathname])
 
   const getPageHeaderProps = () => {
-    if (location.pathname === '/nodes/cores') {
+    if (location.pathname.startsWith('/nodes/cores')) {
       return {
         title: 'settings.cores.title',
         description: 'settings.cores.description',
         buttonIcon: Plus,
         buttonText: 'settings.cores.addCore',
         onButtonClick: () => {
-          // This will be handled by the child component through context or props
-          const event = new CustomEvent('openCoreDialog')
-          window.dispatchEvent(event)
+          navigate('/nodes/cores/new')
         },
       }
     }
@@ -69,39 +72,41 @@ const Settings = () => {
   }
 
   return (
-    <div className="flex w-full flex-col items-start gap-0">
-      <PageTransition isContentTransition={true}>
-        <PageHeader {...getPageHeaderProps()} tutorialUrl={getDocsUrl(location.pathname)} />
-      </PageTransition>
-      <div className="w-full">
-        <div className="flex border-b px-4">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => navigate(tab.url)}
-              className={`relative px-3 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                <tab.icon className="h-4 w-4" />
-                {tab.id === 'core' ? (
-                  <>
-                    <span className="hidden sm:inline">{t(tab.label)}</span>
-                    <span className="sm:hidden">{t('settings.cores.title')}</span>
-                  </>
-                ) : (
-                  <span>{t(tab.label)}</span>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
-        <div className="px-4">
-          <PageTransition isContentTransition={true}>
-            <Outlet />
-          </PageTransition>
-        </div>
+    <div className="flex w-full flex-1 min-h-0 flex-col items-start gap-0">
+      {!isCoreEditorPage && (
+        <PageTransition isContentTransition={true}>
+          <PageHeader {...getPageHeaderProps()} tutorialUrl={getDocsUrl(location.pathname)} />
+        </PageTransition>
+      )}
+      <div className="flex w-full min-h-0 flex-1 flex-col">
+        {!isCoreEditorPage && (
+          <div className="flex border-b px-4">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => navigate(tab.url)}
+                className={`relative px-3 py-2 text-sm font-medium transition-colors ${
+                  activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <tab.icon className="h-4 w-4" />
+                  {tab.id === 'core' ? (
+                    <>
+                      <span className="hidden sm:inline">{t(tab.label)}</span>
+                      <span className="sm:hidden">{t('settings.cores.title')}</span>
+                    </>
+                  ) : (
+                    <span>{t(tab.label)}</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+        <PageTransition isContentTransition={true} className="flex min-h-0 flex-1 flex-col">
+          <Outlet />
+        </PageTransition>
       </div>
     </div>
   )

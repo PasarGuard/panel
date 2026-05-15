@@ -1,0 +1,1199 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import {
+  useGetGroupsSimple,
+  useGetUsersSimple,
+  useGetAdminsSimple,
+  useBulkModifyUsersProxySettings,
+  useBulkModifyUsersDatalimit,
+  useBulkModifyUsersExpire,
+  useBulkAddGroupsToUsers,
+  useBulkRemoveUsersFromGroups,
+  useBulkReallocateWireguardPeerIps,
+  XTLSFlows,
+  ShadowsocksMethods,
+  UserStatus,
+} from '@/service/api'
+import { Button } from '@/components/ui/button'
+import { LoaderButton } from '@/components/ui/loader-button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { Settings, Group, User, Shield, CheckCircle, AlertTriangle, Plus, Minus, X, HardDrive, Calendar, Network, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2 } from 'lucide-react'
+import { BulkExpiredDateFilters } from '@/features/bulk/components/bulk-expired-date-filters'
+import { DecimalInput } from '@/components/common/decimal-input'
+import { SelectorPanel } from '@/features/bulk/components/selector-panel'
+import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
+import { formatDateByLocale } from '@/utils/datePickerUtils'
+import { formatBytes, gbToBytes } from '@/utils/formatByte'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
+import { cn } from '@/lib/utils'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { endOfDay, startOfDay } from 'date-fns'
+
+const PAGE_SIZE = 50
+
+type BulkOperationType = 'proxy' | 'data' | 'expire' | 'groups' | 'wireguard'
+type ExpiryUnit = TimeUnit
+
+interface BulkFlowProps {
+  operationType: BulkOperationType
+}
+
+export default function BulkFlow({ operationType }: BulkFlowProps) {
+  const { t, i18n } = useTranslation()
+  const dir = useDirDetection()
+  const isPersianLocale = i18n.language === 'fa'
+  const formatExpiryFilterDate = (d: Date) => formatDateByLocale(d, isPersianLocale, false)
+  const isRTL = dir === 'rtl'
+
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
+
+  const [selectedFlow, setSelectedFlow] = useState<XTLSFlows | 'none' | undefined>(undefined)
+  const [selectedMethod, setSelectedMethod] = useState<ShadowsocksMethods | undefined>(undefined)
+
+  const [dataLimit, setDataLimit] = useState<number | undefined>(undefined)
+  const [dataOperation, setDataOperation] = useState<'add' | 'subtract'>('add')
+
+  const [expireSeconds, setExpireSeconds] = useState<number | undefined>(undefined)
+  const [expireUnit, setExpireUnit] = useState<ExpiryUnit>('days')
+  const [expireAmount, setExpireAmount] = useState<number | undefined>(undefined)
+  const [expireOperation, setExpireOperation] = useState<'add' | 'subtract'>('add')
+
+  const [groupsOperation, setGroupsOperation] = useState<'add' | 'remove'>('add')
+
+  const [replaceAllPeerIps, setReplaceAllPeerIps] = useState(false)
+
+  const [selectedGroups, setSelectedGroups] = useState<number[]>([])
+  const [selectedUsers, setSelectedUsers] = useState<number[]>([])
+  const [selectedAdmins, setSelectedAdmins] = useState<number[]>([])
+  const [selectedHasGroups, setSelectedHasGroups] = useState<number[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<UserStatus[]>([])
+  const [expiredAfter, setExpiredAfter] = useState<Date | undefined>()
+  const [expiredBefore, setExpiredBefore] = useState<Date | undefined>()
+
+  const [groupCommandSearch, setGroupCommandSearch] = useState('')
+
+  const { search: userSearch, debouncedSearch: debouncedUserSearch, setSearch: setUserSearch } = useDebouncedSearch('', 300)
+  const { search: adminSearch, debouncedSearch: debouncedAdminSearch, setSearch: setAdminSearch } = useDebouncedSearch('', 300)
+  const { search: hasGroupSearch, debouncedSearch: debouncedHasGroupSearch, setSearch: setHasGroupSearch } = useDebouncedSearch('', 300)
+  const { search: groupSearch, debouncedSearch: debouncedGroupSearch, setSearch: setGroupSearch } = useDebouncedSearch('', 300)
+
+  useEffect(() => {
+    if (expireAmount === undefined) {
+      setExpireSeconds(undefined)
+      return
+    }
+    const num = Number(expireAmount)
+    if (num <= 0) {
+      setExpireSeconds(undefined)
+      return
+    }
+    setExpireSeconds(num * TIME_UNIT_SECONDS[expireUnit])
+  }, [expireAmount, expireUnit])
+
+  const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ limit: PAGE_SIZE, offset: 0, all: true })
+  const { data: usersData, isLoading: usersLoading } = useGetUsersSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedUserSearch || undefined })
+  const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple({ limit: PAGE_SIZE, offset: 0, search: debouncedAdminSearch || undefined })
+
+  // Backend: expire >= expire_after AND expire <= expire_before. Sending the same midnight for both
+  // would only match that instant; use start/end of local calendar day so one day in both fields is a full day.
+  const expireDatePayload =
+    (operationType === 'data' || operationType === 'expire') && (expiredAfter || expiredBefore)
+      ? {
+          ...(expiredAfter ? { expire_after: startOfDay(expiredAfter).toISOString() } : {}),
+          ...(expiredBefore ? { expire_before: endOfDay(expiredBefore).toISOString() } : {}),
+        }
+      : {}
+
+  const statusOptions: { value: UserStatus; label: string }[] = [
+    { value: 'active', label: t('status.active', { defaultValue: 'Active' }) },
+    { value: 'disabled', label: t('status.disabled', { defaultValue: 'Disabled' }) },
+    { value: 'limited', label: t('status.limited', { defaultValue: 'Limited' }) },
+    { value: 'expired', label: t('status.expired', { defaultValue: 'Expired' }) },
+    { value: 'on_hold', label: t('status.on_hold', { defaultValue: 'On Hold' }) },
+  ]
+
+  const filteredGroups =
+    groupsData?.groups?.filter(group => {
+      if (!debouncedGroupSearch) return true
+      return group.name.toLowerCase().includes(debouncedGroupSearch.toLowerCase())
+    }) || []
+
+  const filteredHasGroups =
+    groupsData?.groups?.filter(group => {
+      if (operationType === 'groups' && selectedGroups.includes(group.id)) return false
+      if (!debouncedHasGroupSearch) return true
+      return group.name.toLowerCase().includes(debouncedHasGroupSearch.toLowerCase())
+    }) || []
+
+  const proxyMutation = useBulkModifyUsersProxySettings()
+  const dataMutation = useBulkModifyUsersDatalimit()
+  const expireMutation = useBulkModifyUsersExpire()
+  const addGroupsMutation = useBulkAddGroupsToUsers()
+  const removeGroupsMutation = useBulkRemoveUsersFromGroups()
+  const wireguardPeerIpsMutation = useBulkReallocateWireguardPeerIps()
+
+  const nextStep = () => {
+    if (currentStep < 3) setCurrentStep((currentStep + 1) as 1 | 2 | 3)
+  }
+
+  const prevStep = () => {
+    if (currentStep > 1) setCurrentStep((currentStep - 1) as 1 | 2 | 3)
+  }
+
+  const canProceedToNext = () => {
+    switch (currentStep) {
+      case 1:
+        if (operationType === 'wireguard') {
+          return true
+        }
+        if (operationType === 'proxy') {
+          return selectedFlow || selectedMethod
+        }
+        if (operationType === 'groups') {
+          return selectedGroups.length > 0
+        }
+        if (operationType === 'data') {
+          return dataLimit !== undefined && dataLimit > 0
+        }
+        if (operationType === 'expire') {
+          return expireAmount !== undefined && expireAmount > 0
+        }
+        return true
+      case 2:
+        switch (operationType) {
+          case 'proxy':
+            return selectedFlow || selectedMethod
+          case 'data':
+            return dataLimit !== undefined
+          case 'expire':
+            return expireSeconds !== undefined
+          case 'groups':
+            // Allow proceeding even if no targets selected - will apply to all users
+            return true
+          case 'wireguard':
+            return true
+          default:
+            return false
+        }
+      case 3:
+        return true
+      default:
+        return false
+    }
+  }
+
+  const handleApply = () => {
+    // For groups remove operation, require at least hasGroups, users, or admins to be selected
+    if (operationType === 'groups' && groupsOperation === 'remove') {
+      const totalTargets = selectedUsers.length + selectedAdmins.length + selectedHasGroups.length
+      if (totalTargets === 0) {
+        toast.error(t('error'), { description: t('bulk.noTargetsSelected') })
+        return
+      }
+    }
+    setShowConfirmDialog(true)
+  }
+
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [pendingBulkAction, setPendingBulkAction] = useState<'preview' | 'apply' | null>(null)
+
+  const isCurrentBulkMutationPending =
+    (operationType === 'proxy' && proxyMutation.isPending) ||
+    (operationType === 'data' && dataMutation.isPending) ||
+    (operationType === 'expire' && expireMutation.isPending) ||
+    (operationType === 'groups' && (groupsOperation === 'add' ? addGroupsMutation.isPending : removeGroupsMutation.isPending)) ||
+    (operationType === 'wireguard' && wireguardPeerIpsMutation.isPending)
+
+  const bulkPreviewDescription = (response: unknown) => {
+    if (!response || typeof response !== 'object') return ''
+    const r = response as Record<string, unknown>
+    const count = typeof r.affected_users === 'number' ? r.affected_users : undefined
+    if (count === undefined) return ''
+    const inbounds = typeof r.wireguard_inbound_tags === 'number' ? r.wireguard_inbound_tags : undefined
+    if (inbounds !== undefined && inbounds > 0) {
+      return t('bulk.previewToastWithInbounds', {
+        count,
+        inbounds,
+        defaultValue: '{{count}} would be affected · {{inbounds}} inbounds (dry run)',
+      })
+    }
+    return t('bulk.previewToast', {
+      count,
+      defaultValue: '{{count}} would be affected (dry run)',
+    })
+  }
+
+  const confirmApply = () => {
+    const basePayload = {
+      group_ids: selectedGroups.length ? selectedGroups : [],
+      users: selectedUsers.length ? selectedUsers : [],
+      admins: selectedAdmins.length ? selectedAdmins : [],
+    }
+    const statusPayload = selectedStatuses.length ? { status: selectedStatuses } : {}
+
+    const payload = (() => {
+      switch (operationType) {
+        case 'proxy':
+          return {
+            ...basePayload,
+            flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
+            method: selectedMethod,
+            dry_run: false,
+          }
+        case 'data':
+          const dataLimitBytes = gbToBytes(dataLimit!)
+          return {
+            ...basePayload,
+            ...statusPayload,
+            ...expireDatePayload,
+            amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
+            dry_run: false,
+          }
+        case 'expire':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            ...expireDatePayload,
+            amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
+            dry_run: false,
+          }
+        case 'groups':
+          return {
+            group_ids: selectedGroups,
+            has_group_ids: selectedHasGroups.length > 0 ? selectedHasGroups : [],
+            users: selectedUsers.length ? selectedUsers : [],
+            admins: selectedAdmins.length ? selectedAdmins : [],
+            dry_run: false,
+          }
+        case 'wireguard':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            confirm: true,
+            dry_run: false,
+            replace_all: replaceAllPeerIps,
+          }
+        default:
+          return basePayload
+      }
+    })()
+
+    const mutation = (() => {
+      switch (operationType) {
+        case 'proxy':
+          return proxyMutation
+        case 'data':
+          return dataMutation
+        case 'expire':
+          return expireMutation
+        case 'groups':
+          return groupsOperation === 'add' ? addGroupsMutation : removeGroupsMutation
+        case 'wireguard':
+          return wireguardPeerIpsMutation
+        default:
+          return proxyMutation
+      }
+    })()
+
+    setPendingBulkAction('apply')
+
+    mutation.mutate(
+      { data: payload as any },
+      {
+        onSuccess: response => {
+          if (response && typeof response === 'object' && 'wireguard_inbound_tags' in response && 'dry_run' in response && (response as { dry_run?: boolean }).dry_run === false) {
+            const r = response as { affected_users?: number; updated?: number; wireguard_inbound_tags: number }
+            const n = typeof r.affected_users === 'number' ? r.affected_users : (r.updated ?? 0)
+            toast.success(t('operationSuccess', { defaultValue: 'Done' }), {
+              description: t('bulk.applySuccessWithInbounds', {
+                count: n,
+                inbounds: r.wireguard_inbound_tags,
+                defaultValue: '{{count}} updated · {{inbounds}} inbounds',
+              }),
+            })
+            setCurrentStep(1)
+            setReplaceAllPeerIps(false)
+            setSelectedGroups([])
+            setSelectedUsers([])
+            setSelectedAdmins([])
+            setSelectedHasGroups([])
+            setSelectedStatuses([])
+            setExpiredAfter(undefined)
+            setExpiredBefore(undefined)
+            setShowConfirmDialog(false)
+            return
+          }
+
+          const detail = typeof response === 'object' && response && 'detail' in response ? response.detail : undefined
+          let description = ''
+          if (detail) {
+            description = typeof detail === 'string' ? detail : JSON.stringify(detail, null, 2)
+          } else if (typeof response === 'string') {
+            description = response
+          } else if (response && Object.keys(response).length > 0) {
+            description = JSON.stringify(response, null, 2)
+          } else {
+            description = 'Operation completed successfully'
+          }
+          toast.success(t('operationSuccess', { defaultValue: 'Operation successful!' }), { description })
+
+          setCurrentStep(1)
+          setSelectedFlow(undefined)
+          setSelectedMethod(undefined)
+          setDataLimit(undefined)
+          setExpireSeconds(undefined)
+          setExpireAmount(undefined)
+          setSelectedGroups([])
+          setSelectedUsers([])
+          setSelectedAdmins([])
+          setSelectedHasGroups([])
+          setSelectedStatuses([])
+          setExpiredAfter(undefined)
+          setExpiredBefore(undefined)
+          setShowConfirmDialog(false)
+        },
+        onError: error => {
+          toast.error(t('operationFailed', { defaultValue: 'Operation failed!' }), {
+            description: error?.message || JSON.stringify(error, null, 2),
+          })
+          setShowConfirmDialog(false)
+        },
+        onSettled: () => setPendingBulkAction(null),
+      },
+    )
+  }
+
+  const handlePreview = () => {
+    const basePayload = {
+      group_ids: selectedGroups.length ? selectedGroups : [],
+      users: selectedUsers.length ? selectedUsers : [],
+      admins: selectedAdmins.length ? selectedAdmins : [],
+    }
+    const statusPayload = selectedStatuses.length ? { status: selectedStatuses } : {}
+
+    const payload = (() => {
+      switch (operationType) {
+        case 'proxy':
+          return {
+            ...basePayload,
+            flow: selectedFlow === 'none' ? ('' as XTLSFlows) : selectedFlow,
+            method: selectedMethod,
+            dry_run: true,
+          }
+        case 'data': {
+          const dataLimitBytes = gbToBytes(dataLimit!)
+          return {
+            ...basePayload,
+            ...statusPayload,
+            ...expireDatePayload,
+            amount: dataOperation === 'subtract' ? -dataLimitBytes! : dataLimitBytes,
+            dry_run: true,
+          }
+        }
+        case 'expire':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            ...expireDatePayload,
+            amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
+            dry_run: true,
+          }
+        case 'groups':
+          return {
+            group_ids: selectedGroups,
+            has_group_ids: selectedHasGroups.length > 0 ? selectedHasGroups : [],
+            users: selectedUsers.length ? selectedUsers : [],
+            admins: selectedAdmins.length ? selectedAdmins : [],
+            dry_run: true,
+          }
+        case 'wireguard':
+          return {
+            ...basePayload,
+            ...statusPayload,
+            dry_run: true,
+            confirm: false,
+            replace_all: replaceAllPeerIps,
+          }
+      }
+    })()
+
+    const mutation = (() => {
+      switch (operationType) {
+        case 'proxy':
+          return proxyMutation
+        case 'data':
+          return dataMutation
+        case 'expire':
+          return expireMutation
+        case 'groups':
+          return groupsOperation === 'add' ? addGroupsMutation : removeGroupsMutation
+        case 'wireguard':
+          return wireguardPeerIpsMutation
+        default:
+          return proxyMutation
+      }
+    })()
+
+    setPendingBulkAction('preview')
+    mutation.mutate(
+      { data: payload as any },
+      {
+        onSuccess: response => {
+          const description = bulkPreviewDescription(response)
+          toast.success(t('bulk.previewTitle', { defaultValue: 'Preview' }), {
+            description: description || t('bulk.previewNoCount', { defaultValue: 'Dry run completed.' }),
+          })
+        },
+        onError: error => {
+          toast.error(t('operationFailed', { defaultValue: 'Operation failed!' }), {
+            description: error?.message || JSON.stringify(error, null, 2),
+          })
+        },
+        onSettled: () => setPendingBulkAction(null),
+      },
+    )
+  }
+
+  // For groups operation, groups are the operation target, not user targets
+  // So isApplyToAll should only check users, admins, and hasGroups
+  const totalTargets = selectedUsers.length + selectedAdmins.length + (operationType === 'groups' ? selectedHasGroups.length : selectedGroups.length)
+  const hasStatusFilter = (operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && selectedStatuses.length > 0
+  const statusTargetCount = hasStatusFilter ? selectedStatuses.length : 0
+  const hasExpireDateFilter = (operationType === 'data' || operationType === 'expire') && Boolean(expiredAfter || expiredBefore)
+  const expireDateFilterCount = hasExpireDateFilter ? Number(Boolean(expiredAfter)) + Number(Boolean(expiredBefore)) : 0
+  const displayTargetCount = totalTargets + statusTargetCount + expireDateFilterCount
+  const isApplyToAll = totalTargets === 0 && !hasStatusFilter && !hasExpireDateFilter
+
+  const formatTime = (seconds: number) => {
+    if (seconds < 60) return `${seconds}s`
+    if (seconds < 3600) return `${Math.round(seconds / 60)}m`
+    if (seconds < 86400) return `${Math.round(seconds / 3600)}h`
+    if (seconds < 2592000) return `${Math.round(seconds / 86400)}d`
+    return `${Math.round(seconds / 2592000)}mo`
+  }
+
+  const steps = [
+    { id: 1, title: t('bulk.configureSettings', { defaultValue: 'Configure Settings' }), icon: Settings },
+    { id: 2, title: t('bulk.selectTargets', { defaultValue: 'Select Targets' }), icon: User },
+    { id: 3, title: t('bulk.reviewAndApply', { defaultValue: 'Review & Apply' }), icon: CheckCircle },
+  ]
+
+  return (
+    <div className="w-full space-y-3 sm:space-y-4">
+      <div className="flex items-center justify-center px-2 sm:px-4">
+        <div className="flex w-full max-w-3xl items-center">
+          {steps.map((step, index) => {
+            const Icon = step.icon
+            const isActive = step.id === currentStep
+            const isCompleted = step.id < currentStep
+            const isUpcoming = step.id > currentStep
+            return (
+              <div key={step.id} className="flex flex-1 items-center">
+                <div className="flex flex-1 items-center gap-2 sm:gap-3">
+                  <div className="flex flex-shrink-0 flex-col items-center gap-1.5 sm:gap-2">
+                    <div
+                      className={cn(
+                        'relative flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 sm:h-9 sm:w-9',
+                        isCompleted && 'border-primary bg-primary text-primary-foreground shadow-sm',
+                        isActive && 'border-primary bg-background text-primary scale-105 shadow-md',
+                        isUpcoming && 'border-muted-foreground/30 bg-background text-muted-foreground',
+                      )}
+                    >
+                      {isCompleted ? <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" /> : <Icon className={cn('h-4 w-4 sm:h-5 sm:w-5', isActive && 'text-primary')} />}
+                      {isActive && <div className="border-primary/20 absolute inset-0 animate-pulse rounded-full border-2" />}
+                    </div>
+                    <span
+                      className={cn(
+                        'hidden max-w-[60px] text-center text-[10px] leading-tight font-medium sm:block sm:max-w-[80px] sm:text-xs',
+                        isActive && 'text-primary font-semibold',
+                        isCompleted && 'text-primary',
+                        isUpcoming && 'text-muted-foreground',
+                      )}
+                    >
+                      {step.title}
+                    </span>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className="relative mx-1 h-0.5 flex-1 sm:mx-2">
+                      <div className={cn('absolute inset-0 rounded-full transition-all duration-300', isCompleted ? 'bg-primary' : 'bg-muted')} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <Card className="overflow-hidden">
+        <CardContent className="p-3 sm:p-4 md:p-6">
+          {currentStep === 1 && (
+            <div className="space-y-3 sm:space-y-4">
+              {operationType === 'proxy' && (
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="flow" className="flex items-center gap-1.5 text-sm font-medium">
+                        <Network className="text-muted-foreground h-3.5 w-3.5" />
+                        {t('bulk.flowLabel', { defaultValue: 'Flow' })}
+                      </Label>
+                      <Select value={selectedFlow || ''} onValueChange={value => setSelectedFlow(value as XTLSFlows | 'none')}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('bulk.selectFlowPlaceholder', { defaultValue: 'Select flow' })} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">{t('none', { defaultValue: 'None' })}</SelectItem>
+                          {Object.values(XTLSFlows)
+                            .filter(flow => flow !== '')
+                            .map(flow => (
+                              <SelectItem key={flow} value={flow}>
+                                {flow}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="method" className="flex items-center gap-1.5 text-sm font-medium">
+                        <Settings className="text-muted-foreground h-3.5 w-3.5" />
+                        {t('bulk.methodLabel', { defaultValue: 'Method' })}
+                      </Label>
+                      <Select value={selectedMethod || ''} onValueChange={value => setSelectedMethod(value as ShadowsocksMethods)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('bulk.selectMethodPlaceholder', { defaultValue: 'Select method' })} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.values(ShadowsocksMethods).map(method => (
+                            <SelectItem key={method} value={method}>
+                              {method}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {operationType === 'data' && (
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="data-limit" className="flex items-center gap-1.5 text-sm font-medium">
+                      <HardDrive className="text-muted-foreground h-3.5 w-3.5" />
+                      {t('bulk.dataLimitLabel', { defaultValue: 'Data Limit (GB)' })}
+                    </Label>
+                    <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                      <ToggleGroup
+                        type="single"
+                        value={dataOperation}
+                        onValueChange={value => value && setDataOperation(value as 'add' | 'subtract')}
+                        className="h-9 w-full rounded-md border p-0.5 sm:w-auto"
+                        defaultValue="add"
+                      >
+                        <ToggleGroupItem value="add" aria-label="Add" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 sm:flex-initial">
+                          <Plus className="h-4 w-4" />
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="subtract" aria-label="Subtract" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 sm:flex-initial">
+                          <Minus className="h-4 w-4" />
+                        </ToggleGroupItem>
+                      </ToggleGroup>
+                      <div className="relative flex-1 sm:max-w-xs">
+                        <DecimalInput
+                          id="data-limit"
+                          placeholder={t('bulk.dataLimitPlaceholder', { defaultValue: 'Enter amount' })}
+                          value={dataLimit}
+                          zeroValue={0}
+                          onValueChange={setDataLimit}
+                          className={cn(isRTL ? 'pr-3 pl-12' : 'pr-12 pl-3')}
+                        />
+                        <span className={cn('text-muted-foreground pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm', isRTL ? 'left-3' : 'right-3')}>GB</span>
+                        {dataLimit !== undefined && dataLimit > 0 && dataLimit < 1 && (
+                          <p dir="ltr" className="text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs">
+                            {formatBytes(Math.round(dataLimit * 1024 * 1024 * 1024))}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                      {dataOperation === 'add' ? t('bulk.addDataLimit', { defaultValue: 'Add Data Limit' }) : t('bulk.subtractDataLimit', { defaultValue: 'Subtract Data Limit' })}
+                    </p>
+                    {dataOperation === 'subtract' && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        {t('bulk.subtractDataLimitHint', {
+                          defaultValue: "If the amount to subtract is greater than a user's current limit, that user will not be counted.",
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {operationType === 'expire' && (
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="expire-amount" className="flex items-center gap-1.5 text-sm font-medium">
+                      <Calendar className="text-muted-foreground h-3.5 w-3.5" />
+                      {t('bulk.expireDate', { defaultValue: 'Expire Date' })}
+                    </Label>
+                    <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                      <ToggleGroup
+                        type="single"
+                        value={expireOperation}
+                        onValueChange={value => value && setExpireOperation(value as 'add' | 'subtract')}
+                        className="h-9 w-full rounded-md border p-0.5 sm:w-auto"
+                        defaultValue="add"
+                      >
+                        <ToggleGroupItem value="add" aria-label="Add" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 sm:flex-initial">
+                          <Plus className="h-4 w-4" />
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="subtract" aria-label="Subtract" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 sm:flex-initial">
+                          <Minus className="h-4 w-4" />
+                        </ToggleGroupItem>
+                      </ToggleGroup>
+                      <div className="relative flex-1 sm:max-w-xs">
+                        <DecimalInput
+                          id="expire-amount"
+                          placeholder={t('bulk.expire.placeholder', { defaultValue: 'Enter amount' })}
+                          value={expireAmount}
+                          onValueChange={value => setExpireAmount(value && value > 0 ? value : undefined)}
+                          className={cn(isRTL ? 'pr-3 pl-[4.5rem]' : 'pr-[4.5rem] pl-3')}
+                        />
+                        <TimeUnitSelect
+                          value={expireUnit}
+                          onValueChange={setExpireUnit}
+                          triggerClassName={cn('pointer-events-auto absolute top-0 h-full w-[4.5rem] px-2', isRTL ? 'left-0 rounded-r-none border-r-0' : 'right-0 rounded-l-none border-l-0')}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                      {expireOperation === 'add' ? t('bulk.addExpiry', { defaultValue: 'Add to Expiry' }) : t('bulk.subtractExpiry', { defaultValue: 'Subtract from Expiry' })}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {operationType === 'groups' && (
+                <div className="space-y-4 sm:space-y-5">
+                  <div className="space-y-2.5 sm:space-y-3">
+                    <Label className="flex items-center gap-1.5 text-sm font-medium">
+                      <Group className="text-muted-foreground h-3.5 w-3.5" />
+                      {t('bulk.groups', { defaultValue: 'Groups' })}
+                    </Label>
+                    <div>
+                      <ToggleGroup
+                        type="single"
+                        value={groupsOperation}
+                        onValueChange={value => value && setGroupsOperation(value as 'add' | 'remove')}
+                        className="inline-flex w-full rounded-md border p-1 sm:w-auto"
+                        defaultValue="add"
+                      >
+                        <ToggleGroupItem value="add" aria-label="Add" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground flex-1 px-3 sm:flex-initial sm:px-4">
+                          <Plus className="h-4 w-4" />
+                          <span className="ml-1.5 text-xs sm:ml-2 sm:text-sm">{t('bulk.addGroups', { defaultValue: 'Add Groups' })}</span>
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="remove" aria-label="Remove" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground flex-1 px-3 sm:flex-initial sm:px-4">
+                          <Minus className="h-4 w-4" />
+                          <span className="ml-1.5 text-xs sm:ml-2 sm:text-sm">{t('bulk.removeGroups', { defaultValue: 'Remove Groups' })}</span>
+                        </ToggleGroupItem>
+                      </ToggleGroup>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 sm:space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label className="flex items-center gap-1.5 text-sm font-medium">
+                        <CheckCircle2 className="text-muted-foreground h-3.5 w-3.5" />
+                        {groupsOperation === 'add' ? t('bulk.groupsToAdd', { defaultValue: 'Groups to Add' }) : t('bulk.groupsToRemove', { defaultValue: 'Groups to Remove' })}
+                      </Label>
+                      {!groupsLoading && filteredGroups.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const allSelected = filteredGroups.every(group => selectedGroups.includes(group.id))
+                            if (allSelected) {
+                              setSelectedGroups([])
+                            } else {
+                              setSelectedGroups(filteredGroups.map(group => group.id))
+                            }
+                          }}
+                          className="h-8 flex-shrink-0 text-xs sm:text-sm"
+                        >
+                          {filteredGroups.every(group => selectedGroups.includes(group.id)) ? t('deselectAll') : t('selectAll')}
+                        </Button>
+                      )}
+                    </div>
+                    <Command className="rounded-md border">
+                      <CommandInput
+                        placeholder={t('bulk.searchGroups', { defaultValue: 'Search groups...' })}
+                        value={groupCommandSearch}
+                        onValueChange={setGroupCommandSearch}
+                        disabled={groupsLoading}
+                      />
+                      {groupsLoading ? (
+                        <div className="text-muted-foreground flex min-h-[10rem] flex-col items-center justify-center gap-2 py-6 text-sm">
+                          <Loader2 className="h-5 w-5 animate-spin sm:h-6 sm:w-6" aria-hidden />
+                          <span>{t('loading', { defaultValue: 'Loading...' })}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <CommandEmpty>{t('noResults', { defaultValue: 'No results found.' })}</CommandEmpty>
+                          <CommandGroup dir="ltr" className="max-h-40 overflow-auto">
+                            {filteredGroups
+                              .filter(group => !groupCommandSearch || group.name.toLowerCase().includes(groupCommandSearch.toLowerCase()))
+                              .map(group => (
+                                <CommandItem
+                                  key={group.id}
+                                  onSelect={() => {
+                                    if (selectedGroups.includes(group.id)) {
+                                      setSelectedGroups(selectedGroups.filter(id => id !== group.id))
+                                    } else {
+                                      setSelectedGroups([...selectedGroups, group.id])
+                                    }
+                                  }}
+                                >
+                                  <div
+                                    className={cn('mr-2 flex h-4 w-4 items-center justify-center rounded-sm border', selectedGroups.includes(group.id) ? 'border-primary bg-primary' : 'border-muted')}
+                                  >
+                                    {selectedGroups.includes(group.id) && <CheckCircle className="text-primary-foreground h-3 w-3" />}
+                                  </div>
+                                  {group.name}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        </>
+                      )}
+                    </Command>
+                    {selectedGroups.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1 sm:gap-2.5">
+                        {filteredGroups
+                          .filter(group => selectedGroups.includes(group.id))
+                          .map(group => (
+                            <Badge key={group.id} variant="secondary" className="flex items-center gap-1.5 px-2.5 py-1">
+                              {group.name}
+                              <X
+                                className="hover:text-destructive h-3 w-3 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  setSelectedGroups(selectedGroups.filter(id => id !== group.id))
+                                }}
+                              />
+                            </Badge>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {operationType === 'wireguard' && (
+                <div className="flex items-start gap-3">
+                  <Checkbox id="replace-all-wg" checked={replaceAllPeerIps} onCheckedChange={v => setReplaceAllPeerIps(v === true)} className="mt-0.5" />
+                  <div className="space-y-1">
+                    <Label htmlFor="replace-all-wg" className="cursor-pointer text-sm leading-snug font-medium">
+                      {t('bulk.replaceAllPeerIps', { defaultValue: 'Replace all IPs' })}
+                    </Label>
+                    <p className="text-muted-foreground text-xs">
+                      {t('bulk.replaceAllPeerIpsHint', {
+                        defaultValue: 'When enabled, every affected user gets a new peer IP from the pool. When disabled, only invalid or missing peer IPs are updated.',
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {currentStep === 2 && (
+            <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-2">
+                {isApplyToAll && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5 sm:p-3 dark:border-blue-800 dark:bg-blue-950/20">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-blue-600 sm:h-4 sm:w-4 dark:text-blue-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs leading-relaxed font-medium text-blue-800 sm:text-sm dark:text-blue-200">
+                          {t('bulk.noSelectionInfo', { defaultValue: 'No targets selected. This operation will apply to ALL users, admins, and groups in the system.' })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {(operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && (
+                <Card>
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="space-y-2">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <Label className="text-sm font-medium">{t('status', { defaultValue: 'Status' })}</Label>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedStatuses.length > 0 ? (
+                          selectedStatuses.map(status => {
+                            const option = statusOptions.find(opt => opt.value === status)
+                            if (!option) return null
+                            return (
+                              <span key={status} className="bg-muted/80 flex items-center gap-2 rounded-md px-2 py-1 text-sm">
+                                {option.label}
+                                <button
+                                  type="button"
+                                  className="hover:text-destructive"
+                                  onClick={() => {
+                                    setSelectedStatuses(selectedStatuses.filter(s => s !== status))
+                                  }}
+                                >
+                                  x
+                                </button>
+                              </span>
+                            )
+                          })
+                        ) : (
+                          <span className="text-muted-foreground text-sm">{t('hostsDialog.noStatus', { defaultValue: 'No status selected' })}</span>
+                        )}
+                      </div>
+                      <Select
+                        value=""
+                        onValueChange={(value: UserStatus) => {
+                          if (!value) return
+                          if (!selectedStatuses.includes(value)) {
+                            setSelectedStatuses([...selectedStatuses, value])
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={t('hostsDialog.selectStatus', { defaultValue: 'Select status' })} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background">
+                          {statusOptions.map(option => (
+                            <SelectItem
+                              key={option.value}
+                              value={option.value}
+                              className="focus:bg-accent flex cursor-pointer items-center gap-2 px-4 py-2"
+                              disabled={selectedStatuses.includes(option.value)}
+                            >
+                              <div className="flex w-full items-center gap-3">
+                                <Checkbox checked={selectedStatuses.includes(option.value)} className="h-4 w-4" />
+                                <span className="text-sm font-normal">{option.label}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedStatuses.length > 0 && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => setSelectedStatuses([])} className="w-full">
+                          {t('hostsDialog.clearAllStatuses', { defaultValue: 'Clear all statuses' })}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {(operationType === 'data' || operationType === 'expire') && (
+                <Card>
+                  <CardContent className="p-3 sm:p-4">
+                    <BulkExpiredDateFilters expiredAfter={expiredAfter} expiredBefore={expiredBefore} onExpiredAfterChange={setExpiredAfter} onExpiredBeforeChange={setExpiredBefore} />
+                  </CardContent>
+                </Card>
+              )}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                {operationType === 'groups' ? (
+                  <SelectorPanel
+                    icon={Group}
+                    title={t('bulk.selectHasGroups', { defaultValue: 'Select Has Groups' })}
+                    items={filteredHasGroups}
+                    selected={selectedHasGroups}
+                    setSelected={setSelectedHasGroups}
+                    search={hasGroupSearch}
+                    setSearch={setHasGroupSearch}
+                    searchPlaceholder={t('bulk.searchHasGroups', { defaultValue: 'Search has groups...' })}
+                    selectAllLabel={t('selectAll', { defaultValue: 'Select All' })}
+                    deselectAllLabel={t('deselectAll', { defaultValue: 'Deselect All' })}
+                    itemLabelKey="name"
+                    itemValueKey="id"
+                    searchKey="name"
+                    t={t}
+                    isLoading={groupsLoading}
+                    description={
+                      groupsOperation === 'remove'
+                        ? t('bulk.hasGroupsDescription', { defaultValue: 'Users must have these groups to be affected' })
+                        : t('bulk.hasGroupsDescriptionAdd', { defaultValue: 'Filter users who have these groups' })
+                    }
+                    isRequired={groupsOperation === 'remove'}
+                    hasError={groupsOperation === 'remove' && selectedHasGroups.length === 0}
+                  />
+                ) : (
+                  <SelectorPanel
+                    icon={Group}
+                    title={t('bulk.selectGroups', { defaultValue: 'Select Groups' })}
+                    items={filteredGroups}
+                    selected={selectedGroups}
+                    setSelected={setSelectedGroups}
+                    search={groupSearch}
+                    setSearch={setGroupSearch}
+                    searchPlaceholder={t('bulk.searchGroups', { defaultValue: 'Search groups...' })}
+                    selectAllLabel={t('selectAll', { defaultValue: 'Select All' })}
+                    deselectAllLabel={t('deselectAll', { defaultValue: 'Deselect All' })}
+                    itemLabelKey="name"
+                    itemValueKey="id"
+                    searchKey="name"
+                    t={t}
+                    isLoading={groupsLoading}
+                  />
+                )}
+
+                <SelectorPanel
+                  icon={User}
+                  title={t('bulk.selectUsers', { defaultValue: 'Select Users' })}
+                  items={usersData?.users || []}
+                  selected={selectedUsers}
+                  setSelected={setSelectedUsers}
+                  search={userSearch}
+                  setSearch={setUserSearch}
+                  searchPlaceholder={t('bulk.searchUsers', { defaultValue: 'Search users...' })}
+                  selectAllLabel={t('selectAll', { defaultValue: 'Select All' })}
+                  deselectAllLabel={t('deselectAll', { defaultValue: 'Deselect All' })}
+                  itemLabelKey="username"
+                  itemValueKey="id"
+                  searchKey="username"
+                  t={t}
+                  isLoading={usersLoading}
+                />
+
+                <SelectorPanel
+                  icon={Shield}
+                  title={t('bulk.selectAdmins', { defaultValue: 'Select Admins' })}
+                  items={adminsData?.admins || []}
+                  selected={selectedAdmins}
+                  setSelected={setSelectedAdmins}
+                  search={adminSearch}
+                  setSearch={setAdminSearch}
+                  searchPlaceholder={t('bulk.searchAdmins', { defaultValue: 'Search admins...' })}
+                  selectAllLabel={t('selectAll', { defaultValue: 'Select All' })}
+                  deselectAllLabel={t('deselectAll', { defaultValue: 'Deselect All' })}
+                  itemLabelKey="username"
+                  itemValueKey="id"
+                  searchKey="username"
+                  t={t}
+                  isLoading={adminsLoading}
+                />
+              </div>
+            </div>
+          )}
+
+          {currentStep === 3 && (
+            <div className="space-y-3 sm:space-y-4">
+              <div className="bg-muted/50 space-y-2 rounded-lg p-3 sm:space-y-3 sm:p-4">
+                <h3 className="text-sm font-medium">{t('bulk.operationSummary', { defaultValue: 'Operation Summary' })}</h3>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{t('bulk.operationType', { defaultValue: 'Operation Type' })}:</span>
+                    <Badge variant="secondary">
+                      {operationType === 'proxy' && t('bulk.proxySettings')}
+                      {operationType === 'data' && t('bulk.dataLimit')}
+                      {operationType === 'expire' && t('bulk.expireDate')}
+                      {operationType === 'groups' && t('bulk.groups')}
+                      {operationType === 'wireguard' && t('bulk.wireguardPeerIps')}
+                    </Badge>
+                  </div>
+
+                  {operationType === 'wireguard' && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
+                      <span className="text-sm">
+                        {replaceAllPeerIps ? t('bulk.replaceAllPeerIps', { defaultValue: 'Replace all IPs' }) : t('bulk.replaceInvalidPeerIpsOnly', { defaultValue: 'Invalid or missing IPs only' })}
+                      </span>
+                    </div>
+                  )}
+
+                  {operationType === 'proxy' && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
+                      <span>{t('bulk.flowMethod', { flow: selectedFlow === 'none' || !selectedFlow ? t('none') : selectedFlow, method: selectedMethod || t('none') })}</span>
+                    </div>
+                  )}
+
+                  {operationType === 'data' && dataLimit && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
+                      <span dir="ltr">
+                        {dataOperation === 'add' ? '+' : '-'}
+                        {formatBytes(gbToBytes(dataLimit)!)}
+                      </span>
+                    </div>
+                  )}
+
+                  {operationType === 'expire' && expireSeconds && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
+                      <span dir="ltr">
+                        {expireOperation === 'add' ? '+' : '-'}
+                        {formatTime(expireSeconds)}
+                      </span>
+                    </div>
+                  )}
+
+                  {(operationType === 'data' || operationType === 'expire' || operationType === 'wireguard') && selectedStatuses.length > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('status', { defaultValue: 'Status' })}:</span>
+                      <span className="text-sm">{selectedStatuses.map(status => t(`status.${status}`, { defaultValue: status.replace(/_/g, ' ') })).join(', ')}</span>
+                    </div>
+                  )}
+
+                  {(operationType === 'data' || operationType === 'expire') && (expiredAfter || expiredBefore) && (
+                    <div className="space-y-1.5 text-sm">
+                      {expiredAfter && (
+                        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                          <span className="text-muted-foreground">{t('bulk.expiredFilterAfter')}:</span>
+                          <span className="sm:text-end">{formatExpiryFilterDate(expiredAfter)}</span>
+                        </div>
+                      )}
+                      {expiredBefore && (
+                        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                          <span className="text-muted-foreground">{t('bulk.expiredFilterBefore')}:</span>
+                          <span className="sm:text-end" dir="ltr">
+                            {formatExpiryFilterDate(expiredBefore)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {operationType === 'groups' && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
+                        <Badge variant={groupsOperation === 'remove' ? 'destructive' : 'default'}>{groupsOperation === 'add' ? t('bulk.addGroups') : t('bulk.removeGroups')}</Badge>
+                      </div>
+                      {selectedHasGroups.length > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">{t('bulk.hasGroups', { defaultValue: 'Has Groups' })}:</span>
+                          <span className="text-sm">
+                            {selectedHasGroups.length} {t('bulk.selected', { defaultValue: 'selected' })}
+                          </span>
+                        </div>
+                      )}
+                      {selectedGroups.length > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">{t('bulk.groups', { defaultValue: 'Groups' })}:</span>
+                          <span className="text-sm">
+                            {selectedGroups.length} {t('bulk.selected', { defaultValue: 'selected' })}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{t('bulk.targets', { defaultValue: 'Targets' })}:</span>
+                    <span>{isApplyToAll ? t('bulk.allTargets', { defaultValue: 'All users, admins, and groups' }) : t('bulk.targetsCount', { count: displayTargetCount })}</span>
+                  </div>
+                </div>
+              </div>
+
+              {isApplyToAll && (
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-2.5 sm:p-3 dark:border-yellow-800 dark:bg-yellow-950/20">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-yellow-600 sm:h-4 sm:w-4 dark:text-yellow-400" />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-medium text-yellow-800 sm:text-sm dark:text-yellow-200">{t('bulk.warning', { defaultValue: 'Warning' })}</h4>
+                      <p className="mt-1 text-xs leading-relaxed text-yellow-700 sm:text-sm dark:text-yellow-300">
+                        {t('bulk.applyToAllWarning', { defaultValue: 'This operation will apply to ALL users, admins, and groups in the system.' })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div dir={dir} className={cn('flex flex-col-reverse gap-2 px-2 sm:flex-row sm:px-0', currentStep === 1 ? 'justify-end' : 'justify-between')}>
+        {currentStep > 1 && (
+          <Button variant="outline" onClick={prevStep} size="sm" className="w-full sm:w-auto">
+            <ChevronLeft className={cn('h-4 w-4', isRTL ? 'ml-1.5 rotate-180' : 'mr-1.5')} />
+            <span>{t('previous', { defaultValue: 'Previous' })}</span>
+          </Button>
+        )}
+
+        {currentStep < 3 ? (
+          <Button onClick={nextStep} disabled={!canProceedToNext()} size="sm" className="w-full sm:w-auto">
+            <span>{t('next', { defaultValue: 'Next' })}</span>
+            <ChevronRight className={cn('h-4 w-4', isRTL ? 'mr-1.5 rotate-180' : 'ml-1.5')} />
+          </Button>
+        ) : (
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end sm:gap-2">
+            <LoaderButton
+              type="button"
+              variant="outline"
+              onClick={handlePreview}
+              disabled={!canProceedToNext() || isCurrentBulkMutationPending}
+              isLoading={pendingBulkAction === 'preview'}
+              loadingText={t('bulk.previewing', { defaultValue: 'Previewing…' })}
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <div className="flex items-center gap-1.5">
+                <Eye className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
+                <span>{t('bulk.preview', { defaultValue: 'Preview' })}</span>
+              </div>
+            </LoaderButton>
+            <LoaderButton
+              onClick={handleApply}
+              disabled={!canProceedToNext() || isCurrentBulkMutationPending}
+              isLoading={pendingBulkAction === 'apply'}
+              loadingText={t('applying', { defaultValue: 'Applying...' })}
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <div className="flex items-center gap-1.5">
+                <CheckCircle className={cn('h-4 w-4', isRTL ? 'ml-1.5' : 'mr-1.5')} />
+                <span>{t('bulk.applyOperation', { defaultValue: 'Apply Operation' })}</span>
+              </div>
+            </LoaderButton>
+          </div>
+        )}
+      </div>
+
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('bulk.confirmOperation', { defaultValue: 'Confirm Operation' })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isApplyToAll
+                ? t('bulk.confirmApplyAll', { defaultValue: 'Are you sure you want to apply this operation to ALL users, admins, and groups?' })
+                : t('bulk.confirmApplyTargets', {
+                    count: displayTargetCount,
+                    defaultValue: 'Are you sure you want to apply this operation to {{count}} target(s)?',
+                  })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmApply}
+              disabled={
+                proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending || wireguardPeerIpsMutation.isPending
+              }
+            >
+              {proxyMutation.isPending || dataMutation.isPending || expireMutation.isPending || addGroupsMutation.isPending || removeGroupsMutation.isPending || wireguardPeerIpsMutation.isPending
+                ? t('applying', { defaultValue: 'Applying...' })
+                : t('confirm', { defaultValue: 'Confirm' })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}

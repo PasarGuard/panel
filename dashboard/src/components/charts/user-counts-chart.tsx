@@ -7,7 +7,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
-import UserCountStatsModal from '@/components/dialogs/user-count-stats-modal'
+import UserCountStatsModal from '@/features/users/dialogs/user-count-stats-modal'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'

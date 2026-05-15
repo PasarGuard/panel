@@ -1,17 +1,17 @@
-import { buildDefaultApplications } from '@/components/subscriptions/default-applications-catalog'
-import { SubscriptionApplicationSheet } from '@/components/subscriptions/subscription-application-sheet'
-import { SubscriptionApplicationsSection } from '@/components/subscriptions/subscription-applications-section'
-import { SubscriptionFormActions } from '@/components/subscriptions/subscription-form-actions'
-import { SubscriptionGeneralSettingsSection } from '@/components/subscriptions/subscription-general-settings-section'
-import { SubscriptionManualFormatsSection } from '@/components/subscriptions/subscription-manual-formats-section'
-import { SubscriptionRulesSection } from '@/components/subscriptions/subscription-rules-section'
-import { SubscriptionSettingsSkeleton } from '@/components/subscriptions/subscription-settings-skeleton'
+import { buildDefaultApplications } from '@/features/subscriptions/components/default-applications-catalog'
+import { SubscriptionApplicationSheet } from '@/features/subscriptions/components/subscription-application-sheet'
+import { SubscriptionApplicationsSection } from '@/features/subscriptions/components/subscription-applications-section'
+import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
+import { SubscriptionGeneralSettingsSection } from '@/features/subscriptions/components/subscription-general-settings-section'
+import { SubscriptionManualFormatsSection } from '@/features/subscriptions/components/subscription-manual-formats-section'
+import { SubscriptionRulesSection } from '@/features/subscriptions/components/subscription-rules-section'
+import { SubscriptionSettingsSkeleton } from '@/features/subscriptions/components/subscription-settings-skeleton'
 import {
   subscriptionSchema,
   type SubscriptionApplicationFormData,
   type SubscriptionFormData,
   defaultSubscriptionRules,
-} from '@/components/subscriptions/subscription-settings-schema'
+} from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { type SubRule as ApiSubRule } from '@/service/api'
