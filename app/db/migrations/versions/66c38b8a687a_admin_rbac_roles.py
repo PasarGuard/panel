@@ -76,6 +76,7 @@ def upgrade() -> None:
     # Seed default roles
     from datetime import datetime
     now = datetime.utcnow()  # naive UTC — compatible with all DBs
+
     admin_roles_table = sa.table(
         'admin_roles',
         sa.column('name', sa.String),
