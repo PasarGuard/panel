@@ -186,6 +186,13 @@ async def require_owner(admin: AdminDetails = Depends(get_current)):
     return admin
 
 
+# Kept for backward compatibility — other routers still import this until Stage 8 cleanup
+async def check_sudo_admin(admin: AdminDetails = Depends(get_current)):
+    if not admin.is_sudo:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You're not allowed")
+    return admin
+
+
 async def validate_admin(db: AsyncSession, username: str, password: str) -> AdminValidationResult | None:
     """Validate admin credentials against the database, with env admin fallback."""
     db_admin = await get_admin_by_username(db, username, load_users=False, load_usage_logs=False)
