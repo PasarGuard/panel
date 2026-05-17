@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 
 from app.db import AsyncSession, get_db
-from app.db.crud.admin import create_admin, get_owner, load_admin_attrs, remove_admin
+from app.db.crud.admin import create_admin, get_owner, remove_admin, update_owner_password
 from app.db.crud.temp_key import consume_temp_key, get_temp_key
-from app.models.admin import AdminCreate, AdminDetails, hash_password
+from app.models.admin import AdminCreate, AdminDetails
 from app.models.setup import OwnerCreateRequest, OwnerDeleteRequest, OwnerResetRequest
 from app.utils import responses
 from app.utils.request import get_client_ip
@@ -44,8 +44,7 @@ async def create_owner(
     """Create the owner admin using a one-time temp key."""
     temp_key = await _validate_key(db, body.key)
 
-    existing_owner = await get_owner(db)
-    if existing_owner is not None:
+    if await get_owner(db) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="owner already exists")
 
     db_admin = await create_admin(
@@ -77,12 +76,7 @@ async def reset_owner_password(
     if owner is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="owner not found")
 
-    owner.hashed_password = await hash_password(body.password)
-    owner.password_reset_at = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(owner)
-    await load_admin_attrs(owner)
-
+    owner = await update_owner_password(db, owner, body.password)
     await consume_temp_key(db, temp_key, action="reset_owner", ip=get_client_ip(request))
     return AdminDetails.model_validate(owner)
 

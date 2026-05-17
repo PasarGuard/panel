@@ -3,8 +3,8 @@ from datetime import timezone as tz
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from app.db import AsyncSession, get_db
 from app.db.crud.admin import (
@@ -15,6 +15,7 @@ from app.db.crud.admin import (
 )
 from app.db.models import Admin, AdminUsageLogs, User
 from app.models.admin import AdminDetails, AdminValidationResult, verify_password
+from app.models.admin_role import AdminRoleResponse
 from app.models.settings import Telegram
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
@@ -30,6 +31,7 @@ def _build_admin_details(
     reseted_usage: int | None = None,
 ) -> AdminDetails:
     used_traffic = int(db_admin.used_traffic or 0)
+    role = AdminRoleResponse.model_validate(db_admin.role) if db_admin.role is not None else None
     return AdminDetails(
         id=db_admin.id,
         username=db_admin.username,
@@ -47,6 +49,8 @@ def _build_admin_details(
         discord_id=db_admin.discord_id,
         sub_template=db_admin.sub_template,
         lifetime_used_traffic=None if reseted_usage is None else int(reseted_usage or 0) + used_traffic,
+        role=role,
+        permission_overrides=db_admin.permission_overrides,
     )
 
 
@@ -73,7 +77,6 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     if db_admin:
         if not _is_token_valid_for_admin(db_admin, payload):
             return
-
         return _build_admin_details(db_admin)
 
     elif payload["username"] in auth_settings.sudoers and payload["is_sudo"] is True:
@@ -94,32 +97,20 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
         .correlate(Admin)
         .scalar_subquery()
     )
+
+    base_stmt = select(Admin, total_users_subquery, reseted_usage_subquery).options(selectinload(Admin.role))
+
     if payload.get("admin_id") is not None:
-        admin_row = (
-            await db.execute(
-                select(Admin, total_users_subquery, reseted_usage_subquery).where(Admin.id == payload["admin_id"])
-            )
-        ).one_or_none()
+        admin_row = (await db.execute(base_stmt.where(Admin.id == payload["admin_id"]))).one_or_none()
         if admin_row is None:
-            admin_row = (
-                await db.execute(
-                    select(Admin, total_users_subquery, reseted_usage_subquery).where(
-                        Admin.username == payload["username"]
-                    )
-                )
-            ).one_or_none()
+            admin_row = (await db.execute(base_stmt.where(Admin.username == payload["username"]))).one_or_none()
     else:
-        admin_row = (
-            await db.execute(
-                select(Admin, total_users_subquery, reseted_usage_subquery).where(Admin.username == payload["username"])
-            )
-        ).one_or_none()
+        admin_row = (await db.execute(base_stmt.where(Admin.username == payload["username"]))).one_or_none()
 
     if admin_row:
         db_admin, total_users, reseted_usage = admin_row
         if not _is_token_valid_for_admin(db_admin, payload):
             return
-
         return _build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
 
     elif payload["username"] in auth_settings.sudoers and payload["is_sudo"] is True:
@@ -140,7 +131,6 @@ async def get_current(db: AsyncSession = Depends(get_db), token: str = Depends(o
             detail="your account has been disabled",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     return admin
 
 
@@ -158,7 +148,6 @@ async def get_current_with_metrics(db: AsyncSession = Depends(get_db), token: st
             detail="your account has been disabled",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     return admin
 
 
@@ -170,7 +159,6 @@ async def check_sudo_admin(admin: AdminDetails = Depends(get_current)):
 
 async def validate_admin(db: AsyncSession, username: str, password: str) -> AdminValidationResult | None:
     """Validate admin credentials with environment variables or database."""
-
     db_admin = await get_admin_by_username(db, username, load_users=False, load_usage_logs=False)
     if db_admin and await verify_password(password, db_admin.hashed_password):
         return AdminValidationResult(
@@ -183,7 +171,6 @@ async def validate_admin(db: AsyncSession, username: str, password: str) -> Admi
     if not db_admin and auth_settings.sudoers.get(username) == password:
         if not runtime_settings.debug:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="env admin not allowed in production")
-
         return AdminValidationResult(username=username, is_sudo=True, is_disabled=False)
 
 

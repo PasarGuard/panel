@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, case, delete, func, select, update
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.general import (
@@ -64,17 +65,8 @@ async def get_admin(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    """
-    Retrieves an admin by username.
-
-    Args:
-        db (AsyncSession): Database session.
-        username (str): The username of the admin.
-
-    Returns:
-        Admin: The admin object.
-    """
-    admin = (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
+    stmt = select(Admin).where(Admin.username == username).options(selectinload(Admin.role))
+    admin = (await db.execute(stmt)).unique().scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
@@ -161,17 +153,8 @@ async def get_admin_by_id(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    """
-    Retrieves an admin by their ID.
-
-    Args:
-        db (AsyncSession): Database session.
-        id (int): The ID of the admin.
-
-    Returns:
-        Admin: The admin object.
-    """
-    admin = (await db.execute(select(Admin).where(Admin.id == id))).unique().scalar_one_or_none()
+    stmt = select(Admin).where(Admin.id == id).options(selectinload(Admin.role))
+    admin = (await db.execute(stmt)).unique().scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
@@ -184,18 +167,16 @@ async def get_admin_by_telegram_id(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    """
-    Retrieves an admin by their Telegram ID.
-
-    Args:
-        db (AsyncSession): Database session.
-        telegram_id (int): The Telegram ID of the admin.
-
-    Returns:
-        Admin: The admin object.
-    """
     admins = (
-        (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id).order_by(Admin.id.asc()).limit(2)))
+        (
+            await db.execute(
+                select(Admin)
+                .where(Admin.telegram_id == telegram_id)
+                .options(selectinload(Admin.role))
+                .order_by(Admin.id.asc())
+                .limit(2)
+            )
+        )
         .scalars()
         .all()
     )
@@ -232,17 +213,9 @@ async def get_admin_by_discord_id(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    """
-    Retrieves an admin by their Discord ID.
-
-    Args:
-        db (AsyncSession): Database session.
-        discord_id (int): The Discord ID of the admin.
-
-    Returns:
-        Admin: The admin object.
-    """
-    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).first()
+    admin = (
+        await db.execute(select(Admin).where(Admin.discord_id == discord_id).options(selectinload(Admin.role)))
+    ).scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
@@ -523,6 +496,16 @@ async def get_admin_usages(
         stats[node_id_val].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+async def update_owner_password(db: AsyncSession, owner: Admin, new_password: str) -> Admin:
+    """Reset the owner's password. All DB work stays in the CRUD layer."""
+    owner.hashed_password = await hash_password(new_password)
+    owner.password_reset_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(owner)
+    await load_admin_attrs(owner)
+    return owner
 
 
 async def get_owner(db: AsyncSession) -> Admin | None:

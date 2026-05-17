@@ -7,6 +7,7 @@ from enum import Enum
 import bcrypt
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.models.admin_role import AdminRoleResponse
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
@@ -93,6 +94,8 @@ class AdminDetails(AdminContactInfo):
     sub_template: str | None = None
     lifetime_used_traffic: int | None = None
     note: str | None = None
+    role: AdminRoleResponse | None = None
+    permission_overrides: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

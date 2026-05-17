@@ -65,12 +65,15 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 
     # Seed the 3 default roles so FK constraints on admins.role_id are satisfied
     from app.db.models import AdminRole
+
     async with async_sessionmaker(bind=engine, expire_on_commit=False)() as seed_session:
-        seed_session.add_all([
-            AdminRole(name="owner",         is_locked=True,  permissions={}, limits={}, features={}, access={}),
-            AdminRole(name="administrator", is_locked=False, permissions={}, limits={}, features={}, access={}),
-            AdminRole(name="operator",      is_locked=False, permissions={}, limits={}, features={}, access={}),
-        ])
+        seed_session.add_all(
+            [
+                AdminRole(name="owner", is_locked=True, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="administrator", is_locked=False, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="operator", is_locked=False, permissions={}, limits={}, features={}, access={}),
+            ]
+        )
         await seed_session.commit()
 
     session_factory = async_sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
