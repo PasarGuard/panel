@@ -48,7 +48,7 @@ async def get_roles_simple(db: AsyncSession) -> list[AdminRole]:
 async def create_role(db: AsyncSession, data: AdminRoleCreate) -> AdminRole:
     role = AdminRole(
         name=data.name,
-        permissions=data.permissions,
+        permissions=data.permissions.model_dump(exclude_none=True),
         limits=data.limits.model_dump(),
         features=data.features.model_dump(),
         access=data.access.model_dump(),
@@ -65,7 +65,7 @@ async def modify_role(db: AsyncSession, role: AdminRole, data: AdminRoleModify) 
     if data.name is not None:
         role.name = data.name
     if data.permissions is not None:
-        role.permissions = data.permissions
+        role.permissions = data.permissions.model_dump(exclude_none=True)
     if data.limits is not None:
         role.limits = data.limits.model_dump()
     if data.features is not None:
