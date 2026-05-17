@@ -21,7 +21,7 @@ def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
     Raises PermissionDenied if not allowed.
 
     Resolution order (from plan):
-    1. If admin.is_owner (role.is_locked) → ALLOW unconditionally
+    1. If role.is_owner → ALLOW unconditionally
     2. Look up permissions[resource][action]:
        - missing → DENY
        - True → ALLOW
@@ -31,7 +31,7 @@ def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
     if admin.is_owner:
         return
 
-    permissions = admin.role.get("permissions", {}) if admin.role else {}
+    permissions = admin.role.permissions if admin.role else {}
     resource_perms = permissions.get(resource)
     if resource_perms is None:
         raise PermissionDenied(f"Permission denied: {resource}.{action}")
@@ -41,7 +41,7 @@ def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
         raise PermissionDenied(f"Permission denied: {resource}.{action}")
 
     # True or {"scope": ...} both mean allowed at the permission level
-    # (scope enforcement is done separately)
+    # (scope enforcement is done separately via enforce_scope)
 
 
 def enforce_scope(admin: AdminDetails, resource: str, action: str, target_admin_id: int | None) -> None:
@@ -53,7 +53,7 @@ def enforce_scope(admin: AdminDetails, resource: str, action: str, target_admin_
     if admin.is_owner:
         return
 
-    permissions = admin.role.get("permissions", {}) if admin.role else {}
+    permissions = admin.role.permissions if admin.role else {}
     action_perm = permissions.get(resource, {}).get(action)
 
     if isinstance(action_perm, dict) and action_perm.get("scope") == "own":
@@ -67,10 +67,7 @@ def get_effective_limits(admin: AdminDetails) -> dict:
     Non-null override values win over role limits.
     Returns a dict with the same keys as RoleLimits.
     """
-    role_limits = {}
-    if admin.role:
-        role_limits = admin.role.get("limits", {}) or {}
-
+    role_limits = admin.role.limits.model_dump() if admin.role else {}
     overrides = admin.permission_overrides or {}
 
     merged = dict(role_limits)

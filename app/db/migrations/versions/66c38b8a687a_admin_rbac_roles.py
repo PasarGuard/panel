@@ -63,7 +63,7 @@ def upgrade() -> None:
     op.create_table('admin_roles',
     sa.Column('id', app.db.compiles_types.SqliteCompatibleBigInteger(), autoincrement=True, nullable=False),
     sa.Column('name', sa.String(length=64), nullable=False),
-    sa.Column('is_locked', sa.Boolean(), server_default='0', nullable=False),
+    sa.Column('is_owner', sa.Boolean(), server_default='0', nullable=False),
     sa.Column('permissions', sa.JSON().with_variant(postgresql.JSONB(none_as_null=True, astext_type=Text()), 'postgresql'), nullable=False),
     sa.Column('limits', sa.JSON().with_variant(postgresql.JSONB(none_as_null=True, astext_type=Text()), 'postgresql'), nullable=False),
     sa.Column('features', sa.JSON().with_variant(postgresql.JSONB(none_as_null=True, astext_type=Text()), 'postgresql'), nullable=False),
@@ -80,7 +80,7 @@ def upgrade() -> None:
     admin_roles_table = sa.table(
         'admin_roles',
         sa.column('name', sa.String),
-        sa.column('is_locked', sa.Boolean),
+        sa.column('is_owner', sa.Boolean),
         sa.column('permissions', sa.JSON),
         sa.column('limits', sa.JSON),
         sa.column('features', sa.JSON),
@@ -88,9 +88,9 @@ def upgrade() -> None:
         sa.column('created_at', sa.DateTime),
     )
     op.bulk_insert(admin_roles_table, [
-        {"name": "owner",         "is_locked": True,  "permissions": OWNER_PERMISSIONS,         "limits": DEFAULT_LIMITS, "features": DEFAULT_FEATURES, "access": DEFAULT_ACCESS, "created_at": now},
-        {"name": "administrator", "is_locked": False, "permissions": ADMINISTRATOR_PERMISSIONS, "limits": DEFAULT_LIMITS, "features": DEFAULT_FEATURES, "access": DEFAULT_ACCESS, "created_at": now},
-        {"name": "operator",      "is_locked": False, "permissions": OPERATOR_PERMISSIONS,      "limits": DEFAULT_LIMITS, "features": DEFAULT_FEATURES, "access": DEFAULT_ACCESS, "created_at": now},
+        {"name": "owner",         "is_owner": True,  "permissions": OWNER_PERMISSIONS,         "limits": DEFAULT_LIMITS, "features": DEFAULT_FEATURES, "access": DEFAULT_ACCESS, "created_at": now},
+        {"name": "administrator", "is_owner": False, "permissions": ADMINISTRATOR_PERMISSIONS, "limits": DEFAULT_LIMITS, "features": DEFAULT_FEATURES, "access": DEFAULT_ACCESS, "created_at": now},
+        {"name": "operator",      "is_owner": False, "permissions": OPERATOR_PERMISSIONS,      "limits": DEFAULT_LIMITS, "features": DEFAULT_FEATURES, "access": DEFAULT_ACCESS, "created_at": now},
     ])
 
     op.create_table('temp_keys',

@@ -12,6 +12,7 @@ from app.operation.permissions import (
 
 def _make_admin(*, is_owner=False, permissions=None, limits=None, overrides=None, admin_id=10):
     role = {
+        "is_owner": is_owner,
         "permissions": permissions or {},
         "limits": limits or {},
         "features": {},
@@ -21,7 +22,6 @@ def _make_admin(*, is_owner=False, permissions=None, limits=None, overrides=None
         id=admin_id,
         username="testadmin",
         is_sudo=False,
-        is_owner=is_owner,
         role=role,
         permission_overrides=overrides,
     )

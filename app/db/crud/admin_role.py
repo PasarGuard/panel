@@ -42,7 +42,7 @@ async def get_roles(db: AsyncSession, query: AdminRoleListQuery) -> tuple[list[A
 
 
 async def get_roles_simple(db: AsyncSession) -> list[AdminRole]:
-    return list((await db.execute(select(AdminRole.id, AdminRole.name, AdminRole.is_locked))).all())
+    return list((await db.execute(select(AdminRole.id, AdminRole.name, AdminRole.is_owner))).all())
 
 
 async def create_role(db: AsyncSession, data: AdminRoleCreate) -> AdminRole:
@@ -60,8 +60,8 @@ async def create_role(db: AsyncSession, data: AdminRoleCreate) -> AdminRole:
 
 
 async def modify_role(db: AsyncSession, role: AdminRole, data: AdminRoleModify) -> AdminRole:
-    if role.is_locked:
-        raise ValueError(f"Cannot modify locked role '{role.name}'")
+    if role.is_owner:
+        raise ValueError(f"Cannot modify owner role '{role.name}'")
     if data.name is not None:
         role.name = data.name
     if data.permissions is not None:

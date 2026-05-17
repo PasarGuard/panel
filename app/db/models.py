@@ -831,7 +831,7 @@ class AdminRole(Base):
 
     id: Mapped[int] = id_column()
     name: Mapped[str] = mapped_column(String(64), unique=True)
-    is_locked: Mapped[bool] = mapped_column(default=False, server_default="0")
+    is_owner: Mapped[bool] = mapped_column(default=False, server_default="0")
     permissions: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     limits: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     features: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)

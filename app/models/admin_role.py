@@ -48,7 +48,7 @@ class AdminRoleModify(BaseModel):
 
 class AdminRoleResponse(AdminRoleBase):
     id: int
-    is_locked: bool
+    is_owner: bool
     created_at: dt
 
     model_config = ConfigDict(from_attributes=True)
@@ -57,7 +57,7 @@ class AdminRoleResponse(AdminRoleBase):
 class AdminRoleSimple(BaseModel):
     id: int
     name: str
-    is_locked: bool
+    is_owner: bool
     model_config = ConfigDict(from_attributes=True)
 
 

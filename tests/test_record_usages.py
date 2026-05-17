@@ -69,9 +69,9 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
     async with async_sessionmaker(bind=engine, expire_on_commit=False)() as seed_session:
         seed_session.add_all(
             [
-                AdminRole(name="owner", is_locked=True, permissions={}, limits={}, features={}, access={}),
-                AdminRole(name="administrator", is_locked=False, permissions={}, limits={}, features={}, access={}),
-                AdminRole(name="operator", is_locked=False, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="owner", is_owner=True, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="administrator", is_owner=False, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="operator", is_owner=False, permissions={}, limits={}, features={}, access={}),
             ]
         )
         await seed_session.commit()

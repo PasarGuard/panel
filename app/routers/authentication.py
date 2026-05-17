@@ -13,8 +13,7 @@ from app.db.crud.admin import (
     get_admin_by_telegram_id,
 )
 from app.db.models import Admin, AdminUsageLogs, User
-from app.models.admin import AdminDetails, AdminValidationResult, verify_password
-from app.models.admin_role import AdminRoleResponse
+from app.models.admin import AdminDetails, AdminRoleData, AdminValidationResult, verify_password
 from app.models.settings import Telegram
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
@@ -30,7 +29,7 @@ def _build_admin_details(
     reseted_usage: int | None = None,
 ) -> AdminDetails:
     used_traffic = int(db_admin.used_traffic or 0)
-    role = AdminRoleResponse.model_validate(db_admin.role) if db_admin.role is not None else None
+    role = AdminRoleData.model_validate(db_admin.role) if db_admin.role is not None else None
     return AdminDetails(
         id=db_admin.id,
         username=db_admin.username,

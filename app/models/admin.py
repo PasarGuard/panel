@@ -7,7 +7,7 @@ from enum import Enum
 import bcrypt
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.admin_role import AdminRoleResponse
+from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
@@ -42,6 +42,18 @@ async def verify_password(raw: str, hashed: str) -> bool:
     loop = asyncio.get_running_loop()
     async with _password_semaphore:
         return await loop.run_in_executor(_password_executor, _verify_password_sync, raw, hashed)
+
+
+class AdminRoleData(BaseModel):
+    """Runtime role data carried on AdminDetails — only the fields needed for permission checks."""
+
+    is_owner: bool = False
+    permissions: dict = Field(default_factory=dict)
+    limits: RoleLimits = Field(default_factory=RoleLimits)
+    features: RoleFeatures = Field(default_factory=RoleFeatures)
+    access: RoleAccess = Field(default_factory=RoleAccess)
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Token(BaseModel):
@@ -94,8 +106,12 @@ class AdminDetails(AdminContactInfo):
     sub_template: str | None = None
     lifetime_used_traffic: int | None = None
     note: str | None = None
-    role: AdminRoleResponse | None = None
+    role: AdminRoleData | None = None
     permission_overrides: dict | None = None
+
+    @property
+    def is_owner(self) -> bool:
+        return self.role.is_owner if self.role is not None else False
 
     model_config = ConfigDict(from_attributes=True)
 
