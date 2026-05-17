@@ -38,7 +38,7 @@ from app.models.admin import (
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import UserListQuery
 from app.node.sync import remove_user as sync_remove_user, sync_users
-from app.operation import BaseOperation, OperatorType
+from app.operation import BaseOperation
 from app.operation.user import UserOperation
 from app.utils.logger import get_logger
 
@@ -49,7 +49,9 @@ class AdminOperation(BaseOperation):
     async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails) -> AdminDetails:
         """Create a new admin."""
         if new_admin.role_id == 1:
-            await self.raise_error(message="Owner role cannot be assigned via this endpoint. Use the setup flow.", code=403)
+            await self.raise_error(
+                message="Owner role cannot be assigned via this endpoint. Use the setup flow.", code=403
+            )
 
         if new_admin.telegram_id is not None:
             existing_admins = await find_admins_by_telegram_id(db, new_admin.telegram_id, limit=1)
@@ -86,7 +88,9 @@ class AdminOperation(BaseOperation):
             await self.raise_error(message="Owner cannot be modified via this endpoint. Use the setup flow.", code=403)
 
         if modified_admin.role_id == 1:
-            await self.raise_error(message="Owner role cannot be assigned via this endpoint. Use the setup flow.", code=403)
+            await self.raise_error(
+                message="Owner role cannot be assigned via this endpoint. Use the setup flow.", code=403
+            )
 
         if db_admin.username == current_admin.username and modified_admin.is_disabled is True:
             await self.raise_error(message="You're not allowed to disable your own account.", code=403)

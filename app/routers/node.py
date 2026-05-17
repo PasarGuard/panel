@@ -45,7 +45,7 @@ from app.utils import responses
 from app.utils.logger import get_logger
 from config import runtime_settings
 
-from .authentication import check_sudo_admin
+from .authentication import require_permission
 from .dependencies import (
     get_node_clear_usage_query,
     get_node_list_query,
@@ -133,7 +133,7 @@ _node_logs_handler = _node_logs_local if runtime_settings.role.runs_node else _n
 
 
 @router.get("/settings", response_model=NodeSettings)
-async def get_node_settings(_: AdminDetails = Depends(check_sudo_admin)):
+async def get_node_settings(_: AdminDetails = Depends(require_permission("nodes", "read"))):
     """Retrieve the current node settings."""
     return NodeSettings()
 
@@ -142,7 +142,7 @@ async def get_node_settings(_: AdminDetails = Depends(check_sudo_admin)):
 async def get_usage(
     query: Annotated[NodeUsageQuery, Depends(get_node_usage_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve usage statistics for nodes within a specified date range."""
     return await node_operator.get_usage(db=db, query=query)
@@ -153,7 +153,7 @@ async def get_user_count_metric(
     metric: UserCountMetric,
     query: Annotated[NodeUsageQuery, Depends(get_node_usage_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve one user activity/status count metric from node user usage rows."""
     try:
@@ -168,7 +168,7 @@ async def get_user_count_metric(
 async def get_nodes(
     query: Annotated[NodeListQuery, Depends(get_node_list_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "read")),
 ):
     """Retrieve a list of all nodes. Accessible only to sudo admins."""
 
@@ -184,7 +184,7 @@ async def get_nodes(
 async def get_nodes_simple(
     query: Annotated[NodeSimpleListQuery, Depends(get_node_simple_list_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "read_simple")),
 ):
     """Get lightweight node list with only id and name"""
     return await node_operator.get_nodes_simple(db=db, query=query)
@@ -194,7 +194,7 @@ async def get_nodes_simple(
 async def reconnect_all_node(
     core_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("nodes", "reconnect")),
 ):
     """
     Trigger reconnection for all nodes or a specific core.
@@ -210,20 +210,28 @@ async def reconnect_all_node(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_node(
-    new_node: NodeCreate, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    new_node: NodeCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "create")),
 ):
     """Create a new node to the database."""
     return await node_operator.create_node(db, new_node, admin)
 
 
 @router.get("/{node_id}", response_model=NodeResponse)
-async def get_node(node_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)):
+async def get_node(
+    node_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("nodes", "read"))
+):
     """Retrieve details of a specific node by its ID."""
     return await node_operator.get_validated_node(db=db, node_id=node_id)
 
 
 @router.post("/{node_id}/update")
-async def update_node(node_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)):
+async def update_node(
+    node_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("nodes", "update_core")),
+):
     return await node_operator.update_node(db=db, node_id=node_id)
 
 
@@ -232,7 +240,7 @@ async def update_core(
     node_id: int,
     node_core_update: NodeCoreUpdate,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "update_core")),
 ):
     return await node_operator.update_core(db=db, node_id=node_id, node_core_update=node_core_update)
 
@@ -242,7 +250,7 @@ async def update_geofiles(
     node_id: int,
     node_geofiles_update: NodeGeoFilesUpdate,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "update_core")),
 ):
     return await node_operator.update_geofiles(db=db, node_id=node_id, node_geofiles_update=node_geofiles_update)
 
@@ -252,7 +260,7 @@ async def modify_node(
     modified_node: NodeModify,
     node_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("nodes", "update")),
 ):
     """Modify a node's details. Only accessible to sudo admins."""
     return await node_operator.modify_node(db, node_id=node_id, modified_node=modified_node, admin=admin)
@@ -260,7 +268,9 @@ async def modify_node(
 
 @router.post("/{node_id}/reset", response_model=NodeResponse)
 async def reset_node_usage(
-    node_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    node_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "update")),
 ):
     """
     Reset node traffic usage (uplink and downlink).
@@ -272,7 +282,9 @@ async def reset_node_usage(
 
 @router.post("/{node_id}/reconnect")
 async def reconnect_node(
-    node_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    node_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "reconnect")),
 ):
     """Trigger a reconnection for the specified node. Only accessible to sudo admins."""
     await node_operator.restart_node(db, node_id, admin)
@@ -284,14 +296,16 @@ async def sync_node(
     node_id: int,
     flush_users: bool = False,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "update")),
 ):
     return await node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users)
 
 
 @router.delete("/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_node(
-    node_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    node_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "delete")),
 ):
     """Remove a node and remove it from xray in the background."""
     await node_operator.remove_node(db=db, node_id=node_id, admin=admin)
@@ -299,7 +313,7 @@ async def remove_node(
 
 
 @router.get("/{node_id}/logs")
-async def node_logs(node_id: int, request: Request, _: AdminDetails = Depends(check_sudo_admin)):
+async def node_logs(node_id: int, request: Request, _: AdminDetails = Depends(require_permission("nodes", "logs"))):
     """
     Stream logs for a specific node as Server-Sent Events.
     """
@@ -311,13 +325,13 @@ async def get_node_stats_periodic(
     node_id: int,
     query: Annotated[NodeStatsPeriodQuery, Depends(get_node_stats_period_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     return await node_operator.get_node_stats_periodic(db, node_id=node_id, query=query)
 
 
 @router.get("/{node_id}/realtime_stats", response_model=NodeRealtimeStats)
-async def realtime_node_stats(node_id: int, _: AdminDetails = Depends(check_sudo_admin)):
+async def realtime_node_stats(node_id: int, _: AdminDetails = Depends(require_permission("nodes", "stats"))):
     """Retrieve node real-time statistics."""
     return await node_operator.get_node_system_stats(node_id=node_id)
 
@@ -327,21 +341,21 @@ async def node_outbounds_latency(
     node_id: int,
     name: str = "",
     timeout: int | None = None,
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve outbound latency for one outbound or all outbounds of a node."""
     return await node_operator.get_outbounds_latency(node_id=node_id, name=name, timeout=timeout)
 
 
 @router.get("s/realtime_stats", response_model=dict[int, NodeRealtimeStats | None])
-async def realtime_nodes_stats(_: AdminDetails = Depends(check_sudo_admin)):
+async def realtime_nodes_stats(_: AdminDetails = Depends(require_permission("nodes", "stats"))):
     """Retrieve nodes real-time statistics."""
     return await node_operator.get_nodes_system_stats()
 
 
 @router.get("/online_stats/{username}/ip", response_model=UserIPListAll)
 async def user_online_ip_list_all_nodes(
-    username: str, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
+    username: str, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("nodes", "stats"))
 ):
     """Retrieve user ips from all nodes."""
     return await node_operator.get_user_ip_list_all_nodes(db=db, username=username)
@@ -349,7 +363,10 @@ async def user_online_ip_list_all_nodes(
 
 @router.get("/{node_id}/online_stats/{username}", response_model=dict[int, int])
 async def user_online_stats(
-    node_id: int, username: str, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
+    node_id: int,
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve user online stats by node."""
     return await node_operator.get_user_online_stats_by_node(db=db, node_id=node_id, username=username)
@@ -357,7 +374,10 @@ async def user_online_stats(
 
 @router.get("/{node_id}/online_stats/{username}/ip", response_model=UserIPList)
 async def user_online_ip_list(
-    node_id: int, username: str, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
+    node_id: int,
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve user ips by node."""
     return await node_operator.get_user_ip_list_by_node(db=db, node_id=node_id, username=username)
@@ -371,7 +391,7 @@ async def clear_usage_data(
     table: UsageTable,
     query: Annotated[NodeClearUsageQuery, Depends(get_node_clear_usage_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("nodes", "delete")),
 ):
     """
     Deletes **all rows** from the selected usage data table. Use with caution.
@@ -397,7 +417,7 @@ async def clear_usage_data(
 async def bulk_delete_nodes(
     bulk_nodes: BulkNodeSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("nodes", "delete")),
 ):
     """Delete selected nodes by ID."""
     return await node_operator.bulk_remove_nodes(db, bulk_nodes, admin)
@@ -411,7 +431,7 @@ async def bulk_delete_nodes(
 async def bulk_disable_nodes(
     bulk_nodes: BulkNodeSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("nodes", "update")),
 ):
     """Disable selected nodes by ID."""
     return await node_operator.bulk_set_nodes_status(db, bulk_nodes, admin, status=NodeStatus.disabled)
@@ -425,7 +445,7 @@ async def bulk_disable_nodes(
 async def bulk_enable_nodes(
     bulk_nodes: BulkNodeSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("nodes", "update")),
 ):
     """Enable selected nodes by ID."""
     return await node_operator.bulk_set_nodes_status(db, bulk_nodes, admin, status=NodeStatus.connected)
@@ -439,7 +459,7 @@ async def bulk_enable_nodes(
 async def bulk_reset_nodes_usage(
     bulk_nodes: BulkNodeSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("nodes", "update")),
 ):
     """Reset usage for selected nodes by ID."""
     return await node_operator.bulk_reset_nodes_usage(db, bulk_nodes, admin)
@@ -453,7 +473,7 @@ async def bulk_reset_nodes_usage(
 async def bulk_reconnect_nodes(
     bulk_nodes: BulkNodeSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("nodes", "reconnect")),
 ):
     """Reconnect selected nodes by ID."""
     return await node_operator.bulk_restart_nodes(db, bulk_nodes, admin)
@@ -467,7 +487,7 @@ async def bulk_reconnect_nodes(
 async def bulk_update_nodes(
     bulk_nodes: BulkNodeSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("nodes", "update_core")),
 ):
     """Update selected nodes by ID."""
     return await node_operator.bulk_update_nodes(db, bulk_nodes, admin)

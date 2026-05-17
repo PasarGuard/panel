@@ -25,6 +25,7 @@ from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
 from app.utils.helpers import ensure_datetime_timezone
+from app.operation.permissions import get_scope_admin_id
 from app.utils.jwt import get_subscription_payload
 
 
@@ -175,13 +176,10 @@ class BaseOperation:
             load_next_plan=load_next_plan,
             load_usage_logs=load_usage_logs,
             load_groups=load_groups,
+            admin_id=get_scope_admin_id(admin, "users", "read"),
         )
         if not db_user:
             await self.raise_error(message="User not found", code=404)
-
-        if not (admin.is_sudo or db_user.admin_id == admin.id):
-            await self.raise_error(message="You're not allowed", code=403)
-
         return db_user
 
     async def get_validated_user_by_id(
@@ -194,6 +192,8 @@ class BaseOperation:
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        scope_resource: str = "users",
+        scope_action: str = "read",
     ) -> User:
         db_user = await get_user_by_id(
             db,
@@ -202,13 +202,10 @@ class BaseOperation:
             load_next_plan=load_next_plan,
             load_usage_logs=load_usage_logs,
             load_groups=load_groups,
+            admin_id=get_scope_admin_id(admin, scope_resource, scope_action),
         )
         if not db_user:
             await self.raise_error(message="User not found", code=404)
-
-        if not (admin.is_sudo or db_user.admin_id == admin.id):
-            await self.raise_error(message="You're not allowed", code=403)
-
         return db_user
 
     async def get_validated_admin(self, db: AsyncSession, username: str) -> DBAdmin:

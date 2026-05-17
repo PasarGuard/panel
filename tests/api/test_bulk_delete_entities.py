@@ -32,7 +32,6 @@ from tests.api.helpers import (
     create_group,
     create_user,
     create_user_template,
-    delete_admin,
     delete_user,
     delete_user_template,
     get_inbounds,

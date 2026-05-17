@@ -22,7 +22,7 @@ from app.operation.group import GroupOperation
 from app.utils import responses
 from .dependencies import get_group_list_query, get_group_simple_list_query
 
-from .authentication import check_sudo_admin, get_current
+from .authentication import require_permission
 
 router = APIRouter(prefix="/api/group", tags=["Groups"], responses={401: responses._401, 403: responses._403})
 group_operator = GroupOperation(OperatorType.API)
@@ -36,7 +36,9 @@ group_operator = GroupOperation(OperatorType.API)
     description="Creates a new group in the system. Only sudo administrators can create groups.",
 )
 async def create_group(
-    new_group: GroupCreate, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    new_group: GroupCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("groups", "create")),
 ):
     """
     Create a new group in the system.
@@ -67,7 +69,7 @@ async def create_group(
 async def get_all_groups(
     query: Annotated[GroupListQuery, Depends(get_group_list_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(require_permission("groups", "read")),
 ):
     """
     Retrieve a list of all groups with optional pagination.
@@ -87,7 +89,7 @@ async def get_all_groups(
     Raises:
         401: Unauthorized - If not authenticated
     """
-    return await group_operator.get_all_groups(db, query)
+    return await group_operator.get_all_groups(db, query, admin)
 
 
 @router.get(
@@ -99,10 +101,10 @@ async def get_all_groups(
 async def get_groups_simple(
     query: Annotated[GroupSimpleListQuery, Depends(get_group_simple_list_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(require_permission("groups", "read_simple")),
 ):
     """Get lightweight group list with only id and name"""
-    return await group_operator.get_groups_simple(db=db, query=query)
+    return await group_operator.get_groups_simple(db=db, query=query, admin=admin)
 
 
 @router.get(
@@ -112,7 +114,11 @@ async def get_groups_simple(
     description="Retrieves detailed information about a specific group by its ID.",
     responses={404: responses._404},
 )
-async def get_group(group_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)):
+async def get_group(
+    group_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("groups", "read")),
+):
     """
     Get a specific group by its **ID**.
 
@@ -129,7 +135,7 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db), _: AdminD
     Raises:
         404: Not Found - If group doesn't exist
     """
-    return await group_operator.get_validated_group(db, group_id)
+    return await group_operator._get_group_with_access(db, group_id, admin)
 
 
 @router.put(
@@ -143,7 +149,7 @@ async def modify_group(
     group_id: int,
     modified_group: GroupModify,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("groups", "update")),
 ):
     """
     Modify an existing group's information.
@@ -174,7 +180,9 @@ async def modify_group(
     responses={404: responses._404},
 )
 async def remove_group(
-    group_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    group_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("groups", "delete")),
 ):
     """
     Remove a group by its **ID**.
@@ -197,7 +205,9 @@ async def remove_group(
     response_description="Success confirmation",
 )
 async def bulk_add_groups_to_users(
-    bulk_group: BulkGroup, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
+    bulk_group: BulkGroup,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("groups", "update")),
 ):
     """
     Bulk assign groups to multiple users, users under specific admins, or all users.
@@ -220,7 +230,9 @@ async def bulk_add_groups_to_users(
     response_description="Success confirmation",
 )
 async def bulk_remove_users_from_groups(
-    bulk_group: BulkGroup, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
+    bulk_group: BulkGroup,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("groups", "update")),
 ):
     """
     Bulk remove groups from multiple users, users under specific admins, or all users.
@@ -245,7 +257,7 @@ async def bulk_remove_users_from_groups(
 async def bulk_delete_groups(
     bulk_groups: BulkGroupSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("groups", "delete")),
 ):
     """Delete selected groups by ID."""
     return await group_operator.bulk_remove_groups_by_id(db, bulk_groups, admin)
@@ -259,7 +271,7 @@ async def bulk_delete_groups(
 async def bulk_disable_groups(
     bulk_groups: BulkGroupSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("groups", "update")),
 ):
     """Disable selected groups by ID."""
     return await group_operator.bulk_set_groups_disabled(db, bulk_groups, admin, is_disabled=True)
@@ -273,7 +285,7 @@ async def bulk_disable_groups(
 async def bulk_enable_groups(
     bulk_groups: BulkGroupSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("groups", "update")),
 ):
     """Enable selected groups by ID."""
     return await group_operator.bulk_set_groups_disabled(db, bulk_groups, admin, is_disabled=False)
