@@ -1,8 +1,13 @@
 """Tests for /api/admin-role endpoints (owner-only role management)."""
 
-from fastapi import status
+import asyncio
 
-from tests.api import client
+from fastapi import status
+from sqlalchemy import select
+
+from app.db.models import Admin
+from app.models.admin import hash_password as _hash_password
+from tests.api import client, TestSession
 from tests.api.helpers import auth_headers, unique_name
 
 
@@ -186,41 +191,33 @@ def test_delete_builtin_role_returns_403(access_token):
 
 def test_delete_role_in_use_returns_409(access_token):
     """A role assigned to at least one admin cannot be deleted."""
-    # Role 3 (operator) is assigned to newly created admins — but we can't
-    # easily create an admin with a custom role via API without a DB admin.
-    # Instead verify the guard exists by checking role 2 (administrator) which
-    # has admins assigned in some test runs. We test the custom role path:
-    # create a role, assign it to an admin directly via DB, then try to delete.
-    import asyncio
-    from sqlalchemy import select
-    from app.db.models import Admin
-    from tests.api import TestSession
 
     role = _create_role(access_token)
     role_id = role["id"]
 
-    async def _assign_role():
+    # Create a real DB admin assigned to the new role so the in-use guard triggers
+    async def _create_test_admin() -> int:
+        hashed = await _hash_password("TestPass#99")
         async with TestSession() as session:
-            result = await session.execute(select(Admin).where(Admin.username == "testadmin"))
-            admin = result.scalar_one()
-            original_role_id = admin.role_id
-            admin.role_id = role_id
+            admin = Admin(username=unique_name("roletest"), hashed_password=hashed, is_sudo=False, role_id=role_id)
+            session.add(admin)
             await session.commit()
-            return original_role_id
+            return admin.id
 
-    async def _restore_role(original_role_id: int):
+    async def _delete_test_admin(admin_id: int) -> None:
         async with TestSession() as session:
-            result = await session.execute(select(Admin).where(Admin.username == "testadmin"))
-            admin = result.scalar_one()
-            admin.role_id = original_role_id
-            await session.commit()
+            result = await session.execute(select(Admin).where(Admin.id == admin_id))
+            admin = result.scalar_one_or_none()
+            if admin:
+                await session.delete(admin)
+                await session.commit()
 
-    original_role_id = asyncio.run(_assign_role())
+    admin_id = asyncio.run(_create_test_admin())
     try:
         response = client.delete(f"/api/admin-role/{role_id}", headers=auth_headers(access_token))
         assert response.status_code == status.HTTP_409_CONFLICT
     finally:
-        asyncio.run(_restore_role(original_role_id))
+        asyncio.run(_delete_test_admin(admin_id))
         _delete_role(access_token, role_id)
 
 
