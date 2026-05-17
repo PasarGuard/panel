@@ -27,6 +27,12 @@ def _make_admin(*, is_owner=False, permissions=None, limits=None, overrides=None
     )
 
 
+# Scope constants for tests
+SCOPE_OWN = {"scope": 1}
+SCOPE_ALL = {"scope": 2}
+SCOPE_NONE = {"scope": 0}
+
+
 # --- enforce_permission ---
 
 
@@ -53,13 +59,19 @@ def test_missing_action_raises():
 
 
 def test_scope_own_is_allowed_at_permission_level():
-    admin = _make_admin(permissions={"users": {"read": {"scope": "own"}}})
+    admin = _make_admin(permissions={"users": {"read": SCOPE_OWN}})
     enforce_permission(admin, "users", "read")  # should not raise (scope checked separately)
 
 
 def test_scope_all_is_allowed():
-    admin = _make_admin(permissions={"users": {"read": {"scope": "all"}}})
+    admin = _make_admin(permissions={"users": {"read": SCOPE_ALL}})
     enforce_permission(admin, "users", "read")  # should not raise
+
+
+def test_scope_none_raises():
+    admin = _make_admin(permissions={"users": {"read": SCOPE_NONE}})
+    with pytest.raises(PermissionDenied):
+        enforce_permission(admin, "users", "read")  # explicitly disabled
 
 
 # --- enforce_scope ---
@@ -71,18 +83,18 @@ def test_owner_bypasses_scope():
 
 
 def test_scope_own_allows_own_users():
-    admin = _make_admin(permissions={"users": {"read": {"scope": "own"}}}, admin_id=10)
+    admin = _make_admin(permissions={"users": {"read": SCOPE_OWN}}, admin_id=10)
     enforce_scope(admin, "users", "read", target_admin_id=10)  # should not raise
 
 
 def test_scope_own_denies_other_users():
-    admin = _make_admin(permissions={"users": {"read": {"scope": "own"}}}, admin_id=10)
+    admin = _make_admin(permissions={"users": {"read": SCOPE_OWN}}, admin_id=10)
     with pytest.raises(PermissionDenied):
         enforce_scope(admin, "users", "read", target_admin_id=99)
 
 
 def test_scope_all_allows_any_user():
-    admin = _make_admin(permissions={"users": {"read": {"scope": "all"}}}, admin_id=10)
+    admin = _make_admin(permissions={"users": {"read": SCOPE_ALL}}, admin_id=10)
     enforce_scope(admin, "users", "read", target_admin_id=99)  # should not raise
 
 
@@ -97,7 +109,7 @@ def test_true_permission_no_scope_check():
 def test_role_limits_returned_when_no_overrides():
     admin = _make_admin(limits={"max_users": 100, "data_limit_max": None})
     limits = get_effective_limits(admin)
-    assert limits["max_users"] == 100
+    assert limits.max_users == 100
 
 
 def test_non_null_override_wins():
@@ -106,7 +118,7 @@ def test_non_null_override_wins():
         overrides={"max_users": 50},
     )
     limits = get_effective_limits(admin)
-    assert limits["max_users"] == 50
+    assert limits.max_users == 50
 
 
 def test_null_override_does_not_override():
@@ -115,10 +127,10 @@ def test_null_override_does_not_override():
         overrides={"max_users": None},
     )
     limits = get_effective_limits(admin)
-    assert limits["max_users"] == 100
+    assert limits.max_users == 100
 
 
 def test_no_role_returns_empty():
     admin = AdminDetails(username="x", is_sudo=False, role=None)
     limits = get_effective_limits(admin)
-    assert limits == {}
+    assert limits.max_users is None  # RoleLimits with all None fields

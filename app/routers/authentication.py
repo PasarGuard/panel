@@ -14,9 +14,9 @@ from app.db.crud.admin import (
 )
 from app.db.models import Admin, AdminUsageLogs, User
 from app.models.admin import AdminDetails, AdminRoleData, AdminValidationResult, verify_password
-from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits
+from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
 from app.models.settings import Telegram
-from app.operation.permissions import PermissionDenied, enforce_permission
+from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
 from config import auth_settings, runtime_settings
@@ -26,7 +26,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
 # Owner-level role data given to env admins — full permissions, bypasses all checks
 _ENV_ADMIN_ROLE = AdminRoleData(
     is_owner=True,
-    permissions={},  # is_owner=True bypasses permission checks entirely
+    permissions=RolePermissions(),  # is_owner=True bypasses permission checks entirely
     limits=RoleLimits(),
     features=RoleFeatures(),
     access=RoleAccess(),
@@ -59,7 +59,7 @@ def _build_admin_details(
         sub_template=db_admin.sub_template,
         lifetime_used_traffic=None if reseted_usage is None else int(reseted_usage or 0) + used_traffic,
         role=role,
-        permission_overrides=db_admin.permission_overrides,
+        permission_overrides=RoleLimits.model_validate(db_admin.permission_overrides) if db_admin.permission_overrides else None,
     )
 
 
@@ -174,6 +174,29 @@ def require_permission(resource: str, action: str):
             enforce_permission(admin, resource, action)
         except PermissionDenied as e:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        return admin
+
+    return _check
+
+
+def require_scope_all(resource: str, action: str):
+    """
+    FastAPI dependency factory — checks RBAC permission AND requires scope=all (or owner).
+    Used for operations that affect all users regardless of ownership.
+    """
+
+    async def _check(admin: AdminDetails = Depends(get_current)):
+        try:
+            enforce_permission(admin, resource, action)
+        except PermissionDenied as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+        # Scope check: must be owner or have scope=ALL (or True = no scope restriction)
+        if not is_scope_all(admin, resource, action):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: {resource}.{action} requires scope=all",
+            )
         return admin
 
     return _check

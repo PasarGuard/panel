@@ -721,6 +721,23 @@ async def get_user_usages(
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
 
 
+async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None) -> int:
+    """
+    Gets the total count of users belonging to a specific admin.
+
+    Args:
+        db (AsyncSession): Database session.
+        admin_id (int | None): Admin ID to filter by. If None, counts all users.
+
+    Returns:
+        int: Total count of users for the given admin.
+    """
+    stmt = select(func.count(User.id))
+    if admin_id is not None:
+        stmt = stmt.where(User.admin_id == admin_id)
+    return (await db.execute(stmt)).scalar_one() or 0
+
+
 async def get_users_count(db: AsyncSession, status: UserStatus = None, admin_id: int = None) -> int:
     """
     Gets the total count of users with optional filters.

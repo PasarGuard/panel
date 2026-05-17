@@ -18,7 +18,7 @@ branch_labels = None
 depends_on = None
 
 OWNER_PERMISSIONS = {
-    "users": {"create": True, "read": {"scope": "all"}, "read_simple": True, "update": {"scope": "all"}, "delete": {"scope": "all"}, "reset_usage": {"scope": "all"}, "revoke_sub": {"scope": "all"}, "set_owner": True, "activate_next_plan": {"scope": "all"}},
+    "users": {"create": True, "read": {"scope": 2}, "read_simple": True, "update": {"scope": 2}, "delete": {"scope": 2}, "reset_usage": {"scope": 2}, "revoke_sub": {"scope": 2}, "set_owner": True, "activate_next_plan": {"scope": 2}},
     "admins": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True, "reset_usage": True},
     "nodes": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True, "reconnect": True, "update_core": True, "logs": True, "stats": True},
     "groups": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True},
@@ -32,7 +32,7 @@ OWNER_PERMISSIONS = {
     "admin_roles": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True},
 }
 ADMINISTRATOR_PERMISSIONS = {
-    "users": {"create": True, "read": {"scope": "all"}, "read_simple": True, "update": {"scope": "all"}, "delete": {"scope": "all"}, "reset_usage": {"scope": "all"}, "revoke_sub": {"scope": "all"}, "set_owner": True, "activate_next_plan": {"scope": "all"}},
+    "users": {"create": True, "read": {"scope": 2}, "read_simple": True, "update": {"scope": 2}, "delete": {"scope": 2}, "reset_usage": {"scope": 2}, "revoke_sub": {"scope": 2}, "set_owner": True, "activate_next_plan": {"scope": 2}},
     "admins": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True, "reset_usage": True},
     "nodes": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True, "reconnect": True, "update_core": True, "logs": True, "stats": True},
     "groups": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True},
@@ -46,14 +46,14 @@ ADMINISTRATOR_PERMISSIONS = {
     "admin_roles": {"read": True, "read_simple": True},
 }
 OPERATOR_PERMISSIONS = {
-    "users": {"create": True, "read": {"scope": "own"}, "read_simple": True, "update": {"scope": "own"}, "delete": {"scope": "own"}, "reset_usage": {"scope": "own"}, "revoke_sub": {"scope": "own"}, "activate_next_plan": {"scope": "own"}},
+    "users": {"create": True, "read": {"scope": 1}, "read_simple": True, "update": {"scope": 1}, "delete": {"scope": 1}, "reset_usage": {"scope": 1}, "revoke_sub": {"scope": 1}, "activate_next_plan": {"scope": 1}},
     "groups": {"read": True, "read_simple": True},
     "templates": {"read": True, "read_simple": True},
     "system": {"read": True},
     "settings": {"read_general": True},
     "hwids": {"read": True, "delete": True},
 }
-DEFAULT_LIMITS = {"max_users": None, "data_limit_min": None, "data_limit_max": None, "expire_days_min": None, "expire_days_max": None, "max_hwid_per_user": None}
+DEFAULT_LIMITS = {"max_users": None, "data_limit_min": None, "data_limit_max": None, "expire_days_min": None, "expire_days_max": None, "min_hwid_per_user": None, "max_hwid_per_user": None}
 DEFAULT_FEATURES = {"can_use_reset_strategy": True, "can_use_next_plan": True}
 DEFAULT_ACCESS = {"require_template": False, "allowed_template_ids": None, "allowed_group_ids": None}
 

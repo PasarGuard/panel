@@ -7,7 +7,7 @@ from enum import Enum
 import bcrypt
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits
+from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
@@ -48,7 +48,7 @@ class AdminRoleData(BaseModel):
     """Runtime role data carried on AdminDetails — only the fields needed for permission checks."""
 
     is_owner: bool = False
-    permissions: dict = Field(default_factory=dict)
+    permissions: RolePermissions = Field(default_factory=RolePermissions)
     limits: RoleLimits = Field(default_factory=RoleLimits)
     features: RoleFeatures = Field(default_factory=RoleFeatures)
     access: RoleAccess = Field(default_factory=RoleAccess)
@@ -107,7 +107,7 @@ class AdminDetails(AdminContactInfo):
     lifetime_used_traffic: int | None = None
     note: str | None = None
     role: AdminRoleData | None = None
-    permission_overrides: dict | None = None
+    permission_overrides: RoleLimits | None = None
 
     @property
     def is_owner(self) -> bool:
