@@ -493,7 +493,8 @@ async def reset_usage(event: CallbackQuery, admin: AdminDetails, db: AsyncSessio
 
 
 @router.callback_query(
-    HasPermission("users", "activate_next_plan"), UserPanel.Callback.filter(UserPanelAction.activate_next_plan == F.action)
+    HasPermission("users", "activate_next_plan"),
+    UserPanel.Callback.filter(UserPanelAction.activate_next_plan == F.action),
 )
 async def activate_next_plan(
     event: CallbackQuery, admin: AdminDetails, db: AsyncSession, callback_data: UserPanel.Callback

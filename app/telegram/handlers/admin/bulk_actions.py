@@ -23,7 +23,7 @@ from app.telegram.keyboards.bulk_actions import (
 )
 from app.telegram.keyboards.confim_action import ConfirmAction
 from app.telegram.utils import forms
-from app.telegram.utils.filters import IsScopeAll
+from app.telegram.utils.filters import IsScopeAll, HasPermission
 from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
 from app.telegram.utils.texts import Message as Texts
 
