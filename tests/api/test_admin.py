@@ -186,13 +186,13 @@ def test_admin_create(access_token):
 
 
 def test_admin_create_sudo_forbidden_via_api(access_token):
-    """Creating sudo admin via API should be forbidden."""
+    """Creating an admin with owner role (role_id=1) via API should be forbidden."""
     username = admin_username("forbidden")
-    password = strong_password("ForbiddenSudo")
+    password = strong_password("ForbiddenOwner")
 
     response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": True, "role_id": 2},
+        json={"username": username, "password": password, "is_sudo": True, "role_id": 1},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -362,14 +362,15 @@ def test_update_admin_duplicate_telegram_id_conflict(access_token):
 
 
 def test_promote_admin_to_sudo_forbidden_via_api(access_token):
-    """Promoting non-sudo admin to sudo via API should be forbidden."""
+    """Assigning owner role (role_id=1) to an admin via API should be forbidden."""
     admin = create_admin(access_token, is_sudo=False)
     try:
         response = client.put(
             url=f"/api/admin/{admin['username']}",
             json={
-                "is_sudo": True,
+                "is_sudo": False,
                 "is_disabled": False,
+                "role_id": 1,
             },
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -380,9 +381,18 @@ def test_promote_admin_to_sudo_forbidden_via_api(access_token):
 
 
 def test_sudo_admin_can_modify_self(access_token):
-    """A sudo admin can edit their own account."""
-    sudo_admin = create_admin(access_token)
-    set_admin_sudo(sudo_admin["username"], True)
+    """An administrator (role_id=2) can edit their own account."""
+    # Create admin with administrator role so they have admins.update permission
+    sudo_admin_username = admin_username("admin")
+    sudo_admin_password = strong_password("TestAdminSudo")
+    create_response = client.post(
+        url="/api/admin",
+        json={"username": sudo_admin_username, "password": sudo_admin_password, "is_sudo": True, "role_id": 2},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+    sudo_admin = create_response.json()
+    sudo_admin["password"] = sudo_admin_password
     try:
         login_response = client.post(
             url="/api/admin/token",
@@ -409,14 +419,21 @@ def test_sudo_admin_can_modify_self(access_token):
         assert response.json()["username"] == sudo_admin["username"]
         assert response.json()["note"] == "self-updated"
     finally:
-        set_admin_sudo(sudo_admin["username"], False)
         delete_admin(access_token, sudo_admin["username"])
 
 
 def test_sudo_admin_cannot_disable_self(access_token):
-    """A sudo admin cannot disable their own account."""
-    sudo_admin = create_admin(access_token)
-    set_admin_sudo(sudo_admin["username"], True)
+    """An administrator (role_id=2) cannot disable their own account."""
+    sudo_admin_username = admin_username("admin")
+    sudo_admin_password = strong_password("TestAdminSudo")
+    create_response = client.post(
+        url="/api/admin",
+        json={"username": sudo_admin_username, "password": sudo_admin_password, "is_sudo": True, "role_id": 2},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+    sudo_admin = create_response.json()
+    sudo_admin["password"] = sudo_admin_password
     try:
         login_response = client.post(
             url="/api/admin/token",
@@ -441,7 +458,6 @@ def test_sudo_admin_cannot_disable_self(access_token):
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert response.json()["detail"] == "You're not allowed to disable your own account."
     finally:
-        set_admin_sudo(sudo_admin["username"], False)
         delete_admin(access_token, sudo_admin["username"])
 
 
