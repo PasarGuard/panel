@@ -525,6 +525,11 @@ async def get_admin_usages(
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
 
 
+async def get_owner(db: AsyncSession) -> Admin | None:
+    """Return the owner admin (role_id=1), or None if not found."""
+    return (await db.execute(select(Admin).where(Admin.role_id == 1))).scalar_one_or_none()
+
+
 async def get_admins_count(db: AsyncSession) -> int:
     """
     Retrieves the total count of admins.

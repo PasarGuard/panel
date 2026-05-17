@@ -25,6 +25,7 @@ from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
 from app.utils.jwt import create_admin_token
+from app.utils.request import get_client_ip
 
 from .authentication import (
     check_sudo_admin,
@@ -37,13 +38,6 @@ from .dependencies import get_admin_list_query, get_admin_simple_list_query, get
 
 router = APIRouter(tags=["Admin"], prefix="/api/admin", responses={401: responses._401, 403: responses._403})
 admin_operator = AdminOperation(operator_type=OperatorType.API)
-
-
-def get_client_ip(request: Request) -> str:
-    """Extract the client's IP address from the request."""
-    if request.client:
-        return request.client.host
-    return "Unknown"
 
 
 @router.post("/token", response_model=Token)

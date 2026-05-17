@@ -9,6 +9,7 @@ from . import (
     host,
     node,
     settings,
+    setup,
     subscription,
     system,
     user,
@@ -21,6 +22,7 @@ api_router = APIRouter()
 routers = [
     home.router,
     admin.router,
+    setup.router,
     system.router,
     settings.router,
     group.router,

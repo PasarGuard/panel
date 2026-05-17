@@ -11,7 +11,6 @@ from rich.table import Table
 from app.models.admin import AdminDetails
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
-from app.operation.system import SystemOperation
 
 # Initialize console for rich output
 console = Console()
@@ -25,11 +24,6 @@ SYSTEM_ADMIN = AdminDetails(
 def get_admin_operation() -> AdminOperation:
     """Get admin operation instance."""
     return AdminOperation(OperatorType.CLI)
-
-
-def get_system_operation() -> SystemOperation:
-    """Get node operation instance."""
-    return SystemOperation(OperatorType.CLI)
 
 
 class BaseCLI:
