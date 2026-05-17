@@ -80,7 +80,8 @@ def test_create_owner_success():
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert data["username"] == "owner_user"
-        assert data["is_sudo"] is True
+        # Owner role has is_owner=True in the role object
+        assert data["role"]["is_owner"] is True
     finally:
         _delete_owner()
 

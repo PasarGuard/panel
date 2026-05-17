@@ -53,9 +53,10 @@ KuUcpBWSPkvH6y3Ak+YsTMg=
 
 
 def set_admin_sudo(username: str, is_sudo: bool) -> None:
+    """Set admin role: is_sudo=True -> administrator (role_id=2), False -> operator (role_id=3)."""
     async def _set_flag():
         async with TestSession() as session:
-            await session.execute(update(Admin).where(Admin.username == username).values(is_sudo=is_sudo))
+            await session.execute(update(Admin).where(Admin.username == username).values(role_id=2 if is_sudo else 3))
             await session.commit()
 
     asyncio.run(_set_flag())

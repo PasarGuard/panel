@@ -21,8 +21,7 @@ def _make_admin(*, is_owner=False, permissions=None, limits=None, overrides=None
     return AdminDetails(
         id=admin_id,
         username="testadmin",
-        is_sudo=False,
-        role=role,
+                role=role,
         permission_overrides=overrides,
     )
 
@@ -131,6 +130,6 @@ def test_null_override_does_not_override():
 
 
 def test_no_role_returns_empty():
-    admin = AdminDetails(username="x", is_sudo=False, role=None)
+    admin = AdminDetails(username="x", role=None)
     limits = get_effective_limits(admin)
     assert limits.max_users is None  # RoleLimits with all None fields

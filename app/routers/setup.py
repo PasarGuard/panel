@@ -49,7 +49,7 @@ async def create_owner(
 
     db_admin = await create_admin(
         db,
-        AdminCreate(username=body.username, password=body.password, role_id=1, is_sudo=True),
+        AdminCreate(username=body.username, password=body.password, role_id=1),
     )
     await consume_temp_key(db, temp_key, action="create_owner", ip=get_client_ip(request))
     return AdminDetails.model_validate(db_admin)

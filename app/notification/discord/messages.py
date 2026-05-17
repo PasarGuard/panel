@@ -95,7 +95,7 @@ USER_SUBSCRIPTION_REVOKED = {
 CREATE_ADMIN = {
     "title": "Create Admin",
     "description": "**Username:** {username}\n"
-    + "**Is Sudo:** {is_sudo}\n"
+    + "**Role:** {role}\n"
     + "**Is Disabled:** {is_disabled}\n"
     + "**Used Traffic:** {used_traffic}\n",
     "footer": {"text": "By: {by}"},
@@ -104,7 +104,7 @@ CREATE_ADMIN = {
 MODIFY_ADMIN = {
     "title": "Modify Admin",
     "description": "**Username:** {username}\n"
-    + "**Is Sudo:** {is_sudo}\n"
+    + "**Role:** {role}\n"
     + "**Is Disabled:** {is_disabled}\n"
     + "**Used Traffic:** {used_traffic}\n",
     "footer": {"text": "By: {by}"},

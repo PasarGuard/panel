@@ -24,7 +24,7 @@ from app.db.models import (
     User,
 )
 from app.models.core import CoreCreate
-from app.models.admin import AdminDetails
+from app.models.admin import AdminDetails, AdminRoleData
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.stats import (
     NodeRealtimeStats,
@@ -578,7 +578,7 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
     monkeypatch.setattr("app.operation.node.notification.create_node", AsyncMock())
     monkeypatch.setattr("app.operation.node.notification.modify_node", AsyncMock())
 
-    admin = AdminDetails(username="admin", is_sudo=True)
+    admin = AdminDetails(username="admin", role=AdminRoleData(is_owner=True))
     async with TestSession() as session:
         core = await create_core_config(session, core_create_model(unique_name("core_node_background")))
         core_id = inspect(core).identity[0]

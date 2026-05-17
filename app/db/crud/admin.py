@@ -101,8 +101,6 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
     Returns:
         Admin: The updated admin object.
     """
-    if modified_admin.is_sudo is not None:
-        db_admin.is_sudo = modified_admin.is_sudo
     if modified_admin.is_disabled is not None:
         db_admin.is_disabled = modified_admin.is_disabled
     if modified_admin.password is not None:
@@ -302,7 +300,6 @@ async def get_admins(
                 AdminDetails(
                     id=admin.id,
                     username=admin.username,
-                    is_sudo=admin.is_sudo,
                     total_users=int(total_users or 0),
                     used_traffic=int(admin.used_traffic or 0),
                     is_disabled=admin.is_disabled,

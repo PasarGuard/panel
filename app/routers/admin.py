@@ -58,7 +58,7 @@ async def admin_token(
             status_code=403, detail="your account has been disabled", headers={"WWW-Authenticate": "Bearer"}
         )
     asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
-    return Token(access_token=await create_admin_token(db_admin.id, form_data.username, db_admin.is_sudo))
+    return Token(access_token=await create_admin_token(db_admin.id, form_data.username))
 
 
 @router.post("/miniapp/token", responses={409: responses._409})
@@ -75,7 +75,7 @@ async def admin_mini_app_token(
             status_code=403, detail="your account has been disabled", headers={"WWW-Authenticate": "Bearer"}
         )
     asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
-    return Token(access_token=await create_admin_token(db_admin.id, db_admin.username, db_admin.is_sudo))
+    return Token(access_token=await create_admin_token(db_admin.id, db_admin.username))
 
 
 @router.post(

@@ -15,9 +15,10 @@ ENTITY = "admin"
 async def create_admin(admin: AdminDetails, by: str):
     username, by = escape_ds_markdown_list((admin.username, by))
     message = copy.deepcopy(messages.CREATE_ADMIN)
+    role = admin.role.name if admin.role else "unknown"
     message["description"] = message["description"].format(
         username=username,
-        is_sudo=admin.is_sudo,
+        role=role,
         is_disabled=admin.is_disabled,
         used_traffic=admin.used_traffic,
     )
@@ -36,9 +37,10 @@ async def create_admin(admin: AdminDetails, by: str):
 async def modify_admin(admin: AdminDetails, by: str):
     username, by = escape_ds_markdown_list((admin.username, by))
     message = copy.deepcopy(messages.MODIFY_ADMIN)
+    role = admin.role.name if admin.role else "unknown"
     message["description"] = message["description"].format(
         username=username,
-        is_sudo=admin.is_sudo,
+        role=role,
         is_disabled=admin.is_disabled,
         used_traffic=admin.used_traffic,
     )

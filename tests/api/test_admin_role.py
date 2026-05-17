@@ -199,7 +199,7 @@ def test_delete_role_in_use_returns_409(access_token):
     async def _create_test_admin() -> int:
         hashed = await _hash_password("TestPass#99")
         async with TestSession() as session:
-            admin = Admin(username=unique_name("roletest"), hashed_password=hashed, is_sudo=False, role_id=role_id)
+            admin = Admin(username=unique_name("roletest"), hashed_password=hashed, role_id=role_id)
             session.add(admin)
             await session.commit()
             return admin.id

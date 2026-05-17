@@ -11,9 +11,10 @@ ENTITY = "admin"
 
 async def create_admin(admin: AdminDetails, by: str):
     username, by = escape_tg_html((admin.username, by))
+    role = admin.role.name if admin.role else "unknown"
     data = messages.CREATE_ADMIN.format(
         username=username,
-        is_sudo=admin.is_sudo,
+        role=role,
         is_disabled=admin.is_disabled,
         used_traffic=admin.used_traffic,
         by=by,
@@ -26,9 +27,10 @@ async def create_admin(admin: AdminDetails, by: str):
 
 async def modify_admin(admin: AdminDetails, by: str):
     username, by = escape_tg_html((admin.username, by))
+    role = admin.role.name if admin.role else "unknown"
     data = messages.MODIFY_ADMIN.format(
         username=username,
-        is_sudo=admin.is_sudo,
+        role=role,
         is_disabled=admin.is_disabled,
         used_traffic=admin.used_traffic,
         by=by,

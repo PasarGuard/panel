@@ -548,8 +548,8 @@ async def get_users_count_metric(
     try:
         validate_user_count_metric_scope(
             metric,
-            node_id=query.node_id if admin.is_sudo else None,
-            group_by_node=query.group_by_node if admin.is_sudo else False,
+            node_id=query.node_id if admin.is_owner else None,
+            group_by_node=query.group_by_node if admin.is_owner else False,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

@@ -42,7 +42,7 @@ def create_admin(
     response = client.post(
         "/api/admin",
         headers=auth_headers(access_token),
-        json={"username": username, "password": password, "is_sudo": is_sudo, "role_id": 2 if is_sudo else 3},
+        json={"username": username, "password": password, "role_id": 2 if is_sudo else 3},
     )
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()

@@ -44,7 +44,6 @@ def _build_admin_details(
     return AdminDetails(
         id=db_admin.id,
         username=db_admin.username,
-        is_sudo=db_admin.is_sudo,
         total_users=int(total_users or 0),
         used_traffic=used_traffic,
         is_disabled=db_admin.is_disabled,
@@ -92,7 +91,7 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
 
     # Env admin fallback — gets owner-level role so it bypasses all permission checks
     if payload["username"] in auth_settings.sudoers and payload.get("is_sudo") is True:
-        return AdminDetails(username=payload["username"], is_sudo=True, role=_ENV_ADMIN_ROLE)
+        return AdminDetails(username=payload["username"], role=_ENV_ADMIN_ROLE)
 
     return None
 
@@ -129,7 +128,7 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
 
     # Env admin fallback
     if payload["username"] in auth_settings.sudoers and payload.get("is_sudo") is True:
-        return AdminDetails(username=payload["username"], is_sudo=True, role=_ENV_ADMIN_ROLE)
+        return AdminDetails(username=payload["username"], role=_ENV_ADMIN_ROLE)
 
     return None
 
@@ -211,12 +210,6 @@ async def require_owner(admin: AdminDetails = Depends(get_current)):
     return admin
 
 
-# Kept for backward compatibility — other routers still import this until Stage 8 cleanup
-async def check_sudo_admin(admin: AdminDetails = Depends(get_current)):
-    if not admin.is_sudo:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You're not allowed")
-    return admin
-
 
 async def validate_admin(db: AsyncSession, username: str, password: str) -> AdminValidationResult | None:
     """Validate admin credentials against the database, with env admin fallback."""
@@ -225,7 +218,6 @@ async def validate_admin(db: AsyncSession, username: str, password: str) -> Admi
         return AdminValidationResult(
             id=db_admin.id,
             username=db_admin.username,
-            is_sudo=db_admin.is_sudo,
             is_disabled=db_admin.is_disabled,
         )
 
@@ -233,7 +225,7 @@ async def validate_admin(db: AsyncSession, username: str, password: str) -> Admi
     if not db_admin and auth_settings.sudoers.get(username) == password:
         if not runtime_settings.debug:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="env admin not allowed in production")
-        return AdminValidationResult(username=username, is_sudo=True, is_disabled=False)
+        return AdminValidationResult(username=username, is_disabled=False)
 
     return None
 
@@ -269,7 +261,6 @@ async def validate_mini_app_admin(db: AsyncSession, token: str) -> AdminValidati
         return AdminValidationResult(
             id=db_admin.id,
             username=db_admin.username,
-            is_sudo=db_admin.is_sudo,
             is_disabled=db_admin.is_disabled,
         )
     return None

@@ -26,9 +26,9 @@ class SystemOperation(BaseOperation):
         uptime_task = asyncio.create_task(asyncio.to_thread(get_uptime))
 
         admin_param = None
-        if admin.is_sudo and admin_username:
+        if admin.is_owner and admin_username:
             admin_param = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
-        elif not admin.is_sudo:
+        elif not admin.is_owner:
             admin_param = admin
 
         system_task = None

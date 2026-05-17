@@ -1,3 +1,3 @@
-from app.models.admin import AdminDetails
+from app.models.admin import AdminDetails, AdminRoleData
 
-SYSTEM_ADMIN = AdminDetails(username="system", is_sudo=True)
+SYSTEM_ADMIN = AdminDetails(username="system", role=AdminRoleData(is_owner=True))

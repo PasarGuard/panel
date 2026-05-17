@@ -47,6 +47,7 @@ async def verify_password(raw: str, hashed: str) -> bool:
 class AdminRoleData(BaseModel):
     """Runtime role data carried on AdminDetails — only the fields needed for permission checks."""
 
+    name: str = ""
     is_owner: bool = False
     permissions: RolePermissions = Field(default_factory=RolePermissions)
     limits: RoleLimits = Field(default_factory=RoleLimits)
@@ -98,7 +99,6 @@ class AdminDetails(AdminContactInfo):
     """Complete admin model with all fields for database representation and API responses."""
 
     id: int | None = None
-    is_sudo: bool
     total_users: int = 0
     used_traffic: int = 0
     is_disabled: bool = False
@@ -122,7 +122,6 @@ class AdminDetails(AdminContactInfo):
 
 class AdminModify(BaseModel):
     password: str | None = None
-    is_sudo: bool
     telegram_id: int | None = None
     discord_webhook: str | None = None
     discord_id: int | None = None
@@ -167,7 +166,6 @@ class AdminInDB(AdminDetails):
 class AdminValidationResult(BaseModel):
     id: int | None = None
     username: str
-    is_sudo: bool
     is_disabled: bool
 
 

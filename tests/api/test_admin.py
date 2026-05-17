@@ -48,11 +48,12 @@ def create_admin(
 
 
 def set_admin_sudo(username: str, is_sudo: bool) -> None:
+    """Set admin role: is_sudo=True -> administrator (role_id=2), False -> operator (role_id=3)."""
     async def _set_flag():
         async with TestSession() as session:
             result = await session.execute(select(Admin).where(Admin.username == username))
             db_admin = result.scalar_one()
-            db_admin.is_sudo = is_sudo
+            db_admin.role_id = 2 if is_sudo else 3
             await session.commit()
 
     asyncio.run(_set_flag())
@@ -181,8 +182,7 @@ def test_admin_create(access_token):
     password = strong_password("TestAdmincreate")
     admin = create_admin(access_token, username=username, password=password)
     assert admin["username"] == username
-    assert admin["is_sudo"] is False
-    delete_admin(access_token, username)
+        delete_admin(access_token, username)
 
 
 def test_admin_create_sudo_forbidden_via_api(access_token):
@@ -192,7 +192,7 @@ def test_admin_create_sudo_forbidden_via_api(access_token):
 
     response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": True, "role_id": 1},
+        json={"username": username, "password": password, "role_id": 1},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -208,7 +208,7 @@ def test_admin_create_with_note(access_token):
 
     response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": False, "note": note, "role_id": 3},
+        json={"username": username, "password": password, "note": note, "role_id": 3},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -227,7 +227,7 @@ def test_admin_create_duplicate_telegram_id_conflict(access_token):
     try:
         response_a = client.put(
             url=f"/api/admin/{admin_a['username']}",
-            json={"is_sudo": False, "telegram_id": telegram_id},
+            json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response_a.status_code == status.HTTP_200_OK
@@ -278,8 +278,7 @@ def test_update_admin(access_token):
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["username"] == admin["username"]
-    assert response.json()["is_sudo"] is False
-    assert response.json()["is_disabled"] is True
+        assert response.json()["is_disabled"] is True
     delete_admin(access_token, admin["username"])
 
 
@@ -288,7 +287,7 @@ def test_admin_routes_by_id_and_by_username(access_token):
     try:
         by_username_update = client.put(
             url=f"/api/admin/by-username/{admin['username']}",
-            json={"is_sudo": False, "note": "by-username note"},
+            json={"note": "by-username note"},
             headers=auth_headers(access_token),
         )
         assert by_username_update.status_code == status.HTTP_200_OK
@@ -296,7 +295,7 @@ def test_admin_routes_by_id_and_by_username(access_token):
 
         by_id_update = client.put(
             url=f"/api/admin/by-id/{admin['id']}",
-            json={"is_sudo": False, "note": "by-id note"},
+            json={"note": "by-id note"},
             headers=auth_headers(access_token),
         )
         assert by_id_update.status_code == status.HTTP_200_OK
@@ -326,7 +325,7 @@ def test_update_admin_note(access_token):
 
     response = client.put(
         url=f"/api/admin/{admin['username']}",
-        json={"is_sudo": False, "note": note},
+        json={"note": note},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -344,14 +343,14 @@ def test_update_admin_duplicate_telegram_id_conflict(access_token):
     try:
         first_update = client.put(
             url=f"/api/admin/{admin_a['username']}",
-            json={"is_sudo": False, "telegram_id": telegram_id},
+            json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert first_update.status_code == status.HTTP_200_OK
 
         second_update = client.put(
             url=f"/api/admin/{admin_b['username']}",
-            json={"is_sudo": False, "telegram_id": telegram_id},
+            json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert second_update.status_code == status.HTTP_409_CONFLICT
@@ -387,7 +386,7 @@ def test_sudo_admin_can_modify_self(access_token):
     sudo_admin_password = strong_password("TestAdminSudo")
     create_response = client.post(
         url="/api/admin",
-        json={"username": sudo_admin_username, "password": sudo_admin_password, "is_sudo": True, "role_id": 2},
+        json={"username": sudo_admin_username, "password": sudo_admin_password, "role_id": 2},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert create_response.status_code == status.HTTP_201_CREATED
@@ -428,7 +427,7 @@ def test_sudo_admin_cannot_disable_self(access_token):
     sudo_admin_password = strong_password("TestAdminSudo")
     create_response = client.post(
         url="/api/admin",
-        json={"username": sudo_admin_username, "password": sudo_admin_password, "is_sudo": True, "role_id": 2},
+        json={"username": sudo_admin_username, "password": sudo_admin_password, "role_id": 2},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert create_response.status_code == status.HTTP_201_CREATED
@@ -525,7 +524,7 @@ def test_get_admins_returns_admin_note(access_token):
 
     create_response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": False, "note": note, "role_id": 3},
+        json={"username": username, "password": password, "note": note, "role_id": 3},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert create_response.status_code == status.HTTP_201_CREATED
@@ -552,7 +551,7 @@ def test_disable_admin(access_token):
     password = admin["password"]
     disable_response = client.put(
         url=f"/api/admin/{admin['username']}",
-        json={"password": password, "is_sudo": False, "is_disabled": True},
+        json={"password": password, "is_disabled": True},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert disable_response.status_code == status.HTTP_200_OK

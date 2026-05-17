@@ -18,8 +18,8 @@ async def get_secret_key():
         return key
 
 
-async def create_admin_token(admin_id: int | None, username: str, is_sudo=False) -> str:
-    data = {"sub": username, "access": "sudo" if is_sudo else "admin", "iat": datetime.now(timezone.utc)}
+async def create_admin_token(admin_id: int | None, username: str) -> str:
+    data = {"sub": username, "access": "admin", "iat": datetime.now(timezone.utc)}
     if admin_id is not None:
         data["aid"] = int(admin_id)
     if jwt_settings.access_token_expire_minutes > 0:
@@ -38,7 +38,7 @@ async def get_admin_payload(token: str) -> dict | None:
         if admin_id is not None:
             try:
                 admin_id = int(admin_id)
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 return
         if not username or access not in ("admin", "sudo"):
             return
@@ -50,7 +50,6 @@ async def get_admin_payload(token: str) -> dict | None:
         return {
             "admin_id": admin_id,
             "username": username,
-            "is_sudo": access == "sudo",
             "created_at": created_at,
         }
     except jwt.exceptions.PyJWTError:

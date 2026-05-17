@@ -81,7 +81,7 @@ CREATE_ADMIN = """
 #Create_Admin
 ➖➖➖➖➖➖➖➖➖
 <b>Username:</b> <code>{username}</code>
-<b>Is Sudo:</b> <code>{is_sudo}</code>
+<b>Role:</b> <code>{role}</code>
 <b>Is Disabled:</b> <code>{is_disabled}</code>
 <b>Used Traffic:</b> <code>{used_traffic}</code>
 ➖➖➖➖➖➖➖➖➖
@@ -92,7 +92,7 @@ MODIFY_ADMIN = """
 #Modify_Admin
 ➖➖➖➖➖➖➖➖➖
 <b>Username:</b> <code>{username}</code>
-<b>Is Sudo:</b> <code>{is_sudo}</code>
+<b>Role:</b> <code>{role}</code>
 <b>Is Disabled:</b> <code>{is_disabled}</code>
 <b>Used Traffic:</b> <code>{used_traffic}</code>
 ➖➖➖➖➖➖➖➖➖

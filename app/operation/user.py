@@ -417,7 +417,7 @@ class UserOperation(BaseOperation):
         if new_user.hwid_limit is None:
             new_user.hwid_limit = hwid_conf.fallback_limit
 
-        if new_user.hwid_limit is not None and not admin.is_sudo:
+        if new_user.hwid_limit is not None and not admin.is_owner:
             if new_user.hwid_limit < hwid_conf.min_limit:
                 await self.raise_error(message=f"HWID limit cannot be less than {hwid_conf.min_limit}", code=400, db=db)
             if hwid_conf.max_limit > 0 and (new_user.hwid_limit > hwid_conf.max_limit or new_user.hwid_limit == 0):
@@ -473,7 +473,7 @@ class UserOperation(BaseOperation):
                     db=db,
                 )
 
-        if modified_user.hwid_limit is not None and not admin.is_sudo:
+        if modified_user.hwid_limit is not None and not admin.is_owner:
             hwid_conf = await hwid_settings()
             if modified_user.hwid_limit < hwid_conf.min_limit:
                 await self.raise_error(message=f"HWID limit cannot be less than {hwid_conf.min_limit}", code=400, db=db)
@@ -879,7 +879,7 @@ class UserOperation(BaseOperation):
     ) -> UserUsageStatsList:
         start, end = await self.validate_dates(start, end, True)
 
-        if not admin.is_sudo:
+        if not admin.is_owner:
             node_id = None
             group_by_node = False
 
@@ -949,7 +949,7 @@ class UserOperation(BaseOperation):
         query: UserListQuery,
     ) -> UsersResponse:
         """Get all users"""
-        if not admin.is_sudo:
+        if not admin.is_owner:
             query = query.model_copy(update={"owner": [admin.username], "admin_ids": None})
 
         users, count = await get_users(
@@ -978,7 +978,7 @@ class UserOperation(BaseOperation):
         """Get lightweight user list with only id and username"""
         # Authorization: non-sudo admins see only their users
         admin_filter = (
-            None if admin.is_sudo else await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
+            None if admin.is_owner else await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
         )
 
         # Call CRUD function
@@ -1004,7 +1004,7 @@ class UserOperation(BaseOperation):
         node_id = query.node_id
         group_by_node = query.group_by_node
 
-        if not admin.is_sudo:
+        if not admin.is_owner:
             node_id = None
             group_by_node = False
 
@@ -1014,7 +1014,7 @@ class UserOperation(BaseOperation):
             end=end,
             period=query.period,
             node_id=node_id,
-            admins=query.owner if admin.is_sudo else [admin.username],
+            admins=query.owner if admin.is_owner else [admin.username],
             group_by_node=group_by_node,
         )
 
@@ -1030,7 +1030,7 @@ class UserOperation(BaseOperation):
         node_id = query.node_id
         group_by_node = query.group_by_node
 
-        if not admin.is_sudo:
+        if not admin.is_owner:
             node_id = None
             group_by_node = False
 
@@ -1041,7 +1041,7 @@ class UserOperation(BaseOperation):
 
         return await get_user_count_metric_stats(
             db=db,
-            admins=query.owner if admin.is_sudo else [admin.username],
+            admins=query.owner if admin.is_owner else [admin.username],
             start=start,
             end=end,
             period=query.period,
@@ -1383,7 +1383,7 @@ class UserOperation(BaseOperation):
         users = await get_bulk_wireguard_peer_ip_users(
             db,
             body,
-            admin_id=None if admin.is_sudo else admin.id,
+            admin_id=None if admin.is_owner else admin.id,
         )
 
         out = await run_bulk_reallocate_wireguard_peer_ips(
@@ -1443,12 +1443,12 @@ class UserOperation(BaseOperation):
             return self._build_user_agent_chart(agent_counts)
 
         if admin_id:
-            if not admin.is_sudo and admin_id != admin.id:
+            if not admin.is_owner and admin_id != admin.id:
                 await self.raise_error(message="You're not allowed", code=403)
-            elif admin.is_sudo and admin_id != admin.id:
+            elif admin.is_owner and admin_id != admin.id:
                 await self.get_validated_admin_by_id(db, admin_id)
         else:
-            admin_id = None if admin.is_sudo else admin.id
+            admin_id = None if admin.is_owner else admin.id
 
         agent_counts = await get_users_subscription_agent_counts(db, admin_id=admin_id)
         return self._build_user_agent_chart(agent_counts)

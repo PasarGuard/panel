@@ -74,7 +74,6 @@ class Admin(Base):
     usage_logs: Mapped[List["AdminUsageLogs"]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
-    is_sudo: Mapped[bool] = mapped_column(default=False)
     password_reset_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
