@@ -32,6 +32,7 @@ class UserNotificationEnable(BaseNotificationEnable):
 
 class NotificationEnable(BaseModel):
     admin: AdminNotificationEnable = Field(default_factory=AdminNotificationEnable)
+    admin_role: BaseNotificationEnable = Field(default_factory=BaseNotificationEnable)
     core: BaseNotificationEnable = Field(default_factory=BaseNotificationEnable)
     group: BaseNotificationEnable = Field(default_factory=BaseNotificationEnable)
     host: HostNotificationEnable = Field(default_factory=HostNotificationEnable)

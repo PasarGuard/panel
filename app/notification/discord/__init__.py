@@ -1,4 +1,5 @@
 from .admin import admin_login, admin_reset_usage, create_admin, modify_admin, remove_admin
+from .admin_role import create_admin_role, modify_admin_role, remove_admin_role
 from .core import create_core, modify_core, remove_core
 from .group import create_group, modify_group, remove_group
 from .host import create_host, modify_host, modify_hosts, remove_host
@@ -15,6 +16,9 @@ from .user import (
 from .user_template import create_user_template, modify_user_template, remove_user_template
 
 __all__ = [
+    "create_admin_role",
+    "modify_admin_role",
+    "remove_admin_role",
     "create_host",
     "modify_host",
     "remove_host",

@@ -9,8 +9,24 @@ from app.models.node import NodeNotification, NodeResponse
 from app.models.group import GroupResponse
 from app.models.core import CoreResponse
 from app.models.admin import AdminDetails
+from app.models.admin_role import AdminRoleResponse
 from app.models.user import UserNotificationResponse
 from app.settings import notification_enable
+
+
+async def create_admin_role(role: AdminRoleResponse, by: str):
+    if (await notification_enable()).admin_role.create:
+        await asyncio.gather(ds.create_admin_role(role, by), tg.create_admin_role(role, by))
+
+
+async def modify_admin_role(role: AdminRoleResponse, by: str):
+    if (await notification_enable()).admin_role.modify:
+        await asyncio.gather(ds.modify_admin_role(role, by), tg.modify_admin_role(role, by))
+
+
+async def remove_admin_role(role: AdminRoleResponse, by: str):
+    if (await notification_enable()).admin_role.delete:
+        await asyncio.gather(ds.remove_admin_role(role, by), tg.remove_admin_role(role, by))
 
 
 async def create_host(host: BaseHost, by: str):

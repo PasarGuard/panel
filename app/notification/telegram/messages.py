@@ -322,3 +322,32 @@ REMOVE_GROUP = """
 ➖➖➖➖➖➖➖➖➖
 <i>By: #{by}</i>
 """
+
+CREATE_ADMIN_ROLE = """
+#Create_Admin_Role
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Is Owner:</b> <code>{is_owner}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>By: #{by}</i>
+"""
+
+MODIFY_ADMIN_ROLE = """
+#Modify_Admin_Role
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Is Owner:</b> <code>{is_owner}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>By: #{by}</i>
+"""
+
+REMOVE_ADMIN_ROLE = """
+#Remove_Admin_Role
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>By: #{by}</i>
+"""

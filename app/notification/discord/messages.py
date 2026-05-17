@@ -264,3 +264,21 @@ REMOVE_GROUP = {
     "description": "**ID:** {id}",
     "footer": {"text": "By: {by}"},
 }
+
+CREATE_ADMIN_ROLE = {
+    "title": "Create Admin Role",
+    "description": "**Name:** {name}\n**Is Owner:** {is_owner}\n",
+    "footer": {"text": "ID: {id}\nBy: {by}"},
+}
+
+MODIFY_ADMIN_ROLE = {
+    "title": "Modify Admin Role",
+    "description": "**Name:** {name}\n**Is Owner:** {is_owner}\n",
+    "footer": {"text": "ID: {id}\nBy: {by}"},
+}
+
+REMOVE_ADMIN_ROLE = {
+    "title": "Remove Admin Role",
+    "description": "**Name:** {name}\n",
+    "footer": {"text": "ID: {id}\nBy: {by}"},
+}
