@@ -19,6 +19,10 @@ def unique_name(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:8]}"
 
 
+# Default role IDs seeded by migration — safe to use in tests that bypass the API
+OPERATOR_ROLE_ID = 3
+
+
 def auth_headers(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
 
