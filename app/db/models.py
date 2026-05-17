@@ -88,7 +88,7 @@ class Admin(Base):
     notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
-    role: Mapped[Optional["AdminRole"]] = relationship(init=False)
+    role: Mapped[Optional["AdminRole"]] = relationship(init=False, lazy="selectin")
     permission_overrides: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
 
     @hybrid_property

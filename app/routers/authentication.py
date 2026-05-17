@@ -4,7 +4,6 @@ from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 from app.db import AsyncSession, get_db
 from app.db.crud.admin import (
@@ -98,7 +97,7 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
         .scalar_subquery()
     )
 
-    base_stmt = select(Admin, total_users_subquery, reseted_usage_subquery).options(selectinload(Admin.role))
+    base_stmt = select(Admin, total_users_subquery, reseted_usage_subquery)
 
     if payload.get("admin_id") is not None:
         admin_row = (await db.execute(base_stmt.where(Admin.id == payload["admin_id"]))).one_or_none()

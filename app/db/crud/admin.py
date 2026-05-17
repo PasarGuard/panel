@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, case, delete, func, select, update
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.general import (
@@ -65,8 +64,7 @@ async def get_admin(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    stmt = select(Admin).where(Admin.username == username).options(selectinload(Admin.role))
-    admin = (await db.execute(stmt)).unique().scalar_one_or_none()
+    admin = (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
@@ -130,6 +128,7 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.notification_enable = modified_admin.notification_enable.model_dump()
 
     await db.commit()
+    await db.refresh(db_admin)
     await load_admin_attrs(db_admin)
     return db_admin
 
@@ -153,8 +152,7 @@ async def get_admin_by_id(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    stmt = select(Admin).where(Admin.id == id).options(selectinload(Admin.role))
-    admin = (await db.execute(stmt)).unique().scalar_one_or_none()
+    admin = (await db.execute(select(Admin).where(Admin.id == id))).unique().scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
@@ -168,15 +166,7 @@ async def get_admin_by_telegram_id(
     load_usage_logs: bool = True,
 ) -> Admin:
     admins = (
-        (
-            await db.execute(
-                select(Admin)
-                .where(Admin.telegram_id == telegram_id)
-                .options(selectinload(Admin.role))
-                .order_by(Admin.id.asc())
-                .limit(2)
-            )
-        )
+        (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id).order_by(Admin.id.asc()).limit(2)))
         .scalars()
         .all()
     )
@@ -213,9 +203,7 @@ async def get_admin_by_discord_id(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    admin = (
-        await db.execute(select(Admin).where(Admin.discord_id == discord_id).options(selectinload(Admin.role)))
-    ).scalar_one_or_none()
+    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
@@ -239,7 +227,6 @@ async def get_admins(
         List[Admin] | tuple[list[Admin], int, int, int]: A list of admin objects or tuple with counts.
     """
     params = query
-
     total = None
     active = None
     disabled = None
@@ -490,7 +477,6 @@ async def get_admin_usages(
 
         # Attach timezone info to period_start
         attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
-
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(UserUsageStat(**row_dict))
