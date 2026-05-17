@@ -321,7 +321,7 @@ def test_bulk_disable_enable_reset_update_and_reconnect_nodes(access_token, monk
 
 
 def test_bulk_disable_enable_and_reset_admins(access_token):
-    admin = create_admin(access_token, is_sudo=False)
+    admin = create_admin(access_token)
     try:
         set_admin_used_traffic(admin["username"], 8192)
 
@@ -357,7 +357,7 @@ def test_bulk_disable_enable_and_reset_admins(access_token):
 
 
 def test_bulk_admin_user_actions(access_token):
-    admin = create_admin(access_token, is_sudo=False)
+    admin = create_admin(access_token)
     active_user = create_user(access_token, payload={"username": unique_name("bulk_admin_active")})
     disabled_user = create_user(access_token, payload={"username": unique_name("bulk_admin_disabled")})
 

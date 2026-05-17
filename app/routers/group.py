@@ -33,7 +33,7 @@ group_operator = GroupOperation(OperatorType.API)
     response_model=GroupResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new group",
-    description="Creates a new group in the system. Only sudo administrators can create groups.",
+    description="Creates a new group in the system. Only authorized administrators can create groups.",
 )
 async def create_group(
     new_group: GroupCreate,
@@ -55,7 +55,7 @@ async def create_group(
 
     Raises:
         401: Unauthorized - If not authenticated
-        403: Forbidden - If not sudo admin
+        403: Forbidden - If not authorized admin
     """
     return await group_operator.create_group(db, new_group, admin)
 
@@ -142,7 +142,7 @@ async def get_group(
     "/{group_id}",
     response_model=GroupResponse,
     summary="Modify group",
-    description="Updates an existing group's information. Only sudo administrators can modify groups.",
+    description="Updates an existing group's information. Only authorized administrators can modify groups.",
     responses={404: responses._404},
 )
 async def modify_group(
@@ -166,7 +166,7 @@ async def modify_group(
 
     Raises:
         401: Unauthorized - If not authenticated
-        403: Forbidden - If not sudo admin
+        403: Forbidden - If not authorized admin
         404: Not Found - If group doesn't exist
     """
     return await group_operator.modify_group(db, group_id, modified_group, admin)
@@ -176,7 +176,7 @@ async def modify_group(
     "/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove group",
-    description="Deletes a group from the system. Only sudo administrators can delete groups.",
+    description="Deletes a group from the system. Only authorized administrators can delete groups.",
     responses={404: responses._404},
 )
 async def remove_group(
@@ -192,7 +192,7 @@ async def remove_group(
 
     Raises:
         401: Unauthorized - If not authenticated
-        403: Forbidden - If not sudo admin
+        403: Forbidden - If not authorized admin
         404: Not Found - If group doesn't exist
     """
     await group_operator.remove_group(db, group_id, admin)

@@ -420,7 +420,7 @@ async def get_users_simple(
     Args:
         db: Database session.
         query: Structured lightweight user list filters.
-        admin: Admin filter (for non-sudo authorization).
+        admin: Admin filter (for scope-based authorization).
 
     Returns:
         Tuple of (list of (id, username) tuples, total_count).

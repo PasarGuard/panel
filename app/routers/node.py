@@ -170,7 +170,7 @@ async def get_nodes(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("nodes", "read")),
 ):
-    """Retrieve a list of all nodes. Accessible only to sudo admins."""
+    """Retrieve a list of all nodes. Accessible only to authorized admins."""
 
     return await node_operator.get_db_nodes(db=db, query=query)
 
@@ -262,7 +262,7 @@ async def modify_node(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("nodes", "update")),
 ):
-    """Modify a node's details. Only accessible to sudo admins."""
+    """Modify a node's details. Only accessible to authorized admins."""
     return await node_operator.modify_node(db, node_id=node_id, modified_node=modified_node, admin=admin)
 
 
@@ -275,7 +275,7 @@ async def reset_node_usage(
     """
     Reset node traffic usage (uplink and downlink).
     Creates a log entry in node_usage_reset_logs table.
-    Only accessible to sudo admins.
+    Only accessible to authorized admins.
     """
     return await node_operator.reset_node_usage(db, node_id=node_id, admin=admin)
 
@@ -286,7 +286,7 @@ async def reconnect_node(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("nodes", "reconnect")),
 ):
-    """Trigger a reconnection for the specified node. Only accessible to sudo admins."""
+    """Trigger a reconnection for the specified node. Only accessible to authorized admins."""
     await node_operator.restart_node(db, node_id, admin)
     return {}
 

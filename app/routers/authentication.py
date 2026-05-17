@@ -89,8 +89,8 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
             return None
         return _build_admin_details(db_admin)
 
-    # Env admin fallback — gets owner-level role so it bypasses all permission checks
-    if payload["username"] in auth_settings.sudoers and payload.get("is_sudo") is True:
+    # Env admin fallback — no DB record, but username is a known env admin
+    if payload["username"] in auth_settings.sudoers:
         return AdminDetails(username=payload["username"], role=_ENV_ADMIN_ROLE)
 
     return None
@@ -126,8 +126,8 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
             return None
         return _build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
 
-    # Env admin fallback
-    if payload["username"] in auth_settings.sudoers and payload.get("is_sudo") is True:
+    # Env admin fallback — no DB record, but username is a known env admin
+    if payload["username"] in auth_settings.sudoers:
         return AdminDetails(username=payload["username"], role=_ENV_ADMIN_ROLE)
 
     return None

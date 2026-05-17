@@ -976,7 +976,7 @@ class UserOperation(BaseOperation):
         query: UserSimpleListQuery,
     ) -> UsersSimpleResponse:
         """Get lightweight user list with only id and username"""
-        # Authorization: non-sudo admins see only their users
+        # Authorization: non-owner admins see only their users
         admin_filter = (
             None if admin.is_owner else await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
         )

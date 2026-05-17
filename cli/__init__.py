@@ -8,17 +8,11 @@ from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
 
-from app.models.admin import AdminDetails
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 
 # Initialize console for rich output
 console = Console()
-
-# system admin for CLI operations
-SYSTEM_ADMIN = AdminDetails(
-    username="cli", is_sudo=True, telegram_id=None, discord_webhook=None, notification_enable=None
-)
 
 
 def get_admin_operation() -> AdminOperation:

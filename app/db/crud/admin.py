@@ -362,7 +362,7 @@ async def get_admins_simple(
         if query.limit is not None:
             stmt = stmt.limit(query.limit)
     else:
-        stmt = stmt.limit(10000)  # Safety limit when all=true
+        stmt = stmt.limit(10000)
 
     # Execute and return
     result = await db.execute(stmt)

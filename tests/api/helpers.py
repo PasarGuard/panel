@@ -34,7 +34,7 @@ def strong_password(prefix: str) -> str:
 
 
 def create_admin(
-    access_token: str, *, username: str | None = None, password: str | None = None, is_sudo: bool = False
+    access_token: str, *, username: str | None = None, password: str | None = None, role_id: int = 3
 ) -> dict:
     username = username or unique_name("admin")
     # Ensure password always meets complexity rules (>=2 digits, 2 uppercase, 2 lowercase, special char)
@@ -42,7 +42,7 @@ def create_admin(
     response = client.post(
         "/api/admin",
         headers=auth_headers(access_token),
-        json={"username": username, "password": password, "role_id": 2 if is_sudo else 3},
+        json={"username": username, "password": password, "role_id": role_id},
     )
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()

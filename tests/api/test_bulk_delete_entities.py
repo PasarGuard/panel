@@ -52,12 +52,12 @@ KuUcpBWSPkvH6y3Ak+YsTMg=
 -----END CERTIFICATE-----"""
 
 
-def set_admin_sudo(username: str, is_sudo: bool) -> None:
-    """Set admin role: is_sudo=True -> administrator (role_id=2), False -> operator (role_id=3)."""
+def set_admin_role(username: str, role_id: int) -> None:
+    """Set admin role by role_id (2=administrator, 3=operator)."""
 
     async def _set_flag():
         async with TestSession() as session:
-            await session.execute(update(Admin).where(Admin.username == username).values(role_id=2 if is_sudo else 3))
+            await session.execute(update(Admin).where(Admin.username == username).values(role_id=role_id))
             await session.commit()
 
     asyncio.run(_set_flag())
@@ -293,7 +293,7 @@ def get_template_group_link_count(template_id: int) -> int:
 
 
 def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
-    admin = create_admin(access_token, is_sudo=False)
+    admin = create_admin(access_token)
     user = create_user(access_token, payload={"username": unique_name("bulk_admin_user")})
     try:
         owner_response = client.put(
@@ -326,7 +326,7 @@ def test_bulk_delete_admins_rejects_owner_account(access_token):
     # by attempting to bulk-delete a non-existent owner username — the
     # operation layer blocks role_id=1 deletions before hitting the DB.
     # We test this indirectly: a normal admin (role_id=3) can be bulk-deleted.
-    admin = create_admin(access_token, is_sudo=False)
+    admin = create_admin(access_token)
     try:
         response = client.post(
             "/api/admins/bulk/delete",

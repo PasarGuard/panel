@@ -37,24 +37,24 @@ def admin_username(label: str = "admin") -> str:
 
 
 def create_admin(
-    access_token: str, *, username: str | None = None, password: str | None = None, is_sudo: bool = False
+    access_token: str, *, username: str | None = None, password: str | None = None, role_id: int = 3
 ) -> dict:
     return _create_admin(
         access_token,
         username=username or admin_username("admin"),
         password=password,
-        is_sudo=is_sudo,
+        role_id=role_id,
     )
 
 
-def set_admin_sudo(username: str, is_sudo: bool) -> None:
-    """Set admin role: is_sudo=True -> administrator (role_id=2), False -> operator (role_id=3)."""
+def set_admin_role(username: str, role_id: int) -> None:
+    """Set admin role by role_id (2=administrator, 3=operator)."""
 
     async def _set_flag():
         async with TestSession() as session:
             result = await session.execute(select(Admin).where(Admin.username == username))
             db_admin = result.scalar_one()
-            db_admin.role_id = 2 if is_sudo else 3
+            db_admin.role_id = role_id
             await session.commit()
 
     asyncio.run(_set_flag())
@@ -186,7 +186,7 @@ def test_admin_create(access_token):
     delete_admin(access_token, username)
 
 
-def test_admin_create_sudo_forbidden_via_api(access_token):
+def test_admin_create_owner_forbidden_via_api(access_token):
     """Creating an admin with owner role (role_id=1) via API should be forbidden."""
     username = admin_username("forbidden")
     password = strong_password("ForbiddenOwner")
@@ -238,8 +238,7 @@ def test_admin_create_duplicate_telegram_id_conflict(access_token):
             json={
                 "username": admin_b_username,
                 "password": admin_b_password,
-                "is_sudo": False,
-                "telegram_id": telegram_id,
+                                "telegram_id": telegram_id,
                 "role_id": 3,
             },
             headers={"Authorization": f"Bearer {access_token}"},
@@ -272,8 +271,7 @@ def test_update_admin(access_token):
         url=f"/api/admin/{admin['username']}",
         json={
             "password": password,
-            "is_sudo": False,
-            "is_disabled": True,
+                        "is_disabled": True,
         },
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -361,15 +359,14 @@ def test_update_admin_duplicate_telegram_id_conflict(access_token):
         delete_admin(access_token, admin_b["username"])
 
 
-def test_promote_admin_to_sudo_forbidden_via_api(access_token):
+def test_promote_admin_to_owner_forbidden_via_api(access_token):
     """Assigning owner role (role_id=1) to an admin via API should be forbidden."""
-    admin = create_admin(access_token, is_sudo=False)
+    admin = create_admin(access_token)
     try:
         response = client.put(
             url=f"/api/admin/{admin['username']}",
             json={
-                "is_sudo": False,
-                "is_disabled": False,
+                                "is_disabled": False,
                 "role_id": 1,
             },
             headers={"Authorization": f"Bearer {access_token}"},
@@ -380,121 +377,118 @@ def test_promote_admin_to_sudo_forbidden_via_api(access_token):
         delete_admin(access_token, admin["username"])
 
 
-def test_sudo_admin_can_modify_self(access_token):
+def test_administrator_can_modify_self(access_token):
     """An administrator (role_id=2) can edit their own account."""
     # Create admin with administrator role so they have admins.update permission
-    sudo_admin_username = admin_username("admin")
-    sudo_admin_password = strong_password("TestAdminSudo")
+    administrator_username = admin_username("admin")
+    administrator_password = strong_password("TestAdminPass")
     create_response = client.post(
         url="/api/admin",
-        json={"username": sudo_admin_username, "password": sudo_admin_password, "role_id": 2},
+        json={"username": administrator_username, "password": administrator_password, "role_id": 2},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert create_response.status_code == status.HTTP_201_CREATED
-    sudo_admin = create_response.json()
-    sudo_admin["password"] = sudo_admin_password
+    administrator_admin = create_response.json()
+    administrator_admin["password"] = administrator_password
     try:
         login_response = client.post(
             url="/api/admin/token",
             data={
-                "username": sudo_admin["username"],
-                "password": sudo_admin["password"],
+                "username": administrator_admin["username"],
+                "password": administrator_admin["password"],
                 "grant_type": "password",
             },
         )
         assert login_response.status_code == status.HTTP_200_OK
-        sudo_token = login_response.json()["access_token"]
+        administrator_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{sudo_admin['username']}",
+            url=f"/api/admin/{administrator_admin['username']}",
             json={
-                "is_sudo": True,
-                "is_disabled": False,
+                                "is_disabled": False,
                 "note": "self-updated",
             },
-            headers={"Authorization": f"Bearer {sudo_token}"},
+            headers={"Authorization": f"Bearer {administrator_token}"},
         )
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["username"] == sudo_admin["username"]
+        assert response.json()["username"] == administrator_admin["username"]
         assert response.json()["note"] == "self-updated"
     finally:
-        delete_admin(access_token, sudo_admin["username"])
+        delete_admin(access_token, administrator_admin["username"])
 
 
-def test_sudo_admin_cannot_disable_self(access_token):
+def test_administrator_cannot_disable_self(access_token):
     """An administrator (role_id=2) cannot disable their own account."""
-    sudo_admin_username = admin_username("admin")
-    sudo_admin_password = strong_password("TestAdminSudo")
+    administrator_username = admin_username("admin")
+    administrator_password = strong_password("TestAdminPass")
     create_response = client.post(
         url="/api/admin",
-        json={"username": sudo_admin_username, "password": sudo_admin_password, "role_id": 2},
+        json={"username": administrator_username, "password": administrator_password, "role_id": 2},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert create_response.status_code == status.HTTP_201_CREATED
-    sudo_admin = create_response.json()
-    sudo_admin["password"] = sudo_admin_password
+    administrator_admin = create_response.json()
+    administrator_admin["password"] = administrator_password
     try:
         login_response = client.post(
             url="/api/admin/token",
             data={
-                "username": sudo_admin["username"],
-                "password": sudo_admin["password"],
+                "username": administrator_admin["username"],
+                "password": administrator_admin["password"],
                 "grant_type": "password",
             },
         )
         assert login_response.status_code == status.HTTP_200_OK
-        sudo_token = login_response.json()["access_token"]
+        administrator_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{sudo_admin['username']}",
+            url=f"/api/admin/{administrator_admin['username']}",
             json={
-                "is_sudo": True,
-                "is_disabled": True,
+                                "is_disabled": True,
             },
-            headers={"Authorization": f"Bearer {sudo_token}"},
+            headers={"Authorization": f"Bearer {administrator_token}"},
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert response.json()["detail"] == "You're not allowed to disable your own account."
     finally:
-        delete_admin(access_token, sudo_admin["username"])
+        delete_admin(access_token, administrator_admin["username"])
 
 
-def test_sudo_admin_cannot_modify_other_sudo_admin(access_token):
-    """A sudo admin cannot edit another sudo admin account."""
-    sudo_admin_a = create_admin(access_token)
-    sudo_admin_b = create_admin(access_token)
-    set_admin_sudo(sudo_admin_a["username"], True)
-    set_admin_sudo(sudo_admin_b["username"], True)
+def test_administrator_cannot_modify_other_administrator(access_token):
+    """An administrator cannot edit another administrator account."""
+    admin_a = create_admin(access_token)
+    admin_b = create_admin(access_token)
+    set_admin_role(admin_a["username"], 2)
+    set_admin_role(admin_b["username"], 2)
     try:
         login_response = client.post(
             url="/api/admin/token",
             data={
-                "username": sudo_admin_a["username"],
-                "password": sudo_admin_a["password"],
+                "username": admin_a["username"],
+                "password": admin_a["password"],
                 "grant_type": "password",
             },
         )
         assert login_response.status_code == status.HTTP_200_OK
-        sudo_a_token = login_response.json()["access_token"]
+        admin_a_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{sudo_admin_b['username']}",
+            url=f"/api/admin/{admin_b['username']}",
             json={
-                "is_sudo": True,
-                "is_disabled": False,
+                                "is_disabled": False,
                 "note": "should-fail",
             },
-            headers={"Authorization": f"Bearer {sudo_a_token}"},
+            headers={"Authorization": f"Bearer {admin_a_token}"},
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
     finally:
-        set_admin_sudo(sudo_admin_a["username"], False)
-        set_admin_sudo(sudo_admin_b["username"], False)
-        delete_admin(access_token, sudo_admin_a["username"])
-        delete_admin(access_token, sudo_admin_b["username"])
+        set_admin_role(admin_a["username"], 3)
+        set_admin_role(admin_b["username"], 3)
+        delete_admin(access_token, admin_a["username"])
+        delete_admin(access_token, admin_b["username"])
 
 
 def test_get_admins(access_token):
@@ -969,32 +963,32 @@ def test_get_admins_simple_skip_pagination(access_token):
             delete_admin(access_token, username)
 
 
-def test_get_admins_simple_requires_sudo(access_token):
-    """Test that non-sudo admin cannot access admins/simple."""
-    non_sudo_admin = create_admin(access_token, is_sudo=False)
+def test_get_admins_simple_requires_permission(access_token):
+    """Test that operator admin cannot access admins/simple."""
+    non_administrator_admin = create_admin(access_token)
     try:
-        # Login as non-sudo admin
+        # Login as operator admin
         login_response = client.post(
             url="/api/admin/token",
             data={
-                "username": non_sudo_admin["username"],
-                "password": non_sudo_admin["password"],
+                "username": non_administrator_admin["username"],
+                "password": non_administrator_admin["password"],
                 "grant_type": "password",
             },
         )
         assert login_response.status_code == status.HTTP_200_OK
-        non_sudo_token = login_response.json()["access_token"]
+        non_administrator_token = login_response.json()["access_token"]
 
         # Try to access admins/simple
         response = client.get(
             "/api/admins/simple",
-            headers={"Authorization": f"Bearer {non_sudo_token}"},
+            headers={"Authorization": f"Bearer {non_administrator_token}"},
         )
 
         # Assert 403 Forbidden
         assert response.status_code == status.HTTP_403_FORBIDDEN
     finally:
-        delete_admin(access_token, non_sudo_admin["username"])
+        delete_admin(access_token, non_administrator_admin["username"])
 
 
 def test_get_admins_simple_empty_search(access_token):

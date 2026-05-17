@@ -521,8 +521,8 @@ def test_users_get_filters_by_no_expire(access_token):
 
 def test_users_get_filters_by_admin_ids(access_token):
     core, groups = setup_groups(access_token, 1)
-    admin_a = create_admin(access_token, is_sudo=False)
-    admin_b = create_admin(access_token, is_sudo=False)
+    admin_a = create_admin(access_token)
+    admin_b = create_admin(access_token)
     user_a = create_user(
         access_token,
         group_ids=[groups[0]["id"]],
