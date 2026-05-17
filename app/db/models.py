@@ -87,6 +87,9 @@ class Admin(Base):
     support_url: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
+    role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
+    role: Mapped[Optional["AdminRole"]] = relationship(init=False)
+    permission_overrides: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
 
     @hybrid_property
     def reseted_usage(self) -> int:
@@ -821,3 +824,26 @@ class Settings(Base):
     subscription: Mapped[dict] = mapped_column(JSON())
     hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())
+
+
+class AdminRole(Base):
+    __tablename__ = "admin_roles"
+
+    id: Mapped[int] = id_column()
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    is_locked: Mapped[bool] = mapped_column(default=False, server_default="0")
+    permissions: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    limits: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    features: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    access: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+
+
+class TempKey(Base):
+    __tablename__ = "temp_keys"
+
+    key: Mapped[str] = mapped_column(String(36), primary_key=True, init=True)
+    action: Mapped[str] = mapped_column(String(32))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    used_by_ip: Mapped[Optional[str]] = mapped_column(String(45), default=None)

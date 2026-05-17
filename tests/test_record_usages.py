@@ -92,7 +92,7 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.MonkeyPatch, session_factory):
     async with session_factory() as session:
-        admin = Admin(username="admin", hashed_password="secret")
+        admin = Admin(username="admin", hashed_password="secret", role_id=3)
         session.add(admin)
         await session.flush()
         admin_id = admin.id
@@ -183,7 +183,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
 @pytest.mark.asyncio
 async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.MonkeyPatch, session_factory):
     async with session_factory() as session:
-        admin = Admin(username="admin", hashed_password="secret")
+        admin = Admin(username="admin", hashed_password="secret", role_id=3)
         session.add(admin)
         await session.flush()
         admin_id = admin.id

@@ -707,8 +707,12 @@ async def test_admin_usage_forbidden_for_other_admin(access_token):
 async def test_get_admin_by_telegram_id_handles_duplicate_rows(access_token):
     telegram_id = 7766554433
     async with TestSession() as session:
-        admin_a = Admin(username=admin_username("tg_read_a"), hashed_password="secret", telegram_id=telegram_id)
-        admin_b = Admin(username=admin_username("tg_read_b"), hashed_password="secret", telegram_id=telegram_id)
+        admin_a = Admin(
+            username=admin_username("tg_read_a"), hashed_password="secret", telegram_id=telegram_id, role_id=3
+        )
+        admin_b = Admin(
+            username=admin_username("tg_read_b"), hashed_password="secret", telegram_id=telegram_id, role_id=3
+        )
         session.add_all([admin_a, admin_b])
         await session.commit()
 
@@ -723,8 +727,8 @@ async def test_get_admin_by_telegram_id_handles_duplicate_rows(access_token):
 @pytest.mark.asyncio
 async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(access_token, monkeypatch: pytest.MonkeyPatch):
     telegram_id = 6655443322
-    admin_a = Admin(username=admin_username("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id)
-    admin_b = Admin(username=admin_username("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id)
+    admin_a = Admin(username=admin_username("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id, role_id=3)
+    admin_b = Admin(username=admin_username("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id, role_id=3)
     async with TestSession() as session:
         session.add_all(
             [
