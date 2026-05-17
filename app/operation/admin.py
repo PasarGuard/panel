@@ -81,7 +81,8 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, db_admin: Admin, modified_admin: AdminModify, current_admin: AdminDetails
     ) -> AdminDetails:
         """Modify an existing admin's details."""
-        if db_admin.role_id == 1:
+        # Owner can only be modified by themselves — not by other admins via normal routes
+        if db_admin.role_id == 1 and (current_admin.id is None or db_admin.id != current_admin.id):
             await self.raise_error(message="Owner cannot be modified via this endpoint. Use the setup flow.", code=403)
 
         if modified_admin.role_id == 1:
