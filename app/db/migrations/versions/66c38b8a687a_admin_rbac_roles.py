@@ -106,8 +106,13 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column('permission_overrides', sa.JSON().with_variant(postgresql.JSONB(none_as_null=True, astext_type=Text()), 'postgresql'), nullable=True))
     # Backfill: is_sudo=true -> administrator (id=2), is_sudo=false -> operator (id=3)
     conn = op.get_bind()
-    conn.execute(sa.text("UPDATE admins SET role_id = 2 WHERE is_sudo = 1"))
-    conn.execute(sa.text("UPDATE admins SET role_id = 3 WHERE is_sudo = 0 OR role_id IS NULL"))
+    dialect = conn.dialect.name
+    if dialect == "postgresql":
+        conn.execute(sa.text("UPDATE admins SET role_id = 2 WHERE is_sudo = true"))
+        conn.execute(sa.text("UPDATE admins SET role_id = 3 WHERE is_sudo = false OR role_id IS NULL"))
+    else:
+        conn.execute(sa.text("UPDATE admins SET role_id = 2 WHERE is_sudo = 1"))
+        conn.execute(sa.text("UPDATE admins SET role_id = 3 WHERE is_sudo = 0 OR role_id IS NULL"))
 
     with op.batch_alter_table('admins', schema=None) as batch_op:
         batch_op.alter_column('role_id', existing_type=app.db.compiles_types.SqliteCompatibleBigInteger(), nullable=False)

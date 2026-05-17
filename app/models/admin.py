@@ -114,6 +114,7 @@ class AdminModify(BaseModel):
     support_url: str | None = None
     note: str | None = None
     notification_enable: UserNotificationEnable | None = None
+    role_id: int | None = None
 
     @field_validator("discord_webhook")
     @classmethod
@@ -131,6 +132,7 @@ class AdminCreate(AdminModify):
 
     username: str
     password: str
+    role_id: int
 
 
 class AdminInDB(AdminDetails):

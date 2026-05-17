@@ -192,7 +192,7 @@ def test_admin_create_sudo_forbidden_via_api(access_token):
 
     response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": True},
+        json={"username": username, "password": password, "is_sudo": True, "role_id": 2},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -208,7 +208,7 @@ def test_admin_create_with_note(access_token):
 
     response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": False, "note": note},
+        json={"username": username, "password": password, "is_sudo": False, "note": note, "role_id": 3},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -239,6 +239,7 @@ def test_admin_create_duplicate_telegram_id_conflict(access_token):
                 "password": admin_b_password,
                 "is_sudo": False,
                 "telegram_id": telegram_id,
+                "role_id": 3,
             },
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -508,7 +509,7 @@ def test_get_admins_returns_admin_note(access_token):
 
     create_response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": False, "note": note},
+        json={"username": username, "password": password, "is_sudo": False, "note": note, "role_id": 3},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert create_response.status_code == status.HTTP_201_CREATED
