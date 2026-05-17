@@ -66,7 +66,9 @@ router = APIRouter(tags=["User"], prefix="/api/user", responses={401: responses.
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user(
-    new_user: UserCreate, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "create"))
+    new_user: UserCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "create")),
 ):
     """
     Create a new user
@@ -149,7 +151,11 @@ async def modify_user_by_id(
 @router.delete(
     "/{username}", responses={403: responses._403, 404: responses._404}, status_code=status.HTTP_204_NO_CONTENT
 )
-async def remove_user(username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "delete"))):
+async def remove_user(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "delete")),
+):
     """Remove a user"""
     return await user_operator.remove_user(db, username=username, admin=admin)
 
@@ -160,7 +166,9 @@ async def remove_user(username: str, db: AsyncSession = Depends(get_db), admin: 
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_user_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "delete"))
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "delete")),
 ):
     return await user_operator.remove_user(db, username=username, admin=admin)
 
@@ -171,14 +179,18 @@ async def remove_user_by_username(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_user_by_id(
-    user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "delete"))
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "delete")),
 ):
     return await user_operator.remove_user_by_id(db, user_id=user_id, admin=admin)
 
 
 @router.post("/{username}/reset", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
 async def reset_user_data_usage(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "reset_usage"))
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "reset_usage")),
 ):
     """Reset user data usage"""
     return await user_operator.reset_user_data_usage(db, username=username, admin=admin)
@@ -190,7 +202,9 @@ async def reset_user_data_usage(
     responses={403: responses._403, 404: responses._404},
 )
 async def reset_user_data_usage_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "reset_usage"))
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "reset_usage")),
 ):
     return await user_operator.reset_user_data_usage(db, username=username, admin=admin)
 
@@ -199,7 +213,9 @@ async def reset_user_data_usage_by_username(
     "/by-id/{user_id}/reset", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
 )
 async def reset_user_data_usage_by_id(
-    user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "reset_usage"))
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "reset_usage")),
 ):
     return await user_operator.reset_user_data_usage_by_id(db, user_id=user_id, admin=admin)
 
@@ -208,7 +224,9 @@ async def reset_user_data_usage_by_id(
     "/{username}/revoke_sub", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
 )
 async def revoke_user_subscription(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "revoke_sub"))
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "revoke_sub")),
 ):
     """Revoke users subscription (Subscription link and proxies)"""
     return await user_operator.revoke_user_sub(db, username=username, admin=admin)
@@ -220,7 +238,9 @@ async def revoke_user_subscription(
     responses={403: responses._403, 404: responses._404},
 )
 async def revoke_user_subscription_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "revoke_sub"))
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "revoke_sub")),
 ):
     return await user_operator.revoke_user_sub(db, username=username, admin=admin)
 
@@ -231,13 +251,17 @@ async def revoke_user_subscription_by_username(
     responses={403: responses._403, 404: responses._404},
 )
 async def revoke_user_subscription_by_id(
-    user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "revoke_sub"))
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "revoke_sub")),
 ):
     return await user_operator.revoke_user_sub_by_id(db, user_id=user_id, admin=admin)
 
 
 @router.post("s/reset", responses={403: responses._403, 404: responses._404})
-async def reset_users_data_usage(db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_scope_all("users", "reset_usage"))):
+async def reset_users_data_usage(
+    db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_scope_all("users", "reset_usage"))
+):
     """Reset all users data usage"""
     await user_operator.reset_users_data_usage(db, admin)
     await node_operator.restart_all_node(db, admin)
@@ -301,7 +325,9 @@ async def set_owner_by_id(
     "/{username}/active_next", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
 )
 async def active_next_plan(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "activate_next_plan"))
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "activate_next_plan")),
 ):
     """Reset user by next plan"""
     return await user_operator.active_next_plan(db, username=username, admin=admin)
@@ -313,7 +339,9 @@ async def active_next_plan(
     responses={403: responses._403, 404: responses._404},
 )
 async def active_next_plan_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "activate_next_plan"))
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "activate_next_plan")),
 ):
     return await user_operator.active_next_plan(db, username=username, admin=admin)
 
@@ -322,13 +350,19 @@ async def active_next_plan_by_username(
     "/by-id/{user_id}/active_next", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
 )
 async def active_next_plan_by_id(
-    user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "activate_next_plan"))
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "activate_next_plan")),
 ):
     return await user_operator.active_next_plan_by_id(db, user_id=user_id, admin=admin)
 
 
 @router.get("/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
-async def get_user(username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "read"))):
+async def get_user(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "read")),
+):
     """Get user information"""
     return await user_operator.get_user(db=db, username=username, admin=admin)
 
@@ -337,13 +371,17 @@ async def get_user(username: str, db: AsyncSession = Depends(get_db), admin: Adm
     "/by-username/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
 )
 async def get_user_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "read"))
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "read")),
 ):
     return await user_operator.get_user(db=db, username=username, admin=admin)
 
 
 @router.get("/by-id/{user_id}", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
-async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "read"))):
+async def get_user_by_id(
+    user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("users", "read"))
+):
     return await user_operator.get_user_by_id(db=db, user_id=user_id, admin=admin)
 
 

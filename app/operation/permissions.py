@@ -114,11 +114,9 @@ def get_effective_limits(admin: AdminDetails) -> RoleLimits:
     if overrides is None:
         return base
 
-    return base.model_copy(update={
-        k: getattr(overrides, k)
-        for k in overrides.model_fields_set
-        if getattr(overrides, k) is not None
-    })
+    return base.model_copy(
+        update={k: getattr(overrides, k) for k in overrides.model_fields_set if getattr(overrides, k) is not None}
+    )
 
 
 def get_allowed_group_ids(admin: AdminDetails) -> list[int] | None:

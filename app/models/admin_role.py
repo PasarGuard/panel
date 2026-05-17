@@ -9,9 +9,10 @@ from app.models.validators import ListValidator
 
 class PermissionScope(IntEnum):
     """Scope for user-resource permissions. Stored as int in JSON for efficiency."""
-    NONE = 0   # explicitly denied
-    OWN = 1    # only own users (user.admin_id == admin.id)
-    ALL = 2    # all users regardless of owner
+
+    NONE = 0  # explicitly denied
+    OWN = 1  # only own users (user.admin_id == admin.id)
+    ALL = 2  # all users regardless of owner
 
 
 class RoleLimits(BaseModel):

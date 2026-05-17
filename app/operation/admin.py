@@ -39,6 +39,7 @@ from app.models.stats import Period, UserUsageStatsList
 from app.models.user import UserListQuery
 from app.node.sync import remove_user as sync_remove_user, sync_users
 from app.operation import BaseOperation
+from app.operation.permissions import enforce_permission, PermissionDenied
 from app.operation.user import UserOperation
 from app.utils.logger import get_logger
 
@@ -282,9 +283,15 @@ class AdminOperation(BaseOperation):
         """Get aggregated usage for an admin's users."""
         start, end = await self.validate_dates(start, end, True)
 
-        if not admin.is_sudo:
-            if db_admin.username != admin.username:
+        is_self = db_admin.username == admin.username
+        if not is_self:
+            # Non-self access requires admins.read permission
+            try:
+                enforce_permission(admin, "admins", "read")
+            except PermissionDenied:
                 await self.raise_error(message="You're not allowed", code=403)
+        else:
+            # Self-access: restrict to own data only (no cross-node filtering)
             node_id = None
             group_by_node = False
 

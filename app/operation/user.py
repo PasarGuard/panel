@@ -259,7 +259,8 @@ class UserOperation(BaseOperation):
         if not skip_per_user_limits:
             for user_to_create in users_to_create:
                 await self._enforce_user_limits(
-                    db, admin,
+                    db,
+                    admin,
                     data_limit=user_to_create.data_limit,
                     expire=user_to_create.expire,
                     hwid_limit=user_to_create.hwid_limit,
@@ -372,20 +373,30 @@ class UserOperation(BaseOperation):
 
         if data_limit is not None and data_limit > 0:
             if limits.data_limit_min is not None and data_limit < limits.data_limit_min:
-                await self.raise_error(message=f"Data limit must be at least {limits.data_limit_min} bytes", code=400, db=db)
+                await self.raise_error(
+                    message=f"Data limit must be at least {limits.data_limit_min} bytes", code=400, db=db
+                )
             if limits.data_limit_max is not None and data_limit > limits.data_limit_max:
-                await self.raise_error(message=f"Data limit cannot exceed {limits.data_limit_max} bytes", code=400, db=db)
+                await self.raise_error(
+                    message=f"Data limit cannot exceed {limits.data_limit_max} bytes", code=400, db=db
+                )
 
         if expire is not None:
             days = (expire - datetime.now(timezone.utc)).days
             if limits.expire_days_min is not None and days < limits.expire_days_min:
-                await self.raise_error(message=f"Expire must be at least {limits.expire_days_min} days from now", code=400, db=db)
+                await self.raise_error(
+                    message=f"Expire must be at least {limits.expire_days_min} days from now", code=400, db=db
+                )
             if limits.expire_days_max is not None and days > limits.expire_days_max:
-                await self.raise_error(message=f"Expire cannot exceed {limits.expire_days_max} days from now", code=400, db=db)
+                await self.raise_error(
+                    message=f"Expire cannot exceed {limits.expire_days_max} days from now", code=400, db=db
+                )
 
         if hwid_limit is not None:
             if limits.min_hwid_per_user is not None and hwid_limit < limits.min_hwid_per_user:
-                await self.raise_error(message=f"HWID limit must be at least {limits.min_hwid_per_user}", code=400, db=db)
+                await self.raise_error(
+                    message=f"HWID limit must be at least {limits.min_hwid_per_user}", code=400, db=db
+                )
             if limits.max_hwid_per_user is not None and hwid_limit > limits.max_hwid_per_user:
                 await self.raise_error(message=f"HWID limit cannot exceed {limits.max_hwid_per_user}", code=400, db=db)
 
@@ -398,7 +409,9 @@ class UserOperation(BaseOperation):
             if next_plan is not None and not features.can_use_next_plan:
                 await self.raise_error(message="Next plan is not allowed for your role", code=403, db=db)
 
-    async def create_user(self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails, *, skip_role_limits: bool = False) -> UserResponse:
+    async def create_user(
+        self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails, *, skip_role_limits: bool = False
+    ) -> UserResponse:
         hwid_conf = await hwid_settings()
 
         if new_user.hwid_limit is None:
@@ -412,7 +425,8 @@ class UserOperation(BaseOperation):
 
         if not skip_role_limits:
             await self._enforce_user_limits(
-                db, admin,
+                db,
+                admin,
                 data_limit=new_user.data_limit,
                 expire=new_user.expire,
                 hwid_limit=new_user.hwid_limit,
@@ -442,7 +456,13 @@ class UserOperation(BaseOperation):
         return user
 
     async def _prepare_modified_user(
-        self, db: AsyncSession, db_user: User, modified_user: UserModify, admin: AdminDetails, *, skip_role_limits: bool = False
+        self,
+        db: AsyncSession,
+        db_user: User,
+        modified_user: UserModify,
+        admin: AdminDetails,
+        *,
+        skip_role_limits: bool = False,
     ):
         if modified_user.hwid_limit is not None and modified_user.hwid_limit > 0:
             current_count = await get_user_hwid_count(db, db_user.id)
@@ -464,7 +484,8 @@ class UserOperation(BaseOperation):
 
         if not skip_role_limits:
             await self._enforce_user_limits(
-                db, admin,
+                db,
+                admin,
                 data_limit=modified_user.data_limit,
                 expire=modified_user.expire,
                 hwid_limit=modified_user.hwid_limit,
@@ -532,9 +553,17 @@ class UserOperation(BaseOperation):
         return user
 
     async def _modify_user(
-        self, db: AsyncSession, db_user: User, modified_user: UserModify, admin: AdminDetails, *, skip_role_limits: bool = False
+        self,
+        db: AsyncSession,
+        db_user: User,
+        modified_user: UserModify,
+        admin: AdminDetails,
+        *,
+        skip_role_limits: bool = False,
     ) -> UserNotificationResponse:
-        validated_groups = await self._prepare_modified_user(db, db_user, modified_user, admin, skip_role_limits=skip_role_limits)
+        validated_groups = await self._prepare_modified_user(
+            db, db_user, modified_user, admin, skip_role_limits=skip_role_limits
+        )
         return await self._apply_modified_user(db, db_user, modified_user, admin, validated_groups=validated_groups)
 
     async def modify_user(
@@ -1266,7 +1295,9 @@ class UserOperation(BaseOperation):
             groups = await self.validate_all_groups(db, users_to_create[0])
 
         db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
-        subscription_urls = await self._persist_bulk_users(db, admin, db_admin, users_to_create, groups, skip_per_user_limits=True)
+        subscription_urls = await self._persist_bulk_users(
+            db, admin, db_admin, users_to_create, groups, skip_per_user_limits=True
+        )
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 

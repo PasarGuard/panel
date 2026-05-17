@@ -59,7 +59,9 @@ def _build_admin_details(
         sub_template=db_admin.sub_template,
         lifetime_used_traffic=None if reseted_usage is None else int(reseted_usage or 0) + used_traffic,
         role=role,
-        permission_overrides=RoleLimits.model_validate(db_admin.permission_overrides) if db_admin.permission_overrides else None,
+        permission_overrides=RoleLimits.model_validate(db_admin.permission_overrides)
+        if db_admin.permission_overrides
+        else None,
     )
 
 
