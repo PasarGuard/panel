@@ -28,7 +28,6 @@ from app.utils.jwt import create_admin_token
 from app.utils.request import get_client_ip
 
 from .authentication import (
-    get_current,
     get_current_with_metrics,
     require_permission,
     validate_admin,
@@ -213,7 +212,7 @@ async def get_admin_usage(
     username: str,
     query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(require_permission("admins", "read")),
 ):
     """Get admin usage aggregated from user traffic."""
     return await admin_operator.get_admin_usage(db, username=username, admin=admin, query=query)
@@ -228,7 +227,7 @@ async def get_admin_usage_by_username(
     username: str,
     query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(require_permission("admins", "read")),
 ):
     return await admin_operator.get_admin_usage(db, username=username, admin=admin, query=query)
 
@@ -242,7 +241,7 @@ async def get_admin_usage_by_id(
     admin_id: int,
     query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(require_permission("admins", "read")),
 ):
     return await admin_operator.get_admin_usage_by_id(db, admin_id=admin_id, admin=admin, query=query)
 
