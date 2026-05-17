@@ -38,7 +38,7 @@ async def get_admin_payload(token: str) -> dict | None:
         if admin_id is not None:
             try:
                 admin_id = int(admin_id)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return
         if not username or access not in ("admin", "sudo"):
             return

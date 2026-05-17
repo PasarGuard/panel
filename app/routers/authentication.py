@@ -210,7 +210,6 @@ async def require_owner(admin: AdminDetails = Depends(get_current)):
     return admin
 
 
-
 async def validate_admin(db: AsyncSession, username: str, password: str) -> AdminValidationResult | None:
     """Validate admin credentials against the database, with env admin fallback."""
     db_admin = await get_admin_by_username(db, username, load_users=False, load_usage_logs=False)

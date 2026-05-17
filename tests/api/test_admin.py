@@ -49,6 +49,7 @@ def create_admin(
 
 def set_admin_sudo(username: str, is_sudo: bool) -> None:
     """Set admin role: is_sudo=True -> administrator (role_id=2), False -> operator (role_id=3)."""
+
     async def _set_flag():
         async with TestSession() as session:
             result = await session.execute(select(Admin).where(Admin.username == username))
@@ -182,7 +183,7 @@ def test_admin_create(access_token):
     password = strong_password("TestAdmincreate")
     admin = create_admin(access_token, username=username, password=password)
     assert admin["username"] == username
-        delete_admin(access_token, username)
+    delete_admin(access_token, username)
 
 
 def test_admin_create_sudo_forbidden_via_api(access_token):
@@ -278,7 +279,7 @@ def test_update_admin(access_token):
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["username"] == admin["username"]
-        assert response.json()["is_disabled"] is True
+    assert response.json()["is_disabled"] is True
     delete_admin(access_token, admin["username"])
 
 
