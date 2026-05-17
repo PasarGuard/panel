@@ -87,7 +87,7 @@ class Admin(Base):
     notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
-    role: Mapped[Optional["AdminRole"]] = relationship(init=False, lazy="selectin")
+    role: Mapped[Optional["AdminRole"]] = relationship(back_populates="admins", init=False, lazy="selectin")
     permission_overrides: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
 
     @hybrid_property
@@ -836,6 +836,16 @@ class AdminRole(Base):
     features: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     access: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
+
+    @hybrid_property
+    def is_builtin(self) -> bool:
+        """True for the 3 default roles (owner, administrator, operator) that cannot be deleted."""
+        return self.id <= 3
+
+    @is_builtin.expression
+    def is_builtin(cls):
+        return cls.id <= 3
 
 
 class TempKey(Base):

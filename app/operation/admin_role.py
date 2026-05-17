@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin_role import (
+    count_admins_by_role,
     create_role,
     delete_role,
     get_role,
@@ -87,16 +88,15 @@ class AdminRoleOperation(BaseOperation):
         return response
 
     async def delete_role(self, db: AsyncSession, role_id: int, admin: AdminDetails) -> None:
-        """Delete a role. Built-in roles (1, 2, 3) cannot be deleted."""
+        """Delete a role. Built-in roles (id 1, 2, 3) cannot be deleted."""
         role = await get_role(db, role_id)
         if role is None:
             await self.raise_error(message="Role not found", code=404)
 
-        # Guard: role cannot be deleted if any admin is assigned to it
-        from sqlalchemy import select, func
-        from app.db.models import Admin as DBAdmin
+        if role.is_builtin:
+            await self.raise_error(message=f"Cannot delete built-in role '{role.name}'", code=403)
 
-        count = (await db.execute(select(func.count()).where(DBAdmin.role_id == role_id))).scalar() or 0
+        count = await count_admins_by_role(db, role_id)
         if count > 0:
             await self.raise_error(
                 message=f"Cannot delete role '{role.name}': {count} admin(s) are assigned to it",

@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AdminRole
+from app.db.models import Admin, AdminRole
 from app.models.admin_role import AdminRoleCreate, AdminRoleListQuery, AdminRoleModify, AdminRoleSortField
 
 
@@ -75,6 +75,11 @@ async def modify_role(db: AsyncSession, role: AdminRole, data: AdminRoleModify) 
     await db.flush()
     await db.refresh(role)
     return role
+
+
+async def count_admins_by_role(db: AsyncSession, role_id: int) -> int:
+    """Return the number of admins assigned to the given role."""
+    return (await db.execute(select(func.count()).where(Admin.role_id == role_id))).scalar() or 0
 
 
 async def delete_role(db: AsyncSession, role: AdminRole) -> None:
