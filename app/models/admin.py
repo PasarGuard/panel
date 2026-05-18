@@ -47,6 +47,7 @@ async def verify_password(raw: str, hashed: str) -> bool:
 class AdminRoleData(BaseModel):
     """Runtime role data carried on AdminDetails — only the fields needed for permission checks."""
 
+    id: int | None = None
     name: str = ""
     is_owner: bool = False
     permissions: RolePermissions = Field(default_factory=RolePermissions)
