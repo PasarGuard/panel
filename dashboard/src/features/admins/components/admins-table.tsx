@@ -58,6 +58,8 @@ interface BulkActionDialogConfig {
   destructive?: boolean
 }
 
+const compactAdminIds = (admins: AdminDetails[]): number[] => admins.map(admin => admin.id).filter((id): id is number => typeof id === 'number')
+
 const DeleteAlertDialog = ({ admin, isOpen, onClose, onConfirm }: { admin: AdminDetails; isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -249,8 +251,11 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
 
   const adminsData = adminsResponse?.admins || []
   const selectedAdmins = adminsData.filter(admin => selectedAdminUsernames.includes(admin.username))
-  const selectedEnableEligibleUsernames = selectedAdmins.filter(admin => admin.is_disabled).map(admin => admin.username)
-  const selectedDisableEligibleUsernames = selectedAdmins.filter(admin => !admin.is_disabled).map(admin => admin.username)
+  const selectedEnableEligibleAdmins = selectedAdmins.filter(admin => admin.is_disabled)
+  const selectedDisableEligibleAdmins = selectedAdmins.filter(admin => !admin.is_disabled)
+  const selectedAdminIds = compactAdminIds(selectedAdmins)
+  const selectedEnableEligibleIds = compactAdminIds(selectedEnableEligibleAdmins)
+  const selectedDisableEligibleIds = compactAdminIds(selectedDisableEligibleAdmins)
 
   // Expose counts to parent component for statistics
   useEffect(() => {
@@ -514,12 +519,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkDelete = async () => {
-    if (!selectedAdminUsernames.length) return
+    if (!selectedAdminIds.length) return
 
     try {
       const response = await bulkDeleteAdminsMutation.mutateAsync({
         data: {
-          usernames: selectedAdminUsernames,
+          ids: selectedAdminIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -544,12 +549,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkResetUsage = async () => {
-    if (!selectedAdminUsernames.length) return
+    if (!selectedAdminIds.length) return
 
     try {
       const response = await bulkResetAdminsUsageMutation.mutateAsync({
         data: {
-          usernames: selectedAdminUsernames,
+          ids: selectedAdminIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -569,12 +574,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedDisableEligibleUsernames.length) return
+    if (!selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableAdminsMutation.mutateAsync({
         data: {
-          usernames: selectedDisableEligibleUsernames,
+          ids: selectedDisableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -594,12 +599,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedEnableEligibleUsernames.length) return
+    if (!selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableAdminsMutation.mutateAsync({
         data: {
-          usernames: selectedEnableEligibleUsernames,
+          ids: selectedEnableEligibleIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -619,12 +624,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkDisableUsers = async () => {
-    if (!selectedAdminUsernames.length) return
+    if (!selectedAdminIds.length) return
 
     try {
       const response = await bulkDisableAllActiveUsersMutation.mutateAsync({
         data: {
-          usernames: selectedAdminUsernames,
+          ids: selectedAdminIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -644,12 +649,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkActivateUsers = async () => {
-    if (!selectedAdminUsernames.length) return
+    if (!selectedAdminIds.length) return
 
     try {
       const response = await bulkActivateAllDisabledUsersMutation.mutateAsync({
         data: {
-          usernames: selectedAdminUsernames,
+          ids: selectedAdminIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -669,12 +674,12 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const handleBulkRemoveUsers = async () => {
-    if (!selectedAdminUsernames.length) return
+    if (!selectedAdminIds.length) return
 
     try {
       const response = await bulkRemoveAllUsersMutation.mutateAsync({
         data: {
-          usernames: selectedAdminUsernames,
+          ids: selectedAdminIds,
         },
       })
       toast.success(t('success', { defaultValue: 'Success' }), {
@@ -694,8 +699,8 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   }
 
   const selectedCount = selectedAdminUsernames.length
-  const enableEligibleCount = selectedEnableEligibleUsernames.length
-  const disableEligibleCount = selectedDisableEligibleUsernames.length
+  const enableEligibleCount = selectedEnableEligibleAdmins.length
+  const disableEligibleCount = selectedDisableEligibleAdmins.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
       ...(canDeleteAdmins

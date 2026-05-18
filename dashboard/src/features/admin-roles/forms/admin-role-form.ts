@@ -4,6 +4,7 @@ import type { AdminRoleResponse, RoleAccess, RoleFeatures, RoleLimits, RolePermi
 export type RoleScope = 0 | 1 | 2
 type RolePermissionFormValue = boolean | { scope: RoleScope }
 type RolePermissionFormMap = Record<string, Record<string, RolePermissionFormValue>>
+type RolePermissionInput = object | null | undefined
 
 export type PermissionAction = {
   resource: string
@@ -21,6 +22,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     labelKey: 'users',
     actions: [
       { resource: 'users', action: 'read', scoped: true },
+      { resource: 'users', action: 'read_simple', scoped: true },
       { resource: 'users', action: 'create' },
       { resource: 'users', action: 'update', scoped: true },
       { resource: 'users', action: 'delete', scoped: true },
@@ -30,6 +32,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     labelKey: 'admins',
     actions: [
       { resource: 'admins', action: 'read' },
+      { resource: 'admins', action: 'read_simple' },
       { resource: 'admins', action: 'create' },
       { resource: 'admins', action: 'update' },
       { resource: 'admins', action: 'delete' },
@@ -39,6 +42,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     labelKey: 'roles',
     actions: [
       { resource: 'admin_roles', action: 'read' },
+      { resource: 'admin_roles', action: 'read_simple' },
       { resource: 'admin_roles', action: 'create' },
       { resource: 'admin_roles', action: 'update' },
       { resource: 'admin_roles', action: 'delete' },
@@ -48,6 +52,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     labelKey: 'nodes',
     actions: [
       { resource: 'nodes', action: 'read' },
+      { resource: 'nodes', action: 'read_simple' },
       { resource: 'nodes', action: 'create' },
       { resource: 'nodes', action: 'update' },
       { resource: 'nodes', action: 'delete' },
@@ -59,6 +64,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     labelKey: 'coreHosts',
     actions: [
       { resource: 'cores', action: 'read' },
+      { resource: 'cores', action: 'read_simple' },
       { resource: 'cores', action: 'create' },
       { resource: 'cores', action: 'update' },
       { resource: 'cores', action: 'delete' },
@@ -71,14 +77,17 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     labelKey: 'groupsTemplates',
     actions: [
       { resource: 'groups', action: 'read' },
+      { resource: 'groups', action: 'read_simple' },
       { resource: 'groups', action: 'create' },
       { resource: 'groups', action: 'update' },
       { resource: 'groups', action: 'delete' },
       { resource: 'templates', action: 'read' },
+      { resource: 'templates', action: 'read_simple' },
       { resource: 'templates', action: 'create' },
       { resource: 'templates', action: 'update' },
       { resource: 'templates', action: 'delete' },
       { resource: 'client_templates', action: 'read' },
+      { resource: 'client_templates', action: 'read_simple' },
       { resource: 'client_templates', action: 'create' },
       { resource: 'client_templates', action: 'update' },
       { resource: 'client_templates', action: 'delete' },
@@ -135,7 +144,7 @@ const normalizePermissionValue = (value: unknown): RolePermissionFormValue | und
   return undefined
 }
 
-const sanitizeRolePermissions = (permissions: Record<string, unknown> | null | undefined): RolePermissionFormMap => {
+const sanitizeRolePermissions = (permissions: RolePermissionInput): RolePermissionFormMap => {
   const next: RolePermissionFormMap = {}
 
   for (const [resource, actions] of Object.entries(permissions || {})) {
@@ -156,7 +165,7 @@ const sanitizeRolePermissions = (permissions: Record<string, unknown> | null | u
 const scopeSchema = z.object({ scope: z.union([z.literal(0), z.literal(1), z.literal(2)]) })
 const permissionValueSchema = z.union([z.boolean(), scopeSchema])
 const resourcePermissionsSchema = z.record(z.string(), permissionValueSchema)
-const permissionsSchema = z.preprocess(value => sanitizeRolePermissions(value as Record<string, unknown> | null | undefined), z.record(z.string(), resourcePermissionsSchema))
+const permissionsSchema = z.preprocess(value => sanitizeRolePermissions(value as RolePermissionInput), z.record(z.string(), resourcePermissionsSchema))
 
 const optionalNullableNumber = z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional()
 
@@ -244,7 +253,7 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
 
 export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => ({
   name: values.name.trim(),
-  permissions: sanitizeRolePermissions(values.permissions as Record<string, unknown> | null | undefined) as RolePermissions,
+  permissions: sanitizeRolePermissions(values.permissions as RolePermissionInput) as RolePermissions,
   limits: Object.fromEntries(Object.entries(values.limits).filter(([, v]) => v !== null && v !== undefined && v !== '')) as RoleLimits,
   features: values.features as RoleFeatures,
   access: {

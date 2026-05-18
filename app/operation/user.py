@@ -975,7 +975,7 @@ class UserOperation(BaseOperation):
         query: UserListQuery,
     ) -> UsersResponse:
         """Get all users"""
-        scope_admin_id = get_scope_admin_id(admin, "users", "read")
+        scope_admin_id = get_scope_admin_id(admin, "users", "read_simple")
         if scope_admin_id is not None:
             query = query.model_copy(update={"owner": [admin.username], "admin_ids": None})
 

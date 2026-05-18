@@ -793,6 +793,7 @@
     "actions": {
       "common": {
         "read": "View",
+        "read_simple": "View simple list",
         "create": "Create",
         "update": "Update",
         "delete": "Delete",

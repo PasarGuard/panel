@@ -660,6 +660,7 @@
     "actions": {
       "common": {
         "read": "مشاهده",
+        "read_simple": "مشاهده فهرست ساده",
         "create": "ایجاد",
         "update": "ویرایش",
         "delete": "حذف",

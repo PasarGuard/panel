@@ -793,6 +793,7 @@
     "actions": {
       "common": {
         "read": "查看",
+        "read_simple": "查看简单列表",
         "create": "创建",
         "update": "更新",
         "delete": "删除",

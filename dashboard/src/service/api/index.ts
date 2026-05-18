@@ -380,16 +380,16 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
+
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
@@ -409,11 +409,11 @@ export const Xudp = {
   skip: 'skip',
 } as const
 
-export interface XrayMuxSettingsOutput {
+export interface XrayMuxSettingsInput {
   enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
 }
 
 export type XMuxSettingsOutputHKeepAlivePeriod = number | null
@@ -559,18 +559,6 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
-
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -593,6 +581,18 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
+
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
 
 export type WorkerHealthError = string | null
 
@@ -706,6 +706,54 @@ export interface UsersResponse {
   users: UserResponse[]
   total: number
 }
+
+export type UsersPermissionsActivateNextPlanAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsActivateNextPlan = boolean | UsersPermissionsActivateNextPlanAnyOf | null
+
+export type UsersPermissionsSetOwnerAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsSetOwner = boolean | UsersPermissionsSetOwnerAnyOf | null
+
+export type UsersPermissionsRevokeSubAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsRevokeSub = boolean | UsersPermissionsRevokeSubAnyOf | null
+
+export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
+
+export type UsersPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsDelete = boolean | UsersPermissionsDeleteAnyOf | null
+
+export type UsersPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsUpdate = boolean | UsersPermissionsUpdateAnyOf | null
+
+export interface UsersPermissions {
+  create?: UsersPermissionsCreate
+  read?: UsersPermissionsRead
+  read_simple?: UsersPermissionsReadSimple
+  update?: UsersPermissionsUpdate
+  delete?: UsersPermissionsDelete
+  reset_usage?: UsersPermissionsResetUsage
+  revoke_sub?: UsersPermissionsRevokeSub
+  set_owner?: UsersPermissionsSetOwner
+  activate_next_plan?: UsersPermissionsActivateNextPlan
+}
+
+export type UsersPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsReadSimple = boolean | UsersPermissionsReadSimpleAnyOf | null
+
+export type UsersPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsRead = boolean | UsersPermissionsReadAnyOf | null
+
+export type UsersPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsCreate = boolean | UsersPermissionsCreateAnyOf | null
 
 export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
 
@@ -1051,13 +1099,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
-
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -1068,6 +1109,13 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
+
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
 
 export type UserHWIDResponseDeviceModel = string | null
 
@@ -1132,23 +1180,14 @@ export interface UserCreate {
   status?: UserCreateStatus
 }
 
-export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
-
 export type UserCountMetricStatsListPeriod = Period | null
-
-export interface UserCountMetricStatsList {
-  period?: UserCountMetricStatsListPeriod
-  start: string
-  end: string
-  metric: UserCountMetric
-  count_during_period?: number
-  stats: UserCountMetricStatsListStats
-}
 
 export interface UserCountMetricStat {
   count: number
   period_start: string
 }
+
+export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
 
 export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
 
@@ -1158,6 +1197,15 @@ export const UserCountMetric = {
   expired: 'expired',
   limited: 'limited',
 } as const
+
+export interface UserCountMetricStatsList {
+  period?: UserCountMetricStatsListPeriod
+  start: string
+  end: string
+  metric: UserCountMetric
+  count_during_period?: number
+  stats: UserCountMetricStatsListStats
+}
 
 export type UsageTable = (typeof UsageTable)[keyof typeof UsageTable]
 
@@ -1281,6 +1329,14 @@ export interface SystemStats {
   outgoing_bandwidth: number
 }
 
+export type SystemPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type SystemPermissionsRead = boolean | SystemPermissionsReadAnyOf | null
+
+export interface SystemPermissions {
+  read?: SystemPermissionsRead
+}
+
 export type SubscriptionUserResponseIp = string | null
 
 export type SubscriptionUserResponseOnlineAt = string | null
@@ -1336,23 +1392,6 @@ export interface SubscriptionTemplates {
 
 export type SubscriptionResponseHeaders = { [key: string]: unknown }
 
-export interface Subscription {
-  url_prefix?: string
-  update_interval?: number
-  support_url?: string
-  profile_title?: string
-  /** @maxLength 128 */
-  announce?: string
-  announce_url?: string
-  response_headers?: SubscriptionResponseHeaders
-  rules: SubRule[]
-  manual_sub_request?: SubFormatEnable
-  applications?: Application[]
-  allow_browser_config?: boolean
-  disable_sub_template?: boolean
-  randomize_order?: boolean
-}
-
 export type SubRuleResponseHeaders = { [key: string]: unknown }
 
 export interface SubRule {
@@ -1370,6 +1409,23 @@ export interface SubFormatEnable {
   clash?: boolean
   clash_meta?: boolean
   outline?: boolean
+}
+
+export interface Subscription {
+  url_prefix?: string
+  update_interval?: number
+  support_url?: string
+  profile_title?: string
+  /** @maxLength 128 */
+  announce?: string
+  announce_url?: string
+  response_headers?: SubscriptionResponseHeaders
+  rules: SubRule[]
+  manual_sub_request?: SubFormatEnable
+  applications?: Application[]
+  allow_browser_config?: boolean
+  disable_sub_template?: boolean
+  randomize_order?: boolean
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null
@@ -1440,6 +1496,24 @@ export interface SettingsSchema {
   general?: SettingsSchemaGeneral
 }
 
+export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
+
+export interface SettingsPermissions {
+  read?: SettingsPermissionsRead
+  read_general?: SettingsPermissionsReadGeneral
+  update?: SettingsPermissionsUpdate
+}
+
+export type SettingsPermissionsReadGeneralAnyOf = { [key: string]: PermissionScope | number }
+
+export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGeneralAnyOf | null
+
+export type SettingsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type SettingsPermissionsRead = boolean | SettingsPermissionsReadAnyOf | null
+
 export type RunMethod = (typeof RunMethod)[keyof typeof RunMethod]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -1448,53 +1522,33 @@ export const RunMethod = {
   'long-polling': 'long-polling',
 } as const
 
-export type RolePermissionsAdminRolesAnyOfAnyOf = { [key: string]: PermissionScope | number }
+export type RolePermissionsAdminRoles = CRUDPermissions | null
 
-export type RolePermissionsAdminRolesAnyOf = { [key: string]: boolean | RolePermissionsAdminRolesAnyOfAnyOf }
+export type RolePermissionsHwids = HwidsPermissions | null
 
-export type RolePermissionsAdminRoles = RolePermissionsAdminRolesAnyOf | null
+export type RolePermissionsSystem = SystemPermissions | null
 
-export type RolePermissionsHwidsAnyOfAnyOf = { [key: string]: PermissionScope | number }
+export type RolePermissionsSettings = SettingsPermissions | null
 
-export type RolePermissionsHwidsAnyOf = { [key: string]: boolean | RolePermissionsHwidsAnyOfAnyOf }
+export type RolePermissionsCores = CRUDPermissions | null
 
-export type RolePermissionsHwids = RolePermissionsHwidsAnyOf | null
+export type RolePermissionsClientTemplates = CRUDPermissions | null
 
-export type RolePermissionsSystemAnyOfAnyOf = { [key: string]: PermissionScope | number }
+export type RolePermissionsTemplates = CRUDPermissions | null
 
-export type RolePermissionsSystemAnyOf = { [key: string]: boolean | RolePermissionsSystemAnyOfAnyOf }
+export type RolePermissionsHosts = HostsPermissions | null
 
-export type RolePermissionsSystem = RolePermissionsSystemAnyOf | null
+export type RolePermissionsGroups = CRUDPermissions | null
 
-export type RolePermissionsSettingsAnyOfAnyOf = { [key: string]: PermissionScope | number }
+export type RolePermissionsNodes = NodesPermissions | null
 
-export type RolePermissionsSettingsAnyOf = { [key: string]: boolean | RolePermissionsSettingsAnyOfAnyOf }
+export type RolePermissionsAdmins = AdminsPermissions | null
 
-export type RolePermissionsSettings = RolePermissionsSettingsAnyOf | null
-
-export type RolePermissionsCoresAnyOfAnyOf = { [key: string]: PermissionScope | number }
-
-export type RolePermissionsCoresAnyOf = { [key: string]: boolean | RolePermissionsCoresAnyOfAnyOf }
-
-export type RolePermissionsCores = RolePermissionsCoresAnyOf | null
-
-export type RolePermissionsClientTemplatesAnyOfAnyOf = { [key: string]: PermissionScope | number }
-
-export type RolePermissionsClientTemplatesAnyOf = { [key: string]: boolean | RolePermissionsClientTemplatesAnyOfAnyOf }
-
-export type RolePermissionsClientTemplates = RolePermissionsClientTemplatesAnyOf | null
-
-export type RolePermissionsTemplatesAnyOfAnyOf = { [key: string]: PermissionScope | number }
-
-export type RolePermissionsTemplatesAnyOf = { [key: string]: boolean | RolePermissionsTemplatesAnyOfAnyOf }
-
-export type RolePermissionsTemplates = RolePermissionsTemplatesAnyOf | null
-
-export type RolePermissionsHosts = RolePermissionsHostsAnyOf | null
+export type RolePermissionsUsers = UsersPermissions | null
 
 /**
- * Sparse permission map. Missing resource or action = denied.
-Each action value is True (allowed) or {"scope": "own"|"all"}.
+ * Typed permission map. Missing resource or action = denied.
+Each action value is True (allowed), {"scope": N} (scoped), or None (denied).
  */
 export interface RolePermissions {
   users?: RolePermissionsUsers
@@ -1509,36 +1563,7 @@ export interface RolePermissions {
   system?: RolePermissionsSystem
   hwids?: RolePermissionsHwids
   admin_roles?: RolePermissionsAdminRoles
-  [key: string]: unknown
 }
-
-export type RolePermissionsHostsAnyOfAnyOf = { [key: string]: PermissionScope | number }
-
-export type RolePermissionsHostsAnyOf = { [key: string]: boolean | RolePermissionsHostsAnyOfAnyOf }
-
-export type RolePermissionsGroupsAnyOfAnyOf = { [key: string]: PermissionScope | number }
-
-export type RolePermissionsGroupsAnyOf = { [key: string]: boolean | RolePermissionsGroupsAnyOfAnyOf }
-
-export type RolePermissionsGroups = RolePermissionsGroupsAnyOf | null
-
-export type RolePermissionsNodesAnyOfAnyOf = { [key: string]: PermissionScope | number }
-
-export type RolePermissionsNodesAnyOf = { [key: string]: boolean | RolePermissionsNodesAnyOfAnyOf }
-
-export type RolePermissionsNodes = RolePermissionsNodesAnyOf | null
-
-export type RolePermissionsAdminsAnyOfAnyOf = { [key: string]: PermissionScope | number }
-
-export type RolePermissionsAdminsAnyOf = { [key: string]: boolean | RolePermissionsAdminsAnyOfAnyOf }
-
-export type RolePermissionsAdmins = RolePermissionsAdminsAnyOf | null
-
-export type RolePermissionsUsersAnyOfAnyOf = { [key: string]: PermissionScope | number }
-
-export type RolePermissionsUsersAnyOf = { [key: string]: boolean | RolePermissionsUsersAnyOfAnyOf }
-
-export type RolePermissionsUsers = RolePermissionsUsersAnyOf | null
 
 export type RoleLimitsMaxHwidPerUser = number | null
 
@@ -1824,14 +1849,55 @@ export interface NodesResponse {
   total: number
 }
 
-export type NodeUsageStatsListPeriod = Period | null
+export type NodesPermissionsStatsAnyOf = { [key: string]: PermissionScope | number }
 
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
+export type NodesPermissionsStats = boolean | NodesPermissionsStatsAnyOf | null
+
+export type NodesPermissionsLogsAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsLogs = boolean | NodesPermissionsLogsAnyOf | null
+
+export type NodesPermissionsUpdateCoreAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsUpdateCore = boolean | NodesPermissionsUpdateCoreAnyOf | null
+
+export interface NodesPermissions {
+  create?: NodesPermissionsCreate
+  read?: NodesPermissionsRead
+  read_simple?: NodesPermissionsReadSimple
+  update?: NodesPermissionsUpdate
+  delete?: NodesPermissionsDelete
+  reconnect?: NodesPermissionsReconnect
+  update_core?: NodesPermissionsUpdateCore
+  logs?: NodesPermissionsLogs
+  stats?: NodesPermissionsStats
 }
+
+export type NodesPermissionsReconnectAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsReconnect = boolean | NodesPermissionsReconnectAnyOf | null
+
+export type NodesPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsDelete = boolean | NodesPermissionsDeleteAnyOf | null
+
+export type NodesPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsUpdate = boolean | NodesPermissionsUpdateAnyOf | null
+
+export type NodesPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsReadSimple = boolean | NodesPermissionsReadSimpleAnyOf | null
+
+export type NodesPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsRead = boolean | NodesPermissionsReadAnyOf | null
+
+export type NodesPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | null
+
+export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStat {
   uplink: number
@@ -1840,6 +1906,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1994,6 +2067,8 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
+export type NodeModifyConnectionType = NodeConnectionType | null
+
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -2028,6 +2103,19 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
+
 export interface NodeCreate {
   name: string
   address: string
@@ -2055,21 +2143,6 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
-
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
-
-export type NodeModifyConnectionType = NodeConnectionType | null
 
 export type NextPlanModelExpire = number | null
 
@@ -2171,6 +2244,37 @@ export interface HysteriaSettings {
   auth?: string
 }
 
+export type HwidsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type HwidsPermissionsDelete = boolean | HwidsPermissionsDeleteAnyOf | null
+
+export interface HwidsPermissions {
+  read?: HwidsPermissionsRead
+  delete?: HwidsPermissionsDelete
+}
+
+export type HwidsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type HwidsPermissionsRead = boolean | HwidsPermissionsReadAnyOf | null
+
+export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
+
+export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
+
+export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
+
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
+
 export interface HostNotificationEnable {
   create?: boolean
   modify?: boolean
@@ -2223,11 +2327,6 @@ export interface HTTPException {
   detail: string
 }
 
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
-}
-
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -2256,6 +2355,11 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -2447,14 +2551,6 @@ export interface CreateHost {
   subscription_templates?: CreateHostSubscriptionTemplates
 }
 
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
-}
-
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2474,6 +2570,14 @@ export interface CoreSimple {
   id: number
   name: string
   type?: CoreSimpleType
+}
+
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
 }
 
 export type CoreResponseType = CoreType | null
@@ -2608,6 +2712,39 @@ export interface ClashMuxSettings {
   statistic?: boolean
   only_tcp?: boolean
 }
+
+export type CRUDPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsDelete = boolean | CRUDPermissionsDeleteAnyOf | null
+
+/**
+ * Standard create/read/read_simple/update/delete permissions.
+Used directly by: groups, templates, client_templates, cores, admin_roles.
+Also serves as base for resources with additional actions.
+ */
+export interface CRUDPermissions {
+  create?: CRUDPermissionsCreate
+  read?: CRUDPermissionsRead
+  read_simple?: CRUDPermissionsReadSimple
+  update?: CRUDPermissionsUpdate
+  delete?: CRUDPermissionsDelete
+}
+
+export type CRUDPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsUpdate = boolean | CRUDPermissionsUpdateAnyOf | null
+
+export type CRUDPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsReadSimple = boolean | CRUDPermissionsReadSimpleAnyOf | null
+
+export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
+
+export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
 
 export type BulkWireGuardPeerIPsExpireBefore = string | null
 
@@ -2803,10 +2940,10 @@ export interface BulkAdminsActionResponse {
 }
 
 /**
- * Model for bulk admin selection by usernames
+ * Model for bulk admin selection by IDs
  */
 export interface BulkAdminSelection {
-  usernames?: string[]
+  ids?: number[]
 }
 
 export interface Brutal {
@@ -2937,6 +3074,39 @@ export interface AdminsResponse {
   disabled: number
 }
 
+export type AdminsPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsResetUsage = boolean | AdminsPermissionsResetUsageAnyOf | null
+
+export type AdminsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsDelete = boolean | AdminsPermissionsDeleteAnyOf | null
+
+export type AdminsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | null
+
+export interface AdminsPermissions {
+  create?: AdminsPermissionsCreate
+  read?: AdminsPermissionsRead
+  read_simple?: AdminsPermissionsReadSimple
+  update?: AdminsPermissionsUpdate
+  delete?: AdminsPermissionsDelete
+  reset_usage?: AdminsPermissionsResetUsage
+}
+
+export type AdminsPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsReadSimple = boolean | AdminsPermissionsReadSimpleAnyOf | null
+
+export type AdminsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsRead = boolean | AdminsPermissionsReadAnyOf | null
+
+export type AdminsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsCreate = boolean | AdminsPermissionsCreateAnyOf | null
+
 /**
  * Lightweight admin model with only id and username for performance.
  */
@@ -2999,10 +3169,13 @@ export interface AdminRoleModify {
   access?: AdminRoleModifyAccess
 }
 
+export type AdminRoleDataId = number | null
+
 /**
  * Runtime role data carried on AdminDetails — only the fields needed for permission checks.
  */
 export interface AdminRoleData {
+  id?: AdminRoleDataId
   name?: string
   is_owner?: boolean
   permissions?: RolePermissions
@@ -3027,6 +3200,8 @@ export interface AdminNotificationEnable {
   reset_usage?: boolean
   login?: boolean
 }
+
+export type AdminModifyPermissionOverrides = RoleLimits | null
 
 export type AdminModifyRoleId = number | null
 
@@ -3065,6 +3240,7 @@ export interface AdminModify {
   note?: AdminModifyNote
   notification_enable?: AdminModifyNotificationEnable
   role_id?: AdminModifyRoleId
+  permission_overrides?: AdminModifyPermissionOverrides
 }
 
 export type AdminDetailsPermissionOverrides = RoleLimits | null
@@ -3116,6 +3292,8 @@ export interface AdminDetails {
   permission_overrides?: AdminDetailsPermissionOverrides
 }
 
+export type AdminCreatePermissionOverrides = RoleLimits | null
+
 export type AdminCreateNotificationEnable = UserNotificationEnable | null
 
 export type AdminCreateNote = string | null
@@ -3152,6 +3330,7 @@ export interface AdminCreate {
   note?: AdminCreateNote
   notification_enable?: AdminCreateNotificationEnable
   role_id: number
+  permission_overrides?: AdminCreatePermissionOverrides
   username: string
 }
 
@@ -4687,7 +4866,7 @@ export const useResetAdminUsageById = <
 }
 
 /**
- * Delete selected admins by username.
+ * Delete selected admins by ID.
  * @summary Bulk Delete Admins
  */
 export const bulkDeleteAdmins = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
@@ -4737,7 +4916,7 @@ export const useBulkDeleteAdmins = <
 }
 
 /**
- * Reset usage for selected admins by username.
+ * Reset usage for selected admins by ID.
  * @summary Bulk Reset Admins Usage
  */
 export const bulkResetAdminsUsage = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
@@ -4787,7 +4966,7 @@ export const useBulkResetAdminsUsage = <
 }
 
 /**
- * Disable selected admins by username.
+ * Disable selected admins by ID.
  * @summary Bulk Disable Admins
  */
 export const bulkDisableAdmins = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
@@ -4837,7 +5016,7 @@ export const useBulkDisableAdmins = <
 }
 
 /**
- * Enable selected admins by username.
+ * Enable selected admins by ID.
  * @summary Bulk Enable Admins
  */
 export const bulkEnableAdmins = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
@@ -5037,7 +5216,7 @@ export const useBulkRemoveAllUsers = <
 }
 
 /**
- * List all roles. Owner only.
+ * List all roles.
  * @summary Get Roles
  */
 export const getRoles = (params?: GetRolesParams, signal?: AbortSignal) => {
@@ -5098,7 +5277,7 @@ export function useGetRoles<TData = Awaited<ReturnType<typeof getRoles>>, TError
 }
 
 /**
- * List all roles as lightweight id/name/is_owner tuples. Owner only.
+ * List all roles as lightweight id/name/is_owner tuples.
  * @summary Get Roles Simple
  */
 export const getRolesSimple = (signal?: AbortSignal) => {
@@ -5151,7 +5330,7 @@ export function useGetRolesSimple<TData = Awaited<ReturnType<typeof getRolesSimp
 }
 
 /**
- * Get a role by ID. Owner only.
+ * Get a role by ID.
  * @summary Get Role
  */
 export const getRole = (roleId: number, signal?: AbortSignal) => {
@@ -5853,7 +6032,7 @@ export function useGetGeneralSettings<TData = Awaited<ReturnType<typeof getGener
 }
 
 /**
- * Creates a new group in the system. Only sudo administrators can create groups.
+ * Creates a new group in the system. Only authorized administrators can create groups.
  * @summary Create a new group
  */
 export const createGroup = (groupCreate: BodyType<GroupCreate>, signal?: AbortSignal) => {
@@ -6081,7 +6260,7 @@ export function useGetGroup<TData = Awaited<ReturnType<typeof getGroup>>, TError
 }
 
 /**
- * Updates an existing group's information. Only sudo administrators can modify groups.
+ * Updates an existing group's information. Only authorized administrators can modify groups.
  * @summary Modify group
  */
 export const modifyGroup = (groupId: number, groupModify: BodyType<GroupModify>) => {
@@ -6127,7 +6306,7 @@ export const useModifyGroup = <TData = Awaited<ReturnType<typeof modifyGroup>>, 
 }
 
 /**
- * Deletes a group from the system. Only sudo administrators can delete groups.
+ * Deletes a group from the system. Only authorized administrators can delete groups.
  * @summary Remove group
  */
 export const removeGroup = (groupId: number) => {
@@ -7863,7 +8042,7 @@ export function useGetUserCountMetric<TData = Awaited<ReturnType<typeof getUserC
 }
 
 /**
- * Retrieve a list of all nodes. Accessible only to sudo admins.
+ * Retrieve a list of all nodes. Accessible only to authorized admins.
  * @summary Get Nodes
  */
 export const getNodes = (params?: GetNodesParams, signal?: AbortSignal) => {
@@ -8138,7 +8317,7 @@ export function useGetNode<TData = Awaited<ReturnType<typeof getNode>>, TError =
 }
 
 /**
- * Modify a node's details. Only accessible to sudo admins.
+ * Modify a node's details. Only accessible to authorized admins.
  * @summary Modify Node
  */
 export const modifyNode = (nodeId: number, nodeModify: BodyType<NodeModify>) => {
@@ -8347,7 +8526,7 @@ export const useUpdateGeofiles = <TData = Awaited<ReturnType<typeof updateGeofil
 /**
  * Reset node traffic usage (uplink and downlink).
 Creates a log entry in node_usage_reset_logs table.
-Only accessible to sudo admins.
+Only accessible to authorized admins.
  * @summary Reset Node Usage
  */
 export const resetNodeUsage = (nodeId: number, signal?: AbortSignal) => {
@@ -8389,7 +8568,7 @@ export const useResetNodeUsage = <TData = Awaited<ReturnType<typeof resetNodeUsa
 }
 
 /**
- * Trigger a reconnection for the specified node. Only accessible to sudo admins.
+ * Trigger a reconnection for the specified node. Only accessible to authorized admins.
  * @summary Reconnect Node
  */
 export const reconnectNode = (nodeId: number, signal?: AbortSignal) => {
@@ -12154,7 +12333,7 @@ export const useBulkModifyUsersProxySettings = <
 }
 
 /**
- * Same scoping as other bulk user actions (users, admins, group_ids, optional status filter). Non-sudo admins only affect their own users.
+ * Same scoping as other bulk user actions (users, admins, group_ids, optional status filter). non-owner admins only affect their own users.
  * @summary Bulk reallocate WireGuard peer IPs
  */
 export const bulkReallocateWireguardPeerIps = (bulkWireGuardPeerIPs: BodyType<BulkWireGuardPeerIPs>, signal?: AbortSignal) => {
