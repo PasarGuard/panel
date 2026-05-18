@@ -53,7 +53,7 @@ OPERATOR_PERMISSIONS = {
     "settings": {"read_general": True},
     "hwids": {"read": True, "delete": True},
 }
-DEFAULT_LIMITS = {"max_users": None, "data_limit_min": None, "data_limit_max": None, "expire_days_min": None, "expire_days_max": None, "min_hwid_per_user": None, "max_hwid_per_user": None}
+DEFAULT_LIMITS = {"max_users": None, "data_limit_min": None, "data_limit_max": None, "expire_min": None, "expire_max": None, "min_hwid_per_user": None, "max_hwid_per_user": None}
 DEFAULT_FEATURES = {"can_use_reset_strategy": True, "can_use_next_plan": True}
 DEFAULT_ACCESS = {"require_template": False, "allowed_template_ids": None, "allowed_group_ids": None}
 

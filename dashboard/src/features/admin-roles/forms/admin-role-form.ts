@@ -106,7 +106,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
 ]
 
-export const LIMIT_KEYS: Array<keyof RoleLimits> = [
+export const LIMIT_KEYS = [
   'max_users',
   'data_limit_min',
   'data_limit_max',
@@ -114,7 +114,7 @@ export const LIMIT_KEYS: Array<keyof RoleLimits> = [
   'expire_days_max',
   'min_hwid_per_user',
   'max_hwid_per_user',
-]
+] as const
 
 export const FEATURE_KEYS: Array<keyof RoleFeatures> = ['can_use_reset_strategy', 'can_use_next_plan']
 
@@ -179,6 +179,20 @@ const limitsSchema = z.object({
   max_hwid_per_user: optionalNullableNumber,
 })
 
+const SECONDS_PER_DAY = 86_400
+
+const secondsToDays = (value: number | null | undefined): number | null => {
+  if (value === null || value === undefined) return null
+  return Math.round(value / SECONDS_PER_DAY)
+}
+
+const daysToSeconds = (value: number | null | undefined): number | null => {
+  if (value === null || value === undefined || value === ('' as unknown)) return null
+  const n = typeof value === 'string' ? Number(value) : value
+  if (!Number.isFinite(n)) return null
+  return Math.round(n * SECONDS_PER_DAY)
+}
+
 const featuresSchema = z.object({
   can_use_reset_strategy: z.boolean(),
   can_use_next_plan: z.boolean(),
@@ -239,8 +253,8 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
     max_users: role.limits?.max_users ?? null,
     data_limit_min: role.limits?.data_limit_min ?? null,
     data_limit_max: role.limits?.data_limit_max ?? null,
-    expire_days_min: role.limits?.expire_days_min ?? null,
-    expire_days_max: role.limits?.expire_days_max ?? null,
+    expire_days_min: secondsToDays(role.limits?.expire_min),
+    expire_days_max: secondsToDays(role.limits?.expire_max),
     min_hwid_per_user: role.limits?.min_hwid_per_user ?? null,
     max_hwid_per_user: role.limits?.max_hwid_per_user ?? null,
   },
@@ -257,19 +271,32 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
   disable_users_when_limited: role.disable_users_when_limited ?? false,
 })
 
-export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => ({
-  name: values.name.trim(),
-  permissions: sanitizeRolePermissions(values.permissions as RolePermissionInput) as RolePermissions,
-  limits: Object.fromEntries(Object.entries(values.limits).filter(([, v]) => v !== null && v !== undefined && v !== '')) as RoleLimits,
-  features: values.features as RoleFeatures,
-  access: {
-    require_template: values.access.require_template,
-    allowed_template_ids: values.access.allowed_template_ids?.length ? values.access.allowed_template_ids : null,
-    allowed_group_ids: values.access.allowed_group_ids?.length ? values.access.allowed_group_ids : null,
-  } as RoleAccess,
-  disabled_when_limited: values.disabled_when_limited,
-  disable_users_when_limited: values.disable_users_when_limited,
-})
+export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => {
+  // Convert form's day-based fields back to seconds, then drop empty/null entries
+  const limitsRaw = {
+    max_users: values.limits.max_users,
+    data_limit_min: values.limits.data_limit_min,
+    data_limit_max: values.limits.data_limit_max,
+    expire_min: daysToSeconds(values.limits.expire_days_min as number | null | undefined),
+    expire_max: daysToSeconds(values.limits.expire_days_max as number | null | undefined),
+    min_hwid_per_user: values.limits.min_hwid_per_user,
+    max_hwid_per_user: values.limits.max_hwid_per_user,
+  }
+
+  return {
+    name: values.name.trim(),
+    permissions: sanitizeRolePermissions(values.permissions as RolePermissionInput) as RolePermissions,
+    limits: Object.fromEntries(Object.entries(limitsRaw).filter(([, v]) => v !== null && v !== undefined && v !== '')) as RoleLimits,
+    features: values.features as RoleFeatures,
+    access: {
+      require_template: values.access.require_template,
+      allowed_template_ids: values.access.allowed_template_ids?.length ? values.access.allowed_template_ids : null,
+      allowed_group_ids: values.access.allowed_group_ids?.length ? values.access.allowed_group_ids : null,
+    } as RoleAccess,
+    disabled_when_limited: values.disabled_when_limited,
+    disable_users_when_limited: values.disable_users_when_limited,
+  }
+}
 
 export const BUILT_IN_ROLE_IDS = new Set([1, 2, 3])
 

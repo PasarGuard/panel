@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { RoleLimits } from '@/service/api'
 
 export const adminStatusEditEnum = z.enum(['active', 'disabled'])
 
@@ -123,7 +122,7 @@ export const adminFormSchema = z
 export type AdminFormValuesInput = z.input<typeof adminFormSchema>
 export type AdminFormValues = z.infer<typeof adminFormSchema>
 
-export const adminPermissionOverridesDefaultValues: RoleLimits = {
+export const adminPermissionOverridesDefaultValues = {
   max_users: null,
   data_limit_min: null,
   data_limit_max: null,
@@ -131,7 +130,7 @@ export const adminPermissionOverridesDefaultValues: RoleLimits = {
   expire_days_max: null,
   min_hwid_per_user: null,
   max_hwid_per_user: null,
-}
+} as const
 
 export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
   username: '',

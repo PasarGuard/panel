@@ -84,8 +84,8 @@ class RoleLimits(BaseModel):
     max_users: int | None = None
     data_limit_min: int | None = None
     data_limit_max: int | None = None
-    expire_days_min: int | None = None
-    expire_days_max: int | None = None
+    expire_min: int | None = None
+    expire_max: int | None = None
     min_hwid_per_user: int | None = None
     max_hwid_per_user: int | None = None
 

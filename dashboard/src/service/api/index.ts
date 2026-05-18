@@ -1569,9 +1569,9 @@ export type RoleLimitsMaxHwidPerUser = number | null
 
 export type RoleLimitsMinHwidPerUser = number | null
 
-export type RoleLimitsExpireDaysMax = number | null
+export type RoleLimitsExpireMax = number | null
 
-export type RoleLimitsExpireDaysMin = number | null
+export type RoleLimitsExpireMin = number | null
 
 export type RoleLimitsDataLimitMax = number | null
 
@@ -1583,8 +1583,8 @@ export interface RoleLimits {
   max_users?: RoleLimitsMaxUsers
   data_limit_min?: RoleLimitsDataLimitMin
   data_limit_max?: RoleLimitsDataLimitMax
-  expire_days_min?: RoleLimitsExpireDaysMin
-  expire_days_max?: RoleLimitsExpireDaysMax
+  expire_min?: RoleLimitsExpireMin
+  expire_max?: RoleLimitsExpireMax
   min_hwid_per_user?: RoleLimitsMinHwidPerUser
   max_hwid_per_user?: RoleLimitsMaxHwidPerUser
 }

@@ -38,15 +38,21 @@ const normalizeOverrideValue = (value: unknown): number | null => {
   return null
 }
 
-const normalizePermissionOverrides = (overrides: AdminFormValuesInput['permission_overrides']): RoleLimits => ({
-  max_users: normalizeOverrideValue(overrides?.max_users),
-  data_limit_min: normalizeOverrideValue(overrides?.data_limit_min),
-  data_limit_max: normalizeOverrideValue(overrides?.data_limit_max),
-  expire_days_min: normalizeOverrideValue(overrides?.expire_days_min),
-  expire_days_max: normalizeOverrideValue(overrides?.expire_days_max),
-  min_hwid_per_user: normalizeOverrideValue(overrides?.min_hwid_per_user),
-  max_hwid_per_user: normalizeOverrideValue(overrides?.max_hwid_per_user),
-})
+const SECONDS_PER_DAY = 86_400
+
+const normalizePermissionOverrides = (overrides: AdminFormValuesInput['permission_overrides']): RoleLimits => {
+  const minDays = normalizeOverrideValue(overrides?.expire_days_min)
+  const maxDays = normalizeOverrideValue(overrides?.expire_days_max)
+  return {
+    max_users: normalizeOverrideValue(overrides?.max_users),
+    data_limit_min: normalizeOverrideValue(overrides?.data_limit_min),
+    data_limit_max: normalizeOverrideValue(overrides?.data_limit_max),
+    expire_min: minDays === null ? null : Math.round(minDays * SECONDS_PER_DAY),
+    expire_max: maxDays === null ? null : Math.round(maxDays * SECONDS_PER_DAY),
+    min_hwid_per_user: normalizeOverrideValue(overrides?.min_hwid_per_user),
+    max_hwid_per_user: normalizeOverrideValue(overrides?.max_hwid_per_user),
+  }
+}
 
 const normalizeDataLimit = (value: AdminFormValuesInput['data_limit']): number => {
   const normalized = normalizeOverrideValue(value)

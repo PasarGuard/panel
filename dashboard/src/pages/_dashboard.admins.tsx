@@ -163,7 +163,16 @@ export default function AdminsPage() {
       password: undefined,
       permission_overrides: {
         ...adminPermissionOverridesDefaultValues,
-        ...(admin.permission_overrides || {}),
+        ...(admin.permission_overrides
+          ? (() => {
+              const { expire_min, expire_max, ...rest } = admin.permission_overrides
+              return {
+                ...rest,
+                expire_days_min: expire_min == null ? null : Math.round(expire_min / 86_400),
+                expire_days_max: expire_max == null ? null : Math.round(expire_max / 86_400),
+              }
+            })()
+          : {}),
       },
       notification_enable: admin.notification_enable || {
         create: false,

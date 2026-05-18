@@ -103,6 +103,7 @@ from app.operation.permissions import (
 from app.settings import hwid_settings, subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
+from app.utils.helpers import fix_datetime_timezone
 from app.utils.system import readable_duration, readable_size
 from app.utils.wireguard import (
     build_wireguard_peer_ip_allocator,
@@ -399,22 +400,17 @@ class UserOperation(BaseOperation):
                 )
 
         if expire is not None and expire != 0:
-            if isinstance(expire, int):
-                expire_dt = datetime.fromtimestamp(expire, tz=timezone.utc)
-            elif expire.tzinfo is None:
-                expire_dt = expire.replace(tzinfo=timezone.utc)
-            else:
-                expire_dt = expire
-            days = (expire_dt - datetime.now(timezone.utc)).days
-            if limits.expire_days_min is not None and days < limits.expire_days_min:
+            expire_dt = fix_datetime_timezone(expire)
+            seconds = (expire_dt - datetime.now(timezone.utc)).total_seconds()
+            if limits.expire_min is not None and seconds < limits.expire_min:
                 await self.raise_error(
-                    message=f"Expire must be at least {readable_duration(limits.expire_days_min * 86400)} from now",
+                    message=f"Expire must be at least {readable_duration(limits.expire_min)} from now",
                     code=400,
                     db=db,
                 )
-            if limits.expire_days_max is not None and days > limits.expire_days_max:
+            if limits.expire_max is not None and seconds > limits.expire_max:
                 await self.raise_error(
-                    message=f"Expire cannot exceed {readable_duration(limits.expire_days_max * 86400)} from now",
+                    message=f"Expire cannot exceed {readable_duration(limits.expire_max)} from now",
                     code=400,
                     db=db,
                 )
