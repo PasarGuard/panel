@@ -102,14 +102,6 @@ from app.operation.permissions import (
     PermissionDenied,
 )
 
-
-def _has_permission(admin: AdminDetails, resource: str, action: str) -> bool:
-    """Return True if admin has the given resource+action permission (no scope check)."""
-    try:
-        enforce_permission(admin, resource, action)
-        return True
-    except PermissionDenied:
-        return False
 from app.settings import hwid_settings, subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
@@ -122,6 +114,16 @@ from app.utils.wireguard import (
     prepare_wireguard_proxy_settings_with_allocator,
 )
 from config import subscription_env_settings, usage_settings, wireguard_settings
+
+
+def _has_permission(admin: AdminDetails, resource: str, action: str) -> bool:
+    """Return True if admin has the given resource+action permission (no scope check)."""
+    try:
+        enforce_permission(admin, resource, action)
+        return True
+    except PermissionDenied:
+        return False
+
 
 logger = get_logger("user-operation")
 
