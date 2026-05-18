@@ -10,11 +10,39 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { formatBytes } from '@/utils/formatByte'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
 import { removeAuthToken } from '@/utils/authStorage'
 import { queryClient } from '@/utils/query-client'
 import { ThemeToggle } from '@/components/common/theme-toggle'
 import { Language } from '@/components/common/language'
 import { isOwner, roleLabel } from '@/utils/rbac'
+import { statusColors } from '@/constants/UserSettings'
+import { cn } from '@/lib/utils'
+
+type EffectiveLimits = {
+  dataLimit: number | null
+  maxUsers: number | null
+}
+
+const getEffectiveLimits = (admin: AdminDetails | null): EffectiveLimits => {
+  if (!admin) return { dataLimit: null, maxUsers: null }
+  const overrides = admin.permission_overrides ?? null
+  const roleLimits = admin.role?.limits ?? null
+  const maxUsersOverride = overrides?.max_users
+  const maxUsersRole = roleLimits?.max_users
+  const maxUsers = maxUsersOverride != null ? maxUsersOverride : maxUsersRole != null ? maxUsersRole : null
+  return {
+    dataLimit: admin.data_limit ?? null,
+    maxUsers,
+  }
+}
+
+const isLimitActive = (limit: number | null | undefined): limit is number => typeof limit === 'number' && limit > 0
+
+const getProgressPct = (used: number, total: number) => {
+  if (total <= 0) return 0
+  return Math.min(100, Math.max(0, (used / total) * 100))
+}
 
 export function NavUser({
   username,
@@ -29,6 +57,12 @@ export function NavUser({
   const { state, isMobile } = useSidebar()
   const navigate = useNavigate()
   const RoleIcon = isOwner(admin) ? UserRoundKey : UserRound
+  const { dataLimit, maxUsers } = getEffectiveLimits(admin)
+  const hasDataLimit = isLimitActive(dataLimit)
+  const hasUserLimit = isLimitActive(maxUsers)
+  const usedTraffic = admin?.used_traffic ?? 0
+  const totalUsers = admin?.total_users ?? 0
+  const sliderColor = statusColors[admin?.status ?? 'active']?.sliderColor
 
   const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -71,13 +105,17 @@ export function NavUser({
 
                 {admin && (
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{t('admins.used.traffic')}</span>
-                      <span className="font-medium">
-                        <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
-                          {formatBytes(admin?.used_traffic || 0)}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{t('admins.used.traffic')}</span>
+                        <span className="font-medium">
+                          <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+                            {formatBytes(usedTraffic)}
+                            {hasDataLimit ? ` / ${formatBytes(dataLimit)}` : ''}
+                          </span>
                         </span>
-                      </span>
+                      </div>
+                      {hasDataLimit && <Progress indicatorClassName={sliderColor} value={getProgressPct(usedTraffic, dataLimit)} className="h-1" />}
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">{t('statistics.totalUsage')}</span>
@@ -87,9 +125,17 @@ export function NavUser({
                         </span>
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{t('admins.total.users')}</span>
-                      <span className="font-medium">{admin?.total_users || 0}</span>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{t('admins.total.users')}</span>
+                        <span className="font-medium">
+                          <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+                            {totalUsers}
+                            {hasUserLimit ? ` / ${maxUsers}` : ''}
+                          </span>
+                        </span>
+                      </div>
+                      {hasUserLimit && <Progress indicatorClassName={sliderColor} value={getProgressPct(totalUsers, maxUsers)} className="h-1" />}
                     </div>
                   </div>
                 )}
@@ -133,7 +179,8 @@ export function NavUser({
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <ChartPie className="size-3" />
                     <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
-                      {formatBytes(admin?.used_traffic || 0)}
+                      {formatBytes(usedTraffic)}
+                      {hasDataLimit ? ` / ${formatBytes(dataLimit)}` : ''}
                     </span>
                   </div>
                 )}
@@ -157,14 +204,18 @@ export function NavUser({
                 </div>
                 {admin && (
                   <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <ChartPie className="size-3" />
-                      <span>
-                        {t('admins.used.traffic')}:{' '}
-                        <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
-                          {formatBytes(admin?.used_traffic || 0)}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <ChartPie className="size-3" />
+                        <span>
+                          {t('admins.used.traffic')}:{' '}
+                          <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+                            {formatBytes(usedTraffic)}
+                            {hasDataLimit ? ` / ${formatBytes(dataLimit)}` : ''}
+                          </span>
                         </span>
-                      </span>
+                      </div>
+                      {hasDataLimit && <Progress indicatorClassName={sliderColor} value={getProgressPct(usedTraffic, dataLimit)} className={cn('h-1')} />}
                     </div>
                     <div className="flex items-center gap-2">
                       <ChartNoAxesColumn className="size-3" />
@@ -175,11 +226,18 @@ export function NavUser({
                         </span>
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <UsersIcon className="size-3" />
-                      <span>
-                        {t('admins.total.users')}: {admin?.total_users || 0}
-                      </span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <UsersIcon className="size-3" />
+                        <span>
+                          {t('admins.total.users')}:{' '}
+                          <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+                            {totalUsers}
+                            {hasUserLimit ? ` / ${maxUsers}` : ''}
+                          </span>
+                        </span>
+                      </div>
+                      {hasUserLimit && <Progress indicatorClassName={sliderColor} value={getProgressPct(totalUsers, maxUsers)} className={cn('h-1')} />}
                     </div>
                   </div>
                 )}
