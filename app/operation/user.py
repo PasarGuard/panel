@@ -93,7 +93,7 @@ from app.models.user import (
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
-from app.operation.permissions import get_effective_limits, apply_template_access
+from app.operation.permissions import get_effective_limits, apply_template_access, get_scope_admin_id
 from app.settings import hwid_settings, subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
@@ -619,19 +619,27 @@ class UserOperation(BaseOperation):
         load_usage_logs: bool = True,
         load_groups: bool = True,
     ) -> list[User]:
-        users: list[User] = []
-        for user_id in user_ids:
-            users.append(
-                await self.get_validated_user_by_id(
-                    db,
-                    user_id,
-                    admin,
-                    load_admin=load_admin,
-                    load_next_plan=load_next_plan,
-                    load_usage_logs=load_usage_logs,
-                    load_groups=load_groups,
-                )
-            )
+        if not user_ids:
+            return []
+
+        ids_list = list(user_ids)
+
+        # Replicate the scope filter that get_validated_user_by_id applies per-user:
+        # non-owners with scope=OWN can only see their own users.
+        scope_admin_id = get_scope_admin_id(admin, "users", "read")
+        query = UserListQuery(
+            ids=ids_list,
+            admin_ids=[scope_admin_id] if scope_admin_id is not None else None,
+            limit=len(ids_list),
+        )
+        users = await get_users(db, query=query)
+
+        # Verify every requested ID was found (mirrors the 404 in get_validated_user_by_id)
+        found_ids = {user.id for user in users}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="User not found", code=404)
+
         return users
 
     @staticmethod
