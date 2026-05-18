@@ -328,10 +328,8 @@ class AdminOperation(BaseOperation):
     async def bulk_remove_admins(
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> RemoveAdminsResponse:
-        """Remove multiple admins by username."""
-        db_admins = []
-        for username in bulk_admins.usernames:
-            db_admins.append(await self.get_validated_admin(db, username))
+        """Remove multiple admins by ID."""
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
 
         usernames = [a.username for a in db_admins]
         admin_ids = [a.id for a in db_admins]
@@ -348,14 +346,27 @@ class AdminOperation(BaseOperation):
         usernames = [a.username for a in admins]
         return BulkAdminsActionResponse(admins=usernames, count=len(usernames))
 
-    async def _get_validated_bulk_admins(self, db: AsyncSession, usernames: list[str] | set[str]) -> list[Admin]:
-        return [await self.get_validated_admin(db, username=u) for u in usernames]
+    async def _get_validated_bulk_admins(self, db: AsyncSession, ids: list[int] | set[int]) -> list[Admin]:
+        if not ids:
+            return []
+
+        ids_list = list(ids)
+
+        admins = await get_admins(db, AdminListQuery(ids=ids_list, limit=len(ids_list)))
+
+        # Verify every requested ID was found (mirrors the 404 in get_validated_admin_by_id)
+        found_ids = {a.id for a in admins}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Admin not found", code=404)
+
+        return admins
 
     async def bulk_set_admins_disabled(
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, current_admin: AdminDetails, *, is_disabled: bool
     ) -> BulkAdminsActionResponse:
         """Enable or disable selected admins in bulk."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
 
         for db_admin in db_admins:
             if is_disabled and db_admin.username == current_admin.username:
@@ -378,8 +389,8 @@ class AdminOperation(BaseOperation):
     async def bulk_reset_admins_usage(
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> BulkAdminsActionResponse:
-        """Reset usage for selected admins by username."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+        """Reset usage for selected admins by ID."""
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
         for db_admin in db_admins:
             db_admin = await reset_admin_usage(db, db_admin=db_admin)
             reseted_admin = AdminDetails.model_validate(db_admin)
@@ -391,7 +402,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> BulkAdminsActionResponse:
         """Disable all active users under selected admins."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
         for db_admin in db_admins:
             await self._disable_all_active_users_for_admin(db, db_admin, admin)
         return self._build_bulk_action_response(db_admins)
@@ -400,7 +411,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> BulkAdminsActionResponse:
         """Activate all disabled users under selected admins."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
         for db_admin in db_admins:
             await self._activate_all_disabled_users_for_admin(db, db_admin, admin)
         return self._build_bulk_action_response(db_admins)
@@ -409,7 +420,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> BulkAdminsActionResponse:
         """Remove all users under selected admins."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.usernames)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
         for db_admin in db_admins:
             await self._remove_all_users_for_admin(db, db_admin, admin)
         return self._build_bulk_action_response(db_admins)

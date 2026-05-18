@@ -378,7 +378,7 @@ async def bulk_delete_admins(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
-    """Delete selected admins by username."""
+    """Delete selected admins by ID."""
     return await admin_operator.bulk_remove_admins(db, bulk_admins, admin)
 
 
@@ -392,7 +392,7 @@ async def bulk_reset_admins_usage(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("admins", "reset_usage")),
 ):
-    """Reset usage for selected admins by username."""
+    """Reset usage for selected admins by ID."""
     return await admin_operator.bulk_reset_admins_usage(db, bulk_admins, admin)
 
 
@@ -406,7 +406,7 @@ async def bulk_disable_admins(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
-    """Disable selected admins by username."""
+    """Disable selected admins by ID."""
     return await admin_operator.bulk_set_admins_disabled(db, bulk_admins, admin, is_disabled=True)
 
 
@@ -420,7 +420,7 @@ async def bulk_enable_admins(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
-    """Enable selected admins by username."""
+    """Enable selected admins by ID."""
     return await admin_operator.bulk_set_admins_disabled(db, bulk_admins, admin, is_disabled=False)
 
 

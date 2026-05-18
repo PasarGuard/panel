@@ -286,13 +286,13 @@ class AdminUsageQuery(BaseModel):
 
 
 class BulkAdminSelection(BaseModel):
-    """Model for bulk admin selection by usernames"""
+    """Model for bulk admin selection by IDs"""
 
-    usernames: set[str] = Field(default_factory=set)
+    ids: set[int] = Field(default_factory=set)
 
-    @field_validator("usernames", mode="after")
+    @field_validator("ids", mode="after")
     @classmethod
-    def usernames_validator(cls, v):
+    def ids_validator(cls, v):
         return ListValidator.not_null_list(list(v), "admin")
 
 
