@@ -308,7 +308,7 @@ def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
         response = client.post(
             "/api/admins/bulk/delete",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -331,7 +331,7 @@ def test_bulk_delete_admins_rejects_owner_account(access_token):
         response = client.post(
             "/api/admins/bulk/delete",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert admin["username"] in response.json()["admins"]

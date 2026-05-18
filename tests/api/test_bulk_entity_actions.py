@@ -328,7 +328,7 @@ def test_bulk_disable_enable_and_reset_admins(access_token):
         response = client.post(
             "/api/admins/bulk/reset",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
@@ -338,7 +338,7 @@ def test_bulk_disable_enable_and_reset_admins(access_token):
         response = client.post(
             "/api/admins/bulk/disable",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
@@ -347,7 +347,7 @@ def test_bulk_disable_enable_and_reset_admins(access_token):
         response = client.post(
             "/api/admins/bulk/enable",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
@@ -380,7 +380,7 @@ def test_bulk_admin_user_actions(access_token):
         response = client.post(
             "/api/admins/bulk/users/disable",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
@@ -398,7 +398,7 @@ def test_bulk_admin_user_actions(access_token):
         response = client.post(
             "/api/admins/bulk/users/activate",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
@@ -417,7 +417,7 @@ def test_bulk_admin_user_actions(access_token):
             "DELETE",
             "/api/admins/bulk/users",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
