@@ -9,7 +9,7 @@ from app.db.crud.general import (
     get_complete_period_start_for_filter,
     to_utc_for_filter,
 )
-from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
+from app.db.models import Admin, AdminRole, AdminUsageLogs, NodeUserUsage, User
 from app.models.admin import (
     AdminCreate,
     AdminDetails,
@@ -24,7 +24,7 @@ from app.models.admin import (
     AdminStatus,
     hash_password,
 )
-from app.models.admin_role import RoleLimits, AdminRole
+from app.models.admin_role import RoleLimits
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.utils.logger import get_logger
 
