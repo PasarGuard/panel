@@ -183,6 +183,11 @@ def test_admin_create(access_token):
     password = strong_password("TestAdmincreate")
     admin = create_admin(access_token, username=username, password=password)
     assert admin["username"] == username
+    # Verify role data is present in create response
+    assert admin["role"] is not None
+    assert admin["role"]["id"] == 3  # default operator role
+    assert admin["role"]["name"] == "operator"
+    assert admin["role"]["is_owner"] is False
     delete_admin(access_token, username)
 
 
@@ -263,9 +268,9 @@ def test_admin_db_login(access_token):
 
 
 def test_update_admin(access_token):
-    """Test that the admin update route is accessible."""
+    """Test that the admin update route is accessible and applies role_id changes."""
 
-    admin = create_admin(access_token)
+    admin = create_admin(access_token)  # role_id=3 (operator)
     password = strong_password("TestAdminupdate")
     response = client.put(
         url=f"/api/admin/{admin['username']}",
@@ -278,6 +283,18 @@ def test_update_admin(access_token):
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["username"] == admin["username"]
     assert response.json()["is_disabled"] is True
+
+    # Verify role_id change is applied
+    role_change_response = client.put(
+        url=f"/api/admin/{admin['username']}",
+        json={"role_id": 2},  # promote to administrator
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert role_change_response.status_code == status.HTTP_200_OK
+    updated = role_change_response.json()
+    assert updated["role"]["id"] == 2
+    assert updated["role"]["name"] == "administrator"
+
     delete_admin(access_token, admin["username"])
 
 
@@ -492,7 +509,7 @@ def test_administrator_cannot_modify_other_administrator(access_token):
 
 
 def test_get_admins(access_token):
-    """Test that the admins get route is accessible."""
+    """Test that the admins get route is accessible and returns role data."""
 
     admin = create_admin(access_token)
     response = client.get(
@@ -507,6 +524,16 @@ def test_get_admins(access_token):
     assert "active" in response_data
     assert "disabled" in response_data
     assert admin["username"] in [record["username"] for record in response_data["admins"]]
+
+    # Verify role data is present in the list response
+    created_record = next(r for r in response_data["admins"] if r["username"] == admin["username"])
+    assert created_record["role"] is not None
+    assert "id" in created_record["role"]
+    assert "name" in created_record["role"]
+    assert "is_owner" in created_record["role"]
+    assert created_record["role"]["id"] == 3  # operator role
+    assert created_record["role"]["name"] == "operator"
+
     delete_admin(access_token, admin["username"])
 
 

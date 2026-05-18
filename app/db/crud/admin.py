@@ -15,6 +15,7 @@ from app.models.admin import (
     AdminDetails,
     AdminListQuery,
     AdminModify,
+    AdminRoleData,
     AdminSimpleListQuery,
     AdminSimpleSortField,
     AdminSimpleSortOption,
@@ -22,6 +23,7 @@ from app.models.admin import (
     AdminSortOption,
     hash_password,
 )
+from app.models.admin_role import RoleLimits
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.utils.logger import get_logger
 
@@ -106,6 +108,8 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
     if modified_admin.password is not None:
         db_admin.hashed_password = await hash_password(modified_admin.password)
         db_admin.password_reset_at = datetime.now(timezone.utc)
+    if modified_admin.role_id is not None:
+        db_admin.role_id = modified_admin.role_id
     if modified_admin.telegram_id is not None:
         db_admin.telegram_id = modified_admin.telegram_id
     if modified_admin.discord_webhook is not None:
@@ -313,6 +317,10 @@ async def get_admins(
                     discord_id=admin.discord_id,
                     sub_template=admin.sub_template,
                     lifetime_used_traffic=lifetime_used_traffic,
+                    role=AdminRoleData.model_validate(admin.role) if admin.role is not None else None,
+                    permission_overrides=RoleLimits.model_validate(admin.permission_overrides)
+                    if admin.permission_overrides
+                    else None,
                 )
             )
     else:
