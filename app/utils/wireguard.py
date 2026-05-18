@@ -355,7 +355,7 @@ async def bulk_reallocate_wireguard_peer_ips(
 
     if updated_users:
         await db.commit()
-        await sync_users(updated_users)
+        await sync_users(updated_users, db)
 
     return {
         "wireguard_inbound_tags": len(wg_tags),

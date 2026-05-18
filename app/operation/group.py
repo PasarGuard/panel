@@ -87,7 +87,7 @@ class GroupOperation(BaseOperation):
             db,
             query=UserListQuery(group_ids=[db_group.id], status=[UserStatus.active, UserStatus.on_hold]),
         )
-        await sync_users(users)
+        await sync_users(users, db)
 
         group = GroupResponse.model_validate(db_group)
 
@@ -105,7 +105,7 @@ class GroupOperation(BaseOperation):
         await remove_group(db, db_group)
 
         users = await get_users(db, query=UserListQuery(username=username_list))
-        await sync_users(users)
+        await sync_users(users, db)
 
         logger.info(f'Group "{db_group.name}" deleted by admin "{admin.username}"')
 
@@ -118,7 +118,7 @@ class GroupOperation(BaseOperation):
             return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await add_groups_to_users(db, bulk_model)
-        await sync_users(users)
+        await sync_users(users, db)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
@@ -131,7 +131,7 @@ class GroupOperation(BaseOperation):
             return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await remove_groups_from_users(db, bulk_model)
-        await sync_users(users)
+        await sync_users(users, db)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
@@ -163,7 +163,7 @@ class GroupOperation(BaseOperation):
 
         if all_affected_usernames:
             users = await get_users(db, query=UserListQuery(username=list(all_affected_usernames)))
-            await sync_users(users)
+            await sync_users(users, db)
 
         for name, group_id in zip(group_names, group_ids):
             logger.info(f'Group "{name}" deleted by admin "{admin.username}"')
@@ -211,7 +211,7 @@ class GroupOperation(BaseOperation):
                     status=[UserStatus.active, UserStatus.on_hold],
                 ),
             )
-            await sync_users(users)
+            await sync_users(users, db)
 
         for db_group in groups_to_update:
             group = GroupResponse.model_validate(db_group)

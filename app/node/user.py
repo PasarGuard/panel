@@ -3,7 +3,17 @@ from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import and_, func, select
 
 from app.db import AsyncSession
-from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
+from app.db.models import (
+    Admin,
+    AdminRole,
+    AdminStatus,
+    Group,
+    ProxyInbound,
+    User,
+    UserStatus,
+    inbounds_groups_association,
+    users_groups_association,
+)
 from app.models.protocol import ProxyProtocol
 
 _ALL_PROXY_PROTOCOLS = frozenset(ProxyProtocol)
@@ -116,7 +126,11 @@ async def core_users(
                 ProxyInbound.tag.in_(inbound_tags) if inbound_tags else True,
             ),
         )
+        # Exclude users whose admin is limited AND disable_users_when_limited=True
+        .outerjoin(Admin, Admin.id == User.admin_id)
+        .outerjoin(AdminRole, AdminRole.id == Admin.role_id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
+        .where(~((Admin.status == AdminStatus.limited) & (AdminRole.disable_users_when_limited.is_(True))))
         .group_by(User.id)
     )
 
@@ -139,11 +153,24 @@ async def core_users(
 
 
 async def serialize_users_for_node(
-    users: list[User], allowed_protocols: frozenset[ProxyProtocol] | None = None
+    users: list[User],
+    allowed_protocols: frozenset[ProxyProtocol] | None = None,
+    excluded_admin_ids: set[int] | None = None,
 ) -> list[ProtoUser]:
+    """Serialize users for node dispatch.
+
+    Args:
+        users: Users to serialize.
+        allowed_protocols: Optional protocol filter.
+        excluded_admin_ids: Admin IDs whose users should be excluded
+            (e.g. limited admins with disable_users_when_limited=True).
+    """
     bridge_users: list = []
 
     for user in users:
+        if excluded_admin_ids and user.admin_id in excluded_admin_ids:
+            continue
+
         inbounds_list = []
         if user.status in [UserStatus.active, UserStatus.on_hold]:
             loaded_inbounds = _inbounds_from_loaded_groups(user)

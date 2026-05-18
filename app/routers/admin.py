@@ -12,6 +12,7 @@ from app.models.admin import (
     AdminListQuery,
     AdminModify,
     AdminSimpleListQuery,
+    AdminStatus,
     AdminsResponse,
     AdminsSimpleResponse,
     AdminUsageQuery,
@@ -52,7 +53,7 @@ async def admin_token(
         raise HTTPException(
             status_code=401, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"}
         )
-    if db_admin.is_disabled:
+    if db_admin.status == AdminStatus.disabled:
         asyncio.create_task(notification.admin_login(form_data.username, form_data.password, client_ip, False))
         raise HTTPException(
             status_code=403, detail="your account has been disabled", headers={"WWW-Authenticate": "Bearer"}
@@ -70,7 +71,7 @@ async def admin_mini_app_token(
     db_admin = await validate_mini_app_admin(db, x_telegram_authorization)
     if not db_admin:
         raise HTTPException(status_code=401, detail="admin not found.", headers={"WWW-Authenticate": "Bearer"})
-    if db_admin.is_disabled:
+    if db_admin.status == AdminStatus.disabled:
         raise HTTPException(
             status_code=403, detail="your account has been disabled", headers={"WWW-Authenticate": "Bearer"}
         )

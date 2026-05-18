@@ -1,5 +1,7 @@
 import asyncio
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db.models import User
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import node_nats_client
@@ -41,6 +43,18 @@ async def remove_user(user: UserNotificationResponse) -> None:
     asyncio.create_task(_dispatch_user_update(proto_user))
 
 
-async def sync_users(users: list[User]) -> None:
+async def remove_users(users: list[User]) -> None:
+    """Remove multiple users from nodes in a single batch dispatch."""
+    if not users:
+        return
     proto_users = await serialize_users_for_node(users)
+    asyncio.create_task(_dispatch_users_update(proto_users))
+
+
+async def sync_users(users: list[User], db: AsyncSession) -> None:
+    """Sync users to nodes, excluding users of limited admins with disable_users_when_limited=True."""
+    from app.db.crud.admin import get_limited_admin_ids_with_user_sync
+
+    excluded_admin_ids = await get_limited_admin_ids_with_user_sync(db)
+    proto_users = await serialize_users_for_node(users, excluded_admin_ids=excluded_admin_ids)
     asyncio.create_task(_dispatch_users_update(proto_users))

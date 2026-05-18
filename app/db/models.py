@@ -63,6 +63,12 @@ users_groups_association = Table(
 )
 
 
+class AdminStatus(str, Enum):
+    active = "active"
+    disabled = "disabled"
+    limited = "limited"
+
+
 class Admin(Base):
     __tablename__ = "admins"
 
@@ -79,7 +85,13 @@ class Admin(Base):
     discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     discord_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
-    is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
+    data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    status: Mapped[AdminStatus] = mapped_column(
+        SQLEnum(AdminStatus, name="adminstatus", create_constraint=True),
+        default=AdminStatus.active,
+        server_default="active",
+    )
+    last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     sub_template: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     sub_domain: Mapped[Optional[str]] = mapped_column(String(256), default=None)
     profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
@@ -89,6 +101,24 @@ class Admin(Base):
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
     role: Mapped[Optional["AdminRole"]] = relationship(back_populates="admins", init=False, lazy="selectin")
     permission_overrides: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
+
+    @hybrid_property
+    def is_disabled(self) -> bool:
+        """Backward-compat property — True when status is disabled."""
+        return self.status == AdminStatus.disabled
+
+    @is_disabled.expression
+    def is_disabled(cls):
+        return cls.status == AdminStatus.disabled
+
+    @hybrid_property
+    def is_limited(self) -> bool:
+        """True when status is limited."""
+        return self.status == AdminStatus.limited
+
+    @is_limited.expression
+    def is_limited(cls):
+        return cls.status == AdminStatus.limited
 
     @hybrid_property
     def reseted_usage(self) -> int:
@@ -835,6 +865,8 @@ class AdminRole(Base):
     limits: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     features: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     access: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
+    disable_users_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
 

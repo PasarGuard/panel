@@ -20,7 +20,8 @@ from app.db.crud.admin import (
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
-from app.db.models import Admin
+from app.models.user import UserListQuery
+from app.db.models import Admin, AdminStatus, UserStatus
 from app.models.admin import (
     AdminCreate,
     AdminDetails,
@@ -36,8 +37,7 @@ from app.models.admin import (
     RemoveAdminsResponse,
 )
 from app.models.stats import Period, UserUsageStatsList
-from app.models.user import UserListQuery
-from app.node.sync import remove_user as sync_remove_user, sync_users
+from app.node.sync import remove_user as sync_remove_user, remove_users as sync_remove_users, sync_users
 from app.operation import BaseOperation
 from app.operation.permissions import enforce_permission, PermissionDenied
 from app.operation.user import UserOperation
@@ -98,7 +98,7 @@ class AdminOperation(BaseOperation):
         if not current_admin.is_owner and db_admin.id != current_admin.id and db_admin.role_id <= 2:
             await self.raise_error(message="You're not allowed to modify an administrator account.", code=403)
 
-        if db_admin.username == current_admin.username and modified_admin.is_disabled is True:
+        if db_admin.username == current_admin.username and modified_admin.status == AdminStatus.disabled:
             await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
         if modified_admin.telegram_id is not None:
@@ -108,7 +108,23 @@ class AdminOperation(BaseOperation):
             if existing_admins:
                 await self.raise_error(message="Telegram ID is already assigned to another admin.", code=409, db=db)
 
+        old_status = db_admin.status
         db_admin = await update_admin(db, db_admin, modified_admin)
+
+        # Sync users to nodes if admin status changed due to data_limit change
+        if modified_admin.data_limit is not None:
+            if old_status != AdminStatus.limited and db_admin.status == AdminStatus.limited:
+                # active → limited: remove active/on_hold users from nodes
+                users = await get_users(
+                    db, query=UserListQuery(status=[UserStatus.active, UserStatus.on_hold]), admin=db_admin
+                )
+                await sync_remove_users(users)
+            elif old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
+                # limited → active: re-sync all users to nodes
+                # Pass empty set — this admin is now active, no exclusion needed
+                users = await get_users(db, query=UserListQuery(), admin=db_admin)
+                await sync_users(users, db)
+
         logger.info(f'Admin "{db_admin.username}" with id "{db_admin.id}" modified by admin "{current_admin.username}"')
 
         modified_admin_details = AdminDetails.model_validate(db_admin)
@@ -148,8 +164,8 @@ class AdminOperation(BaseOperation):
 
     async def get_admins(self, db: AsyncSession, query: AdminListQuery) -> AdminsResponse:
         """Retrieve a list of admins with optional filters and pagination."""
-        admins, total, active, disabled = await get_admins(db, query, return_with_count=True, compact=True)
-        return AdminsResponse(admins=admins, total=total, active=active, disabled=disabled)
+        admins, total, active, disabled, limited = await get_admins(db, query, return_with_count=True, compact=True)
+        return AdminsResponse(admins=admins, total=total, active=active, disabled=disabled, limited=limited)
 
     async def get_admins_simple(self, db: AsyncSession, query: AdminSimpleListQuery) -> AdminsSimpleResponse:
         """Get lightweight admin list with only id and username."""
@@ -173,7 +189,7 @@ class AdminOperation(BaseOperation):
         """Disable all active users under a specific admin."""
         await disable_all_active_users(db=db, admin=db_admin)
         users = await get_users(db, query=UserListQuery(), admin=db_admin)
-        await sync_users(users)
+        await sync_users(users, db)
         logger.info(f'Admin "{db_admin.username}" users has been disabled by admin "{admin.username}"')
 
     async def disable_all_active_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails):
@@ -193,7 +209,7 @@ class AdminOperation(BaseOperation):
         """Activate all disabled users under a specific admin."""
         await activate_all_disabled_users(db=db, admin=db_admin)
         users = await get_users(db, query=UserListQuery(), admin=db_admin)
-        await sync_users(users)
+        await sync_users(users, db)
         logger.info(f'Admin "{db_admin.username}" users has been activated by admin "{admin.username}"')
 
     async def activate_all_disabled_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails):
@@ -244,7 +260,14 @@ class AdminOperation(BaseOperation):
 
     async def _reset_admin_usage(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails) -> AdminDetails:
         """Reset an admin's traffic usage and log the action."""
+        old_status = db_admin.status
         db_admin = await reset_admin_usage(db, db_admin=db_admin)
+
+        # If admin was limited and is now active, re-sync all users to nodes
+        if old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
+            users = await get_users(db, query=UserListQuery(), admin=db_admin)
+            await sync_users(users, db)
+
         logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
         reseted_admin_details = AdminDetails.model_validate(db_admin)
         asyncio.create_task(notification.admin_usage_reset(reseted_admin_details, admin.username))
@@ -367,14 +390,15 @@ class AdminOperation(BaseOperation):
     ) -> BulkAdminsActionResponse:
         """Enable or disable selected admins in bulk."""
         db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
+        target_status = AdminStatus.disabled if is_disabled else AdminStatus.active
 
         for db_admin in db_admins:
             if is_disabled and db_admin.username == current_admin.username:
                 await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
-        admins_to_update = [a for a in db_admins if a.is_disabled != is_disabled]
+        admins_to_update = [a for a in db_admins if a.status != target_status]
         for db_admin in admins_to_update:
-            db_admin.is_disabled = is_disabled
+            db_admin.status = target_status
         await db.commit()
 
         for db_admin in admins_to_update:

@@ -82,7 +82,7 @@ CREATE_ADMIN = """
 ➖➖➖➖➖➖➖➖➖
 <b>Username:</b> <code>{username}</code>
 <b>Role:</b> <code>{role}</code>
-<b>Is Disabled:</b> <code>{is_disabled}</code>
+<b>Status:</b> <code>{status}</code>
 <b>Used Traffic:</b> <code>{used_traffic}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>By: #{by}</i>
@@ -93,7 +93,7 @@ MODIFY_ADMIN = """
 ➖➖➖➖➖➖➖➖➖
 <b>Username:</b> <code>{username}</code>
 <b>Role:</b> <code>{role}</code>
-<b>Is Disabled:</b> <code>{is_disabled}</code>
+<b>Status:</b> <code>{status}</code>
 <b>Used Traffic:</b> <code>{used_traffic}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>By: #{by}</i>
@@ -298,7 +298,7 @@ CREATE_GROUP = """
 ➖➖➖➖➖➖➖➖➖
 <b>Name:</b> <code>{name}</code>
 <b>Inbound Tags:</b> <code>{inbound_tags}</code>
-<b>Is Disabled:</b> <code>{is_disabled}</code>
+<b>Status:</b> <code>{status}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>ID</i>: <code>{id}</code>
 <i>By: #{by}</i>
@@ -309,7 +309,7 @@ MODIFY_GROUP = """
 ➖➖➖➖➖➖➖➖➖
 <b>Name:</b> <code>{name}</code>
 <b>Inbound Tags:</b> <code>{inbound_tags}</code>
-<b>Is Disabled:</b> <code>{is_disabled}</code>
+<b>Status:</b> <code>{status}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>ID</i>: <code>{id}</code>
 <i>By: #{by}</i>

@@ -3,8 +3,7 @@ import re
 import secrets
 import warnings
 from collections import Counter
-from datetime import datetime, timezone
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import datetime, datetime as dt, timedelta as td, timezone, timezone as tz
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -13,7 +12,6 @@ from sqlalchemy.exc import IntegrityError
 from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import get_admin
-from app.db.crud.hwid import get_user_hwid_count
 from app.db.crud.bulk import (
     count_bulk_datalimit_targets,
     count_bulk_expire_targets,
@@ -24,6 +22,7 @@ from app.db.crud.bulk import (
     update_users_expire,
     update_users_proxy_settings,
 )
+from app.db.crud.hwid import get_user_hwid_count
 from app.db.crud.user import (
     bulk_reset_user_data_usage,
     bulk_revoke_user_sub,
@@ -91,17 +90,16 @@ from app.models.user import (
     UserUsageQuery,
     WireGuardPeerIPsReallocateResponse,
 )
-from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
+from app.node.sync import remove_user as sync_remove_user, sync_users, sync_user
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import (
+    PermissionDenied,
+    apply_template_access,
     enforce_permission,
     get_effective_limits,
-    apply_template_access,
     get_scope_admin_id,
     is_scope_all,
-    PermissionDenied,
 )
-
 from app.settings import hwid_settings, subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
@@ -308,7 +306,7 @@ class UserOperation(BaseOperation):
                 )
 
         db_users = await create_users_bulk(db, users_to_create, groups, db_admin)
-        await sync_users(db_users)
+        await sync_users(db_users, db)
 
         users_list = []
         for db_user in db_users:
@@ -732,7 +730,7 @@ class UserOperation(BaseOperation):
             db_users,
             clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
         )
-        await sync_users(db_users)
+        await sync_users(db_users, db)
 
         users = [await self.validate_user(db_user) for db_user in db_users]
         for user in users:
@@ -772,7 +770,7 @@ class UserOperation(BaseOperation):
         db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
 
         db_users = await bulk_revoke_user_sub(db, db_users)
-        await sync_users(db_users)
+        await sync_users(db_users, db)
 
         users = [await self.validate_user(db_user) for db_user in db_users]
         for user in users:
@@ -1382,7 +1380,7 @@ class UserOperation(BaseOperation):
             n = await count_bulk_expire_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_expire(db, bulk_model)
-        await sync_users(users)
+        await sync_users(users, db)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
@@ -1393,7 +1391,7 @@ class UserOperation(BaseOperation):
             n = await count_bulk_datalimit_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_datalimit(db, bulk_model)
-        await sync_users(users)
+        await sync_users(users, db)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
@@ -1406,7 +1404,7 @@ class UserOperation(BaseOperation):
             n = await count_bulk_proxy_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_proxy_settings(db, bulk_model)
-        await sync_users(users)
+        await sync_users(users, db)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}

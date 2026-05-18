@@ -21,9 +21,10 @@ from app.models.admin import (
     AdminSimpleSortOption,
     AdminSortField,
     AdminSortOption,
+    AdminStatus,
     hash_password,
 )
-from app.models.admin_role import RoleLimits
+from app.models.admin_role import RoleLimits, AdminRole
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.utils.logger import get_logger
 
@@ -103,8 +104,23 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
     Returns:
         Admin: The updated admin object.
     """
-    if modified_admin.is_disabled is not None:
-        db_admin.is_disabled = modified_admin.is_disabled
+    if modified_admin.status is not None:
+        if modified_admin.status != db_admin.status:
+            db_admin.status = modified_admin.status
+            db_admin.last_status_change = datetime.now(timezone.utc)
+    if modified_admin.data_limit is not None:
+        db_admin.data_limit = modified_admin.data_limit if modified_admin.data_limit > 0 else None
+        # Recompute limited/active based on new data_limit — never touch disabled
+        if db_admin.status != AdminStatus.disabled:
+            should_be_limited = (
+                db_admin.data_limit is not None
+                and db_admin.data_limit > 0
+                and db_admin.used_traffic >= db_admin.data_limit
+            )
+            new_status = AdminStatus.limited if should_be_limited else AdminStatus.active
+            if db_admin.status != new_status:
+                db_admin.status = new_status
+                db_admin.last_status_change = datetime.now(timezone.utc)
     if modified_admin.password is not None:
         db_admin.hashed_password = await hash_password(modified_admin.password)
         db_admin.password_reset_at = datetime.now(timezone.utc)
@@ -238,8 +254,9 @@ async def get_admins(
     if return_with_count:
         counts_stmt = select(
             func.count(Admin.id).label("total"),
-            func.sum(case((Admin.is_disabled.is_(False), 1), else_=0)).label("active"),
-            func.sum(case((Admin.is_disabled.is_(True), 1), else_=0)).label("disabled"),
+            func.sum(case((Admin.status == AdminStatus.active, 1), else_=0)).label("active"),
+            func.sum(case((Admin.status == AdminStatus.disabled, 1), else_=0)).label("disabled"),
+            func.sum(case((Admin.status == AdminStatus.limited, 1), else_=0)).label("limited"),
         )
         if params.ids:
             counts_stmt = counts_stmt.where(Admin.id.in_(params.ids))
@@ -253,6 +270,7 @@ async def get_admins(
         total = row.total or 0
         active = row.active or 0
         disabled = row.disabled or 0
+        limited = row.limited or 0
 
     if compact:
         users_count_subq = (
@@ -308,7 +326,8 @@ async def get_admins(
                     username=admin.username,
                     total_users=int(total_users or 0),
                     used_traffic=int(admin.used_traffic or 0),
-                    is_disabled=admin.is_disabled,
+                    data_limit=admin.data_limit,
+                    status=admin.status,
                     telegram_id=admin.telegram_id,
                     discord_webhook=admin.discord_webhook,
                     sub_domain=admin.sub_domain,
@@ -331,7 +350,7 @@ async def get_admins(
             await load_admin_attrs(admin)
 
     if return_with_count:
-        return admins, total, active, disabled
+        return admins, total, active, disabled, limited
     return admins
 
 
@@ -381,6 +400,52 @@ async def get_admins_simple(
     return rows, total
 
 
+async def get_active_to_limited_admins(db: AsyncSession) -> list[Admin]:
+    """Return ALL active admins that have exceeded their data_limit (for status flip)."""
+    stmt = select(Admin).where(
+        Admin.status == AdminStatus.active,
+        Admin.data_limit.isnot(None),
+        Admin.data_limit > 0,
+        Admin.used_traffic >= Admin.data_limit,
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def get_limited_admin_ids_with_user_sync(db: AsyncSession) -> set[int]:
+    """Return IDs of currently limited admins that have disable_users_when_limited=True.
+    Used to exclude their users from node sync — avoids loading relationships."""
+    stmt = (
+        select(Admin.id)
+        .join(AdminRole, Admin.role_id == AdminRole.id)
+        .where(
+            Admin.status == AdminStatus.limited,
+            AdminRole.disable_users_when_limited.is_(True),
+        )
+    )
+    result = await db.execute(stmt)
+    return set(result.scalars().all())
+
+
+async def update_admin_status(db: AsyncSession, db_admin: Admin, new_status: AdminStatus) -> Admin:
+    """
+    Update an admin's status and record the transition time.
+
+    Args:
+        db: Database session.
+        db_admin: The admin to update.
+        new_status: The new status to set.
+
+    Returns:
+        Admin: The updated admin object.
+    """
+    db_admin.status = new_status
+    db_admin.last_status_change = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(db_admin)
+    await load_admin_attrs(db_admin)
+    return db_admin
+
+
 async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     """
     Retrieves an admin's usage by their username.
@@ -396,6 +461,11 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     usage_log = AdminUsageLogs(admin_id=db_admin.id, used_traffic_at_reset=db_admin.used_traffic)
     db.add(usage_log)
     db_admin.used_traffic = 0
+
+    # After reset, used_traffic = 0 so the admin is no longer limited
+    if db_admin.status == AdminStatus.limited:
+        db_admin.status = AdminStatus.active
+        db_admin.last_status_change = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(db_admin)

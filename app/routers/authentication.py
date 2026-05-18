@@ -13,7 +13,7 @@ from app.db.crud.admin import (
     get_admin_by_telegram_id,
 )
 from app.db.models import Admin, AdminUsageLogs, User
-from app.models.admin import AdminDetails, AdminRoleData, AdminValidationResult, verify_password
+from app.models.admin import AdminDetails, AdminRoleData, AdminStatus, AdminValidationResult, verify_password
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
 from app.models.settings import Telegram
 from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
@@ -46,7 +46,8 @@ def _build_admin_details(
         username=db_admin.username,
         total_users=int(total_users or 0),
         used_traffic=used_traffic,
-        is_disabled=db_admin.is_disabled,
+        data_limit=db_admin.data_limit,
+        status=db_admin.status,
         telegram_id=db_admin.telegram_id,
         discord_webhook=db_admin.discord_webhook,
         sub_domain=db_admin.sub_domain,
@@ -141,7 +142,7 @@ async def get_current(db: AsyncSession = Depends(get_db), token: str = Depends(o
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if admin.is_disabled:
+    if admin.status == AdminStatus.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="your account has been disabled",
@@ -158,7 +159,7 @@ async def get_current_with_metrics(db: AsyncSession = Depends(get_db), token: st
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if admin.is_disabled:
+    if admin.status == AdminStatus.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="your account has been disabled",
@@ -217,14 +218,14 @@ async def validate_admin(db: AsyncSession, username: str, password: str) -> Admi
         return AdminValidationResult(
             id=db_admin.id,
             username=db_admin.username,
-            is_disabled=db_admin.is_disabled,
+            status=db_admin.status,
         )
 
     # Env admin fallback — only allowed in debug/testing
     if not db_admin and auth_settings.sudoers.get(username) == password:
         if not runtime_settings.debug:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="env admin not allowed in production")
-        return AdminValidationResult(username=username, is_disabled=False)
+        return AdminValidationResult(username=username, status=AdminStatus.active)
 
     return None
 
@@ -260,6 +261,6 @@ async def validate_mini_app_admin(db: AsyncSession, token: str) -> AdminValidati
         return AdminValidationResult(
             id=db_admin.id,
             username=db_admin.username,
-            is_disabled=db_admin.is_disabled,
+            status=db_admin.status,
         )
     return None

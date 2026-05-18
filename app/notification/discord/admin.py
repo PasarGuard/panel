@@ -19,7 +19,7 @@ async def create_admin(admin: AdminDetails, by: str):
     message["description"] = message["description"].format(
         username=username,
         role=role,
-        is_disabled=admin.is_disabled,
+        status=admin.status.value,
         used_traffic=admin.used_traffic,
     )
     message["footer"]["text"] = message["footer"]["text"].format(by=by)
@@ -41,7 +41,7 @@ async def modify_admin(admin: AdminDetails, by: str):
     message["description"] = message["description"].format(
         username=username,
         role=role,
-        is_disabled=admin.is_disabled,
+        status=admin.status.value,
         used_traffic=admin.used_traffic,
     )
     message["footer"]["text"] = message["footer"]["text"].format(by=by)

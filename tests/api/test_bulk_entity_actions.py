@@ -342,7 +342,7 @@ def test_bulk_disable_enable_and_reset_admins(access_token):
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
-        assert get_admin_details(access_token, admin["username"])["is_disabled"] is True
+        assert get_admin_details(access_token, admin["username"])["status"] == "disabled"
 
         response = client.post(
             "/api/admins/bulk/enable",
@@ -351,7 +351,7 @@ def test_bulk_disable_enable_and_reset_admins(access_token):
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
-        assert get_admin_details(access_token, admin["username"])["is_disabled"] is False
+        assert get_admin_details(access_token, admin["username"])["status"] == "active"
     finally:
         delete_admin(access_token, admin["username"])
 

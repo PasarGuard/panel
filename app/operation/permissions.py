@@ -32,6 +32,9 @@ def _get_resource_action(admin: AdminDetails, resource: str, action: str):
     return (resource_perms or {}).get(action) if resource_perms is not None else None
 
 
+_READ_ACTIONS = frozenset({"read", "read_simple", "read_general", "logs", "stats"})
+
+
 def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
     """
     Check if admin has permission for resource+action.
@@ -39,7 +42,10 @@ def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
 
     Resolution order:
     1. role.is_owner → ALLOW unconditionally
-    2. permissions[resource][action]:
+    2. admin.is_limited:
+       - role.disabled_when_limited=True → DENY all actions
+       - role.disabled_when_limited=False → DENY write actions, allow read actions
+    3. permissions[resource][action]:
        - missing              → DENY
        - True                 → ALLOW
        - {scope: NONE (0)}    → DENY (explicitly disabled)
@@ -48,6 +54,13 @@ def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
     """
     if admin.is_owner:
         return
+
+    if admin.is_limited:
+        features = admin.role.features if admin.role else None
+        if features and features.disabled_when_limited:
+            raise PermissionDenied("Admin is limited — all access blocked")
+        if action not in _READ_ACTIONS:
+            raise PermissionDenied("Admin is limited — write actions blocked")
 
     action_perm = _get_resource_action(admin, resource, action)
     if action_perm is None:

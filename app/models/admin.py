@@ -5,8 +5,9 @@ from datetime import datetime as dt
 from enum import Enum
 
 import bcrypt
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
+from app.db.models import AdminStatus
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
@@ -102,7 +103,8 @@ class AdminDetails(AdminContactInfo):
     id: int | None = None
     total_users: int = 0
     used_traffic: int = 0
-    is_disabled: bool = False
+    data_limit: int | None = None
+    status: AdminStatus = AdminStatus.active
     discord_id: int | None = None
     sub_template: str | None = None
     lifetime_used_traffic: int | None = None
@@ -113,6 +115,11 @@ class AdminDetails(AdminContactInfo):
     @property
     def is_owner(self) -> bool:
         return self.role.is_owner if self.role is not None else False
+
+    @computed_field
+    @property
+    def is_limited(self) -> bool:
+        return self.status == AdminStatus.limited
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -126,7 +133,8 @@ class AdminModify(BaseModel):
     telegram_id: int | None = None
     discord_webhook: str | None = None
     discord_id: int | None = None
-    is_disabled: bool | None = None
+    status: AdminStatus | None = None
+    data_limit: int | None = None
     sub_template: str | None = None
     sub_domain: str | None = None
     profile_title: str | None = None
@@ -168,7 +176,7 @@ class AdminInDB(AdminDetails):
 class AdminValidationResult(BaseModel):
     id: int | None = None
     username: str
-    is_disabled: bool
+    status: AdminStatus = Field(default=AdminStatus.active)
 
 
 class AdminsResponse(BaseModel):
@@ -178,6 +186,7 @@ class AdminsResponse(BaseModel):
     total: int
     active: int
     disabled: int
+    limited: int
 
 
 class AdminSimple(BaseModel):

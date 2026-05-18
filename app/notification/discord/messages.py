@@ -96,7 +96,7 @@ CREATE_ADMIN = {
     "title": "Create Admin",
     "description": "**Username:** {username}\n"
     + "**Role:** {role}\n"
-    + "**Is Disabled:** {is_disabled}\n"
+    + "**Status:** {status}\n"
     + "**Used Traffic:** {used_traffic}\n",
     "footer": {"text": "By: {by}"},
 }
@@ -105,7 +105,7 @@ MODIFY_ADMIN = {
     "title": "Modify Admin",
     "description": "**Username:** {username}\n"
     + "**Role:** {role}\n"
-    + "**Is Disabled:** {is_disabled}\n"
+    + "**Status:** {status}\n"
     + "**Used Traffic:** {used_traffic}\n",
     "footer": {"text": "By: {by}"},
 }
@@ -249,13 +249,13 @@ REMOVE_CORE = {
 
 CREATE_GROUP = {
     "title": "Create Group",
-    "description": "**Name:** {name}\n" + "**Inbound Tags:** {inbound_tags}\n" + "**Is Disabled:** {is_disabled}\n",
+    "description": "**Name:** {name}\n" + "**Inbound Tags:** {inbound_tags}\n" + "**Status:** {status}\n",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
 
 MODIFY_GROUP = {
     "title": "Modify Group",
-    "description": "**Name:** {name}\n" + "**Inbound Tags:** {inbound_tags}\n" + "**Is Disabled:** {is_disabled}\n",
+    "description": "**Name:** {name}\n" + "**Inbound Tags:** {inbound_tags}\n" + "**Status:** {status}\n",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
 

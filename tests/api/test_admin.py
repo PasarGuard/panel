@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 
 from app.db.crud.admin import get_admin_by_telegram_id
-from app.db.models import Admin, AdminUsageLogs, NodeUserUsage
+from app.db.models import Admin, AdminRole, AdminUsageLogs, NodeUserUsage
 from app.models.settings import RunMethod, Telegram
 from app.routers.authentication import validate_mini_app_admin
 from app.utils.jwt import get_admin_payload
@@ -276,13 +276,13 @@ def test_update_admin(access_token):
         url=f"/api/admin/{admin['username']}",
         json={
             "password": password,
-            "is_disabled": True,
+            "status": "disabled",
         },
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["username"] == admin["username"]
-    assert response.json()["is_disabled"] is True
+    assert response.json()["status"] == "disabled"
 
     # Verify role_id change is applied
     role_change_response = client.put(
@@ -383,7 +383,7 @@ def test_promote_admin_to_owner_forbidden_via_api(access_token):
         response = client.put(
             url=f"/api/admin/{admin['username']}",
             json={
-                "is_disabled": False,
+                "status": "active",
                 "role_id": 1,
             },
             headers={"Authorization": f"Bearer {access_token}"},
@@ -422,7 +422,7 @@ def test_administrator_can_modify_self(access_token):
         response = client.put(
             url=f"/api/admin/{administrator_admin['username']}",
             json={
-                "is_disabled": False,
+                "status": "active",
                 "note": "self-updated",
             },
             headers={"Authorization": f"Bearer {administrator_token}"},
@@ -462,7 +462,7 @@ def test_administrator_cannot_disable_self(access_token):
         response = client.put(
             url=f"/api/admin/{administrator_admin['username']}",
             json={
-                "is_disabled": True,
+                "status": "disabled",
             },
             headers={"Authorization": f"Bearer {administrator_token}"},
         )
@@ -494,7 +494,7 @@ def test_administrator_cannot_modify_other_administrator(access_token):
         response = client.put(
             url=f"/api/admin/{admin_b['username']}",
             json={
-                "is_disabled": False,
+                "status": "active",
                 "note": "should-fail",
             },
             headers={"Authorization": f"Bearer {admin_a_token}"},
@@ -573,7 +573,7 @@ def test_disable_admin(access_token):
     password = admin["password"]
     disable_response = client.put(
         url=f"/api/admin/{admin['username']}",
-        json={"password": password, "is_disabled": True},
+        json={"password": password, "status": "disabled"},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert disable_response.status_code == status.HTTP_200_OK
@@ -1107,3 +1107,257 @@ def test_create_admin_with_custom_role(access_token):
     finally:
         delete_admin(access_token, username)
         client.delete(f"/api/admin-role/{role['id']}", headers={"Authorization": f"Bearer {access_token}"})
+
+
+# ---------------------------------------------------------------------------
+# Admin data_limit, status, and limited-access tests
+# ---------------------------------------------------------------------------
+
+
+def _set_admin_traffic(username: str, used_traffic: int, data_limit: int | None = None) -> None:
+    """Directly set used_traffic and optionally data_limit on an admin."""
+    async def _set():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one()
+            db_admin.used_traffic = used_traffic
+            if data_limit is not None:
+                db_admin.data_limit = data_limit
+            await session.commit()
+    asyncio.run(_set())
+
+
+def _set_admin_status(username: str, status_value: str) -> None:
+    """Directly set admin status in DB."""
+    async def _set():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one()
+            db_admin.status = status_value
+            await session.commit()
+    asyncio.run(_set())
+
+
+def _login(username: str, password: str) -> str:
+    response = client.post(
+        "/api/admin/token",
+        data={"username": username, "password": password, "grant_type": "password"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    return response.json()["access_token"]
+
+
+def test_admin_data_limit_set_and_returned(access_token):
+    """Setting data_limit on an admin is persisted and returned in the response."""
+    admin = create_admin(access_token)
+    try:
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 1073741824},  # 1 GiB
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["data_limit"] == 1073741824
+        assert data["status"] == "active"
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_data_limit_zero_means_unlimited(access_token):
+    """Setting data_limit=0 clears the limit (treated as unlimited)."""
+    admin = create_admin(access_token)
+    try:
+        # Set a limit first
+        client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 1073741824},
+            headers=auth_headers(access_token),
+        )
+        # Clear it with 0
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 0},
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["data_limit"] is None
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_status_defaults_to_active(access_token):
+    """Newly created admin has status=active."""
+    admin = create_admin(access_token)
+    try:
+        response = client.get("/api/admins", headers=auth_headers(access_token), params={"username": admin["username"]})
+        assert response.status_code == status.HTTP_200_OK
+        rows = response.json()["admins"]
+        target = next(r for r in rows if r["username"] == admin["username"])
+        assert target["status"] == "active"
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_status_becomes_limited_when_traffic_exceeds_limit(access_token):
+    """When used_traffic >= data_limit, status flips to limited via update_admin."""
+    admin = create_admin(access_token)
+    try:
+        # Set data_limit=100 bytes, then simulate traffic=100 bytes
+        client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 100},
+            headers=auth_headers(access_token),
+        )
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        # Trigger status recompute by calling update_admin with any field
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 100},  # same value, triggers recompute in CRUD
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "limited"
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_status_returns_to_active_after_limit_raised(access_token):
+    """Raising data_limit above used_traffic flips status back to active."""
+    admin = create_admin(access_token)
+    try:
+        # Set limit=100, traffic=100 → limited
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+
+        # Raise limit → active
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 1073741824},
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "active"
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_status_returns_to_active_after_reset_usage(access_token):
+    """Resetting usage on a limited admin flips status back to active."""
+    admin = create_admin(access_token)
+    try:
+        # Set limit=100, traffic=100 → limited
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+
+        # Reset usage → active
+        response = client.post(f"/api/admin/{admin['username']}/reset", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "active"
+        assert response.json()["used_traffic"] == 0
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_limited_admin_write_blocked_by_default(access_token):
+    """A limited admin cannot perform write operations (default: disabled_when_limited=False blocks writes)."""
+    admin = create_admin(access_token)
+    try:
+        # Set limit and exceed it
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        _set_admin_status(admin["username"], "limited")
+
+        token = _login(admin["username"], admin["password"])
+
+        # Write operation should be blocked
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(token),
+            json={
+                "username": unique_name("limited_user"),
+                "proxy_settings": {},
+                "data_limit": 0,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+            },
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_limited_admin_read_allowed_when_disabled_when_limited_false(access_token):
+    """A limited admin can still read when disabled_when_limited=False (default)."""
+    admin = create_admin(access_token)
+    try:
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        _set_admin_status(admin["username"], "limited")
+
+        token = _login(admin["username"], admin["password"])
+
+        # Read operation should be allowed
+        response = client.get("/api/users", headers=auth_headers(token))
+        assert response.status_code == status.HTTP_200_OK
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_limited_admin_all_blocked_when_disabled_when_limited_true(access_token):
+    """A limited admin is fully blocked when disabled_when_limited=True on their role."""
+    # Create a custom role with disabled_when_limited=True
+    role_response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("limited_role"),
+            "permissions": {"users": {"read": True, "create": True}},
+            "limits": {},
+            "features": {"can_use_reset_strategy": True, "can_use_next_plan": True},
+            "access": {},
+        },
+    )
+    assert role_response.status_code == status.HTTP_201_CREATED
+    role = role_response.json()
+
+    # Set disabled_when_limited=True directly in DB
+    async def _set_role_flag():
+        async with TestSession() as session:
+            from app.db.models import AdminRole
+            result = await session.execute(select(AdminRole).where(AdminRole.id == role["id"]))
+            db_role = result.scalar_one()
+            db_role.disabled_when_limited = True
+            await session.commit()
+    asyncio.run(_set_role_flag())
+
+    admin = create_admin(access_token, role_id=role["id"])
+    try:
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        _set_admin_status(admin["username"], "limited")
+
+        token = _login(admin["username"], admin["password"])
+
+        # Even read should be blocked
+        response = client.get("/api/users", headers=auth_headers(token))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, admin["username"])
+        client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))
+
+
+def test_admins_list_includes_limited_count(access_token):
+    """GET /api/admins response includes a 'limited' count field."""
+    admin = create_admin(access_token)
+    try:
+        _set_admin_status(admin["username"], "limited")
+        response = client.get("/api/admins", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "limited" in data
+        assert data["limited"] >= 1
+    finally:
+        delete_admin(access_token, admin["username"])

@@ -18,7 +18,7 @@ branch_labels = None
 depends_on = None
 
 OWNER_PERMISSIONS = {
-    "users": {"create": True, "read": {"scope": 2}, "read_simple": True, "update": {"scope": 2}, "delete": {"scope": 2}, "reset_usage": {"scope": 2}, "revoke_sub": {"scope": 2}, "set_owner": True, "activate_next_plan": {"scope": 2}},
+    "users": {"create": True, "read": {"scope": 2}, "read_simple": {"scope": 2}, "update": {"scope": 2}, "delete": {"scope": 2}, "reset_usage": {"scope": 2}, "revoke_sub": {"scope": 2}, "set_owner": True, "activate_next_plan": {"scope": 2}},
     "admins": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True, "reset_usage": True},
     "nodes": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True, "reconnect": True, "update_core": True, "logs": True, "stats": True},
     "groups": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True},
@@ -32,7 +32,7 @@ OWNER_PERMISSIONS = {
     "admin_roles": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True},
 }
 ADMINISTRATOR_PERMISSIONS = {
-    "users": {"create": True, "read": {"scope": 2}, "read_simple": True, "update": {"scope": 2}, "delete": {"scope": 2}, "reset_usage": {"scope": 2}, "revoke_sub": {"scope": 2}, "set_owner": True, "activate_next_plan": {"scope": 2}},
+    "users": {"create": True, "read": {"scope": 2}, "read_simple": {"scope": 2}, "update": {"scope": 2}, "delete": {"scope": 2}, "reset_usage": {"scope": 2}, "revoke_sub": {"scope": 2}, "set_owner": True, "activate_next_plan": {"scope": 2}},
     "admins": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True, "reset_usage": True},
     "nodes": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True, "reconnect": True, "update_core": True, "logs": True, "stats": True},
     "groups": {"create": True, "read": True, "read_simple": True, "update": True, "delete": True},
@@ -46,7 +46,7 @@ ADMINISTRATOR_PERMISSIONS = {
     "admin_roles": {"read": True, "read_simple": True},
 }
 OPERATOR_PERMISSIONS = {
-    "users": {"create": True, "read": {"scope": 1}, "read_simple": True, "update": {"scope": 1}, "delete": {"scope": 1}, "reset_usage": {"scope": 1}, "revoke_sub": {"scope": 1}, "activate_next_plan": {"scope": 1}},
+    "users": {"create": True, "read": {"scope": 1}, "read_simple": {"scope": 1}, "update": {"scope": 1}, "delete": {"scope": 1}, "reset_usage": {"scope": 1}, "revoke_sub": {"scope": 1}, "activate_next_plan": {"scope": 1}},
     "groups": {"read": True, "read_simple": True},
     "templates": {"read": True, "read_simple": True},
     "system": {"read": True},
