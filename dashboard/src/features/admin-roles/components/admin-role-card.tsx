@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { AdminRoleResponse } from '@/service/api'
 
-import { BUILT_IN_ROLE_IDS, isProtectedRole } from '@/features/admin-roles/forms/admin-role-form'
+import { BUILT_IN_ROLE_IDS } from '@/features/admin-roles/forms/admin-role-form'
 import AdminRoleActionsMenu from './admin-role-actions-menu'
 
 interface AdminRoleCardProps {
@@ -29,7 +29,6 @@ const countResourcePermissions = (role: AdminRoleResponse) => {
 
 export default function AdminRoleCard({ role, onEdit, selectionControl, selected = false }: AdminRoleCardProps) {
   const { t } = useTranslation()
-  const protectedRole = isProtectedRole(role)
   const builtIn = BUILT_IN_ROLE_IDS.has(role.id) && !role.is_owner
   const RoleIcon = role.is_owner ? Crown : builtIn ? ShieldCheck : Shield
   const permissionCount = countResourcePermissions(role)

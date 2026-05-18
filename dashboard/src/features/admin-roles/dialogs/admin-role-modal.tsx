@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { UseFormReturn, useWatch } from 'react-hook-form'
+import { FieldErrors, UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronsUpDown, Eye, FolderTree, KeyRound, Pencil, Search, Shield, Sliders, Sparkles, X } from 'lucide-react'
+import { Check, ChevronsUpDown, Eye, FolderTree, KeyRound, Minus, Pencil, Search, Shield, Sliders, Sparkles, X } from 'lucide-react'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -33,19 +32,22 @@ import {
 } from '@/service/api'
 
 import {
-  AdminRoleFormValuesInput,
   AdminRoleFormValues,
+  AdminRoleFormValuesInput,
   FEATURE_KEYS,
   PERMISSION_GROUPS,
   PermissionAction,
   RoleScope,
+  adminRoleFormDefaultValues,
   adminRoleFormToPayload,
 } from '@/features/admin-roles/forms/admin-role-form'
+
+type RolePermissionFormMap = Record<string, Record<string, boolean | { scope: RoleScope }>>
 
 interface AdminRoleModalProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
-  form: UseFormReturn<AdminRoleFormValuesInput>
+  form: UseFormReturn<AdminRoleFormValuesInput, unknown, AdminRoleFormValues>
   editingRole: boolean
   editingRoleId?: number | null
   readOnly?: boolean
@@ -100,10 +102,24 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
         queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() }),
       ])
       onOpenChange(false)
-      form.reset()
+      form.reset(adminRoleFormDefaultValues)
     } catch (error: any) {
       handleError({ error, fields: ['name'], form, contextKey: 'adminRoles' })
     }
+  }
+
+  const onInvalidSubmit = (errors: FieldErrors<AdminRoleFormValuesInput>) => {
+    const firstPath = firstErrorPath(errors)
+    if (firstPath?.startsWith('limits.')) setOpenSection(SECTION_LIMITS)
+    else if (firstPath?.startsWith('features.')) setOpenSection(SECTION_FEATURES)
+    else if (firstPath?.startsWith('access.')) setOpenSection(SECTION_ACCESS)
+    else if (firstPath?.startsWith('permissions.')) setOpenSection(SECTION_PERMISSIONS)
+
+    toast.error(
+      firstPath
+        ? t('validation.invalidField', { field: firstPath, defaultValue: `Invalid value for ${firstPath}` })
+        : t('validation.formInvalid', { defaultValue: 'Form is invalid. Please check all fields.' }),
+    )
   }
 
   const handleAccordionChange = (value: string) => {
@@ -128,7 +144,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-4">
             {readOnly && (
               <div className="rounded-md border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 {t('adminRoles.readOnlyHint', { defaultValue: 'This is a built-in role. You can review its configuration but cannot modify it.' })}
@@ -143,7 +159,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                   <FormItem>
                     <FormLabel>{t('name', { defaultValue: 'Name' })}</FormLabel>
                     <FormControl>
-                      <Input placeholder="operator-custom" autoComplete="off" isError={!!form.formState.errors.name} {...field} />
+                      <Input placeholder="operator-custom" autoComplete="off" isError={!!form.formState.errors.name} {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -226,7 +242,22 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
   )
 }
 
-function PermissionsBadge({ form }: { form: UseFormReturn<AdminRoleFormValuesInput> }) {
+type AdminRoleForm = UseFormReturn<AdminRoleFormValuesInput, unknown, AdminRoleFormValues>
+
+function firstErrorPath(errors: FieldErrors<AdminRoleFormValuesInput>, prefix = ''): string | null {
+  for (const [key, value] of Object.entries(errors)) {
+    if (!value) continue
+    const path = prefix ? `${prefix}.${key}` : key
+    if ('message' in value || 'type' in value) return path
+    if (typeof value === 'object') {
+      const nestedPath = firstErrorPath(value as FieldErrors<AdminRoleFormValuesInput>, path)
+      if (nestedPath) return nestedPath
+    }
+  }
+  return null
+}
+
+function PermissionsBadge({ form }: { form: AdminRoleForm }) {
   const { t } = useTranslation()
   const permissions = useWatch({ control: form.control, name: 'permissions' })
   const total = useMemo(() => {
@@ -249,18 +280,18 @@ function PermissionsBadge({ form }: { form: UseFormReturn<AdminRoleFormValuesInp
   )
 }
 
-function PermissionsSection({ form }: { form: UseFormReturn<AdminRoleFormValuesInput> }) {
+function PermissionsSection({ form }: { form: AdminRoleForm }) {
   const { t } = useTranslation()
-  const permissions = useWatch({ control: form.control, name: 'permissions' })
+  const permissions = useWatch({ control: form.control, name: 'permissions' }) as RolePermissionFormMap | undefined
 
   const setPermission = (resource: string, action: string, value: boolean | { scope: RoleScope }) => {
-    const next = { ...(permissions || {}) }
+    const next: RolePermissionFormMap = { ...(permissions || {}) }
     next[resource] = { ...(next[resource] || {}), [action]: value }
     form.setValue('permissions', next, { shouldDirty: true })
   }
 
   const setGroupAll = (group: { actions: PermissionAction[] }, mode: 'all' | 'none') => {
-    const next = { ...(permissions || {}) }
+    const next: RolePermissionFormMap = { ...(permissions || {}) }
     for (const item of group.actions) {
       const inner = { ...(next[item.resource] || {}) }
       if (item.scoped) inner[item.action] = { scope: mode === 'all' ? 2 : 0 }
@@ -363,7 +394,7 @@ function humanizeKey(key: string) {
     .replace(/\b\w/g, char => char.toUpperCase())
 }
 
-function LimitsSection({ form }: { form: UseFormReturn<AdminRoleFormValuesInput> }) {
+function LimitsSection({ form }: { form: AdminRoleForm }) {
   const { t } = useTranslation()
 
   return (
@@ -408,7 +439,7 @@ function LimitsSection({ form }: { form: UseFormReturn<AdminRoleFormValuesInput>
   )
 }
 
-function NumberLimitField({ form, name, labelKey }: { form: UseFormReturn<AdminRoleFormValuesInput>; name: any; labelKey: string }) {
+function NumberLimitField({ form, name, labelKey }: { form: AdminRoleForm; name: any; labelKey: string }) {
   const { t } = useTranslation()
   return (
     <FormField
@@ -433,7 +464,7 @@ function NumberLimitField({ form, name, labelKey }: { form: UseFormReturn<AdminR
   )
 }
 
-function BytesLimitField({ form, name, labelKey }: { form: UseFormReturn<AdminRoleFormValuesInput>; name: any; labelKey: string }) {
+function BytesLimitField({ form, name, labelKey }: { form: AdminRoleForm; name: any; labelKey: string }) {
   const { t } = useTranslation()
   return (
     <FormField
@@ -477,7 +508,7 @@ function BytesLimitField({ form, name, labelKey }: { form: UseFormReturn<AdminRo
   )
 }
 
-function FeaturesSection({ form }: { form: UseFormReturn<AdminRoleFormValuesInput> }) {
+function FeaturesSection({ form }: { form: AdminRoleForm }) {
   const { t } = useTranslation()
   return (
     <div className="space-y-3">
@@ -514,7 +545,7 @@ function AccessSection({
   templatesOptions,
   isLoading,
 }: {
-  form: UseFormReturn<AdminRoleFormValuesInput>
+  form: AdminRoleForm
   groupsOptions: Array<{ id: number; name: string }>
   templatesOptions: Array<{ id: number; name: string }>
   isLoading: boolean
@@ -676,7 +707,7 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
             </div>
             {options.length > 0 && (
               <Button type="button" variant="ghost" size="sm" onClick={handleToggleAll} className="w-full justify-start text-xs">
-                <Checkbox checked={allFilteredSelected ? true : anyFilteredSelected ? 'indeterminate' : false} className="me-2 h-3.5 w-3.5" />
+                <SelectionCheckbox checked={allFilteredSelected ? true : anyFilteredSelected ? 'indeterminate' : false} className="me-2 h-3.5 w-3.5" />
                 {allFilteredSelected ? t('deselectAll', { defaultValue: 'Deselect all' }) : t('selectAll', { defaultValue: 'Select all' })}
               </Button>
             )}
@@ -695,7 +726,7 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
                       onClick={() => toggle(option.id)}
                       className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent', isSelected && 'bg-accent/60')}
                     >
-                      <Checkbox checked={isSelected} className="h-3.5 w-3.5" />
+                      <SelectionCheckbox checked={isSelected} className="h-3.5 w-3.5" />
                       <span className="min-w-0 truncate">{option.name}</span>
                     </button>
                   )
@@ -707,5 +738,20 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
       </Popover>
       <FormMessage />
     </FormItem>
+  )
+}
+
+function SelectionCheckbox({ checked, className }: { checked: boolean | 'indeterminate'; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'pointer-events-none inline-flex shrink-0 items-center justify-center rounded-sm border border-primary text-primary-foreground',
+        checked && 'bg-primary',
+        className,
+      )}
+    >
+      {checked === 'indeterminate' ? <Minus className="h-3 w-3 stroke-current" /> : checked ? <Check className="h-3 w-3 stroke-current" /> : null}
+    </span>
   )
 }

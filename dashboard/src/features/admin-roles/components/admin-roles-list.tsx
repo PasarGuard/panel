@@ -30,6 +30,7 @@ import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-a
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 
 import {
+  AdminRoleFormValues,
   AdminRoleFormValuesInput,
   adminRoleFormDefaultValues,
   adminRoleFormFromResponse,
@@ -58,7 +59,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
 
   const { data: rolesData, isLoading, isFetching, refetch } = useGetRoles({ limit: 100, offset: 0 })
 
-  const form = useForm<AdminRoleFormValuesInput>({
+  const form = useForm<AdminRoleFormValuesInput, unknown, AdminRoleFormValues>({
     resolver: zodResolver(adminRoleFormSchema),
     defaultValues: adminRoleFormDefaultValues,
   })

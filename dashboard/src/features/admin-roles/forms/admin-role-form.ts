@@ -2,6 +2,8 @@ import { z } from 'zod'
 import type { AdminRoleResponse, RoleAccess, RoleFeatures, RoleLimits, RolePermissions } from '@/service/api'
 
 export type RoleScope = 0 | 1 | 2
+type RolePermissionFormValue = boolean | { scope: RoleScope }
+type RolePermissionFormMap = Record<string, Record<string, RolePermissionFormValue>>
 
 export type PermissionAction = {
   resource: string
@@ -63,7 +65,6 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'hosts', action: 'read' },
       { resource: 'hosts', action: 'create' },
       { resource: 'hosts', action: 'update' },
-      { resource: 'hosts', action: 'delete' },
     ],
   },
   {
@@ -90,9 +91,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'settings', action: 'read_general' },
       { resource: 'settings', action: 'update' },
       { resource: 'system', action: 'read' },
-      { resource: 'system', action: 'update' },
       { resource: 'hwids', action: 'read' },
-      { resource: 'hwids', action: 'update' },
+      { resource: 'hwids', action: 'delete' },
     ],
   },
 ]
@@ -109,12 +109,56 @@ export const LIMIT_KEYS: Array<keyof RoleLimits> = [
 
 export const FEATURE_KEYS: Array<keyof RoleFeatures> = ['can_use_reset_strategy', 'can_use_next_plan']
 
+const VALID_PERMISSION_ACTIONS: Record<string, Set<string>> = {
+  users: new Set(['create', 'read', 'read_simple', 'update', 'delete', 'reset_usage', 'revoke_sub', 'set_owner', 'activate_next_plan']),
+  admins: new Set(['create', 'read', 'read_simple', 'update', 'delete', 'reset_usage']),
+  nodes: new Set(['create', 'read', 'read_simple', 'update', 'delete', 'reconnect', 'update_core', 'logs', 'stats']),
+  groups: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
+  templates: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
+  client_templates: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
+  cores: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
+  admin_roles: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
+  hosts: new Set(['create', 'read', 'update']),
+  settings: new Set(['read', 'read_general', 'update']),
+  system: new Set(['read']),
+  hwids: new Set(['read', 'delete']),
+}
+
+const normalizePermissionValue = (value: unknown): RolePermissionFormValue | undefined => {
+  if (typeof value === 'boolean') return value
+  if (!value || typeof value !== 'object') return undefined
+
+  const rawScope = (value as { scope?: unknown }).scope
+  const scope = typeof rawScope === 'string' ? Number(rawScope) : rawScope
+  if (scope === 0 || scope === 1 || scope === 2) return { scope }
+
+  return undefined
+}
+
+const sanitizeRolePermissions = (permissions: Record<string, unknown> | null | undefined): RolePermissionFormMap => {
+  const next: RolePermissionFormMap = {}
+
+  for (const [resource, actions] of Object.entries(permissions || {})) {
+    const allowedActions = VALID_PERMISSION_ACTIONS[resource]
+    if (!allowedActions || !actions || typeof actions !== 'object') continue
+
+    for (const [action, value] of Object.entries(actions as Record<string, boolean | { scope: RoleScope }>)) {
+      if (!allowedActions.has(action)) continue
+      const normalizedValue = normalizePermissionValue(value)
+      if (normalizedValue === undefined) continue
+      next[resource] = { ...(next[resource] || {}), [action]: normalizedValue }
+    }
+  }
+
+  return next
+}
+
 const scopeSchema = z.object({ scope: z.union([z.literal(0), z.literal(1), z.literal(2)]) })
 const permissionValueSchema = z.union([z.boolean(), scopeSchema])
 const resourcePermissionsSchema = z.record(z.string(), permissionValueSchema)
-const permissionsSchema = z.record(z.string(), resourcePermissionsSchema)
+const permissionsSchema = z.preprocess(value => sanitizeRolePermissions(value as Record<string, unknown> | null | undefined), z.record(z.string(), resourcePermissionsSchema))
 
-const optionalNullableNumber = z.union([z.coerce.number(), z.null(), z.literal('').transform(() => null)]).optional()
+const optionalNullableNumber = z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional()
 
 const limitsSchema = z.object({
   max_users: optionalNullableNumber,
@@ -148,7 +192,7 @@ export const adminRoleFormSchema = z.object({
 export type AdminRoleFormValuesInput = z.input<typeof adminRoleFormSchema>
 export type AdminRoleFormValues = z.infer<typeof adminRoleFormSchema>
 
-export const defaultAdminRoleFeatures = (): RoleFeatures => ({
+export const defaultAdminRoleFeatures = (): AdminRoleFormValues['features'] => ({
   can_use_reset_strategy: true,
   can_use_next_plan: true,
 })
@@ -177,7 +221,7 @@ export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
 
 export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFormValuesInput => ({
   name: role.name,
-  permissions: (role.permissions || {}) as AdminRoleFormValues['permissions'],
+  permissions: sanitizeRolePermissions(role.permissions),
   limits: {
     max_users: role.limits?.max_users ?? null,
     data_limit_min: role.limits?.data_limit_min ?? null,
@@ -198,10 +242,10 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
   },
 })
 
-export const adminRoleFormToPayload = (values: AdminRoleFormValues) => ({
+export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => ({
   name: values.name.trim(),
-  permissions: values.permissions as RolePermissions,
-  limits: Object.fromEntries(Object.entries(values.limits).filter(([, v]) => v !== null && v !== undefined)) as RoleLimits,
+  permissions: sanitizeRolePermissions(values.permissions as Record<string, unknown> | null | undefined) as RolePermissions,
+  limits: Object.fromEntries(Object.entries(values.limits).filter(([, v]) => v !== null && v !== undefined && v !== '')) as RoleLimits,
   features: values.features as RoleFeatures,
   access: {
     require_template: values.access.require_template,
