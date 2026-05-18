@@ -27,19 +27,25 @@ class SystemOperation(BaseOperation):
         uptime_task = asyncio.create_task(asyncio.to_thread(get_uptime))
 
         # Determine which admin's stats to show:
-        # - If caller has admins.read and an admin_username is provided → show that admin's stats
-        # - If caller does not have admins.read → show only their own stats
-        can_read_admins = False
-        try:
-            enforce_permission(admin, "admins", "read")
-            can_read_admins = True
-        except PermissionDenied:
-            pass
-
-        admin_param = None
-        if can_read_admins and admin_username:
-            admin_param = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
-        elif not can_read_admins:
+        # - Owner with no admin_username: global system stats (all users)
+        # - Owner with admin_username: that admin's stats
+        # - Non-owner with admins.read + admin_username: that admin's stats
+        # - Non-owner (any other case): scoped to their own users only
+        admin_param: AdminDetails | None = None
+        if admin_username:
+            can_read_admins = False
+            if not admin.is_owner:
+                try:
+                    enforce_permission(admin, "admins", "read")
+                    can_read_admins = True
+                except PermissionDenied:
+                    can_read_admins = False
+            if admin.is_owner or can_read_admins:
+                admin_param = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
+            else:
+                admin_param = admin
+        elif not admin.is_owner:
+            # Non-owner without an explicit target only sees their own stats
             admin_param = admin
 
         system_task = None
