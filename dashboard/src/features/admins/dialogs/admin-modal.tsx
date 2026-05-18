@@ -2,6 +2,7 @@ import type { AdminFormValuesInput } from '@/features/admins/forms/admin-form'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { DecimalInput } from '@/components/common/decimal-input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -14,9 +15,11 @@ import { VariablesPopover } from '@/components/ui/variables-popover'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
 import { useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
+import type { RoleLimits } from '@/service/api'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
+import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Pencil, UserCog } from 'lucide-react'
+import { ChevronDown, Pencil, Sliders, UserCog } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +29,24 @@ const BUILTIN_ADMIN_ROLES = [
   { id: 2, name: 'administrator', is_owner: false },
   { id: 3, name: 'operator', is_owner: false },
 ]
+const normalizeOverrideValue = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+const normalizePermissionOverrides = (overrides: AdminFormValuesInput['permission_overrides']): RoleLimits => ({
+  max_users: normalizeOverrideValue(overrides?.max_users),
+  data_limit_min: normalizeOverrideValue(overrides?.data_limit_min),
+  data_limit_max: normalizeOverrideValue(overrides?.data_limit_max),
+  expire_days_min: normalizeOverrideValue(overrides?.expire_days_min),
+  expire_days_max: normalizeOverrideValue(overrides?.expire_days_max),
+  min_hwid_per_user: normalizeOverrideValue(overrides?.min_hwid_per_user),
+  max_hwid_per_user: normalizeOverrideValue(overrides?.max_hwid_per_user),
+})
 
 interface AdminModalProps {
   isDialogOpen: boolean
@@ -46,25 +67,34 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const roleOptions = useMemo(() => {
     const rolesById = new Map<number, { id: number; name: string; is_owner: boolean }>()
     BUILTIN_ADMIN_ROLES.forEach(role => rolesById.set(role.id, role))
-    ;(rolesQuery.data?.roles || []).forEach(role => {
-      if (!role.is_owner && role.id !== 1) {
-        rolesById.set(role.id, role)
-      }
-    })
+      ; (rolesQuery.data?.roles || []).forEach(role => {
+        if (!role.is_owner && role.id !== 1) {
+          rolesById.set(role.id, role)
+        }
+      })
 
     return Array.from(rolesById.values()).sort((a, b) => a.id - b.id)
   }, [rolesQuery.data?.roles])
   const selectedRoleExists = selectedRoleId == null || roleOptions.some(role => role.id === selectedRoleId)
 
   useEffect(() => {
-    if (!isDialogOpen) setNotificationExpanded(false)
+    if (!isDialogOpen) {
+      setNotificationExpanded(false)
+      setPermissionOverridesExpanded(false)
+    }
   }, [isDialogOpen])
 
   // State for collapsible notification section
   const [notificationExpanded, setNotificationExpanded] = useState(false)
+  const [permissionOverridesExpanded, setPermissionOverridesExpanded] = useState(false)
 
   // Watch notification enable fields
   const watchedNotificationEnable = form.watch('notification_enable')
+  const watchedPermissionOverrides = form.watch('permission_overrides')
+  const permissionOverridesCount = useMemo(
+    () => Object.values(watchedPermissionOverrides || {}).filter(value => value !== null && value !== undefined && value !== '').length,
+    [watchedPermissionOverrides],
+  )
 
   // Ensure form is cleared when modal is closed
   const handleClose = (open: boolean) => {
@@ -89,6 +119,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         discord_id: values.discord_id,
         notification_enable: values.notification_enable || null,
         role_id: values.role_id,
+        permission_overrides: normalizePermissionOverrides(values.permission_overrides),
       }
       if (editingAdmin && editingAdminId != null) {
         const updatedAdmin = await modifyAdminMutation.mutateAsync({
@@ -118,6 +149,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
           discord_id: values.discord_id,
           notification_enable: values.notification_enable || null,
           role_id: values.role_id,
+          permission_overrides: normalizePermissionOverrides(values.permission_overrides),
         }
         const createdAdmin = await addAdminMutation.mutateAsync({
           data: createData,
@@ -147,6 +179,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         'profile_title',
         'note',
         'discord_id',
+        'permission_overrides',
       ]
       handleError({ error, fields, form, contextKey: 'admins' })
     }
@@ -536,6 +569,33 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                   </div>
                 </Collapsible>
 
+                <Collapsible open={permissionOverridesExpanded} onOpenChange={setPermissionOverridesExpanded}>
+                  <div className="group rounded-md border transition-all duration-200 ease-in-out">
+                    <CollapsibleTrigger asChild>
+                      <button type="button" className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-muted/40">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Sliders className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate text-sm font-medium sm:text-base">
+                            {t('admins.permissionOverrides', { defaultValue: 'Permission overrides' })}
+                            <span className="mx-1.5 text-xs text-muted-foreground">
+                              {permissionOverridesCount}/7
+                            </span>
+                          </span>
+                        </div>
+                        <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200', permissionOverridesExpanded && 'rotate-180')} />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down overflow-hidden transition-all duration-200 ease-in-out">
+                      <div className="space-y-3 border-t p-3">
+                        <p className="text-xs text-muted-foreground">
+                          {t('admins.permissionOverridesHint', { defaultValue: 'Leave empty to inherit limits from the selected role. Set to 0 to disable.' })}
+                        </p>
+                        <PermissionOverridesFields form={form} />
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+
               </div>
             </div>
             <div className="flex justify-end gap-2">
@@ -550,5 +610,119 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         </Form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+type AdminForm = UseFormReturn<AdminFormValuesInput>
+
+function PermissionOverridesFields({ form }: { form: AdminForm }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="space-y-3">
+      <FormField
+        control={form.control}
+        name="permission_overrides.max_users"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="text-xs">{t('adminRoles.limitFields.max_users', { defaultValue: 'Max users' })}</FormLabel>
+            <FormControl>
+              <DecimalInput
+                placeholder={t('adminRoles.unlimited', { defaultValue: 'Unlimited' })}
+                value={typeof field.value === 'number' ? field.value : null}
+                emptyValue={null as any}
+                zeroValue={0}
+                onValueChange={value => field.onChange(value ?? null)}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <BytesLimitField form={form} name="permission_overrides.data_limit_min" labelKey="adminRoles.limitFields.data_limit_min" />
+        <BytesLimitField form={form} name="permission_overrides.data_limit_max" labelKey="adminRoles.limitFields.data_limit_max" />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberLimitField form={form} name="permission_overrides.expire_days_min" labelKey="adminRoles.limitFields.expire_days_min" />
+        <NumberLimitField form={form} name="permission_overrides.expire_days_max" labelKey="adminRoles.limitFields.expire_days_max" />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberLimitField form={form} name="permission_overrides.min_hwid_per_user" labelKey="adminRoles.limitFields.min_hwid_per_user" />
+        <NumberLimitField form={form} name="permission_overrides.max_hwid_per_user" labelKey="adminRoles.limitFields.max_hwid_per_user" />
+      </div>
+    </div>
+  )
+}
+
+function NumberLimitField({ form, name, labelKey }: { form: AdminForm; name: any; labelKey: string }) {
+  const { t } = useTranslation()
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-xs">{t(labelKey)}</FormLabel>
+          <FormControl>
+            <DecimalInput
+              placeholder={t('adminRoles.unlimited', { defaultValue: 'Unlimited' })}
+              value={typeof field.value === 'number' ? field.value : null}
+              emptyValue={null as any}
+              zeroValue={0}
+              onValueChange={value => field.onChange(value ?? null)}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
+
+function BytesLimitField({ form, name, labelKey }: { form: AdminForm; name: any; labelKey: string }) {
+  const { t } = useTranslation()
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => {
+        const numericValue = typeof field.value === 'number' ? field.value : null
+        return (
+          <FormItem className="relative">
+            <FormLabel className="text-xs">{t(labelKey)}</FormLabel>
+            <FormControl>
+              <div className="relative">
+                <DecimalInput
+                  placeholder={t('adminRoles.unlimited', { defaultValue: 'Unlimited' })}
+                  value={numericValue == null ? null : bytesToFormGigabytes(numericValue)}
+                  onValueChange={value => {
+                    if (value == null) {
+                      field.onChange(null)
+                      return
+                    }
+                    field.onChange(gbToBytes(value))
+                  }}
+                  emptyValue={undefined}
+                  className="pr-10"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+                  {t('userDialog.gb', { defaultValue: 'GB' })}
+                </span>
+              </div>
+            </FormControl>
+            {numericValue != null && numericValue > 0 && (
+              <p dir="ltr" className="mt-1 w-full text-end text-[11px] text-muted-foreground">
+                {formatBytes(numericValue)}
+              </p>
+            )}
+            <FormMessage />
+          </FormItem>
+        )
+      }}
+    />
   )
 }

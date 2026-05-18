@@ -687,6 +687,8 @@
     "create": "Create Admin",
     "status": "Status",
     "role": "Role",
+    "permissionOverrides": "Permission overrides",
+    "permissionOverridesHint": "Leave empty to inherit limits from the selected role. Set to 0 to disable.",
     "total.users": "Total Users",
     "used.traffic": "Used Traffic",
     "total": "Total Admins",

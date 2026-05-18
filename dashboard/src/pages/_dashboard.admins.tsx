@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import AdminsTable from '@/features/admins/components/admins-table'
 import AdminModal from '@/features/admins/dialogs/admin-modal'
-import { adminFormDefaultValues, adminFormSchema, type AdminFormValuesInput } from '@/features/admins/forms/admin-form'
+import { adminFormDefaultValues, adminFormSchema, adminPermissionOverridesDefaultValues, type AdminFormValuesInput } from '@/features/admins/forms/admin-form'
 import { useActivateAllDisabledUsersById, useDisableAllActiveUsersById, useModifyAdminById, useRemoveAdminById, useResetAdminUsageById } from '@/service/api'
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/features/admins/components/admin-statistics'
@@ -155,6 +155,10 @@ export default function AdminsPage() {
       note: admin.note || '',
       discord_id: admin.discord_id || undefined,
       password: undefined,
+      permission_overrides: {
+        ...adminPermissionOverridesDefaultValues,
+        ...(admin.permission_overrides || {}),
+      },
       notification_enable: admin.notification_enable || {
         create: false,
         modify: false,

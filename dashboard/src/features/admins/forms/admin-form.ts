@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { RoleLimits } from '@/service/api'
 
 const passwordValidation = z.string().refine(
   value => {
@@ -69,6 +70,17 @@ export const adminFormSchema = z
         subscription_revoked: z.boolean().optional(),
       })
       .optional(),
+    permission_overrides: z
+      .object({
+        max_users: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        data_limit_min: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        data_limit_max: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        expire_days_min: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        expire_days_max: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        min_hwid_per_user: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        max_hwid_per_user: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+      })
+      .optional(),
   })
   .superRefine((data, ctx) => {
     // Only validate password if it's provided (for editing) or if it's a new admin
@@ -107,6 +119,16 @@ export const adminFormSchema = z
 export type AdminFormValuesInput = z.input<typeof adminFormSchema>
 export type AdminFormValues = z.infer<typeof adminFormSchema>
 
+export const adminPermissionOverridesDefaultValues: RoleLimits = {
+  max_users: null,
+  data_limit_min: null,
+  data_limit_max: null,
+  expire_days_min: null,
+  expire_days_max: null,
+  min_hwid_per_user: null,
+  max_hwid_per_user: null,
+}
+
 export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
   username: '',
   role_id: 3,
@@ -130,4 +152,5 @@ export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
     data_reset_by_next: true,
     subscription_revoked: true,
   },
+  permission_overrides: adminPermissionOverridesDefaultValues,
 }

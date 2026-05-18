@@ -687,6 +687,8 @@
     "create": "创建管理员",
     "status": "状态",
     "role": "角色",
+    "permissionOverrides": "权限覆盖",
+    "permissionOverridesHint": "留空以继承所选角色的限制。设置为 0 表示禁用。",
     "total.users": "用户总数",
     "used.traffic": "已用流量",
     "total": "管理员总数",
