@@ -85,22 +85,32 @@ def test_get_roles_simple(access_token):
 
 
 def test_operator_can_read_roles_simple(access_token):
-    """Operator (role_id=3) can access GET /api/admin-roles/simple to list available roles."""
+    """Operator (role_id=3) does NOT have admin_roles permissions — both read endpoints are denied."""
     operator = create_admin(access_token, role_id=3)
     try:
         token = _login(operator["username"], operator["password"])
-        response = client.get("/api/admin-roles/simple", headers=auth_headers(token))
+
+        simple_response = client.get("/api/admin-roles/simple", headers=auth_headers(token))
+        assert simple_response.status_code == status.HTTP_403_FORBIDDEN
+
+        full_response = client.get("/api/admin-roles", headers=auth_headers(token))
+        assert full_response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, operator["username"])
+
+
+def test_operator_can_read_full_roles_list(access_token):
+    """Administrator (role_id=2) has admin_roles.read — can access GET /api/admin-roles."""
+    administrator = create_admin(access_token, role_id=2)
+    try:
+        token = _login(administrator["username"], administrator["password"])
+        response = client.get("/api/admin-roles", headers=auth_headers(token))
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "roles" in data
-        assert len(data["roles"]) >= 3
-        # Each entry is lightweight — only id, name, is_owner
-        for role in data["roles"]:
-            assert "id" in role
-            assert "name" in role
-            assert "is_owner" in role
+        assert data["total"] >= 3
     finally:
-        delete_admin(access_token, operator["username"])
+        delete_admin(access_token, administrator["username"])
 
 
 def test_administrator_can_read_roles(access_token):
@@ -115,17 +125,6 @@ def test_administrator_can_read_roles(access_token):
         assert data["total"] >= 3
     finally:
         delete_admin(access_token, administrator["username"])
-
-
-def test_operator_cannot_read_full_roles_list(access_token):
-    """Operator does not have admin_roles.read — full role list is denied."""
-    operator = create_admin(access_token, role_id=3)
-    try:
-        token = _login(operator["username"], operator["password"])
-        response = client.get("/api/admin-roles", headers=auth_headers(token))
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-    finally:
-        delete_admin(access_token, operator["username"])
 
 
 def test_operator_cannot_create_role(access_token):

@@ -15,6 +15,71 @@ class PermissionScope(IntEnum):
     ALL = 2  # all users regardless of owner
 
 
+# Action value: True = allowed (no scope), {"scope": N} = scoped, None/missing = denied
+RoleActionValue = bool | dict[str, PermissionScope | int]
+
+
+class _ResourcePermissions(BaseModel):
+    """Base for all per-resource permission models. Provides dict-like .get() for the enforcement layer."""
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    def get(self, action: str, default: Any = None) -> RoleActionValue | None:
+        """Return the permission value for an action, or default if not set."""
+        return getattr(self, action, default)
+
+
+class CRUDPermissions(_ResourcePermissions):
+    """Standard create/read/read_simple/update/delete permissions.
+    Used directly by: groups, templates, client_templates, cores, admin_roles.
+    Also serves as base for resources with additional actions."""
+
+    create: RoleActionValue | None = None
+    read: RoleActionValue | None = None
+    read_simple: RoleActionValue | None = None
+    update: RoleActionValue | None = None
+    delete: RoleActionValue | None = None
+
+
+class UsersPermissions(CRUDPermissions):
+    reset_usage: RoleActionValue | None = None
+    revoke_sub: RoleActionValue | None = None
+    set_owner: RoleActionValue | None = None
+    activate_next_plan: RoleActionValue | None = None
+
+
+class AdminsPermissions(CRUDPermissions):
+    reset_usage: RoleActionValue | None = None
+
+
+class NodesPermissions(CRUDPermissions):
+    reconnect: RoleActionValue | None = None
+    update_core: RoleActionValue | None = None
+    logs: RoleActionValue | None = None
+    stats: RoleActionValue | None = None
+
+
+class HostsPermissions(_ResourcePermissions):
+    create: RoleActionValue | None = None
+    read: RoleActionValue | None = None
+    update: RoleActionValue | None = None
+
+
+class SettingsPermissions(_ResourcePermissions):
+    read: RoleActionValue | None = None
+    read_general: RoleActionValue | None = None
+    update: RoleActionValue | None = None
+
+
+class SystemPermissions(_ResourcePermissions):
+    read: RoleActionValue | None = None
+
+
+class HwidsPermissions(_ResourcePermissions):
+    read: RoleActionValue | None = None
+    delete: RoleActionValue | None = None
+
+
 class RoleLimits(BaseModel):
     max_users: int | None = None
     data_limit_min: int | None = None
@@ -42,36 +107,30 @@ class RoleAccess(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# Each action value is either True (allowed, no scope) or {"scope": PermissionScope}
-RoleActionValue = bool | dict[str, PermissionScope | int]
-# Each resource maps action names to their permission value
-RoleResourcePermissions = dict[str, RoleActionValue]
-
-
 class RolePermissions(BaseModel):
     """
-    Sparse permission map. Missing resource or action = denied.
-    Each action value is True (allowed) or {"scope": "own"|"all"}.
+    Typed permission map. Missing resource or action = denied.
+    Each action value is True (allowed), {"scope": N} (scoped), or None (denied).
     """
 
-    users: RoleResourcePermissions | None = None
-    admins: RoleResourcePermissions | None = None
-    nodes: RoleResourcePermissions | None = None
-    groups: RoleResourcePermissions | None = None
-    hosts: RoleResourcePermissions | None = None
-    templates: RoleResourcePermissions | None = None
-    client_templates: RoleResourcePermissions | None = None
-    cores: RoleResourcePermissions | None = None
-    settings: RoleResourcePermissions | None = None
-    system: RoleResourcePermissions | None = None
-    hwids: RoleResourcePermissions | None = None
-    admin_roles: RoleResourcePermissions | None = None
+    users: UsersPermissions | None = None
+    admins: AdminsPermissions | None = None
+    nodes: NodesPermissions | None = None
+    groups: CRUDPermissions | None = None
+    hosts: HostsPermissions | None = None
+    templates: CRUDPermissions | None = None
+    client_templates: CRUDPermissions | None = None
+    cores: CRUDPermissions | None = None
+    settings: SettingsPermissions | None = None
+    system: SystemPermissions | None = None
+    hwids: HwidsPermissions | None = None
+    admin_roles: CRUDPermissions | None = None
 
-    model_config = ConfigDict(from_attributes=True, extra="allow")
+    model_config = ConfigDict(from_attributes=True)
 
-    def get(self, resource: str, default: Any = None) -> RoleResourcePermissions | None:
-        """Dict-like access so permissions.py can call permissions.get('users', {})."""
-        return getattr(self, resource, None) if hasattr(self, resource) else default
+    def get(self, resource: str, default: Any = None) -> _ResourcePermissions | None:
+        """Dict-like access so permissions.py can call permissions.get('users')."""
+        return getattr(self, resource, default)
 
 
 class AdminRoleBase(BaseModel):
