@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 
 from app.db.crud.admin import get_admin_by_telegram_id
-from app.db.models import Admin, AdminRole, AdminUsageLogs, NodeUserUsage
+from app.db.models import Admin, AdminUsageLogs, NodeUserUsage
 from app.models.settings import RunMethod, Telegram
 from app.routers.authentication import validate_mini_app_admin
 from app.utils.jwt import get_admin_payload
@@ -1116,6 +1116,7 @@ def test_create_admin_with_custom_role(access_token):
 
 def _set_admin_traffic(username: str, used_traffic: int, data_limit: int | None = None) -> None:
     """Directly set used_traffic and optionally data_limit on an admin."""
+
     async def _set():
         async with TestSession() as session:
             result = await session.execute(select(Admin).where(Admin.username == username))
@@ -1124,17 +1125,20 @@ def _set_admin_traffic(username: str, used_traffic: int, data_limit: int | None 
             if data_limit is not None:
                 db_admin.data_limit = data_limit
             await session.commit()
+
     asyncio.run(_set())
 
 
 def _set_admin_status(username: str, status_value: str) -> None:
     """Directly set admin status in DB."""
+
     async def _set():
         async with TestSession() as session:
             result = await session.execute(select(Admin).where(Admin.username == username))
             db_admin = result.scalar_one()
             db_admin.status = status_value
             await session.commit()
+
     asyncio.run(_set())
 
 
@@ -1327,10 +1331,12 @@ def test_limited_admin_all_blocked_when_disabled_when_limited_true(access_token)
     async def _set_role_flag():
         async with TestSession() as session:
             from app.db.models import AdminRole
+
             result = await session.execute(select(AdminRole).where(AdminRole.id == role["id"]))
             db_role = result.scalar_one()
             db_role.disabled_when_limited = True
             await session.commit()
+
     asyncio.run(_set_role_flag())
 
     admin = create_admin(access_token, role_id=role["id"])

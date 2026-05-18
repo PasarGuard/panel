@@ -99,7 +99,7 @@ class Admin(Base):
     notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
-    role: Mapped[Optional["AdminRole"]] = relationship(back_populates="admins", init=False, lazy="selectin")
+    role: Mapped[Optional[AdminRole]] = relationship(back_populates="admins", init=False, lazy="selectin")
     permission_overrides: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
 
     @hybrid_property
@@ -135,6 +135,11 @@ class Admin(Base):
     @property
     def lifetime_used_traffic(self) -> int:
         return self.reseted_usage + self.used_traffic
+
+    @property
+    def users_sync_blocked(self) -> bool:
+        """True when this admin's users should NOT be synced to nodes."""
+        return self.status == AdminStatus.limited and self.role.disable_users_when_limited
 
     @property
     def total_users(self) -> int:

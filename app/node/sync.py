@@ -34,6 +34,9 @@ else:
 
 
 async def sync_user(db_user: User) -> None:
+    if db_user.admin_id and db_user.admin.users_sync_blocked:
+        return
+
     proto_user = await serialize_user(db_user)
     asyncio.create_task(_dispatch_user_update(proto_user))
 
