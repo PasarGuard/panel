@@ -1027,3 +1027,56 @@ def test_get_admins_simple_invalid_sort(access_token):
 
     # Assert
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_create_admin_with_custom_role(access_token):
+    """Create a custom role (id > 3), assign it to a new admin, verify the admin has that role."""
+    # Step 1: create a custom role via the owner token
+    role_name = unique_name("custom_role")
+    role_response = client.post(
+        "/api/admin-role",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "name": role_name,
+            "permissions": {},
+            "limits": {
+                "max_users": None,
+                "data_limit_min": None,
+                "data_limit_max": None,
+                "expire_days_min": None,
+                "expire_days_max": None,
+                "max_hwid_per_user": None,
+            },
+            "features": {"can_use_reset_strategy": True, "can_use_next_plan": True},
+            "access": {"require_template": False, "allowed_template_ids": None, "allowed_group_ids": None},
+        },
+    )
+    assert role_response.status_code == status.HTTP_201_CREATED
+    role = role_response.json()
+    assert role["id"] > 3  # must not be one of the 3 built-in roles
+
+    # Step 2: create an admin assigned to the custom role
+    username = admin_username("custom_role_admin")
+    password = strong_password("CustomRoleAdmin")
+    try:
+        admin_response = client.post(
+            "/api/admin",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"username": username, "password": password, "role_id": role["id"]},
+        )
+        assert admin_response.status_code == status.HTTP_201_CREATED
+        admin_data = admin_response.json()
+        assert admin_data["username"] == username
+        assert admin_data["role"]["id"] == role["id"]
+        assert admin_data["role"]["name"] == role_name
+        assert admin_data["role"]["is_owner"] is False
+
+        # Step 3: verify the admin can log in
+        login_response = client.post(
+            "/api/admin/token",
+            data={"username": username, "password": password, "grant_type": "password"},
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+    finally:
+        delete_admin(access_token, username)
+        client.delete(f"/api/admin-role/{role['id']}", headers={"Authorization": f"Bearer {access_token}"})
