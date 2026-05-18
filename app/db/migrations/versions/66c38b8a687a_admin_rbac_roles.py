@@ -52,6 +52,7 @@ OPERATOR_PERMISSIONS = {
     "system": {"read": True},
     "settings": {"read_general": True},
     "hwids": {"read": True, "delete": True},
+    "admin_roles": {"read": True, "read_simple": True},
 }
 DEFAULT_LIMITS = {"max_users": None, "data_limit_min": None, "data_limit_max": None, "expire_days_min": None, "expire_days_max": None, "min_hwid_per_user": None, "max_hwid_per_user": None}
 DEFAULT_FEATURES = {"can_use_reset_strategy": True, "can_use_next_plan": True}

@@ -16,7 +16,7 @@ from app.operation import OperatorType
 from app.operation.admin_role import AdminRoleOperation
 from app.utils import responses
 
-from .authentication import require_owner
+from .authentication import require_owner, require_permission
 from .dependencies import get_admin_role_list_query
 
 router = APIRouter(
@@ -31,18 +31,18 @@ role_operator = AdminRoleOperation(operator_type=OperatorType.API)
 async def get_roles(
     query: Annotated[AdminRoleListQuery, Depends(get_admin_role_list_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_owner),
+    _: AdminDetails = Depends(require_permission("admin_roles", "read")),
 ):
-    """List all roles. Owner only."""
+    """List all roles."""
     return await role_operator.get_roles(db, query)
 
 
 @router.get("s/simple", response_model=AdminRolesSimpleResponse)
 async def get_roles_simple(
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_owner),
+    _: AdminDetails = Depends(require_permission("admin_roles", "read_simple")),
 ):
-    """List all roles as lightweight id/name/is_owner tuples. Owner only."""
+    """List all roles as lightweight id/name/is_owner tuples."""
     return await role_operator.get_roles_simple(db)
 
 
@@ -50,9 +50,9 @@ async def get_roles_simple(
 async def get_role(
     role_id: int,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_owner),
+    _: AdminDetails = Depends(require_permission("admin_roles", "read")),
 ):
-    """Get a role by ID. Owner only."""
+    """Get a role by ID."""
     return await role_operator.get_role(db, role_id)
 
 

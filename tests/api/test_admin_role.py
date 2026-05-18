@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.db.models import Admin
 from app.models.admin import hash_password as _hash_password
 from tests.api import client, TestSession
-from tests.api.helpers import auth_headers, unique_name
+from tests.api.helpers import auth_headers, create_admin, delete_admin, strong_password, unique_name
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +47,16 @@ def _delete_role(access_token: str, role_id: int) -> None:
     client.delete(f"/api/admin-role/{role_id}", headers=auth_headers(access_token))
 
 
+def _login(username: str, password: str) -> str:
+    """Log in and return the access token."""
+    response = client.post(
+        "/api/admin/token",
+        data={"username": username, "password": password, "grant_type": "password"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    return response.json()["access_token"]
+
+
 # ---------------------------------------------------------------------------
 # GET /api/admin-roles
 # ---------------------------------------------------------------------------
@@ -72,6 +82,78 @@ def test_get_roles_simple(access_token):
         assert "id" in role
         assert "name" in role
         assert "is_owner" in role
+
+
+def test_operator_can_read_roles_simple(access_token):
+    """Operator (role_id=3) can access GET /api/admin-roles/simple to list available roles."""
+    operator = create_admin(access_token, role_id=3)
+    try:
+        token = _login(operator["username"], operator["password"])
+        response = client.get("/api/admin-roles/simple", headers=auth_headers(token))
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "roles" in data
+        assert len(data["roles"]) >= 3
+        # Each entry is lightweight — only id, name, is_owner
+        for role in data["roles"]:
+            assert "id" in role
+            assert "name" in role
+            assert "is_owner" in role
+    finally:
+        delete_admin(access_token, operator["username"])
+
+
+def test_administrator_can_read_roles(access_token):
+    """Administrator (role_id=2) can access GET /api/admin-roles to list all roles with full detail."""
+    administrator = create_admin(access_token, role_id=2)
+    try:
+        token = _login(administrator["username"], administrator["password"])
+        response = client.get("/api/admin-roles", headers=auth_headers(token))
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "roles" in data
+        assert data["total"] >= 3
+    finally:
+        delete_admin(access_token, administrator["username"])
+
+
+def test_operator_cannot_read_full_roles_list(access_token):
+    """Operator does not have admin_roles.read — full role list is denied."""
+    operator = create_admin(access_token, role_id=3)
+    try:
+        token = _login(operator["username"], operator["password"])
+        response = client.get("/api/admin-roles", headers=auth_headers(token))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, operator["username"])
+
+
+def test_operator_cannot_create_role(access_token):
+    """Operator cannot create roles — write endpoints are owner-only."""
+    operator = create_admin(access_token, role_id=3)
+    try:
+        token = _login(operator["username"], operator["password"])
+        response = client.post(
+            "/api/admin-role",
+            headers=auth_headers(token),
+            json=_role_payload(),
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, operator["username"])
+
+
+def test_operator_cannot_delete_role(access_token):
+    """Operator cannot delete roles — write endpoints are owner-only."""
+    role = _create_role(access_token)
+    operator = create_admin(access_token, role_id=3)
+    try:
+        token = _login(operator["username"], operator["password"])
+        response = client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(token))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, operator["username"])
+        _delete_role(access_token, role["id"])
 
 
 # ---------------------------------------------------------------------------
