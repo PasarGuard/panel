@@ -7,19 +7,20 @@ import { formatBytes } from '@/utils/formatByte.ts'
 import { AdminStatusBadge } from './admin-status-badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
+import { isOwner, roleLabel } from '@/utils/rbac'
 
 interface ColumnSetupProps {
   t: (key: string) => string
   handleSort: (column: string) => void
   filters: { sort?: string }
   currentAdminUsername?: string
-  onEdit: (admin: AdminDetails) => void
-  onDelete: (admin: AdminDetails) => void
-  toggleStatus: (admin: AdminDetails) => void
-  onResetUsage: (admin: AdminDetails) => void
-  onDisableAllActiveUsers: (admin: AdminDetails) => void
-  onActivateAllDisabledUsers: (admin: AdminDetails) => void
-  onRemoveAllUsers: (admin: AdminDetails) => void
+  onEdit?: (admin: AdminDetails) => void
+  onDelete?: (admin: AdminDetails) => void
+  toggleStatus?: (admin: AdminDetails) => void
+  onResetUsage?: (admin: AdminDetails) => void
+  onDisableAllActiveUsers?: (admin: AdminDetails) => void
+  onActivateAllDisabledUsers?: (admin: AdminDetails) => void
+  onRemoveAllUsers?: (admin: AdminDetails) => void
 }
 
 const createSortButton = (
@@ -47,7 +48,7 @@ const createSortButton = (
   )
 }
 
-const getAdminRoleIcon = (isSudo: boolean) => (isSudo ? UserRoundKey : UserRound)
+const getAdminRoleIcon = (owner: boolean) => (owner ? UserRoundKey : UserRound)
 
 export const setupColumns = ({
   t,
@@ -143,27 +144,26 @@ export const setupColumns = ({
       ),
       cell: ({ row }) => {
         const total = row.getValue('lifetime_used_traffic') as number | null
-        const RoleIcon = getAdminRoleIcon(!!row.original.is_sudo)
+        const RoleIcon = getAdminRoleIcon(isOwner(row.original))
 
         return (
           <div className="flex items-center justify-start gap-0 whitespace-nowrap md:justify-start md:gap-2">
             <span dir="ltr" className="hidden text-xs md:inline">
               {formatBytes(total || 0)}
             </span>
-            <RoleIcon className={row.original.is_disabled ? 'h-4 w-4 text-muted-foreground/60 md:hidden' : cn('h-4 w-4 md:hidden', row.original.is_sudo ? 'text-violet-500' : 'text-primary')} />
+            <RoleIcon className={row.original.is_disabled ? 'h-4 w-4 text-muted-foreground/60 md:hidden' : cn('h-4 w-4 md:hidden', isOwner(row.original) ? 'text-violet-500' : 'text-primary')} />
           </div>
         )
       },
     },
     {
-      accessorKey: 'is_sudo',
+      id: 'role',
       header: () => <div className="flex items-center text-xs capitalize">{t('admins.role')}</div>,
       cell: ({ row }) => {
-        const isSudo = row.getValue('is_sudo')
         const isDisabled = row.original.is_disabled
         return (
           <div className="flex items-center gap-2">
-            <AdminStatusBadge isSudo={!!isSudo} isDisabled={!!isDisabled} />
+            <AdminStatusBadge isSudo={isOwner(row.original)} isDisabled={!!isDisabled} label={roleLabel(row.original)} />
           </div>
         )
       },
@@ -181,7 +181,17 @@ export const setupColumns = ({
     {
       id: 'actions',
       cell: ({ row }) => {
-        const isSudoTarget = row.original.is_sudo
+        const isOwnerTarget = isOwner(row.original)
+        const hasActions =
+          !!onEdit ||
+          !!onResetUsage ||
+          (!isOwnerTarget && !!toggleStatus) ||
+          (!isOwnerTarget && !!onDisableAllActiveUsers) ||
+          (!isOwnerTarget && !!onActivateAllDisabledUsers) ||
+          (!isOwnerTarget && !!onRemoveAllUsers) ||
+          (!isOwnerTarget && row.original.username !== currentAdminUsername && !!onDelete)
+
+        if (!hasActions) return null
 
         return (
           <div className="flex items-center justify-center gap-2">
@@ -192,7 +202,7 @@ export const setupColumns = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
+                {onEdit && <DropdownMenuItem
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
@@ -201,8 +211,8 @@ export const setupColumns = ({
                 >
                   <Pen className="mr-2 h-4 w-4" />
                   {t('edit')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                </DropdownMenuItem>}
+                {onResetUsage && <DropdownMenuItem
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
@@ -211,8 +221,8 @@ export const setupColumns = ({
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {t('admins.reset')}
-                </DropdownMenuItem>
-                {!isSudoTarget && (
+                </DropdownMenuItem>}
+                {!isOwnerTarget && toggleStatus && (
                   <DropdownMenuItem
                     onSelect={e => {
                       e.preventDefault()
@@ -224,7 +234,7 @@ export const setupColumns = ({
                     {row.original.is_disabled ? t('enable') : t('disable')}
                   </DropdownMenuItem>
                 )}
-                {!isSudoTarget && (
+                {!isOwnerTarget && onDisableAllActiveUsers && (
                   <DropdownMenuItem
                     onSelect={e => {
                       e.preventDefault()
@@ -236,7 +246,7 @@ export const setupColumns = ({
                     {t('admins.disableAllActiveUsers')}
                   </DropdownMenuItem>
                 )}
-                {!isSudoTarget && (
+                {!isOwnerTarget && onActivateAllDisabledUsers && (
                   <DropdownMenuItem
                     onSelect={e => {
                       e.preventDefault()
@@ -248,7 +258,7 @@ export const setupColumns = ({
                     {t('admins.activateAllDisabledUsers')}
                   </DropdownMenuItem>
                 )}
-                {!isSudoTarget && (
+                {!isOwnerTarget && onRemoveAllUsers && (
                   <DropdownMenuItem
                     className="text-destructive"
                     onSelect={e => {
@@ -261,7 +271,7 @@ export const setupColumns = ({
                     {t('admins.removeAllUsers')}
                   </DropdownMenuItem>
                 )}
-                {!isSudoTarget && row.original.username !== currentAdminUsername && (
+                {!isOwnerTarget && row.original.username !== currentAdminUsername && onDelete && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem

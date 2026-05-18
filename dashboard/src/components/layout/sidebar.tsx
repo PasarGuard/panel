@@ -18,6 +18,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useSystemVersion } from '@/hooks/use-system-version'
 import { useVersionCheck } from '@/hooks/use-version-check'
 import { cn } from '@/lib/utils'
+import { hasPermission, hasScopeAll, isOwner, canManageResource } from '@/utils/rbac'
 import {
   ArrowUpDown,
   Bell,
@@ -62,14 +63,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isRTL = useDirDetection() === 'rtl'
   const { t } = useTranslation()
   const { admin } = useAdmin()
-  const isSudo = admin?.is_sudo ?? false
-  const { currentVersion: systemVersion } = useSystemVersion({ enabled: isSudo })
+  const canReadSystem = hasPermission(admin, 'system', 'read')
+  const { currentVersion: systemVersion } = useSystemVersion({ enabled: canReadSystem })
   const { setOpenMobile, openMobile, state, isMobile, toggleSidebar } = useSidebar()
   const { resolvedTheme } = useTheme()
   const [showCollapseButton, setShowCollapseButton] = useState(false)
-  const normalizedVersion = isSudo && systemVersion ? systemVersion.replace(/[^0-9.]/g, '') : null
-  const displayVersion = isSudo && systemVersion ? `(v${systemVersion})` : ''
-  const { hasUpdate } = useVersionCheck(normalizedVersion, { enabled: isSudo })
+  const normalizedVersion = canReadSystem && systemVersion ? systemVersion.replace(/[^0-9.]/g, '') : null
+  const displayVersion = canReadSystem && systemVersion ? `(v${systemVersion})` : ''
+  const { hasUpdate } = useVersionCheck(normalizedVersion, { enabled: canReadSystem })
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
   const minSwipeDistance = 50
@@ -125,89 +126,107 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: admin?.username || 'Admin',
     },
     navMain: [
-      {
+      ...(canReadSystem ? [{
         title: 'dashboard',
         url: '/',
         icon: LayoutDashboardIcon,
-      },
-      {
+      }] : []),
+      ...(hasPermission(admin, 'users', 'read') ? [{
         title: 'users',
         url: '/users',
         icon: UsersIcon,
-      },
-      ...(admin?.is_sudo
-        ? [
-          {
+      }] : []),
+      ...(hasPermission(admin, 'nodes', 'stats')
+        ? [{
             title: 'statistics',
             url: '/statistics',
             icon: PieChart,
-          },
-          {
+          }]
+        : []),
+      ...(canManageResource(admin, 'hosts', ['create', 'update'])
+        ? [{
             title: 'hosts',
             url: '/hosts',
             icon: ListTodo,
-          },
-          {
+          }]
+        : []),
+      ...(canManageResource(admin, 'groups')
+        ? [{
             title: 'groups',
             url: '/groups',
             icon: Group,
-          },
-          {
+          }]
+        : []),
+      ...(canManageResource(admin, 'admins')
+        ? [{
             title: 'admins.title',
             url: '/admins',
             icon: UserCog,
-          },
-          {
+          }]
+        : []),
+      ...(isOwner(admin)
+        ? [{
+            title: 'adminRoles.title',
+            url: '/admin-roles',
+            icon: UserCog,
+          }]
+        : []),
+      ...(canManageResource(admin, 'nodes', ['create', 'update', 'delete', 'reconnect', 'update_core']) || canManageResource(admin, 'cores') || hasPermission(admin, 'nodes', 'logs')
+        ? [{
             title: 'nodes.title',
             url: '/nodes',
             icon: Share2Icon,
             items: [
-              {
+              ...(canManageResource(admin, 'nodes', ['create', 'update', 'delete', 'reconnect', 'update_core']) ? [{
                 title: 'nodes.title',
                 url: '/nodes',
                 icon: Share2Icon,
-              },
-              {
+              }] : []),
+              ...(canManageResource(admin, 'cores') ? [{
                 title: 'settings.cores.title',
                 url: '/nodes/cores',
                 icon: Cpu,
                 matchPrefix: true,
-              },
-              {
+              }] : []),
+              ...(hasPermission(admin, 'nodes', 'logs') ? [{
                 title: 'nodes.logs.title',
                 url: '/nodes/logs',
                 icon: Logs,
-              },
+              }] : []),
             ],
-          },
-          {
+          }]
+        : []),
+      ...(canManageResource(admin, 'templates') || canManageResource(admin, 'client_templates')
+        ? [{
             title: 'templates.title',
             url: '/templates/user',
             icon: LayoutTemplate,
             items: [
-              {
+              ...(canManageResource(admin, 'templates') ? [{
                 title: 'templates.userTemplates',
                 url: '/templates/user',
                 icon: FileUser,
-              },
-              {
+              }] : []),
+              ...(canManageResource(admin, 'client_templates') ? [{
                 title: 'templates.clientTemplates',
                 url: '/templates/client',
                 icon: FileCode2,
-              },
+              }] : []),
             ],
-          },
-          {
+          }]
+        : []),
+      ...(hasPermission(admin, 'users', 'create') || hasScopeAll(admin, 'users', 'update')
+        ? [{
             title: 'bulk.title',
             url: '/bulk',
             icon: Layers,
             items: [
-              {
+              ...(hasPermission(admin, 'users', 'create') ? [{
                 title: 'bulk.createUsers',
                 url: '/bulk',
                 icon: UserPlus,
-              },
-              {
+              }] : []),
+              ...(hasScopeAll(admin, 'users', 'update') ? [{
                 title: 'bulk.groups',
                 url: '/bulk/groups',
                 icon: Group,
@@ -231,20 +250,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: 'bulk.wireguardPeerIps',
                 url: '/bulk/wireguard',
                 icon: Network,
-              },
+              }] : []),
             ],
-          },
-          {
+          }]
+        : []),
+      {
             title: 'settings.title',
             url: '/settings',
             icon: Settings2,
             items: [
-              {
+              ...(hasPermission(admin, 'settings', 'read_general') && hasPermission(admin, 'settings', 'update') ? [{
                 title: 'settings.general.title',
                 url: '/settings/general',
                 icon: Settings,
-              },
-              {
+              }] : []),
+              ...(hasPermission(admin, 'settings', 'read') && hasPermission(admin, 'settings', 'update') ? [{
                 title: 'settings.notifications.title',
                 url: '/settings/notifications',
                 icon: Bell,
@@ -278,7 +298,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: 'settings.cleanup.title',
                 url: '/settings/cleanup',
                 icon: Database,
-              },
+              }] : []),
               {
                 title: 'theme.title',
                 url: '/settings/theme',
@@ -286,34 +306,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               },
             ],
           },
-        ]
-        : [
-          {
-            title: 'bulk.title',
-            url: '/bulk',
-            icon: Layers,
-            items: [
-              {
-                title: 'bulk.createUsers',
-                url: '/bulk',
-                icon: UserPlus,
-              },
-            ],
-          },
-          // For non-sudo admins, show only theme settings and keep settings at the end
-          {
-            title: 'settings.title',
-            url: '/settings',
-            icon: Settings2,
-            items: [
-              {
-                title: 'theme.title',
-                url: '/settings/theme',
-                icon: Palette,
-              },
-            ],
-          },
-        ]),
     ],
     navSecondary: [
       {
@@ -360,7 +352,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {t('pasarguard')}
             </span>
           </Link>
-          <SidebarTriggerWithBadge showUpdateBadge={isSudo} />
+          <SidebarTriggerWithBadge showUpdateBadge={canReadSystem && hasUpdate} />
         </div>
       </div>
       <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
@@ -372,7 +364,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {state === 'collapsed' && !isMobile ? (
                 <div className="group relative" onMouseEnter={() => setShowCollapseButton(true)} onMouseLeave={() => setShowCollapseButton(false)}>
                   {/* Badge - always visible, positioned on top layer */}
-                  {isSudo && (
+                  {canReadSystem && (
                     <div className="pointer-events-none absolute inset-0 z-30">
                       <div className="relative h-full w-full">
                         <VersionBadge currentVersion={normalizedVersion} />
@@ -391,7 +383,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         alt="PasarGuard Logo"
                         className="h-6 w-6 flex-shrink-0 object-contain"
                       />
-                      {isSudo && hasUpdate && (
+                      {canReadSystem && hasUpdate && (
                         <TooltipProvider>
                           <VersionBadge currentVersion={normalizedVersion} />
                         </TooltipProvider>
@@ -412,7 +404,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         >
                           <ChevronsRight className={cn('h-5 w-5 flex-shrink-0', isRTL && 'scale-x-[-1]')} />
                           <span className="sr-only">Expand Sidebar</span>
-                          {isSudo && hasUpdate && <VersionBadge currentVersion={normalizedVersion} />}
+                          {canReadSystem && hasUpdate && <VersionBadge currentVersion={normalizedVersion} />}
                         </SidebarMenuButton>
                       </TooltipTrigger>
                       <TooltipContent side={isRTL ? 'left' : 'right'}>
@@ -432,7 +424,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       />
                       <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
                         <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
-                        {isSudo && (
+                        {canReadSystem && (
                           <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                             <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>
                             <div className="max-w-full">
@@ -481,7 +473,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     />
                     <div className="flex min-w-0 flex-col overflow-hidden">
                       <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
-                      {isSudo && (
+                      {canReadSystem && (
                         <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                           <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>
                           <div className="max-w-full">
@@ -500,7 +492,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarHeader>
         <SidebarContent>
           <NavMain items={data.navMain} />
-          {admin?.is_sudo && <NavSecondary items={data.community} label={t('community')} />}
+          {isOwner(admin) && <NavSecondary items={data.community} label={t('community')} />}
           <NavSecondary items={data.navSecondary} className="mt-auto" />
           <GoalProgress />
           <div className="flex items-center justify-between px-2 [&>:first-child]:[direction:ltr]">

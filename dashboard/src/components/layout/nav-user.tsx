@@ -14,6 +14,7 @@ import { removeAuthToken } from '@/utils/authStorage'
 import { queryClient } from '@/utils/query-client'
 import { ThemeToggle } from '@/components/common/theme-toggle'
 import { Language } from '@/components/common/language'
+import { isOwner, roleLabel } from '@/utils/rbac'
 
 export function NavUser({
   username,
@@ -27,6 +28,7 @@ export function NavUser({
   const { t } = useTranslation()
   const { state, isMobile } = useSidebar()
   const navigate = useNavigate()
+  const RoleIcon = isOwner(admin) ? UserRoundKey : UserRound
 
   const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -59,18 +61,9 @@ export function NavUser({
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">{username.name}</span>
                     {admin && (
-                      <Badge variant={admin.is_sudo ? 'secondary' : 'outline'} className="h-4 px-1 py-0 text-[10px]">
-                        {admin.is_sudo ? (
-                          <>
-                            <UserRoundKey className="mr-1 size-3" />
-                            {t('sudo')}
-                          </>
-                        ) : (
-                          <>
-                            <UserRound className="mr-1 size-3" />
-                            {t('admin')}
-                          </>
-                        )}
+                      <Badge variant={isOwner(admin) ? 'secondary' : 'outline'} className="h-4 px-1 py-0 text-[10px]">
+                        <RoleIcon className="mr-1 size-3" />
+                        {roleLabel(admin)}
                       </Badge>
                     )}
                   </div>
@@ -130,18 +123,9 @@ export function NavUser({
                 <div className="flex items-center gap-2">
                   <span className="truncate font-semibold">{username.name}</span>
                   {admin && (
-                    <Badge variant={admin.is_sudo ? 'secondary' : 'outline'} className="hidden h-4 px-1 py-0 text-[10px] lg:hidden">
-                      {admin.is_sudo ? (
-                        <>
-                          <UserRoundKey className="mr-1 size-3" />
-                          {t('sudo')}
-                        </>
-                      ) : (
-                        <>
-                          <UserRound className="mr-1 size-3" />
-                          {t('admin')}
-                        </>
-                      )}
+                    <Badge variant={isOwner(admin) ? 'secondary' : 'outline'} className="hidden h-4 px-1 py-0 text-[10px] lg:hidden">
+                      <RoleIcon className="mr-1 size-3" />
+                      {roleLabel(admin)}
                     </Badge>
                   )}
                 </div>
@@ -164,18 +148,9 @@ export function NavUser({
                   <div className="flex items-center gap-2">
                     <span className="truncate font-semibold">{username.name}</span>
                     {admin && (
-                      <Badge variant={admin.is_sudo ? 'secondary' : 'outline'} className="flex h-4 items-center gap-2 py-0 text-[10px]">
-                        {admin.is_sudo ? (
-                          <>
-                            <UserRoundKey className="size-3" />
-                            <span>{t('sudo')}</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserRound className="size-3" />
-                            <span>{t('admin')}</span>
-                          </>
-                        )}
+                      <Badge variant={isOwner(admin) ? 'secondary' : 'outline'} className="flex h-4 items-center gap-2 py-0 text-[10px]">
+                        <RoleIcon className="size-3" />
+                        <span>{roleLabel(admin)}</span>
                       </Badge>
                     )}
                   </div>

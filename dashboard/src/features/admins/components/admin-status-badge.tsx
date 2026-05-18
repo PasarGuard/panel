@@ -8,9 +8,10 @@ import { UserRound, UserRoundKey } from 'lucide-react'
 type AdminStatusProps = {
   isSudo: boolean
   isDisabled: boolean
+  label?: string
 }
 
-export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo, isDisabled }) => {
+export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo, isDisabled, label }) => {
   const { t } = useTranslation()
 
   const getStatusInfo = () => {
@@ -26,14 +27,14 @@ export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo, isDisabled }) =
       return {
         color: 'bg-violet-500 text-white',
         icon: UserRoundKey,
-        text: t('sudo'),
+        text: label || t('sudo'),
       }
     }
 
     return {
       color: statusColors['active']?.statusColor || 'bg-green-500 text-white',
       icon: UserRound,
-      text: t('admin'),
+      text: label || t('admin'),
     }
   }
 

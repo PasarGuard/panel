@@ -311,6 +311,13 @@ export type GetSystemStatsParams = {
   admin_username?: string | null
 }
 
+export type GetRolesParams = {
+  search?: string | null
+  offset?: number | null
+  limit?: number | null
+  sort?: string | null
+}
+
 export type GetAdminUsageByIdParams = {
   period?: Period
   node_id?: number | null
@@ -373,13 +380,6 @@ export type XrayMuxSettingsOutputXudpConcurrency = number | null
 
 export type XrayMuxSettingsOutputConcurrency = number | null
 
-export interface XrayMuxSettingsOutput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsOutputConcurrency
-  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
-  xudpProxyUDP443?: Xudp
-}
-
 export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
@@ -408,6 +408,13 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
+
+export interface XrayMuxSettingsOutput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsOutputConcurrency
+  xudpConcurrency?: XrayMuxSettingsOutputXudpConcurrency
+  xudpProxyUDP443?: Xudp
+}
 
 export type XMuxSettingsOutputHKeepAlivePeriod = number | null
 
@@ -552,6 +559,18 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -575,23 +594,6 @@ export interface XHttpSettingsInput {
   download_settings?: XHttpSettingsInputDownloadSettings
 }
 
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
-
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
-}
-
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -600,6 +602,11 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
+}
+
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
 }
 
 export type WireGuardSettingsPublicKey = string | null
@@ -708,20 +715,20 @@ export const UsernameGenerationStrategy = {
   sequence: 'sequence',
 } as const
 
-export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
-
 export type UserUsageStatsListPeriod = Period | null
+
+export interface UserUsageStat {
+  total_traffic: number
+  period_start: string
+}
+
+export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
 
 export interface UserUsageStatsList {
   period?: UserUsageStatsListPeriod
   start: string
   end: string
   stats: UserUsageStatsListStats
-}
-
-export interface UserUsageStat {
-  total_traffic: number
-  period_start: string
 }
 
 export type UserTemplateSimpleName = string | null
@@ -1044,8 +1051,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
 /**
  * User IP lists for all nodes
  */
@@ -1061,6 +1066,8 @@ export type UserIPListIps = { [key: string]: number }
 export interface UserIPList {
   ips: UserIPListIps
 }
+
+export type UserIPListAllNodes = { [key: string]: UserIPList | null }
 
 export type UserHWIDResponseDeviceModel = string | null
 
@@ -1125,23 +1132,9 @@ export interface UserCreate {
   status?: UserCreateStatus
 }
 
-export type UserCountMetricStatsListPeriod = Period | null
-
-export interface UserCountMetricStat {
-  count: number
-  period_start: string
-}
-
 export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
 
-export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const UserCountMetric = {
-  online: 'online',
-  expired: 'expired',
-  limited: 'limited',
-} as const
+export type UserCountMetricStatsListPeriod = Period | null
 
 export interface UserCountMetricStatsList {
   period?: UserCountMetricStatsListPeriod
@@ -1151,6 +1144,20 @@ export interface UserCountMetricStatsList {
   count_during_period?: number
   stats: UserCountMetricStatsListStats
 }
+
+export interface UserCountMetricStat {
+  count: number
+  period_start: string
+}
+
+export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UserCountMetric = {
+  online: 'online',
+  expired: 'expired',
+  limited: 'limited',
+} as const
 
 export type UsageTable = (typeof UsageTable)[keyof typeof UsageTable]
 
@@ -1329,6 +1336,23 @@ export interface SubscriptionTemplates {
 
 export type SubscriptionResponseHeaders = { [key: string]: unknown }
 
+export interface Subscription {
+  url_prefix?: string
+  update_interval?: number
+  support_url?: string
+  profile_title?: string
+  /** @maxLength 128 */
+  announce?: string
+  announce_url?: string
+  response_headers?: SubscriptionResponseHeaders
+  rules: SubRule[]
+  manual_sub_request?: SubFormatEnable
+  applications?: Application[]
+  allow_browser_config?: boolean
+  disable_sub_template?: boolean
+  randomize_order?: boolean
+}
+
 export type SubRuleResponseHeaders = { [key: string]: unknown }
 
 export interface SubRule {
@@ -1346,23 +1370,6 @@ export interface SubFormatEnable {
   clash?: boolean
   clash_meta?: boolean
   outline?: boolean
-}
-
-export interface Subscription {
-  url_prefix?: string
-  update_interval?: number
-  support_url?: string
-  profile_title?: string
-  /** @maxLength 128 */
-  announce?: string
-  announce_url?: string
-  response_headers?: SubscriptionResponseHeaders
-  rules: SubRule[]
-  manual_sub_request?: SubFormatEnable
-  applications?: Application[]
-  allow_browser_config?: boolean
-  disable_sub_template?: boolean
-  randomize_order?: boolean
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null
@@ -1440,6 +1447,137 @@ export const RunMethod = {
   webhook: 'webhook',
   'long-polling': 'long-polling',
 } as const
+
+export type RolePermissionsAdminRolesAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsAdminRolesAnyOf = { [key: string]: boolean | RolePermissionsAdminRolesAnyOfAnyOf }
+
+export type RolePermissionsAdminRoles = RolePermissionsAdminRolesAnyOf | null
+
+export type RolePermissionsHwidsAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsHwidsAnyOf = { [key: string]: boolean | RolePermissionsHwidsAnyOfAnyOf }
+
+export type RolePermissionsHwids = RolePermissionsHwidsAnyOf | null
+
+export type RolePermissionsSystemAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsSystemAnyOf = { [key: string]: boolean | RolePermissionsSystemAnyOfAnyOf }
+
+export type RolePermissionsSystem = RolePermissionsSystemAnyOf | null
+
+export type RolePermissionsSettingsAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsSettingsAnyOf = { [key: string]: boolean | RolePermissionsSettingsAnyOfAnyOf }
+
+export type RolePermissionsSettings = RolePermissionsSettingsAnyOf | null
+
+export type RolePermissionsCoresAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsCoresAnyOf = { [key: string]: boolean | RolePermissionsCoresAnyOfAnyOf }
+
+export type RolePermissionsCores = RolePermissionsCoresAnyOf | null
+
+export type RolePermissionsClientTemplatesAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsClientTemplatesAnyOf = { [key: string]: boolean | RolePermissionsClientTemplatesAnyOfAnyOf }
+
+export type RolePermissionsClientTemplates = RolePermissionsClientTemplatesAnyOf | null
+
+export type RolePermissionsTemplatesAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsTemplatesAnyOf = { [key: string]: boolean | RolePermissionsTemplatesAnyOfAnyOf }
+
+export type RolePermissionsTemplates = RolePermissionsTemplatesAnyOf | null
+
+export type RolePermissionsHosts = RolePermissionsHostsAnyOf | null
+
+/**
+ * Sparse permission map. Missing resource or action = denied.
+Each action value is True (allowed) or {"scope": "own"|"all"}.
+ */
+export interface RolePermissions {
+  users?: RolePermissionsUsers
+  admins?: RolePermissionsAdmins
+  nodes?: RolePermissionsNodes
+  groups?: RolePermissionsGroups
+  hosts?: RolePermissionsHosts
+  templates?: RolePermissionsTemplates
+  client_templates?: RolePermissionsClientTemplates
+  cores?: RolePermissionsCores
+  settings?: RolePermissionsSettings
+  system?: RolePermissionsSystem
+  hwids?: RolePermissionsHwids
+  admin_roles?: RolePermissionsAdminRoles
+  [key: string]: unknown
+}
+
+export type RolePermissionsHostsAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsHostsAnyOf = { [key: string]: boolean | RolePermissionsHostsAnyOfAnyOf }
+
+export type RolePermissionsGroupsAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsGroupsAnyOf = { [key: string]: boolean | RolePermissionsGroupsAnyOfAnyOf }
+
+export type RolePermissionsGroups = RolePermissionsGroupsAnyOf | null
+
+export type RolePermissionsNodesAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsNodesAnyOf = { [key: string]: boolean | RolePermissionsNodesAnyOfAnyOf }
+
+export type RolePermissionsNodes = RolePermissionsNodesAnyOf | null
+
+export type RolePermissionsAdminsAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsAdminsAnyOf = { [key: string]: boolean | RolePermissionsAdminsAnyOfAnyOf }
+
+export type RolePermissionsAdmins = RolePermissionsAdminsAnyOf | null
+
+export type RolePermissionsUsersAnyOfAnyOf = { [key: string]: PermissionScope | number }
+
+export type RolePermissionsUsersAnyOf = { [key: string]: boolean | RolePermissionsUsersAnyOfAnyOf }
+
+export type RolePermissionsUsers = RolePermissionsUsersAnyOf | null
+
+export type RoleLimitsMaxHwidPerUser = number | null
+
+export type RoleLimitsMinHwidPerUser = number | null
+
+export type RoleLimitsExpireDaysMax = number | null
+
+export type RoleLimitsExpireDaysMin = number | null
+
+export type RoleLimitsDataLimitMax = number | null
+
+export type RoleLimitsDataLimitMin = number | null
+
+export type RoleLimitsMaxUsers = number | null
+
+export interface RoleLimits {
+  max_users?: RoleLimitsMaxUsers
+  data_limit_min?: RoleLimitsDataLimitMin
+  data_limit_max?: RoleLimitsDataLimitMax
+  expire_days_min?: RoleLimitsExpireDaysMin
+  expire_days_max?: RoleLimitsExpireDaysMax
+  min_hwid_per_user?: RoleLimitsMinHwidPerUser
+  max_hwid_per_user?: RoleLimitsMaxHwidPerUser
+}
+
+export interface RoleFeatures {
+  can_use_reset_strategy?: boolean
+  can_use_next_plan?: boolean
+}
+
+export type RoleAccessAllowedGroupIds = number[] | null
+
+export type RoleAccessAllowedTemplateIds = number[] | null
+
+export interface RoleAccess {
+  require_template?: boolean
+  allowed_template_ids?: RoleAccessAllowedTemplateIds
+  allowed_group_ids?: RoleAccessAllowedGroupIds
+}
 
 export interface RemoveUsersResponse {
   users: string[]
@@ -1561,6 +1699,18 @@ export const Platform = {
   androidtv: 'androidtv',
 } as const
 
+/**
+ * Scope for user-resource permissions. Stored as int in JSON for efficiency.
+ */
+export type PermissionScope = (typeof PermissionScope)[keyof typeof PermissionScope]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const PermissionScope = {
+  NUMBER_0: 0,
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+} as const
+
 export type Period = (typeof Period)[keyof typeof Period]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -1570,6 +1720,21 @@ export const Period = {
   day: 'day',
   month: 'month',
 } as const
+
+export interface OwnerResetRequest {
+  key: string
+  password: string
+}
+
+export interface OwnerDeleteRequest {
+  key: string
+}
+
+export interface OwnerCreateRequest {
+  key: string
+  username: string
+  password: string
+}
 
 export type NotificationSettingsProxyUrl = string | null
 
@@ -1581,8 +1746,22 @@ export type NotificationSettingsTelegramChatId = number | null
 
 export type NotificationSettingsTelegramApiToken = string | null
 
+export interface NotificationSettings {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsTelegramApiToken
+  telegram_chat_id?: NotificationSettingsTelegramChatId
+  telegram_topic_id?: NotificationSettingsTelegramTopicId
+  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsProxyUrl
+  /** */
+  max_retries: number
+}
+
 export interface NotificationEnable {
   admin?: AdminNotificationEnable
+  admin_role?: BaseNotificationEnable
   core?: BaseNotificationEnable
   group?: BaseNotificationEnable
   host?: HostNotificationEnable
@@ -1598,25 +1777,13 @@ export interface NotificationEnable {
  */
 export interface NotificationChannels {
   admin?: NotificationChannel
+  admin_role?: NotificationChannel
   core?: NotificationChannel
   group?: NotificationChannel
   host?: NotificationChannel
   node?: NotificationChannel
   user?: NotificationChannel
   user_template?: NotificationChannel
-}
-
-export interface NotificationSettings {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsTelegramApiToken
-  telegram_chat_id?: NotificationSettingsTelegramChatId
-  telegram_topic_id?: NotificationSettingsTelegramTopicId
-  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsProxyUrl
-  /** */
-  max_retries: number
 }
 
 export type NotificationChannelDiscordWebhookUrl = string | null
@@ -1644,12 +1811,27 @@ export interface NoiseSettings {
   xray?: NoiseSettingsXray
 }
 
+/**
+ * Response model for lightweight node list.
+ */
+export interface NodesSimpleResponse {
+  nodes: NodeSimple[]
+  total: number
+}
+
 export interface NodesResponse {
   nodes: NodeResponse[]
   total: number
 }
 
 export type NodeUsageStatsListPeriod = Period | null
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export interface NodeUsageStat {
   uplink: number
@@ -1658,13 +1840,6 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1701,14 +1876,6 @@ export interface NodeSimple {
   id: number
   name: string
   status: NodeStatus
-}
-
-/**
- * Response model for lightweight node list.
- */
-export interface NodesSimpleResponse {
-  nodes: NodeSimple[]
-  total: number
 }
 
 export interface NodeSettings {
@@ -1827,8 +1994,6 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
-export type NodeModifyConnectionType = NodeConnectionType | null
-
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -1863,19 +2028,6 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
-
 export interface NodeCreate {
   name: string
   address: string
@@ -1903,6 +2055,21 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
+
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
+
+export type NodeModifyConnectionType = NodeConnectionType | null
 
 export type NextPlanModelExpire = number | null
 
@@ -2228,6 +2395,26 @@ export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
 
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
+
 export interface CreateHost {
   id?: CreateHostId
   remark: string
@@ -2260,25 +2447,13 @@ export interface CreateHost {
   subscription_templates?: CreateHostSubscriptionTemplates
 }
 
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
+}
 
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
@@ -2299,14 +2474,6 @@ export interface CoreSimple {
   id: number
   name: string
   type?: CoreSimpleType
-}
-
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
 }
 
 export type CoreResponseType = CoreType | null
@@ -2786,6 +2953,73 @@ export interface AdminsSimpleResponse {
   total: number
 }
 
+export interface AdminRoleSimple {
+  id: number
+  name: string
+  is_owner: boolean
+}
+
+export interface AdminRolesSimpleResponse {
+  roles: AdminRoleSimple[]
+  total: number
+}
+
+export interface AdminRoleResponse {
+  /** @maxLength 64 */
+  name: string
+  permissions?: RolePermissions
+  limits?: RoleLimits
+  features?: RoleFeatures
+  access?: RoleAccess
+  id: number
+  is_owner: boolean
+  created_at: string
+}
+
+export interface AdminRolesResponse {
+  roles: AdminRoleResponse[]
+  total: number
+}
+
+export type AdminRoleModifyAccess = RoleAccess | null
+
+export type AdminRoleModifyFeatures = RoleFeatures | null
+
+export type AdminRoleModifyLimits = RoleLimits | null
+
+export type AdminRoleModifyPermissions = RolePermissions | null
+
+export type AdminRoleModifyName = string | null
+
+export interface AdminRoleModify {
+  name?: AdminRoleModifyName
+  permissions?: AdminRoleModifyPermissions
+  limits?: AdminRoleModifyLimits
+  features?: AdminRoleModifyFeatures
+  access?: AdminRoleModifyAccess
+}
+
+/**
+ * Runtime role data carried on AdminDetails — only the fields needed for permission checks.
+ */
+export interface AdminRoleData {
+  name?: string
+  is_owner?: boolean
+  permissions?: RolePermissions
+  limits?: RoleLimits
+  features?: RoleFeatures
+  access?: RoleAccess
+}
+
+export interface AdminRoleCreate {
+  /** @maxLength 64 */
+  name: string
+  permissions?: RolePermissions
+  limits?: RoleLimits
+  features?: RoleFeatures
+  access?: RoleAccess
+}
+
 export interface AdminNotificationEnable {
   create?: boolean
   modify?: boolean
@@ -2793,6 +3027,8 @@ export interface AdminNotificationEnable {
   reset_usage?: boolean
   login?: boolean
 }
+
+export type AdminModifyRoleId = number | null
 
 export type AdminModifyNotificationEnable = UserNotificationEnable | null
 
@@ -2818,7 +3054,6 @@ export type AdminModifyPassword = string | null
 
 export interface AdminModify {
   password?: AdminModifyPassword
-  is_sudo: boolean
   telegram_id?: AdminModifyTelegramId
   discord_webhook?: AdminModifyDiscordWebhook
   discord_id?: AdminModifyDiscordId
@@ -2829,7 +3064,12 @@ export interface AdminModify {
   support_url?: AdminModifySupportUrl
   note?: AdminModifyNote
   notification_enable?: AdminModifyNotificationEnable
+  role_id?: AdminModifyRoleId
 }
+
+export type AdminDetailsPermissionOverrides = RoleLimits | null
+
+export type AdminDetailsRole = AdminRoleData | null
 
 export type AdminDetailsNote = string | null
 
@@ -2865,7 +3105,6 @@ export interface AdminDetails {
   support_url?: AdminDetailsSupportUrl
   notification_enable?: AdminDetailsNotificationEnable
   id?: AdminDetailsId
-  is_sudo: boolean
   total_users?: number
   used_traffic?: number
   is_disabled?: boolean
@@ -2873,6 +3112,8 @@ export interface AdminDetails {
   sub_template?: AdminDetailsSubTemplate
   lifetime_used_traffic?: AdminDetailsLifetimeUsedTraffic
   note?: AdminDetailsNote
+  role?: AdminDetailsRole
+  permission_overrides?: AdminDetailsPermissionOverrides
 }
 
 export type AdminCreateNotificationEnable = UserNotificationEnable | null
@@ -2900,7 +3141,6 @@ export type AdminCreateTelegramId = number | null
  */
 export interface AdminCreate {
   password: string
-  is_sudo: boolean
   telegram_id?: AdminCreateTelegramId
   discord_webhook?: AdminCreateDiscordWebhook
   discord_id?: AdminCreateDiscordId
@@ -2911,6 +3151,7 @@ export interface AdminCreate {
   support_url?: AdminCreateSupportUrl
   note?: AdminCreateNote
   notification_enable?: AdminCreateNotificationEnable
+  role_id: number
   username: string
 }
 
@@ -3107,7 +3348,7 @@ export const useAdminToken = <TData = Awaited<ReturnType<typeof adminToken>>, TE
 }
 
 /**
- * Authenticate an admin and issue a token.
+ * Authenticate an admin via Telegram MiniApp and issue a token.
  * @summary Admin Mini App Token
  */
 export const adminMiniAppToken = (signal?: AbortSignal) => {
@@ -3209,7 +3450,7 @@ export function useGetCurrentAdmin<TData = Awaited<ReturnType<typeof getCurrentA
 }
 
 /**
- * Create a new admin if the current admin has sudo privileges.
+ * Create a new admin.
  * @summary Create Admin
  */
 export const createAdmin = (adminCreate: BodyType<AdminCreate>, signal?: AbortSignal) => {
@@ -3862,7 +4103,7 @@ export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminU
 }
 
 /**
- * Disable all active users under a specific admin
+ * Disable all active users under a specific admin.
  * @summary Disable All Active Users
  */
 export const disableAllActiveUsers = (username: string, signal?: AbortSignal) => {
@@ -4010,7 +4251,7 @@ export const useDisableAllActiveUsersById = <
 }
 
 /**
- * Activate all disabled users under a specific admin
+ * Activate all disabled users under a specific admin.
  * @summary Activate All Disabled Users
  */
 export const activateAllDisabledUsers = (username: string, signal?: AbortSignal) => {
@@ -4791,6 +5032,455 @@ export const useBulkRemoveAllUsers = <
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
   const mutationOptions = getBulkRemoveAllUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * List all roles. Owner only.
+ * @summary Get Roles
+ */
+export const getRoles = (params?: GetRolesParams, signal?: AbortSignal) => {
+  return orvalFetcher<AdminRolesResponse>({ url: `/api/admin-roles`, method: 'GET', params, signal })
+}
+
+export const getGetRolesQueryKey = (params?: GetRolesParams) => {
+  return [`/api/admin-roles`, ...(params ? [params] : [])] as const
+}
+
+export const getGetRolesQueryOptions = <TData = Awaited<ReturnType<typeof getRoles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetRolesParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetRolesQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRoles>>> = ({ signal }) => getRoles(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRolesQueryResult = NonNullable<Awaited<ReturnType<typeof getRoles>>>
+export type GetRolesQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useGetRoles<TData = Awaited<ReturnType<typeof getRoles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetRolesParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRoles<TData = Awaited<ReturnType<typeof getRoles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetRolesParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData>> & Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRoles<TData = Awaited<ReturnType<typeof getRoles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetRolesParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Roles
+ */
+
+export function useGetRoles<TData = Awaited<ReturnType<typeof getRoles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetRolesParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetRolesQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * List all roles as lightweight id/name/is_owner tuples. Owner only.
+ * @summary Get Roles Simple
+ */
+export const getRolesSimple = (signal?: AbortSignal) => {
+  return orvalFetcher<AdminRolesSimpleResponse>({ url: `/api/admin-roles/simple`, method: 'GET', signal })
+}
+
+export const getGetRolesSimpleQueryKey = () => {
+  return [`/api/admin-roles/simple`] as const
+}
+
+export const getGetRolesSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getRolesSimple>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRolesSimple>>, TError, TData>>
+}) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetRolesSimpleQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRolesSimple>>> = ({ signal }) => getRolesSimple(signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getRolesSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRolesSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getRolesSimple>>>
+export type GetRolesSimpleQueryError = ErrorType<Unauthorized | Forbidden>
+
+export function useGetRolesSimple<TData = Awaited<ReturnType<typeof getRolesSimple>>, TError = ErrorType<Unauthorized | Forbidden>>(options: {
+  query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRolesSimple>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getRolesSimple>>, TError, TData>, 'initialData'>
+}): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRolesSimple<TData = Awaited<ReturnType<typeof getRolesSimple>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRolesSimple>>, TError, TData>> &
+    Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getRolesSimple>>, TError, TData>, 'initialData'>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRolesSimple<TData = Awaited<ReturnType<typeof getRolesSimple>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRolesSimple>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Roles Simple
+ */
+
+export function useGetRolesSimple<TData = Awaited<ReturnType<typeof getRolesSimple>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRolesSimple>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetRolesSimpleQueryOptions(options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Get a role by ID. Owner only.
+ * @summary Get Role
+ */
+export const getRole = (roleId: number, signal?: AbortSignal) => {
+  return orvalFetcher<AdminRoleResponse>({ url: `/api/admin-role/${roleId}`, method: 'GET', signal })
+}
+
+export const getGetRoleQueryKey = (roleId: number) => {
+  return [`/api/admin-role/${roleId}`] as const
+}
+
+export const getGetRoleQueryOptions = <TData = Awaited<ReturnType<typeof getRole>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  roleId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRole>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetRoleQueryKey(roleId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRole>>> = ({ signal }) => getRole(roleId, signal)
+
+  return { queryKey, queryFn, enabled: !!roleId, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getRole>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRoleQueryResult = NonNullable<Awaited<ReturnType<typeof getRole>>>
+export type GetRoleQueryError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+export function useGetRole<TData = Awaited<ReturnType<typeof getRole>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  roleId: number,
+  options: { query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRole>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getRole>>, TError, TData>, 'initialData'> },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRole<TData = Awaited<ReturnType<typeof getRole>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  roleId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRole>>, TError, TData>> & Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getRole>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRole<TData = Awaited<ReturnType<typeof getRole>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  roleId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRole>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Role
+ */
+
+export function useGetRole<TData = Awaited<ReturnType<typeof getRole>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  roleId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRole>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetRoleQueryOptions(roleId, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Modify a role. Owner only. Owner role cannot be modified.
+ * @summary Modify Role
+ */
+export const modifyRole = (roleId: number, adminRoleModify: BodyType<AdminRoleModify>) => {
+  return orvalFetcher<AdminRoleResponse>({ url: `/api/admin-role/${roleId}`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: adminRoleModify })
+}
+
+export const getModifyRoleMutationOptions = <
+  TData = Awaited<ReturnType<typeof modifyRole>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { roleId: number; data: BodyType<AdminRoleModify> }, TContext>
+}) => {
+  const mutationKey = ['modifyRole']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifyRole>>, { roleId: number; data: BodyType<AdminRoleModify> }> = props => {
+    const { roleId, data } = props ?? {}
+
+    return modifyRole(roleId, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { roleId: number; data: BodyType<AdminRoleModify> }, TContext>
+}
+
+export type ModifyRoleMutationResult = NonNullable<Awaited<ReturnType<typeof modifyRole>>>
+export type ModifyRoleMutationBody = BodyType<AdminRoleModify>
+export type ModifyRoleMutationError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
+
+/**
+ * @summary Modify Role
+ */
+export const useModifyRole = <TData = Awaited<ReturnType<typeof modifyRole>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { roleId: number; data: BodyType<AdminRoleModify> }, TContext>
+}): UseMutationResult<TData, TError, { roleId: number; data: BodyType<AdminRoleModify> }, TContext> => {
+  const mutationOptions = getModifyRoleMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Delete a role. Owner only. Built-in roles and in-use roles cannot be deleted.
+ * @summary Delete Role
+ */
+export const deleteRole = (roleId: number) => {
+  return orvalFetcher<void>({ url: `/api/admin-role/${roleId}`, method: 'DELETE' })
+}
+
+export const getDeleteRoleMutationOptions = <
+  TData = Awaited<ReturnType<typeof deleteRole>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { roleId: number }, TContext>
+}) => {
+  const mutationKey = ['deleteRole']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRole>>, { roleId: number }> = props => {
+    const { roleId } = props ?? {}
+
+    return deleteRole(roleId)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { roleId: number }, TContext>
+}
+
+export type DeleteRoleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteRole>>>
+
+export type DeleteRoleMutationError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
+
+/**
+ * @summary Delete Role
+ */
+export const useDeleteRole = <TData = Awaited<ReturnType<typeof deleteRole>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { roleId: number }, TContext>
+}): UseMutationResult<TData, TError, { roleId: number }, TContext> => {
+  const mutationOptions = getDeleteRoleMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Create a new role. Owner only.
+ * @summary Create Role
+ */
+export const createRole = (adminRoleCreate: BodyType<AdminRoleCreate>, signal?: AbortSignal) => {
+  return orvalFetcher<AdminRoleResponse>({ url: `/api/admin-role`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: adminRoleCreate, signal })
+}
+
+export const getCreateRoleMutationOptions = <
+  TData = Awaited<ReturnType<typeof createRole>>,
+  TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<AdminRoleCreate> }, TContext>
+}) => {
+  const mutationKey = ['createRole']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRole>>, { data: BodyType<AdminRoleCreate> }> = props => {
+    const { data } = props ?? {}
+
+    return createRole(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<AdminRoleCreate> }, TContext>
+}
+
+export type CreateRoleMutationResult = NonNullable<Awaited<ReturnType<typeof createRole>>>
+export type CreateRoleMutationBody = BodyType<AdminRoleCreate>
+export type CreateRoleMutationError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>
+
+/**
+ * @summary Create Role
+ */
+export const useCreateRole = <TData = Awaited<ReturnType<typeof createRole>>, TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<AdminRoleCreate> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<AdminRoleCreate> }, TContext> => {
+  const mutationOptions = getCreateRoleMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Create the owner admin using a one-time temp key.
+ * @summary Create Owner
+ */
+export const createOwner = (ownerCreateRequest: BodyType<OwnerCreateRequest>, signal?: AbortSignal) => {
+  return orvalFetcher<AdminDetails>({ url: `/api/setup/owner`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: ownerCreateRequest, signal })
+}
+
+export const getCreateOwnerMutationOptions = <
+  TData = Awaited<ReturnType<typeof createOwner>>,
+  TError = ErrorType<HTTPException | Conflict | void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerCreateRequest> }, TContext>
+}) => {
+  const mutationKey = ['createOwner']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOwner>>, { data: BodyType<OwnerCreateRequest> }> = props => {
+    const { data } = props ?? {}
+
+    return createOwner(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<OwnerCreateRequest> }, TContext>
+}
+
+export type CreateOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof createOwner>>>
+export type CreateOwnerMutationBody = BodyType<OwnerCreateRequest>
+export type CreateOwnerMutationError = ErrorType<HTTPException | Conflict | void | HTTPValidationError>
+
+/**
+ * @summary Create Owner
+ */
+export const useCreateOwner = <TData = Awaited<ReturnType<typeof createOwner>>, TError = ErrorType<HTTPException | Conflict | void | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerCreateRequest> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<OwnerCreateRequest> }, TContext> => {
+  const mutationOptions = getCreateOwnerMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Delete the owner admin using a one-time temp key.
+ * @summary Delete Owner
+ */
+export const deleteOwner = (ownerDeleteRequest: BodyType<OwnerDeleteRequest>) => {
+  return orvalFetcher<void>({ url: `/api/setup/owner`, method: 'DELETE', headers: { 'Content-Type': 'application/json' }, data: ownerDeleteRequest })
+}
+
+export const getDeleteOwnerMutationOptions = <
+  TData = Awaited<ReturnType<typeof deleteOwner>>,
+  TError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerDeleteRequest> }, TContext>
+}) => {
+  const mutationKey = ['deleteOwner']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOwner>>, { data: BodyType<OwnerDeleteRequest> }> = props => {
+    const { data } = props ?? {}
+
+    return deleteOwner(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<OwnerDeleteRequest> }, TContext>
+}
+
+export type DeleteOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOwner>>>
+export type DeleteOwnerMutationBody = BodyType<OwnerDeleteRequest>
+export type DeleteOwnerMutationError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>
+
+/**
+ * @summary Delete Owner
+ */
+export const useDeleteOwner = <TData = Awaited<ReturnType<typeof deleteOwner>>, TError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerDeleteRequest> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<OwnerDeleteRequest> }, TContext> => {
+  const mutationOptions = getDeleteOwnerMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Reset the owner admin's password using a one-time temp key.
+ * @summary Reset Owner Password
+ */
+export const resetOwnerPassword = (ownerResetRequest: BodyType<OwnerResetRequest>) => {
+  return orvalFetcher<AdminDetails>({ url: `/api/setup/owner`, method: 'PATCH', headers: { 'Content-Type': 'application/json' }, data: ownerResetRequest })
+}
+
+export const getResetOwnerPasswordMutationOptions = <
+  TData = Awaited<ReturnType<typeof resetOwnerPassword>>,
+  TError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerResetRequest> }, TContext>
+}) => {
+  const mutationKey = ['resetOwnerPassword']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetOwnerPassword>>, { data: BodyType<OwnerResetRequest> }> = props => {
+    const { data } = props ?? {}
+
+    return resetOwnerPassword(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<OwnerResetRequest> }, TContext>
+}
+
+export type ResetOwnerPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetOwnerPassword>>>
+export type ResetOwnerPasswordMutationBody = BodyType<OwnerResetRequest>
+export type ResetOwnerPasswordMutationError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>
+
+/**
+ * @summary Reset Owner Password
+ */
+export const useResetOwnerPassword = <TData = Awaited<ReturnType<typeof resetOwnerPassword>>, TError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerResetRequest> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<OwnerResetRequest> }, TContext> => {
+  const mutationOptions = getResetOwnerPasswordMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

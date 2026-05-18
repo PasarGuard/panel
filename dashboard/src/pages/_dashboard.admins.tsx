@@ -15,10 +15,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
 import { removeAdminFromAdminsCache, upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { useQueryClient } from '@tanstack/react-query'
+import { useGetRolesSimple } from '@/service/api'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 export default function AdminsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const { admin: currentAdmin } = useAdmin()
+  const canCreateAdmins = hasPermission(currentAdmin, 'admins', 'create')
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminDetails> | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number } | null>(null)
@@ -29,6 +34,7 @@ export default function AdminsPage() {
 
   const removeAdminMutation = useRemoveAdminById()
   const modifyAdminMutation = useModifyAdminById()
+  const rolesQuery = useGetRolesSimple()
   const modifyDisableAllAdminUsers = useDisableAllActiveUsersById()
   const modifyActivateAllAdminUsers = useActivateAllDisabledUsersById()
   const resetUsageMutation = useResetAdminUsageById()
@@ -92,7 +98,6 @@ export default function AdminsPage() {
       const updatedAdmin = await modifyAdminMutation.mutateAsync({
         adminId,
         data: {
-          is_sudo: admin.is_sudo,
           is_disabled: !admin.is_disabled,
           discord_webhook: admin.discord_webhook,
           sub_template: admin.sub_template,
@@ -126,11 +131,20 @@ export default function AdminsPage() {
     }
   }
 
+  const getRoleIdForAdmin = (admin: AdminDetails) => {
+    const roleName = admin.role?.name
+    const roleId = rolesQuery.data?.roles.find(role => role.name === roleName)?.id
+    if (roleId != null) return roleId
+    if (roleName === 'administrator') return 2
+    return 3
+  }
+
   const handleEdit = (admin: AdminDetails) => {
+    const roleId = getRoleIdForAdmin(admin)
     setEditingAdmin(admin)
     form.reset({
       username: admin.username,
-      is_sudo: admin.is_sudo,
+      role_id: roleId,
       is_disabled: admin.is_disabled || undefined,
       discord_webhook: admin.discord_webhook || '',
       sub_template: admin.sub_template || '',
@@ -187,12 +201,16 @@ export default function AdminsPage() {
           title="admins.title"
           description="admins.description"
           buttonIcon={Plus}
-          buttonText="admins.createAdmin"
-          onButtonClick={() => {
-            setEditingAdmin(null)
-            form.reset(adminFormDefaultValues)
-            setIsDialogOpen(true)
-          }}
+          buttonText={canCreateAdmins ? 'admins.createAdmin' : undefined}
+          onButtonClick={
+            canCreateAdmins
+              ? () => {
+                setEditingAdmin(null)
+                form.reset(adminFormDefaultValues)
+                setIsDialogOpen(true)
+              }
+              : undefined
+          }
         />
         <Separator />
       </div>

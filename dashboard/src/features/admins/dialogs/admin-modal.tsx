@@ -7,19 +7,25 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { PasswordInput } from '@/components/ui/password-input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { useCreateAdmin, useModifyAdminById } from '@/service/api'
+import { useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Pencil, UserCog } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+const BUILTIN_ADMIN_ROLES = [
+  { id: 2, name: 'administrator', is_owner: false },
+  { id: 3, name: 'operator', is_owner: false },
+]
 
 interface AdminModalProps {
   isDialogOpen: boolean
@@ -35,6 +41,20 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const queryClient = useQueryClient()
   const addAdminMutation = useCreateAdmin()
   const modifyAdminMutation = useModifyAdminById()
+  const rolesQuery = useGetRolesSimple()
+  const selectedRoleId = form.watch('role_id')
+  const roleOptions = useMemo(() => {
+    const rolesById = new Map<number, { id: number; name: string; is_owner: boolean }>()
+    BUILTIN_ADMIN_ROLES.forEach(role => rolesById.set(role.id, role))
+    ;(rolesQuery.data?.roles || []).forEach(role => {
+      if (!role.is_owner && role.id !== 1) {
+        rolesById.set(role.id, role)
+      }
+    })
+
+    return Array.from(rolesById.values()).sort((a, b) => a.id - b.id)
+  }, [rolesQuery.data?.roles])
+  const selectedRoleExists = selectedRoleId == null || roleOptions.some(role => role.id === selectedRoleId)
 
   useEffect(() => {
     if (!isDialogOpen) setNotificationExpanded(false)
@@ -57,7 +77,6 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const onSubmit = async (values: AdminFormValuesInput) => {
     try {
       const editData = {
-        is_sudo: values.is_sudo ?? false,
         password: values.password || undefined,
         is_disabled: values.is_disabled,
         discord_webhook: values.discord_webhook,
@@ -69,6 +88,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         note: values.note,
         discord_id: values.discord_id,
         notification_enable: values.notification_enable || null,
+        role_id: values.role_id,
       }
       if (editingAdmin && editingAdminId != null) {
         const updatedAdmin = await modifyAdminMutation.mutateAsync({
@@ -85,9 +105,19 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
       } else {
         if (!values.password) return
         const createData = {
-          ...values,
-          is_sudo: values.is_sudo ?? false,
+          username: values.username,
           password: values.password, // Ensure password is present
+          is_disabled: values.is_disabled,
+          discord_webhook: values.discord_webhook,
+          sub_domain: values.sub_domain,
+          sub_template: values.sub_template,
+          support_url: values.support_url,
+          telegram_id: values.telegram_id,
+          profile_title: values.profile_title,
+          note: values.note,
+          discord_id: values.discord_id,
+          notification_enable: values.notification_enable || null,
+          role_id: values.role_id,
         }
         const createdAdmin = await addAdminMutation.mutateAsync({
           data: createData,
@@ -107,7 +137,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         'username',
         'password',
         'passwordConfirm',
-        'is_sudo',
+        'role_id',
         'is_disabled',
         'discord_webhook',
         'sub_domain',
@@ -143,7 +173,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                     const hasError = !!form.formState.errors.username
                     return (
                       <FormItem>
-                        <FormLabel className='pb-2'>{t('admins.username')}</FormLabel>
+                        <FormLabel>{t('admins.username')}</FormLabel>
                         <FormControl>
                           <Input placeholder={t('admins.enterUsername')} disabled={editingAdmin} isError={hasError} autoComplete="off" {...field} />
                         </FormControl>
@@ -154,27 +184,34 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                 />
                 <FormField
                   control={form.control}
-                  name={'telegram_id'}
-                  render={({ field }) => {
-                    return (
-                      <FormItem>
-                        <FormLabel>{t('admins.telegramId')}</FormLabel>
+                  name="role_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('admins.role')}</FormLabel>
+                      <Select value={field.value?.toString() || '3'} onValueChange={value => field.onChange(Number(value))}>
                         <FormControl>
-                          <Input
-                            type="number"
-                            placeholder={t('Telegram ID (e.g. 36548974)')}
-                            autoComplete="off"
-                            onChange={e => {
-                              const value = e.target.value
-                              field.onChange(value ? parseInt(value) : 0)
-                            }}
-                            value={field.value ? field.value : ''}
-                          />
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('admins.role')} />
+                          </SelectTrigger>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )
-                  }}
+                        <SelectContent>
+                          {!selectedRoleExists && selectedRoleId != null && (
+                            <SelectItem value={String(selectedRoleId)} disabled>
+                              {t('adminRoles.currentRoleUnavailable', { defaultValue: 'Current role unavailable' })}
+                            </SelectItem>
+                          )}
+                          {roleOptions.map(role => (
+                            <SelectItem key={role.id} value={role.id.toString()}>
+                              {t(`adminRoles.names.${role.name}`, { defaultValue: role.name })}
+                            </SelectItem>
+                          ))}
+                          {rolesQuery.isLoading && <SelectItem value="loading" disabled>{t('loading', { defaultValue: 'Loading...' })}</SelectItem>}
+                          {rolesQuery.isError && <SelectItem value="roles-error" disabled>{t('adminRoles.loadFallback', { defaultValue: 'Using built-in roles' })}</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
                 <FormField
                   control={form.control}
@@ -202,6 +239,30 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         <FormLabel>{t('admins.passwordConfirm')}</FormLabel>
                         <FormControl>
                           <PasswordInput placeholder={t('admins.enterPasswordConfirm')} isError={hasError} autoComplete="new-password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+                <FormField
+                  control={form.control}
+                  name={'telegram_id'}
+                  render={({ field }) => {
+                    return (
+                      <FormItem>
+                        <FormLabel>{t('admins.telegramId')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder={t('Telegram ID (e.g. 36548974)')}
+                            autoComplete="off"
+                            onChange={e => {
+                              const value = e.target.value
+                              field.onChange(value ? parseInt(value) : 0)
+                            }}
+                            value={field.value ? field.value : ''}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -260,7 +321,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                   control={form.control}
                   name={'profile_title'}
                   render={({ field }) => (
-                    <FormItem className="flex h-full flex-col justify-endnp">
+                    <FormItem>
                       <div className="flex items-center gap-2">
                         <FormLabel>{t('admins.profile')}</FormLabel>
                         <VariablesPopover />
@@ -289,7 +350,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                   control={form.control}
                   name={'sub_template'}
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="sm:col-span-2">
                       <FormLabel>{t('admins.subTemplate')}</FormLabel>
                       <FormControl>
                         <Input placeholder={t('admins.subTemplate')} autoComplete="off" {...field} />
@@ -313,13 +374,12 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                 />
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-4 mb-2">
                 <Collapsible open={notificationExpanded} onOpenChange={setNotificationExpanded}>
                   <div
                     className={cn(
                       'group rounded-md border transition-all duration-200 ease-in-out',
                       notificationExpanded && 'border-primary/50 bg-accent/30',
-                      'hover:border-primary/30 hover:bg-accent/20',
                     )}
                   >
                     <div className="flex w-full items-center justify-between p-4 transition-colors">
@@ -476,22 +536,6 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                   </div>
                 </Collapsible>
 
-                <FormField
-                  control={form.control}
-                  name="is_sudo"
-                  render={({ field }) => (
-                    <FormItem className="mb-2 flex w-full cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
-                      <div className="space-y-0.5 mb-0">
-                        <FormLabel className="text-base">{t('admins.sudo')}</FormLabel>
-                      </div>
-                      <FormControl>
-                        <div onClick={e => e.stopPropagation()}>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </div>
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
               </div>
             </div>
             <div className="flex justify-end gap-2">

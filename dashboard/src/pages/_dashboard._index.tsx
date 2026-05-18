@@ -30,12 +30,12 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import PageHeader from '@/components/layout/page-header'
 import { type UseEditFormValues, type UseFormValues, getDefaultUserForm } from '@/features/users/forms/user-form'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 // Lazy load CoreConfigModal to prevent Monaco Editor from loading until needed
 const CoreConfigModal = lazy(() => import('@/features/nodes/dialogs/core-config-modal'))
 
 const totalAdmin: AdminDetails = {
   username: 'Total',
-  is_sudo: false,
 }
 
 const Dashboard = () => {
@@ -48,7 +48,15 @@ const Dashboard = () => {
   const [isCoreModalOpen, setCoreModalOpen] = useState(false)
   const [isQuickActionsModalOpen, setQuickActionsModalOpen] = useState(false)
   const { admin: currentAdmin } = useAdmin()
-  const is_sudo = currentAdmin?.is_sudo || false
+  const canReadAllUsers = hasScopeAll(currentAdmin, 'users', 'read')
+  const canCreateUsers = hasPermission(currentAdmin, 'users', 'create')
+  const canCreateGroups = hasPermission(currentAdmin, 'groups', 'create')
+  const canCreateHosts = hasPermission(currentAdmin, 'hosts', 'create')
+  const canCreateNodes = hasPermission(currentAdmin, 'nodes', 'create')
+  const canCreateAdmins = hasPermission(currentAdmin, 'admins', 'create')
+  const canCreateTemplates = hasPermission(currentAdmin, 'templates', 'create')
+  const canCreateCores = hasPermission(currentAdmin, 'cores', 'create')
+  const canReadNodeStats = hasPermission(currentAdmin, 'nodes', 'stats')
   const { t } = useTranslation()
 
   const [selectedAdmin, setSelectedAdmin] = useState<AdminDetails | undefined>(totalAdmin)
@@ -114,36 +122,43 @@ const Dashboard = () => {
   }
 
   const handleCreateUser = () => {
+    if (!canCreateUsers) return
     userForm.reset()
     setUserModalOpen(true)
   }
 
   const handleCreateGroup = () => {
+    if (!canCreateGroups) return
     groupForm.reset()
     setGroupModalOpen(true)
   }
 
   const handleCreateHost = () => {
+    if (!canCreateHosts) return
     hostForm.reset()
     setHostModalOpen(true)
   }
 
   const handleCreateNode = () => {
+    if (!canCreateNodes) return
     nodeForm.reset()
     setNodeModalOpen(true)
   }
 
   const handleCreateAdmin = () => {
+    if (!canCreateAdmins) return
     adminForm.reset()
     setAdminModalOpen(true)
   }
 
   const handleCreateTemplate = () => {
+    if (!canCreateTemplates) return
     templateForm.reset(userTemplateFormDefaultValues)
     setTemplateModalOpen(true)
   }
 
   const handleCreateCore = () => {
+    if (!canCreateCores) return
     coreForm.reset()
     setCoreModalOpen(true)
   }
@@ -194,7 +209,7 @@ const Dashboard = () => {
 
   // Only send admin_username if selectedAdmin is explicitly set and not 'Total'
   // When current admin is selected, we want to show their specific stats, not global stats
-  const systemStatsParams = is_sudo && selectedAdmin && selectedAdmin.username !== 'Total' ? { admin_username: selectedAdmin.username } : undefined
+  const systemStatsParams = canReadAllUsers && selectedAdmin && selectedAdmin.username !== 'Total' ? { admin_username: selectedAdmin.username } : undefined
 
   const { data: systemStatsData } = useGetSystemStats(systemStatsParams, {
     query: {
@@ -214,14 +229,14 @@ const Dashboard = () => {
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
             <DashboardStatistics systemData={systemStatsData} />
           </div>
-          {is_sudo && (
+          {canReadNodeStats && (
             <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '180ms', animationFillMode: 'both' }}>
               <WorkersHealthCard />
             </div>
           )}
           <Separator className="my-4" />
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
-            {is_sudo ? (
+            {canReadAllUsers ? (
               <>
                 <AdminFilterCombobox
                   value={selectedAdmin?.username === 'Total' ? 'all' : (selectedAdmin?.username ?? 'all')}
@@ -234,7 +249,7 @@ const Dashboard = () => {
                       setSelectedAdmin(currentAdmin)
                       return
                     }
-                    setSelectedAdmin(prev => (prev?.username === username ? prev : { username, is_sudo: false }))
+                    setSelectedAdmin(prev => (prev?.username === username ? prev : { username }))
                   }}
                   onAdminSelect={admin => {
                     if (!admin) return
@@ -271,13 +286,13 @@ const Dashboard = () => {
         </Suspense>
       )}
       {/* Only render NodeModal for sudo admins */}
-      {is_sudo && isNodeModalOpen && (
+      {canCreateNodes && isNodeModalOpen && (
         <Suspense fallback={<div />}>
           <NodeModal isDialogOpen={isNodeModalOpen} onOpenChange={setNodeModalOpen} form={nodeForm} editingNode={false} onSuccess={handleNodeModalSuccess} />
         </Suspense>
       )}
       {/* Only render AdminModal for sudo admins */}
-      {is_sudo && isAdminModalOpen && (
+      {canCreateAdmins && isAdminModalOpen && (
         <Suspense fallback={<div />}>
           <AdminModal isDialogOpen={isAdminModalOpen} onOpenChange={setAdminModalOpen} form={adminForm} editingAdmin={false} editingAdminId={undefined} />
         </Suspense>
@@ -288,7 +303,7 @@ const Dashboard = () => {
         </Suspense>
       )}
       {/* Only render CoreConfigModal for sudo admins */}
-      {is_sudo && isCoreModalOpen && (
+      {canCreateCores && isCoreModalOpen && (
         <Suspense fallback={<div />}>
           <CoreConfigModal isDialogOpen={isCoreModalOpen} onOpenChange={setCoreModalOpen} form={coreForm} editingCore={false} />
         </Suspense>
@@ -305,7 +320,13 @@ const Dashboard = () => {
             onCreateAdmin={handleCreateAdmin}
             onCreateTemplate={handleCreateTemplate}
             onCreateCore={handleCreateCore}
-            isSudo={is_sudo}
+            canCreateUser={canCreateUsers}
+            canCreateGroup={canCreateGroups}
+            canCreateHost={canCreateHosts}
+            canCreateNode={canCreateNodes}
+            canCreateAdmin={canCreateAdmins}
+            canCreateTemplate={canCreateTemplates}
+            canCreateCore={canCreateCores}
           />
         </Suspense>
       )}

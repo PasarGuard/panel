@@ -141,6 +141,7 @@
       "filterDescription": "选择应触发通知的事件，以便了解重要的系统活动",
       "types": {
         "admin": "管理员们",
+        "adminRole": "管理员角色",
         "core": "核心们",
         "group": "群组",
         "host": "主机",
@@ -725,6 +726,157 @@
       "no_traffic": "没有使用情况数据"
     }
   },
+  "adminRoles": {
+    "title": "管理员角色",
+    "description": "管理仪表板角色和 RBAC 权限",
+    "createRole": "创建角色",
+    "editRole": "编辑角色",
+    "viewRole": "查看角色",
+    "readOnlyHint": "这是内置角色。您可以查看其配置，但无法修改。",
+    "modalDescription": "为此角色配置权限、限制、功能和访问。",
+    "currentRoleUnavailable": "当前角色不可用",
+    "loadFallback": "使用内置角色",
+    "id": "ID",
+    "ownerRole": "所有者",
+    "builtInRole": "内置",
+    "protectedRole": "受保护角色",
+    "protectedRoleHint": "内置角色和所有者角色无法修改。",
+    "permissions": "权限",
+    "limits": "限制",
+    "limitsAndFeatures": "限制与功能",
+    "limitsHint": "留空以使用默认值。设置为 0 表示禁用。",
+    "roleFormHint": "带范围的用户操作使用「无」、「自己的」或「全部」。其他操作为布尔开关。",
+    "scopedActionInfo": "选择权限范围：无表示拒绝访问，自己的仅限管理员自己的用户，全部表示完全访问。",
+    "allowAll": "允许全部",
+    "features": "功能",
+    "access": "访问",
+    "permissionCount": "{{count}} 项权限",
+    "limitFeatureCount": "{{limits}} 个限制，{{features}} 个功能标记",
+    "unlimited": "无限制",
+    "empty": "暂无角色",
+    "emptyDescription": "创建角色以为管理员分配精细的权限、限制、功能和访问限制。",
+    "noSearchResults": "没有匹配的角色。",
+    "createSuccess": "角色 «{{name}}» 创建成功",
+    "editSuccess": "角色 «{{name}}» 更新成功",
+    "deleteSuccess": "角色 «{{name}}» 已成功删除",
+    "deleteFailed": "无法删除角色 «{{name}}»",
+    "deleteConfirmation": "删除角色",
+    "deleteConfirm": "确定要删除角色 <b>{{name}}</b> 吗？",
+    "bulkDeleteTitle": "删除所选角色",
+    "bulkDeletePrompt": "确定要删除选中的 {{count}} 个角色吗？此操作无法撤消。",
+    "bulkDeleteSuccess": "已成功删除 {{count}} 个角色。",
+    "bulkDeletePartial": "{{count}} 个角色无法删除。",
+    "bulkDeleteFailed": "删除所选角色失败。",
+    "requireTemplateTitle": "需要模板",
+    "requireTemplateDescription": "强制使用此角色的管理员只能从模板创建用户。",
+    "allowedTemplates": "允许的模板",
+    "allowedTemplatesDescription": "限制此角色可使用的模板。留空以允许全部。",
+    "allowedGroups": "允许的分组",
+    "allowedGroupsDescription": "限制此角色可管理的用户组。留空以允许全部。",
+    "noTemplates": "没有可用模板",
+    "noGroups": "没有可用分组",
+    "names": {
+      "administrator": "管理员",
+      "operator": "操作员"
+    },
+    "groups": {
+      "users": "用户",
+      "admins": "管理员",
+      "roles": "角色",
+      "nodes": "节点",
+      "coreHosts": "核心和主机",
+      "groupsTemplates": "组和模板",
+      "settings": "设置"
+    },
+    "actions": {
+      "common": {
+        "read": "查看",
+        "create": "创建",
+        "update": "更新",
+        "delete": "删除",
+        "stats": "查看统计",
+        "logs": "查看日志",
+        "read_general": "查看常规"
+      },
+      "settings": {
+        "read": "查看设置",
+        "read_general": "查看常规设置",
+        "update": "更新设置"
+      },
+      "system": {
+        "read": "查看系统",
+        "update": "更新系统"
+      },
+      "hwids": {
+        "read": "查看 HWID",
+        "update": "更新 HWID"
+      },
+      "nodes": {
+        "stats": "查看节点统计",
+        "logs": "查看节点日志"
+      }
+    },
+    "resources": {
+      "users": "用户",
+      "admins": "管理员",
+      "admin_roles": "角色",
+      "nodes": "节点",
+      "cores": "核心",
+      "hosts": "主机",
+      "groups": "分组",
+      "templates": "用户模板",
+      "client_templates": "客户端模板",
+      "settings": "设置",
+      "system": "系统",
+      "hwids": "HWID"
+    },
+    "scopedBadge": "带范围",
+    "scopes": {
+      "none": "无",
+      "own": "自己的",
+      "all": "全部"
+    },
+    "limitFields": {
+      "max_users": "最大用户数",
+      "data_limit_min": "最小流量限制（字节）",
+      "data_limit_max": "最大流量限制（字节）",
+      "expire_days_min": "最小到期天数",
+      "expire_days_max": "最大到期天数",
+      "min_hwid_per_user": "每用户最少 HWID",
+      "max_hwid_per_user": "每用户最多 HWID"
+    },
+    "featureFields": {
+      "can_use_reset_strategy": {
+        "title": "使用重置策略",
+        "description": "允许此角色为用户设置流量重置策略。"
+      },
+      "can_use_next_plan": {
+        "title": "使用下一计划",
+        "description": "允许此角色配置自动应用的下一计划。"
+      }
+    }
+  },
+  "setup": {
+    "createOwner": "创建所有者",
+    "resetOwner": "重置所有者密码",
+    "deleteOwner": "删除所有者",
+    "createOwnerShort": "创建",
+    "resetOwnerShort": "重置",
+    "deleteOwnerShort": "删除",
+    "ownerAccess": "所有者访问",
+    "ownerAccessDescription": "使用临时设置密钥创建、重置或删除所有者账户。",
+    "tempKey": "临时密钥",
+    "deleteConfirm": "输入 DELETE 以确认",
+    "keyRequired": "临时密钥是必填项",
+    "usernameRequired": "用户名是必填项",
+    "passwordRequired": "密码是必填项",
+    "passwordMismatch": "密码不匹配",
+    "deleteConfirmRequired": "输入 DELETE 以确认",
+    "ownerCreated": "所有者创建成功",
+    "ownerReset": "所有者密码重置成功",
+    "ownerDeleted": "所有者删除成功",
+    "deleteWarning": "此操作无法撤销。所有者账户将被永久删除。"
+  },
   "shortcuts": {
     "title": "键盘快捷键",
     "description": "管理您的仪表板快捷键以便快速访问",
@@ -1276,6 +1428,7 @@
   "login.fieldRequired": "此项必填",
   "login.loginYourAccount": "登录您的帐号",
   "login.welcomeBack": "欢迎回来，请输入您的详细信息",
+  "login.backToLogin": "返回登录",
   "memoryUsage": "内存状态",
   "next": "下一页",
   "monitorServers": "监控您的服务器和用户",
@@ -2717,6 +2870,7 @@
   "settings.cores.coreNotFound": "未找到核心",
   "toggle": "切换状态",
   "close": "关闭",
+  "view": "查看",
   "copy": "复制",
   "copyAll": "复制全部",
   "copied": "已复制！",

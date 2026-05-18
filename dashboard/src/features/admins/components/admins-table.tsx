@@ -29,6 +29,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserX } from 'lucide-react'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 
 interface AdminFilters {
   sort?: string
@@ -198,6 +199,11 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { admin: currentAdmin } = useAdmin()
+  const canUpdateAdmins = hasPermission(currentAdmin, 'admins', 'update')
+  const canDeleteAdmins = hasPermission(currentAdmin, 'admins', 'delete')
+  const canUpdateAllUsers = hasScopeAll(currentAdmin, 'users', 'update')
+  const canDeleteAllUsers = hasScopeAll(currentAdmin, 'users', 'delete')
+  const canUseBulkSelection = canUpdateAdmins || canDeleteAdmins || canUpdateAllUsers || canDeleteAllUsers
   const [currentPage, setCurrentPage] = useState(0)
   const [itemsPerPage, setItemsPerPage] = useState(getAdminsPerPageLimitSize())
   const [isChangingPage, setIsChangingPage] = useState(false)
@@ -692,6 +698,8 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const disableEligibleCount = selectedDisableEligibleUsernames.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
+      ...(canDeleteAdmins
+        ? [
       {
         key: 'delete',
         label: t('delete'),
@@ -699,14 +707,20 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         onClick: () => setBulkAction('delete'),
         direct: true,
         destructive: true,
-      },
+      } as BulkActionItem,
+        ]
+        : []),
+      ...(canUpdateAdmins
+        ? [
       {
         key: 'reset',
         label: t('admins.reset'),
         icon: RefreshCw,
         onClick: () => setBulkAction('reset'),
-      },
-      ...(disableEligibleCount > 0
+      } as BulkActionItem,
+        ]
+        : []),
+      ...(canUpdateAdmins && disableEligibleCount > 0
         ? [
           {
             key: 'disable',
@@ -716,7 +730,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
           } as BulkActionItem,
         ]
         : []),
-      ...(enableEligibleCount > 0
+      ...(canUpdateAdmins && enableEligibleCount > 0
         ? [
           {
             key: 'enable',
@@ -726,25 +740,33 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
           } as BulkActionItem,
         ]
         : []),
+      ...(canUpdateAllUsers
+        ? [
       {
         key: 'disableUsers',
         label: t('admins.disableAllActiveUsers'),
         icon: UserMinus,
         onClick: () => setBulkAction('disableUsers'),
-      },
+      } as BulkActionItem,
       {
         key: 'activateUsers',
         label: t('admins.activateAllDisabledUsers'),
         icon: UserCheck,
         onClick: () => setBulkAction('activateUsers'),
-      },
+      } as BulkActionItem,
+        ]
+        : []),
+      ...(canDeleteAllUsers
+        ? [
       {
         key: 'removeUsers',
         label: t('admins.removeAllUsers'),
         icon: UserX,
         onClick: () => setBulkAction('removeUsers'),
         destructive: true,
-      },
+      } as BulkActionItem,
+        ]
+        : []),
     ]
     : []
   const bulkActionConfigs: Record<BulkAdminActionType, BulkActionDialogConfig> = {
@@ -828,13 +850,13 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     handleSort,
     filters,
     currentAdminUsername: currentAdmin?.username,
-    onEdit,
-    onDelete: handleDeleteClick,
-    toggleStatus: handleStatusToggleClick,
-    onResetUsage: handleResetUsersUsageClick,
-    onDisableAllActiveUsers: handleDisableAllActiveUsersClick,
-    onActivateAllDisabledUsers: handleActivateAllDisabledUsersClick,
-    onRemoveAllUsers: handleRemoveAllUsersClick,
+    onEdit: canUpdateAdmins ? onEdit : undefined,
+    onDelete: canDeleteAdmins ? handleDeleteClick : undefined,
+    toggleStatus: canUpdateAdmins ? handleStatusToggleClick : undefined,
+    onResetUsage: canUpdateAdmins ? handleResetUsersUsageClick : undefined,
+    onDisableAllActiveUsers: canUpdateAllUsers ? handleDisableAllActiveUsersClick : undefined,
+    onActivateAllDisabledUsers: canUpdateAllUsers ? handleActivateAllDisabledUsersClick : undefined,
+    onRemoveAllUsers: canDeleteAllUsers ? handleRemoveAllUsersClick : undefined,
   })
 
   const isCurrentlyLoading = isLoading || (isFetching && !adminsResponse)
@@ -843,20 +865,21 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   return (
     <div>
       <Filters filters={filters} onFilterChange={handleFilterChange} handleSort={handleSort} refetch={handleManualRefresh} />
-      <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
+      {canUseBulkSelection && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
       <DataTable
         columns={columns}
         data={adminsData || []}
-        onEdit={onEdit}
-        onDelete={handleDeleteClick}
-        onToggleStatus={handleStatusToggleClick}
-        onResetUsage={handleResetUsersUsageClick}
-        onDisableAllActiveUsers={handleDisableAllActiveUsersClick}
-        onActivateAllDisabledUsers={handleActivateAllDisabledUsersClick}
-        onRemoveAllUsers={handleRemoveAllUsersClick}
-        onSelectionChange={setSelectedAdminUsernames}
+        onEdit={canUpdateAdmins ? onEdit : undefined}
+        onDelete={canDeleteAdmins ? handleDeleteClick : undefined}
+        onToggleStatus={canUpdateAdmins ? handleStatusToggleClick : undefined}
+        onResetUsage={canUpdateAdmins ? handleResetUsersUsageClick : undefined}
+        onDisableAllActiveUsers={canUpdateAllUsers ? handleDisableAllActiveUsersClick : undefined}
+        onActivateAllDisabledUsers={canUpdateAllUsers ? handleActivateAllDisabledUsersClick : undefined}
+        onRemoveAllUsers={canDeleteAllUsers ? handleRemoveAllUsersClick : undefined}
+        onSelectionChange={canUseBulkSelection ? setSelectedAdminUsernames : undefined}
         resetSelectionKey={resetSelectionKey}
         currentAdminUsername={currentAdmin?.username}
+        enableSelection={canUseBulkSelection}
         setStatusToggleDialogOpen={setStatusToggleDialogOpen}
         isLoading={isCurrentlyLoading && isFirstLoadRef.current}
         isFetching={isPageLoading}

@@ -143,7 +143,6 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
                     onValueChange(admin.username)
                     onAdminSelect?.({
                       ...admin,
-                      is_sudo: false,
                     })
                     setOpen(false)
                   }}

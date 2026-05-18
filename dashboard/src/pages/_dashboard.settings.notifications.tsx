@@ -45,6 +45,7 @@ const notificationChannelSchema = z.object({
 
 const notificationChannelsSchema = z.object({
   admin: notificationChannelSchema.optional(),
+  admin_role: notificationChannelSchema.optional(),
   core: notificationChannelSchema.optional(),
   group: notificationChannelSchema.optional(),
   host: notificationChannelSchema.optional(),
@@ -64,6 +65,13 @@ const notificationSettingsSchema = z.object({
           delete: z.boolean().optional(),
           reset_usage: z.boolean().optional(),
           login: z.boolean().optional(),
+        })
+        .optional(),
+      admin_role: z
+        .object({
+          create: z.boolean().optional(),
+          modify: z.boolean().optional(),
+          delete: z.boolean().optional(),
         })
         .optional(),
       core: z
@@ -162,6 +170,16 @@ const notificationConfigs: NotificationPermissionConfig[] = [
     ],
   },
   {
+    key: 'admin_role',
+    translationKey: 'adminRole',
+    icon: UserCog,
+    subPermissions: [
+      { key: 'create', translationKey: 'create' },
+      { key: 'modify', translationKey: 'modify' },
+      { key: 'delete', translationKey: 'delete' },
+    ],
+  },
+  {
     key: 'core',
     translationKey: 'core',
     icon: Cpu,
@@ -254,6 +272,7 @@ const channelTargets: Array<{
   icon: React.ComponentType<{ className?: string }>
 }> = [
     { key: 'admin', translationKey: 'admin', icon: UserCog },
+    { key: 'admin_role', translationKey: 'adminRole', icon: UserCog },
     { key: 'core', translationKey: 'core', icon: Settings },
     { key: 'group', translationKey: 'group', icon: Group },
     { key: 'host', translationKey: 'host', icon: ListTodo },
@@ -299,6 +318,7 @@ export default function NotificationSettings() {
     defaultValues: {
       notification_enable: {
         admin: { create: false, modify: false, delete: false, reset_usage: false, login: false },
+        admin_role: { create: false, modify: false, delete: false },
         core: { create: false, modify: false, delete: false },
         group: { create: false, modify: false, delete: false },
         host: { create: false, modify: false, delete: false, modify_hosts: false },
@@ -363,6 +383,7 @@ export default function NotificationSettings() {
       form.reset({
         notification_enable: {
           admin: enableData.admin || { create: false, modify: false, delete: false, reset_usage: false, login: false },
+          admin_role: enableData.admin_role || { create: false, modify: false, delete: false },
           core: enableData.core || { create: false, modify: false, delete: false },
           group: enableData.group || { create: false, modify: false, delete: false },
           host: enableData.host || { create: false, modify: false, delete: false, modify_hosts: false },
@@ -460,6 +481,7 @@ export default function NotificationSettings() {
       form.reset({
         notification_enable: {
           admin: enableData.admin || { create: false, modify: false, delete: false, reset_usage: false, login: false },
+          admin_role: enableData.admin_role || { create: false, modify: false, delete: false },
           core: enableData.core || { create: false, modify: false, delete: false },
           group: enableData.group || { create: false, modify: false, delete: false },
           host: enableData.host || { create: false, modify: false, delete: false, modify_hosts: false },

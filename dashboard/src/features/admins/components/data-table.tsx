@@ -10,21 +10,23 @@ import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
+import { isOwner, roleLabel } from '@/utils/rbac'
 
 interface DataTableProps<TData extends AdminDetails> {
   columns: ColumnDef<TData, any>[]
   data: TData[]
   currentAdminUsername?: string
-  onEdit: (admin: AdminDetails) => void
-  onDelete: (admin: AdminDetails) => void
-  onToggleStatus: (admin: AdminDetails) => void
+  onEdit?: (admin: AdminDetails) => void
+  onDelete?: (admin: AdminDetails) => void
+  onToggleStatus?: (admin: AdminDetails) => void
   setStatusToggleDialogOpen: (isOpen: boolean) => void
-  onResetUsage: (admin: AdminDetails) => void
+  onResetUsage?: (admin: AdminDetails) => void
   onDisableAllActiveUsers?: (admin: AdminDetails) => void
   onActivateAllDisabledUsers?: (admin: AdminDetails) => void
   onRemoveAllUsers?: (admin: AdminDetails) => void
   onSelectionChange?: (selectedUsernames: string[]) => void
   resetSelectionKey?: number
+  enableSelection?: boolean
   isLoading?: boolean
   isFetching?: boolean
 }
@@ -42,17 +44,24 @@ const ExpandedRowContent = memo(
     currentAdminUsername,
   }: {
     row: AdminDetails
-    onEdit: (admin: AdminDetails) => void
-    onDelete: (admin: AdminDetails) => void
-    onToggleStatus: (admin: AdminDetails) => void
-    onResetUsage: (admin: AdminDetails) => void
+    onEdit?: (admin: AdminDetails) => void
+    onDelete?: (admin: AdminDetails) => void
+    onToggleStatus?: (admin: AdminDetails) => void
+    onResetUsage?: (admin: AdminDetails) => void
     onDisableAllActiveUsers?: (admin: AdminDetails) => void
     onActivateAllDisabledUsers?: (admin: AdminDetails) => void
     onRemoveAllUsers?: (admin: AdminDetails) => void
     currentAdminUsername?: string
   }) => {
     const { t } = useTranslation()
-    const isSudoTarget = row.is_sudo
+    const isOwnerTarget = isOwner(row)
+    const hasMoreActions =
+      (!isOwnerTarget && row.username !== currentAdminUsername && !!onToggleStatus) ||
+      !!onResetUsage ||
+      (!isOwnerTarget && !!onDisableAllActiveUsers) ||
+      (!isOwnerTarget && !!onActivateAllDisabledUsers) ||
+      (!isOwnerTarget && !!onRemoveAllUsers) ||
+      (!isOwnerTarget && row.username !== currentAdminUsername && !!onDelete)
 
     return (
       <div className="flex items-start justify-between gap-2 border-b px-3 py-3 text-xs">
@@ -63,6 +72,10 @@ const ExpandedRowContent = memo(
             <span className="text-foreground">{row.total_users || 0}</span>
           </div>
           <div className="flex items-center gap-1.5 leading-none">
+            <span className="text-muted-foreground">{t('admins.role')}:</span>
+            <span className="text-foreground">{roleLabel(row)}</span>
+          </div>
+          <div className="flex items-center gap-1.5 leading-none">
             <ChartPie className="h-3 w-3 shrink-0 text-muted-foreground" />
             <span className="text-muted-foreground">{t('statistics.totalUsage')}:</span>
             <span dir="ltr" className="text-foreground" style={{ unicodeBidi: 'isolate' }}>
@@ -71,17 +84,17 @@ const ExpandedRowContent = memo(
           </div>
         </div>
         <div className="flex justify-end gap-1">
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(row)} title={t('edit')}>
+          {onEdit && <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(row)} title={t('edit')}>
             <Edit2 className="!h-3.5 !w-3.5" />
-          </Button>
-          <DropdownMenu>
+          </Button>}
+          {hasMoreActions && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
                 <MoreVertical className="!h-3.5 !w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {!isSudoTarget && row.username !== currentAdminUsername && (
+              {!isOwnerTarget && row.username !== currentAdminUsername && onToggleStatus && (
                 <DropdownMenuItem
                   onSelect={e => {
                     e.preventDefault()
@@ -93,7 +106,7 @@ const ExpandedRowContent = memo(
                   {row.is_disabled ? t('enable') : t('disable')}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem
+              {onResetUsage && <DropdownMenuItem
                 onSelect={e => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -102,8 +115,8 @@ const ExpandedRowContent = memo(
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
                 {t('admins.reset')}
-              </DropdownMenuItem>
-              {!isSudoTarget && onDisableAllActiveUsers && (
+              </DropdownMenuItem>}
+              {!isOwnerTarget && onDisableAllActiveUsers && (
                 <DropdownMenuItem
                   onSelect={e => {
                     e.preventDefault()
@@ -115,7 +128,7 @@ const ExpandedRowContent = memo(
                   {t('admins.disableAllActiveUsers')}
                 </DropdownMenuItem>
               )}
-              {!isSudoTarget && onActivateAllDisabledUsers && (
+              {!isOwnerTarget && onActivateAllDisabledUsers && (
                 <DropdownMenuItem
                   onSelect={e => {
                     e.preventDefault()
@@ -127,7 +140,7 @@ const ExpandedRowContent = memo(
                   {t('admins.activateAllDisabledUsers')}
                 </DropdownMenuItem>
               )}
-              {!isSudoTarget && onRemoveAllUsers && (
+              {!isOwnerTarget && onRemoveAllUsers && (
                 <DropdownMenuItem
                   className="text-destructive"
                   onSelect={e => {
@@ -140,7 +153,7 @@ const ExpandedRowContent = memo(
                   {t('admins.removeAllUsers')}
                 </DropdownMenuItem>
               )}
-              {!isSudoTarget && row.username !== currentAdminUsername && (
+              {!isOwnerTarget && row.username !== currentAdminUsername && onDelete && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -157,7 +170,7 @@ const ExpandedRowContent = memo(
                 </>
               )}
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
         </div>
       </div>
     )
@@ -177,6 +190,7 @@ export function DataTable<TData extends AdminDetails>({
   onRemoveAllUsers,
   onSelectionChange,
   resetSelectionKey = 0,
+  enableSelection = true,
   isLoading = false,
   isFetching = false,
 }: DataTableProps<TData>) {
@@ -204,7 +218,7 @@ export function DataTable<TData extends AdminDetails>({
     columns,
     getRowId: row => row.username,
     getCoreRowModel: getCoreRowModel(),
-    enableRowSelection: row => !row.original.is_sudo && row.original.username !== currentAdminUsername,
+    enableRowSelection: row => enableSelection && !isOwner(row.original) && row.original.username !== currentAdminUsername,
     onRowSelectionChange: handleRowSelectionChange,
     state: {
       rowSelection,
@@ -256,7 +270,7 @@ export function DataTable<TData extends AdminDetails>({
             <Skeleton className="hidden h-4 w-20 md:block" />
           </>
         )
-      case 'is_sudo':
+      case 'role':
         return <Skeleton className="h-5 w-20 rounded-full" />
       case 'total_users':
         return (
@@ -326,7 +340,7 @@ export function DataTable<TData extends AdminDetails>({
         return
       }
 
-      onEdit(rowData)
+      onEdit?.(rowData)
     },
     [handleRowToggle, onEdit],
   )

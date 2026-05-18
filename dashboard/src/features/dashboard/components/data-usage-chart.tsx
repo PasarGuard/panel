@@ -12,6 +12,7 @@ import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { formatPeriodLabelForPeriod, formatTooltipDate, getChartQueryRangeFromShortcut, getXAxisIntervalForShortcut } from '@/utils/chart-period-utils'
+import { hasScopeAll } from '@/utils/rbac'
 
 type PeriodOption = {
   label: string
@@ -111,7 +112,7 @@ const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUse
   const { admin } = useAdmin()
   const dir = useDirDetection()
   const chartViewType = useChartViewType()
-  const is_sudo = admin?.is_sudo || false
+  const canReadAllUsers = hasScopeAll(admin, 'users', 'read')
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const PERIOD_OPTIONS: PeriodOption[] = useMemo(
     () => [
@@ -140,7 +141,7 @@ const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUse
   const queryRange = useMemo(() => getChartQueryRangeFromShortcut(periodOption.value, new Date(), { minuteForOneHour: true }), [periodOption.value])
   const activePeriod = queryRange.period
 
-  const shouldUseNodeUsage = is_sudo && adminId == null && !adminUsername
+  const shouldUseNodeUsage = canReadAllUsers && adminId == null && !adminUsername
 
   const nodeUsageParams = useMemo(
     () => ({

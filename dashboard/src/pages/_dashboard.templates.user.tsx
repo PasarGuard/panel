@@ -72,7 +72,6 @@ export default function UserTemplates() {
       hwid_limit: userTemplate.hwid_limit ?? undefined,
       expire_duration: userTemplate.expire_duration || undefined,
       method: userTemplate.extra_settings?.method || undefined,
-      flow: userTemplate.extra_settings?.flow || undefined,
       groups: userTemplate.group_ids || undefined,
       username_prefix: userTemplate.username_prefix || undefined,
       username_suffix: userTemplate.username_suffix || undefined,

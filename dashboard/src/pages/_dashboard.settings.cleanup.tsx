@@ -27,6 +27,7 @@ import { endOfDay, startOfDay } from 'date-fns'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { hasScopeAll, isOwner, roleLabel } from '@/utils/rbac'
 
 const PAGE_SIZE = 20
 type CleanupDeleteTarget = 'expired' | 'limited'
@@ -43,7 +44,7 @@ export default function CleanupSettings() {
   const [clearDataBefore, setClearDataBefore] = useState<Date | undefined>()
 
   const { data: currentAdmin } = useGetCurrentAdmin()
-  const is_sudo = currentAdmin?.is_sudo || false
+  const canTargetAllAdmins = hasScopeAll(currentAdmin, 'users', 'delete') || hasScopeAll(currentAdmin, 'users', 'update')
 
   // Admin search state
   const [selectedAdmin, setSelectedAdmin] = useState<AdminDetails | undefined>()
@@ -75,7 +76,7 @@ export default function CleanupSettings() {
     },
     {
       query: {
-        enabled: is_sudo,
+        enabled: canTargetAllAdmins,
       },
     },
   )
@@ -296,7 +297,11 @@ export default function CleanupSettings() {
                       <AvatarFallback className="bg-muted text-xs font-medium">{selectedAdmin?.username?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
                     </Avatar>
                     <span className="truncate text-xs sm:text-sm">{selectedAdmin?.username || t('advanceSearch.selectAdmin')}</span>
-                    {selectedAdmin && <div className="flex-shrink-0">{selectedAdmin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}</div>}
+                    {selectedAdmin && (
+                      <div className="flex-shrink-0" title={roleLabel(selectedAdmin)}>
+                        {isOwner(selectedAdmin) ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}
+                      </div>
+                    )}
                   </div>
                   <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0 text-muted-foreground" />
                 </Button>
@@ -337,7 +342,7 @@ export default function CleanupSettings() {
                         </Avatar>
                         <span className="flex-1 truncate">{admin.username}</span>
                         <div className="flex flex-shrink-0 items-center gap-1">
-                          {admin.is_sudo ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}
+                          <span title={roleLabel(admin)}>{isOwner(admin) ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}</span>
                           {selectedAdmin?.username === admin.username && <Check className="h-3 w-3 text-primary" />}
                         </div>
                       </CommandItem>

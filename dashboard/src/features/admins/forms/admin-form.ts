@@ -48,7 +48,7 @@ export const adminFormSchema = z
     username: z.string().min(1, 'Username is required'),
     password: z.string().optional(),
     passwordConfirm: z.string().optional(),
-    is_sudo: z.boolean().default(false),
+    role_id: z.number().min(2, 'Role is required'),
     is_disabled: z.boolean().optional(),
     discord_webhook: z.string().optional(),
     sub_domain: z.string().optional(),
@@ -109,7 +109,7 @@ export type AdminFormValues = z.infer<typeof adminFormSchema>
 
 export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
   username: '',
-  is_sudo: false,
+  role_id: 3,
   password: '',
   passwordConfirm: '',
   is_disabled: false,
