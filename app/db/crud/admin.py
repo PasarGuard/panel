@@ -110,6 +110,8 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.password_reset_at = datetime.now(timezone.utc)
     if modified_admin.role_id is not None:
         db_admin.role_id = modified_admin.role_id
+    if modified_admin.permission_overrides is not None:
+        db_admin.permission_overrides = modified_admin.permission_overrides.model_dump()
     if modified_admin.telegram_id is not None:
         db_admin.telegram_id = modified_admin.telegram_id
     if modified_admin.discord_webhook is not None:
