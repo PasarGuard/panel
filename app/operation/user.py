@@ -370,7 +370,7 @@ class UserOperation(BaseOperation):
         admin: AdminDetails,
         *,
         data_limit: int | None = None,
-        expire: dt | None = None,
+        expire: dt | int | None = None,
         hwid_limit: int | None = None,
         data_limit_reset_strategy=None,
         next_plan=None,
@@ -397,8 +397,15 @@ class UserOperation(BaseOperation):
                     message=f"Data limit cannot exceed {limits.data_limit_max} bytes", code=400, db=db
                 )
 
-        if expire is not None:
-            days = (expire - datetime.now(timezone.utc)).days
+        if expire is not None and expire != 0:
+            # expire may be a Unix timestamp (int) or a datetime; normalize to aware datetime
+            if isinstance(expire, int):
+                expire_dt = datetime.fromtimestamp(expire, tz=timezone.utc)
+            elif expire.tzinfo is None:
+                expire_dt = expire.replace(tzinfo=timezone.utc)
+            else:
+                expire_dt = expire
+            days = (expire_dt - datetime.now(timezone.utc)).days
             if limits.expire_days_min is not None and days < limits.expire_days_min:
                 await self.raise_error(
                     message=f"Expire must be at least {limits.expire_days_min} days from now", code=400, db=db
