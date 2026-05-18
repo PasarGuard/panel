@@ -43,7 +43,7 @@ interface AdminsTableProps {
   onDelete: (admin: AdminDetails) => void
   onToggleStatus: (admin: AdminDetails, checked: boolean) => void
   onResetUsage: (admin: AdminDetails) => void
-  onTotalAdminsChange?: (counts: { total: number; active: number; disabled: number } | null) => void
+  onTotalAdminsChange?: (counts: { total: number; active: number; disabled: number; limited: number } | null) => void
 }
 
 type BulkUsersActionType = 'disable' | 'activate'
@@ -59,6 +59,7 @@ interface BulkActionDialogConfig {
 }
 
 const compactAdminIds = (admins: AdminDetails[]): number[] => admins.map(admin => admin.id).filter((id): id is number => typeof id === 'number')
+const getAdminStatus = (admin: AdminDetails) => admin.status || (admin.is_disabled ? 'disabled' : 'active')
 
 const DeleteAlertDialog = ({ admin, isOpen, onClose, onConfirm }: { admin: AdminDetails; isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
   const { t } = useTranslation()
@@ -99,10 +100,10 @@ const ToggleAdminStatusModal = ({ admin, isOpen, onClose, onConfirm }: { admin: 
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t(admin.is_disabled ? 'admin.enable' : 'admin.disable')}</AlertDialogTitle>
+          <AlertDialogTitle>{t(getAdminStatus(admin) === 'disabled' ? 'admin.enable' : 'admin.disable')}</AlertDialogTitle>
           <AlertDialogDescription className="flex items-center gap-2">
             <Checkbox checked={adminUsersToggle} onCheckedChange={() => setAdminUsersToggle(!adminUsersToggle)} />
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t(admin.is_disabled ? 'activeUsers.prompt' : 'disableUsers.prompt', { name: admin.username }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: t(getAdminStatus(admin) === 'disabled' ? 'activeUsers.prompt' : 'disableUsers.prompt', { name: admin.username }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -251,8 +252,8 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
 
   const adminsData = adminsResponse?.admins || []
   const selectedAdmins = adminsData.filter(admin => selectedAdminUsernames.includes(admin.username))
-  const selectedEnableEligibleAdmins = selectedAdmins.filter(admin => admin.is_disabled)
-  const selectedDisableEligibleAdmins = selectedAdmins.filter(admin => !admin.is_disabled)
+  const selectedEnableEligibleAdmins = selectedAdmins.filter(admin => getAdminStatus(admin) === 'disabled')
+  const selectedDisableEligibleAdmins = selectedAdmins.filter(admin => getAdminStatus(admin) !== 'disabled')
   const selectedAdminIds = compactAdminIds(selectedAdmins)
   const selectedEnableEligibleIds = compactAdminIds(selectedEnableEligibleAdmins)
   const selectedDisableEligibleIds = compactAdminIds(selectedDisableEligibleAdmins)
@@ -265,6 +266,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
           total: adminsResponse.total,
           active: adminsResponse.active,
           disabled: adminsResponse.disabled,
+          limited: adminsResponse.limited,
         })
       } else {
         onTotalAdminsChange(null)

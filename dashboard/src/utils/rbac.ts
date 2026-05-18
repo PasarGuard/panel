@@ -9,11 +9,17 @@ const getActionPermission = (admin: AdminDetails | null | undefined, resource: s
 
 const isScopeNone = (value: PermissionValue) => typeof value === 'object' && value !== null && Number(value.scope) === 0
 const isScopeAllValue = (value: PermissionValue) => typeof value === 'object' && value !== null && Number(value.scope) === 2
+const READ_ACTIONS = new Set(['read', 'read_simple', 'read_general', 'logs', 'stats'])
 
 export const isOwner = (admin: AdminDetails | null | undefined) => admin?.role?.is_owner === true
+export const isLimited = (admin: AdminDetails | null | undefined) => admin?.status === 'limited' || admin?.is_limited === true
 
 export const hasPermission = (admin: AdminDetails | null | undefined, resource: string, action: string) => {
   if (isOwner(admin)) return true
+  if (isLimited(admin)) {
+    if (admin?.role?.disabled_when_limited) return false
+    if (!READ_ACTIONS.has(action)) return false
+  }
   const value = getActionPermission(admin, resource, action)
   if (value === true) return true
   if (isScopeNone(value)) return false
@@ -22,6 +28,7 @@ export const hasPermission = (admin: AdminDetails | null | undefined, resource: 
 
 export const hasScopeAll = (admin: AdminDetails | null | undefined, resource: string, action: string) => {
   if (isOwner(admin)) return true
+  if (!hasPermission(admin, resource, action)) return false
   const value = getActionPermission(admin, resource, action)
   return value === true || isScopeAllValue(value)
 }

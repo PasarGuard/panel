@@ -3072,7 +3072,19 @@ export interface AdminsResponse {
   total: number
   active: number
   disabled: number
+  limited: number
 }
+
+export type AdminStatus = (typeof AdminStatus)[keyof typeof AdminStatus]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AdminStatus = {
+  active: 'active',
+  disabled: 'disabled',
+  limited: 'limited',
+} as const
+
+export type AdminStatusModify = 'active' | 'disabled'
 
 export type AdminsPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
 
@@ -3141,6 +3153,8 @@ export interface AdminRoleResponse {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
+  disabled_when_limited?: boolean
+  disable_users_when_limited?: boolean
   id: number
   is_owner: boolean
   created_at: string
@@ -3161,12 +3175,18 @@ export type AdminRoleModifyPermissions = RolePermissions | null
 
 export type AdminRoleModifyName = string | null
 
+export type AdminRoleModifyDisableUsersWhenLimited = boolean | null
+
+export type AdminRoleModifyDisabledWhenLimited = boolean | null
+
 export interface AdminRoleModify {
   name?: AdminRoleModifyName
   permissions?: AdminRoleModifyPermissions
   limits?: AdminRoleModifyLimits
   features?: AdminRoleModifyFeatures
   access?: AdminRoleModifyAccess
+  disabled_when_limited?: AdminRoleModifyDisabledWhenLimited
+  disable_users_when_limited?: AdminRoleModifyDisableUsersWhenLimited
 }
 
 export type AdminRoleDataId = number | null
@@ -3182,6 +3202,8 @@ export interface AdminRoleData {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
+  disabled_when_limited?: boolean
+  disable_users_when_limited?: boolean
 }
 
 export interface AdminRoleCreate {
@@ -3191,6 +3213,8 @@ export interface AdminRoleCreate {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
+  disabled_when_limited?: boolean
+  disable_users_when_limited?: boolean
 }
 
 export interface AdminNotificationEnable {
@@ -3227,11 +3251,17 @@ export type AdminModifyTelegramId = number | null
 
 export type AdminModifyPassword = string | null
 
+export type AdminModifyDataLimit = number | null
+
+export type AdminModifyStatus = AdminStatusModify | null
+
 export interface AdminModify {
   password?: AdminModifyPassword
   telegram_id?: AdminModifyTelegramId
   discord_webhook?: AdminModifyDiscordWebhook
   discord_id?: AdminModifyDiscordId
+  status?: AdminModifyStatus
+  data_limit?: AdminModifyDataLimit
   is_disabled?: AdminModifyIsDisabled
   sub_template?: AdminModifySubTemplate
   sub_domain?: AdminModifySubDomain
@@ -3269,6 +3299,10 @@ export type AdminDetailsDiscordWebhook = string | null
 
 export type AdminDetailsTelegramId = number | null
 
+export type AdminDetailsDataLimit = number | null
+
+export type AdminDetailsStatus = AdminStatus
+
 /**
  * Complete admin model with all fields for database representation and API responses.
  */
@@ -3283,7 +3317,10 @@ export interface AdminDetails {
   id?: AdminDetailsId
   total_users?: number
   used_traffic?: number
+  data_limit?: AdminDetailsDataLimit
+  status?: AdminDetailsStatus
   is_disabled?: boolean
+  is_limited?: boolean
   discord_id?: AdminDetailsDiscordId
   sub_template?: AdminDetailsSubTemplate
   lifetime_used_traffic?: AdminDetailsLifetimeUsedTraffic
@@ -3314,6 +3351,10 @@ export type AdminCreateDiscordWebhook = string | null
 
 export type AdminCreateTelegramId = number | null
 
+export type AdminCreateDataLimit = number | null
+
+export type AdminCreateStatus = AdminStatusModify | null
+
 /**
  * Model for creating new admin accounts requiring username and password.
  */
@@ -3322,6 +3363,8 @@ export interface AdminCreate {
   telegram_id?: AdminCreateTelegramId
   discord_webhook?: AdminCreateDiscordWebhook
   discord_id?: AdminCreateDiscordId
+  status?: AdminCreateStatus
+  data_limit?: AdminCreateDataLimit
   is_disabled?: AdminCreateIsDisabled
   sub_template?: AdminCreateSubTemplate
   sub_domain?: AdminCreateSubDomain

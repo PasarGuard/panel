@@ -48,6 +48,12 @@ const normalizePermissionOverrides = (overrides: AdminFormValuesInput['permissio
   max_hwid_per_user: normalizeOverrideValue(overrides?.max_hwid_per_user),
 })
 
+const normalizeDataLimit = (value: AdminFormValuesInput['data_limit']): number => {
+  const normalized = normalizeOverrideValue(value)
+  return normalized && normalized > 0 ? normalized : 0
+}
+const ONE_GB_IN_BYTES = 1024 * 1024 * 1024
+
 interface AdminModalProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
@@ -106,9 +112,19 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
 
   const onSubmit = async (values: AdminFormValuesInput) => {
     try {
+      const dataLimitChanged = !!form.formState.dirtyFields.data_limit
+      const dataLimitHasValue = values.data_limit !== null && values.data_limit !== undefined && values.data_limit !== ''
+      const dataLimitPayload = editingAdmin
+        ? dataLimitChanged
+          ? { data_limit: normalizeDataLimit(values.data_limit) }
+          : {}
+        : dataLimitHasValue
+          ? { data_limit: normalizeDataLimit(values.data_limit) }
+          : {}
       const editData = {
         password: values.password || undefined,
-        is_disabled: values.is_disabled,
+        ...(form.formState.dirtyFields.status ? { status: values.status || 'active' } : {}),
+        ...dataLimitPayload,
         discord_webhook: values.discord_webhook,
         sub_domain: values.sub_domain,
         sub_template: values.sub_template,
@@ -138,7 +154,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         const createData = {
           username: values.username,
           password: values.password, // Ensure password is present
-          is_disabled: values.is_disabled,
+          status: values.status || 'active',
+          ...dataLimitPayload,
           discord_webhook: values.discord_webhook,
           sub_domain: values.sub_domain,
           sub_template: values.sub_template,
@@ -170,7 +187,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         'password',
         'passwordConfirm',
         'role_id',
-        'is_disabled',
+        'status',
+        'data_limit',
         'discord_webhook',
         'sub_domain',
         'sub_template',
@@ -246,6 +264,28 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('status', { defaultValue: 'Status' })}</FormLabel>
+                      <Select value={field.value || 'active'} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('status', { defaultValue: 'Status' })} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="active">{t('status.active', { defaultValue: 'Active' })}</SelectItem>
+                          <SelectItem value="disabled">{t('status.disabled', { defaultValue: 'Disabled' })}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <AdminDataLimitField form={form} />
                 <FormField
                   control={form.control}
                   name="password"
@@ -658,6 +698,51 @@ function PermissionOverridesFields({ form }: { form: AdminForm }) {
   )
 }
 
+function AdminDataLimitField({ form }: { form: AdminForm }) {
+  const { t } = useTranslation()
+
+  return (
+    <FormField
+      control={form.control}
+      name="data_limit"
+      render={({ field }) => {
+        const numericValue = typeof field.value === 'number' ? field.value : null
+        return (
+          <FormItem className="relative">
+            <FormLabel>{t('admins.dataLimit', { defaultValue: 'Admin data limit' })}</FormLabel>
+            <FormControl>
+              <div className="relative">
+                <DecimalInput
+                  placeholder={t('adminRoles.unlimited', { defaultValue: 'Unlimited' })}
+                  value={numericValue == null ? null : bytesToFormGigabytes(numericValue)}
+                  onValueChange={value => {
+                    if (value == null) {
+                      field.onChange(null)
+                      return
+                    }
+                    field.onChange(gbToBytes(value))
+                  }}
+                  emptyValue={undefined}
+                  className="pr-10"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+                  {t('userDialog.gb', { defaultValue: 'GB' })}
+                </span>
+              </div>
+            </FormControl>
+            {numericValue != null && numericValue > 0 && numericValue < ONE_GB_IN_BYTES && (
+              <p dir="ltr" className="mt-1 w-full text-end text-[11px] text-muted-foreground">
+                {formatBytes(numericValue)}
+              </p>
+            )}
+            <FormMessage />
+          </FormItem>
+        )
+      }}
+    />
+  )
+}
+
 function NumberLimitField({ form, name, labelKey }: { form: AdminForm; name: any; labelKey: string }) {
   const { t } = useTranslation()
   return (
@@ -714,7 +799,7 @@ function BytesLimitField({ form, name, labelKey }: { form: AdminForm; name: any;
                 </span>
               </div>
             </FormControl>
-            {numericValue != null && numericValue > 0 && (
+            {numericValue != null && numericValue > 0 && numericValue < ONE_GB_IN_BYTES && (
               <p dir="ltr" className="mt-1 w-full text-end text-[11px] text-muted-foreground">
                 {formatBytes(numericValue)}
               </p>

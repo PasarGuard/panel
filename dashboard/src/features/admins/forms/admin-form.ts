@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { RoleLimits } from '@/service/api'
 
+export const adminStatusEditEnum = z.enum(['active', 'disabled'])
+
 const passwordValidation = z.string().refine(
   value => {
     if (!value) return false // Don't allow empty passwords
@@ -50,6 +52,8 @@ export const adminFormSchema = z
     password: z.string().optional(),
     passwordConfirm: z.string().optional(),
     role_id: z.number().min(2, 'Role is required'),
+    status: adminStatusEditEnum.optional(),
+    data_limit: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number().min(0)]).optional(),
     is_disabled: z.boolean().optional(),
     discord_webhook: z.string().optional(),
     sub_domain: z.string().optional(),
@@ -134,6 +138,8 @@ export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
   role_id: 3,
   password: '',
   passwordConfirm: '',
+  status: 'active',
+  data_limit: null,
   is_disabled: false,
   discord_webhook: '',
   sub_domain: '',

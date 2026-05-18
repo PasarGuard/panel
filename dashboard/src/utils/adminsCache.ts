@@ -36,7 +36,9 @@ const includesIgnoreCase = (value: string | null | undefined, needle: string): b
   return value.toLowerCase().includes(needle.toLowerCase())
 }
 
-const isDisabled = (admin: AdminDetails): boolean => !!admin.is_disabled
+const getAdminStatus = (admin: AdminDetails): string => admin.status || (admin.is_disabled ? 'disabled' : 'active')
+const isDisabled = (admin: AdminDetails): boolean => getAdminStatus(admin) === 'disabled'
+const isLimited = (admin: AdminDetails): boolean => getAdminStatus(admin) === 'limited'
 
 const sameAdmin = (left: AdminDetails, right: AdminDetails): boolean => {
   if (left.id != null && right.id != null) {
@@ -93,18 +95,24 @@ const shouldInsertIntoQueryPage = (params?: GetAdminsParams): boolean => {
   return offset <= 0
 }
 
-const decrementStatusCount = (active: number, disabled: number, admin: AdminDetails) => {
+const decrementStatusCount = (active: number, disabled: number, limited: number, admin: AdminDetails) => {
   if (isDisabled(admin)) {
-    return { active, disabled: Math.max(0, disabled - 1) }
+    return { active, disabled: Math.max(0, disabled - 1), limited }
   }
-  return { active: Math.max(0, active - 1), disabled }
+  if (isLimited(admin)) {
+    return { active, disabled, limited: Math.max(0, limited - 1) }
+  }
+  return { active: Math.max(0, active - 1), disabled, limited }
 }
 
-const incrementStatusCount = (active: number, disabled: number, admin: AdminDetails) => {
+const incrementStatusCount = (active: number, disabled: number, limited: number, admin: AdminDetails) => {
   if (isDisabled(admin)) {
-    return { active, disabled: disabled + 1 }
+    return { active, disabled: disabled + 1, limited }
   }
-  return { active: active + 1, disabled }
+  if (isLimited(admin)) {
+    return { active, disabled, limited: limited + 1 }
+  }
+  return { active: active + 1, disabled, limited }
 }
 
 const upsertInSingleAdminsQuery = (oldData: AdminsResponse, admin: AdminDetails, params: GetAdminsParams | undefined, allowInsert: boolean): AdminsResponse | undefined => {
@@ -116,6 +124,7 @@ const upsertInSingleAdminsQuery = (oldData: AdminsResponse, admin: AdminDetails,
   let total = oldData.total
   let active = oldData.active
   let disabled = oldData.disabled
+  let limited = oldData.limited || 0
   let changed = false
 
   if (existingIndex >= 0) {
@@ -125,21 +134,20 @@ const upsertInSingleAdminsQuery = (oldData: AdminsResponse, admin: AdminDetails,
       admins = oldAdmins.map(a => (sameAdmin(a, admin) ? admin : a))
       changed = true
 
-      if (isDisabled(previous) !== isDisabled(admin)) {
-        if (isDisabled(previous)) {
-          disabled = Math.max(0, disabled - 1)
-          active += 1
-        } else {
-          active = Math.max(0, active - 1)
-          disabled += 1
-        }
+      if (getAdminStatus(previous) !== getAdminStatus(admin)) {
+        const decremented = decrementStatusCount(active, disabled, limited, previous)
+        const incremented = incrementStatusCount(decremented.active, decremented.disabled, decremented.limited, admin)
+        active = incremented.active
+        disabled = incremented.disabled
+        limited = incremented.limited
       }
     } else {
       admins = oldAdmins.filter(a => !sameAdmin(a, admin))
       total = Math.max(0, total - 1)
-      const dec = decrementStatusCount(active, disabled, previous)
+      const dec = decrementStatusCount(active, disabled, limited, previous)
       active = dec.active
       disabled = dec.disabled
+      limited = dec.limited
       changed = true
     }
   } else if (allowInsert && matchesFilters && shouldInsertIntoQueryPage(params)) {
@@ -155,9 +163,10 @@ const upsertInSingleAdminsQuery = (oldData: AdminsResponse, admin: AdminDetails,
     }
 
     total += 1
-    const inc = incrementStatusCount(active, disabled, admin)
+    const inc = incrementStatusCount(active, disabled, limited, admin)
     active = inc.active
     disabled = inc.disabled
+    limited = inc.limited
     changed = true
   }
 
@@ -174,6 +183,7 @@ const upsertInSingleAdminsQuery = (oldData: AdminsResponse, admin: AdminDetails,
     total,
     active,
     disabled,
+    limited,
   }
 }
 
@@ -207,7 +217,7 @@ export const removeAdminFromAdminsCache = (queryClient: QueryClient, adminId: nu
 
     const admins = oldData.admins.filter(a => a.id !== adminId)
     const total = Math.max(0, oldData.total - 1)
-    const dec = decrementStatusCount(oldData.active, oldData.disabled, existing)
+    const dec = decrementStatusCount(oldData.active, oldData.disabled, oldData.limited || 0, existing)
 
     queryClient.setQueryData(queryKey, {
       ...oldData,
@@ -215,6 +225,7 @@ export const removeAdminFromAdminsCache = (queryClient: QueryClient, adminId: nu
       total,
       active: dec.active,
       disabled: dec.disabled,
+      limited: dec.limited,
     })
   })
 }
@@ -236,14 +247,13 @@ export const patchAdminInAdminsCache = (queryClient: QueryClient, adminId: numbe
 
     let active = oldData.active
     let disabled = oldData.disabled
-    if (isDisabled(oldAdmin) !== isDisabled(updatedAdmin)) {
-      if (isDisabled(oldAdmin)) {
-        disabled = Math.max(0, disabled - 1)
-        active += 1
-      } else {
-        active = Math.max(0, active - 1)
-        disabled += 1
-      }
+    let limited = oldData.limited || 0
+    if (getAdminStatus(oldAdmin) !== getAdminStatus(updatedAdmin)) {
+      const decremented = decrementStatusCount(active, disabled, limited, oldAdmin)
+      const incremented = incrementStatusCount(decremented.active, decremented.disabled, decremented.limited, updatedAdmin)
+      active = incremented.active
+      disabled = incremented.disabled
+      limited = incremented.limited
     }
 
     queryClient.setQueryData(queryKey, {
@@ -251,6 +261,7 @@ export const patchAdminInAdminsCache = (queryClient: QueryClient, adminId: numbe
       admins,
       active,
       disabled,
+      limited,
     })
   })
 }

@@ -33,7 +33,7 @@ export default function AdminRoleCard({ role, onEdit, selectionControl, selected
   const RoleIcon = role.is_owner ? Crown : builtIn ? ShieldCheck : Shield
   const permissionCount = countResourcePermissions(role)
   const limitsCount = Object.keys(role.limits || {}).length
-  const featureCount = Object.keys(role.features || {}).length
+  const featureCount = Object.keys(role.features || {}).length + 2
 
   const localizedName = t(`adminRoles.names.${role.name}`, { defaultValue: role.name })
 

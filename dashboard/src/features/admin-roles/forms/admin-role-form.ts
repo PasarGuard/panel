@@ -196,6 +196,8 @@ export const adminRoleFormSchema = z.object({
   limits: limitsSchema,
   features: featuresSchema,
   access: accessSchema,
+  disabled_when_limited: z.boolean(),
+  disable_users_when_limited: z.boolean(),
 })
 
 export type AdminRoleFormValuesInput = z.input<typeof adminRoleFormSchema>
@@ -226,6 +228,8 @@ export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
   },
   features: defaultAdminRoleFeatures(),
   access: defaultAdminRoleAccess(),
+  disabled_when_limited: false,
+  disable_users_when_limited: false,
 }
 
 export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFormValuesInput => ({
@@ -249,6 +253,8 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
     allowed_template_ids: role.access?.allowed_template_ids ?? null,
     allowed_group_ids: role.access?.allowed_group_ids ?? null,
   },
+  disabled_when_limited: role.disabled_when_limited ?? false,
+  disable_users_when_limited: role.disable_users_when_limited ?? false,
 })
 
 export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => ({
@@ -261,6 +267,8 @@ export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => ({
     allowed_template_ids: values.access.allowed_template_ids?.length ? values.access.allowed_template_ids : null,
     allowed_group_ids: values.access.allowed_group_ids?.length ? values.access.allowed_group_ids : null,
   } as RoleAccess,
+  disabled_when_limited: values.disabled_when_limited,
+  disable_users_when_limited: values.disable_users_when_limited,
 })
 
 export const BUILT_IN_ROLE_IDS = new Set([1, 2, 3])

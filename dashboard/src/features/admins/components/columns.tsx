@@ -1,6 +1,6 @@
 import { AdminDetails } from '@/service/api'
 import { ColumnDef, Row, Table } from '@tanstack/react-table'
-import { ChartPie, ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, UserRoundKey, Trash2, Users, UserCheck, UserMinus, UserRound, UserX } from 'lucide-react'
+import { ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, Trash2, Users, UserCheck, UserMinus, UserRound, UserRoundKey, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes } from '@/utils/formatByte.ts'
@@ -31,6 +31,8 @@ const createSortButton = (
   filters: {
     sort?: string
   },
+  className?: string,
+  desktopLabel?: string,
 ) => {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -39,8 +41,17 @@ const createSortButton = (
   }
 
   return (
-    <button type="button" onClick={handleClick} className="flex w-full items-center gap-1">
-      <div className="text-xs">{t(label)}</div>
+    <button type="button" onClick={handleClick} className={cn('flex w-full items-center gap-1', className)}>
+      <div className="text-xs">
+        {desktopLabel ? (
+          <>
+            <span className="md:hidden">{t(label)}</span>
+            <span className="hidden md:inline">{t(desktopLabel)}</span>
+          </>
+        ) : (
+          t(label)
+        )}
+      </div>
       {filters.sort && (filters.sort === column || filters.sort === '-' + column) && (
         <ChevronDown size={16} className={`transition-transform duration-300 ${filters.sort === column ? 'rotate-180' : ''} ${filters.sort === '-' + column ? 'rotate-0' : ''} `} />
       )}
@@ -48,6 +59,13 @@ const createSortButton = (
   )
 }
 
+const getAdminStatus = (admin: AdminDetails) => admin.status || (admin.is_disabled ? 'disabled' : 'active')
+const isAdminDisabled = (admin: AdminDetails) => getAdminStatus(admin) === 'disabled'
+const getAdminStatusDotClassName = (admin: AdminDetails) => {
+  if (isAdminDisabled(admin)) return 'border border-gray-400 shadow-sm dark:border-gray-600'
+  if (getAdminStatus(admin) === 'limited') return 'bg-red-500 shadow-sm'
+  return 'bg-green-500 shadow-sm'
+}
 const getAdminRoleIcon = (owner: boolean) => (owner ? UserRoundKey : UserRound)
 
 export const setupColumns = ({
@@ -102,33 +120,49 @@ export const setupColumns = ({
     {
       accessorKey: 'username',
       header: () => createSortButton('username', 'username', t, handleSort, filters),
-      cell: ({ row }) => (
-        <div className="overflow-hidden text-ellipsis whitespace-nowrap py-1.5 font-medium">
-          <div className="flex items-center gap-x-3">
-            <div>
-              {row.original.is_disabled ? (
-                <div className="min-h-[10px] min-w-[10px] rounded-full border border-gray-400 shadow-sm dark:border-gray-600" />
-              ) : (
-                <div className="min-h-[10px] min-w-[10px] rounded-full bg-green-500 shadow-sm" />
-              )}
-            </div>
-            <div className="flex flex-col overflow-hidden text-ellipsis whitespace-nowrap">
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
+      cell: ({ row }) => {
+        const RoleIcon = getAdminRoleIcon(isOwner(row.original))
+
+        return (
+          <div className="overflow-hidden text-ellipsis whitespace-nowrap pl-0 font-medium md:pl-1">
+            <div className="flex items-start gap-x-2 px-0.5 py-1">
+              <div className="pt-0.5 md:hidden">
+                <RoleIcon className={getAdminStatus(row.original) === 'disabled' ? 'h-4 w-4 text-muted-foreground/60' : cn('h-4 w-4', isOwner(row.original) ? 'text-violet-500' : 'text-primary')} />
+              </div>
+              <div className="hidden pt-1 md:block">
+                <div className={cn('min-h-[10px] min-w-[10px] rounded-full', getAdminStatusDotClassName(row.original))} />
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-y-0.5 overflow-hidden text-ellipsis whitespace-nowrap">
+                <div className="flex items-center gap-x-1.5 overflow-hidden">
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
+                </div>
+              </div>
             </div>
           </div>
+        )
+      },
+    },
+    {
+      id: 'status',
+      header: () => <div className="flex items-center justify-center text-xs capitalize">{t('usersTable.status')}</div>,
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center">
+          <AdminStatusBadge compact isSudo={isOwner(row.original)} status={getAdminStatus(row.original)} />
         </div>
       ),
     },
     {
       accessorKey: 'used_traffic',
-      header: () => createSortButton('used_traffic', 'admins.used.traffic', t, handleSort, filters),
+      header: () => createSortButton('used_traffic', 'dataUsage', t, handleSort, filters, 'justify-start', 'admins.used.traffic'),
       cell: ({ row }) => {
         const traffic = row.getValue('used_traffic') as number | null
+        const dataLimit = row.original.data_limit
+        const isUnlimited = !dataLimit || dataLimit === 0
         return (
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <ChartPie className="hidden h-4 w-4 sm:block" />
-            <span dir="ltr" className="text-xs">
-              {traffic ? formatBytes(traffic) : '0 B'}
+          <div className="flex w-full items-center text-left text-xs font-medium text-foreground">
+            <span dir="ltr" className="whitespace-nowrap">
+              {formatBytes(traffic || 0)}
+              {!isUnlimited ? ` / ${formatBytes(dataLimit)}` : ''}
             </span>
           </div>
         )
@@ -136,22 +170,15 @@ export const setupColumns = ({
     },
     {
       accessorKey: 'lifetime_used_traffic',
-      header: () => (
-        <div className="flex items-center text-xs capitalize">
-          <span className="md:hidden">{t('admins.role')}</span>
-          <span className="hidden md:inline">{t('statistics.totalUsage')}</span>
-        </div>
-      ),
+      header: () => <div className="flex items-center text-xs capitalize">{t('statistics.totalUsage')}</div>,
       cell: ({ row }) => {
         const total = row.getValue('lifetime_used_traffic') as number | null
-        const RoleIcon = getAdminRoleIcon(isOwner(row.original))
 
         return (
-          <div className="flex items-center justify-start gap-0 whitespace-nowrap md:justify-start md:gap-2">
-            <span dir="ltr" className="hidden text-xs md:inline">
+          <div className="flex items-center justify-start gap-2 whitespace-nowrap text-left">
+            <span dir="ltr" className="text-xs">
               {formatBytes(total || 0)}
             </span>
-            <RoleIcon className={row.original.is_disabled ? 'h-4 w-4 text-muted-foreground/60 md:hidden' : cn('h-4 w-4 md:hidden', isOwner(row.original) ? 'text-violet-500' : 'text-primary')} />
           </div>
         )
       },
@@ -160,10 +187,11 @@ export const setupColumns = ({
       id: 'role',
       header: () => <div className="flex items-center text-xs capitalize">{t('admins.role')}</div>,
       cell: ({ row }) => {
-        const isDisabled = row.original.is_disabled
+        const status = getAdminStatus(row.original)
         return (
-          <div className="flex items-center gap-2">
-            <AdminStatusBadge isSudo={isOwner(row.original)} isDisabled={!!isDisabled} label={roleLabel(row.original)} />
+          <div className="flex min-w-0 items-center gap-2">
+            <AdminStatusBadge isSudo={isOwner(row.original)} status={status} label={status === 'active' ? roleLabel(row.original) : undefined} />
+            {status !== 'active' && <span className="hidden truncate text-xs text-muted-foreground md:inline">{roleLabel(row.original)}</span>}
           </div>
         )
       },
@@ -230,8 +258,8 @@ export const setupColumns = ({
                       toggleStatus(row.original)
                     }}
                   >
-                    {row.original.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
-                    {row.original.is_disabled ? t('enable') : t('disable')}
+                    {isAdminDisabled(row.original) ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
+                    {isAdminDisabled(row.original) ? t('enable') : t('disable')}
                   </DropdownMenuItem>
                 )}
                 {!isOwnerTarget && onDisableAllActiveUsers && (

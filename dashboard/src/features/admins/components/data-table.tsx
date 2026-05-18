@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import React, { useState, useMemo, memo, useCallback, useEffect } from 'react'
-import { ChartPie, ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserX, MoreVertical, Users } from 'lucide-react'
+import { ChartPie, ChevronDown, Database, Edit2, Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserRound, UserRoundKey, UserX, MoreVertical, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AdminDetails } from '@/service/api'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +31,8 @@ interface DataTableProps<TData extends AdminDetails> {
   isFetching?: boolean
 }
 
+const getAdminStatus = (admin: AdminDetails) => admin.status || (admin.is_disabled ? 'disabled' : 'active')
+
 const ExpandedRowContent = memo(
   ({
     row,
@@ -55,6 +57,7 @@ const ExpandedRowContent = memo(
   }) => {
     const { t } = useTranslation()
     const isOwnerTarget = isOwner(row)
+    const isDisabled = getAdminStatus(row) === 'disabled'
     const hasMoreActions =
       (!isOwnerTarget && row.username !== currentAdminUsername && !!onToggleStatus) ||
       !!onResetUsage ||
@@ -66,20 +69,28 @@ const ExpandedRowContent = memo(
     return (
       <div className="flex items-start justify-between gap-2 border-b px-3 py-3 text-xs">
         <div className="flex min-w-0 flex-col gap-1.5 text-[11px]">
-          <div className="flex items-center gap-1.5 leading-none">
+          <div className="flex items-center gap-1.5 leading-none" title={t('admins.total.users')}>
             <Users className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">{t('admins.total.users')}:</span>
+            <span className="text-muted-foreground">:</span>
             <span className="text-foreground">{row.total_users || 0}</span>
           </div>
-          <div className="flex items-center gap-1.5 leading-none">
-            <span className="text-muted-foreground">{t('admins.role')}:</span>
+          <div className="flex items-center gap-1.5 leading-none" title={t('admins.role')}>
+            {isOwnerTarget ? <UserRoundKey className="h-3 w-3 shrink-0 text-muted-foreground" /> : <UserRound className="h-3 w-3 shrink-0 text-muted-foreground" />}
+            <span className="text-muted-foreground">:</span>
             <span className="text-foreground">{roleLabel(row)}</span>
           </div>
-          <div className="flex items-center gap-1.5 leading-none">
+          <div className="flex items-center gap-1.5 leading-none" title={t('statistics.totalUsage')}>
             <ChartPie className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">{t('statistics.totalUsage')}:</span>
+            <span className="text-muted-foreground">:</span>
             <span dir="ltr" className="text-foreground" style={{ unicodeBidi: 'isolate' }}>
               {formatBytes(row.lifetime_used_traffic || 0)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 leading-none" title={t('admins.dataLimit', { defaultValue: 'Admin data limit' })}>
+            <Database className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="text-muted-foreground">:</span>
+            <span dir="ltr" className="text-foreground" style={{ unicodeBidi: 'isolate' }}>
+              {row.data_limit ? formatBytes(row.data_limit) : t('adminRoles.unlimited', { defaultValue: 'Unlimited' })}
             </span>
           </div>
         </div>
@@ -102,8 +113,8 @@ const ExpandedRowContent = memo(
                     onToggleStatus(row)
                   }}
                 >
-                  {row.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
-                  {row.is_disabled ? t('enable') : t('disable')}
+                  {isDisabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
+                  {isDisabled ? t('enable') : t('disable')}
                 </DropdownMenuItem>
               )}
               {onResetUsage && <DropdownMenuItem
@@ -233,15 +244,17 @@ export function DataTable<TData extends AdminDetails>({
     (columnId: string) =>
       cn(
         'text-sm',
-        columnId !== 'username' && 'whitespace-nowrap',
-        columnId === 'select' && 'w-8 !px-1 !py-4',
-        columnId === 'username' && 'max-w-[calc(100vw-32px-72px-44px-16px-56px)] !px-0',
-        columnId === 'used_traffic' && '!px-0 text-center',
-        columnId === 'lifetime_used_traffic' && '!px-0 text-center',
-        columnId === 'chevron' && 'w-10',
-        !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(columnId) && 'hidden !p-0 md:table-cell',
+        columnId !== 'used_traffic' && 'whitespace-nowrap',
+        columnId === 'used_traffic' && 'w-[104px] px-1 md:w-auto md:px-2 md:whitespace-nowrap',
+        columnId !== 'used_traffic' && 'py-1.5',
+        columnId === 'username' && 'max-w-[calc(100vw-32px-70px-104px-40px-56px)] !px-0',
+        columnId === 'status' && '!px-0 md:hidden',
+        columnId === 'select' && 'w-8 !px-1 !py-5',
+        columnId === 'lifetime_used_traffic' && 'hidden md:table-cell md:w-auto md:px-2 md:text-left',
+        columnId === 'chevron' && 'w-10 px-2',
+        !['select', 'username', 'status', 'used_traffic', 'chevron'].includes(columnId) && 'hidden !p-0 md:table-cell',
         columnId === 'chevron' && 'table-cell md:hidden',
-        !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(columnId) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
+        !['select', 'username', 'status', 'used_traffic', 'chevron'].includes(columnId) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
       ),
     [isRTL],
   )
@@ -256,20 +269,34 @@ export function DataTable<TData extends AdminDetails>({
         )
       case 'username':
         return (
-          <div className="flex items-center gap-x-3 py-1.5">
-            <Skeleton className="h-2.5 w-2.5 shrink-0 rounded-full" />
-            <Skeleton className={cn('h-4', rowIndex % 3 === 0 ? 'w-24' : 'w-32')} />
+          <div className="flex items-start gap-x-3 py-1.5">
+            <Skeleton className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className={cn('h-4', rowIndex % 3 === 0 ? 'w-24' : 'w-32')} />
+            </div>
+          </div>
+        )
+      case 'status':
+        return (
+          <div className="flex flex-col items-center gap-y-2 py-1">
+            <Skeleton className="h-6 w-9 rounded-full md:hidden" />
           </div>
         )
       case 'used_traffic':
-        return <Skeleton className="mx-auto h-4 w-16 md:mx-0" />
-      case 'lifetime_used_traffic':
         return (
-          <>
-            <Skeleton className="mx-auto h-4 w-4 rounded-full md:hidden" />
-            <Skeleton className="hidden h-4 w-20 md:block" />
-          </>
+          <div className="flex items-center justify-between gap-1 py-1">
+            <Skeleton className="h-4 w-20 md:hidden" />
+            <div className="hidden min-w-0 flex-1 space-y-2 md:block">
+              <Skeleton className="h-1.5 w-full rounded-full" />
+              <div className="flex justify-between gap-3">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+          </div>
         )
+      case 'lifetime_used_traffic':
+        return <Skeleton className="hidden h-4 w-20 md:block" />
       case 'role':
         return <Skeleton className="h-5 w-20 rounded-full" />
       case 'total_users':
@@ -360,10 +387,11 @@ export function DataTable<TData extends AdminDetails>({
                     header.id === 'select' && 'w-8 !px-1 py-1.5',
                     header.id === 'username' && 'w-auto md:w-auto',
                     header.id === 'total_users' && '!px-0',
-                    header.id === 'used_traffic' && 'w-[72px] !px-0 text-center md:w-auto md:px-2 md:text-left',
-                    header.id === 'lifetime_used_traffic' && 'w-[44px] !px-0 text-center md:w-auto md:px-2 md:text-left',
-                    !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(header.id) && 'hidden md:table-cell',
-                    header.id === 'chevron' && 'w-4 !p-0 table-cell md:hidden',
+                    header.id === 'status' && 'max-w-[70px] !px-0 md:hidden',
+                    header.id === 'used_traffic' && 'w-[104px] px-1 md:w-auto md:px-2 md:text-left',
+                    header.id === 'lifetime_used_traffic' && 'hidden md:table-cell md:w-auto md:px-2 md:text-left',
+                    !['select', 'username', 'status', 'used_traffic', 'chevron'].includes(header.id) && 'hidden md:table-cell',
+                    header.id === 'chevron' && 'w-10 px-2 table-cell md:hidden',
                   )}
                 >
                   {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
@@ -388,15 +416,17 @@ export function DataTable<TData extends AdminDetails>({
                           data-role={cell.column.id === 'select' ? 'row-selector' : undefined}
                           className={cn(
                             'text-sm',
-                            cell.column.id !== 'username' && 'whitespace-nowrap',
-                            cell.column.id === 'select' && 'w-8 !px-1 !py-4',
-                            cell.column.id === 'username' && 'max-w-[calc(100vw-32px-72px-44px-16px-56px)] !px-0',
-                            cell.column.id === 'used_traffic' && '!px-0 text-center',
-                            cell.column.id === 'lifetime_used_traffic' && '!px-0 text-center',
-                            cell.column.id === 'chevron' && 'w-10',
-                            !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(cell.column.id) && 'hidden !p-0 md:table-cell',
+                            cell.column.id !== 'used_traffic' && 'whitespace-nowrap',
+                            cell.column.id === 'used_traffic' && 'w-[104px] px-1 md:w-auto md:px-2 md:whitespace-nowrap',
+                            cell.column.id !== 'used_traffic' && 'py-1.5',
+                            cell.column.id === 'username' && 'max-w-[calc(100vw-32px-70px-104px-40px-56px)] !px-0',
+                            cell.column.id === 'status' && '!px-0 md:hidden',
+                            cell.column.id === 'select' && 'w-8 !px-1 !py-5',
+                            cell.column.id === 'lifetime_used_traffic' && 'hidden md:table-cell md:w-auto md:px-2 md:text-left',
+                            cell.column.id === 'chevron' && 'w-10 px-2',
+                            !['select', 'username', 'status', 'used_traffic', 'chevron'].includes(cell.column.id) && 'hidden !p-0 md:table-cell',
                             cell.column.id === 'chevron' && 'table-cell md:hidden',
-                            !['select', 'username', 'used_traffic', 'lifetime_used_traffic', 'chevron'].includes(cell.column.id) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
+                            !['select', 'username', 'status', 'used_traffic', 'chevron'].includes(cell.column.id) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
                           )}
                         >
                           {cell.column.id === 'chevron' ? (

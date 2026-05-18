@@ -44,6 +44,8 @@ import {
 
 type RolePermissionFormMap = Record<string, Record<string, boolean | { scope: RoleScope }>>
 
+const ONE_GB_IN_BYTES = 1024 * 1024 * 1024
+
 interface AdminRoleModalProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
@@ -495,7 +497,7 @@ function BytesLimitField({ form, name, labelKey }: { form: AdminRoleForm; name: 
                 </span>
               </div>
             </FormControl>
-            {numericValue != null && numericValue > 0 && (
+            {numericValue != null && numericValue > 0 && numericValue < ONE_GB_IN_BYTES && (
               <p dir="ltr" className="mt-1 w-full text-end text-[11px] text-muted-foreground">
                 {formatBytes(numericValue)}
               </p>
@@ -512,6 +514,52 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
   const { t } = useTranslation()
   return (
     <div className="space-y-3">
+      <FormField
+        control={form.control}
+        name="disabled_when_limited"
+        render={({ field }) => (
+          <FormItem
+            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
+            onClick={() => field.onChange(!field.value)}
+          >
+            <div className="space-y-0.5">
+              <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disabledWhenLimited.title', { defaultValue: 'Block limited admins' })}</FormLabel>
+              <p className="text-xs text-muted-foreground">
+                {t('adminRoles.limitedBehavior.disabledWhenLimited.description', { defaultValue: 'Deny all dashboard and API access after an admin reaches their data limit.' })}
+              </p>
+            </div>
+            <FormControl>
+              <div onClick={e => e.stopPropagation()}>
+                <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+              </div>
+            </FormControl>
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="disable_users_when_limited"
+        render={({ field }) => (
+          <FormItem
+            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
+            onClick={() => field.onChange(!field.value)}
+          >
+            <div className="space-y-0.5">
+              <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disableUsersWhenLimited.title', { defaultValue: 'Disable users when limited' })}</FormLabel>
+              <p className="text-xs text-muted-foreground">
+                {t('adminRoles.limitedBehavior.disableUsersWhenLimited.description', { defaultValue: 'Remove this admin users from nodes while the admin is usage-limited.' })}
+              </p>
+            </div>
+            <FormControl>
+              <div onClick={e => e.stopPropagation()}>
+                <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+              </div>
+            </FormControl>
+          </FormItem>
+        )}
+      />
+
       {FEATURE_KEYS.map(key => (
         <FormField
           key={key}
