@@ -353,14 +353,12 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
             continue
         coeff = usage_coefficients.get(node_id, 1.0)
         for p in params:
-            upsert_params.append(
-                {
-                    "uid": int(p["uid"]),
-                    "value": int(p["value"] * coeff),
-                    "node_id": node_id,
-                    "created_at": created_at,
-                }
-            )
+            upsert_params.append({
+                "uid": int(p["uid"]),
+                "value": int(p["value"] * coeff),
+                "node_id": node_id,
+                "created_at": created_at,
+            })
 
     if not upsert_params:
         return
@@ -645,8 +643,10 @@ async def _record_user_usages_impl():
             logger.warning("Skipping user usage recording; no matching users found for received stats")
             return
 
-        # Filter valid users - simple operation, no need to parallelize
-        valid_users_usage = [usage for usage in users_usage if int(usage["uid"]) in valid_user_ids]
+        # Filter valid users - only include users with actual non-zero traffic
+        valid_users_usage = [
+            usage for usage in users_usage if int(usage["uid"]) in valid_user_ids and usage["value"] > 0
+        ]
 
         # Update User table with concurrency control
         if valid_users_usage:
