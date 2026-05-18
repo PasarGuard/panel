@@ -210,6 +210,33 @@ def test_create_role_duplicate_name_returns_409(access_token):
         _delete_role(access_token, role["id"])
 
 
+def test_create_and_modify_role_limited_behavior_flags(access_token):
+    """Owner can configure role behavior for admins that reach their data limit."""
+    payload = _role_payload()
+    payload["disabled_when_limited"] = True
+    payload["disable_users_when_limited"] = True
+
+    response = client.post("/api/admin-role", headers=auth_headers(access_token), json=payload)
+    assert response.status_code == status.HTTP_201_CREATED
+    role = response.json()
+
+    try:
+        assert role["disabled_when_limited"] is True
+        assert role["disable_users_when_limited"] is True
+
+        update_response = client.put(
+            f"/api/admin-role/{role['id']}",
+            headers=auth_headers(access_token),
+            json={"disabled_when_limited": False, "disable_users_when_limited": False},
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+        updated = update_response.json()
+        assert updated["disabled_when_limited"] is False
+        assert updated["disable_users_when_limited"] is False
+    finally:
+        _delete_role(access_token, role["id"])
+
+
 # ---------------------------------------------------------------------------
 # PUT /api/admin-role/{id}
 # ---------------------------------------------------------------------------

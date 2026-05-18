@@ -3,6 +3,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime as dt
 from enum import Enum
+from typing import Literal
 
 import bcrypt
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
@@ -14,6 +15,8 @@ from app.utils.helpers import fix_datetime_timezone
 
 from .notification_enable import UserNotificationEnable
 from .validators import DiscordValidator, ListValidator, NumericValidatorMixin, PasswordValidator
+
+AdminStatusModify = Literal[AdminStatus.active, AdminStatus.disabled]
 
 BCRYPT_ROUNDS = 12
 _PASSWORD_WORKERS = max(2, min(os.cpu_count() or 1, 8))
@@ -120,6 +123,11 @@ class AdminDetails(AdminContactInfo):
 
     @computed_field
     @property
+    def is_disabled(self) -> bool:
+        return self.status == AdminStatus.disabled
+
+    @computed_field
+    @property
     def is_limited(self) -> bool:
         return self.status == AdminStatus.limited
 
@@ -135,7 +143,7 @@ class AdminModify(BaseModel):
     telegram_id: int | None = None
     discord_webhook: str | None = None
     discord_id: int | None = None
-    status: AdminStatus | None = None
+    status: AdminStatusModify | None = None
     data_limit: int | None = None
     sub_template: str | None = None
     sub_domain: str | None = None

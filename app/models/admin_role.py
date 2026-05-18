@@ -139,6 +139,8 @@ class AdminRoleBase(BaseModel):
     limits: RoleLimits = Field(default_factory=RoleLimits)
     features: RoleFeatures = Field(default_factory=RoleFeatures)
     access: RoleAccess = Field(default_factory=RoleAccess)
+    disabled_when_limited: bool = False
+    disable_users_when_limited: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -153,6 +155,8 @@ class AdminRoleModify(BaseModel):
     limits: RoleLimits | None = None
     features: RoleFeatures | None = None
     access: RoleAccess | None = None
+    disabled_when_limited: bool | None = None
+    disable_users_when_limited: bool | None = None
 
 
 class AdminRoleResponse(AdminRoleBase):

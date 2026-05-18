@@ -298,6 +298,28 @@ def test_update_admin(access_token):
     delete_admin(access_token, admin["username"])
 
 
+def test_admin_limited_status_not_assignable(access_token):
+    """Limited admin status is reserved for automatic data-limit enforcement."""
+    password = strong_password("TestAdminLimited")
+    create_response = client.post(
+        url="/api/admin",
+        json={"username": admin_username("limited"), "password": password, "role_id": 3, "status": "limited"},
+        headers=auth_headers(access_token),
+    )
+    assert create_response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    admin = create_admin(access_token)
+    try:
+        update_response = client.put(
+            url=f"/api/admin/{admin['username']}",
+            json={"status": "limited"},
+            headers=auth_headers(access_token),
+        )
+        assert update_response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
 def test_admin_routes_by_id_and_by_username(access_token):
     admin = create_admin(access_token)
     try:
