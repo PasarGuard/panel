@@ -9,7 +9,6 @@ from app.models.stats import (
     UserCountMetric,
     UserCountMetricStatsList,
     UserUsageStatsList,
-    validate_user_count_metric_scope,
 )
 from app.models.user import (
     BulkUser,
@@ -545,15 +544,6 @@ async def get_users_count_metric(
     admin: AdminDetails = Depends(require_permission("users", "read")),
 ):
     """Get one users activity/status count metric from usage rows."""
-    try:
-        validate_user_count_metric_scope(
-            metric,
-            node_id=query.node_id if admin.is_owner else None,
-            group_by_node=query.group_by_node if admin.is_owner else False,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
     return await user_operator.get_users_count_metric(db, admin=admin, metric=metric, query=query)
 
 

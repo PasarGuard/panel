@@ -10,6 +10,7 @@ from app.db.crud.user import count_online_users, get_users_count_by_status
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.system import InboundSummary, SystemStats
+from app.operation.permissions import enforce_permission, PermissionDenied
 from app.utils.system import cpu_usage, disk_usage, get_uptime, memory_usage
 
 from . import BaseOperation
@@ -25,10 +26,20 @@ class SystemOperation(BaseOperation):
         disk_task = asyncio.create_task(asyncio.to_thread(disk_usage))
         uptime_task = asyncio.create_task(asyncio.to_thread(get_uptime))
 
+        # Determine which admin's stats to show:
+        # - If caller has admins.read and an admin_username is provided → show that admin's stats
+        # - If caller does not have admins.read → show only their own stats
+        can_read_admins = False
+        try:
+            enforce_permission(admin, "admins", "read")
+            can_read_admins = True
+        except PermissionDenied:
+            pass
+
         admin_param = None
-        if admin.is_owner and admin_username:
+        if can_read_admins and admin_username:
             admin_param = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
-        elif not admin.is_owner:
+        elif not can_read_admins:
             admin_param = admin
 
         system_task = None

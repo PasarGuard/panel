@@ -238,7 +238,7 @@ def test_admin_create_duplicate_telegram_id_conflict(access_token):
             json={
                 "username": admin_b_username,
                 "password": admin_b_password,
-                                "telegram_id": telegram_id,
+                "telegram_id": telegram_id,
                 "role_id": 3,
             },
             headers={"Authorization": f"Bearer {access_token}"},
@@ -271,7 +271,7 @@ def test_update_admin(access_token):
         url=f"/api/admin/{admin['username']}",
         json={
             "password": password,
-                        "is_disabled": True,
+            "is_disabled": True,
         },
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -366,7 +366,7 @@ def test_promote_admin_to_owner_forbidden_via_api(access_token):
         response = client.put(
             url=f"/api/admin/{admin['username']}",
             json={
-                                "is_disabled": False,
+                "is_disabled": False,
                 "role_id": 1,
             },
             headers={"Authorization": f"Bearer {access_token}"},
@@ -405,7 +405,7 @@ def test_administrator_can_modify_self(access_token):
         response = client.put(
             url=f"/api/admin/{administrator_admin['username']}",
             json={
-                                "is_disabled": False,
+                "is_disabled": False,
                 "note": "self-updated",
             },
             headers={"Authorization": f"Bearer {administrator_token}"},
@@ -445,7 +445,7 @@ def test_administrator_cannot_disable_self(access_token):
         response = client.put(
             url=f"/api/admin/{administrator_admin['username']}",
             json={
-                                "is_disabled": True,
+                "is_disabled": True,
             },
             headers={"Authorization": f"Bearer {administrator_token}"},
         )
@@ -477,7 +477,7 @@ def test_administrator_cannot_modify_other_administrator(access_token):
         response = client.put(
             url=f"/api/admin/{admin_b['username']}",
             json={
-                                "is_disabled": False,
+                "is_disabled": False,
                 "note": "should-fail",
             },
             headers={"Authorization": f"Bearer {admin_a_token}"},

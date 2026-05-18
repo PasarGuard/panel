@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.db.models import Admin
 from app.models.admin import hash_password as _hash_password
 from tests.api import client, TestSession
-from tests.api.helpers import auth_headers, create_admin, delete_admin, strong_password, unique_name
+from tests.api.helpers import auth_headers, create_admin, delete_admin, unique_name
 
 
 # ---------------------------------------------------------------------------

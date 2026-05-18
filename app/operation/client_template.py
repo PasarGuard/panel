@@ -187,7 +187,9 @@ class ClientTemplateOperation(BaseOperation):
     ) -> RemoveClientTemplatesResponse:
         """Remove multiple client templates by ID - fast batch delete"""
         ids_list = list(bulk_templates.ids)
-        db_templates_list, _ = await get_client_templates(db, ClientTemplateListQuery(ids=ids_list, limit=len(ids_list)))
+        db_templates_list, _ = await get_client_templates(
+            db, ClientTemplateListQuery(ids=ids_list, limit=len(ids_list))
+        )
 
         found_ids = {t.id for t in db_templates_list}
         missing = set(ids_list) - found_ids

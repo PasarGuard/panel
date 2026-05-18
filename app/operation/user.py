@@ -93,7 +93,23 @@ from app.models.user import (
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
-from app.operation.permissions import get_effective_limits, apply_template_access, get_scope_admin_id
+from app.operation.permissions import (
+    enforce_permission,
+    get_effective_limits,
+    apply_template_access,
+    get_scope_admin_id,
+    is_scope_all,
+    PermissionDenied,
+)
+
+
+def _has_permission(admin: AdminDetails, resource: str, action: str) -> bool:
+    """Return True if admin has the given resource+action permission (no scope check)."""
+    try:
+        enforce_permission(admin, resource, action)
+        return True
+    except PermissionDenied:
+        return False
 from app.settings import hwid_settings, subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
@@ -887,7 +903,7 @@ class UserOperation(BaseOperation):
     ) -> UserUsageStatsList:
         start, end = await self.validate_dates(start, end, True)
 
-        if not admin.is_owner:
+        if not _has_permission(admin, "nodes", "stats"):
             node_id = None
             group_by_node = False
 
@@ -957,7 +973,8 @@ class UserOperation(BaseOperation):
         query: UserListQuery,
     ) -> UsersResponse:
         """Get all users"""
-        if not admin.is_owner:
+        scope_admin_id = get_scope_admin_id(admin, "users", "read")
+        if scope_admin_id is not None:
             query = query.model_copy(update={"owner": [admin.username], "admin_ids": None})
 
         users, count = await get_users(
@@ -984,9 +1001,11 @@ class UserOperation(BaseOperation):
         query: UserSimpleListQuery,
     ) -> UsersSimpleResponse:
         """Get lightweight user list with only id and username"""
-        # Authorization: non-owner admins see only their users
+        scope_admin_id = get_scope_admin_id(admin, "users", "read")
         admin_filter = (
-            None if admin.is_owner else await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
+            None
+            if scope_admin_id is None
+            else await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
         )
 
         # Call CRUD function
@@ -1012,9 +1031,12 @@ class UserOperation(BaseOperation):
         node_id = query.node_id
         group_by_node = query.group_by_node
 
-        if not admin.is_owner:
+        can_use_node_scope = _has_permission(admin, "nodes", "stats")
+        if not can_use_node_scope:
             node_id = None
             group_by_node = False
+
+        admins_filter = query.owner if is_scope_all(admin, "users", "read") else [admin.username]
 
         return await get_all_users_usages(
             db=db,
@@ -1022,7 +1044,7 @@ class UserOperation(BaseOperation):
             end=end,
             period=query.period,
             node_id=node_id,
-            admins=query.owner if admin.is_owner else [admin.username],
+            admins=admins_filter,
             group_by_node=group_by_node,
         )
 
@@ -1038,7 +1060,8 @@ class UserOperation(BaseOperation):
         node_id = query.node_id
         group_by_node = query.group_by_node
 
-        if not admin.is_owner:
+        can_use_node_scope = _has_permission(admin, "nodes", "stats")
+        if not can_use_node_scope:
             node_id = None
             group_by_node = False
 
@@ -1047,9 +1070,11 @@ class UserOperation(BaseOperation):
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
 
+        admins_filter = query.owner if is_scope_all(admin, "users", "read") else [admin.username]
+
         return await get_user_count_metric_stats(
             db=db,
-            admins=query.owner if admin.is_owner else [admin.username],
+            admins=admins_filter,
             start=start,
             end=end,
             period=query.period,
@@ -1391,7 +1416,7 @@ class UserOperation(BaseOperation):
         users = await get_bulk_wireguard_peer_ip_users(
             db,
             body,
-            admin_id=None if admin.is_owner else admin.id,
+            admin_id=get_scope_admin_id(admin, "users", "update"),
         )
 
         out = await run_bulk_reallocate_wireguard_peer_ips(
@@ -1451,12 +1476,18 @@ class UserOperation(BaseOperation):
             return self._build_user_agent_chart(agent_counts)
 
         if admin_id:
-            if not admin.is_owner and admin_id != admin.id:
+            can_read_admins = False
+            try:
+                enforce_permission(admin, "admins", "read")
+                can_read_admins = True
+            except PermissionDenied:
+                pass
+            if not can_read_admins and admin_id != admin.id:
                 await self.raise_error(message="You're not allowed", code=403)
-            elif admin.is_owner and admin_id != admin.id:
+            elif can_read_admins and admin_id != admin.id:
                 await self.get_validated_admin_by_id(db, admin_id)
         else:
-            admin_id = None if admin.is_owner else admin.id
+            admin_id = get_scope_admin_id(admin, "users", "read")
 
         agent_counts = await get_users_subscription_agent_counts(db, admin_id=admin_id)
         return self._build_user_agent_chart(agent_counts)
