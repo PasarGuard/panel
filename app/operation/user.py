@@ -103,6 +103,7 @@ from app.operation.permissions import (
 from app.settings import hwid_settings, subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
+from app.utils.system import readable_size
 from app.utils.wireguard import (
     build_wireguard_peer_ip_allocator,
     bulk_reallocate_wireguard_peer_ips as run_bulk_reallocate_wireguard_peer_ips,
@@ -390,11 +391,11 @@ class UserOperation(BaseOperation):
         if data_limit is not None and data_limit > 0:
             if limits.data_limit_min is not None and data_limit < limits.data_limit_min:
                 await self.raise_error(
-                    message=f"Data limit must be at least {limits.data_limit_min} bytes", code=400, db=db
+                    message=f"Data limit must be at least {readable_size(limits.data_limit_min)}", code=400, db=db
                 )
             if limits.data_limit_max is not None and data_limit > limits.data_limit_max:
                 await self.raise_error(
-                    message=f"Data limit cannot exceed {limits.data_limit_max} bytes", code=400, db=db
+                    message=f"Data limit cannot exceed {readable_size(limits.data_limit_max)}", code=400, db=db
                 )
 
         if expire is not None and expire != 0:
