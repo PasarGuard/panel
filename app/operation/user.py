@@ -306,7 +306,7 @@ class UserOperation(BaseOperation):
                 )
 
         db_users = await create_users_bulk(db, users_to_create, groups, db_admin)
-        await sync_users(db_users, db)
+        await sync_users(db_users)
 
         users_list = []
         for db_user in db_users:
@@ -730,7 +730,7 @@ class UserOperation(BaseOperation):
             db_users,
             clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
         )
-        await sync_users(db_users, db)
+        await sync_users(db_users)
 
         users = [await self.validate_user(db_user) for db_user in db_users]
         for user in users:
@@ -770,7 +770,7 @@ class UserOperation(BaseOperation):
         db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
 
         db_users = await bulk_revoke_user_sub(db, db_users)
-        await sync_users(db_users, db)
+        await sync_users(db_users)
 
         users = [await self.validate_user(db_user) for db_user in db_users]
         for user in users:
@@ -1380,7 +1380,7 @@ class UserOperation(BaseOperation):
             n = await count_bulk_expire_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_expire(db, bulk_model)
-        await sync_users(users, db)
+        await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
@@ -1391,7 +1391,7 @@ class UserOperation(BaseOperation):
             n = await count_bulk_datalimit_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_datalimit(db, bulk_model)
-        await sync_users(users, db)
+        await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
@@ -1404,7 +1404,7 @@ class UserOperation(BaseOperation):
             n = await count_bulk_proxy_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_proxy_settings(db, bulk_model)
-        await sync_users(users, db)
+        await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}

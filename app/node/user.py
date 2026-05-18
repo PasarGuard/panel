@@ -155,22 +155,11 @@ async def core_users(
 async def serialize_users_for_node(
     users: list[User],
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
-    excluded_admin_ids: set[int] | None = None,
 ) -> list[ProtoUser]:
-    """Serialize users for node dispatch.
-
-    Args:
-        users: Users to serialize.
-        allowed_protocols: Optional protocol filter.
-        excluded_admin_ids: Admin IDs whose users should be excluded
-            (e.g. limited admins with disable_users_when_limited=True).
-    """
+    """Serialize users for node dispatch."""
     bridge_users: list = []
 
     for user in users:
-        if excluded_admin_ids and user.admin_id in excluded_admin_ids:
-            continue
-
         inbounds_list = []
         if user.status in [UserStatus.active, UserStatus.on_hold]:
             loaded_inbounds = _inbounds_from_loaded_groups(user)

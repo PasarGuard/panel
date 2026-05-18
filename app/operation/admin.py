@@ -123,7 +123,7 @@ class AdminOperation(BaseOperation):
                 # limited → active: re-sync all users to nodes
                 # Pass empty set — this admin is now active, no exclusion needed
                 users = await get_users(db, query=UserListQuery(), admin=db_admin)
-                await sync_users(users, db)
+                await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" with id "{db_admin.id}" modified by admin "{current_admin.username}"')
 
@@ -189,7 +189,7 @@ class AdminOperation(BaseOperation):
         """Disable all active users under a specific admin."""
         await disable_all_active_users(db=db, admin=db_admin)
         users = await get_users(db, query=UserListQuery(), admin=db_admin)
-        await sync_users(users, db)
+        await sync_users(users)
         logger.info(f'Admin "{db_admin.username}" users has been disabled by admin "{admin.username}"')
 
     async def disable_all_active_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails):
@@ -209,7 +209,7 @@ class AdminOperation(BaseOperation):
         """Activate all disabled users under a specific admin."""
         await activate_all_disabled_users(db=db, admin=db_admin)
         users = await get_users(db, query=UserListQuery(), admin=db_admin)
-        await sync_users(users, db)
+        await sync_users(users)
         logger.info(f'Admin "{db_admin.username}" users has been activated by admin "{admin.username}"')
 
     async def activate_all_disabled_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails):
@@ -266,7 +266,7 @@ class AdminOperation(BaseOperation):
         # If admin was limited and is now active, re-sync all users to nodes
         if old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
             users = await get_users(db, query=UserListQuery(), admin=db_admin)
-            await sync_users(users, db)
+            await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
         reseted_admin_details = AdminDetails.model_validate(db_admin)

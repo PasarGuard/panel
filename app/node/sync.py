@@ -1,7 +1,5 @@
 import asyncio
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.db.models import User
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import node_nats_client
@@ -54,10 +52,8 @@ async def remove_users(users: list[User]) -> None:
     asyncio.create_task(_dispatch_users_update(proto_users))
 
 
-async def sync_users(users: list[User], db: AsyncSession) -> None:
-    """Sync users to nodes, excluding users of limited admins with disable_users_when_limited=True."""
-    from app.db.crud.admin import get_limited_admin_ids_with_user_sync
-
-    excluded_admin_ids = await get_limited_admin_ids_with_user_sync(db)
-    proto_users = await serialize_users_for_node(users, excluded_admin_ids=excluded_admin_ids)
+async def sync_users(users: list[User]) -> None:
+    """Sync users to nodes, excluding users whose admin has users_sync_blocked."""
+    filtered = [u for u in users if not (u.admin_id and u.admin.users_sync_blocked)]
+    proto_users = await serialize_users_for_node(filtered)
     asyncio.create_task(_dispatch_users_update(proto_users))
