@@ -37,7 +37,9 @@ def upgrade() -> None:
     # Backfill status from is_disabled
     if dialect == "postgresql":
         conn.execute(sa.text(
-            "UPDATE admins SET status = CASE WHEN is_disabled = true THEN 'disabled' ELSE 'active' END"
+            "UPDATE admins SET status = CASE "
+            "WHEN is_disabled = true THEN 'disabled'::adminstatus "
+            "ELSE 'active'::adminstatus END"
         ))
     else:
         conn.execute(sa.text(
@@ -80,7 +82,7 @@ def downgrade() -> None:
 
     if dialect == "postgresql":
         conn.execute(sa.text(
-            "UPDATE admins SET is_disabled = (status = 'disabled')"
+            "UPDATE admins SET is_disabled = (status = 'disabled'::adminstatus)"
         ))
     else:
         conn.execute(sa.text(

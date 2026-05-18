@@ -56,8 +56,7 @@ def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
         return
 
     if admin.is_limited:
-        features = admin.role.features if admin.role else None
-        if features and features.disabled_when_limited:
+        if admin.role and admin.role.disabled_when_limited:
             raise PermissionDenied("Admin is limited — all access blocked")
         if action not in _READ_ACTIONS:
             raise PermissionDenied("Admin is limited — write actions blocked")

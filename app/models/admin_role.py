@@ -95,8 +95,6 @@ class RoleLimits(BaseModel):
 class RoleFeatures(BaseModel):
     can_use_reset_strategy: bool = True
     can_use_next_plan: bool = True
-    disabled_when_limited: bool = False
-    disable_users_when_limited: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
