@@ -63,11 +63,11 @@ async def reset_owner_password(
     db: AsyncSession = Depends(get_db),
 ):
     """Reset the owner admin's password using a one-time temp key."""
+    await _consume_key_or_raise(db, body.key, action="reset_owner", request=request)
+
     owner = await get_owner(db)
     if owner is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="owner not found")
-
-    await _consume_key_or_raise(db, body.key, action="reset_owner", request=request)
 
     owner = await update_owner_password(db, owner, body.password)
     return AdminDetails.model_validate(owner)
@@ -88,11 +88,11 @@ async def delete_owner(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete the owner admin using a one-time temp key."""
+    await _consume_key_or_raise(db, body.key, action="delete_owner", request=request)
+
     owner = await get_owner(db)
     if owner is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="owner not found")
-
-    await _consume_key_or_raise(db, body.key, action="delete_owner", request=request)
 
     await remove_admin(db, owner)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
