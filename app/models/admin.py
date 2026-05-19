@@ -72,6 +72,7 @@ class Token(BaseModel):
 class AdminBase(BaseModel):
     """Minimal admin model containing only the username."""
 
+    id: int | None = None
     username: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -105,7 +106,6 @@ class AdminContactInfo(AdminBase):
 class AdminDetails(AdminContactInfo):
     """Complete admin model with all fields for database representation and API responses."""
 
-    id: int | None = None
     total_users: int = 0
     used_traffic: int = 0
     data_limit: int | None = None

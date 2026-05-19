@@ -2,7 +2,9 @@ import random
 from datetime import datetime as dt, timedelta as td
 from io import BytesIO
 
-from aiogram import Router, F
+from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     BufferedInputFile,
     CallbackQuery,
@@ -11,13 +13,12 @@ from aiogram.types import (
     InputTextMessageContent,
     Message,
 )
-from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from aiogram.exceptions import TelegramBadRequest
 
 from app.db.models import UserStatus
-from app.models.settings import ConfigFormat
+from app.models.admin import AdminDetails
 from app.models.group import GroupListQuery
+from app.models.settings import ConfigFormat
 from app.models.user import (
     CreateUserFromTemplate,
     ModifyUserByTemplate,
@@ -29,20 +30,19 @@ from app.models.user import (
 from app.models.user_template import UserTemplateListQuery
 from app.models.validators import UserValidator
 from app.operation import OperatorType
+from app.operation.group import GroupOperation
+from app.operation.permissions import PermissionDenied, enforce_permission, get_scope_admin_id
 from app.operation.subscription import SubscriptionOperation
 from app.operation.user import UserOperation
-from app.operation.group import GroupOperation
 from app.operation.user_template import UserTemplateOperation
-from app.telegram.keyboards.group import SelectGroupAction, GroupsSelector
-from app.telegram.utils import forms
-from app.models.admin import AdminDetails
 from app.telegram.keyboards.admin import AdminPanel, AdminPanelAction, InlineQuerySearch
 from app.telegram.keyboards.base import CancelKeyboard
-from app.telegram.utils.texts import Message as Texts
-from app.telegram.keyboards.user import UserPanel, UserPanelAction, ChooseStatus, ChooseTemplate, RandomUsername
-from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
-from app.operation.permissions import PermissionDenied, enforce_permission, get_scope_admin_id
+from app.telegram.keyboards.group import GroupsSelector, SelectGroupAction
+from app.telegram.keyboards.user import ChooseStatus, ChooseTemplate, RandomUsername, UserPanel, UserPanelAction
+from app.telegram.utils import forms
 from app.telegram.utils.filters import HasPermission
+from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
+from app.telegram.utils.texts import Message as Texts
 
 user_operations = UserOperation(OperatorType.TELEGRAM)
 subscription_operations = SubscriptionOperation(OperatorType.TELEGRAM)
@@ -630,15 +630,14 @@ async def get_user_by_sub(event: Message, db: AsyncSession, admin: AdminDetails)
     try:
         db_user = await user_operations.get_validated_sub(db, token)
         user = await user_operations.validate_user(db_user)
-        # Check scope: if admin can only see own users, verify ownership
-        if user.admin and user.admin.username != admin.username:
-            try:
-                enforce_permission(admin, "users", "read")
-                if get_scope_admin_id(admin, "users", "read") is not None:
-                    # scope=own — not their user
-                    return await event.reply(Texts.user_not_found)
-            except PermissionDenied:
-                return await event.reply(Texts.user_not_found)
+        try:
+            enforce_permission(admin, "users", "read")
+        except PermissionDenied:
+            return await event.reply(Texts.user_not_found)
+
+        scope_id = get_scope_admin_id(admin, "users", "read")
+        if scope_id is not None and user.admin.id != scope_id:
+            return await event.reply(Texts.user_not_found)
     except ValueError:
         return await event.reply(Texts.user_not_found)
 
