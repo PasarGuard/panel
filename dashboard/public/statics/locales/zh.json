@@ -868,6 +868,16 @@
       "min_hwid_per_user": "每用户最少 HWID",
       "max_hwid_per_user": "每用户最多 HWID"
     },
+    "limitedBehavior": {
+      "disabledWhenLimited": {
+        "title": "阻止受限管理员",
+        "description": "当管理员达到流量限制后，拒绝其所有仪表板和 API 访问。"
+      },
+      "disableUsersWhenLimited": {
+        "title": "受限时禁用用户",
+        "description": "当该管理员处于用量受限状态时，从节点中移除其用户。"
+      }
+    },
     "featureFields": {
       "can_use_reset_strategy": {
         "title": "使用重置策略",

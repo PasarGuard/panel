@@ -868,6 +868,16 @@
       "min_hwid_per_user": "Min HWIDs per user",
       "max_hwid_per_user": "Max HWIDs per user"
     },
+    "limitedBehavior": {
+      "disabledWhenLimited": {
+        "title": "Block limited admins",
+        "description": "Deny all dashboard and API access after an admin reaches their data limit."
+      },
+      "disableUsersWhenLimited": {
+        "title": "Disable users when limited",
+        "description": "Remove this admin's users from nodes while the admin is usage-limited."
+      }
+    },
     "featureFields": {
       "can_use_reset_strategy": {
         "title": "Use reset strategy",

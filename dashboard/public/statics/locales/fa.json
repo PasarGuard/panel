@@ -735,6 +735,16 @@
       "min_hwid_per_user": "حداقل HWID به ازای کاربر",
       "max_hwid_per_user": "حداکثر HWID به ازای کاربر"
     },
+    "limitedBehavior": {
+      "disabledWhenLimited": {
+        "title": "مسدود کردن مدیران محدودشده",
+        "description": "پس از رسیدن مدیر به محدودیت داده، همه دسترسی‌های داشبورد و API را رد می‌کند."
+      },
+      "disableUsersWhenLimited": {
+        "title": "غیرفعال کردن کاربران هنگام محدودیت",
+        "description": "تا زمانی که مدیر از نظر مصرف محدود است، کاربران این مدیر را از گره‌ها حذف می‌کند."
+      }
+    },
     "featureFields": {
       "can_use_reset_strategy": {
         "title": "استفاده از استراتژی بازنشانی",

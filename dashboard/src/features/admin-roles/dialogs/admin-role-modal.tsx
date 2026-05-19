@@ -548,7 +548,7 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
             <div className="space-y-0.5">
               <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disableUsersWhenLimited.title', { defaultValue: 'Disable users when limited' })}</FormLabel>
               <p className="text-xs text-muted-foreground">
-                {t('adminRoles.limitedBehavior.disableUsersWhenLimited.description', { defaultValue: 'Remove this admin users from nodes while the admin is usage-limited.' })}
+                {t('adminRoles.limitedBehavior.disableUsersWhenLimited.description', { defaultValue: "Remove this admin's users from nodes while the admin is usage-limited." })}
               </p>
             </div>
             <FormControl>
