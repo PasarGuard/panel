@@ -37,7 +37,7 @@ async def sync_user(db_user: User) -> None:
 
 
 async def remove_user(user: UserNotificationResponse) -> None:
-    proto_user = _serialize_user_for_node(user.id, user.username, user.proxy_settings.dict())
+    proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
     asyncio.create_task(_dispatch_user_update(proto_user))
 
 

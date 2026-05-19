@@ -353,12 +353,14 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
             continue
         coeff = usage_coefficients.get(node_id, 1.0)
         for p in params:
-            upsert_params.append({
-                "uid": int(p["uid"]),
-                "value": int(p["value"] * coeff),
-                "node_id": node_id,
-                "created_at": created_at,
-            })
+            upsert_params.append(
+                {
+                    "uid": int(p["uid"]),
+                    "value": int(p["value"] * coeff),
+                    "node_id": node_id,
+                    "created_at": created_at,
+                }
+            )
 
     if not upsert_params:
         return
@@ -423,19 +425,15 @@ def _process_users_stats_response(stats_response):
     """
     params = defaultdict(int)
     for stat in filter(attrgetter("value"), stats_response.stats):
-        params[stat.name.split(".", 1)[0]] += stat.value
+        params[stat.name] += stat.value
 
-    # Validate UIDs and filter out invalid ones
     validated_params = []
     invalid_uids = []
     for uid, value in params.items():
         try:
-            uid_int = int(uid)
-            validated_params.append({"uid": uid_int, "value": value})
+            validated_params.append({"uid": int(uid), "value": value})
         except ValueError, TypeError:
-            # Collect invalid UIDs to log outside thread
             invalid_uids.append(uid)
-            continue
 
     return validated_params, invalid_uids
 
@@ -457,7 +455,6 @@ async def get_users_stats(node: PasarGuardNode):
             thread_pool, _process_users_stats_response, stats_response
         )
 
-        # Log invalid UIDs outside of thread (thread-safe logging)
         if invalid_uids:
             for uid in invalid_uids:
                 logger.warning("Skipping invalid UID: %s", uid)
