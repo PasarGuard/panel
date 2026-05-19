@@ -414,7 +414,7 @@ async def get_active_admins_with_data_limit(
     )
 
     if threshold is not None:
-        stmt = stmt.where((Admin.used_traffic * 100) >= (Admin.data_limit * threshold))
+        stmt = stmt.where(Admin.used_traffic >= (Admin.data_limit * (threshold / 100)))
 
     if admin_ids is not None:
         if not admin_ids:
