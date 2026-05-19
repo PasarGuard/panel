@@ -281,6 +281,7 @@ class UserOperation(BaseOperation):
                     admin,
                     data_limit=user_to_create.data_limit,
                     expire=user_to_create.expire,
+                    on_hold_expire_duration=user_to_create.on_hold_expire_duration,
                     hwid_limit=user_to_create.hwid_limit,
                     data_limit_reset_strategy=user_to_create.data_limit_reset_strategy,
                     next_plan=user_to_create.next_plan,
@@ -373,6 +374,7 @@ class UserOperation(BaseOperation):
         *,
         data_limit: int | None = None,
         expire: dt | int | None = None,
+        on_hold_expire_duration: int | None = None,
         hwid_limit: int | None = None,
         data_limit_reset_strategy=None,
         next_plan=None,
@@ -415,6 +417,20 @@ class UserOperation(BaseOperation):
                     db=db,
                 )
 
+        if on_hold_expire_duration is not None and on_hold_expire_duration != 0:
+            if limits.expire_min is not None and on_hold_expire_duration < limits.expire_min:
+                await self.raise_error(
+                    message=f"On-hold duration must be at least {readable_duration(limits.expire_min)}",
+                    code=400,
+                    db=db,
+                )
+            if limits.expire_max is not None and on_hold_expire_duration > limits.expire_max:
+                await self.raise_error(
+                    message=f"On-hold duration cannot exceed {readable_duration(limits.expire_max)}",
+                    code=400,
+                    db=db,
+                )
+
         if hwid_limit is not None:
             if limits.min_hwid_per_user is not None and hwid_limit < limits.min_hwid_per_user:
                 await self.raise_error(
@@ -452,6 +468,7 @@ class UserOperation(BaseOperation):
                 admin,
                 data_limit=new_user.data_limit,
                 expire=new_user.expire,
+                on_hold_expire_duration=new_user.on_hold_expire_duration,
                 hwid_limit=new_user.hwid_limit,
                 data_limit_reset_strategy=new_user.data_limit_reset_strategy,
                 next_plan=new_user.next_plan,
@@ -511,6 +528,7 @@ class UserOperation(BaseOperation):
                 admin,
                 data_limit=modified_user.data_limit,
                 expire=modified_user.expire,
+                on_hold_expire_duration=modified_user.on_hold_expire_duration,
                 hwid_limit=modified_user.hwid_limit,
                 data_limit_reset_strategy=modified_user.data_limit_reset_strategy,
                 next_plan=modified_user.next_plan,
