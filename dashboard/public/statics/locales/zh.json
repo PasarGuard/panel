@@ -705,6 +705,7 @@
     "total": "管理员总数",
     "active": "活跃管理员",
     "disable": "禁用的管理员",
+    "limited": "受限管理员",
     "telegramId": "Telegram ID",
     "discord": "Discord Webhook",
     "supportUrl": "支持链接",

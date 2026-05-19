@@ -50,6 +50,7 @@ import {
   Settings2,
   Share2Icon,
   UserCog,
+  UserKey,
   UserPlus,
   UsersIcon,
   Webhook,
@@ -168,7 +169,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ? [{
             title: 'adminRoles.title',
             url: '/admin-roles',
-            icon: UserCog,
+            icon: UserKey,
           }]
         : []),
       ...(canManageResource(admin, 'nodes', ['create', 'update', 'delete', 'reconnect', 'update_core']) || canManageResource(admin, 'cores') || hasPermission(admin, 'nodes', 'logs')

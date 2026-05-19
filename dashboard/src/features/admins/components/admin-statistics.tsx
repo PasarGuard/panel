@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils.ts'
 import { useTranslation } from 'react-i18next'
 import { Card, CardTitle } from '@/components/ui/card'
 import { CountUp } from '@/components/ui/count-up'
-import { Gauge, User, UserCheck, UserX } from 'lucide-react'
+import { User, UserCheck, UserLock, UserX } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 
 interface AdminsStatisticsProps {
@@ -59,8 +59,8 @@ export default function AdminStatisticsSection({ counts }: AdminsStatisticsProps
       key: 'disabled',
     },
     {
-      icon: Gauge,
-      label: t('admins.limited', { defaultValue: 'Limited' }),
+      icon: UserLock,
+      label: t('admins.limited'),
       value: limited,
       color: '',
       key: 'limited',

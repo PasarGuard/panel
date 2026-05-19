@@ -23,6 +23,7 @@ import {
   Globe,
   RotateCcw,
   UserCog,
+  UserKey,
   Group,
   Cpu,
   ListTodo,
@@ -190,7 +191,7 @@ const notificationConfigs: NotificationPermissionConfig[] = [
   {
     key: 'admin_role',
     translationKey: 'adminRole',
-    icon: UserCog,
+    icon: UserKey,
     subPermissions: [
       { key: 'create', translationKey: 'create' },
       { key: 'modify', translationKey: 'modify' },
@@ -292,7 +293,7 @@ const channelTargets: Array<{
   icon: React.ComponentType<{ className?: string }>
 }> = [
   { key: 'admin', translationKey: 'admin', icon: UserCog },
-  { key: 'admin_role', translationKey: 'adminRole', icon: UserCog },
+  { key: 'admin_role', translationKey: 'adminRole', icon: UserKey },
   { key: 'core', translationKey: 'core', icon: Settings },
   { key: 'group', translationKey: 'group', icon: Group },
   { key: 'host', translationKey: 'host', icon: ListTodo },
