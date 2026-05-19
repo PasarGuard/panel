@@ -104,7 +104,9 @@ class XHTTPTransportConfig(BaseTransportConfig):
     sc_min_posts_interval_ms: str | int | None = Field(
         None, serialization_alias="scMinPostsIntervalMs", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
-    x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes")
+    x_padding_bytes: str | int | None = Field(
+        None, serialization_alias="xPaddingBytes", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
+    )
     x_padding_obfs_mode: bool | None = Field(None, serialization_alias="xPaddingObfsMode")
     x_padding_key: str | None = Field(None, serialization_alias="xPaddingKey")
     x_padding_header: str | None = Field(None, serialization_alias="xPaddingHeader")
@@ -124,6 +126,19 @@ class XHTTPTransportConfig(BaseTransportConfig):
     download_settings: SubscriptionInboundData | dict | None = Field(None, serialization_alias="downloadSettings")
     http_headers: dict[str, str] | None = Field(None)
     random_user_agent: bool = Field(False)
+
+    @field_validator(
+        "sc_max_each_post_bytes",
+        "sc_min_posts_interval_ms",
+        "x_padding_bytes",
+        "uplink_chunk_size",
+        mode="before",
+    )
+    @classmethod
+    def normalize_numeric_or_range_fields(cls, value):
+        if isinstance(value, int):
+            return str(value)
+        return value
 
 
 class KCPTransportConfig(BaseTransportConfig):
