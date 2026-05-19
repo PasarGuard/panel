@@ -15,10 +15,9 @@ from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.admin import (
     bulk_create_admin_notification_reminders,
-    get_active_admins_with_data_limit,
     get_active_admins_with_override_thresholds,
     get_active_to_limited_admins,
-    get_admin_usage_reminder_thresholds,
+    get_usage_percentage_reached_admins,
     update_admin_status,
 )
 from app.db.crud.user import get_users
@@ -72,42 +71,37 @@ async def _send_usage_limit_warning_notifications(db):
             threshold_to_override_ids.setdefault(threshold, set()).add(admin.id)
 
     override_ids = set(override_thresholds_by_admin.keys())
-    candidate_pairs: dict[tuple[int, int], Admin] = {}
+    reminder_rows: list[dict] = []
 
     for threshold in default_thresholds:
-        threshold_admins = await get_active_admins_with_data_limit(db, threshold=threshold)
+        threshold_admins = await get_usage_percentage_reached_admins(db, threshold)
         for admin in threshold_admins:
             if admin.id in override_ids:
                 continue
-            candidate_pairs[(admin.id, threshold)] = admin
+            if not admin.data_limit or admin.data_limit <= 0:
+                continue
+            usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
+            admin_model = AdminDetails.model_validate(admin)
+            await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
+            reminder_rows.append({
+                "admin_id": admin.id,
+                "type": ReminderType.data_usage,
+                "threshold": threshold,
+            })
 
     for threshold, admin_ids in threshold_to_override_ids.items():
-        threshold_admins = await get_active_admins_with_data_limit(db, threshold=threshold, admin_ids=list(admin_ids))
+        threshold_admins = await get_usage_percentage_reached_admins(db, threshold, admin_ids=list(admin_ids))
         for admin in threshold_admins:
-            candidate_pairs[(admin.id, threshold)] = admin
-
-    if not candidate_pairs:
-        return
-
-    candidate_admin_ids = sorted({admin_id for admin_id, _ in candidate_pairs.keys()})
-    already_sent = await get_admin_usage_reminder_thresholds(db, candidate_admin_ids, ReminderType.data_usage)
-    reminder_rows: list[dict] = []
-
-    for (admin_id, threshold), admin in candidate_pairs.items():
-        if threshold in already_sent.get(admin_id, set()):
-            continue
-
-        if not admin.data_limit or admin.data_limit <= 0:
-            continue
-
-        usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
-        admin_model = AdminDetails.model_validate(admin)
-        await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
-        reminder_rows.append({
-            "admin_id": admin.id,
-            "type": ReminderType.data_usage,
-            "threshold": threshold,
-        })
+            if not admin.data_limit or admin.data_limit <= 0:
+                continue
+            usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
+            admin_model = AdminDetails.model_validate(admin)
+            await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
+            reminder_rows.append({
+                "admin_id": admin.id,
+                "type": ReminderType.data_usage,
+                "threshold": threshold,
+            })
 
     if reminder_rows:
         await bulk_create_admin_notification_reminders(db, reminder_rows)

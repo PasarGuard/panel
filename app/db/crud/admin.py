@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, case, delete, func, insert, select, update
+from sqlalchemy import and_, case, delete, func, insert, not_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.general import (
@@ -435,28 +435,37 @@ async def get_active_admins_with_override_thresholds(db: AsyncSession) -> list[A
     return list((await db.execute(stmt)).scalars().all())
 
 
-async def get_admin_usage_reminder_thresholds(
+async def get_usage_percentage_reached_admins(
     db: AsyncSession,
-    admin_ids: list[int],
-    reminder_type: ReminderType,
-) -> dict[int, set[int]]:
-    """Return already-sent thresholds by admin for deduplicating warning notifications."""
-    if not admin_ids:
-        return {}
+    percentage: int,
+    admin_ids: list[int] | None = None,
+) -> list[Admin]:
+    """Get active admins who reached a usage threshold and have no reminder for that threshold."""
+    if admin_ids is not None and not admin_ids:
+        return []
 
-    stmt = select(AdminNotificationReminder.admin_id, AdminNotificationReminder.threshold).where(
-        AdminNotificationReminder.admin_id.in_(admin_ids),
-        AdminNotificationReminder.type == reminder_type,
-        AdminNotificationReminder.threshold.isnot(None),
+    existing_reminder_subq = (
+        select(AdminNotificationReminder.admin_id)
+        .where(
+            AdminNotificationReminder.admin_id == Admin.id,
+            AdminNotificationReminder.type == ReminderType.data_usage,
+            AdminNotificationReminder.threshold == percentage,
+        )
+        .exists()
     )
-    rows = (await db.execute(stmt)).all()
 
-    sent_thresholds: dict[int, set[int]] = {}
-    for admin_id, threshold in rows:
-        if threshold is None:
-            continue
-        sent_thresholds.setdefault(admin_id, set()).add(int(threshold))
-    return sent_thresholds
+    stmt = select(Admin).where(
+        Admin.status == AdminStatus.active,
+        Admin.data_limit.isnot(None),
+        Admin.data_limit > 0,
+        (Admin.used_traffic * 100) >= (Admin.data_limit * percentage),
+        not_(existing_reminder_subq),
+    )
+
+    if admin_ids is not None:
+        stmt = stmt.where(Admin.id.in_(admin_ids))
+
+    return list((await db.execute(stmt)).scalars().all())
 
 
 async def bulk_create_admin_notification_reminders(db: AsyncSession, reminder_data: list[dict]) -> None:
