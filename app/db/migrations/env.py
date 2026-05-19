@@ -1,11 +1,13 @@
 import asyncio
 from logging.config import fileConfig
+from sqlalchemy import BigInteger
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.db.base import Base
+from app.db.compiles_types import SqliteCompatibleBigInteger
 from config import database_settings
 
 # this is the Alembic Config object, which provides
@@ -31,6 +33,26 @@ target_metadata = Base.metadata
 # ... etc.
 
 
+def _compare_type(context, inspected_column, metadata_column, inspected_type, metadata_type) -> bool | None:
+    """Treat BIGINT and SqliteCompatibleBigInteger as equivalent on SQLite.
+
+    The custom type compiles to INTEGER for SQLite but may be reflected back as
+    BIGINT depending on how the table was originally created, which can produce
+    false-positive autogenerate diffs.
+    """
+    if context.dialect.name != "sqlite":
+        return None
+
+    sqlite_bigint_equivalent = (
+        (isinstance(inspected_type, BigInteger) and isinstance(metadata_type, SqliteCompatibleBigInteger))
+        or (isinstance(inspected_type, SqliteCompatibleBigInteger) and isinstance(metadata_type, BigInteger))
+    )
+    if sqlite_bigint_equivalent:
+        return False
+
+    return None
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -49,13 +71,19 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         render_as_batch=True,
+        compare_type=_compare_type,
         dialect_opts={"paramstyle": "named"},
     )
 
     with context.begin_transaction():
         context.run_migrations()
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=True,
+        compare_type=_compare_type,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
