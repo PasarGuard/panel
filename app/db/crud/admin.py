@@ -234,6 +234,7 @@ async def get_admins(
     query: AdminListQuery,
     return_with_count: bool = False,
     compact: bool = False,
+    include_owner: bool = True,
 ) -> list[Admin] | tuple[list[Admin], int, int, int]:
     """
     Retrieves a list of admins with optional filters and pagination.
@@ -264,6 +265,8 @@ async def get_admins(
             counts_stmt = counts_stmt.where(Admin.username.in_(params.usernames))
         if params.username:
             counts_stmt = counts_stmt.where(Admin.username.ilike(f"%{params.username}%"))
+        if not include_owner:
+            counts_stmt = counts_stmt.where(Admin.role.has(AdminRole.is_owner.is_(False)))
 
         result = await db.execute(counts_stmt)
         row = result.one()
@@ -304,6 +307,8 @@ async def get_admins(
         stmt = stmt.where(Admin.username.in_(params.usernames))
     if params.username:
         stmt = stmt.where(Admin.username.ilike(f"%{params.username}%"))
+    if not include_owner:
+        stmt = stmt.where(Admin.role.has(AdminRole.is_owner.is_(False)))
 
     # Apply sorting
     if params.sort:
@@ -357,6 +362,7 @@ async def get_admins(
 async def get_admins_simple(
     db: AsyncSession,
     query: AdminSimpleListQuery,
+    include_owner: bool = True,
 ) -> tuple[list[tuple[int, str]], int]:
     """
     Retrieves lightweight admin data with only id and username.
@@ -376,6 +382,8 @@ async def get_admins_simple(
         stmt = stmt.where(Admin.username.in_(query.usernames))
     if query.search:
         stmt = stmt.where(Admin.username.ilike(f"%{query.search}%"))
+    if not include_owner:
+        stmt = stmt.where(Admin.role.has(AdminRole.is_owner.is_(False)))
 
     if query.sort:
         stmt = stmt.order_by(*[_build_admin_simple_sort_clause(sort_option) for sort_option in query.sort])

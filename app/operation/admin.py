@@ -47,6 +47,14 @@ logger = get_logger("admin-operation")
 
 
 class AdminOperation(BaseOperation):
+    @staticmethod
+    def _is_owner_admin(db_admin: Admin) -> bool:
+        return db_admin.role_id == 1 or bool(db_admin.role and db_admin.role.is_owner)
+
+    async def _ensure_owner_target_access(self, db_admin: Admin, current_admin: AdminDetails) -> None:
+        if not current_admin.is_owner and self._is_owner_admin(db_admin):
+            await self.raise_error(message="Owner account is not accessible.", code=403)
+
     async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails) -> AdminDetails:
         """Create a new admin."""
         if new_admin.role_id == 1:
@@ -78,6 +86,7 @@ class AdminOperation(BaseOperation):
             stacklevel=2,
         )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_owner_target_access(db_admin, current_admin)
         return await self._modify_admin(db, db_admin, modified_admin, current_admin)
 
     async def _modify_admin(
@@ -135,6 +144,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, admin_id: int, modified_admin: AdminModify, current_admin: AdminDetails
     ) -> AdminDetails:
         db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._ensure_owner_target_access(db_admin, current_admin)
         return await self._modify_admin(db, db_admin, modified_admin, current_admin)
 
     async def remove_admin(self, db: AsyncSession, username: str, current_admin: AdminDetails | None = None):
@@ -144,6 +154,8 @@ class AdminOperation(BaseOperation):
             stacklevel=2,
         )
         db_admin = await self.get_validated_admin(db, username=username)
+        if current_admin is not None:
+            await self._ensure_owner_target_access(db_admin, current_admin)
         await self._remove_admin(db, db_admin, current_admin)
 
     async def _remove_admin(self, db: AsyncSession, db_admin: Admin, current_admin: AdminDetails | None = None):
@@ -160,16 +172,26 @@ class AdminOperation(BaseOperation):
 
     async def remove_admin_by_id(self, db: AsyncSession, admin_id: int, current_admin: AdminDetails | None = None):
         db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        if current_admin is not None:
+            await self._ensure_owner_target_access(db_admin, current_admin)
         await self._remove_admin(db, db_admin, current_admin)
 
-    async def get_admins(self, db: AsyncSession, query: AdminListQuery) -> AdminsResponse:
+    async def get_admins(self, db: AsyncSession, query: AdminListQuery, admin: AdminDetails) -> AdminsResponse:
         """Retrieve a list of admins with optional filters and pagination."""
-        admins, total, active, disabled, limited = await get_admins(db, query, return_with_count=True, compact=True)
+        admins, total, active, disabled, limited = await get_admins(
+            db,
+            query,
+            return_with_count=True,
+            compact=True,
+            include_owner=admin.is_owner,
+        )
         return AdminsResponse(admins=admins, total=total, active=active, disabled=disabled, limited=limited)
 
-    async def get_admins_simple(self, db: AsyncSession, query: AdminSimpleListQuery) -> AdminsSimpleResponse:
+    async def get_admins_simple(
+        self, db: AsyncSession, query: AdminSimpleListQuery, admin: AdminDetails
+    ) -> AdminsSimpleResponse:
         """Get lightweight admin list with only id and username."""
-        rows, total = await get_admins_simple(db=db, query=query)
+        rows, total = await get_admins_simple(db=db, query=query, include_owner=admin.is_owner)
         admins = [AdminSimple(id=row[0], username=row[1]) for row in rows]
         return AdminsSimpleResponse(admins=admins, total=total)
 
@@ -183,6 +205,7 @@ class AdminOperation(BaseOperation):
             stacklevel=2,
         )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_owner_target_access(db_admin, admin)
         await self._disable_all_active_users_for_admin(db, db_admin, admin)
 
     async def _disable_all_active_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
@@ -194,6 +217,7 @@ class AdminOperation(BaseOperation):
 
     async def disable_all_active_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails):
         db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._ensure_owner_target_access(db_admin, admin)
         await self._disable_all_active_users_for_admin(db, db_admin, admin)
 
     async def activate_all_disabled_users(self, db: AsyncSession, username: str, admin: AdminDetails):
@@ -203,6 +227,7 @@ class AdminOperation(BaseOperation):
             stacklevel=2,
         )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_owner_target_access(db_admin, admin)
         await self._activate_all_disabled_users_for_admin(db, db_admin, admin)
 
     async def _activate_all_disabled_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
@@ -214,6 +239,7 @@ class AdminOperation(BaseOperation):
 
     async def activate_all_disabled_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails):
         db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._ensure_owner_target_access(db_admin, admin)
         await self._activate_all_disabled_users_for_admin(db, db_admin, admin)
 
     async def remove_all_users(self, db: AsyncSession, username: str, admin: AdminDetails) -> int:
@@ -223,6 +249,7 @@ class AdminOperation(BaseOperation):
             stacklevel=2,
         )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_owner_target_access(db_admin, admin)
         return await self._remove_all_users_for_admin(db, db_admin, admin)
 
     async def _remove_all_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails) -> int:
@@ -247,6 +274,7 @@ class AdminOperation(BaseOperation):
 
     async def remove_all_users_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails) -> int:
         db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._ensure_owner_target_access(db_admin, admin)
         return await self._remove_all_users_for_admin(db, db_admin, admin)
 
     async def reset_admin_usage(self, db: AsyncSession, username: str, admin: AdminDetails) -> AdminDetails:
@@ -256,6 +284,7 @@ class AdminOperation(BaseOperation):
             stacklevel=2,
         )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_owner_target_access(db_admin, admin)
         return await self._reset_admin_usage(db, db_admin, admin)
 
     async def _reset_admin_usage(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails) -> AdminDetails:
@@ -275,6 +304,7 @@ class AdminOperation(BaseOperation):
 
     async def reset_admin_usage_by_id(self, db: AsyncSession, admin_id: int, admin: AdminDetails) -> AdminDetails:
         db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._ensure_owner_target_access(db_admin, admin)
         return await self._reset_admin_usage(db, db_admin, admin)
 
     async def get_admin_usage(
@@ -286,6 +316,7 @@ class AdminOperation(BaseOperation):
             stacklevel=2,
         )
         db_admin = await self.get_validated_admin(db, username=username)
+        await self._ensure_owner_target_access(db_admin, admin)
         return await self._get_admin_usage(
             db,
             db_admin,
@@ -337,6 +368,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, admin_id: int, admin: AdminDetails, query: AdminUsageQuery
     ) -> UserUsageStatsList:
         db_admin = await self.get_validated_admin_by_id(db, admin_id)
+        await self._ensure_owner_target_access(db_admin, admin)
         return await self._get_admin_usage(
             db,
             db_admin,
@@ -352,7 +384,9 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> RemoveAdminsResponse:
         """Remove multiple admins by ID."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
+        if any(self._is_owner_admin(db_admin) for db_admin in db_admins):
+            await self.raise_error(message="Owner cannot be deleted via this endpoint. Use the setup flow.", code=403)
 
         usernames = [a.username for a in db_admins]
         admin_ids = [a.id for a in db_admins]
@@ -369,7 +403,9 @@ class AdminOperation(BaseOperation):
         usernames = [a.username for a in admins]
         return BulkAdminsActionResponse(admins=usernames, count=len(usernames))
 
-    async def _get_validated_bulk_admins(self, db: AsyncSession, ids: list[int] | set[int]) -> list[Admin]:
+    async def _get_validated_bulk_admins(
+        self, db: AsyncSession, ids: list[int] | set[int], current_admin: AdminDetails
+    ) -> list[Admin]:
         if not ids:
             return []
 
@@ -383,13 +419,16 @@ class AdminOperation(BaseOperation):
         if missing:
             await self.raise_error(message="Admin not found", code=404)
 
+        for db_admin in admins:
+            await self._ensure_owner_target_access(db_admin, current_admin)
+
         return admins
 
     async def bulk_set_admins_disabled(
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, current_admin: AdminDetails, *, is_disabled: bool
     ) -> BulkAdminsActionResponse:
         """Enable or disable selected admins in bulk."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, current_admin)
         target_status = AdminStatus.disabled if is_disabled else AdminStatus.active
 
         for db_admin in db_admins:
@@ -414,7 +453,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> BulkAdminsActionResponse:
         """Reset usage for selected admins by ID."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
         for db_admin in db_admins:
             db_admin = await reset_admin_usage(db, db_admin=db_admin)
             reseted_admin = AdminDetails.model_validate(db_admin)
@@ -426,7 +465,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> BulkAdminsActionResponse:
         """Disable all active users under selected admins."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
         for db_admin in db_admins:
             await self._disable_all_active_users_for_admin(db, db_admin, admin)
         return self._build_bulk_action_response(db_admins)
@@ -435,7 +474,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> BulkAdminsActionResponse:
         """Activate all disabled users under selected admins."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
         for db_admin in db_admins:
             await self._activate_all_disabled_users_for_admin(db, db_admin, admin)
         return self._build_bulk_action_response(db_admins)
@@ -444,7 +483,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, bulk_admins: BulkAdminSelection, admin: AdminDetails
     ) -> BulkAdminsActionResponse:
         """Remove all users under selected admins."""
-        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids)
+        db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
         for db_admin in db_admins:
             await self._remove_all_users_for_admin(db, db_admin, admin)
         return self._build_bulk_action_response(db_admins)

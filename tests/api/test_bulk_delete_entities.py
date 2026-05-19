@@ -86,6 +86,29 @@ def delete_admin_if_present(access_token: str, username: str) -> None:
     assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
 
 
+def create_owner_admin_row() -> dict:
+    async def _create():
+        async with TestSession() as session:
+            db_admin = Admin(username=unique_name("bulk_owner"), hashed_password="secret", role_id=1)
+            session.add(db_admin)
+            await session.commit()
+            return {"id": db_admin.id, "username": db_admin.username}
+
+    return asyncio.run(_create())
+
+
+def delete_admin_row(username: str) -> None:
+    async def _delete():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one_or_none()
+            if db_admin is not None:
+                await session.delete(db_admin)
+                await session.commit()
+
+    asyncio.run(_delete())
+
+
 def delete_core_if_present(access_token: str, core_id: int) -> None:
     response = client.delete(f"/api/core/{core_id}", headers=auth_headers(access_token))
     assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
@@ -322,21 +345,23 @@ def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
 
 def test_bulk_delete_admins_rejects_owner_account(access_token):
     """Bulk deleting the owner admin (role_id=1) should be forbidden."""
-    # The owner cannot be created via API, so we verify the guard exists
-    # by attempting to bulk-delete a non-existent owner username — the
-    # operation layer blocks role_id=1 deletions before hitting the DB.
-    # We test this indirectly: a normal admin (role_id=3) can be bulk-deleted.
-    admin = create_admin(access_token)
+    owner = create_owner_admin_row()
     try:
         response = client.post(
             "/api/admins/bulk/delete",
             headers=auth_headers(access_token),
-            json={"ids": [admin["id"]]},
+            json={"ids": [owner["id"]]},
         )
-        assert response.status_code == status.HTTP_200_OK
-        assert admin["username"] in response.json()["admins"]
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        async def _owner_exists():
+            async with TestSession() as session:
+                result = await session.execute(select(Admin.id).where(Admin.id == owner["id"]))
+                return result.scalar_one_or_none() is not None
+
+        assert asyncio.run(_owner_exists())
     finally:
-        pass  # already deleted by bulk delete above
+        delete_admin_row(owner["username"])
 
 
 def test_bulk_delete_client_templates_reassigns_default(access_token):

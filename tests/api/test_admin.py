@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from app.db.crud.admin import get_admin_by_telegram_id
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage
+from app.models.admin import hash_password
 from app.models.settings import RunMethod, Telegram
 from app.routers.authentication import validate_mini_app_admin
 from app.utils.jwt import get_admin_payload
@@ -69,6 +70,32 @@ def set_admin_used_traffic(username: str, used_traffic: int) -> None:
             await session.commit()
 
     asyncio.run(_set_usage())
+
+
+def create_owner_admin_row() -> dict:
+    username = admin_username("owner")
+    password = strong_password("OwnerAdmin")
+
+    async def _create_owner():
+        async with TestSession() as session:
+            db_admin = Admin(username=username, hashed_password=await hash_password(password), role_id=1)
+            session.add(db_admin)
+            await session.commit()
+            return db_admin.id
+
+    return {"id": asyncio.run(_create_owner()), "username": username, "password": password}
+
+
+def delete_admin_row(username: str) -> None:
+    async def _delete():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one_or_none()
+            if db_admin is not None:
+                await session.delete(db_admin)
+                await session.commit()
+
+    asyncio.run(_delete())
 
 
 def test_admin_login():
@@ -586,6 +613,84 @@ def test_get_admins_returns_admin_note(access_token):
         assert created_admin_row["note"] == note
     finally:
         delete_admin(access_token, username)
+
+
+def test_non_owner_admin_list_hides_owner(access_token):
+    owner = create_owner_admin_row()
+    administrator = create_admin(access_token, role_id=2)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": administrator["username"],
+                "password": administrator["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        administrator_token = login_response.json()["access_token"]
+
+        response = client.get(
+            "/api/admins",
+            params={"username": owner["username"]},
+            headers=auth_headers(administrator_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["admins"] == []
+        assert response.json()["total"] == 0
+
+        simple_response = client.get(
+            "/api/admins/simple",
+            params={"search": owner["username"], "all": True},
+            headers=auth_headers(administrator_token),
+        )
+        assert simple_response.status_code == status.HTTP_200_OK
+        assert simple_response.json()["admins"] == []
+        assert simple_response.json()["total"] == 0
+    finally:
+        delete_admin(access_token, administrator["username"])
+        delete_admin_row(owner["username"])
+
+
+def test_non_owner_admin_cannot_target_owner_with_admin_permissions(access_token):
+    owner = create_owner_admin_row()
+    administrator = create_admin(access_token, role_id=2)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": administrator["username"],
+                "password": administrator["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        administrator_token = login_response.json()["access_token"]
+        headers = auth_headers(administrator_token)
+
+        modify_response = client.put(
+            f"/api/admin/by-id/{owner['id']}",
+            json={"note": "should not update"},
+            headers=headers,
+        )
+        assert modify_response.status_code == status.HTTP_403_FORBIDDEN
+
+        usage_response = client.get(
+            f"/api/admin/by-id/{owner['id']}/usage",
+            params={"period": "hour"},
+            headers=headers,
+        )
+        assert usage_response.status_code == status.HTTP_403_FORBIDDEN
+
+        bulk_delete_response = client.post(
+            "/api/admins/bulk/delete",
+            json={"ids": [owner["id"]]},
+            headers=headers,
+        )
+        assert bulk_delete_response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, administrator["username"])
+        delete_admin_row(owner["username"])
 
 
 def test_disable_admin(access_token):

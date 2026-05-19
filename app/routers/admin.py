@@ -187,7 +187,7 @@ async def get_admins(
     admin: AdminDetails = Depends(require_permission("admins", "read")),
 ):
     """Fetch a list of admins with optional filters for pagination and username."""
-    return await admin_operator.get_admins(db, query=query)
+    return await admin_operator.get_admins(db, query=query, admin=admin)
 
 
 @router.get(
@@ -202,7 +202,7 @@ async def get_admins_simple(
     admin: AdminDetails = Depends(require_permission("admins", "read_simple")),
 ):
     """Get lightweight admin list with only id and username."""
-    return await admin_operator.get_admins_simple(db=db, query=query)
+    return await admin_operator.get_admins_simple(db=db, query=query, admin=admin)
 
 
 @router.get(

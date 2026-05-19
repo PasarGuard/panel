@@ -204,9 +204,10 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const { admin: currentAdmin } = useAdmin()
   const canUpdateAdmins = hasPermission(currentAdmin, 'admins', 'update')
   const canDeleteAdmins = hasPermission(currentAdmin, 'admins', 'delete')
+  const canResetAdmins = hasPermission(currentAdmin, 'admins', 'reset_usage')
   const canUpdateAllUsers = hasScopeAll(currentAdmin, 'users', 'update')
   const canDeleteAllUsers = hasScopeAll(currentAdmin, 'users', 'delete')
-  const canUseBulkSelection = canUpdateAdmins || canDeleteAdmins || canUpdateAllUsers || canDeleteAllUsers
+  const canUseBulkSelection = canUpdateAdmins || canDeleteAdmins || canResetAdmins || canUpdateAllUsers || canDeleteAllUsers
   const [currentPage, setCurrentPage] = useState(0)
   const [itemsPerPage, setItemsPerPage] = useState(getAdminsPerPageLimitSize())
   const [isChangingPage, setIsChangingPage] = useState(false)
@@ -717,7 +718,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       } as BulkActionItem,
         ]
         : []),
-      ...(canUpdateAdmins
+      ...(canResetAdmins
         ? [
       {
         key: 'reset',
@@ -860,7 +861,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     onEdit: canUpdateAdmins ? onEdit : undefined,
     onDelete: canDeleteAdmins ? handleDeleteClick : undefined,
     toggleStatus: canUpdateAdmins ? handleStatusToggleClick : undefined,
-    onResetUsage: canUpdateAdmins ? handleResetUsersUsageClick : undefined,
+    onResetUsage: canResetAdmins ? handleResetUsersUsageClick : undefined,
     onDisableAllActiveUsers: canUpdateAllUsers ? handleDisableAllActiveUsersClick : undefined,
     onActivateAllDisabledUsers: canUpdateAllUsers ? handleActivateAllDisabledUsersClick : undefined,
     onRemoveAllUsers: canDeleteAllUsers ? handleRemoveAllUsersClick : undefined,
@@ -879,7 +880,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
         onEdit={canUpdateAdmins ? onEdit : undefined}
         onDelete={canDeleteAdmins ? handleDeleteClick : undefined}
         onToggleStatus={canUpdateAdmins ? handleStatusToggleClick : undefined}
-        onResetUsage={canUpdateAdmins ? handleResetUsersUsageClick : undefined}
+        onResetUsage={canResetAdmins ? handleResetUsersUsageClick : undefined}
         onDisableAllActiveUsers={canUpdateAllUsers ? handleDisableAllActiveUsersClick : undefined}
         onActivateAllDisabledUsers={canUpdateAllUsers ? handleActivateAllDisabledUsersClick : undefined}
         onRemoveAllUsers={canDeleteAllUsers ? handleRemoveAllUsersClick : undefined}
