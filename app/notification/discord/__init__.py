@@ -1,4 +1,4 @@
-from .admin import admin_login, admin_reset_usage, create_admin, modify_admin, remove_admin
+from .admin import admin_login, admin_reset_usage, admin_usage_limit_reached, create_admin, modify_admin, remove_admin
 from .admin_role import create_admin_role, modify_admin_role, remove_admin_role
 from .core import create_core, modify_core, remove_core
 from .group import create_group, modify_group, remove_group
@@ -42,6 +42,7 @@ __all__ = [
     "modify_admin",
     "remove_admin",
     "admin_reset_usage",
+    "admin_usage_limit_reached",
     "admin_login",
     "user_status_change",
     "create_user",

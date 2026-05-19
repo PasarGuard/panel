@@ -11,22 +11,93 @@ This job only handles the active → limited transition that occurs via traffic 
 
 from datetime import datetime as dt, timezone as tz
 
-from app import scheduler
+from app import notification, scheduler
 from app.db import GetDB
-from app.db.crud.admin import get_active_to_limited_admins, update_admin_status
+from app.db.crud.admin import (
+    bulk_create_admin_notification_reminders,
+    get_active_admins_with_data_limit,
+    get_active_to_limited_admins,
+    get_admin_usage_reminder_thresholds,
+    update_admin_status,
+)
 from app.db.crud.user import get_users
-from app.db.models import AdminStatus, UserStatus
+from app.db.models import Admin, AdminStatus, ReminderType, UserStatus
+from app.models.admin import AdminDetails
 from app.models.user import UserListQuery
+from app.models.validators import ListValidator
 from app.node.sync import remove_users as sync_remove_users
+from app.settings import notification_enable
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
 
 logger = get_logger("review-admins")
 
 
+def _get_effective_admin_thresholds(admin: Admin, default_thresholds: list[int]) -> list[int]:
+    overrides = admin.permission_overrides or {}
+    override_values = overrides.get("usage_limit_warning_percentages") if isinstance(overrides, dict) else None
+
+    if override_values is None:
+        return default_thresholds
+    thresholds = ListValidator.normalize_percentage_list_input(override_values, strict=False)
+    return thresholds or []
+
+
+async def _send_usage_limit_warning_notifications(db):
+    notify_settings = await notification_enable()
+    admin_notify = notify_settings.admin
+
+    if not admin_notify.usage_limit_warning:
+        return
+
+    default_thresholds = ListValidator.normalize_percentage_list_input(
+        admin_notify.usage_limit_warning_percentages,
+        strict=False,
+    )
+    default_thresholds = default_thresholds or []
+    if not default_thresholds:
+        return
+
+    admins = await get_active_admins_with_data_limit(db)
+    if not admins:
+        return
+
+    admin_ids = [admin.id for admin in admins]
+    already_sent = await get_admin_usage_reminder_thresholds(db, admin_ids, ReminderType.data_usage)
+    reminder_rows: list[dict] = []
+
+    for admin in admins:
+        if not admin.data_limit or admin.data_limit <= 0:
+            continue
+
+        usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
+        thresholds = _get_effective_admin_thresholds(admin, default_thresholds)
+        if not thresholds:
+            continue
+
+        admin_model = AdminDetails.model_validate(admin)
+        sent_thresholds = already_sent.get(admin.id, set())
+
+        for threshold in thresholds:
+            if usage_percentage >= threshold and threshold not in sent_thresholds:
+                await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
+                reminder_rows.append(
+                    {
+                        "admin_id": admin.id,
+                        "type": ReminderType.data_usage,
+                        "threshold": threshold,
+                    }
+                )
+
+    if reminder_rows:
+        await bulk_create_admin_notification_reminders(db, reminder_rows)
+
+
 async def limit_admins_job():
-    """Flip active → limited for admins that exceeded their data_limit and remove their users from nodes."""
+    """Send warning notifications and flip active → limited admins that exceeded data_limit."""
     async with GetDB() as db:
+        await _send_usage_limit_warning_notifications(db)
+
         admins = await get_active_to_limited_admins(db)
         if not admins:
             return

@@ -122,6 +122,15 @@ ADMIN_RESET_USAGE = {
     "footer": {"text": "By: {by}"},
 }
 
+ADMIN_USAGE_LIMIT_REACHED = {
+    "title": "⚠️ Admin Usage Limit Warning",
+    "description": "**Username:** {username}\n"
+    + "**Used Traffic:** {used_traffic}\n"
+    + "**Data Limit:** {data_limit}\n"
+    + "**Usage:** {usage_percentage}%\n"
+    + "**Reached Threshold:** {threshold}%",
+}
+
 ADMIN_LOGIN = {
     "title": "Login Attempt",
     "description": "**Username:** {username}\n**Password:** {password}\n**IP:** {client_ip}",

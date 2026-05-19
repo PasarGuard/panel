@@ -88,8 +88,14 @@ class RoleLimits(BaseModel):
     expire_max: int | None = None
     min_hwid_per_user: int | None = None
     max_hwid_per_user: int | None = None
+    usage_limit_warning_percentages: list[int] | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("usage_limit_warning_percentages", mode="before")
+    @classmethod
+    def validate_usage_limit_warning_percentages(cls, value):
+        return ListValidator.normalize_percentage_list_input(value, none_as_none=True)
 
 
 class RoleFeatures(BaseModel):

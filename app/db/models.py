@@ -80,6 +80,10 @@ class Admin(Base):
     usage_logs: Mapped[List["AdminUsageLogs"]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
+    notification_reminders: Mapped[List["AdminNotificationReminder"]] = relationship(
+        back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
+    )
+
     password_reset_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
@@ -768,6 +772,18 @@ class NotificationReminder(Base):
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
     threshold: Mapped[Optional[int]] = mapped_column(default=None)
     expires_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class AdminNotificationReminder(Base):
+    __tablename__ = "admin_notification_reminders"
+    __table_args__ = (Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),)
+
+    id: Mapped[int] = id_column()
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    admin: Mapped["Admin"] = relationship(back_populates="notification_reminders", init=False)
+    type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
+    threshold: Mapped[Optional[int]] = mapped_column(default=None)
 
 
 class Group(Base):

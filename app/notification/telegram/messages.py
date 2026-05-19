@@ -113,6 +113,16 @@ ADMIN_RESET_USAGE = """
 <i>By: #{by}</i>
 """
 
+ADMIN_USAGE_LIMIT_REACHED = """
+⚠️ #Admin_Usage_Limit_Warning
+➖➖➖➖➖➖➖➖➖
+<b>Username:</b> <code>{username}</code>
+<b>Used Traffic:</b> <code>{used_traffic}</code>
+<b>Data Limit:</b> <code>{data_limit}</code>
+<b>Usage:</b> <code>{usage_percentage}%</code>
+<b>Reached Threshold:</b> <code>{threshold}%</code>
+"""
+
 ADMIN_LOGIN = """
 #Login_Attempt
 <i>Status</i>: {status}

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, case, delete, func, select, update
+from sqlalchemy import and_, case, delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.general import (
@@ -9,7 +9,7 @@ from app.db.crud.general import (
     get_complete_period_start_for_filter,
     to_utc_for_filter,
 )
-from app.db.models import Admin, AdminRole, AdminUsageLogs, NodeUserUsage, User
+from app.db.models import Admin, AdminNotificationReminder, AdminRole, AdminUsageLogs, NodeUserUsage, ReminderType, User
 from app.models.admin import (
     AdminCreate,
     AdminDetails,
@@ -400,6 +400,63 @@ async def get_admins_simple(
     return rows, total
 
 
+async def get_active_admins_with_data_limit(db: AsyncSession) -> list[Admin]:
+    """Return active admins with a finite data_limit, used by warning-threshold checks."""
+    stmt = select(Admin).where(
+        Admin.status == AdminStatus.active,
+        Admin.data_limit.isnot(None),
+        Admin.data_limit > 0,
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def get_admin_usage_reminder_thresholds(
+    db: AsyncSession,
+    admin_ids: list[int],
+    reminder_type: ReminderType,
+) -> dict[int, set[int]]:
+    """Return already-sent thresholds by admin for deduplicating warning notifications."""
+    if not admin_ids:
+        return {}
+
+    stmt = select(AdminNotificationReminder.admin_id, AdminNotificationReminder.threshold).where(
+        AdminNotificationReminder.admin_id.in_(admin_ids),
+        AdminNotificationReminder.type == reminder_type,
+        AdminNotificationReminder.threshold.isnot(None),
+    )
+    rows = (await db.execute(stmt)).all()
+
+    sent_thresholds: dict[int, set[int]] = {}
+    for admin_id, threshold in rows:
+        if threshold is None:
+            continue
+        sent_thresholds.setdefault(admin_id, set()).add(int(threshold))
+    return sent_thresholds
+
+
+async def bulk_create_admin_notification_reminders(db: AsyncSession, reminder_data: list[dict]) -> None:
+    """Bulk-insert admin reminder rows after successful sends."""
+    if not reminder_data:
+        return
+
+    await db.execute(insert(AdminNotificationReminder), reminder_data)
+    await db.commit()
+
+
+async def delete_admin_notification_reminders(
+    db: AsyncSession,
+    admin_id: int,
+    reminder_type: ReminderType,
+) -> None:
+    """Delete persisted admin reminders for a specific type (used when re-arming thresholds)."""
+    await db.execute(
+        delete(AdminNotificationReminder).where(
+            AdminNotificationReminder.admin_id == admin_id,
+            AdminNotificationReminder.type == reminder_type,
+        )
+    )
+
+
 async def get_active_to_limited_admins(db: AsyncSession) -> list[Admin]:
     """Return ALL active admins that have exceeded their data_limit (for status flip)."""
     stmt = select(Admin).where(
@@ -455,7 +512,10 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     Returns:
         Admin: The updated admin.
     """
+    await delete_admin_notification_reminders(db, db_admin.id, ReminderType.data_usage)
+
     if db_admin.used_traffic == 0:
+        await db.commit()
         return db_admin
 
     usage_log = AdminUsageLogs(admin_id=db_admin.id, used_traffic_at_reset=db_admin.used_traffic)
