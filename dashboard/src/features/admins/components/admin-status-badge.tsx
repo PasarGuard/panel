@@ -3,7 +3,6 @@ import { statusColors } from '@/constants/UserSettings'
 import { cn } from '@/lib/utils'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UserRound, UserRoundKey } from 'lucide-react'
 
 type AdminStatusProps = {
   isSudo: boolean
@@ -13,47 +12,26 @@ type AdminStatusProps = {
   compact?: boolean
 }
 
-export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo, status, isDisabled, label, compact }) => {
+export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo: _isSudo, status, isDisabled, label, compact }) => {
   const { t } = useTranslation()
   const resolvedStatus = status || (isDisabled ? 'disabled' : 'active')
 
   const getStatusInfo = () => {
+    const baseColor = statusColors[resolvedStatus]?.statusColor || 'bg-gray-400 text-white'
+    const baseIcon = statusColors[resolvedStatus]?.icon || null
+
     if (compact) {
       return {
-        color: statusColors[resolvedStatus]?.statusColor || 'bg-gray-400 text-white',
-        icon: statusColors[resolvedStatus]?.icon || UserRound,
+        color: baseColor,
+        icon: baseIcon,
         text: t(`status.${resolvedStatus}`, { defaultValue: resolvedStatus }),
       }
     }
 
-    if (resolvedStatus === 'disabled') {
-      return {
-        color: statusColors['disabled']?.statusColor || 'bg-gray-400 text-white',
-        icon: statusColors['disabled']?.icon || null,
-        text: t('status.disabled', { defaultValue: t('disabled') }),
-      }
-    }
-
-    if (resolvedStatus === 'limited') {
-      return {
-        color: statusColors['limited']?.statusColor || 'bg-red-500 text-white',
-        icon: statusColors['limited']?.icon || null,
-        text: t('status.limited', { defaultValue: 'Limited' }),
-      }
-    }
-
-    if (isSudo) {
-      return {
-        color: 'bg-violet-500 text-white',
-        icon: UserRoundKey,
-        text: label || t('sudo'),
-      }
-    }
-
     return {
-      color: statusColors['active']?.statusColor || 'bg-green-500 text-white',
-      icon: UserRound,
-      text: label || t('admin'),
+      color: baseColor,
+      icon: baseIcon,
+      text: label || t(`status.${resolvedStatus}`, { defaultValue: resolvedStatus }),
     }
   }
 

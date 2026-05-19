@@ -1,16 +1,16 @@
-import { ColumnDef, RowSelectionState, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
+﻿import { ColumnDef, RowSelectionState, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import React, { useState, useMemo, memo, useCallback, useEffect } from 'react'
-import { ChartPie, ChevronDown, Database, Edit2, Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserRound, UserRoundKey, UserX, MoreVertical, Users } from 'lucide-react'
+import { ChevronDown, Edit2, Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserRound, UserRoundKey, UserX, MoreVertical, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AdminDetails } from '@/service/api'
 import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { formatBytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isOwner, roleLabel } from '@/utils/rbac'
+import UsageSliderCompact from '@/components/common/usage-slider-compact'
 
 interface DataTableProps<TData extends AdminDetails> {
   columns: ColumnDef<TData, any>[]
@@ -67,34 +67,29 @@ const ExpandedRowContent = memo(
       (!isOwnerTarget && row.username !== currentAdminUsername && !!onDelete)
 
     return (
-      <div className="flex items-start justify-between gap-2 border-b px-3 py-3 text-xs">
-        <div className="flex min-w-0 flex-col gap-1.5 text-[11px]">
-          <div className="flex items-center gap-1.5 leading-none" title={t('admins.total.users')}>
-            <Users className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">:</span>
-            <span className="text-foreground">{row.total_users || 0}</span>
+      <div className="flex flex-col gap-y-3 border-b px-3 py-3 text-xs">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-1.5 text-xs">
+            <div className="flex items-center gap-1.5 leading-none">
+              <Users className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">{t('admins.total.users')}:</span>
+              <span dir="ltr" className="text-foreground" style={{ unicodeBidi: 'isolate' }}>
+                {(() => {
+                  const total = row.total_users || 0
+                  const overrideMax = row.permission_overrides?.max_users
+                  const roleMax = row.role?.limits?.max_users
+                  const effectiveMax = typeof overrideMax === 'number' && overrideMax > 0 ? overrideMax : typeof roleMax === 'number' && roleMax > 0 ? roleMax : null
+                  return effectiveMax != null ? `${total} / ${effectiveMax}` : total
+                })()}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 leading-none">
+              {isOwnerTarget ? <UserRoundKey className="h-3 w-3 shrink-0 text-muted-foreground" /> : <UserRound className="h-3 w-3 shrink-0 text-muted-foreground" />}
+              <span className="text-muted-foreground">{t('admins.role')}:</span>
+              <span className="text-foreground">{roleLabel(row)}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 leading-none" title={t('admins.role')}>
-            {isOwnerTarget ? <UserRoundKey className="h-3 w-3 shrink-0 text-muted-foreground" /> : <UserRound className="h-3 w-3 shrink-0 text-muted-foreground" />}
-            <span className="text-muted-foreground">:</span>
-            <span className="text-foreground">{roleLabel(row)}</span>
-          </div>
-          <div className="flex items-center gap-1.5 leading-none" title={t('statistics.totalUsage')}>
-            <ChartPie className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">:</span>
-            <span dir="ltr" className="text-foreground" style={{ unicodeBidi: 'isolate' }}>
-              {formatBytes(row.lifetime_used_traffic || 0)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 leading-none" title={t('admins.dataLimit', { defaultValue: 'Admin data limit' })}>
-            <Database className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">:</span>
-            <span dir="ltr" className="text-foreground" style={{ unicodeBidi: 'isolate' }}>
-              {row.data_limit ? formatBytes(row.data_limit) : t('adminRoles.unlimited', { defaultValue: 'Unlimited' })}
-            </span>
-          </div>
-        </div>
-        <div className="flex justify-end gap-1">
+          <div className="flex justify-end gap-1">
           {onEdit && <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(row)} title={t('edit')}>
             <Edit2 className="!h-3.5 !w-3.5" />
           </Button>}
@@ -183,6 +178,14 @@ const ExpandedRowContent = memo(
             </DropdownMenuContent>
           </DropdownMenu>}
         </div>
+        </div>
+        <UsageSliderCompact
+          isMobile
+          status={getAdminStatus(row)}
+          total={row.data_limit}
+          totalUsedTraffic={row.lifetime_used_traffic ?? undefined}
+          used={row.used_traffic || 0}
+        />
       </div>
     )
   },
@@ -245,12 +248,11 @@ export function DataTable<TData extends AdminDetails>({
       cn(
         'text-sm',
         columnId !== 'used_traffic' && 'whitespace-nowrap',
-        columnId === 'used_traffic' && 'w-[104px] px-1 md:w-auto md:px-2 md:whitespace-nowrap',
+        columnId === 'used_traffic' && 'w-[104px] px-1 md:w-[290px] md:px-2 md:whitespace-nowrap',
         columnId !== 'used_traffic' && 'py-1.5',
         columnId === 'username' && 'max-w-[calc(100vw-32px-70px-104px-40px-56px)] !px-0',
-        columnId === 'status' && '!px-0 md:hidden',
+        columnId === 'status' && '!px-2',
         columnId === 'select' && 'w-8 !px-1 !py-5',
-        columnId === 'lifetime_used_traffic' && 'hidden md:table-cell md:w-auto md:px-2 md:text-left',
         columnId === 'chevron' && 'w-10 px-2',
         !['select', 'username', 'status', 'used_traffic', 'chevron'].includes(columnId) && 'hidden !p-0 md:table-cell',
         columnId === 'chevron' && 'table-cell md:hidden',
@@ -269,16 +271,15 @@ export function DataTable<TData extends AdminDetails>({
         )
       case 'username':
         return (
-          <div className="flex items-start gap-x-3 py-1.5">
-            <Skeleton className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <Skeleton className={cn('h-4', rowIndex % 3 === 0 ? 'w-24' : 'w-32')} />
-            </div>
+          <div className="flex items-center gap-x-2 px-0.5 py-1">
+            <Skeleton className="h-4 w-4 shrink-0 rounded-full" />
+            <Skeleton className={cn('h-4', rowIndex % 3 === 0 ? 'w-20 md:w-24' : 'w-28 md:w-32')} />
           </div>
         )
       case 'status':
         return (
-          <div className="flex flex-col items-center gap-y-2 py-1">
+          <div className="flex flex-col gap-y-2 py-1">
+            <Skeleton className="hidden h-7 w-[88px] rounded-full md:block" />
             <Skeleton className="h-6 w-9 rounded-full md:hidden" />
           </div>
         )
@@ -295,21 +296,25 @@ export function DataTable<TData extends AdminDetails>({
             </div>
           </div>
         )
-      case 'lifetime_used_traffic':
-        return <Skeleton className="hidden h-4 w-20 md:block" />
-      case 'role':
-        return <Skeleton className="h-5 w-20 rounded-full" />
       case 'total_users':
         return (
           <div className="flex items-center gap-2">
             <Skeleton className="h-4 w-4" />
-            <Skeleton className="h-4 w-8" />
+            <Skeleton className="h-4 w-12" />
           </div>
         )
       case 'actions':
-        return <Skeleton className="h-8 w-8" />
+        return (
+          <div className="flex items-center justify-center">
+            <Skeleton className="h-7 w-7 rounded-sm" />
+          </div>
+        )
       case 'chevron':
-        return <Skeleton className="mx-auto h-4 w-4 rounded-full" />
+        return (
+          <div className="flex items-center justify-center">
+            <Skeleton className="h-3.5 w-3.5 rounded-sm" />
+          </div>
+        )
       default:
         return <Skeleton className="h-4 w-20" />
     }
@@ -387,8 +392,8 @@ export function DataTable<TData extends AdminDetails>({
                     header.id === 'select' && 'w-8 !px-1 py-1.5',
                     header.id === 'username' && 'w-auto md:w-auto',
                     header.id === 'total_users' && '!px-0',
-                    header.id === 'status' && 'max-w-[70px] !px-0 md:hidden',
-                    header.id === 'used_traffic' && 'w-[104px] px-1 md:w-auto md:px-2 md:text-left',
+                    header.id === 'status' && '!px-2',
+                    header.id === 'used_traffic' && 'w-[104px] px-1 md:w-[290px] md:px-2 md:text-left',
                     header.id === 'lifetime_used_traffic' && 'hidden md:table-cell md:w-auto md:px-2 md:text-left',
                     !['select', 'username', 'status', 'used_traffic', 'chevron'].includes(header.id) && 'hidden md:table-cell',
                     header.id === 'chevron' && 'w-10 px-2 table-cell md:hidden',
@@ -417,10 +422,10 @@ export function DataTable<TData extends AdminDetails>({
                           className={cn(
                             'text-sm',
                             cell.column.id !== 'used_traffic' && 'whitespace-nowrap',
-                            cell.column.id === 'used_traffic' && 'w-[104px] px-1 md:w-auto md:px-2 md:whitespace-nowrap',
+                            cell.column.id === 'used_traffic' && 'w-[104px] px-1 md:w-[290px] md:px-2 md:whitespace-nowrap',
                             cell.column.id !== 'used_traffic' && 'py-1.5',
                             cell.column.id === 'username' && 'max-w-[calc(100vw-32px-70px-104px-40px-56px)] !px-0',
-                            cell.column.id === 'status' && '!px-0 md:hidden',
+                            cell.column.id === 'status' && '!px-2',
                             cell.column.id === 'select' && 'w-8 !px-1 !py-5',
                             cell.column.id === 'lifetime_used_traffic' && 'hidden md:table-cell md:w-auto md:px-2 md:text-left',
                             cell.column.id === 'chevron' && 'w-10 px-2',

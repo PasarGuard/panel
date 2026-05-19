@@ -8,7 +8,7 @@ import { ChevronDown, Rss } from 'lucide-react'
 import ActionButtons from './action-buttons'
 import { OnlineStatus } from './online-status'
 import { StatusBadge } from './status-badge'
-import UsageSliderCompact from './usage-slider-compact'
+import UsageSliderCompact from '@/components/common/usage-slider-compact'
 import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/skeleton'
 

@@ -50,7 +50,7 @@ export const adminFormSchema = z
     username: z.string().min(1, 'Username is required'),
     password: z.string().optional(),
     passwordConfirm: z.string().optional(),
-    role_id: z.number().min(2, 'Role is required'),
+    role_id: z.number().min(1, 'Role is required'),
     status: adminStatusEditEnum.optional(),
     data_limit: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number().min(0)]).optional(),
     is_disabled: z.boolean().optional(),

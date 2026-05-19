@@ -3,11 +3,11 @@ import { ColumnDef, Row, Table } from '@tanstack/react-table'
 import { ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, Trash2, Users, UserCheck, UserMinus, UserRound, UserRoundKey, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { formatBytes } from '@/utils/formatByte.ts'
 import { AdminStatusBadge } from './admin-status-badge'
+import UsageSliderCompact from '@/components/common/usage-slider-compact'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
-import { isOwner, roleLabel } from '@/utils/rbac'
+import { isOwner } from '@/utils/rbac'
 
 interface ColumnSetupProps {
   t: (key: string) => string
@@ -61,11 +61,6 @@ const createSortButton = (
 
 const getAdminStatus = (admin: AdminDetails) => admin.status || (admin.is_disabled ? 'disabled' : 'active')
 const isAdminDisabled = (admin: AdminDetails) => getAdminStatus(admin) === 'disabled'
-const getAdminStatusDotClassName = (admin: AdminDetails) => {
-  if (isAdminDisabled(admin)) return 'border border-gray-400 shadow-sm dark:border-gray-600'
-  if (getAdminStatus(admin) === 'limited') return 'bg-red-500 shadow-sm'
-  return 'bg-green-500 shadow-sm'
-}
 const getAdminRoleIcon = (owner: boolean) => (owner ? UserRoundKey : UserRound)
 
 export const setupColumns = ({
@@ -126,11 +121,8 @@ export const setupColumns = ({
         return (
           <div className="overflow-hidden text-ellipsis whitespace-nowrap pl-0 font-medium md:pl-1">
             <div className="flex items-start gap-x-2 px-0.5 py-1">
-              <div className="pt-0.5 md:hidden">
+              <div className="pt-0.5">
                 <RoleIcon className={getAdminStatus(row.original) === 'disabled' ? 'h-4 w-4 text-muted-foreground/60' : cn('h-4 w-4', isOwner(row.original) ? 'text-violet-500' : 'text-primary')} />
-              </div>
-              <div className="hidden pt-1 md:block">
-                <div className={cn('min-h-[10px] min-w-[10px] rounded-full', getAdminStatusDotClassName(row.original))} />
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-y-0.5 overflow-hidden text-ellipsis whitespace-nowrap">
                 <div className="flex items-center gap-x-1.5 overflow-hidden">
@@ -144,54 +136,17 @@ export const setupColumns = ({
     },
     {
       id: 'status',
-      header: () => <div className="flex items-center justify-center text-xs capitalize">{t('usersTable.status')}</div>,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-center">
-          <AdminStatusBadge compact isSudo={isOwner(row.original)} status={getAdminStatus(row.original)} />
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'used_traffic',
-      header: () => createSortButton('used_traffic', 'dataUsage', t, handleSort, filters, 'justify-start', 'admins.used.traffic'),
-      cell: ({ row }) => {
-        const traffic = row.getValue('used_traffic') as number | null
-        const dataLimit = row.original.data_limit
-        const isUnlimited = !dataLimit || dataLimit === 0
-        return (
-          <div className="flex w-full items-center text-left text-xs font-medium text-foreground">
-            <span dir="ltr" className="whitespace-nowrap">
-              {formatBytes(traffic || 0)}
-              {!isUnlimited ? ` / ${formatBytes(dataLimit)}` : ''}
-            </span>
-          </div>
-        )
-      },
-    },
-    {
-      accessorKey: 'lifetime_used_traffic',
-      header: () => <div className="flex items-center text-xs capitalize">{t('statistics.totalUsage')}</div>,
-      cell: ({ row }) => {
-        const total = row.getValue('lifetime_used_traffic') as number | null
-
-        return (
-          <div className="flex items-center justify-start gap-2 whitespace-nowrap text-left">
-            <span dir="ltr" className="text-xs">
-              {formatBytes(total || 0)}
-            </span>
-          </div>
-        )
-      },
-    },
-    {
-      id: 'role',
-      header: () => <div className="flex items-center text-xs capitalize">{t('admins.role')}</div>,
+      header: () => <div className="flex items-center text-xs capitalize">{t('usersTable.status')}</div>,
       cell: ({ row }) => {
         const status = getAdminStatus(row.original)
         return (
-          <div className="flex min-w-0 items-center gap-2">
-            <AdminStatusBadge isSudo={isOwner(row.original)} status={status} label={status === 'active' ? roleLabel(row.original) : undefined} />
-            {status !== 'active' && <span className="hidden truncate text-xs text-muted-foreground md:inline">{roleLabel(row.original)}</span>}
+          <div className="flex flex-col gap-y-2 py-1">
+            <div className="hidden md:block">
+              <AdminStatusBadge isSudo={isOwner(row.original)} status={status} label={t(`status.${status}`)} />
+            </div>
+            <div className="md:hidden">
+              <AdminStatusBadge compact isSudo={isOwner(row.original)} status={status} />
+            </div>
           </div>
         )
       },
@@ -199,10 +154,33 @@ export const setupColumns = ({
     {
       accessorKey: 'total_users',
       header: () => <div className="flex items-center text-xs capitalize">{t('admins.total.users')}</div>,
+      cell: ({ row }) => {
+        const total = (row.getValue('total_users') as number | null) || 0
+        const overrideMax = row.original.permission_overrides?.max_users
+        const roleMax = row.original.role?.limits?.max_users
+        const effectiveMax = typeof overrideMax === 'number' && overrideMax > 0 ? overrideMax : typeof roleMax === 'number' && roleMax > 0 ? roleMax : null
+        return (
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <Users className="h-4 w-4" />
+            <span dir="ltr" className="text-xs">
+              {total}
+              {effectiveMax != null ? ` / ${effectiveMax}` : ''}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'used_traffic',
+      header: () => createSortButton('used_traffic', 'dataUsage', t, handleSort, filters, 'justify-start', 'admins.used.traffic'),
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4" />
-          <span>{row.getValue('total_users') || 0}</span>
+        <div className="flex w-full py-1 items-center justify-between gap-1">
+          <UsageSliderCompact
+            total={row.original.data_limit}
+            used={row.original.used_traffic || 0}
+            totalUsedTraffic={row.original.lifetime_used_traffic ?? undefined}
+            status={getAdminStatus(row.original)}
+          />
         </div>
       ),
     },

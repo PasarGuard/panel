@@ -726,7 +726,7 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
                   const option = optionMap.get(id)
                   return (
                     <Badge key={id} variant="secondary" className="flex items-center gap-1">
-                      <span className="max-w-[10rem] truncate">{option?.name || `#${id}`}</span>
+                      <span className="max-w-40 truncate">{option?.name || `#${id}`}</span>
                       <X
                         className="h-3 w-3 cursor-pointer hover:text-destructive"
                         onClick={event => {
