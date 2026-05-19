@@ -667,9 +667,24 @@
         "create": "ایجاد",
         "update": "ویرایش",
         "delete": "حذف",
+        "reset_usage": "بازنشانی مصرف",
+        "revoke_sub": "لغو اشتراک",
+        "set_owner": "تغییر مالک",
+        "activate_next_plan": "فعال‌سازی پلن بعدی",
+        "reconnect": "اتصال مجدد",
+        "update_core": "به‌روزرسانی هسته",
         "stats": "مشاهده آمار",
         "logs": "مشاهده لاگ‌ها",
         "read_general": "مشاهده عمومی"
+      },
+      "users": {
+        "reset_usage": "بازنشانی مصرف کاربر",
+        "revoke_sub": "لغو اشتراک",
+        "set_owner": "تغییر مالک کاربر",
+        "activate_next_plan": "فعال‌سازی پلن بعدی"
+      },
+      "admins": {
+        "reset_usage": "بازنشانی مصرف مدیر"
       },
       "settings": {
         "read": "مشاهده تنظیمات",
@@ -685,6 +700,8 @@
         "update": "ویرایش HWIDها"
       },
       "nodes": {
+        "reconnect": "اتصال مجدد گره‌ها",
+        "update_core": "به‌روزرسانی هسته گره",
         "stats": "مشاهده آمار گره‌ها",
         "logs": "مشاهده لاگ گره‌ها"
       }

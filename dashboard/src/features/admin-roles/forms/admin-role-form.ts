@@ -26,6 +26,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'users', action: 'create' },
       { resource: 'users', action: 'update', scoped: true },
       { resource: 'users', action: 'delete', scoped: true },
+      { resource: 'users', action: 'reset_usage', scoped: true },
+      { resource: 'users', action: 'revoke_sub', scoped: true },
+      { resource: 'users', action: 'set_owner', scoped: true },
+      { resource: 'users', action: 'activate_next_plan', scoped: true },
     ],
   },
   {
@@ -36,6 +40,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'admins', action: 'create' },
       { resource: 'admins', action: 'update' },
       { resource: 'admins', action: 'delete' },
+      { resource: 'admins', action: 'reset_usage' },
     ],
   },
   {
@@ -56,6 +61,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'nodes', action: 'create' },
       { resource: 'nodes', action: 'update' },
       { resource: 'nodes', action: 'delete' },
+      { resource: 'nodes', action: 'reconnect' },
+      { resource: 'nodes', action: 'update_core' },
       { resource: 'nodes', action: 'stats' },
       { resource: 'nodes', action: 'logs' },
     ],
@@ -118,20 +125,13 @@ export const LIMIT_KEYS = [
 
 export const FEATURE_KEYS: Array<keyof RoleFeatures> = ['can_use_reset_strategy', 'can_use_next_plan']
 
-const VALID_PERMISSION_ACTIONS: Record<string, Set<string>> = {
-  users: new Set(['create', 'read', 'read_simple', 'update', 'delete', 'reset_usage', 'revoke_sub', 'set_owner', 'activate_next_plan']),
-  admins: new Set(['create', 'read', 'read_simple', 'update', 'delete', 'reset_usage']),
-  nodes: new Set(['create', 'read', 'read_simple', 'update', 'delete', 'reconnect', 'update_core', 'logs', 'stats']),
-  groups: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
-  templates: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
-  client_templates: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
-  cores: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
-  admin_roles: new Set(['create', 'read', 'read_simple', 'update', 'delete']),
-  hosts: new Set(['create', 'read', 'update']),
-  settings: new Set(['read', 'read_general', 'update']),
-  system: new Set(['read']),
-  hwids: new Set(['read', 'delete']),
-}
+const VALID_PERMISSION_ACTIONS = PERMISSION_GROUPS.reduce<Record<string, Set<string>>>((acc, group) => {
+  for (const item of group.actions) {
+    acc[item.resource] = acc[item.resource] || new Set()
+    acc[item.resource].add(item.action)
+  }
+  return acc
+}, {})
 
 const normalizePermissionValue = (value: unknown): RolePermissionFormValue | undefined => {
   if (typeof value === 'boolean') return value

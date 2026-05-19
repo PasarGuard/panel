@@ -800,9 +800,24 @@
         "create": "创建",
         "update": "更新",
         "delete": "删除",
+        "reset_usage": "重置用量",
+        "revoke_sub": "撤销订阅",
+        "set_owner": "设置所有者",
+        "activate_next_plan": "激活下一计划",
+        "reconnect": "重新连接",
+        "update_core": "更新核心",
         "stats": "查看统计",
         "logs": "查看日志",
         "read_general": "查看常规"
+      },
+      "users": {
+        "reset_usage": "重置用户用量",
+        "revoke_sub": "撤销订阅",
+        "set_owner": "设置用户所有者",
+        "activate_next_plan": "激活下一计划"
+      },
+      "admins": {
+        "reset_usage": "重置管理员用量"
       },
       "settings": {
         "read": "查看设置",
@@ -818,6 +833,8 @@
         "update": "更新 HWID"
       },
       "nodes": {
+        "reconnect": "重新连接节点",
+        "update_core": "更新节点核心",
         "stats": "查看节点统计",
         "logs": "查看节点日志"
       }
