@@ -45,10 +45,10 @@ async def remove_user(user: UserNotificationResponse) -> None:
 
 
 async def remove_users(users: list[User]) -> None:
-    """Remove multiple users from nodes in a single batch dispatch."""
+    """Batch-remove users from nodes (serialized without inbounds so nodes drop them)."""
     if not users:
         return
-    proto_users = await serialize_users_for_node(users)
+    proto_users = [_serialize_user_for_node(u.id, u.username, u.proxy_settings) for u in users]
     asyncio.create_task(_dispatch_users_update(proto_users))
 
 
