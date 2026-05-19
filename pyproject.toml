@@ -74,5 +74,5 @@ dev = [
     "ruff>=0.15.13",
     "sqlalchemy-utils>=0.41.2",
     "textual-dev>=1.8.0",
-    "watchfiles>=1.0.4",
+    "watchfiles>=1.2.0",
 ]
