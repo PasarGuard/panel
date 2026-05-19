@@ -175,9 +175,11 @@
         "delete": "Delete",
         "resetUsage": "Reset Usage",
         "login": "Login",
+        "usageLimitWarning": "Usage Limit Warning",
         "modifyHosts": "Modify Hosts",
         "connect": "Connect",
         "error": "Error",
+        "limited": "Limited",
         "statusChange": "Status Change",
         "resetDataUsage": "Reset Data Usage",
         "dataResetByNext": "Data Reset By Next",
@@ -206,6 +208,12 @@
         "title": "Channel Overrides",
         "description": "Override the default destinations for specific notification events. Leave fields empty to inherit the global configuration.",
         "hint": "Leave these fields empty to fall back to the main notification settings for this event."
+      },
+      "usageLimitWarnings": {
+        "thresholds": "Warning Thresholds",
+        "description": "Send admin data-limit warnings when usage reaches these percentages.",
+        "addThreshold": "Add Threshold",
+        "empty": "No thresholds configured"
       }
     },
     "subscriptions": {

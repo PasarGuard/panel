@@ -3223,6 +3223,8 @@ export interface AdminNotificationEnable {
   delete?: boolean
   reset_usage?: boolean
   login?: boolean
+  usage_limit_warning?: boolean
+  usage_limit_warning_percentages?: number[]
 }
 
 export type AdminModifyPermissionOverrides = RoleLimits | null

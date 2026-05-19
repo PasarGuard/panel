@@ -159,9 +159,11 @@
         "delete": "删除",
         "resetUsage": "重置使用量",
         "login": "登录",
+        "usageLimitWarning": "用量限制预警",
         "modifyHosts": "修改主机",
         "connect": "连接",
         "error": "错误",
+        "limited": "受限",
         "statusChange": "状态变更",
         "resetDataUsage": "重置数据使用量",
         "dataResetByNext": "下次重置数据",
@@ -190,6 +192,12 @@
         "title": "频道覆盖",
         "description": "覆盖特定通知事件的默认目标。留空以继承全局配置。",
         "hint": "留空以恢复此事件的主要通知设置。"
+      },
+      "usageLimitWarnings": {
+        "thresholds": "预警阈值",
+        "description": "当管理员数据用量达到这些百分比时发送限制预警。",
+        "addThreshold": "添加阈值",
+        "empty": "未配置阈值"
       }
     },
     "subscriptions": {
