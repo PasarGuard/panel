@@ -400,12 +400,37 @@ async def get_admins_simple(
     return rows, total
 
 
-async def get_active_admins_with_data_limit(db: AsyncSession) -> list[Admin]:
+async def get_active_admins_with_data_limit(
+    db: AsyncSession,
+    *,
+    threshold: int | None = None,
+    admin_ids: list[int] | None = None,
+) -> list[Admin]:
     """Return active admins with a finite data_limit, used by warning-threshold checks."""
     stmt = select(Admin).where(
         Admin.status == AdminStatus.active,
         Admin.data_limit.isnot(None),
         Admin.data_limit > 0,
+    )
+
+    if threshold is not None:
+        stmt = stmt.where((Admin.used_traffic * 100) >= (Admin.data_limit * threshold))
+
+    if admin_ids is not None:
+        if not admin_ids:
+            return []
+        stmt = stmt.where(Admin.id.in_(admin_ids))
+
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def get_active_admins_with_override_thresholds(db: AsyncSession) -> list[Admin]:
+    """Return active admins with finite data_limit and non-null permission_overrides."""
+    stmt = select(Admin).where(
+        Admin.status == AdminStatus.active,
+        Admin.data_limit.isnot(None),
+        Admin.data_limit > 0,
+        Admin.permission_overrides.isnot(None),
     )
     return list((await db.execute(stmt)).scalars().all())
 
