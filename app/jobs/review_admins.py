@@ -15,13 +15,12 @@ from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.admin import (
     bulk_create_admin_notification_reminders,
-    get_active_admins_with_override_thresholds,
     get_active_to_limited_admins,
     get_usage_percentage_reached_admins,
     update_admin_status,
 )
 from app.db.crud.user import get_users
-from app.db.models import Admin, AdminStatus, ReminderType, UserStatus
+from app.db.models import AdminStatus, ReminderType, UserStatus
 from app.models.admin import AdminDetails
 from app.models.user import UserListQuery
 from app.models.validators import ListValidator
@@ -31,16 +30,6 @@ from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
 
 logger = get_logger("review-admins")
-
-
-def _get_effective_admin_thresholds(admin: Admin, default_thresholds: list[int]) -> list[int]:
-    overrides = admin.permission_overrides or {}
-    override_values = overrides.get("usage_limit_warning_percentages") if isinstance(overrides, dict) else None
-
-    if override_values is None:
-        return default_thresholds
-    thresholds = ListValidator.normalize_percentage_list_input(override_values, strict=False)
-    return thresholds or []
 
 
 async def _send_usage_limit_warning_notifications(db):
@@ -58,39 +47,10 @@ async def _send_usage_limit_warning_notifications(db):
     if not default_thresholds:
         return
 
-    override_admins = await get_active_admins_with_override_thresholds(db)
-    override_thresholds_by_admin: dict[int, list[int]] = {}
-    threshold_to_override_ids: dict[int, set[int]] = {}
-
-    for admin in override_admins:
-        thresholds = _get_effective_admin_thresholds(admin, default_thresholds)
-        if not thresholds:
-            continue
-        override_thresholds_by_admin[admin.id] = thresholds
-        for threshold in thresholds:
-            threshold_to_override_ids.setdefault(threshold, set()).add(admin.id)
-
-    override_ids = set(override_thresholds_by_admin.keys())
     reminder_rows: list[dict] = []
 
     for threshold in default_thresholds:
         threshold_admins = await get_usage_percentage_reached_admins(db, threshold)
-        for admin in threshold_admins:
-            if admin.id in override_ids:
-                continue
-            if not admin.data_limit or admin.data_limit <= 0:
-                continue
-            usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
-            admin_model = AdminDetails.model_validate(admin)
-            await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
-            reminder_rows.append({
-                "admin_id": admin.id,
-                "type": ReminderType.data_usage,
-                "threshold": threshold,
-            })
-
-    for threshold, admin_ids in threshold_to_override_ids.items():
-        threshold_admins = await get_usage_percentage_reached_admins(db, threshold, admin_ids=list(admin_ids))
         for admin in threshold_admins:
             if not admin.data_limit or admin.data_limit <= 0:
                 continue

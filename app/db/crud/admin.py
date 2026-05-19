@@ -424,17 +424,6 @@ async def get_active_admins_with_data_limit(
     return list((await db.execute(stmt)).scalars().all())
 
 
-async def get_active_admins_with_override_thresholds(db: AsyncSession) -> list[Admin]:
-    """Return active admins with finite data_limit and non-null permission_overrides."""
-    stmt = select(Admin).where(
-        Admin.status == AdminStatus.active,
-        Admin.data_limit.isnot(None),
-        Admin.data_limit > 0,
-        Admin.permission_overrides.isnot(None),
-    )
-    return list((await db.execute(stmt)).scalars().all())
-
-
 async def get_usage_percentage_reached_admins(
     db: AsyncSession,
     percentage: int,
