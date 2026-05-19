@@ -62,7 +62,7 @@ def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
             raise PermissionDenied("Admin is limited — write actions blocked")
 
     action_perm = _get_resource_action(admin, resource, action)
-    if action_perm is None:
+    if not action_perm:
         raise PermissionDenied(f"Permission denied: {resource}.{action}")
 
     scope = _resolve_scope(action_perm)
