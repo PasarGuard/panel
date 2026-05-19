@@ -158,7 +158,7 @@ class XrayConfiguration(BaseSubscription):
             "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
-            "downloadSettings": self._download_config(config.download_settings) if config.download_settings else None,
+            "downloadSettings": self._xhttp_download_config(config.download_settings) if config.download_settings else None,
         }
 
         if config.random_user_agent:
@@ -169,6 +169,11 @@ class XrayConfiguration(BaseSubscription):
 
         xhttp_settings["extra"] = extra
         return self._normalize_and_remove_none_values(xhttp_settings)
+
+    def _xhttp_download_config(self, download_settings: SubscriptionInboundData | dict) -> dict:
+        if isinstance(download_settings, dict):
+            return download_settings
+        return self._download_config(download_settings)
 
     def _transport_grpc(self, config: GRPCTransportConfig, path: str) -> dict:
         """Handle GRPC transport - only gets GRPC config"""
