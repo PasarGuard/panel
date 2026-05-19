@@ -82,7 +82,7 @@ class GRPCTransportConfig(BaseTransportConfig):
     permit_without_stream: bool = Field(False)
     initial_windows_size: int | None = Field(None)
     http_headers: dict[str, str] | None = Field(None)
-    random_user_agent: bool = Field(False)
+    random_user_agent: str = Field("")
 
 
 class WebSocketTransportConfig(BaseTransportConfig):
@@ -90,7 +90,7 @@ class WebSocketTransportConfig(BaseTransportConfig):
 
     heartbeat_period: int | None = Field(None, serialization_alias="heartbeatPeriod")
     http_headers: dict[str, str] | None = Field(None)
-    random_user_agent: bool = Field(False)
+    random_user_agent: str = Field("")
 
 
 class XHTTPTransportConfig(BaseTransportConfig):
@@ -123,7 +123,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
     xmux: dict[str, Any] | None = Field(None)
     download_settings: SubscriptionInboundData | dict | None = Field(None, serialization_alias="downloadSettings")
     http_headers: dict[str, str] | None = Field(None)
-    random_user_agent: bool = Field(False)
+    random_user_agent: str = Field("")
 
 
 class KCPTransportConfig(BaseTransportConfig):
@@ -151,7 +151,7 @@ class TCPTransportConfig(BaseTransportConfig):
     request: dict[str, Any] | None = Field(None)
     response: dict[str, Any] | None = Field(None)
     http_headers: dict[str, str] | None = Field(None)
-    random_user_agent: bool = Field(False)
+    random_user_agent: str = Field("")
 
 
 # ========== Protocol-Specific Models (Only protocol fields) ==========
@@ -258,7 +258,7 @@ class SubscriptionInboundData(BaseModel):
     inbound_flow: str = Field("")
 
     # Additional settings
-    random_user_agent: bool = Field(False)
+    random_user_agent: str = Field("")
     use_sni_as_host: bool = Field(False)
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)

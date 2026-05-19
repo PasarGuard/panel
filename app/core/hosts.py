@@ -254,7 +254,7 @@ async def _prepare_subscription_inbound_data(
             xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else None,
             download_settings=down_settings if xs and down_settings else None,
             http_headers=host.http_headers,
-            random_user_agent=host.random_user_agent,
+            random_user_agent=str(host.random_user_agent) if host.random_user_agent is not None else "",
         )
     elif network in ("grpc", "gun"):
         gs = ts.grpc_settings if ts else None
@@ -267,7 +267,7 @@ async def _prepare_subscription_inbound_data(
             permit_without_stream=gs.permit_without_stream if gs else False,
             initial_windows_size=gs.initial_windows_size if gs else None,
             http_headers=host.http_headers,
-            random_user_agent=host.random_user_agent,
+            random_user_agent=str(host.random_user_agent) if host.random_user_agent is not None else "",
         )
     elif network == "kcp":
         ks = ts.kcp_settings if ts else None
@@ -311,7 +311,7 @@ async def _prepare_subscription_inbound_data(
             host=host_list,
             heartbeat_period=ws.heartbeatPeriod if ws else None,
             http_headers=host.http_headers,
-            random_user_agent=host.random_user_agent,
+            random_user_agent=str(host.random_user_agent) if host.random_user_agent is not None else "",
         )
     elif network in ("tcp", "raw", "http", "h2"):
         # TCP/HTTP/H2 all use TCP transport
@@ -330,7 +330,7 @@ async def _prepare_subscription_inbound_data(
             request=tcps.request.model_dump(by_alias=True, exclude_none=True) if tcps and tcps.request else None,
             response=tcps.response.model_dump(by_alias=True, exclude_none=True) if tcps and tcps.response else None,
             http_headers=host.http_headers,
-            random_user_agent=host.random_user_agent,
+            random_user_agent=str(host.random_user_agent) if host.random_user_agent is not None else "",
         )
     else:
         # Unknown network type, default to TCP
@@ -339,7 +339,7 @@ async def _prepare_subscription_inbound_data(
             host=host_list,
             header_type=inbound_header_type,
             http_headers=host.http_headers,
-            random_user_agent=host.random_user_agent,
+            random_user_agent=str(host.random_user_agent) if host.random_user_agent is not None else "",
         )
 
     return SubscriptionInboundData(
