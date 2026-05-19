@@ -235,17 +235,18 @@ async def get_admins(
     return_with_count: bool = False,
     compact: bool = False,
     include_owner: bool = True,
-) -> list[Admin] | tuple[list[Admin], int, int, int]:
+) -> list[Admin] | tuple[list[Admin], int, int, int, int]:
     """
     Retrieves a list of admins with optional filters and pagination.
 
     Args:
         db (AsyncSession): Database session.
         query: Structured admin list query.
-        return_with_count (bool): If True, returns tuple with (admins, total, active, disabled).
+        return_with_count (bool): If True, returns tuple with (admins, total, active, disabled, limited).
 
     Returns:
-        List[Admin] | tuple[list[Admin], int, int, int]: A list of admin objects or tuple with counts.
+        List[Admin] | tuple[list[Admin], int, int, int, int]:
+            A list of admin objects or tuple with counts (total, active, disabled, limited).
     """
     params = query
     total = None
