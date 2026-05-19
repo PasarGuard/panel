@@ -125,6 +125,18 @@ class XHTTPTransportConfig(BaseTransportConfig):
     http_headers: dict[str, str] | None = Field(None)
     random_user_agent: bool = Field(False)
 
+    @field_validator(
+        "sc_max_each_post_bytes",
+        "sc_min_posts_interval_ms",
+        "uplink_chunk_size",
+        mode="before",
+    )
+    @classmethod
+    def normalize_numeric_or_range_fields(cls, value):
+        if isinstance(value, int):
+            return str(value)
+        return value
+
 
 class KCPTransportConfig(BaseTransportConfig):
     """KCP transport - only kcp-specific fields"""
