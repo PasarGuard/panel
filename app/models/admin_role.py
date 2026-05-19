@@ -140,7 +140,7 @@ class AdminRoleBase(BaseModel):
     features: RoleFeatures = Field(default_factory=RoleFeatures)
     access: RoleAccess = Field(default_factory=RoleAccess)
     disabled_when_limited: bool = False
-    disable_users_when_limited: bool = False
+    disable_users_when_limited: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 

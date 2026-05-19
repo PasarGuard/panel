@@ -243,7 +243,7 @@ export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
   features: defaultAdminRoleFeatures(),
   access: defaultAdminRoleAccess(),
   disabled_when_limited: false,
-  disable_users_when_limited: false,
+  disable_users_when_limited: true,
 }
 
 export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFormValuesInput => ({
@@ -268,7 +268,7 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
     allowed_group_ids: role.access?.allowed_group_ids ?? null,
   },
   disabled_when_limited: role.disabled_when_limited ?? false,
-  disable_users_when_limited: role.disable_users_when_limited ?? false,
+  disable_users_when_limited: role.disable_users_when_limited ?? true,
 })
 
 export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => {

@@ -61,20 +61,8 @@ def upgrade() -> None:
             sa.Column('disabled_when_limited', sa.Boolean(), nullable=False, server_default='0')
         )
         batch_op.add_column(
-            sa.Column('disable_users_when_limited', sa.Boolean(), nullable=False, server_default='0')
+            sa.Column('disable_users_when_limited', sa.Boolean(), nullable=False, server_default='1')
         )
-
-    # Built-in administrator/operator roles should remove their users from nodes when usage-limited.
-    if dialect == "postgresql":
-        conn.execute(sa.text(
-            "UPDATE admin_roles SET disable_users_when_limited = true "
-            "WHERE name IN ('administrator', 'operator')"
-        ))
-    else:
-        conn.execute(sa.text(
-            "UPDATE admin_roles SET disable_users_when_limited = 1 "
-            "WHERE name IN ('administrator', 'operator')"
-        ))
 
 
 def downgrade() -> None:

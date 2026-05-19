@@ -887,7 +887,7 @@ class AdminRole(Base):
     features: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     access: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
-    disable_users_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
+    disable_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
 
