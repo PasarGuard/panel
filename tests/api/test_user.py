@@ -99,6 +99,34 @@ def _build_v2_subscription_token(user_id: int, secret: str) -> str:
     return data_b64 + sign
 
 
+def _create_limited_user_creator_role(access_token: str) -> dict:
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("bounded_user_creator"),
+            "permissions": {"users": {"create": True, "read": True, "update": True, "delete": True}},
+            "limits": {
+                "max_users": None,
+                "data_limit_min": None,
+                "data_limit_max": 10 * 1024 * 1024,
+                "expire_min": None,
+                "expire_max": 24 * 60 * 60,
+                "min_hwid_per_user": None,
+                "max_hwid_per_user": 3,
+            },
+            "features": {"can_use_reset_strategy": True, "can_use_next_plan": True},
+            "access": {"require_template": False, "allowed_template_ids": None, "allowed_group_ids": None},
+        },
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    return response.json()
+
+
+def _delete_role(access_token: str, role_id: int) -> None:
+    client.delete(f"/api/admin-role/{role_id}", headers=auth_headers(access_token))
+
+
 def test_subscription_token_generation_avoids_trailing_dash_or_underscore_and_keeps_v2_compatibility(monkeypatch):
     secret = "test-secret"
 
@@ -150,6 +178,94 @@ def test_user_create_active(access_token):
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
+
+
+def test_limited_admin_cannot_create_or_modify_user_to_unlimited_data_or_expire(access_token):
+    role = _create_limited_user_creator_role(access_token)
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+    username = unique_name("bounded_limit_user")
+    finite_expire = (datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=1)).isoformat()
+
+    try:
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(admin_token),
+            json={
+                "username": unique_name("bounded_no_data"),
+                "proxy_settings": {},
+                "expire": finite_expire,
+                "data_limit": 0,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Data limit cannot be unlimited" in response.json()["detail"]
+
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(admin_token),
+            json={
+                "username": unique_name("bounded_no_expire"),
+                "proxy_settings": {},
+                "expire": 0,
+                "data_limit": 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Expire cannot be unlimited" in response.json()["detail"]
+
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(admin_token),
+            json={
+                "username": unique_name("bounded_no_hwid"),
+                "proxy_settings": {},
+                "expire": finite_expire,
+                "data_limit": 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "hwid_limit": 0,
+                "status": "active",
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "HWID limit cannot be unlimited" in response.json()["detail"]
+
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(admin_token),
+            json={
+                "username": username,
+                "proxy_settings": {},
+                "expire": finite_expire,
+                "data_limit": 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = client.put(f"/api/user/{username}", headers=auth_headers(admin_token), json={"note": "allowed"})
+        assert response.status_code == status.HTTP_200_OK
+
+        response = client.put(f"/api/user/{username}", headers=auth_headers(admin_token), json={"data_limit": 0})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Data limit cannot be unlimited" in response.json()["detail"]
+
+        response = client.put(f"/api/user/{username}", headers=auth_headers(admin_token), json={"expire": 0})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Expire cannot be unlimited" in response.json()["detail"]
+
+        response = client.put(f"/api/user/{username}", headers=auth_headers(admin_token), json={"hwid_limit": 0})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "HWID limit cannot be unlimited" in response.json()["detail"]
+    finally:
+        client.delete(f"/api/user/{username}", headers=auth_headers(access_token))
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
 
 
 def test_user_create_expire_timezone_offset_normalized_to_utc(access_token):

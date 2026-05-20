@@ -281,6 +281,7 @@ class UserOperation(BaseOperation):
                     admin,
                     data_limit=user_to_create.data_limit,
                     expire=user_to_create.expire,
+                    status=user_to_create.status,
                     on_hold_expire_duration=user_to_create.on_hold_expire_duration,
                     hwid_limit=user_to_create.hwid_limit,
                     data_limit_reset_strategy=user_to_create.data_limit_reset_strategy,
@@ -374,11 +375,15 @@ class UserOperation(BaseOperation):
         *,
         data_limit: int | None = None,
         expire: dt | int | None = None,
+        status: UserStatus | None = None,
         on_hold_expire_duration: int | None = None,
         hwid_limit: int | None = None,
         data_limit_reset_strategy=None,
         next_plan=None,
         check_max_users: bool = False,
+        require_finite_data_limit: bool = True,
+        require_finite_expire: bool = True,
+        require_finite_hwid_limit: bool = True,
     ) -> None:
         """Enforce role-level limits and feature flags. No-op for owner."""
         if admin.is_owner:
@@ -391,6 +396,13 @@ class UserOperation(BaseOperation):
             if current_count >= limits.max_users:
                 await self.raise_error(message=f"User limit reached ({limits.max_users})", code=400, db=db)
 
+        if limits.data_limit_max is not None and require_finite_data_limit and (data_limit is None or data_limit <= 0):
+            await self.raise_error(
+                message=f"Data limit cannot be unlimited; maximum is {readable_size(limits.data_limit_max)}",
+                code=400,
+                db=db,
+            )
+
         if data_limit is not None and data_limit > 0:
             if limits.data_limit_min is not None and data_limit < limits.data_limit_min:
                 await self.raise_error(
@@ -399,6 +411,26 @@ class UserOperation(BaseOperation):
             if limits.data_limit_max is not None and data_limit > limits.data_limit_max:
                 await self.raise_error(
                     message=f"Data limit cannot exceed {readable_size(limits.data_limit_max)}", code=400, db=db
+                )
+
+        status_value = getattr(status, "value", status)
+        uses_on_hold_duration = status_value == UserStatus.on_hold.value
+
+        if limits.expire_max is not None and require_finite_expire:
+            if uses_on_hold_duration:
+                if on_hold_expire_duration is None or on_hold_expire_duration <= 0:
+                    await self.raise_error(
+                        message=(
+                            f"On-hold duration cannot be unlimited; maximum is {readable_duration(limits.expire_max)}"
+                        ),
+                        code=400,
+                        db=db,
+                    )
+            elif expire is None or expire == 0:
+                await self.raise_error(
+                    message=f"Expire cannot be unlimited; maximum is {readable_duration(limits.expire_max)} from now",
+                    code=400,
+                    db=db,
                 )
 
         if expire is not None and expire != 0:
@@ -431,6 +463,17 @@ class UserOperation(BaseOperation):
                     db=db,
                 )
 
+        if (
+            limits.max_hwid_per_user is not None
+            and require_finite_hwid_limit
+            and (hwid_limit is None or hwid_limit <= 0)
+        ):
+            await self.raise_error(
+                message=f"HWID limit cannot be unlimited; maximum is {limits.max_hwid_per_user}",
+                code=400,
+                db=db,
+            )
+
         if hwid_limit is not None:
             if limits.min_hwid_per_user is not None and hwid_limit < limits.min_hwid_per_user:
                 await self.raise_error(
@@ -456,24 +499,25 @@ class UserOperation(BaseOperation):
         if new_user.hwid_limit is None:
             new_user.hwid_limit = hwid_conf.fallback_limit
 
-        if new_user.hwid_limit is not None and not admin.is_owner:
-            if new_user.hwid_limit < hwid_conf.min_limit:
-                await self.raise_error(message=f"HWID limit cannot be less than {hwid_conf.min_limit}", code=400, db=db)
-            if hwid_conf.max_limit > 0 and (new_user.hwid_limit > hwid_conf.max_limit or new_user.hwid_limit == 0):
-                await self.raise_error(message=f"HWID limit cannot exceed {hwid_conf.max_limit}", code=400, db=db)
-
         if not skip_role_limits:
             await self._enforce_user_limits(
                 db,
                 admin,
                 data_limit=new_user.data_limit,
                 expire=new_user.expire,
+                status=new_user.status,
                 on_hold_expire_duration=new_user.on_hold_expire_duration,
                 hwid_limit=new_user.hwid_limit,
                 data_limit_reset_strategy=new_user.data_limit_reset_strategy,
                 next_plan=new_user.next_plan,
                 check_max_users=True,
             )
+
+        if new_user.hwid_limit is not None and not admin.is_owner:
+            if new_user.hwid_limit < hwid_conf.min_limit:
+                await self.raise_error(message=f"HWID limit cannot be less than {hwid_conf.min_limit}", code=400, db=db)
+            if hwid_conf.max_limit > 0 and (new_user.hwid_limit > hwid_conf.max_limit or new_user.hwid_limit == 0):
+                await self.raise_error(message=f"HWID limit cannot exceed {hwid_conf.max_limit}", code=400, db=db)
 
         if new_user.next_plan is not None and new_user.next_plan.user_template_id is not None:
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
@@ -513,6 +557,52 @@ class UserOperation(BaseOperation):
                     db=db,
                 )
 
+        if not skip_role_limits:
+            modified_fields = modified_user.model_fields_set
+            data_limit_was_changed = "data_limit" in modified_fields and modified_user.data_limit is not None
+            expire_was_changed = "expire" in modified_fields and modified_user.expire is not None
+            status_was_changed = modified_user.status is not None
+            modified_status_value = getattr(modified_user.status, "value", modified_user.status)
+            status_requires_finite_expire = modified_status_value in {
+                UserStatus.active.value,
+                UserStatus.on_hold.value,
+            }
+            on_hold_duration_was_changed = (
+                "on_hold_expire_duration" in modified_fields and modified_user.on_hold_expire_duration is not None
+            )
+            expire_requires_finite_limit = (
+                expire_was_changed
+                or (status_was_changed and status_requires_finite_expire)
+                or on_hold_duration_was_changed
+            )
+            hwid_limit_was_changed = "hwid_limit" in modified_fields and modified_user.hwid_limit is not None
+
+            effective_status = modified_user.status if modified_user.status is not None else db_user.status
+            effective_expire = modified_user.expire
+            effective_on_hold_expire_duration = modified_user.on_hold_expire_duration
+            if status_was_changed and status_requires_finite_expire:
+                if modified_status_value == UserStatus.on_hold.value:
+                    effective_expire = None
+                    if effective_on_hold_expire_duration is None:
+                        effective_on_hold_expire_duration = db_user.on_hold_expire_duration
+                elif effective_expire is None:
+                    effective_expire = db_user.expire
+
+            await self._enforce_user_limits(
+                db,
+                admin,
+                data_limit=modified_user.data_limit,
+                expire=effective_expire,
+                status=effective_status,
+                on_hold_expire_duration=effective_on_hold_expire_duration,
+                hwid_limit=modified_user.hwid_limit,
+                data_limit_reset_strategy=modified_user.data_limit_reset_strategy,
+                next_plan=modified_user.next_plan,
+                require_finite_data_limit=data_limit_was_changed,
+                require_finite_expire=expire_requires_finite_limit,
+                require_finite_hwid_limit=hwid_limit_was_changed,
+            )
+
         if modified_user.hwid_limit is not None and not admin.is_owner:
             hwid_conf = await hwid_settings()
             if modified_user.hwid_limit < hwid_conf.min_limit:
@@ -521,18 +611,6 @@ class UserOperation(BaseOperation):
                 modified_user.hwid_limit > hwid_conf.max_limit or modified_user.hwid_limit == 0
             ):
                 await self.raise_error(message=f"HWID limit cannot exceed {hwid_conf.max_limit}", code=400, db=db)
-
-        if not skip_role_limits:
-            await self._enforce_user_limits(
-                db,
-                admin,
-                data_limit=modified_user.data_limit,
-                expire=modified_user.expire,
-                on_hold_expire_duration=modified_user.on_hold_expire_duration,
-                hwid_limit=modified_user.hwid_limit,
-                data_limit_reset_strategy=modified_user.data_limit_reset_strategy,
-                next_plan=modified_user.next_plan,
-            )
 
         validated_groups = None
         if modified_user.group_ids:
@@ -1250,7 +1328,14 @@ class UserOperation(BaseOperation):
             raise exc
 
         # Template defines data_limit/expire/etc — only check max_users
-        await self._enforce_user_limits(db, admin, check_max_users=True)
+        await self._enforce_user_limits(
+            db,
+            admin,
+            check_max_users=True,
+            require_finite_data_limit=False,
+            require_finite_expire=False,
+            require_finite_hwid_limit=False,
+        )
         return await self.create_user(db, new_user, admin, skip_role_limits=True)
 
     async def _modify_user_with_template(
