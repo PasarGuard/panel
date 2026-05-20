@@ -63,6 +63,12 @@ users_groups_association = Table(
 )
 
 
+class AdminStatus(str, Enum):
+    active = "active"
+    disabled = "disabled"
+    limited = "limited"
+
+
 class Admin(Base):
     __tablename__ = "admins"
 
@@ -74,19 +80,49 @@ class Admin(Base):
     usage_logs: Mapped[List["AdminUsageLogs"]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
-    is_sudo: Mapped[bool] = mapped_column(default=False)
+    notification_reminders: Mapped[List["AdminNotificationReminder"]] = relationship(
+        back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
+    )
+
     password_reset_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     discord_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
-    is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
+    data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    status: Mapped[AdminStatus] = mapped_column(
+        SQLEnum(AdminStatus, name="adminstatus", create_constraint=True),
+        default=AdminStatus.active,
+        server_default="active",
+    )
+    last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     sub_template: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     sub_domain: Mapped[Optional[str]] = mapped_column(String(256), default=None)
     profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     support_url: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
+    role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
+    role: Mapped[Optional[AdminRole]] = relationship(back_populates="admins", init=False, lazy="selectin")
+    permission_overrides: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
+
+    @hybrid_property
+    def is_disabled(self) -> bool:
+        """Backward-compat property — True when status is disabled."""
+        return self.status == AdminStatus.disabled
+
+    @is_disabled.expression
+    def is_disabled(cls):
+        return cls.status == AdminStatus.disabled
+
+    @hybrid_property
+    def is_limited(self) -> bool:
+        """True when status is limited."""
+        return self.status == AdminStatus.limited
+
+    @is_limited.expression
+    def is_limited(cls):
+        return cls.status == AdminStatus.limited
 
     @hybrid_property
     def reseted_usage(self) -> int:
@@ -103,6 +139,11 @@ class Admin(Base):
     @property
     def lifetime_used_traffic(self) -> int:
         return self.reseted_usage + self.used_traffic
+
+    @property
+    def users_sync_blocked(self) -> bool:
+        """True when this admin's users should NOT be synced to nodes."""
+        return self.status == AdminStatus.limited and self.role.disable_users_when_limited
 
     @property
     def total_users(self) -> int:
@@ -733,6 +774,18 @@ class NotificationReminder(Base):
     expires_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
 
+class AdminNotificationReminder(Base):
+    __tablename__ = "admin_notification_reminders"
+    __table_args__ = (Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),)
+
+    id: Mapped[int] = id_column()
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    admin: Mapped["Admin"] = relationship(back_populates="notification_reminders", init=False)
+    type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
+    threshold: Mapped[Optional[int]] = mapped_column(default=None)
+
+
 class Group(Base):
     __tablename__ = "groups"
 
@@ -821,3 +874,38 @@ class Settings(Base):
     subscription: Mapped[dict] = mapped_column(JSON())
     hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())
+
+
+class AdminRole(Base):
+    __tablename__ = "admin_roles"
+
+    id: Mapped[int] = id_column()
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    is_owner: Mapped[bool] = mapped_column(default=False, server_default="0")
+    permissions: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    limits: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    features: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    access: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
+    disable_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
+
+    @hybrid_property
+    def is_builtin(self) -> bool:
+        """True for the 3 default roles (owner, administrator, operator) that cannot be deleted."""
+        return self.id <= 3
+
+    @is_builtin.expression
+    def is_builtin(cls):
+        return cls.id <= 3
+
+
+class TempKey(Base):
+    __tablename__ = "temp_keys"
+
+    key: Mapped[str] = mapped_column(String(36), primary_key=True, init=True)
+    action: Mapped[str] = mapped_column(String(32))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    used_by_ip: Mapped[Optional[str]] = mapped_column(String(45), default=None)

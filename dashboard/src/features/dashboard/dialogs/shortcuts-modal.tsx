@@ -23,25 +23,51 @@ interface QuickActionsModalProps {
   onCreateAdmin?: () => void
   onCreateTemplate?: () => void
   onCreateCore?: () => void
-  isSudo?: boolean
+  canCreateUser?: boolean
+  canCreateGroup?: boolean
+  canCreateHost?: boolean
+  canCreateNode?: boolean
+  canCreateAdmin?: boolean
+  canCreateTemplate?: boolean
+  canCreateCore?: boolean
 }
 
-const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreateHost, onCreateNode, onCreateAdmin, onCreateTemplate, onCreateCore, isSudo = false }: QuickActionsModalProps) => {
+const QuickActionsModal = ({
+  open,
+  onClose,
+  onCreateUser,
+  onCreateGroup,
+  onCreateHost,
+  onCreateNode,
+  onCreateAdmin,
+  onCreateTemplate,
+  onCreateCore,
+  canCreateUser = false,
+  canCreateGroup = false,
+  canCreateHost = false,
+  canCreateNode = false,
+  canCreateAdmin = false,
+  canCreateTemplate = false,
+  canCreateCore = false,
+}: QuickActionsModalProps) => {
   const { t } = useTranslation()
 
   const quickActions: QuickAction[] = [
     // User Management
-    {
-      id: '1',
-      name: t('createUser'),
-      description: t('emptyState.noUsers.description', { defaultValue: 'Get started by creating your first user account' }),
-      icon: <UsersIcon className="h-5 w-5" />,
-      action: onCreateUser,
-      disabled: false,
-      category: 'users' as const,
-    },
-    // Only show these actions for sudo admins
-    ...(isSudo
+    ...(canCreateUser
+      ? [
+        {
+          id: '1',
+          name: t('createUser'),
+          description: t('emptyState.noUsers.description', { defaultValue: 'Get started by creating your first user account' }),
+          icon: <UsersIcon className="h-5 w-5" />,
+          action: onCreateUser,
+          disabled: false,
+          category: 'users' as const,
+        },
+      ]
+      : []),
+    ...(canCreateGroup
       ? [
           {
             id: '2',
@@ -52,6 +78,10 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             disabled: false,
             category: 'users' as const,
           },
+        ]
+      : []),
+    ...(canCreateTemplate
+      ? [
           {
             id: '3',
             name: t('templates.addTemplate'),
@@ -61,6 +91,10 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             disabled: !onCreateTemplate,
             category: 'users' as const,
           },
+        ]
+      : []),
+    ...(canCreateHost
+      ? [
           {
             id: '4',
             name: t('hostsDialog.addHost'),
@@ -70,6 +104,10 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             disabled: false,
             category: 'system' as const,
           },
+        ]
+      : []),
+    ...(canCreateNode
+      ? [
           {
             id: '5',
             name: t('nodes.addNode'),
@@ -79,6 +117,10 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             disabled: false,
             category: 'system' as const,
           },
+        ]
+      : []),
+    ...(canCreateCore
+      ? [
           {
             id: '6',
             name: t('coreConfigModal.addConfig'),
@@ -88,7 +130,10 @@ const QuickActionsModal = ({ open, onClose, onCreateUser, onCreateGroup, onCreat
             disabled: !onCreateCore,
             category: 'system' as const,
           },
-          // Admin Management
+        ]
+      : []),
+    ...(canCreateAdmin
+      ? [
           {
             id: '7',
             name: t('admins.createAdmin'),

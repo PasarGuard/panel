@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { useAdmin } from '@/hooks/use-admin'
 import { getCurrentAdmin } from '@/service/api'
+import { hasPermission } from '@/utils/rbac'
 import { createHashRouter, Navigate, RouteObject } from 'react-router'
 import { LoadingSpinner } from '@/components/common/loading-spinner'
 import { TabbedRouteSuspenseFallback } from '@/components/layout/tabbed-route-suspense-fallback'
@@ -13,6 +14,7 @@ const ThemePage = lazyWithChunkRecovery(() => import('@/pages/_dashboard.setting
 const DashboardLayout = lazyWithChunkRecovery(() => import('../pages/_dashboard'))
 const Dashboard = lazyWithChunkRecovery(() => import('../pages/_dashboard._index'))
 const AdminsPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.admins'))
+const AdminRolesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.admin-roles'))
 const BulkPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk'))
 const BulkCreatePage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.create'))
 const BulkDataPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.data'))
@@ -44,10 +46,9 @@ const Login = lazyWithChunkRecovery(() => import('../pages/login'))
 // Component to handle default settings routing based on user permissions
 function SettingsIndex() {
   const { admin } = useAdmin()
-  const is_sudo = admin?.is_sudo || false
-
-  // For sudo admins, default to notifications; for non-sudo admins, default to theme
-  const defaultPath = is_sudo ? '/settings/general' : '/settings/theme'
+  const canUpdateSettings = hasPermission(admin, 'settings', 'update')
+  const canSeeGeneral = hasPermission(admin, 'settings', 'read_general') && canUpdateSettings
+  const defaultPath = canSeeGeneral ? '/settings/general' : '/settings/theme'
 
   return <Navigate to={defaultPath} replace />
 }
@@ -205,6 +206,14 @@ export const router = createHashRouter([
         element: (
           <Suspense fallback={<LoadingSpinner />}>
             <AdminsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/admin-roles',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <AdminRolesPage />
           </Suspense>
         ),
       },

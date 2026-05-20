@@ -155,8 +155,10 @@
       "cancelSuccess": "Changes cancelled and original settings restored",
       "filterTitle": "Filter Notifications",
       "filterDescription": "Select events that should trigger notifications for important system activities",
+      "toggleAll": "Toggle all notifications",
       "types": {
         "admin": "Admins",
+        "adminRole": "Admin roles",
         "core": "Cores",
         "group": "Groups",
         "host": "Hosts",
@@ -173,9 +175,11 @@
         "delete": "Delete",
         "resetUsage": "Reset Usage",
         "login": "Login",
+        "usageLimitWarning": "Usage Limit Warning",
         "modifyHosts": "Modify Hosts",
         "connect": "Connect",
         "error": "Error",
+        "limited": "Limited",
         "statusChange": "Status Change",
         "resetDataUsage": "Reset Data Usage",
         "dataResetByNext": "Data Reset By Next",
@@ -204,6 +208,12 @@
         "title": "Channel Overrides",
         "description": "Override the default destinations for specific notification events. Leave fields empty to inherit the global configuration.",
         "hint": "Leave these fields empty to fall back to the main notification settings for this event."
+      },
+      "usageLimitWarnings": {
+        "thresholds": "Warning Thresholds",
+        "description": "Send admin data-limit warnings when usage reaches these percentages.",
+        "addThreshold": "Add Threshold",
+        "empty": "No thresholds configured"
       }
     },
     "subscriptions": {
@@ -639,9 +649,11 @@
     "description": "Manage system administrators",
     "createAdmin": "Create Admin",
     "editAdmin": "Modify Admin",
+    "profileSection": "Profile & contact",
     "deleteAdmin": "Remove Admin",
     "username": "Username",
     "password": "Password",
+    "dataLimit": "Admin data limit",
     "isSudo": "Super Admin",
     "createdAt": "Created At",
     "actions": "Actions",
@@ -686,11 +698,14 @@
     "create": "Create Admin",
     "status": "Status",
     "role": "Role",
+    "permissionOverrides": "Permission overrides",
+    "permissionOverridesHint": "Leave empty to inherit limits from the selected role. Set to 0 to disable.",
     "total.users": "Total Users",
     "used.traffic": "Used Traffic",
     "total": "Total Admins",
     "active": "Active Admins",
     "disable": "Disabled Admins",
+    "limited": "Limited Admins",
     "telegramId": "Telegram ID",
     "discord": "Discord Webhook",
     "supportUrl": "Support URL",
@@ -724,6 +739,185 @@
       "traffic": "Monitor admin traffic usage over time",
       "no_traffic": "No traffic data available"
     }
+  },
+  "adminRoles": {
+    "title": "Admin Roles",
+    "description": "Manage dashboard roles and RBAC permissions",
+    "createRole": "Create role",
+    "editRole": "Edit role",
+    "viewRole": "View role",
+    "readOnlyHint": "This is a built-in role. You can review its configuration but cannot modify it.",
+    "modalDescription": "Configure permissions, limits, features and access for this role.",
+    "currentRoleUnavailable": "Current role unavailable",
+    "loadFallback": "Using built-in roles",
+    "id": "ID",
+    "ownerRole": "owner",
+    "builtInRole": "built-in",
+    "protectedRole": "Protected role",
+    "protectedRoleHint": "Built-in and owner roles cannot be modified.",
+    "permissions": "Permissions",
+    "limits": "Limits",
+    "limitsAndFeatures": "Limits & Features",
+    "limitsHint": "Leave empty to inherit defaults. Set to 0 to disable.",
+    "roleFormHint": "Scoped user actions use none, own, or all. Other actions are boolean toggles.",
+    "scopedActionInfo": "Choose ownership scope: none denies access, own limits to the admin's own users, all grants full access.",
+    "allowAll": "Allow all",
+    "features": "Features",
+    "access": "Access",
+    "permissionCount": "{{count}} permissions",
+    "limitFeatureCount": "{{limits}} limits, {{features}} feature flags",
+    "unlimited": "Unlimited",
+    "empty": "No roles",
+    "emptyDescription": "Create a role to assign granular permissions, limits, features, and access restrictions to admins.",
+    "noSearchResults": "No roles match your search.",
+    "createSuccess": "Role «{{name}}» has been created successfully",
+    "editSuccess": "Role «{{name}}» has been updated successfully",
+    "deleteSuccess": "Role «{{name}}» has been deleted successfully",
+    "deleteFailed": "Failed to delete role «{{name}}»",
+    "deleteConfirmation": "Delete role",
+    "deleteConfirm": "Are you sure you want to delete role <b>{{name}}</b>?",
+    "bulkDeleteTitle": "Delete selected roles",
+    "bulkDeletePrompt": "Are you sure you want to delete {{count}} selected roles? This action cannot be undone.",
+    "bulkDeleteSuccess": "{{count}} roles deleted successfully.",
+    "bulkDeletePartial": "{{count}} roles could not be deleted.",
+    "bulkDeleteFailed": "Failed to delete selected roles.",
+    "requireTemplateTitle": "Require template",
+    "requireTemplateDescription": "Force admins with this role to create users only from a template.",
+    "allowedTemplates": "Allowed templates",
+    "allowedTemplatesDescription": "Restrict templates this role can use. Leave empty to allow all.",
+    "allowedGroups": "Allowed groups",
+    "allowedGroupsDescription": "Restrict user groups this role can manage. Leave empty to allow all.",
+    "noTemplates": "No templates available",
+    "noGroups": "No groups available",
+    "names": {
+      "administrator": "Administrator",
+      "operator": "Operator"
+    },
+    "groups": {
+      "users": "Users",
+      "admins": "Admins",
+      "roles": "Roles",
+      "nodes": "Nodes",
+      "coreHosts": "Core and hosts",
+      "groupsTemplates": "Groups and templates",
+      "settings": "Settings"
+    },
+    "actions": {
+      "common": {
+        "read": "View",
+        "read_simple": "View simple list",
+        "create": "Create",
+        "update": "Update",
+        "delete": "Delete",
+        "reset_usage": "Reset usage",
+        "revoke_sub": "Revoke subscription",
+        "set_owner": "Set owner",
+        "activate_next_plan": "Activate next plan",
+        "reconnect": "Reconnect",
+        "update_core": "Update core",
+        "stats": "View statistics",
+        "logs": "View logs",
+        "read_general": "View general"
+      },
+      "users": {
+        "reset_usage": "Reset user usage",
+        "revoke_sub": "Revoke subscription",
+        "set_owner": "Set user owner",
+        "activate_next_plan": "Activate next plan"
+      },
+      "admins": {
+        "reset_usage": "Reset admin usage"
+      },
+      "settings": {
+        "read": "View settings",
+        "read_general": "View general settings",
+        "update": "Update settings"
+      },
+      "system": {
+        "read": "View system",
+        "update": "Update system"
+      },
+      "hwids": {
+        "read": "View HWIDs",
+        "update": "Update HWIDs"
+      },
+      "nodes": {
+        "reconnect": "Reconnect nodes",
+        "update_core": "Update node core",
+        "stats": "View node statistics",
+        "logs": "View node logs"
+      }
+    },
+    "resources": {
+      "users": "Users",
+      "admins": "Admins",
+      "admin_roles": "Roles",
+      "nodes": "Nodes",
+      "cores": "Cores",
+      "hosts": "Hosts",
+      "groups": "Groups",
+      "templates": "User templates",
+      "client_templates": "Client templates",
+      "settings": "Settings",
+      "system": "System",
+      "hwids": "HWIDs"
+    },
+    "scopedBadge": "Scoped",
+    "scopes": {
+      "none": "None",
+      "own": "Own",
+      "all": "All"
+    },
+    "limitFields": {
+      "max_users": "Max users",
+      "data_limit_min": "Min data limit (bytes)",
+      "data_limit_max": "Max data limit (bytes)",
+      "expire_days_min": "Min expire days",
+      "expire_days_max": "Max expire days",
+      "min_hwid_per_user": "Min HWIDs per user",
+      "max_hwid_per_user": "Max HWIDs per user"
+    },
+    "limitedBehavior": {
+      "disabledWhenLimited": {
+        "title": "Block limited admins",
+        "description": "Deny all dashboard and API access after an admin reaches their data limit."
+      },
+      "disableUsersWhenLimited": {
+        "title": "Disable users when limited",
+        "description": "Remove this admin's users from nodes while the admin is usage-limited."
+      }
+    },
+    "featureFields": {
+      "can_use_reset_strategy": {
+        "title": "Use reset strategy",
+        "description": "Allow this role to set the data-limit reset strategy on users."
+      },
+      "can_use_next_plan": {
+        "title": "Use next plan",
+        "description": "Allow this role to configure auto-applied next plans."
+      }
+    }
+  },
+  "setup": {
+    "createOwner": "Create owner",
+    "resetOwner": "Reset owner password",
+    "deleteOwner": "Delete owner",
+    "createOwnerShort": "Create",
+    "resetOwnerShort": "Reset",
+    "deleteOwnerShort": "Delete",
+    "ownerAccess": "Owner access",
+    "ownerAccessDescription": "Use a temporary setup key to create, reset, or remove the owner account.",
+    "tempKey": "Temp key",
+    "deleteConfirm": "Type DELETE to confirm",
+    "keyRequired": "Temp key is required",
+    "usernameRequired": "Username is required",
+    "passwordRequired": "Password is required",
+    "passwordMismatch": "Passwords do not match",
+    "deleteConfirmRequired": "Type DELETE to confirm",
+    "ownerCreated": "Owner created successfully",
+    "ownerReset": "Owner password reset successfully",
+    "ownerDeleted": "Owner deleted successfully",
+    "deleteWarning": "This action cannot be undone. The owner account will be permanently removed."
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",
@@ -1303,6 +1497,7 @@
   "login.fieldRequired": "This field is required",
   "login.loginYourAccount": "Login to your account",
   "login.welcomeBack": "Welcome back, please enter your details",
+  "login.backToLogin": "Back to login",
   "memoryUsage": "memory usage",
   "next": "Next",
   "monitorServers": "Monitor your servers and users",
@@ -2760,6 +2955,7 @@
   "createdAt": "Created at",
   "toggle": "Toggle status",
   "close": "Close",
+  "view": "View",
   "copy": "Copy",
   "copyAll": "Copy All",
   "copied": "Copied!",

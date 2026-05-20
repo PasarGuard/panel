@@ -128,6 +128,7 @@ class NotificationChannels(BaseModel):
     """Per-object notification channels"""
 
     admin: NotificationChannel = Field(default_factory=NotificationChannel)
+    admin_role: NotificationChannel = Field(default_factory=NotificationChannel)
     core: NotificationChannel = Field(default_factory=NotificationChannel)
     group: NotificationChannel = Field(default_factory=NotificationChannel)
     host: NotificationChannel = Field(default_factory=NotificationChannel)

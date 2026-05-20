@@ -30,6 +30,7 @@ export function getDocsUrl(pagePath: string): string {
     '/groups': 'groups',
     '/templates': 'user_template',
     '/admins': 'admins',
+    '/admin-roles': 'admins',
     '/bulk': 'bulk',
     '/nodes/cores': 'core',
   }

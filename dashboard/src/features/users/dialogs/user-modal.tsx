@@ -43,6 +43,7 @@ import { parseDateInput } from '@/utils/dateTimeParsing'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
+import { hasScopeAll } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Fingerprint, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Group, Users, Pencil, UserRoundPlus } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -304,7 +305,7 @@ const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) 
 function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserId, editingUserData, onSuccessCallback }: UserModalProps) {
   const { t, i18n } = useTranslation()
   const { admin } = useAdmin()
-  const isSudo = admin?.is_sudo ?? false
+  const canViewAllUserIps = hasScopeAll(admin, 'users', 'read')
   const dir = useDirDetection()
   const handleError = useDynamicErrorHandler()
   const [loading, setLoading] = useState(false)
@@ -2320,7 +2321,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                     onPointerDownOutside={() => setActionsMenuOpen(false)}
                     onInteractOutside={() => setActionsMenuOpen(false)}
                   >
-                    {isSudo && (
+                    {canViewAllUserIps && (
                       <DropdownMenuItem
                         onSelect={() => {
                           setActionsMenuOpen(false)
@@ -2489,7 +2490,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         </AlertDialogContent>
       </AlertDialog>
 
-      {isSudo && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
+      {canViewAllUserIps && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={currentUsername} />}
       {currentUserId && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={currentUserId} />}
       {currentUserId && <UserHwidsModal isOpen={isHwidsModalOpen} onOpenChange={setHwidsModalOpen} userId={currentUserId} username={currentUsername} />}
       {currentUserId && <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} userId={currentUserId} username={currentUsername} />}

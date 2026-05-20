@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export const adminStatusEditEnum = z.enum(['active', 'disabled'])
+
 const passwordValidation = z.string().refine(
   value => {
     if (!value) return false // Don't allow empty passwords
@@ -48,7 +50,9 @@ export const adminFormSchema = z
     username: z.string().min(1, 'Username is required'),
     password: z.string().optional(),
     passwordConfirm: z.string().optional(),
-    is_sudo: z.boolean().default(false),
+    role_id: z.number().min(1, 'Role is required'),
+    status: adminStatusEditEnum.optional(),
+    data_limit: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number().min(0)]).optional(),
     is_disabled: z.boolean().optional(),
     discord_webhook: z.string().optional(),
     sub_domain: z.string().optional(),
@@ -67,6 +71,17 @@ export const adminFormSchema = z
         reset_data_usage: z.boolean().optional(),
         data_reset_by_next: z.boolean().optional(),
         subscription_revoked: z.boolean().optional(),
+      })
+      .optional(),
+    permission_overrides: z
+      .object({
+        max_users: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        data_limit_min: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        data_limit_max: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        expire_days_min: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        expire_days_max: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        min_hwid_per_user: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        max_hwid_per_user: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
       })
       .optional(),
   })
@@ -107,11 +122,23 @@ export const adminFormSchema = z
 export type AdminFormValuesInput = z.input<typeof adminFormSchema>
 export type AdminFormValues = z.infer<typeof adminFormSchema>
 
+export const adminPermissionOverridesDefaultValues = {
+  max_users: null,
+  data_limit_min: null,
+  data_limit_max: null,
+  expire_days_min: null,
+  expire_days_max: null,
+  min_hwid_per_user: null,
+  max_hwid_per_user: null,
+} as const
+
 export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
   username: '',
-  is_sudo: false,
+  role_id: 3,
   password: '',
   passwordConfirm: '',
+  status: 'active',
+  data_limit: null,
   is_disabled: false,
   discord_webhook: '',
   sub_domain: '',
@@ -130,4 +157,5 @@ export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
     data_reset_by_next: true,
     subscription_revoked: true,
   },
+  permission_overrides: adminPermissionOverridesDefaultValues,
 }

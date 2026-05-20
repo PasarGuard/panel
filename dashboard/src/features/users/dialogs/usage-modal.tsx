@@ -18,6 +18,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { useTheme } from '@/app/providers/theme-provider'
 import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
+import { hasScopeAll } from '@/utils/rbac'
 import {
   TrafficShortcutKey,
   formatTooltipDate,
@@ -231,17 +232,17 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
 
   // Get current admin to check permissions
   const { data: currentAdmin } = useGetCurrentAdmin()
-  const is_sudo = currentAdmin?.is_sudo || false
-  const allNodesSelected = selectedNodeId === undefined && is_sudo
+  const canReadAllUserUsage = hasScopeAll(currentAdmin, 'users', 'read')
+  const allNodesSelected = selectedNodeId === undefined && canReadAllUserUsage
   const dir = useDirDetection()
   const { resolvedTheme } = useTheme()
 
   // Reset node selection for non-sudo admins
   useEffect(() => {
-    if (!is_sudo) {
+    if (!canReadAllUserUsage) {
       setSelectedNodeId(undefined) // Non-sudo admins see all nodes (master server data)
     }
-  }, [is_sudo])
+  }, [canReadAllUserUsage])
 
   useEffect(() => {
     if (!allNodesSelected && chartView !== 'bar') {
@@ -254,7 +255,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     { all: true },
     {
       query: {
-        enabled: open && is_sudo, // Only fetch nodes for sudo admins when modal is open
+        enabled: open && canReadAllUserUsage,
       },
     },
   )
@@ -353,12 +354,12 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
       params.node_id = selectedNodeId
     }
 
-    if (selectedNodeId === undefined && is_sudo) {
+    if (selectedNodeId === undefined && canReadAllUserUsage) {
       params.group_by_node = true
     }
 
     return params
-  }, [backendPeriod, queryRange.startDate, queryRange.endDate, selectedNodeId, is_sudo])
+  }, [backendPeriod, queryRange.startDate, queryRange.endDate, selectedNodeId, canReadAllUserUsage])
 
   // Only fetch when modal is open
   const { data, isLoading } = useGetUserUsageById(userId, userUsageParams, { query: { enabled: open && !!userId } })
@@ -368,8 +369,8 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     const statsPayload = data?.stats as UserUsageStatsPayload | undefined
     if (!statsPayload) return []
 
-    // If all nodes selected for sudo admins (selectedNodeId is undefined and is_sudo), handle like AllNodesStackedBarChart
-    if (selectedNodeId === undefined && is_sudo) {
+    // If all nodes selected for all-scope readers, handle like AllNodesStackedBarChart.
+    if (selectedNodeId === undefined && canReadAllUserUsage) {
       let statsByNode: UserUsageStatsListStats = {}
       if (isStatsRecord(statsPayload)) {
         // This is the expected format when no node_id is provided
@@ -487,7 +488,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
         }
       })
     }
-  }, [data, backendPeriod, selectedNodeId, nodeList, i18n.language, is_sudo])
+  }, [data, backendPeriod, selectedNodeId, nodeList, i18n.language, canReadAllUserUsage])
 
   // Update chartData state when processedChartData changes
   useEffect(() => {
@@ -499,7 +500,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     if (!processedChartData || processedChartData.length === 0) return 0
 
     const getTotalUsage = (dataPoint: UsageChartDataPoint) => {
-      if (selectedNodeId === undefined && is_sudo) {
+      if (selectedNodeId === undefined && canReadAllUserUsage) {
         // All nodes selected - sum all node usages
         return Object.keys(dataPoint)
           .filter(key => !key.startsWith('_') && key !== 'time' && key !== 'usage' && Number(dataPoint[key] || 0) > 0)
@@ -511,14 +512,14 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     }
 
     return processedChartData.reduce((sum, dataPoint) => sum + getTotalUsage(dataPoint), 0)
-  }, [processedChartData, selectedNodeId, is_sudo])
+  }, [processedChartData, selectedNodeId, canReadAllUserUsage])
 
   // Calculate trend (simple: compare last and previous usage)
   const trend = useMemo(() => {
     if (!processedChartData || processedChartData.length < 2) return null
 
     const getTotalUsage = (dataPoint: UsageChartDataPoint) => {
-      if (selectedNodeId === undefined && is_sudo) {
+      if (selectedNodeId === undefined && canReadAllUserUsage) {
         // All nodes selected - sum all node usages
         return Object.keys(dataPoint)
           .filter(key => !key.startsWith('_') && key !== 'time' && key !== 'usage' && Number(dataPoint[key] || 0) > 0)
@@ -534,7 +535,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     if (prev === 0) return null
     const percent = ((last - prev) / prev) * 100
     return percent
-  }, [processedChartData, selectedNodeId, is_sudo])
+  }, [processedChartData, selectedNodeId, canReadAllUserUsage])
 
   const xAxisInterval = useMemo(() => {
     if (showCustomRange && customRange?.from && customRange?.to) {
@@ -694,8 +695,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                   </div>
                 )}
               </div>
-              {/* Node selector - only show for sudo admins */}
-              {is_sudo && (
+              {canReadAllUserUsage && (
                 <div className="flex w-full items-center justify-center gap-2">
                   <Select value={selectedNodeId?.toString() || 'all'} onValueChange={value => setSelectedNodeId(value === 'all' ? undefined : Number(value))} disabled={isLoadingNodes}>
                     <SelectTrigger className="w-full sm:w-[180px]">

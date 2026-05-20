@@ -44,7 +44,7 @@ async def setup_test_data(session, test_suffix=""):
     if test_suffix:
         unique_id = f"{test_suffix}_{unique_id}"
 
-    admin = Admin(username=f"admin_{unique_id}", hashed_password="secret")
+    admin = Admin(username=f"admin_{unique_id}", hashed_password="secret", role_id=3)
     session.add(admin)
     await session.flush()
 
@@ -999,7 +999,7 @@ class TestGetUserCountMetricStats:
             admin_id, user_id, node_id = await setup_test_data(session)
             admin_username = (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
 
-            admin_two = Admin(username=f"admin_counts_{uuid4().hex[:8]}", hashed_password="secret")
+            admin_two = Admin(username=f"admin_counts_{uuid4().hex[:8]}", hashed_password="secret", role_id=3)
             node_two = Node(
                 name=f"node_counts_{uuid4().hex[:8]}",
                 address="127.0.0.1",

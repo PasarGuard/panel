@@ -26,6 +26,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { invalidateUserMetricsQueries, removeUserFromUsersCache, upsertUserInUsersCache } from '@/utils/usersCache'
 import { buildSubscriptionFormatUrl, fetchSubscriptionBlobFromUrl, fetchUserSubscriptionContent, resolveSubscriptionPublicUrl, type SubscriptionContentFormat } from '@/utils/subscription-config'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 
 type ActionButtonsProps = {
   user: UserResponse
@@ -320,6 +321,10 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       refetchOnMount: false,
     },
   })
+  const canUpdateUsers = hasPermission(currentAdmin, 'users', 'update')
+  const canUpdateAllUsers = hasScopeAll(currentAdmin, 'users', 'update')
+  const canReadAllUsers = hasScopeAll(currentAdmin, 'users', 'read')
+  const canDeleteUsers = hasPermission(currentAdmin, 'users', 'delete')
 
   // Create form for user editing
   const userForm = useForm<UseEditFormValues>({
@@ -640,9 +645,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
           onClick={e => e.stopPropagation()}
           onPointerDown={e => e.stopPropagation()}
         >
-          <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
+          {canUpdateUsers && <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
             <Pencil className="h-4 w-4" />
-          </Button>
+          </Button>}
           <TooltipProvider>
             <CopyButton
               value={subscriptionPublicUrl}
@@ -701,22 +706,19 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               onInteractOutside={() => setActionsMenuOpen(false)}
               onEscapeKeyDown={() => setActionsMenuOpen(false)}
             >
-              {/* Edit */}
-              <DropdownMenuItem className="hidden md:flex" onSelect={handleEdit}>
+              {canUpdateUsers && <DropdownMenuItem className="hidden md:flex" onSelect={handleEdit}>
                 <Pencil className="mr-2 h-4 w-4" />
                 <span>{t('edit')}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
 
-              {/* Set Owner: only for sudo admins */}
-              {currentAdmin?.is_sudo && (
+              {canUpdateAllUsers && (
                 <DropdownMenuItem onSelect={handleSetOwner}>
                   <UserCog className="mr-2 h-4 w-4" />
                   <span>{t('setOwnerModal.title')}</span>
                 </DropdownMenuItem>
               )}
 
-              {/* Copy Core Username for sudo admins */}
-              {currentAdmin?.is_sudo && (
+              {canReadAllUsers && (
                 <DropdownMenuItem onSelect={handleCopyCoreUsername}>
                   <Cpu className="mr-2 h-4 w-4" />
                   <span>{t('coreUsername')}</span>
@@ -726,16 +728,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               <DropdownMenuSeparator />
 
               {/* Revoke Sub */}
-              <DropdownMenuItem onSelect={handleRevokeSubscription}>
+              {canUpdateUsers && <DropdownMenuItem onSelect={handleRevokeSubscription}>
                 <Link2Off className="mr-2 h-4 w-4" />
                 <span>{t('userDialog.revokeSubscription')}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
 
-              {/* Reset Usage */}
-              <DropdownMenuItem onSelect={handleResetUsage}>
+              {canUpdateUsers && <DropdownMenuItem onSelect={handleResetUsage}>
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 <span>{t('userDialog.resetUsage')}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
 
               {/* Usage State */}
               <DropdownMenuItem onSelect={handleUsageState}>
@@ -744,7 +745,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               </DropdownMenuItem>
 
               {/* Active Next Plan */}
-              {user.next_plan && (
+              {canUpdateUsers && user.next_plan && (
                 <DropdownMenuItem onSelect={handleActiveNextPlan}>
                   <ListStart className="mr-2 h-4 w-4" />
                   <span>{t('usersTable.activeNextPlanSubmit')}</span>
@@ -762,8 +763,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 <span>{t('hwids.title', { defaultValue: 'Hardware IDs' })}</span>
               </DropdownMenuItem>
 
-              {/* View All IPs: only for sudo admins */}
-              {currentAdmin?.is_sudo && (
+              {canReadAllUsers && (
                 <DropdownMenuItem onSelect={() => setUserAllIPsModalOpen(true)}>
                   <Network className="mr-2 h-4 w-4" />
                   <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
@@ -773,10 +773,10 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               <DropdownMenuSeparator />
 
               {/* Trash */}
-              <DropdownMenuItem onSelect={handleDelete} className="text-red-600">
+              {canDeleteUsers && <DropdownMenuItem onSelect={handleDelete} className="text-red-600">
                 <Trash2 className="mr-2 h-4 w-4" />
                 <span>{t('remove')}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -861,8 +861,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
           <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={user.id} />
 
-          {/* SetOwnerModal: only for sudo admins */}
-          {currentAdmin?.is_sudo && (
+          {canUpdateAllUsers && (
             <SetOwnerModal
               open={isSetOwnerModalOpen}
               onClose={() => setSetOwnerModalOpen(false)}
@@ -892,8 +891,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
             username={user.username}
           />
 
-          {/* UserAllIPsModal: only for sudo admins */}
-          {currentAdmin?.is_sudo && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
+          {canReadAllUsers && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
         </div>
       )}
 

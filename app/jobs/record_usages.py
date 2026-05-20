@@ -669,7 +669,6 @@ async def _record_user_usages_impl():
             async with JOB_SEM:
                 await safe_execute(admin_stmt, admin_data)
             logger.debug(f"Updated {len(admin_data)} admins")
-
         if usage_settings.disable_recording_node_usage:
             return
 

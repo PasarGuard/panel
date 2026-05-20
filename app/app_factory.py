@@ -131,4 +131,20 @@ def create_app() -> FastAPI:
             content=jsonable_encoder({"detail": details}),
         )
 
+    from app.operation.permissions import LimitExceeded, PermissionDenied  # noqa: F401
+
+    @app.exception_handler(PermissionDenied)
+    async def permission_denied_handler(request: Request, exc: PermissionDenied):
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": exc.detail},
+        )
+
+    @app.exception_handler(LimitExceeded)
+    async def limit_exceeded_handler(request: Request, exc: LimitExceeded):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": exc.detail},
+        )
+
     return app

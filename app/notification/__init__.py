@@ -1,16 +1,31 @@
 import asyncio
 
-from . import discord as ds
-from . import telegram as tg
-from . import webhook as wh
-from app.models.host import BaseHost
-from app.models.user_template import UserTemplateResponse
-from app.models.node import NodeNotification, NodeResponse
-from app.models.group import GroupResponse
-from app.models.core import CoreResponse
 from app.models.admin import AdminDetails
+from app.models.admin_role import AdminRoleResponse
+from app.models.core import CoreResponse
+from app.models.group import GroupResponse
+from app.models.host import BaseHost
+from app.models.node import NodeNotification, NodeResponse
 from app.models.user import UserNotificationResponse
+from app.models.user_template import UserTemplateResponse
 from app.settings import notification_enable
+
+from . import discord as ds, telegram as tg, webhook as wh
+
+
+async def create_admin_role(role: AdminRoleResponse, by: str):
+    if (await notification_enable()).admin_role.create:
+        await asyncio.gather(ds.create_admin_role(role, by), tg.create_admin_role(role, by))
+
+
+async def modify_admin_role(role: AdminRoleResponse, by: str):
+    if (await notification_enable()).admin_role.modify:
+        await asyncio.gather(ds.modify_admin_role(role, by), tg.modify_admin_role(role, by))
+
+
+async def remove_admin_role(role: AdminRoleResponse, by: str):
+    if (await notification_enable()).admin_role.delete:
+        await asyncio.gather(ds.remove_admin_role(role, by), tg.remove_admin_role(role, by))
 
 
 async def create_host(host: BaseHost, by: str):
@@ -120,6 +135,14 @@ async def remove_admin(username: str, by: str):
 async def admin_usage_reset(admin: AdminDetails, by: str):
     if (await notification_enable()).admin.reset_usage:
         await asyncio.gather(ds.admin_reset_usage(admin, by), tg.admin_reset_usage(admin, by))
+
+
+async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, threshold: int):
+    if (await notification_enable()).admin.usage_limit_warning:
+        await asyncio.gather(
+            ds.admin_usage_limit_reached(admin, usage_percentage, threshold),
+            tg.admin_usage_limit_reached(admin, usage_percentage, threshold),
+        )
 
 
 async def admin_login(username: str, password: str, client_ip: str, success: bool):

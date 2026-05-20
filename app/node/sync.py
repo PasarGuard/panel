@@ -32,6 +32,9 @@ else:
 
 
 async def sync_user(db_user: User) -> None:
+    if db_user.admin_id and db_user.admin.users_sync_blocked:
+        return
+
     proto_user = await serialize_user(db_user)
     asyncio.create_task(_dispatch_user_update(proto_user))
 
@@ -41,6 +44,16 @@ async def remove_user(user: UserNotificationResponse) -> None:
     asyncio.create_task(_dispatch_user_update(proto_user))
 
 
+async def remove_users(users: list[User]) -> None:
+    """Batch-remove users from nodes (serialized without inbounds so nodes drop them)."""
+    if not users:
+        return
+    proto_users = [_serialize_user_for_node(u.id, u.username, u.proxy_settings) for u in users]
+    asyncio.create_task(_dispatch_users_update(proto_users))
+
+
 async def sync_users(users: list[User]) -> None:
-    proto_users = await serialize_users_for_node(users)
+    """Sync users to nodes, excluding users whose admin has users_sync_blocked."""
+    filtered = [u for u in users if not (u.admin_id and u.admin.users_sync_blocked)]
+    proto_users = await serialize_users_for_node(filtered)
     asyncio.create_task(_dispatch_users_update(proto_users))

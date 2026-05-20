@@ -521,8 +521,8 @@ def test_users_get_filters_by_no_expire(access_token):
 
 def test_users_get_filters_by_admin_ids(access_token):
     core, groups = setup_groups(access_token, 1)
-    admin_a = create_admin(access_token, is_sudo=False)
-    admin_b = create_admin(access_token, is_sudo=False)
+    admin_a = create_admin(access_token)
+    admin_b = create_admin(access_token)
     user_a = create_user(
         access_token,
         group_ids=[groups[0]["id"]],
@@ -715,11 +715,8 @@ def test_get_users_count_metric_passes_filters(access_token, monkeypatch):
     assert query.end == end
 
 
-def test_get_users_count_metric_rejects_status_metric_node_scope(access_token, monkeypatch):
-    operator = MagicMock()
-    operator.get_users_count_metric = AsyncMock()
-    monkeypatch.setattr("app.routers.user.user_operator", operator)
-
+def test_get_users_count_metric_rejects_status_metric_node_scope(access_token):
+    """validate_user_count_metric_scope is now enforced in the operation layer — test against real operation."""
     response = client.get(
         "/api/users/counts/expired",
         headers=auth_headers(access_token),
@@ -728,7 +725,6 @@ def test_get_users_count_metric_rejects_status_metric_node_scope(access_token, m
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "Only online user counts" in response.json()["detail"]
-    operator.get_users_count_metric.assert_not_called()
 
 
 def test_subscription_url_new_token_and_legacy_compatibility(access_token):
@@ -2625,3 +2621,127 @@ def test_wireguard_rejects_manual_peer_ip_outside_global_pool(access_token):
         delete_group(access_token, group["id"])
         client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])
+
+
+# ---------------------------------------------------------------------------
+# RBAC scope tests for user operation functions
+# ---------------------------------------------------------------------------
+
+
+def _login(username: str, password: str) -> str:
+    """Log in and return the access token."""
+    response = client.post(
+        "/api/admin/token",
+        data={"username": username, "password": password, "grant_type": "password"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    return response.json()["access_token"]
+
+
+def test_get_users_scope_own_filters_to_own_users(access_token):
+    """Operator (scope=own) only sees their own users in GET /api/users."""
+    operator = create_admin(access_token, role_id=3)
+    try:
+        op_token = _login(operator["username"], operator["password"])
+        # Create a user owned by the operator
+        own_user = create_user(op_token, payload={"username": unique_name("scope_own_user")})
+        # Create a user owned by the owner (testadmin)
+        other_user = create_user(access_token, payload={"username": unique_name("scope_other_user")})
+        try:
+            response = client.get("/api/users", headers=auth_headers(op_token))
+            assert response.status_code == status.HTTP_200_OK
+            usernames = [u["username"] for u in response.json()["users"]]
+            assert own_user["username"] in usernames
+            assert other_user["username"] not in usernames
+        finally:
+            delete_user(op_token, own_user["username"])
+            delete_user(access_token, other_user["username"])
+    finally:
+        delete_admin(access_token, operator["username"])
+
+
+def test_get_users_simple_scope_own_filters_to_own_users(access_token):
+    """Operator (scope=own) only sees their own users in GET /api/users/simple."""
+    operator = create_admin(access_token, role_id=3)
+    try:
+        op_token = _login(operator["username"], operator["password"])
+        own_user = create_user(op_token, payload={"username": unique_name("simple_own_user")})
+        other_user = create_user(access_token, payload={"username": unique_name("simple_other_user")})
+        try:
+            response = client.get("/api/users/simple", headers=auth_headers(op_token))
+            assert response.status_code == status.HTTP_200_OK
+            usernames = [u["username"] for u in response.json()["users"]]
+            assert own_user["username"] in usernames
+            assert other_user["username"] not in usernames
+        finally:
+            delete_user(op_token, own_user["username"])
+            delete_user(access_token, other_user["username"])
+    finally:
+        delete_admin(access_token, operator["username"])
+
+
+def test_get_users_count_metric_node_scope_stripped_for_operator(access_token):
+    """Operator without nodes.stats cannot use node_id filter — it is silently stripped."""
+    operator = create_admin(access_token, role_id=3)
+    try:
+        op_token = _login(operator["username"], operator["password"])
+        # node_id=999 would fail validate_user_count_metric_scope if passed through,
+        # but operator lacks nodes.stats so node_id is stripped → valid request
+        response = client.get(
+            "/api/users/counts/expired",
+            headers=auth_headers(op_token),
+            params={"period": "day", "node_id": "999"},
+        )
+        # Should succeed (node_id stripped) rather than 400
+        assert response.status_code == status.HTTP_200_OK
+    finally:
+        delete_admin(access_token, operator["username"])
+
+
+def test_get_users_sub_update_chart_other_admin_requires_admins_read(access_token):
+    """An operator cannot view another admin's subscription chart — requires admins.read."""
+    operator = create_admin(access_token, role_id=3)
+    other_admin = create_admin(access_token, role_id=3)
+    try:
+        op_token = _login(operator["username"], operator["password"])
+        response = client.get(
+            "/api/users/sub_update/chart",
+            headers=auth_headers(op_token),
+            params={"admin_id": other_admin["id"]},
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, operator["username"])
+        delete_admin(access_token, other_admin["username"])
+
+
+def test_get_users_sub_update_chart_administrator_can_view_other_admin(access_token):
+    """Administrator (admins.read) can view another admin's subscription chart."""
+    administrator = create_admin(access_token, role_id=2)
+    other_admin = create_admin(access_token, role_id=3)
+    try:
+        admin_token = _login(administrator["username"], administrator["password"])
+        response = client.get(
+            "/api/users/sub_update/chart",
+            headers=auth_headers(admin_token),
+            params={"admin_id": other_admin["id"]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+    finally:
+        delete_admin(access_token, administrator["username"])
+        delete_admin(access_token, other_admin["username"])
+
+
+def test_get_users_sub_update_chart_operator_can_view_own(access_token):
+    """Operator can always view their own subscription chart."""
+    operator = create_admin(access_token, role_id=3)
+    try:
+        op_token = _login(operator["username"], operator["password"])
+        response = client.get(
+            "/api/users/sub_update/chart",
+            headers=auth_headers(op_token),
+            params={"admin_id": operator["id"]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+    finally:
+        delete_admin(access_token, operator["username"])

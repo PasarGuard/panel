@@ -129,6 +129,7 @@ async def get_user(
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
+    admin_id: int | None = None,
 ) -> Optional[User]:
     """
     Retrieves a user by username.
@@ -136,6 +137,7 @@ async def get_user(
     Args:
         db (AsyncSession): Database session.
         username (str): The username of the user.
+        admin_id: If provided, only return the user if they belong to this admin.
 
     Returns:
         Optional[User]: The user object if found, else None.
@@ -146,6 +148,9 @@ async def get_user(
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
     ).where(User.username == username)
+
+    if admin_id is not None:
+        stmt = stmt.where(User.admin_id == admin_id)
 
     return (await db.execute(stmt)).unique().scalar_one_or_none()
 
@@ -158,6 +163,7 @@ async def get_user_by_id(
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
+    admin_id: int | None = None,
 ) -> User | None:
     """
     Retrieves a user by user ID.
@@ -165,6 +171,7 @@ async def get_user_by_id(
     Args:
         db (AsyncSession): Database session.
         user_id (int): The ID of the user.
+        admin_id: If provided, only return the user if they belong to this admin.
 
     Returns:
         Optional[User]: The user object if found, else None.
@@ -175,6 +182,9 @@ async def get_user_by_id(
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
     ).where(User.id == user_id)
+
+    if admin_id is not None:
+        stmt = stmt.where(User.admin_id == admin_id)
 
     return (await db.execute(stmt)).unique().scalar_one_or_none()
 
@@ -410,7 +420,7 @@ async def get_users_simple(
     Args:
         db: Database session.
         query: Structured lightweight user list filters.
-        admin: Admin filter (for non-sudo authorization).
+        admin: Admin filter (for scope-based authorization).
 
     Returns:
         Tuple of (list of (id, username) tuples, total_count).
@@ -709,6 +719,23 @@ async def get_user_usages(
         stats[node_id_val].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None) -> int:
+    """
+    Gets the total count of users belonging to a specific admin.
+
+    Args:
+        db (AsyncSession): Database session.
+        admin_id (int | None): Admin ID to filter by. If None, counts all users.
+
+    Returns:
+        int: Total count of users for the given admin.
+    """
+    stmt = select(func.count(User.id))
+    if admin_id is not None:
+        stmt = stmt.where(User.admin_id == admin_id)
+    return (await db.execute(stmt)).scalar_one() or 0
 
 
 async def get_users_count(db: AsyncSession, status: UserStatus = None, admin_id: int = None) -> int:

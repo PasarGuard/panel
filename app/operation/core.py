@@ -110,15 +110,20 @@ class CoreOperation(BaseOperation):
         self, db: AsyncSession, bulk_cores: BulkCoreSelection, admin: AdminDetails
     ) -> RemoveCoresResponse:
         """Remove multiple cores by ID"""
-        db_cores = []
-        for core_id in bulk_cores.ids:
-            if core_id == 1:
-                await self.raise_error(message="Cannot delete default core config", code=403)
-            db_core = await self.get_validated_core_config(db, core_id)
-            db_cores.append(db_core)
+        ids_list = list(bulk_cores.ids)
+        db_cores_list, _ = await get_core_configs(db, CoreListQuery(ids=ids_list, limit=len(ids_list)))
 
-        core_ids = [c.id for c in db_cores]
-        core_names = [c.name for c in db_cores]
+        found_ids = {c.id for c in db_cores_list}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Core not found", code=404)
+
+        for db_core in db_cores_list:
+            if db_core.id == 1:
+                await self.raise_error(message="Cannot delete default core config", code=403)
+
+        core_ids = [c.id for c in db_cores_list]
+        core_names = [c.name for c in db_cores_list]
 
         # Batch delete using CRUD function
         await remove_cores(db, core_ids)
@@ -131,4 +136,4 @@ class CoreOperation(BaseOperation):
 
         await host_manager.setup_local(db)
 
-        return RemoveCoresResponse(cores=core_names, count=len(db_cores))
+        return RemoveCoresResponse(cores=core_names, count=len(db_cores_list))

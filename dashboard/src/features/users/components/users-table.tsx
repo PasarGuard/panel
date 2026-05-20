@@ -45,6 +45,7 @@ import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { removeUsersFromUsersCache } from '@/utils/usersCache'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 
 // Helper function to get URL search params from hash
 const getSearchParams = (): URLSearchParams => {
@@ -136,7 +137,11 @@ const UsersTable = memo(() => {
   const isAutoRefreshingRef = useRef(false)
   const isInitializingFromURLRef = useRef(false)
   const { admin } = useAdmin()
-  const isSudo = admin?.is_sudo || false
+  const canReadAllUsers = hasScopeAll(admin, 'users', 'read')
+  const canUpdateUsers = hasPermission(admin, 'users', 'update')
+  const canUpdateAllUsers = hasScopeAll(admin, 'users', 'update')
+  const canDeleteUsers = hasPermission(admin, 'users', 'delete')
+  const canBulkMutateUsers = canUpdateUsers || canDeleteUsers
 
   // Initialize from URL params on mount
   const getInitialStateFromURL = () => {
@@ -722,6 +727,8 @@ const UsersTable = memo(() => {
 
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
+      ...(canDeleteUsers
+        ? [
       {
         key: 'delete',
         label: t('usersTable.delete'),
@@ -729,20 +736,26 @@ const UsersTable = memo(() => {
         onClick: () => setBulkAction('delete'),
         direct: true,
         destructive: true,
-      },
+      } as BulkActionItem,
+        ]
+        : []),
+      ...(canUpdateUsers
+        ? [
       {
         key: 'reset',
         label: t('userDialog.resetUsage'),
         icon: RefreshCcw,
         onClick: () => setBulkAction('reset'),
-      },
+      } as BulkActionItem,
       {
         key: 'revoke',
         label: t('userDialog.revokeSubscription'),
         icon: Link2Off,
         onClick: () => setBulkAction('revoke'),
-      },
-      ...(        isSudo
+      } as BulkActionItem,
+        ]
+        : []),
+      ...(canUpdateAllUsers
         ? [
           {
             key: 'owner',
@@ -752,13 +765,17 @@ const UsersTable = memo(() => {
           } as BulkActionItem,
         ]
         : []),
+      ...(canUpdateUsers
+        ? [
       {
         key: 'apply_template',
         label: t('bulk.applyTemplate'),
         icon: Layers,
         onClick: () => setIsBulkApplyTemplateModalOpen(true),
-      },
-      ...(disableEligibleCount > 0
+      } as BulkActionItem,
+        ]
+        : []),
+      ...(canUpdateUsers && disableEligibleCount > 0
         ? [
           {
             key: 'disable',
@@ -768,7 +785,7 @@ const UsersTable = memo(() => {
           } as BulkActionItem,
         ]
         : []),
-      ...(enableEligibleCount > 0
+      ...(canUpdateUsers && enableEligibleCount > 0
         ? [
           {
             key: 'enable',
@@ -863,8 +880,8 @@ const UsersTable = memo(() => {
       setupColumns({
         t,
         dir,
-        showCreatedBy: isSudo && showCreatedBy,
-        showSelectionCheckbox,
+        showCreatedBy: canReadAllUsers && showCreatedBy,
+        showSelectionCheckbox: showSelectionCheckbox && canBulkMutateUsers,
         handleSort,
         filters: {
           sort: filters.sort,
@@ -872,7 +889,7 @@ const UsersTable = memo(() => {
         },
         handleStatusFilter,
       }),
-    [t, dir, isSudo, showCreatedBy, showSelectionCheckbox, handleSort, filters.sort, filters.status, handleStatusFilter],
+    [t, dir, canReadAllUsers, showCreatedBy, showSelectionCheckbox, canBulkMutateUsers, handleSort, filters.sort, filters.status, handleStatusFilter],
   )
 
   const handleAdvanceSearchSubmit = async (values: AdvanceSearchFormValue) => {
@@ -916,7 +933,7 @@ const UsersTable = memo(() => {
         // Preserve previous behavior: apply filters even if the eager fetch fails.
       }
 
-      if (isSudo) {
+      if (canReadAllUsers) {
         setShowCreatedBy(values.show_created_by)
         setUsersShowCreatedBy(values.show_created_by)
       }
@@ -1094,7 +1111,7 @@ const UsersTable = memo(() => {
         onOpenChange={handleAdvanceSearchOpenChange}
         form={advanceSearchForm}
         onSubmit={handleAdvanceSearchSubmit}
-        isSudo={isSudo}
+        isSudo={canReadAllUsers}
         isApplying={isAdvanceSearchApplying}
       />
       <BulkActionAlertDialog

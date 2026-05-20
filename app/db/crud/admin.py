@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, case, delete, func, select, update
+from sqlalchemy import and_, case, delete, func, insert, not_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.general import (
@@ -9,19 +9,22 @@ from app.db.crud.general import (
     get_complete_period_start_for_filter,
     to_utc_for_filter,
 )
-from app.db.models import Admin, AdminUsageLogs, NodeUserUsage, User
+from app.db.models import Admin, AdminNotificationReminder, AdminRole, AdminUsageLogs, NodeUserUsage, ReminderType, User
 from app.models.admin import (
     AdminCreate,
     AdminDetails,
     AdminListQuery,
     AdminModify,
+    AdminRoleData,
     AdminSimpleListQuery,
     AdminSimpleSortField,
     AdminSimpleSortOption,
     AdminSortField,
     AdminSortOption,
+    AdminStatus,
     hash_password,
 )
+from app.models.admin_role import RoleLimits
 from app.models.stats import Period, UserUsageStat, UserUsageStatsList
 from app.utils.logger import get_logger
 
@@ -64,16 +67,6 @@ async def get_admin(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    """
-    Retrieves an admin by username.
-
-    Args:
-        db (AsyncSession): Database session.
-        username (str): The username of the admin.
-
-    Returns:
-        Admin: The admin object.
-    """
     admin = (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
@@ -111,13 +104,30 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
     Returns:
         Admin: The updated admin object.
     """
-    if modified_admin.is_sudo is not None:
-        db_admin.is_sudo = modified_admin.is_sudo
-    if modified_admin.is_disabled is not None:
-        db_admin.is_disabled = modified_admin.is_disabled
+    if modified_admin.status is not None:
+        if modified_admin.status != db_admin.status:
+            db_admin.status = modified_admin.status
+            db_admin.last_status_change = datetime.now(timezone.utc)
+    if modified_admin.data_limit is not None:
+        db_admin.data_limit = modified_admin.data_limit if modified_admin.data_limit > 0 else None
+        # Recompute limited/active based on new data_limit — never touch disabled
+        if db_admin.status != AdminStatus.disabled:
+            should_be_limited = (
+                db_admin.data_limit is not None
+                and db_admin.data_limit > 0
+                and db_admin.used_traffic >= db_admin.data_limit
+            )
+            new_status = AdminStatus.limited if should_be_limited else AdminStatus.active
+            if db_admin.status != new_status:
+                db_admin.status = new_status
+                db_admin.last_status_change = datetime.now(timezone.utc)
     if modified_admin.password is not None:
         db_admin.hashed_password = await hash_password(modified_admin.password)
         db_admin.password_reset_at = datetime.now(timezone.utc)
+    if modified_admin.role_id is not None:
+        db_admin.role_id = modified_admin.role_id
+    if modified_admin.permission_overrides is not None:
+        db_admin.permission_overrides = modified_admin.permission_overrides.model_dump()
     if modified_admin.telegram_id is not None:
         db_admin.telegram_id = modified_admin.telegram_id
     if modified_admin.discord_webhook is not None:
@@ -138,6 +148,7 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.notification_enable = modified_admin.notification_enable.model_dump()
 
     await db.commit()
+    await db.refresh(db_admin)
     await load_admin_attrs(db_admin)
     return db_admin
 
@@ -161,16 +172,6 @@ async def get_admin_by_id(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    """
-    Retrieves an admin by their ID.
-
-    Args:
-        db (AsyncSession): Database session.
-        id (int): The ID of the admin.
-
-    Returns:
-        Admin: The admin object.
-    """
     admin = (await db.execute(select(Admin).where(Admin.id == id))).unique().scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
@@ -184,16 +185,6 @@ async def get_admin_by_telegram_id(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    """
-    Retrieves an admin by their Telegram ID.
-
-    Args:
-        db (AsyncSession): Database session.
-        telegram_id (int): The Telegram ID of the admin.
-
-    Returns:
-        Admin: The admin object.
-    """
     admins = (
         (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id).order_by(Admin.id.asc()).limit(2)))
         .scalars()
@@ -232,17 +223,7 @@ async def get_admin_by_discord_id(
     load_users: bool = True,
     load_usage_logs: bool = True,
 ) -> Admin:
-    """
-    Retrieves an admin by their Discord ID.
-
-    Args:
-        db (AsyncSession): Database session.
-        discord_id (int): The Discord ID of the admin.
-
-    Returns:
-        Admin: The admin object.
-    """
-    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).first()
+    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).scalar_one_or_none()
     if admin:
         await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
     return admin
@@ -253,20 +234,21 @@ async def get_admins(
     query: AdminListQuery,
     return_with_count: bool = False,
     compact: bool = False,
-) -> list[Admin] | tuple[list[Admin], int, int, int]:
+    include_owner: bool = True,
+) -> list[Admin] | tuple[list[Admin], int, int, int, int]:
     """
     Retrieves a list of admins with optional filters and pagination.
 
     Args:
         db (AsyncSession): Database session.
         query: Structured admin list query.
-        return_with_count (bool): If True, returns tuple with (admins, total, active, disabled).
+        return_with_count (bool): If True, returns tuple with (admins, total, active, disabled, limited).
 
     Returns:
-        List[Admin] | tuple[list[Admin], int, int, int]: A list of admin objects or tuple with counts.
+        List[Admin] | tuple[list[Admin], int, int, int, int]:
+            A list of admin objects or tuple with counts (total, active, disabled, limited).
     """
     params = query
-
     total = None
     active = None
     disabled = None
@@ -274,8 +256,9 @@ async def get_admins(
     if return_with_count:
         counts_stmt = select(
             func.count(Admin.id).label("total"),
-            func.sum(case((Admin.is_disabled.is_(False), 1), else_=0)).label("active"),
-            func.sum(case((Admin.is_disabled.is_(True), 1), else_=0)).label("disabled"),
+            func.sum(case((Admin.status == AdminStatus.active, 1), else_=0)).label("active"),
+            func.sum(case((Admin.status == AdminStatus.disabled, 1), else_=0)).label("disabled"),
+            func.sum(case((Admin.status == AdminStatus.limited, 1), else_=0)).label("limited"),
         )
         if params.ids:
             counts_stmt = counts_stmt.where(Admin.id.in_(params.ids))
@@ -283,12 +266,15 @@ async def get_admins(
             counts_stmt = counts_stmt.where(Admin.username.in_(params.usernames))
         if params.username:
             counts_stmt = counts_stmt.where(Admin.username.ilike(f"%{params.username}%"))
+        if not include_owner:
+            counts_stmt = counts_stmt.where(Admin.role.has(AdminRole.is_owner.is_(False)))
 
         result = await db.execute(counts_stmt)
         row = result.one()
         total = row.total or 0
         active = row.active or 0
         disabled = row.disabled or 0
+        limited = row.limited or 0
 
     if compact:
         users_count_subq = (
@@ -322,6 +308,8 @@ async def get_admins(
         stmt = stmt.where(Admin.username.in_(params.usernames))
     if params.username:
         stmt = stmt.where(Admin.username.ilike(f"%{params.username}%"))
+    if not include_owner:
+        stmt = stmt.where(Admin.role.has(AdminRole.is_owner.is_(False)))
 
     # Apply sorting
     if params.sort:
@@ -342,10 +330,10 @@ async def get_admins(
                 AdminDetails(
                     id=admin.id,
                     username=admin.username,
-                    is_sudo=admin.is_sudo,
                     total_users=int(total_users or 0),
                     used_traffic=int(admin.used_traffic or 0),
-                    is_disabled=admin.is_disabled,
+                    data_limit=admin.data_limit,
+                    status=admin.status,
                     telegram_id=admin.telegram_id,
                     discord_webhook=admin.discord_webhook,
                     sub_domain=admin.sub_domain,
@@ -356,6 +344,10 @@ async def get_admins(
                     discord_id=admin.discord_id,
                     sub_template=admin.sub_template,
                     lifetime_used_traffic=lifetime_used_traffic,
+                    role=AdminRoleData.model_validate(admin.role) if admin.role is not None else None,
+                    permission_overrides=RoleLimits.model_validate(admin.permission_overrides)
+                    if admin.permission_overrides
+                    else None,
                 )
             )
     else:
@@ -364,13 +356,14 @@ async def get_admins(
             await load_admin_attrs(admin)
 
     if return_with_count:
-        return admins, total, active, disabled
+        return admins, total, active, disabled, limited
     return admins
 
 
 async def get_admins_simple(
     db: AsyncSession,
     query: AdminSimpleListQuery,
+    include_owner: bool = True,
 ) -> tuple[list[tuple[int, str]], int]:
     """
     Retrieves lightweight admin data with only id and username.
@@ -390,6 +383,8 @@ async def get_admins_simple(
         stmt = stmt.where(Admin.username.in_(query.usernames))
     if query.search:
         stmt = stmt.where(Admin.username.ilike(f"%{query.search}%"))
+    if not include_owner:
+        stmt = stmt.where(Admin.role.has(AdminRole.is_owner.is_(False)))
 
     if query.sort:
         stmt = stmt.order_by(*[_build_admin_simple_sort_clause(sort_option) for sort_option in query.sort])
@@ -405,13 +400,139 @@ async def get_admins_simple(
         if query.limit is not None:
             stmt = stmt.limit(query.limit)
     else:
-        stmt = stmt.limit(10000)  # Safety limit when all=true
+        stmt = stmt.limit(10000)
 
     # Execute and return
     result = await db.execute(stmt)
     rows = result.all()
 
     return rows, total
+
+
+async def get_active_admins_with_data_limit(
+    db: AsyncSession,
+    *,
+    threshold: int | None = None,
+    admin_ids: list[int] | None = None,
+) -> list[Admin]:
+    """Return active admins with a finite data_limit, used by warning-threshold checks."""
+    stmt = select(Admin).where(
+        Admin.status == AdminStatus.active,
+        Admin.data_limit.isnot(None),
+        Admin.data_limit > 0,
+    )
+
+    if threshold is not None:
+        stmt = stmt.where(Admin.used_traffic >= (Admin.data_limit * (threshold / 100)))
+
+    if admin_ids is not None:
+        if not admin_ids:
+            return []
+        stmt = stmt.where(Admin.id.in_(admin_ids))
+
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def get_usage_percentage_reached_admins(
+    db: AsyncSession,
+    percentage: int,
+    admin_ids: list[int] | None = None,
+) -> list[Admin]:
+    """Get active admins who reached a usage threshold and have no reminder for that threshold."""
+    if admin_ids is not None and not admin_ids:
+        return []
+
+    existing_reminder_subq = (
+        select(AdminNotificationReminder.admin_id)
+        .where(
+            AdminNotificationReminder.admin_id == Admin.id,
+            AdminNotificationReminder.type == ReminderType.data_usage,
+            AdminNotificationReminder.threshold == percentage,
+        )
+        .exists()
+    )
+
+    stmt = select(Admin).where(
+        Admin.status == AdminStatus.active,
+        Admin.data_limit.isnot(None),
+        Admin.data_limit > 0,
+        (Admin.used_traffic * 100) >= (Admin.data_limit * percentage),
+        not_(existing_reminder_subq),
+    )
+
+    if admin_ids is not None:
+        stmt = stmt.where(Admin.id.in_(admin_ids))
+
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def bulk_create_admin_notification_reminders(db: AsyncSession, reminder_data: list[dict]) -> None:
+    """Bulk-insert admin reminder rows after successful sends."""
+    if not reminder_data:
+        return
+
+    await db.execute(insert(AdminNotificationReminder), reminder_data)
+    await db.commit()
+
+
+async def delete_admin_notification_reminders(
+    db: AsyncSession,
+    admin_id: int,
+    reminder_type: ReminderType,
+) -> None:
+    """Delete persisted admin reminders for a specific type (used when re-arming thresholds)."""
+    await db.execute(
+        delete(AdminNotificationReminder).where(
+            AdminNotificationReminder.admin_id == admin_id,
+            AdminNotificationReminder.type == reminder_type,
+        )
+    )
+
+
+async def get_active_to_limited_admins(db: AsyncSession) -> list[Admin]:
+    """Return ALL active admins that have exceeded their data_limit (for status flip)."""
+    stmt = select(Admin).where(
+        Admin.status == AdminStatus.active,
+        Admin.data_limit.isnot(None),
+        Admin.data_limit > 0,
+        Admin.used_traffic >= Admin.data_limit,
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def get_limited_admin_ids_with_user_sync(db: AsyncSession) -> set[int]:
+    """Return IDs of currently limited admins that have disable_users_when_limited=True.
+    Used to exclude their users from node sync — avoids loading relationships."""
+    stmt = (
+        select(Admin.id)
+        .join(AdminRole, Admin.role_id == AdminRole.id)
+        .where(
+            Admin.status == AdminStatus.limited,
+            AdminRole.disable_users_when_limited.is_(True),
+        )
+    )
+    result = await db.execute(stmt)
+    return set(result.scalars().all())
+
+
+async def update_admin_status(db: AsyncSession, db_admin: Admin, new_status: AdminStatus) -> Admin:
+    """
+    Update an admin's status and record the transition time.
+
+    Args:
+        db: Database session.
+        db_admin: The admin to update.
+        new_status: The new status to set.
+
+    Returns:
+        Admin: The updated admin object.
+    """
+    db_admin.status = new_status
+    db_admin.last_status_change = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(db_admin)
+    await load_admin_attrs(db_admin)
+    return db_admin
 
 
 async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
@@ -423,12 +544,20 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     Returns:
         Admin: The updated admin.
     """
+    await delete_admin_notification_reminders(db, db_admin.id, ReminderType.data_usage)
+
     if db_admin.used_traffic == 0:
+        await db.commit()
         return db_admin
 
     usage_log = AdminUsageLogs(admin_id=db_admin.id, used_traffic_at_reset=db_admin.used_traffic)
     db.add(usage_log)
     db_admin.used_traffic = 0
+
+    # After reset, used_traffic = 0 so the admin is no longer limited
+    if db_admin.status == AdminStatus.limited:
+        db_admin.status = AdminStatus.active
+        db_admin.last_status_change = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(db_admin)
@@ -517,12 +646,26 @@ async def get_admin_usages(
 
         # Attach timezone info to period_start
         attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
-
         if node_id_val not in stats:
             stats[node_id_val] = []
         stats[node_id_val].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+async def update_owner_password(db: AsyncSession, owner: Admin, new_password: str) -> Admin:
+    """Reset the owner's password. All DB work stays in the CRUD layer."""
+    owner.hashed_password = await hash_password(new_password)
+    owner.password_reset_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(owner)
+    await load_admin_attrs(owner)
+    return owner
+
+
+async def get_owner(db: AsyncSession) -> Admin | None:
+    """Return the owner admin (role_id=1), or None if not found."""
+    return (await db.execute(select(Admin).where(Admin.role_id == 1))).scalar_one_or_none()
 
 
 async def get_admins_count(db: AsyncSession) -> int:

@@ -1006,10 +1006,18 @@ class NodeOperation(BaseOperation):
         return RemoveNodesResponse(nodes=node_names, count=len(db_nodes))
 
     async def _get_validated_nodes(self, db: AsyncSession, node_ids: list[int] | set[int]) -> list[Node]:
-        nodes: list[Node] = []
-        for node_id in node_ids:
-            nodes.append(await self.get_validated_node(db, node_id))
-        return nodes
+        if not node_ids:
+            return []
+
+        ids_list = list(node_ids)
+        db_nodes, _ = await get_nodes(db, NodeListQuery(ids=ids_list, limit=len(ids_list)))
+
+        found_ids = {n.id for n in db_nodes}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Node not found", code=404)
+
+        return list(db_nodes)
 
     @staticmethod
     def _build_bulk_action_response(nodes: list[Node | NodeResponse]) -> BulkNodesActionResponse:

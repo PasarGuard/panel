@@ -1,25 +1,26 @@
 import { AdminDetails } from '@/service/api'
 import { ColumnDef, Row, Table } from '@tanstack/react-table'
-import { ChartPie, ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, UserRoundKey, Trash2, Users, UserCheck, UserMinus, UserRound, UserX } from 'lucide-react'
+import { ChevronDown, MoreVertical, Pen, Power, PowerOff, RefreshCw, Trash2, Users, UserCheck, UserMinus, UserRound, UserRoundKey, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { formatBytes } from '@/utils/formatByte.ts'
 import { AdminStatusBadge } from './admin-status-badge'
+import UsageSliderCompact from '@/components/common/usage-slider-compact'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
+import { isOwner } from '@/utils/rbac'
 
 interface ColumnSetupProps {
   t: (key: string) => string
   handleSort: (column: string) => void
   filters: { sort?: string }
   currentAdminUsername?: string
-  onEdit: (admin: AdminDetails) => void
-  onDelete: (admin: AdminDetails) => void
-  toggleStatus: (admin: AdminDetails) => void
-  onResetUsage: (admin: AdminDetails) => void
-  onDisableAllActiveUsers: (admin: AdminDetails) => void
-  onActivateAllDisabledUsers: (admin: AdminDetails) => void
-  onRemoveAllUsers: (admin: AdminDetails) => void
+  onEdit?: (admin: AdminDetails) => void
+  onDelete?: (admin: AdminDetails) => void
+  toggleStatus?: (admin: AdminDetails) => void
+  onResetUsage?: (admin: AdminDetails) => void
+  onDisableAllActiveUsers?: (admin: AdminDetails) => void
+  onActivateAllDisabledUsers?: (admin: AdminDetails) => void
+  onRemoveAllUsers?: (admin: AdminDetails) => void
 }
 
 const createSortButton = (
@@ -30,6 +31,8 @@ const createSortButton = (
   filters: {
     sort?: string
   },
+  className?: string,
+  desktopLabel?: string,
 ) => {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -38,8 +41,17 @@ const createSortButton = (
   }
 
   return (
-    <button type="button" onClick={handleClick} className="flex w-full items-center gap-1">
-      <div className="text-xs">{t(label)}</div>
+    <button type="button" onClick={handleClick} className={cn('flex w-full items-center gap-1', className)}>
+      <div className="text-xs">
+        {desktopLabel ? (
+          <>
+            <span className="md:hidden">{t(label)}</span>
+            <span className="hidden md:inline">{t(desktopLabel)}</span>
+          </>
+        ) : (
+          t(label)
+        )}
+      </div>
       {filters.sort && (filters.sort === column || filters.sort === '-' + column) && (
         <ChevronDown size={16} className={`transition-transform duration-300 ${filters.sort === column ? 'rotate-180' : ''} ${filters.sort === '-' + column ? 'rotate-0' : ''} `} />
       )}
@@ -47,7 +59,9 @@ const createSortButton = (
   )
 }
 
-const getAdminRoleIcon = (isSudo: boolean) => (isSudo ? UserRoundKey : UserRound)
+const getAdminStatus = (admin: AdminDetails) => admin.status || (admin.is_disabled ? 'disabled' : 'active')
+const isAdminDisabled = (admin: AdminDetails) => getAdminStatus(admin) === 'disabled'
+const getAdminRoleIcon = (owner: boolean) => (owner ? UserRoundKey : UserRound)
 
 export const setupColumns = ({
   t,
@@ -101,69 +115,38 @@ export const setupColumns = ({
     {
       accessorKey: 'username',
       header: () => createSortButton('username', 'username', t, handleSort, filters),
-      cell: ({ row }) => (
-        <div className="overflow-hidden text-ellipsis whitespace-nowrap py-1.5 font-medium">
-          <div className="flex items-center gap-x-3">
-            <div>
-              {row.original.is_disabled ? (
-                <div className="min-h-[10px] min-w-[10px] rounded-full border border-gray-400 shadow-sm dark:border-gray-600" />
-              ) : (
-                <div className="min-h-[10px] min-w-[10px] rounded-full bg-green-500 shadow-sm" />
-              )}
-            </div>
-            <div className="flex flex-col overflow-hidden text-ellipsis whitespace-nowrap">
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'used_traffic',
-      header: () => createSortButton('used_traffic', 'admins.used.traffic', t, handleSort, filters),
       cell: ({ row }) => {
-        const traffic = row.getValue('used_traffic') as number | null
-        return (
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <ChartPie className="hidden h-4 w-4 sm:block" />
-            <span dir="ltr" className="text-xs">
-              {traffic ? formatBytes(traffic) : '0 B'}
-            </span>
-          </div>
-        )
-      },
-    },
-    {
-      accessorKey: 'lifetime_used_traffic',
-      header: () => (
-        <div className="flex items-center text-xs capitalize">
-          <span className="md:hidden">{t('admins.role')}</span>
-          <span className="hidden md:inline">{t('statistics.totalUsage')}</span>
-        </div>
-      ),
-      cell: ({ row }) => {
-        const total = row.getValue('lifetime_used_traffic') as number | null
-        const RoleIcon = getAdminRoleIcon(!!row.original.is_sudo)
+        const RoleIcon = getAdminRoleIcon(isOwner(row.original))
 
         return (
-          <div className="flex items-center justify-start gap-0 whitespace-nowrap md:justify-start md:gap-2">
-            <span dir="ltr" className="hidden text-xs md:inline">
-              {formatBytes(total || 0)}
-            </span>
-            <RoleIcon className={row.original.is_disabled ? 'h-4 w-4 text-muted-foreground/60 md:hidden' : cn('h-4 w-4 md:hidden', row.original.is_sudo ? 'text-violet-500' : 'text-primary')} />
+          <div className="overflow-hidden text-ellipsis whitespace-nowrap pl-0 font-medium md:pl-1">
+            <div className="flex items-start gap-x-2 px-0.5 py-1">
+              <div className="pt-0.5">
+                <RoleIcon className={getAdminStatus(row.original) === 'disabled' ? 'h-4 w-4 text-muted-foreground/60' : cn('h-4 w-4', isOwner(row.original) ? 'text-violet-500' : 'text-primary')} />
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-y-0.5 overflow-hidden text-ellipsis whitespace-nowrap">
+                <div className="flex items-center gap-x-1.5 overflow-hidden">
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
+                </div>
+              </div>
+            </div>
           </div>
         )
       },
     },
     {
-      accessorKey: 'is_sudo',
-      header: () => <div className="flex items-center text-xs capitalize">{t('admins.role')}</div>,
+      id: 'status',
+      header: () => <div className="flex items-center text-xs capitalize">{t('usersTable.status')}</div>,
       cell: ({ row }) => {
-        const isSudo = row.getValue('is_sudo')
-        const isDisabled = row.original.is_disabled
+        const status = getAdminStatus(row.original)
         return (
-          <div className="flex items-center gap-2">
-            <AdminStatusBadge isSudo={!!isSudo} isDisabled={!!isDisabled} />
+          <div className="flex flex-col gap-y-2 py-1">
+            <div className="hidden md:block">
+              <AdminStatusBadge isSudo={isOwner(row.original)} status={status} label={t(`status.${status}`)} />
+            </div>
+            <div className="md:hidden">
+              <AdminStatusBadge compact isSudo={isOwner(row.original)} status={status} />
+            </div>
           </div>
         )
       },
@@ -171,17 +154,50 @@ export const setupColumns = ({
     {
       accessorKey: 'total_users',
       header: () => <div className="flex items-center text-xs capitalize">{t('admins.total.users')}</div>,
+      cell: ({ row }) => {
+        const total = (row.getValue('total_users') as number | null) || 0
+        const overrideMax = row.original.permission_overrides?.max_users
+        const roleMax = row.original.role?.limits?.max_users
+        const effectiveMax = typeof overrideMax === 'number' && overrideMax > 0 ? overrideMax : typeof roleMax === 'number' && roleMax > 0 ? roleMax : null
+        return (
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <Users className="h-4 w-4" />
+            <span dir="ltr" className="text-xs">
+              {total}
+              {effectiveMax != null ? ` / ${effectiveMax}` : ''}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'used_traffic',
+      header: () => createSortButton('used_traffic', 'dataUsage', t, handleSort, filters, 'justify-start', 'admins.used.traffic'),
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4" />
-          <span>{row.getValue('total_users') || 0}</span>
+        <div className="flex w-full py-1 items-center justify-between gap-1">
+          <UsageSliderCompact
+            total={row.original.data_limit}
+            used={row.original.used_traffic || 0}
+            totalUsedTraffic={row.original.lifetime_used_traffic ?? undefined}
+            status={getAdminStatus(row.original)}
+          />
         </div>
       ),
     },
     {
       id: 'actions',
       cell: ({ row }) => {
-        const isSudoTarget = row.original.is_sudo
+        const isOwnerTarget = isOwner(row.original)
+        const hasActions =
+          !!onEdit ||
+          !!onResetUsage ||
+          (!isOwnerTarget && !!toggleStatus) ||
+          (!isOwnerTarget && !!onDisableAllActiveUsers) ||
+          (!isOwnerTarget && !!onActivateAllDisabledUsers) ||
+          (!isOwnerTarget && !!onRemoveAllUsers) ||
+          (!isOwnerTarget && row.original.username !== currentAdminUsername && !!onDelete)
+
+        if (!hasActions) return null
 
         return (
           <div className="flex items-center justify-center gap-2">
@@ -192,7 +208,7 @@ export const setupColumns = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
+                {onEdit && <DropdownMenuItem
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
@@ -201,8 +217,8 @@ export const setupColumns = ({
                 >
                   <Pen className="mr-2 h-4 w-4" />
                   {t('edit')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                </DropdownMenuItem>}
+                {onResetUsage && <DropdownMenuItem
                   onSelect={e => {
                     e.preventDefault()
                     e.stopPropagation()
@@ -211,8 +227,8 @@ export const setupColumns = ({
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {t('admins.reset')}
-                </DropdownMenuItem>
-                {!isSudoTarget && (
+                </DropdownMenuItem>}
+                {!isOwnerTarget && toggleStatus && (
                   <DropdownMenuItem
                     onSelect={e => {
                       e.preventDefault()
@@ -220,11 +236,11 @@ export const setupColumns = ({
                       toggleStatus(row.original)
                     }}
                   >
-                    {row.original.is_disabled ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
-                    {row.original.is_disabled ? t('enable') : t('disable')}
+                    {isAdminDisabled(row.original) ? <Power className="mr-2 h-4 w-4" /> : <PowerOff className="mr-2 h-4 w-4" />}
+                    {isAdminDisabled(row.original) ? t('enable') : t('disable')}
                   </DropdownMenuItem>
                 )}
-                {!isSudoTarget && (
+                {!isOwnerTarget && onDisableAllActiveUsers && (
                   <DropdownMenuItem
                     onSelect={e => {
                       e.preventDefault()
@@ -236,7 +252,7 @@ export const setupColumns = ({
                     {t('admins.disableAllActiveUsers')}
                   </DropdownMenuItem>
                 )}
-                {!isSudoTarget && (
+                {!isOwnerTarget && onActivateAllDisabledUsers && (
                   <DropdownMenuItem
                     onSelect={e => {
                       e.preventDefault()
@@ -248,7 +264,7 @@ export const setupColumns = ({
                     {t('admins.activateAllDisabledUsers')}
                   </DropdownMenuItem>
                 )}
-                {!isSudoTarget && (
+                {!isOwnerTarget && onRemoveAllUsers && (
                   <DropdownMenuItem
                     className="text-destructive"
                     onSelect={e => {
@@ -261,7 +277,7 @@ export const setupColumns = ({
                     {t('admins.removeAllUsers')}
                   </DropdownMenuItem>
                 )}
-                {!isSudoTarget && row.original.username !== currentAdminUsername && (
+                {!isOwnerTarget && row.original.username !== currentAdminUsername && onDelete && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
