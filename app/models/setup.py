@@ -1,16 +1,17 @@
 from pydantic import BaseModel
 
 
-class OwnerCreateRequest(BaseModel):
+class BaseSetupRequest(BaseModel):
     key: str
+
+
+class OwnerResetRequest(BaseSetupRequest):
+    password: str
+
+
+class OwnerCreateRequest(OwnerResetRequest):
     username: str
-    password: str
 
 
-class OwnerResetRequest(BaseModel):
-    key: str
-    password: str
-
-
-class OwnerDeleteRequest(BaseModel):
-    key: str
+class OwnerUpgradeRequest(BaseSetupRequest):
+    username: str

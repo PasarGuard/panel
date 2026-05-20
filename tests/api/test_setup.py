@@ -11,7 +11,6 @@ from sqlalchemy import select
 from app.db.models import Admin, TempKey
 from tests.api import TestSession, client
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -42,14 +41,15 @@ def _make_temp_key(*, used: bool = False, expired: bool = False) -> str:
 
 
 def _delete_owner() -> None:
-    """Remove the owner admin (role_id=1) if it exists."""
+    """Remove all owner admins (role_id=1) if any exist."""
 
     async def _remove():
         async with TestSession() as session:
             result = await session.execute(select(Admin).where(Admin.role_id == 1))
-            owner = result.scalar_one_or_none()
-            if owner:
+            owners = result.scalars().all()
+            for owner in owners:
                 await session.delete(owner)
+            if owners:
                 await session.commit()
 
     asyncio.run(_remove())
@@ -62,6 +62,43 @@ def _owner_exists() -> bool:
             return result.scalar_one_or_none() is not None
 
     return asyncio.run(_check())
+
+
+def _create_admin(username: str, role_id: int = 2) -> None:
+    """Create an admin directly in DB for setup-route tests."""
+
+    async def _insert():
+        async with TestSession() as session:
+            admin = Admin(
+                username=username,
+                hashed_password="$2b$12$dummyhashdummyhashdummyhashdummyhashdummyhashd",
+                role_id=role_id,
+            )
+            session.add(admin)
+            await session.commit()
+
+    asyncio.run(_insert())
+
+
+def _delete_admin_by_username(username: str) -> None:
+    async def _delete():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            admin = result.scalar_one_or_none()
+            if admin:
+                await session.delete(admin)
+                await session.commit()
+
+    asyncio.run(_delete())
+
+
+def _owner_usernames() -> list[str]:
+    async def _fetch() -> list[str]:
+        async with TestSession() as session:
+            result = await session.execute(select(Admin.username).where(Admin.role_id == 1))
+            return list(result.scalars().all())
+
+    return asyncio.run(_fetch())
 
 
 # ---------------------------------------------------------------------------
@@ -313,3 +350,93 @@ def test_key_is_consumed_after_create():
         assert r2.json()["detail"] == "key already used"
     finally:
         _delete_owner()
+
+
+# ---------------------------------------------------------------------------
+# POST /api/setup/owner/upgrade — upgrade existing admin to owner
+# ---------------------------------------------------------------------------
+
+
+def test_upgrade_owner_success_replaces_current_owner():
+    create_key = _make_temp_key()
+    upgrade_key = _make_temp_key()
+    try:
+        r1 = client.post(
+            "/api/setup/owner",
+            json={"key": create_key, "username": "owner_before_upgrade", "password": "OwnerPass#12ab"},
+        )
+        assert r1.status_code == status.HTTP_201_CREATED
+
+        _create_admin("admin_to_upgrade", role_id=2)
+
+        r2 = client.post(
+            "/api/setup/owner/upgrade",
+            json={"key": upgrade_key, "username": "admin_to_upgrade"},
+        )
+        assert r2.status_code == status.HTTP_200_OK
+        data = r2.json()
+        assert data["username"] == "admin_to_upgrade"
+        assert data["role"]["is_owner"] is True
+
+        owners = _owner_usernames()
+        assert owners == ["admin_to_upgrade"]
+    finally:
+        _delete_owner()
+        _delete_admin_by_username("owner_before_upgrade")
+        _delete_admin_by_username("admin_to_upgrade")
+
+
+def test_upgrade_owner_success_when_no_current_owner():
+    _delete_owner()
+    _create_admin("admin_becomes_owner", role_id=2)
+    upgrade_key = _make_temp_key()
+    try:
+        r = client.post(
+            "/api/setup/owner/upgrade",
+            json={"key": upgrade_key, "username": "admin_becomes_owner"},
+        )
+        assert r.status_code == status.HTTP_200_OK
+        data = r.json()
+        assert data["username"] == "admin_becomes_owner"
+        assert data["role"]["is_owner"] is True
+
+        owners = _owner_usernames()
+        assert owners == ["admin_becomes_owner"]
+    finally:
+        _delete_owner()
+        _delete_admin_by_username("admin_becomes_owner")
+
+
+def test_upgrade_owner_target_admin_not_found_returns_404():
+    key = _make_temp_key()
+    response = client.post(
+        "/api/setup/owner/upgrade",
+        json={"key": key, "username": "admin_missing_for_upgrade"},
+    )
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_upgrade_owner_multiple_owners_returns_409():
+    create_key = _make_temp_key()
+    upgrade_key = _make_temp_key()
+    try:
+        r1 = client.post(
+            "/api/setup/owner",
+            json={"key": create_key, "username": "owner_a", "password": "OwnerPass#12ab"},
+        )
+        assert r1.status_code == status.HTTP_201_CREATED
+
+        _create_admin("owner_b", role_id=1)
+        _create_admin("admin_target", role_id=2)
+
+        r2 = client.post(
+            "/api/setup/owner/upgrade",
+            json={"key": upgrade_key, "username": "admin_target"},
+        )
+        assert r2.status_code == status.HTTP_409_CONFLICT
+        assert r2.json()["detail"] == "multiple owners found"
+    finally:
+        _delete_owner()
+        _delete_admin_by_username("owner_a")
+        _delete_admin_by_username("owner_b")
+        _delete_admin_by_username("admin_target")

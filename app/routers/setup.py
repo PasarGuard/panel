@@ -1,11 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 
 from app.db import AsyncSession, get_db
-from app.db.crud.admin import create_admin, get_owner, remove_admin, update_owner_password
+from app.db.crud.admin import (
+    OwnerUpgradeError,
+    create_admin,
+    get_owner,
+    remove_admin,
+    update_owner_password,
+    upgrade_admin_to_owner,
+)
 from app.db.crud.temp_key import TempKeyConsumeError, consume_temp_key
 from app.models.admin import AdminCreate, AdminDetails
-from app.models.setup import OwnerCreateRequest, OwnerDeleteRequest, OwnerResetRequest
+from app.models.setup import OwnerCreateRequest, OwnerResetRequest, OwnerUpgradeRequest
 from app.utils import responses
 from app.utils.request import get_client_ip
 
@@ -83,12 +90,12 @@ async def reset_owner_password(
     },
 )
 async def delete_owner(
-    body: OwnerDeleteRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    key: str = Query(..., description="One-time temp key for deleting the owner admin"),
 ):
     """Delete the owner admin using a one-time temp key."""
-    await _consume_key_or_raise(db, body.key, action="delete_owner", request=request)
+    await _consume_key_or_raise(db, key, action="delete_owner", request=request)
 
     owner = await get_owner(db)
     if owner is None:
@@ -96,3 +103,33 @@ async def delete_owner(
 
     await remove_admin(db, owner)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/owner/upgrade",
+    response_model=AdminDetails,
+    responses={
+        400: responses._400,
+        404: responses._404,
+        409: responses._409,
+        410: {"description": "Key already used or expired"},
+    },
+)
+async def upgrade_owner(
+    body: OwnerUpgradeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Upgrade an existing admin to owner using a one-time temp key."""
+    await _consume_key_or_raise(db, body.key, action="upgrade_owner", request=request)
+
+    try:
+        upgraded_owner = await upgrade_admin_to_owner(db, body.username)
+    except OwnerUpgradeError as exc:
+        if exc.detail == "admin not found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.detail) from exc
+        if exc.detail in {"multiple owners found", "invalid owner state"}:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.detail) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.detail) from exc
+
+    return upgraded_owner

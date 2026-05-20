@@ -668,6 +668,39 @@ async def get_owner(db: AsyncSession) -> Admin | None:
     return (await db.execute(select(Admin).where(Admin.role_id == 1))).scalar_one_or_none()
 
 
+class OwnerUpgradeError(Exception):
+    def __init__(self, detail: str):
+        super().__init__(detail)
+        self.detail = detail
+
+
+async def upgrade_admin_to_owner(db: AsyncSession, username: str) -> Admin:
+    """Promote an existing admin to owner while keeping exactly one owner account."""
+    target_admin = (await db.execute(select(Admin).where(Admin.username == username))).scalar_one_or_none()
+    if target_admin is None:
+        raise OwnerUpgradeError("admin not found")
+
+    owners = list((await db.execute(select(Admin).where(Admin.role_id == 1))).scalars().all())
+    if len(owners) > 1:
+        raise OwnerUpgradeError("multiple owners found")
+
+    if target_admin.role_id == 1:
+        if len(owners) != 1:
+            raise OwnerUpgradeError("invalid owner state")
+        await load_admin_attrs(target_admin)
+        return target_admin
+
+    current_owner = owners[0] if owners else None
+    if current_owner is not None and current_owner.id != target_admin.id:
+        current_owner.role_id = 2
+
+    target_admin.role_id = 1
+    await db.commit()
+    await db.refresh(target_admin)
+    await load_admin_attrs(target_admin)
+    return target_admin
+
+
 async def get_admins_count(db: AsyncSession) -> int:
     """
     Retrieves the total count of admins.
