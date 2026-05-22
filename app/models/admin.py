@@ -59,7 +59,7 @@ class AdminRoleData(BaseModel):
     limits: RoleLimits = Field(default_factory=RoleLimits)
     features: RoleFeatures = Field(default_factory=RoleFeatures)
     access: RoleAccess = Field(default_factory=RoleAccess)
-    hwid: HWIDSettings | None = None
+    hwid: HWIDSettings = Field(default_factory=HWIDSettings)
     disabled_when_limited: bool = False
     disable_users_when_limited: bool = True
 
