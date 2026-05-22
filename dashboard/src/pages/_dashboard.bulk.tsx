@@ -6,8 +6,9 @@ import { ArrowUpDown, Calendar, Lock, Group, Network, UserPlus } from 'lucide-re
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 
-const sudoTabs = [
+const allTabs = [
   { id: 'create', label: 'bulk.createUsers', icon: UserPlus, url: '/bulk' },
   { id: 'groups', label: 'bulk.groups', icon: Group, url: '/bulk/groups' },
   { id: 'expire', label: 'bulk.expireDate', icon: Calendar, url: '/bulk/expire' },
@@ -16,20 +17,21 @@ const sudoTabs = [
   { id: 'wireguard', label: 'bulk.wireguardPeerIps', icon: Network, url: '/bulk/wireguard' },
 ]
 
-const nonSudoTabs = [
-  { id: 'create', label: 'bulk.createUsers', icon: UserPlus, url: '/bulk' },
-]
-
 const BulkPage = () => {
   const { t } = useTranslation()
   const { admin } = useAdmin()
-  const is_sudo = admin?.is_sudo || false
-  const tabs = is_sudo ? sudoTabs : nonSudoTabs
+  const canCreateUsers = hasPermission(admin, 'users', 'create')
+  const canBulkUpdate = hasScopeAll(admin, 'users', 'update')
+  const tabs = allTabs.filter(tab => tab.id === 'create' ? canCreateUsers : canBulkUpdate)
   const navigate = useNavigate()
   const location = useLocation()
-  const [activeTab, setActiveTab] = useState(tabs[0].id)
+  const [activeTab, setActiveTab] = useState(allTabs[0].id)
 
   useEffect(() => {
+    if (tabs.length === 0) {
+      navigate('/settings/theme', { replace: true })
+      return
+    }
     const currentTab = tabs.find(tab => {
       if (tab.id === 'create' && location.pathname === '/bulk/create') {
         return true
@@ -45,6 +47,8 @@ const BulkPage = () => {
     setActiveTab(tabs[0].id)
     navigate(tabs[0].url, { replace: true })
   }, [location.pathname, navigate, tabs])
+
+  if (tabs.length === 0) return null
 
   const getPageHeaderProps = () => {
     const pathToHeader: Record<string, { title: string; description: string }> = {

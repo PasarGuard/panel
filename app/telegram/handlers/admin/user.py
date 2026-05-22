@@ -2,7 +2,9 @@ import random
 from datetime import datetime as dt, timedelta as td
 from io import BytesIO
 
-from aiogram import Router, F
+from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     BufferedInputFile,
     CallbackQuery,
@@ -11,13 +13,12 @@ from aiogram.types import (
     InputTextMessageContent,
     Message,
 )
-from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from aiogram.exceptions import TelegramBadRequest
 
 from app.db.models import UserStatus
-from app.models.settings import ConfigFormat
+from app.models.admin import AdminDetails
 from app.models.group import GroupListQuery
+from app.models.settings import ConfigFormat
 from app.models.user import (
     CreateUserFromTemplate,
     ModifyUserByTemplate,
@@ -29,18 +30,19 @@ from app.models.user import (
 from app.models.user_template import UserTemplateListQuery
 from app.models.validators import UserValidator
 from app.operation import OperatorType
+from app.operation.group import GroupOperation
+from app.operation.permissions import PermissionDenied, enforce_permission, get_scope_admin_id
 from app.operation.subscription import SubscriptionOperation
 from app.operation.user import UserOperation
-from app.operation.group import GroupOperation
 from app.operation.user_template import UserTemplateOperation
-from app.telegram.keyboards.group import SelectGroupAction, GroupsSelector
-from app.telegram.utils import forms
-from app.models.admin import AdminDetails
 from app.telegram.keyboards.admin import AdminPanel, AdminPanelAction, InlineQuerySearch
 from app.telegram.keyboards.base import CancelKeyboard
-from app.telegram.utils.texts import Message as Texts
-from app.telegram.keyboards.user import UserPanel, UserPanelAction, ChooseStatus, ChooseTemplate, RandomUsername
+from app.telegram.keyboards.group import GroupsSelector, SelectGroupAction
+from app.telegram.keyboards.user import ChooseStatus, ChooseTemplate, RandomUsername, UserPanel, UserPanelAction
+from app.telegram.utils import forms
+from app.telegram.utils.filters import HasPermission
 from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
+from app.telegram.utils.texts import Message as Texts
 
 user_operations = UserOperation(OperatorType.TELEGRAM)
 subscription_operations = SubscriptionOperation(OperatorType.TELEGRAM)
@@ -52,6 +54,7 @@ MAX_CALLBACK_ALERT_LENGTH = 200
 
 
 @router.callback_query(
+    HasPermission("users", "create"),
     AdminPanel.Callback.filter(AdminPanelAction.create_user == F.action),
 )
 async def create_user(event: CallbackQuery, state: FSMContext):
@@ -219,7 +222,9 @@ async def select_groups(
     )
 
 
-@router.callback_query(GroupsSelector.Callback.filter(SelectGroupAction.create == F.action))
+@router.callback_query(
+    HasPermission("users", "create"), GroupsSelector.Callback.filter(SelectGroupAction.create == F.action)
+)
 async def process_done(event: CallbackQuery, db: AsyncSession, admin: AdminDetails, state: FSMContext):
     data = await state.get_data()
     if not data.get("group_ids", []):
@@ -247,10 +252,14 @@ async def process_done(event: CallbackQuery, db: AsyncSession, admin: AdminDetai
     user = await user_operations.create_user(db, new_user, admin)
     groups = await user_operations.validate_all_groups(db, user)
     await event.answer(Texts.user_created)
-    return await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    return await event.message.edit_text(
+        Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+    )
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.modify_groups == F.action))
+@router.callback_query(
+    HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.modify_groups == F.action)
+)
 async def modify_groups(
     event: CallbackQuery, db: AsyncSession, state: FSMContext, callback_data: UserPanel.Callback, admin: AdminDetails
 ):
@@ -271,7 +280,9 @@ async def modify_groups(
     )
 
 
-@router.callback_query(GroupsSelector.Callback.filter(SelectGroupAction.modify == F.action))
+@router.callback_query(
+    HasPermission("users", "update"), GroupsSelector.Callback.filter(SelectGroupAction.modify == F.action)
+)
 async def modify_groups_done(event: CallbackQuery, db: AsyncSession, admin: AdminDetails, state: FSMContext):
     data = await state.get_data()
     if not data.get("group_ids", []):
@@ -288,10 +299,14 @@ async def modify_groups_done(event: CallbackQuery, db: AsyncSession, admin: Admi
     groups = await user_operations.validate_all_groups(db, user)
     await delete_messages(event, state)
     await state.clear()
-    await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.message.edit_text(
+        Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+    )
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.modify_expiry == F.action))
+@router.callback_query(
+    HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.modify_expiry == F.action)
+)
 async def modify_expiry(event: CallbackQuery, callback_data: UserPanel.Callback, state: FSMContext):
     await state.set_state(forms.ModifyUser.new_expiry)
     await state.update_data(user_id=callback_data.user_id)
@@ -334,10 +349,12 @@ async def modify_expiry_done(event: Message, state: FSMContext, db: AsyncSession
         modified_user = UserModify(expire=(dt.now() + td(days=duration)) if duration else 0)
     user = await user_operations.modify_user(db, user.username, modified_user, admin)
     groups = await user_operations.validate_all_groups(db, user)
-    await event.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup())
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.modify_data_limit == F.action))
+@router.callback_query(
+    HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.modify_data_limit == F.action)
+)
 async def modify_data_limit(event: CallbackQuery, callback_data: UserPanel.Callback, state: FSMContext):
     await state.set_state(forms.ModifyUser.new_data_limit)
     await state.update_data(user_id=callback_data.user_id)
@@ -374,10 +391,12 @@ async def modify_data_limit_done(event: Message, state: FSMContext, db: AsyncSes
     modified_user = UserModify(data_limit=data_limit * 1024**3)
     user = await user_operations.modify_user(db, user.username, modified_user, admin)
     groups = await user_operations.validate_all_groups(db, user)
-    await event.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup())
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.modify_note == F.action))
+@router.callback_query(
+    HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.modify_note == F.action)
+)
 async def modify_note(event: CallbackQuery, callback_data: UserPanel.Callback, state: FSMContext):
     await state.set_state(forms.ModifyUser.new_note)
     await state.update_data(user_id=callback_data.user_id)
@@ -407,10 +426,10 @@ async def modify_note_done(event: Message, state: FSMContext, db: AsyncSession, 
     modified_user = UserModify(note=note)
     user = await user_operations.modify_user(db, user.username, modified_user, admin)
     groups = await user_operations.validate_all_groups(db, user)
-    await event.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup())
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.disable == F.action))
+@router.callback_query(HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.disable == F.action))
 async def disable_user(event: CallbackQuery, admin: AdminDetails, db: AsyncSession, callback_data: UserPanel.Callback):
     user = await user_operations.get_user_by_id(db, callback_data.user_id, admin)
     modified_user = UserModify(**user.model_dump())
@@ -418,18 +437,23 @@ async def disable_user(event: CallbackQuery, admin: AdminDetails, db: AsyncSessi
     user = await user_operations.modify_user(db, user.username, modified_user, admin)
     await event.answer(f"User {user.username} has been disabled.")
     groups = await user_operations.validate_all_groups(db, user)
-    await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.message.edit_text(
+        Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+    )
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.delete == F.action))
+@router.callback_query(HasPermission("users", "delete"), UserPanel.Callback.filter(UserPanelAction.delete == F.action))
 async def delete_user(event: CallbackQuery, admin: AdminDetails, db: AsyncSession, callback_data: UserPanel.Callback):
-    user = await user_operations.get_user_by_id(db, callback_data.user_id, admin)
-    await user_operations.remove_user(db, user.username, admin)
+    try:
+        user = await user_operations.get_user_by_id(db, callback_data.user_id, admin)
+        await user_operations.remove_user(db, user.username, admin)
+    except (ValueError, PermissionDenied) as e:
+        return await event.answer(str(e), show_alert=True)
     await event.answer(Texts.user_deleted(user.username))
-    await event.message.edit_text(Texts.user_deleted(user.username), reply_markup=AdminPanel(admin.is_sudo).as_markup())
+    await event.message.edit_text(Texts.user_deleted(user.username), reply_markup=AdminPanel(admin=admin).as_markup())
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.enable == F.action))
+@router.callback_query(HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.enable == F.action))
 async def enable_user(event: CallbackQuery, admin: AdminDetails, db: AsyncSession, callback_data: UserPanel.Callback):
     user = await user_operations.get_user_by_id(db, callback_data.user_id, admin)
     modified_user = UserModify(**user.model_dump())
@@ -437,28 +461,41 @@ async def enable_user(event: CallbackQuery, admin: AdminDetails, db: AsyncSessio
     user = await user_operations.modify_user(db, user.username, modified_user, admin)
     await event.answer(Texts.user_enabled(user.username))
     groups = await user_operations.validate_all_groups(db, user)
-    await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.message.edit_text(
+        Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+    )
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.revoke_sub == F.action))
+@router.callback_query(
+    HasPermission("users", "revoke_sub"), UserPanel.Callback.filter(UserPanelAction.revoke_sub == F.action)
+)
 async def revoke_sub(event: CallbackQuery, admin: AdminDetails, db: AsyncSession, callback_data: UserPanel.Callback):
     user = await user_operations.get_user_by_id(db, callback_data.user_id, admin)
     user = await user_operations.revoke_user_sub(db, user.username, admin)
     await event.answer(Texts.user_sub_revoked(user.username))
     groups = await user_operations.validate_all_groups(db, user)
-    await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.message.edit_text(
+        Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+    )
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.reset_usage == F.action))
+@router.callback_query(
+    HasPermission("users", "reset_usage"), UserPanel.Callback.filter(UserPanelAction.reset_usage == F.action)
+)
 async def reset_usage(event: CallbackQuery, admin: AdminDetails, db: AsyncSession, callback_data: UserPanel.Callback):
     user = await user_operations.get_user_by_id(db, callback_data.user_id, admin)
     user = await user_operations.reset_user_data_usage(db, user.username, admin)
     await event.answer(Texts.user_reset_usage(user.username))
     groups = await user_operations.validate_all_groups(db, user)
-    await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.message.edit_text(
+        Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+    )
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.activate_next_plan == F.action))
+@router.callback_query(
+    HasPermission("users", "activate_next_plan"),
+    UserPanel.Callback.filter(UserPanelAction.activate_next_plan == F.action),
+)
 async def activate_next_plan(
     event: CallbackQuery, admin: AdminDetails, db: AsyncSession, callback_data: UserPanel.Callback
 ):
@@ -466,10 +503,14 @@ async def activate_next_plan(
     user = await user_operations.active_next_plan(db, user.username, admin)
     await event.answer(Texts.user_next_plan_activated(user.username))
     groups = await user_operations.validate_all_groups(db, user)
-    await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.message.edit_text(
+        Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+    )
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.modify_with_template == F.action))
+@router.callback_query(
+    HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.modify_with_template == F.action)
+)
 async def modify_with_template(event: CallbackQuery, db: AsyncSession, callback_data: UserPanel.Callback):
     templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
     if not templates:
@@ -480,7 +521,7 @@ async def modify_with_template(event: CallbackQuery, db: AsyncSession, callback_
     )
 
 
-@router.callback_query(ChooseTemplate.Callback.filter(F.user_id))
+@router.callback_query(HasPermission("users", "update"), ChooseTemplate.Callback.filter(F.user_id))
 async def modify_with_template_done(
     event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: ChooseTemplate.Callback
 ):
@@ -492,10 +533,15 @@ async def modify_with_template_done(
         admin,
     )
     groups = await user_operations.validate_all_groups(db, user)
-    return await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    return await event.message.edit_text(
+        Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+    )
 
 
-@router.callback_query(AdminPanel.Callback.filter(AdminPanelAction.create_user_from_template == F.action))
+@router.callback_query(
+    HasPermission("users", "create"),
+    AdminPanel.Callback.filter(AdminPanelAction.create_user_from_template == F.action),
+)
 async def create_user_from_template(event: CallbackQuery, db: AsyncSession):
     templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
     if not templates:
@@ -503,7 +549,7 @@ async def create_user_from_template(event: CallbackQuery, db: AsyncSession):
     await event.message.edit_text(Texts.choose_a_template, reply_markup=ChooseTemplate(templates).as_markup())
 
 
-@router.callback_query(ChooseTemplate.Callback.filter(~F.username))
+@router.callback_query(HasPermission("users", "create"), ChooseTemplate.Callback.filter(~F.username))
 async def create_user_from_template_username(
     event: CallbackQuery, state: FSMContext, callback_data: ChooseTemplate.Callback
 ):
@@ -568,9 +614,13 @@ async def create_user_from_template_choose(
     )
     groups = await user_operations.validate_all_groups(db, user)
     if isinstance(event, Message):
-        return await event.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+        return await event.answer(
+            Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+        )
     else:
-        return await event.message.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+        return await event.message.answer(
+            Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+        )
 
 
 @router.message(F.text.contains("/sub/"))
@@ -580,16 +630,24 @@ async def get_user_by_sub(event: Message, db: AsyncSession, admin: AdminDetails)
     try:
         db_user = await user_operations.get_validated_sub(db, token)
         user = await user_operations.validate_user(db_user)
-        if user.admin and user.admin.username != admin.username and not admin.is_sudo:
+        try:
+            enforce_permission(admin, "users", "read")
+        except PermissionDenied:
+            return await event.reply(Texts.user_not_found)
+
+        scope_id = get_scope_admin_id(admin, "users", "read")
+        if scope_id is not None and user.admin.id != scope_id:
             return await event.reply(Texts.user_not_found)
     except ValueError:
         return await event.reply(Texts.user_not_found)
 
     groups = await user_operations.validate_all_groups(db, user)
-    await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+    await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup())
 
 
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.v2ray_links == F.action))
+@router.callback_query(
+    HasPermission("users", "read"), UserPanel.Callback.filter(UserPanelAction.v2ray_links == F.action)
+)
 async def get_v2ray_links(
     event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: UserPanel.Callback
 ):
@@ -621,8 +679,8 @@ async def get_v2ray_links(
     await event.answer()
 
 
-@router.message(F.text)
-@router.callback_query(UserPanel.Callback.filter(UserPanelAction.show == F.action))
+@router.message(HasPermission("users", "read"), F.text)
+@router.callback_query(HasPermission("users", "read"), UserPanel.Callback.filter(UserPanelAction.show == F.action))
 async def get_user(event: Message | CallbackQuery, admin: AdminDetails, db: AsyncSession, **kwargs):
     """get exact user, otherwise not found"""
     try:
@@ -638,9 +696,11 @@ async def get_user(event: Message | CallbackQuery, admin: AdminDetails, db: Asyn
 
     groups = await user_operations.validate_all_groups(db, user)
     if isinstance(event, Message):
-        await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+        await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup())
     else:
-        await event.message.edit_text(Texts.user_details(user, groups), reply_markup=UserPanel(user).as_markup())
+        await event.message.edit_text(
+            Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup()
+        )
 
 
 @router.inline_query()

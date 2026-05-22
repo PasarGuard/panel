@@ -9,15 +9,19 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 const Statistics = () => {
   const { t } = useTranslation()
   const [selectedServer, setSelectedServer] = useState<string>('master')
+  const { admin } = useAdmin()
+  const canViewNodeStats = hasPermission(admin, 'nodes', 'stats')
 
   // Fetch nodes for the selector
   const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodesSimple({ all: true }, {
     query: {
-      enabled: true,
+      enabled: canViewNodeStats,
     },
   })
 
@@ -46,7 +50,7 @@ const Statistics = () => {
     refetchInterval: selectedServer === 'master' ? 2000 : false, // Update every 2 seconds for faster realtime updates
     staleTime: 1000, // Consider data stale after 1 second
     refetchOnWindowFocus: true,
-    enabled: selectedServer === 'master', // Only fetch when master is selected
+      enabled: selectedServer === 'master',
   })
 
   return (
@@ -56,8 +60,7 @@ const Statistics = () => {
         <Separator />
       </div>
 
-      {/* Node Selector at the top */}
-      <div className="w-full px-3 pt-2 sm:px-4 sm:pt-4">
+      {canViewNodeStats && <div className="w-full px-3 pt-2 sm:px-4 sm:pt-4">
         <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '50ms', animationFillMode: 'both' }}>
           <Card>
             <CardContent className="p-4 sm:p-6">
@@ -94,14 +97,14 @@ const Statistics = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </div>}
 
       <div className="w-full">
         <div className="w-full px-3 pt-2 sm:px-4">
           <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
             <Card>
               <CardContent className="p-4 sm:p-6">
-                <MainContent error={error} isLoading={isLoading} data={data} selectedServer={selectedServer} is_sudo={true} nodesData={nodesData} isLoadingNodes={isLoadingNodes} />
+                <MainContent error={error} isLoading={isLoading} data={data} selectedServer={selectedServer} canViewNodeStats={canViewNodeStats} nodesData={nodesData} isLoadingNodes={isLoadingNodes} />
               </CardContent>
             </Card>
           </div>

@@ -9,6 +9,7 @@ import { Control, FieldPath, FieldValues, useController } from 'react-hook-form'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { useAdmin } from '@/hooks/use-admin.ts'
+import { hasPermission } from '@/utils/rbac'
 
 interface GroupsSelectorProps<T extends FieldValues> {
   control: Control<T>
@@ -22,7 +23,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const { admin } = useAdmin()
-  const isSudo = admin?.is_sudo || false
+  const canManageGroups = hasPermission(admin, 'groups', 'create')
 
   const { field } = useController({
     control,
@@ -99,7 +100,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
             <div className="flex w-full flex-col gap-4 rounded-md border border-yellow-500 p-4">
               <span className="text-sm font-bold text-yellow-500">{t('warning')}</span>
               <span className="text-sm font-medium text-foreground">
-                {isSudo ? (
+                {canManageGroups ? (
                   <Trans
                     i18nKey={'templates.groupsExistingWarning'}
                     components={{

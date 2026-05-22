@@ -425,19 +425,15 @@ def _process_users_stats_response(stats_response):
     """
     params = defaultdict(int)
     for stat in filter(attrgetter("value"), stats_response.stats):
-        params[stat.name.split(".", 1)[0]] += stat.value
+        params[stat.name] += stat.value
 
-    # Validate UIDs and filter out invalid ones
     validated_params = []
     invalid_uids = []
     for uid, value in params.items():
         try:
-            uid_int = int(uid)
-            validated_params.append({"uid": uid_int, "value": value})
+            validated_params.append({"uid": int(uid), "value": value})
         except ValueError, TypeError:
-            # Collect invalid UIDs to log outside thread
             invalid_uids.append(uid)
-            continue
 
     return validated_params, invalid_uids
 
@@ -459,7 +455,6 @@ async def get_users_stats(node: PasarGuardNode):
             thread_pool, _process_users_stats_response, stats_response
         )
 
-        # Log invalid UIDs outside of thread (thread-safe logging)
         if invalid_uids:
             for uid in invalid_uids:
                 logger.warning("Skipping invalid UID: %s", uid)
@@ -645,8 +640,10 @@ async def _record_user_usages_impl():
             logger.warning("Skipping user usage recording; no matching users found for received stats")
             return
 
-        # Filter valid users - simple operation, no need to parallelize
-        valid_users_usage = [usage for usage in users_usage if int(usage["uid"]) in valid_user_ids]
+        # Filter valid users - only include users with actual non-zero traffic
+        valid_users_usage = [
+            usage for usage in users_usage if int(usage["uid"]) in valid_user_ids and usage["value"] > 0
+        ]
 
         # Update User table with concurrency control
         if valid_users_usage:
@@ -672,7 +669,6 @@ async def _record_user_usages_impl():
             async with JOB_SEM:
                 await safe_execute(admin_stmt, admin_data)
             logger.debug(f"Updated {len(admin_data)} admins")
-
         if usage_settings.disable_recording_node_usage:
             return
 

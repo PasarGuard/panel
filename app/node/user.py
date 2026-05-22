@@ -3,7 +3,17 @@ from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import and_, func, select
 
 from app.db import AsyncSession
-from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
+from app.db.models import (
+    Admin,
+    AdminRole,
+    AdminStatus,
+    Group,
+    ProxyInbound,
+    User,
+    UserStatus,
+    inbounds_groups_association,
+    users_groups_association,
+)
 from app.models.protocol import ProxyProtocol
 
 _ALL_PROXY_PROTOCOLS = frozenset(ProxyProtocol)
@@ -41,12 +51,11 @@ async def serialize_user(user: User, allowed_protocols: frozenset[ProxyProtocol]
         if inbounds is None:
             inbounds = await user.inbounds()
 
-    return _serialize_user_for_node(user.id, user.username, user_settings, inbounds, allowed_protocols)
+    return _serialize_user_for_node(user.id, user_settings, inbounds, allowed_protocols)
 
 
 def _serialize_user_for_node(
     id: int,
-    username: str,
     user_settings: dict,
     inbounds: list[str] = None,
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
@@ -72,7 +81,7 @@ def _serialize_user_for_node(
         proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
 
     return create_user(
-        f"{id}.{username}",
+        str(id),
         create_proxy(**proxy_kwargs),
         inbounds,
     )
@@ -96,7 +105,6 @@ async def core_users(
     stmt = (
         select(
             User.id,
-            User.username,
             User.proxy_settings,
             inbound_agg,
         )
@@ -116,7 +124,11 @@ async def core_users(
                 ProxyInbound.tag.in_(inbound_tags) if inbound_tags else True,
             ),
         )
+        # Exclude users whose admin is limited AND disable_users_when_limited=True
+        .outerjoin(Admin, Admin.id == User.admin_id)
+        .outerjoin(AdminRole, AdminRole.id == Admin.role_id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
+        .where(~((Admin.status == AdminStatus.limited) & (AdminRole.disable_users_when_limited.is_(True))))
         .group_by(User.id)
     )
 
@@ -129,7 +141,6 @@ async def core_users(
             bridge_users.append(
                 _serialize_user_for_node(
                     row.id,
-                    row.username,
                     row.proxy_settings,
                     inbound_tags,
                     allowed_protocols,
@@ -139,8 +150,10 @@ async def core_users(
 
 
 async def serialize_users_for_node(
-    users: list[User], allowed_protocols: frozenset[ProxyProtocol] | None = None
+    users: list[User],
+    allowed_protocols: frozenset[ProxyProtocol] | None = None,
 ) -> list[ProtoUser]:
+    """Serialize users for node dispatch."""
     bridge_users: list = []
 
     for user in users:
@@ -152,8 +165,6 @@ async def serialize_users_for_node(
             else:
                 inbounds_list = loaded_inbounds
 
-        bridge_users.append(
-            _serialize_user_for_node(user.id, user.username, user.proxy_settings, inbounds_list, allowed_protocols)
-        )
+        bridge_users.append(_serialize_user_for_node(user.id, user.proxy_settings, inbounds_list, allowed_protocols))
 
     return bridge_users

@@ -13,7 +13,10 @@ const joinPaths = (paths: string[]) => {
 
 const getWebsocketUrl = (nodeID: string) => {
   try {
-    let baseURL = new URL(import.meta.env.VITE_BASE_API.startsWith('/') ? window.location.origin + import.meta.env.VITE_BASE_API : import.meta.env.VITE_BASE_API)
+    const configuredBaseApi = import.meta.env.VITE_BASE_API
+    if (!configuredBaseApi) return null
+
+    const baseURL = new URL(configuredBaseApi.startsWith('/') ? window.location.origin + configuredBaseApi : configuredBaseApi)
 
     return (baseURL.protocol === 'https:' ? 'wss://' : 'ws://') + joinPaths([baseURL.host + baseURL.pathname, !nodeID ? 'core/logs' : `/node/${nodeID}/logs`]) + '?interval=1&token=' + getAuthToken()
   } catch (e) {

@@ -35,10 +35,14 @@ async def test_register_user_hwid_upserts_existing_row(access_token):
                 )
             ).scalar_one()
             rows = (
-                await session.execute(
-                    select(UserHWID).where(UserHWID.user_id == user["id"], UserHWID.hwid == "device-dup")
+                (
+                    await session.execute(
+                        select(UserHWID).where(UserHWID.user_id == user["id"], UserHWID.hwid == "device-dup")
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
 
         assert len(rows) == 1
         assert updated.id == inserted.id

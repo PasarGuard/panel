@@ -8,7 +8,7 @@ import { ChevronDown, Rss } from 'lucide-react'
 import ActionButtons from './action-buttons'
 import { OnlineStatus } from './online-status'
 import { StatusBadge } from './status-badge'
-import UsageSliderCompact from './usage-slider-compact'
+import UsageSliderCompact from '@/components/common/usage-slider-compact'
 import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -118,7 +118,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
       cn(
         'text-sm',
         columnId !== 'details' && 'whitespace-nowrap',
-        columnId === 'details' && 'md:whitespace-nowrap',
+        columnId === 'details' && 'px-1 md:w-[440px] md:whitespace-nowrap',
         columnId !== 'details' && 'py-1.5',
         columnId === 'username' && cn('max-w-[calc(100vw-50px-32px-100px-60px)]', hasSelectionColumn && '!px-0'),
         columnId === 'status' && '!px-0',
@@ -144,7 +144,7 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
           <div className="flex items-start gap-x-2 px-0.5 py-1">
             <Skeleton className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
             <div className="min-w-0 flex-1 space-y-1.5">
-              <Skeleton className={cn('h-4', rowIndex % 3 === 0 ? 'w-28' : 'w-36')} />
+              <Skeleton className={cn('h-4', rowIndex % 3 === 0 ? 'w-20 md:w-28' : 'w-24 md:w-36')} />
               <Skeleton className="h-3 w-20" />
             </div>
           </div>
@@ -153,13 +153,14 @@ export const DataTable = memo(<TData extends UserResponse, TValue>({ columns, da
         return (
           <div className="flex flex-col gap-y-2 py-1">
             <Skeleton className="hidden h-5 w-24 rounded-full md:block" />
-            <Skeleton className="h-5 w-16 rounded-full md:hidden" />
+            <Skeleton className="h-6 w-9 rounded-full md:hidden" />
           </div>
         )
       case 'details':
         return (
-          <div className="flex items-center justify-between gap-3 py-1">
-            <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-center justify-between gap-1 py-1">
+            <Skeleton className="h-4 w-16 md:hidden" />
+            <div className="hidden min-w-0 flex-1 space-y-2 md:block">
               <Skeleton className="h-1.5 w-full rounded-full" />
               <div className="flex justify-between gap-3">
                 <Skeleton className="h-3 w-20" />

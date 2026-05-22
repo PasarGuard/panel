@@ -6,7 +6,7 @@ from app.models.user import UserHWIDListResponse
 from app.operation import OperatorType
 from app.operation.hwid import HWIDOperation
 from app.utils import responses
-from .authentication import get_current
+from .authentication import require_permission
 
 hwid_operator = HWIDOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["User HWID"], prefix="/api/user", responses={401: responses._401})
@@ -17,7 +17,9 @@ router = APIRouter(tags=["User HWID"], prefix="/api/user", responses={401: respo
     response_model=UserHWIDListResponse,
     responses={403: responses._403, 404: responses._404},
 )
-async def get_user_hwids(user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)):
+async def get_user_hwids(
+    user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(require_permission("hwids", "read"))
+):
     """Get user's registered hardware IDs"""
     return await hwid_operator.get_user_hwids(db, user_id=user_id, admin=admin)
 
@@ -27,7 +29,10 @@ async def get_user_hwids(user_id: int, db: AsyncSession = Depends(get_db), admin
     responses={403: responses._403, 404: responses._404},
 )
 async def delete_user_hwid(
-    user_id: int, hwid: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+    user_id: int,
+    hwid: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hwids", "delete")),
 ):
     """Delete a specific hardware ID from user"""
     return await hwid_operator.delete_user_hwid(db, user_id=user_id, hwid=hwid, admin=admin)
@@ -38,7 +43,9 @@ async def delete_user_hwid(
     responses={403: responses._403, 404: responses._404},
 )
 async def reset_user_hwids(
-    user_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hwids", "delete")),
 ):
     """Delete all hardware IDs for user"""
     return await hwid_operator.reset_user_hwids(db, user_id=user_id, admin=admin)

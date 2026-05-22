@@ -63,6 +63,19 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
         await conn.run_sync(base.Base.metadata.drop_all)
         await conn.run_sync(base.Base.metadata.create_all)
 
+    # Seed the 3 default roles so FK constraints on admins.role_id are satisfied
+    from app.db.models import AdminRole
+
+    async with async_sessionmaker(bind=engine, expire_on_commit=False)() as seed_session:
+        seed_session.add_all(
+            [
+                AdminRole(name="owner", is_owner=True, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="administrator", is_owner=False, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="operator", is_owner=False, permissions={}, limits={}, features={}, access={}),
+            ]
+        )
+        await seed_session.commit()
+
     session_factory = async_sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
     class TestGetDB:
@@ -92,7 +105,7 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.MonkeyPatch, session_factory):
     async with session_factory() as session:
-        admin = Admin(username="admin", hashed_password="secret")
+        admin = Admin(username="admin", hashed_password="secret", role_id=3)
         session.add(admin)
         await session.flush()
         admin_id = admin.id
@@ -183,7 +196,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
 @pytest.mark.asyncio
 async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.MonkeyPatch, session_factory):
     async with session_factory() as session:
-        admin = Admin(username="admin", hashed_password="secret")
+        admin = Admin(username="admin", hashed_password="secret", role_id=3)
         session.add(admin)
         await session.flush()
         admin_id = admin.id

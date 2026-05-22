@@ -81,8 +81,8 @@ CREATE_ADMIN = """
 #Create_Admin
 ➖➖➖➖➖➖➖➖➖
 <b>Username:</b> <code>{username}</code>
-<b>Is Sudo:</b> <code>{is_sudo}</code>
-<b>Is Disabled:</b> <code>{is_disabled}</code>
+<b>Role:</b> <code>{role}</code>
+<b>Status:</b> <code>{status}</code>
 <b>Used Traffic:</b> <code>{used_traffic}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>By: #{by}</i>
@@ -92,8 +92,8 @@ MODIFY_ADMIN = """
 #Modify_Admin
 ➖➖➖➖➖➖➖➖➖
 <b>Username:</b> <code>{username}</code>
-<b>Is Sudo:</b> <code>{is_sudo}</code>
-<b>Is Disabled:</b> <code>{is_disabled}</code>
+<b>Role:</b> <code>{role}</code>
+<b>Status:</b> <code>{status}</code>
 <b>Used Traffic:</b> <code>{used_traffic}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>By: #{by}</i>
@@ -111,6 +111,16 @@ ADMIN_RESET_USAGE = """
 <b>Username:</b> <code>{username}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>By: #{by}</i>
+"""
+
+ADMIN_USAGE_LIMIT_REACHED = """
+⚠️ #Admin_Usage_Limit_Warning
+➖➖➖➖➖➖➖➖➖
+<b>Username:</b> <code>{username}</code>
+<b>Used Traffic:</b> <code>{used_traffic}</code>
+<b>Data Limit:</b> <code>{data_limit}</code>
+<b>Usage:</b> <code>{usage_percentage}%</code>
+<b>Reached Threshold:</b> <code>{threshold}%</code>
 """
 
 ADMIN_LOGIN = """
@@ -298,7 +308,7 @@ CREATE_GROUP = """
 ➖➖➖➖➖➖➖➖➖
 <b>Name:</b> <code>{name}</code>
 <b>Inbound Tags:</b> <code>{inbound_tags}</code>
-<b>Is Disabled:</b> <code>{is_disabled}</code>
+<b>Status:</b> <code>{status}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>ID</i>: <code>{id}</code>
 <i>By: #{by}</i>
@@ -309,7 +319,7 @@ MODIFY_GROUP = """
 ➖➖➖➖➖➖➖➖➖
 <b>Name:</b> <code>{name}</code>
 <b>Inbound Tags:</b> <code>{inbound_tags}</code>
-<b>Is Disabled:</b> <code>{is_disabled}</code>
+<b>Status:</b> <code>{status}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>ID</i>: <code>{id}</code>
 <i>By: #{by}</i>
@@ -320,5 +330,34 @@ REMOVE_GROUP = """
 ➖➖➖➖➖➖➖➖➖
 <b>ID:</b> <code>{id}</code>
 ➖➖➖➖➖➖➖➖➖
+<i>By: #{by}</i>
+"""
+
+CREATE_ADMIN_ROLE = """
+#Create_Admin_Role
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Is Owner:</b> <code>{is_owner}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>By: #{by}</i>
+"""
+
+MODIFY_ADMIN_ROLE = """
+#Modify_Admin_Role
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Is Owner:</b> <code>{is_owner}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>By: #{by}</i>
+"""
+
+REMOVE_ADMIN_ROLE = """
+#Remove_Admin_Role
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
 <i>By: #{by}</i>
 """

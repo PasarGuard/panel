@@ -91,6 +91,34 @@ class ListValidator:
             normalized.append(item if isinstance(item, enum_cls) else enum_cls(item))
         return normalized
 
+    @staticmethod
+    def normalize_percentage_list_input(
+        value,
+        *,
+        none_as_none: bool = False,
+        strict: bool = True,
+    ) -> list[int] | None:
+        """Normalize percentage thresholds to sorted unique ints in [1, 100]."""
+        if value in (None, "", []):
+            return None if value is None and none_as_none else []
+
+        if isinstance(value, str):
+            raw_values = [item.strip() for item in value.split(",") if item.strip()]
+        elif isinstance(value, list):
+            raw_values = value
+        else:
+            raw_values = [value]
+
+        normalized: list[int] = []
+        for item in raw_values:
+            percentage = int(item)
+            if 1 <= percentage <= 100:
+                normalized.append(percentage)
+            elif strict:
+                raise ValueError("percentage values must be between 1 and 100")
+
+        return sorted(set(normalized))
+
 
 class PasswordValidator:
     @staticmethod

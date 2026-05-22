@@ -3,6 +3,7 @@ import { LoadingSpinner } from '@/components/common/loading-spinner'
 import PageHeader from '@/components/layout/page-header'
 import { getDocsUrl } from '@/utils/docs-url'
 import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import { cn } from '@/lib/utils'
 import {
   ArrowUpDown,
@@ -224,17 +225,17 @@ function TemplatesTabbedFallback({ pathname }: { pathname: string }) {
 export function TabbedRouteSuspenseFallback() {
   const { pathname } = useLocation()
   const { admin } = useAdmin()
-  /** While admin is still resolving, prefer full tab strip (typical sudo layout). */
-  const isSudo = admin?.is_sudo !== false
+  const canUseSettings = (hasPermission(admin, 'settings', 'read') || hasPermission(admin, 'settings', 'read_general')) && hasPermission(admin, 'settings', 'update')
+  const canUseBulkAll = hasScopeAll(admin, 'users', 'update')
 
   if (pathname.startsWith('/nodes')) {
     return <NodesTabbedFallback pathname={pathname} />
   }
   if (pathname.startsWith('/settings')) {
-    return <SettingsTabbedFallback pathname={pathname} isSudo={isSudo} />
+    return <SettingsTabbedFallback pathname={pathname} isSudo={canUseSettings} />
   }
   if (pathname.startsWith('/bulk')) {
-    return <BulkTabbedFallback pathname={pathname} isSudo={isSudo} />
+    return <BulkTabbedFallback pathname={pathname} isSudo={canUseBulkAll} />
   }
   if (pathname.startsWith('/templates')) {
     return <TemplatesTabbedFallback pathname={pathname} />

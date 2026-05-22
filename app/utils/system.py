@@ -75,3 +75,33 @@ def readable_size(size_bytes):
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return f"{s} {size_name[i]}"
+
+
+def readable_duration(seconds: int | float) -> str:
+    """Format a duration (in seconds) as a human-readable string.
+
+    Mirrors :func:`readable_size`: caller always passes seconds, this picks the
+    largest natural unit (years, months, days, hours, minutes, seconds) and
+    pluralizes correctly.
+    """
+    if not seconds or seconds <= 0:
+        return "0 seconds"
+
+    units = (
+        ("year", 31_536_000),  # 365 days
+        ("month", 2_592_000),  # 30 days
+        ("day", 86_400),
+        ("hour", 3_600),
+        ("minute", 60),
+        ("second", 1),
+    )
+
+    for label, factor in units:
+        if seconds >= factor:
+            amount = seconds / factor
+            if amount % 1 == 0:
+                amount_int = int(amount)
+                return f"{amount_int} {label}" if amount_int == 1 else f"{amount_int} {label}s"
+            return f"{amount:.2f} {label}s"
+
+    return f"{seconds} seconds"

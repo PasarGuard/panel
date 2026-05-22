@@ -546,7 +546,7 @@ def test_bulk_set_owner_by_ids(access_token):
         create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_owner")})
         for _ in range(2)
     ]
-    new_owner = create_admin(access_token, is_sudo=False)
+    new_owner = create_admin(access_token)
     try:
         response = client.put(
             "/api/users/bulk/set_owner",

@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import AdminsTable from '@/features/admins/components/admins-table'
 import AdminModal from '@/features/admins/dialogs/admin-modal'
-import { adminFormDefaultValues, adminFormSchema, type AdminFormValuesInput } from '@/features/admins/forms/admin-form'
+import { adminFormDefaultValues, adminFormSchema, adminPermissionOverridesDefaultValues, type AdminFormValuesInput } from '@/features/admins/forms/admin-form'
 import { useActivateAllDisabledUsersById, useDisableAllActiveUsersById, useModifyAdminById, useRemoveAdminById, useResetAdminUsageById } from '@/service/api'
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/features/admins/components/admin-statistics'
@@ -15,13 +15,18 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors'
 import { removeAdminFromAdminsCache, upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { useQueryClient } from '@tanstack/react-query'
+import { useGetRolesSimple } from '@/service/api'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 export default function AdminsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const { admin: currentAdmin } = useAdmin()
+  const canCreateAdmins = hasPermission(currentAdmin, 'admins', 'create')
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminDetails> | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number } | null>(null)
+  const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number; limited: number } | null>(null)
   const form = useForm<AdminFormValuesInput>({
     resolver: zodResolver(adminFormSchema),
     defaultValues: adminFormDefaultValues,
@@ -29,6 +34,7 @@ export default function AdminsPage() {
 
   const removeAdminMutation = useRemoveAdminById()
   const modifyAdminMutation = useModifyAdminById()
+  const rolesQuery = useGetRolesSimple()
   const modifyDisableAllAdminUsers = useDisableAllActiveUsersById()
   const modifyActivateAllAdminUsers = useActivateAllDisabledUsersById()
   const resetUsageMutation = useResetAdminUsageById()
@@ -47,6 +53,8 @@ export default function AdminsPage() {
 
     return admin.id
   }
+
+  const isAdminDisabled = (admin: AdminDetails) => (admin.status || (admin.is_disabled ? 'disabled' : 'active')) === 'disabled'
 
   const handleDelete = async (admin: AdminDetails) => {
     const adminId = getAdminId(admin)
@@ -78,13 +86,14 @@ export default function AdminsPage() {
     if (adminId == null) return
 
     try {
-      if (!admin.is_disabled && checked) {
+      const disabled = isAdminDisabled(admin)
+      if (!disabled && checked) {
         await modifyDisableAllAdminUsers.mutateAsync({
           adminId,
         })
       }
 
-      if (admin.is_disabled && checked) {
+      if (disabled && checked) {
         await modifyActivateAllAdminUsers.mutateAsync({
           adminId,
         })
@@ -92,8 +101,7 @@ export default function AdminsPage() {
       const updatedAdmin = await modifyAdminMutation.mutateAsync({
         adminId,
         data: {
-          is_sudo: admin.is_sudo,
-          is_disabled: !admin.is_disabled,
+          status: disabled ? 'active' : 'disabled',
           discord_webhook: admin.discord_webhook,
           sub_template: admin.sub_template,
           telegram_id: admin.telegram_id,
@@ -107,17 +115,18 @@ export default function AdminsPage() {
       upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
 
       toast.success(t('success', { defaultValue: 'Success' }), {
-        description: t(admin.is_disabled ? 'admins.enableSuccess' : 'admins.disableSuccess', {
+        description: t(disabled ? 'admins.enableSuccess' : 'admins.disableSuccess', {
           name: admin.username,
-          defaultValue: `Admin "{name}" has been ${admin.is_disabled ? 'enabled' : 'disabled'} successfully`,
+          defaultValue: `Admin "{name}" has been ${disabled ? 'enabled' : 'disabled'} successfully`,
         }),
       })
     } catch (error: any) {
       const status = error?.status ?? error?.response?.status
       const backendDetail = error?.data?.detail ?? error?.response?._data?.detail ?? error?.response?.data?.detail
-      const defaultDescription = t(admin.is_disabled ? 'admins.enableFailed' : 'admins.disableFailed', {
+      const disabled = isAdminDisabled(admin)
+      const defaultDescription = t(disabled ? 'admins.enableFailed' : 'admins.disableFailed', {
         name: admin.username,
-        defaultValue: `Failed to ${admin.is_disabled ? 'enable' : 'disable'} admin "{name}"`,
+        defaultValue: `Failed to ${disabled ? 'enable' : 'disable'} admin "{name}"`,
       })
 
       toast.error(t('error', { defaultValue: 'Error' }), {
@@ -126,12 +135,23 @@ export default function AdminsPage() {
     }
   }
 
+  const getRoleIdForAdmin = (admin: AdminDetails) => {
+    const roleName = admin.role?.name
+    const roleId = rolesQuery.data?.roles.find(role => role.name === roleName)?.id
+    if (roleId != null) return roleId
+    if (roleName === 'administrator') return 2
+    return 3
+  }
+
   const handleEdit = (admin: AdminDetails) => {
+    const roleId = getRoleIdForAdmin(admin)
     setEditingAdmin(admin)
     form.reset({
       username: admin.username,
-      is_sudo: admin.is_sudo,
-      is_disabled: admin.is_disabled || undefined,
+      role_id: roleId,
+      status: (admin.status || (admin.is_disabled ? 'disabled' : 'active')) === 'disabled' ? 'disabled' : 'active',
+      data_limit: admin.data_limit ?? null,
+      is_disabled: admin.status === 'disabled' || admin.is_disabled || undefined,
       discord_webhook: admin.discord_webhook || '',
       sub_template: admin.sub_template || '',
       telegram_id: admin.telegram_id || undefined,
@@ -141,6 +161,19 @@ export default function AdminsPage() {
       note: admin.note || '',
       discord_id: admin.discord_id || undefined,
       password: undefined,
+      permission_overrides: {
+        ...adminPermissionOverridesDefaultValues,
+        ...(admin.permission_overrides
+          ? (() => {
+              const { expire_min, expire_max, ...rest } = admin.permission_overrides
+              return {
+                ...rest,
+                expire_days_min: expire_min == null ? null : Math.round(expire_min / 86_400),
+                expire_days_max: expire_max == null ? null : Math.round(expire_max / 86_400),
+              }
+            })()
+          : {}),
+      },
       notification_enable: admin.notification_enable || {
         create: false,
         modify: false,
@@ -187,12 +220,16 @@ export default function AdminsPage() {
           title="admins.title"
           description="admins.description"
           buttonIcon={Plus}
-          buttonText="admins.createAdmin"
-          onButtonClick={() => {
-            setEditingAdmin(null)
-            form.reset(adminFormDefaultValues)
-            setIsDialogOpen(true)
-          }}
+          buttonText={canCreateAdmins ? 'admins.createAdmin' : undefined}
+          onButtonClick={
+            canCreateAdmins
+              ? () => {
+                setEditingAdmin(null)
+                form.reset(adminFormDefaultValues)
+                setIsDialogOpen(true)
+              }
+              : undefined
+          }
         />
         <Separator />
       </div>

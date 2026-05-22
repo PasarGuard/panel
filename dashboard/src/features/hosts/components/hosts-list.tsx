@@ -46,6 +46,12 @@ interface BulkActionDialogConfig {
   destructive?: boolean
 }
 
+const toOptionalNumber = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return undefined
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : undefined
+}
+
 export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost, onRefresh, isRefreshing: isRefreshingProp }: HostsListProps) {
   const [hosts, setHosts] = useState<BaseHost[] | undefined>(data)
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
@@ -258,7 +264,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                   seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
                   uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
                   uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
-                  uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
+                  uplink_chunk_size: toOptionalNumber(host.transport_settings.xhttp_settings.uplink_chunk_size),
                   sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                   sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                   download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,
@@ -620,7 +626,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
                     seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
                     uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
                     uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
-                    uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
+                    uplink_chunk_size: toOptionalNumber(host.transport_settings.xhttp_settings.uplink_chunk_size),
                     sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                     sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                     download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,

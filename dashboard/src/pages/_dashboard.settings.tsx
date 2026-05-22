@@ -8,6 +8,7 @@ import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
+import { hasPermission } from '@/utils/rbac'
 
 interface Tab {
   id: string
@@ -35,8 +36,7 @@ export const useSettingsContext = () => {
   return context!
 }
 
-// Define tabs for sudo admins
-const sudoTabs: Tab[] = [
+const allTabs: Tab[] = [
   { id: 'general', label: 'settings.general.title', icon: SettingsIcon, url: '/settings/general' },
   { id: 'notifications', label: 'settings.notifications.title', icon: Bell, url: '/settings/notifications' },
   { id: 'subscriptions', label: 'settings.subscriptions.title', icon: ListTodo, url: '/settings/subscriptions' },
@@ -48,20 +48,23 @@ const sudoTabs: Tab[] = [
   { id: 'theme', label: 'theme.title', icon: Palette, url: '/settings/theme' },
 ]
 
-// Define tabs for non-sudo admins (only theme settings)
-const nonSudoTabs: Tab[] = [{ id: 'theme', label: 'theme.title', icon: Palette, url: '/settings/theme' }]
-
 export default function Settings() {
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const { admin } = useAdmin()
-  const is_sudo = admin?.is_sudo || false
-  const tabs = is_sudo ? sudoTabs : nonSudoTabs
+  const canUpdateSettings = hasPermission(admin, 'settings', 'update')
+  const canReadSettings = hasPermission(admin, 'settings', 'read') && canUpdateSettings
+  const canReadGeneral = hasPermission(admin, 'settings', 'read_general') && canUpdateSettings
+  const tabs = allTabs.filter(tab => {
+    if (tab.id === 'theme') return true
+    if (tab.id === 'general') return canReadGeneral
+    return canReadSettings
+  })
 
   // Derive activeTab from current location instead of state
   const currentTab = tabs.find(tab => location.pathname === tab.url)
-  const activeTab = currentTab?.id || (is_sudo ? 'general' : 'theme')
+  const activeTab = currentTab?.id || (canReadGeneral ? 'general' : 'theme')
 
   const queryClient = useQueryClient()
 
@@ -72,7 +75,7 @@ export default function Settings() {
     error,
   } = useGetSettings({
     query: {
-      enabled: is_sudo, // Only fetch for sudo admins
+      enabled: canReadSettings || canReadGeneral,
     },
   })
   const { mutateAsync: modifySettingsAsync, isPending: isSaving } = useModifySettings({
@@ -138,7 +141,7 @@ export default function Settings() {
   // Wrapper function to filter data based on active tab (only for sudo admins)
   const handleUpdateSettings = useCallback(
     async (data: any) => {
-      if (!is_sudo) return // No-op for non-sudo admins
+      if (!canReadSettings && !canReadGeneral) return
 
       let filteredData: any = {}
 
@@ -199,19 +202,19 @@ export default function Settings() {
 
       await modifySettingsAsync(filteredData)
     },
-    [is_sudo, activeTab, modifySettingsAsync],
+    [canReadSettings, canReadGeneral, activeTab, modifySettingsAsync],
   )
 
   // Memoize context value to ensure stability during HMR
   const settingsContextValue: SettingsContextType = useMemo(
     () => ({
-      settings: is_sudo ? settings || {} : {}, // Non-sudo admins don't need settings data
-      isLoading: is_sudo ? isLoading : false,
-      error: is_sudo ? error : null,
-      updateSettings: is_sudo ? handleUpdateSettings : async () => {}, // No-op for non-sudo admins
-      isSaving: is_sudo ? isSaving : false,
+      settings: canReadSettings || canReadGeneral ? settings || {} : {},
+      isLoading: canReadSettings || canReadGeneral ? isLoading : false,
+      error: canReadSettings || canReadGeneral ? error : null,
+      updateSettings: canReadSettings || canReadGeneral ? handleUpdateSettings : async () => {},
+      isSaving: canReadSettings || canReadGeneral ? isSaving : false,
     }),
-    [is_sudo, settings, isLoading, error, isSaving, handleUpdateSettings],
+    [canReadSettings, canReadGeneral, settings, isLoading, error, isSaving, handleUpdateSettings],
   )
 
   // Always render the provider to ensure context is available for child routes

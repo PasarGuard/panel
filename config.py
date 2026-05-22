@@ -177,6 +177,7 @@ class JobSettings(EnvSettings):
     record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
     record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
     review_users_interval: int = Field(default=30, validation_alias="JOB_REVIEW_USERS_INTERVAL")
+    review_admin_limits_interval: int = Field(default=10, validation_alias="JOB_REVIEW_ADMIN_LIMITS_INTERVAL")
     send_notifications_interval: int = Field(default=30, validation_alias="JOB_SEND_NOTIFICATIONS_INTERVAL")
     gather_nodes_stats_interval: int = Field(default=25, validation_alias="JOB_GATHER_NODES_STATS_INTERVAL")
     remove_old_inbounds_interval: int = Field(default=600, validation_alias="JOB_REMOVE_OLD_INBOUNDS_INTERVAL")

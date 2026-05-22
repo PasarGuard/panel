@@ -10,6 +10,7 @@ from app.db.crud.user import count_online_users, get_users_count_by_status
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.system import InboundSummary, SystemStats
+from app.operation.permissions import enforce_permission, PermissionDenied
 from app.utils.system import cpu_usage, disk_usage, get_uptime, memory_usage
 
 from . import BaseOperation
@@ -25,10 +26,26 @@ class SystemOperation(BaseOperation):
         disk_task = asyncio.create_task(asyncio.to_thread(disk_usage))
         uptime_task = asyncio.create_task(asyncio.to_thread(get_uptime))
 
-        admin_param = None
-        if admin.is_sudo and admin_username:
-            admin_param = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
-        elif not admin.is_sudo:
+        # Determine which admin's stats to show:
+        # - Owner with no admin_username: global system stats (all users)
+        # - Owner with admin_username: that admin's stats
+        # - Non-owner with admins.read + admin_username: that admin's stats
+        # - Non-owner (any other case): scoped to their own users only
+        admin_param: AdminDetails | None = None
+        if admin_username:
+            can_read_admins = False
+            if not admin.is_owner:
+                try:
+                    enforce_permission(admin, "admins", "read")
+                    can_read_admins = True
+                except PermissionDenied:
+                    can_read_admins = False
+            if admin.is_owner or can_read_admins:
+                admin_param = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
+            else:
+                admin_param = admin
+        elif not admin.is_owner:
+            # Non-owner without an explicit target only sees their own stats
             admin_param = admin
 
         system_task = None
