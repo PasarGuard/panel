@@ -5,6 +5,10 @@ class BaseSetupRequest(BaseModel):
     key: str
 
 
+class OwnerDeleteRequest(BaseSetupRequest):
+    pass
+
+
 class OwnerResetRequest(BaseSetupRequest):
     password: str
 

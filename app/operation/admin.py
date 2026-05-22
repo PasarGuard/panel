@@ -103,7 +103,8 @@ class AdminOperation(BaseOperation):
             )
 
         if not current_admin.is_owner and db_admin.id == current_admin.id:
-            await self.raise_error(message="You're not allowed to modify your own account.", code=403)
+            if modified_admin.status is not None and modified_admin.status == AdminStatus.disabled:
+                await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
         # Non-owner admins cannot modify other admins with equal or higher role level (role_id <= 2)
         # Only the owner can modify administrators (role_id=2)

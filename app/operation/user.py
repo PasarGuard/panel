@@ -897,7 +897,9 @@ class UserOperation(BaseOperation):
     async def bulk_revoke_user_sub(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> BulkUsersActionResponse:
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        db_users = await self._get_validated_users_by_ids(
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="revoke_sub"
+        )
 
         db_users = await bulk_revoke_user_sub(db, db_users)
         await sync_users(db_users)
@@ -909,29 +911,77 @@ class UserOperation(BaseOperation):
 
         return self._build_bulk_action_response(users)
 
+    async def _bulk_set_user_status(
+        self, db: AsyncSession, db_users: list[User], status: UserStatus, admin: AdminDetails
+    ) -> list[UserNotificationResponse]:
+        if not db_users:
+            return []
+
+        prepared_updates = []
+        for db_user in db_users:
+            original_status = db_user.status
+            modified_user = UserModify(status=status)
+            validated_groups = await self._prepare_modified_user(db, db_user, modified_user, admin)
+            prepared_updates.append((db_user, modified_user, validated_groups, original_status))
+
+        modified_user_ids: list[int] = []
+        try:
+            for db_user, modified_user, validated_groups, _ in prepared_updates:
+                await crud_modify_user(
+                    db,
+                    db_user,
+                    modified_user,
+                    groups=validated_groups,
+                    commit=False,
+                )
+                if db_user.id is not None:
+                    modified_user_ids.append(db_user.id)
+
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+        modified_db_users = await self._load_users_by_ids(db, modified_user_ids)
+        await sync_users(modified_db_users)
+
+        users = [await self.validate_user(db_user) for db_user in modified_db_users]
+        users_by_id = {user.id: user for user in users}
+        for db_user, _, _, original_status in prepared_updates:
+            user = users_by_id.get(db_user.id)
+            if user is None:
+                continue
+            asyncio.create_task(notification.modify_user(user, admin))
+            logger.info(f'User "{user.username}" with id "{user.id}" modified by admin "{admin.username}"')
+            if user.status != original_status:
+                asyncio.create_task(notification.user_status_change(user, admin))
+                old_status_value = getattr(original_status, "value", original_status)
+                new_status_value = getattr(user.status, "value", user.status)
+                logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+
+        return users
+
     async def bulk_disable_users(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> BulkUsersActionResponse:
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        db_users = await self._get_validated_users_by_ids(
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="update"
+        )
         users_to_disable = [db_user for db_user in db_users if db_user.status != UserStatus.disabled]
 
-        users: list[UserNotificationResponse] = []
-        for db_user in users_to_disable:
-            user = await self._modify_user(db, db_user, UserModify(status=UserStatus.disabled), admin)
-            users.append(user)
+        users = await self._bulk_set_user_status(db, users_to_disable, UserStatus.disabled, admin)
 
         return self._build_bulk_action_response(users)
 
     async def bulk_enable_users(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> BulkUsersActionResponse:
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        db_users = await self._get_validated_users_by_ids(
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="update"
+        )
         users_to_enable = [db_user for db_user in db_users if db_user.status == UserStatus.disabled]
 
-        users: list[UserNotificationResponse] = []
-        for db_user in users_to_enable:
-            user = await self._modify_user(db, db_user, UserModify(status=UserStatus.active), admin)
-            users.append(user)
+        users = await self._bulk_set_user_status(db, users_to_enable, UserStatus.active, admin)
 
         return self._build_bulk_action_response(users)
 
