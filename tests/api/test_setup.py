@@ -357,7 +357,7 @@ def test_key_is_consumed_after_create():
 # ---------------------------------------------------------------------------
 
 
-def test_upgrade_owner_success_replaces_current_owner():
+def test_upgrade_owner_rejects_when_owner_exists():
     create_key = _make_temp_key()
     upgrade_key = _make_temp_key()
     try:
@@ -373,13 +373,11 @@ def test_upgrade_owner_success_replaces_current_owner():
             "/api/setup/owner/upgrade",
             json={"key": upgrade_key, "username": "admin_to_upgrade"},
         )
-        assert r2.status_code == status.HTTP_200_OK
-        data = r2.json()
-        assert data["username"] == "admin_to_upgrade"
-        assert data["role"]["is_owner"] is True
+        assert r2.status_code == status.HTTP_409_CONFLICT
+        assert r2.json()["detail"] == "owner already exists"
 
         owners = _owner_usernames()
-        assert owners == ["admin_to_upgrade"]
+        assert owners == ["owner_before_upgrade"]
     finally:
         _delete_owner()
         _delete_admin_by_username("owner_before_upgrade")
@@ -434,7 +432,7 @@ def test_upgrade_owner_multiple_owners_returns_409():
             json={"key": upgrade_key, "username": "admin_target"},
         )
         assert r2.status_code == status.HTTP_409_CONFLICT
-        assert r2.json()["detail"] == "multiple owners found"
+        assert r2.json()["detail"] == "owner already exists"
     finally:
         _delete_owner()
         _delete_admin_by_username("owner_a")

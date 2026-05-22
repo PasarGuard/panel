@@ -6,6 +6,7 @@ from app.db.crud.admin import (
     OwnerUpgradeError,
     create_admin,
     get_owner,
+    owner_exists,
     remove_admin,
     update_owner_password,
     upgrade_admin_to_owner,
@@ -121,6 +122,9 @@ async def upgrade_owner(
     db: AsyncSession = Depends(get_db),
 ):
     """Upgrade an existing admin to owner using a one-time temp key."""
+    if await owner_exists(db):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="owner already exists")
+
     await _consume_key_or_raise(db, body.key, action="upgrade_owner", request=request)
 
     try:
@@ -128,8 +132,6 @@ async def upgrade_owner(
     except OwnerUpgradeError as exc:
         if exc.detail == "admin not found":
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.detail) from exc
-        if exc.detail in {"multiple owners found", "invalid owner state"}:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.detail) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.detail) from exc
 
     return upgraded_owner
