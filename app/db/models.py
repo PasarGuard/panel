@@ -69,6 +69,12 @@ class AdminStatus(str, Enum):
     limited = "limited"
 
 
+class HWIDPolicy(str, Enum):
+    use_panel = "use_panel"
+    on = "on"
+    off = "off"
+
+
 class Admin(Base):
     __tablename__ = "admins"
 
@@ -886,6 +892,7 @@ class AdminRole(Base):
     limits: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     features: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     access: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    hwid: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
     disable_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)

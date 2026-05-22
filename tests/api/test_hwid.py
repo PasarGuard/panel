@@ -4,12 +4,14 @@ from sqlalchemy import select
 
 from app.db.crud.hwid import register_user_hwid, reset_user_hwids
 from app.db.models import UserHWID
-from tests.api import TestSession
-from tests.api import client
+from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
+    create_admin,
     create_user,
+    delete_admin,
     delete_user,
+    unique_name,
 )
 
 
@@ -120,3 +122,64 @@ def test_hwid_workflow(access_token):
 
     finally:
         delete_user(access_token, user["username"])
+
+
+def test_hwid_respects_admin_role_policy(access_token):
+    def _login(username: str, password: str) -> str:
+        response = client.post(
+            "/api/admin/token",
+            data={"username": username, "password": password, "grant_type": "password"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        return response.json()["access_token"]
+
+    def _create_role(hwid_policy: str) -> dict:
+        payload = {
+            "name": unique_name(f"role_hwid_{hwid_policy}"),
+            "permissions": {
+                "users": {"create": True, "read": {"scope": 2}, "delete": {"scope": 2}},
+            },
+            "limits": {},
+            "features": {},
+            "access": {},
+            "hwid": {"enabled": hwid_policy, "forced": False},
+        }
+        response = client.post("/api/admin-role", headers=auth_headers(access_token), json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        return response.json()
+
+    role_off = _create_role("off")
+    role_on = _create_role("on")
+    admin_off = create_admin(access_token, role_id=role_off["id"])
+    admin_on = create_admin(access_token, role_id=role_on["id"])
+    user_off = None
+    user_on = None
+
+    try:
+        off_token = _login(admin_off["username"], admin_off["password"])
+        on_token = _login(admin_on["username"], admin_on["password"])
+
+        user_off = create_user(off_token)
+        user_on = create_user(on_token)
+
+        off_sub_response = client.get(user_off["subscription_url"], headers={"X-HWID": "off-device"})
+        assert off_sub_response.status_code == status.HTTP_200_OK
+
+        on_sub_response = client.get(user_on["subscription_url"], headers={"X-HWID": "on-device"})
+        assert on_sub_response.status_code == status.HTTP_200_OK
+
+        off_hwids = client.get(f"/api/user/{user_off['id']}/hwids", headers=auth_headers(access_token)).json()
+        on_hwids = client.get(f"/api/user/{user_on['id']}/hwids", headers=auth_headers(access_token)).json()
+
+        assert off_hwids["count"] == 0
+        assert on_hwids["count"] == 1
+        assert on_hwids["hwids"][0]["hwid"] == "on-device"
+    finally:
+        if user_off is not None:
+            delete_user(access_token, user_off["username"])
+        if user_on is not None:
+            delete_user(access_token, user_on["username"])
+        delete_admin(access_token, admin_off["username"])
+        delete_admin(access_token, admin_on["username"])
+        client.delete(f"/api/admin-role/{role_off['id']}", headers=auth_headers(access_token))
+        client.delete(f"/api/admin-role/{role_on['id']}", headers=auth_headers(access_token))

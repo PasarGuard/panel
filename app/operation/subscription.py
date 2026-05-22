@@ -12,8 +12,9 @@ from app.db.crud.hwid import (
     register_user_hwid,
 )
 from app.db.crud.user import get_user_usages, user_sub_update
-from app.db.models import User
+from app.db.models import HWIDPolicy, User
 from app.models.admin import AdminDetails
+from app.models.admin_role import RoleHWIDSettings
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
@@ -281,17 +282,36 @@ class SubscriptionOperation(BaseOperation):
         db: AsyncSession,
         user_id: int,
         user_hwid_limit: int | None,
+        role_hwid_settings: RoleHWIDSettings | dict | None,
         x_hwid: str | None,
         x_device_os: str | None,
         x_ver_os: str | None,
         x_device_model: str | None,
     ):
         hwid_conf: HWIDSettings = await hwid_settings()
-        if not hwid_conf.enabled:
+
+        if isinstance(role_hwid_settings, dict):
+            try:
+                role_hwid_settings = RoleHWIDSettings.model_validate(role_hwid_settings)
+            except Exception:
+                role_hwid_settings = None
+
+        role_enabled = role_hwid_settings.enabled if role_hwid_settings else HWIDPolicy.use_panel
+        role_forced = role_hwid_settings.forced if role_hwid_settings else None
+
+        effective_enabled = hwid_conf.enabled
+        if role_enabled == HWIDPolicy.on:
+            effective_enabled = True
+        elif role_enabled == HWIDPolicy.off:
+            effective_enabled = False
+
+        if not effective_enabled:
             return
 
+        effective_forced = hwid_conf.forced if role_forced is None else role_forced
+
         if not x_hwid:
-            if hwid_conf.forced:
+            if effective_forced:
                 await self.raise_error(message="HWID header required", code=403)
             return
 
@@ -360,7 +380,14 @@ class SubscriptionOperation(BaseOperation):
             )
         else:
             await self.validate_and_register_hwid(
-                db, db_user.id, db_user.hwid_limit, x_hwid, x_device_os, x_ver_os, x_device_model
+                db,
+                db_user.id,
+                db_user.hwid_limit,
+                db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None,
+                x_hwid,
+                x_device_os,
+                x_ver_os,
+                x_device_model,
             )
             matched_rule = self.detect_client_rule(user_agent, sub_settings.rules)
             client_type = matched_rule.target if matched_rule else None
@@ -443,7 +470,14 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
 
         await self.validate_and_register_hwid(
-            db, db_user.id, db_user.hwid_limit, x_hwid, x_device_os, x_ver_os, x_device_model
+            db,
+            db_user.id,
+            db_user.hwid_limit,
+            db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None,
+            x_hwid,
+            x_device_os,
+            x_ver_os,
+            x_device_model,
         )
 
         response_headers = self.create_response_headers(
