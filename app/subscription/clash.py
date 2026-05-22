@@ -353,7 +353,11 @@ class ClashConfiguration(BaseSubscription):
                 if item is None or item == "":
                     continue
                 if key == "headers" and isinstance(item, dict):
-                    headers = {header_key: header_value for header_key, header_value in item.items() if header_value is not None}
+                    headers = {
+                        header_key: header_value
+                        for header_key, header_value in item.items()
+                        if header_value is not None
+                    }
                     if headers:
                         cleaned[key] = headers
                     continue

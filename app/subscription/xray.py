@@ -158,7 +158,9 @@ class XrayConfiguration(BaseSubscription):
             "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
-            "downloadSettings": self._xhttp_download_config(config.download_settings) if config.download_settings else None,
+            "downloadSettings": self._xhttp_download_config(config.download_settings)
+            if config.download_settings
+            else None,
         }
 
         if config.random_user_agent:
