@@ -738,6 +738,33 @@ async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None) -> in
     return (await db.execute(stmt)).scalar_one() or 0
 
 
+async def lock_admin_quota_row(db: AsyncSession, admin_id: int) -> None:
+    """Lock an admin row before quota-sensitive user creation."""
+    if db.bind.dialect.name == "sqlite":
+        await db.execute(update(Admin).where(Admin.id == admin_id).values(id=Admin.id))
+        return
+
+    await db.execute(select(Admin.id).where(Admin.id == admin_id).with_for_update())
+
+
+async def get_users_by_usernames(db: AsyncSession, usernames: Sequence[str]) -> list[User]:
+    if not usernames:
+        return []
+
+    result = await db.execute(_build_user_select_stmt().where(User.username.in_(usernames)))
+    users_by_username = {user.username: user for user in result.unique().scalars().all()}
+    return [users_by_username[username] for username in usernames if username in users_by_username]
+
+
+async def get_users_by_ids(db: AsyncSession, user_ids: Sequence[int]) -> list[User]:
+    if not user_ids:
+        return []
+
+    result = await db.execute(_build_user_select_stmt().where(User.id.in_(user_ids)))
+    users_by_id = {user.id: user for user in result.unique().scalars().all()}
+    return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
+
+
 async def get_users_count(db: AsyncSession, status: UserStatus = None, admin_id: int = None) -> int:
     """
     Gets the total count of users with optional filters.
@@ -797,7 +824,9 @@ async def get_users_count_by_status(
     return all_statuses
 
 
-async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group], admin: Admin) -> User:
+async def create_user(
+    db: AsyncSession, new_user: UserCreate, groups: list[Group], admin: Admin, *, commit: bool = True
+) -> User:
     """
     Creates a new user.
 
@@ -829,13 +858,14 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     if new_user.next_plan:
         db_user.next_plan = NextPlan(user_id=db_user.id, **new_user.next_plan.model_dump())
         db.add(db_user.next_plan)
-    await db.commit()
-    await refresh_and_load_user(db, db_user)
+    if commit:
+        await db.commit()
+        await refresh_and_load_user(db, db_user)
     return db_user
 
 
 async def create_users_bulk(
-    db: AsyncSession, new_users: list[UserCreate], groups: list[Group], admin: Admin
+    db: AsyncSession, new_users: list[UserCreate], groups: list[Group], admin: Admin, *, commit: bool = True
 ) -> list[User]:
     """
     Creates multiple users in a single commit for better performance.
@@ -868,10 +898,10 @@ async def create_users_bulk(
         db.add_all(next_plans)
         await db.flush()
 
-    await db.commit()
-
-    for user in db_users:
-        await refresh_and_load_user(db, user)
+    if commit:
+        await db.commit()
+        for user in db_users:
+            await refresh_and_load_user(db, user)
 
     return db_users
 
@@ -925,6 +955,7 @@ async def modify_user(
     modify: UserModify,
     *,
     groups: list[Group] | None = None,
+    commit: bool = True,
 ) -> User:
     """
     Modify a user's information.
@@ -1019,8 +1050,9 @@ async def modify_user(
     if remove_expiration_reminder:
         await delete_user_passed_notification_reminders(db, id, ReminderType.expiration_date, days_left)
 
-    await db.commit()
-    await refresh_and_load_user(db, db_user)
+    if commit:
+        await db.commit()
+        await refresh_and_load_user(db, db_user)
     return db_user
 
 
@@ -1047,7 +1079,9 @@ async def clear_user_node_usages(db: AsyncSession, user_id: int, *, before: date
     await db.execute(stmt)
 
 
-async def reset_user_data_usage(db: AsyncSession, db_user: User, *, clean_chart_data: bool = False) -> User:
+async def reset_user_data_usage(
+    db: AsyncSession, db_user: User, *, clean_chart_data: bool = False, commit: bool = True
+) -> User:
     """
     Resets the data usage of a user and logs the reset.
 
@@ -1065,13 +1099,14 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User, *, clean_chart_
     if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
         db_user.status = UserStatus.active
 
-    await db.commit()
-    await refresh_and_load_user(db, db_user)
+    if commit:
+        await db.commit()
+        await refresh_and_load_user(db, db_user)
     return db_user
 
 
 async def bulk_reset_user_data_usage(
-    db: AsyncSession, users: list[User], *, clean_chart_data: bool = False
+    db: AsyncSession, users: list[User], *, clean_chart_data: bool = False, commit: bool = True
 ) -> list[User]:
     """
     Resets the data usage for a list of users and logs the reset.
@@ -1089,9 +1124,10 @@ async def bulk_reset_user_data_usage(
             await clear_user_node_usages(db, db_user.id)
         if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
             db_user.status = UserStatus.active
-    await db.commit()
-    for user in users:
-        await refresh_and_load_user(db, user)
+    if commit:
+        await db.commit()
+        for user in users:
+            await refresh_and_load_user(db, user)
     return users
 
 

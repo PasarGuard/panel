@@ -35,11 +35,15 @@ from app.db.crud.user import (
     get_user_count_metric_stats,
     get_user_usages,
     get_users,
+    get_users_by_ids,
+    get_users_by_usernames,
     get_users_count_by_admin,
     get_users_simple,
     get_users_sub_update_list,
     get_users_subscription_agent_counts,
-    modify_user,
+    load_user_attrs,
+    lock_admin_quota_row,
+    modify_user as crud_modify_user,
     remove_expired_users,
     remove_user,
     remove_users,
@@ -251,6 +255,21 @@ class UserOperation(BaseOperation):
 
         return [user for user in new_users if user.username not in existing_usernames]
 
+    async def _enforce_bulk_create_quota(
+        self, db: AsyncSession, admin: AdminDetails, users_to_create_count: int
+    ) -> None:
+        if admin.is_owner or users_to_create_count <= 0:
+            return
+
+        limits = get_effective_limits(admin)
+        if limits.max_users is None:
+            return
+
+        await lock_admin_quota_row(db, admin.id)
+        current_count = await get_users_count_by_admin(db, admin.id)
+        if current_count + users_to_create_count > limits.max_users:
+            await self.raise_error(message=f"Bulk create would exceed user limit ({limits.max_users})", code=400, db=db)
+
     async def _persist_bulk_users(
         self,
         db: AsyncSession,
@@ -260,19 +279,17 @@ class UserOperation(BaseOperation):
         groups: list,
         *,
         skip_per_user_limits: bool = False,
+        commit: bool = True,
+        sync: bool = True,
     ) -> list[str]:
         if not users_to_create:
             return []
 
-        # Enforce limits first — before any expensive wireguard/proxy work
-        if not admin.is_owner:
-            limits = get_effective_limits(admin)
-            if limits.max_users is not None:
-                current_count = await get_users_count_by_admin(db, admin.id)
-                if current_count + len(users_to_create) > limits.max_users:
-                    await self.raise_error(
-                        message=f"Bulk create would exceed user limit ({limits.max_users})", code=400, db=db
-                    )
+        existing_usernames = await get_existing_usernames(db, [user.username for user in users_to_create])
+        if existing_usernames:
+            await self.raise_error(message="User already exists", code=409, db=db)
+
+        await self._enforce_bulk_create_quota(db, admin, len(users_to_create))
 
         if not skip_per_user_limits:
             for user_to_create in users_to_create:
@@ -309,8 +326,12 @@ class UserOperation(BaseOperation):
                     user_to_create.proxy_settings,
                 )
 
-        db_users = await create_users_bulk(db, users_to_create, groups, db_admin)
-        await sync_users(db_users)
+        db_users = await create_users_bulk(db, users_to_create, groups, db_admin, commit=commit)
+        if not commit:
+            for user in db_users:
+                await load_user_attrs(user)
+        if sync:
+            await sync_users(db_users)
 
         users_list = []
         for db_user in db_users:
@@ -655,7 +676,7 @@ class UserOperation(BaseOperation):
     ) -> UserNotificationResponse:
         old_status = db_user.status
 
-        db_user = await modify_user(db, db_user, modified_user, groups=validated_groups)
+        db_user = await crud_modify_user(db, db_user, modified_user, groups=validated_groups)
         user = await self.update_user(db_user)
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
@@ -737,15 +758,15 @@ class UserOperation(BaseOperation):
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        scope_action: str = "read",
     ) -> list[User]:
         if not user_ids:
             return []
 
         ids_list = list(user_ids)
 
-        # Replicate the scope filter that get_validated_user_by_id applies per-user:
-        # non-owners with scope=OWN can only see their own users.
-        scope_admin_id = get_scope_admin_id(admin, "users", "read")
+        # Replicate the scope filter that get_validated_user_by_id applies per-user.
+        scope_admin_id = get_scope_admin_id(admin, "users", scope_action)
         query = UserListQuery(
             ids=ids_list,
             admin_ids=[scope_admin_id] if scope_admin_id is not None else None,
@@ -765,6 +786,12 @@ class UserOperation(BaseOperation):
     def _build_bulk_action_response(users: list[User | UserNotificationResponse]) -> BulkUsersActionResponse:
         usernames = [user.username for user in users]
         return BulkUsersActionResponse(users=usernames, count=len(usernames))
+
+    async def _load_users_by_ids(self, db: AsyncSession, user_ids: list[int]) -> list[User]:
+        return await get_users_by_ids(db, user_ids)
+
+    async def _load_users_by_usernames(self, db: AsyncSession, usernames: list[str]) -> list[User]:
+        return await get_users_by_usernames(db, usernames)
 
     async def bulk_remove_users(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
@@ -1431,16 +1458,29 @@ class UserOperation(BaseOperation):
 
         users_to_create = self._build_bulk_user_models(candidate_usernames, builder)
 
-        users_to_create = await self._filter_existing_usernames(db, users_to_create)
-
         groups: list = []
         if users_to_create:
             groups = await self.validate_all_groups(db, users_to_create[0])
 
         db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
-        subscription_urls = await self._persist_bulk_users(
-            db, admin, db_admin, users_to_create, groups, skip_per_user_limits=True
-        )
+        try:
+            subscription_urls = await self._persist_bulk_users(
+                db,
+                admin,
+                db_admin,
+                users_to_create,
+                groups,
+                skip_per_user_limits=True,
+                commit=False,
+                sync=False,
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+        created_users = await self._load_users_by_usernames(db, [user.username for user in users_to_create])
+        await sync_users(created_users)
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 
@@ -1450,13 +1490,15 @@ class UserOperation(BaseOperation):
         body: BulkUsersApplyTemplate,
         admin: AdminDetails,
     ) -> BulkUsersActionResponse:
-        db_users = await self._get_validated_users_by_ids(db, body.ids, admin, load_usage_logs=False)
+        db_users = await self._get_validated_users_by_ids(
+            db, body.ids, admin, load_usage_logs=False, scope_action="update"
+        )
         user_template = await self._get_validated_template_with_access(db, body.user_template_id, admin)
 
         if user_template.is_disabled:
             await self.raise_error("this template is disabled", 403)
 
-        modified_users: list[UserNotificationResponse] = []
+        prepared_updates = []
         for db_user in db_users:
             original_status = db_user.status
             user_args = self.load_base_user_args(user_template)
@@ -1469,21 +1511,64 @@ class UserOperation(BaseOperation):
                 await self.raise_error(message=error_messages, code=400)
 
             modify_user = self.apply_settings(modify_user, user_template)
+            validated_groups = await self._prepare_modified_user(db, db_user, modify_user, admin, skip_role_limits=True)
+            emit_reset_status_change = not (
+                user_template.status == UserStatus.on_hold and original_status != UserStatus.active
+            )
+            prepared_updates.append((db_user, modify_user, validated_groups, original_status, emit_reset_status_change))
 
-            if user_template.reset_usages:
-                suppress_reset_status_change = (
-                    user_template.status == UserStatus.on_hold and original_status != UserStatus.active
-                )
-                await self._reset_user_data_usage(
+        modified_user_ids: list[int] = []
+        try:
+            for db_user, modified_user_model, validated_groups, _, _ in prepared_updates:
+                if user_template.reset_usages:
+                    await reset_user_data_usage(
+                        db,
+                        db_user,
+                        clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+                        commit=False,
+                    )
+
+                await crud_modify_user(
                     db,
                     db_user,
-                    admin,
-                    emit_status_change_notification=not suppress_reset_status_change,
+                    modified_user_model,
+                    groups=validated_groups,
+                    commit=False,
                 )
+                if db_user.id is not None:
+                    modified_user_ids.append(db_user.id)
 
-            modified_users.append(await self._modify_user(db, db_user, modify_user, admin, skip_role_limits=True))
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
 
-        return self._build_bulk_action_response(modified_users)
+        modified_db_users = await self._load_users_by_ids(db, modified_user_ids)
+        await sync_users(modified_db_users)
+
+        users = [await self.validate_user(db_user) for db_user in modified_db_users]
+        users_by_id = {user.id: user for user in users}
+        for db_user, _, _, original_status, emit_reset_status_change in prepared_updates:
+            user = users_by_id.get(db_user.id)
+            if user is None:
+                continue
+            status_notification_sent = False
+            if user_template.reset_usages:
+                if emit_reset_status_change and user.status != original_status:
+                    asyncio.create_task(notification.user_status_change(user, admin))
+                    status_notification_sent = True
+                asyncio.create_task(notification.reset_user_data_usage(user, admin))
+                logger.info(f'User "{user.username}" usage was reset by admin "{admin.username}"')
+            asyncio.create_task(notification.modify_user(user, admin))
+            logger.info(f'User "{user.username}" with id "{user.id}" modified by admin "{admin.username}"')
+            if user.status != original_status:
+                if not status_notification_sent:
+                    asyncio.create_task(notification.user_status_change(user, admin))
+                old_status_value = getattr(original_status, "value", original_status)
+                new_status_value = getattr(user.status, "value", user.status)
+                logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+
+        return self._build_bulk_action_response(users)
 
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
         if bulk_model.dry_run:

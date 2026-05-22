@@ -57,11 +57,13 @@ async def _send_usage_limit_warning_notifications(db):
             usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
             admin_model = AdminDetails.model_validate(admin)
             await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
-            reminder_rows.append({
-                "admin_id": admin.id,
-                "type": ReminderType.data_usage,
-                "threshold": threshold,
-            })
+            reminder_rows.append(
+                {
+                    "admin_id": admin.id,
+                    "type": ReminderType.data_usage,
+                    "threshold": threshold,
+                }
+            )
 
     if reminder_rows:
         await bulk_create_admin_notification_reminders(db, reminder_rows)
