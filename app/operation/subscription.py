@@ -12,9 +12,8 @@ from app.db.crud.hwid import (
     register_user_hwid,
 )
 from app.db.crud.user import get_user_usages, user_sub_update
-from app.db.models import HWIDPolicy, User
+from app.db.models import User
 from app.models.admin import AdminDetails
-from app.models.admin_role import RoleHWIDSettings
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
@@ -282,36 +281,36 @@ class SubscriptionOperation(BaseOperation):
         db: AsyncSession,
         user_id: int,
         user_hwid_limit: int | None,
-        role_hwid_settings: RoleHWIDSettings | dict | None,
+        role_hwid_settings: HWIDSettings | dict | None,
         x_hwid: str | None,
         x_device_os: str | None,
         x_ver_os: str | None,
         x_device_model: str | None,
     ):
-        hwid_conf: HWIDSettings = await hwid_settings()
+        global_hwid_conf: HWIDSettings = await hwid_settings()
+        effective_hwid_conf = global_hwid_conf
 
         if isinstance(role_hwid_settings, dict):
-            try:
-                role_hwid_settings = RoleHWIDSettings.model_validate(role_hwid_settings)
-            except Exception:
+            if not role_hwid_settings:
                 role_hwid_settings = None
+            else:
+                try:
+                    role_hwid_settings = HWIDSettings.model_validate(role_hwid_settings)
+                except Exception:
+                    role_hwid_settings = None
 
-        role_enabled = role_hwid_settings.enabled if role_hwid_settings else HWIDPolicy.use_panel
-        role_forced = role_hwid_settings.forced if role_hwid_settings else None
+        # Role override applies only when role hwid exists and enabled is True.
+        if role_hwid_settings is not None:
+            if role_hwid_settings.enabled:
+                effective_hwid_conf = role_hwid_settings
+            else:
+                return
 
-        effective_enabled = hwid_conf.enabled
-        if role_enabled == HWIDPolicy.on:
-            effective_enabled = True
-        elif role_enabled == HWIDPolicy.off:
-            effective_enabled = False
-
-        if not effective_enabled:
+        if not effective_hwid_conf.enabled:
             return
 
-        effective_forced = hwid_conf.forced if role_forced is None else role_forced
-
         if not x_hwid:
-            if effective_forced:
+            if effective_hwid_conf.forced:
                 await self.raise_error(message="HWID header required", code=403)
             return
 
@@ -321,7 +320,7 @@ class SubscriptionOperation(BaseOperation):
             return
 
         # It's a new HWID, check limit
-        limit = user_hwid_limit if user_hwid_limit is not None else hwid_conf.fallback_limit
+        limit = user_hwid_limit if user_hwid_limit is not None else effective_hwid_conf.fallback_limit
         if limit == 0:
             pass  # unlimited
         else:

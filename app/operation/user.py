@@ -55,6 +55,7 @@ from app.db.crud.user import (
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
+from app.models.settings import HWIDSettings
 from app.models.stats import (
     Period,
     UserCountMetric,
@@ -94,7 +95,7 @@ from app.models.user import (
     UserUsageQuery,
     WireGuardPeerIPsReallocateResponse,
 )
-from app.node.sync import remove_user as sync_remove_user, sync_users, sync_user
+from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import (
     PermissionDenied,
@@ -105,9 +106,9 @@ from app.operation.permissions import (
     is_scope_all,
 )
 from app.settings import hwid_settings, subscription_settings
+from app.utils.helpers import fix_datetime_timezone
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from app.utils.helpers import fix_datetime_timezone
 from app.utils.system import readable_duration, readable_size
 from app.utils.wireguard import (
     build_wireguard_peer_ip_allocator,
@@ -129,6 +130,27 @@ def _has_permission(admin: AdminDetails, resource: str, action: str) -> bool:
         return False
 
 
+def _resolve_effective_hwid_settings(
+    global_hwid: HWIDSettings, role_hwid: HWIDSettings | dict | None
+) -> HWIDSettings | None:
+    if isinstance(role_hwid, dict):
+        if not role_hwid:
+            role_hwid = None
+        else:
+            try:
+                role_hwid = HWIDSettings.model_validate(role_hwid)
+            except Exception:
+                role_hwid = None
+
+    if role_hwid is None:
+        return global_hwid
+
+    if not role_hwid.enabled:
+        return None
+
+    return role_hwid
+
+
 logger = get_logger("user-operation")
 
 _USER_AGENT_SPLIT_RE = re.compile(r"[;/\s\(\)]+")
@@ -142,9 +164,9 @@ class UserOperation(BaseOperation):
 
     @staticmethod
     def _format_validation_errors(error: ValidationError) -> str:
-        return "; ".join(
-            [f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()]
-        )
+        return "; ".join([
+            f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()
+        ])
 
     @staticmethod
     async def generate_subscription_url(user: UserNotificationResponse):
@@ -515,10 +537,14 @@ class UserOperation(BaseOperation):
     async def create_user(
         self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails, *, skip_role_limits: bool = False
     ) -> UserResponse:
-        hwid_conf = await hwid_settings()
+        global_hwid_conf = await hwid_settings()
+        effective_hwid_conf = _resolve_effective_hwid_settings(
+            global_hwid_conf,
+            admin.role.hwid if admin.role is not None else None,
+        )
 
         if new_user.hwid_limit is None:
-            new_user.hwid_limit = hwid_conf.fallback_limit
+            new_user.hwid_limit = 0 if effective_hwid_conf is None else effective_hwid_conf.fallback_limit
 
         if not skip_role_limits:
             await self._enforce_user_limits(
@@ -534,11 +560,17 @@ class UserOperation(BaseOperation):
                 check_max_users=True,
             )
 
-        if new_user.hwid_limit is not None and not admin.is_owner:
-            if new_user.hwid_limit < hwid_conf.min_limit:
-                await self.raise_error(message=f"HWID limit cannot be less than {hwid_conf.min_limit}", code=400, db=db)
-            if hwid_conf.max_limit > 0 and (new_user.hwid_limit > hwid_conf.max_limit or new_user.hwid_limit == 0):
-                await self.raise_error(message=f"HWID limit cannot exceed {hwid_conf.max_limit}", code=400, db=db)
+        if new_user.hwid_limit is not None and not admin.is_owner and effective_hwid_conf is not None:
+            if new_user.hwid_limit < effective_hwid_conf.min_limit:
+                await self.raise_error(
+                    message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
+                )
+            if effective_hwid_conf.max_limit > 0 and (
+                new_user.hwid_limit > effective_hwid_conf.max_limit or new_user.hwid_limit == 0
+            ):
+                await self.raise_error(
+                    message=f"HWID limit cannot exceed {effective_hwid_conf.max_limit}", code=400, db=db
+                )
 
         if new_user.next_plan is not None and new_user.next_plan.user_template_id is not None:
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
@@ -625,13 +657,22 @@ class UserOperation(BaseOperation):
             )
 
         if modified_user.hwid_limit is not None and not admin.is_owner:
-            hwid_conf = await hwid_settings()
-            if modified_user.hwid_limit < hwid_conf.min_limit:
-                await self.raise_error(message=f"HWID limit cannot be less than {hwid_conf.min_limit}", code=400, db=db)
-            if hwid_conf.max_limit > 0 and (
-                modified_user.hwid_limit > hwid_conf.max_limit or modified_user.hwid_limit == 0
-            ):
-                await self.raise_error(message=f"HWID limit cannot exceed {hwid_conf.max_limit}", code=400, db=db)
+            global_hwid_conf = await hwid_settings()
+            effective_hwid_conf = _resolve_effective_hwid_settings(
+                global_hwid_conf,
+                admin.role.hwid if admin.role is not None else None,
+            )
+            if effective_hwid_conf is not None:
+                if modified_user.hwid_limit < effective_hwid_conf.min_limit:
+                    await self.raise_error(
+                        message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
+                    )
+                if effective_hwid_conf.max_limit > 0 and (
+                    modified_user.hwid_limit > effective_hwid_conf.max_limit or modified_user.hwid_limit == 0
+                ):
+                    await self.raise_error(
+                        message=f"HWID limit cannot exceed {effective_hwid_conf.max_limit}", code=400, db=db
+                    )
 
         validated_groups = None
         if modified_user.group_ids:

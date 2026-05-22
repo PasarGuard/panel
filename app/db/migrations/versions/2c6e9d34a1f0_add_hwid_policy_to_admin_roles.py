@@ -27,7 +27,11 @@ def upgrade() -> None:
         )
 
     # Cross-dialect safe JSON initialization (SQLite/MySQL/PostgreSQL)
-    op.execute("UPDATE admin_roles SET hwid = '{\"enabled\":\"use_panel\",\"forced\":false}' WHERE hwid IS NULL")
+    op.execute(
+        "UPDATE admin_roles "
+        "SET hwid = '{\"enabled\":false,\"forced\":false,\"fallback_limit\":0,\"min_limit\":0,\"max_limit\":0}' "
+        "WHERE hwid IS NULL"
+    )
 
     with op.batch_alter_table("admin_roles", schema=None) as batch_op:
         batch_op.alter_column("hwid", existing_type=sa.JSON(), type_=sa.JSON(), nullable=False)

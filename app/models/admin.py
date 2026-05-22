@@ -9,7 +9,8 @@ import bcrypt
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.db.models import AdminStatus
-from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
+from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
+from app.models.settings import HWIDSettings
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
@@ -58,7 +59,7 @@ class AdminRoleData(BaseModel):
     limits: RoleLimits = Field(default_factory=RoleLimits)
     features: RoleFeatures = Field(default_factory=RoleFeatures)
     access: RoleAccess = Field(default_factory=RoleAccess)
-    hwid: RoleHWIDSettings = Field(default_factory=RoleHWIDSettings)
+    hwid: HWIDSettings | None = None
     disabled_when_limited: bool = False
     disable_users_when_limited: bool = True
 

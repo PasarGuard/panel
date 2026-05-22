@@ -52,7 +52,7 @@ async def create_role(db: AsyncSession, data: AdminRoleCreate) -> AdminRole:
         limits=data.limits.model_dump(),
         features=data.features.model_dump(),
         access=data.access.model_dump(),
-        hwid=data.hwid.model_dump(),
+        hwid=data.hwid.model_dump() if data.hwid is not None else {},
         disabled_when_limited=data.disabled_when_limited,
         disable_users_when_limited=data.disable_users_when_limited,
     )

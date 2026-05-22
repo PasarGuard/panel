@@ -133,23 +133,23 @@ def test_hwid_respects_admin_role_policy(access_token):
         assert response.status_code == status.HTTP_200_OK
         return response.json()["access_token"]
 
-    def _create_role(hwid_policy: str) -> dict:
+    def _create_role(enabled: bool) -> dict:
         payload = {
-            "name": unique_name(f"role_hwid_{hwid_policy}"),
+            "name": unique_name(f"role_hwid_{'enabled' if enabled else 'disabled'}"),
             "permissions": {
                 "users": {"create": True, "read": {"scope": 2}, "delete": {"scope": 2}},
             },
             "limits": {},
             "features": {},
             "access": {},
-            "hwid": {"enabled": hwid_policy, "forced": False},
+            "hwid": {"enabled": enabled, "forced": False},
         }
         response = client.post("/api/admin-role", headers=auth_headers(access_token), json=payload)
         assert response.status_code == status.HTTP_201_CREATED
         return response.json()
 
-    role_off = _create_role("off")
-    role_on = _create_role("on")
+    role_off = _create_role(False)
+    role_on = _create_role(True)
     admin_off = create_admin(access_token, role_id=role_off["id"])
     admin_on = create_admin(access_token, role_id=role_on["id"])
     user_off = None

@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.db.models import HWIDPolicy
+from app.models.settings import HWIDSettings
 from app.models.validators import ListValidator
 
 
@@ -108,13 +108,6 @@ class RoleAccess(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class RoleHWIDSettings(BaseModel):
-    enabled: HWIDPolicy = HWIDPolicy.use_panel
-    forced: bool = False
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class RolePermissions(BaseModel):
     """
     Typed permission map. Missing resource or action = denied.
@@ -147,7 +140,7 @@ class AdminRoleBase(BaseModel):
     limits: RoleLimits = Field(default_factory=RoleLimits)
     features: RoleFeatures = Field(default_factory=RoleFeatures)
     access: RoleAccess = Field(default_factory=RoleAccess)
-    hwid: RoleHWIDSettings = Field(default_factory=RoleHWIDSettings)
+    hwid: HWIDSettings = Field(default_factory=HWIDSettings)
     disabled_when_limited: bool = False
     disable_users_when_limited: bool = True
 
@@ -164,7 +157,7 @@ class AdminRoleModify(BaseModel):
     limits: RoleLimits | None = None
     features: RoleFeatures | None = None
     access: RoleAccess | None = None
-    hwid: RoleHWIDSettings | None = None
+    hwid: HWIDSettings | None = None
     disabled_when_limited: bool | None = None
     disable_users_when_limited: bool | None = None
 
