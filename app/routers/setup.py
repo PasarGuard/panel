@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 
 from app.db import AsyncSession, get_db
@@ -13,7 +13,7 @@ from app.db.crud.admin import (
 )
 from app.db.crud.temp_key import TempKeyConsumeError, consume_temp_key
 from app.models.admin import AdminCreate, AdminDetails
-from app.models.setup import OwnerCreateRequest, OwnerDeleteRequest, OwnerResetRequest, OwnerUpgradeRequest
+from app.models.setup import OwnerCreateRequest, OwnerResetRequest, OwnerUpgradeRequest
 from app.utils import responses
 from app.utils.request import get_client_ip
 
@@ -91,12 +91,12 @@ async def reset_owner_password(
     },
 )
 async def delete_owner(
-    body: OwnerDeleteRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    key: str = Query(..., description="One-time temp key for deleting the owner admin"),
 ):
     """Delete the owner admin using a one-time temp key."""
-    await _consume_key_or_raise(db, body.key, action="delete_owner", request=request)
+    await _consume_key_or_raise(db, key, action="delete_owner", request=request)
 
     owner = await get_owner(db)
     if owner is None:
