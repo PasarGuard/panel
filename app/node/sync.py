@@ -5,7 +5,7 @@ from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
-from app.node.user import serialize_users_for_node, serialize_user, _serialize_user_for_node
+from app.node.user import _serialize_user_for_node, serialize_user, serialize_users_for_node
 from app.utils.logger import get_logger
 from config import runtime_settings
 
@@ -48,7 +48,7 @@ async def remove_users(users: list[User]) -> None:
     """Batch-remove users from nodes (serialized without inbounds so nodes drop them)."""
     if not users:
         return
-    proto_users = [_serialize_user_for_node(u.id, u.username, u.proxy_settings) for u in users]
+    proto_users = [_serialize_user_for_node(u.id, u.proxy_settings) for u in users]
     asyncio.create_task(_dispatch_users_update(proto_users))
 
 

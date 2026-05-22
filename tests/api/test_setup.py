@@ -207,7 +207,7 @@ def test_delete_owner_success():
         r2 = client.request(
             "DELETE",
             "/api/setup/owner",
-            json={"key": delete_key},
+            params={"key": delete_key},
         )
         assert r2.status_code == status.HTTP_204_NO_CONTENT
         assert not _owner_exists()
@@ -223,7 +223,7 @@ def test_delete_owner_no_owner_returns_404():
     response = client.request(
         "DELETE",
         "/api/setup/owner",
-        json={"key": key},
+        params={"key": key},
     )
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -300,7 +300,7 @@ def test_expired_key_returns_410_on_delete():
     response = client.request(
         "DELETE",
         "/api/setup/owner",
-        json={"key": key},
+        params={"key": key},
     )
     assert response.status_code == status.HTTP_410_GONE
 
@@ -311,7 +311,7 @@ def test_already_used_key_returns_410_on_delete():
     response = client.request(
         "DELETE",
         "/api/setup/owner",
-        json={"key": key},
+        params={"key": key},
     )
     assert response.status_code == status.HTTP_410_GONE
 
@@ -321,7 +321,7 @@ def test_invalid_key_returns_400_on_delete():
     response = client.request(
         "DELETE",
         "/api/setup/owner",
-        json={"key": "00000000-0000-0000-0000-000000000002"},
+        params={"key": "00000000-0000-0000-0000-000000000002"},
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
 
