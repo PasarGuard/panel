@@ -27,10 +27,22 @@ def upgrade() -> None:
         )
 
     # Cross-dialect safe JSON initialization (SQLite/MySQL/PostgreSQL)
+    admin_roles = sa.table(
+        "admin_roles",
+        sa.column("hwid", sa.JSON()),
+    )
     op.execute(
-        "UPDATE admin_roles "
-        "SET hwid = '{\"enabled\":false,\"forced\":false,\"fallback_limit\":0,\"min_limit\":0,\"max_limit\":0}' "
-        "WHERE hwid IS NULL"
+        admin_roles.update()
+        .where(admin_roles.c.hwid.is_(None))
+        .values(
+            hwid={
+                "enabled": False,
+                "forced": False,
+                "fallback_limit": 0,
+                "min_limit": 0,
+                "max_limit": 0,
+            }
+        )
     )
 
     with op.batch_alter_table("admin_roles", schema=None) as batch_op:
