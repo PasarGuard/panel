@@ -1,23 +1,23 @@
+import asyncio
 import io
 import json
+import time
 import zipfile
 from base64 import b64encode
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from math import ceil
-import asyncio
-import time
-from urllib.parse import parse_qs, unquote, urlsplit
 from unittest.mock import AsyncMock, MagicMock
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
 from sqlalchemy import func, select, update
 
 from app.db.crud.hwid import register_user_hwid
 from app.db.models import NodeUserUsage, User
-from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.models.settings import ConfigFormat, SubRule, Subscription
+from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
@@ -243,6 +243,7 @@ def test_limited_admin_cannot_create_or_modify_user_to_unlimited_data_or_expire(
                 "expire": finite_expire,
                 "data_limit": 1024 * 1024,
                 "data_limit_reset_strategy": "no_reset",
+                "hwid_limit": 1,
                 "status": "active",
             },
         )
@@ -1266,13 +1267,11 @@ def test_xray_subscription_uses_host_specific_template_override(access_token):
         access_token,
         name=unique_name("xray_host_override_template"),
         template_type="xray_subscription",
-        content=json.dumps(
-            {
-                "log": {"loglevel": "warning"},
-                "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
-                "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
-            }
-        ),
+        content=json.dumps({
+            "log": {"loglevel": "warning"},
+            "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+            "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
+        }),
     )
 
     host_response = client.post(
@@ -1338,13 +1337,11 @@ def test_xray_subscription_template_override_isolated_per_host(access_token):
         access_token,
         name=unique_name("xray_host_isolated_template"),
         template_type="xray_subscription",
-        content=json.dumps(
-            {
-                "log": {"loglevel": "warning"},
-                "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
-                "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
-            }
-        ),
+        content=json.dumps({
+            "log": {"loglevel": "warning"},
+            "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+            "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
+        }),
     )
 
     first_host_response = client.post(
