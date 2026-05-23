@@ -222,9 +222,9 @@ def test_create_and_modify_role_hwid_policy(access_token):
         assert role["hwid"] == {
             "enabled": False,
             "forced": True,
-            "fallback_limit": 0,
-            "min_limit": 0,
-            "max_limit": 0,
+            "fallback_limit": None,
+            "min_limit": None,
+            "max_limit": None,
         }
 
         update_response = client.put(
@@ -236,9 +236,9 @@ def test_create_and_modify_role_hwid_policy(access_token):
         assert update_response.json()["hwid"] == {
             "enabled": True,
             "forced": False,
-            "fallback_limit": 0,
-            "min_limit": 0,
-            "max_limit": 0,
+            "fallback_limit": None,
+            "min_limit": None,
+            "max_limit": None,
         }
     finally:
         _delete_role(access_token, role["id"])

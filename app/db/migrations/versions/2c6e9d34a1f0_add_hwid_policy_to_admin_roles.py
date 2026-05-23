@@ -36,11 +36,11 @@ def upgrade() -> None:
         .where(admin_roles.c.hwid.is_(None))
         .values(
             hwid={
-                "enabled": False,
+                "enabled": True,
                 "forced": False,
-                "fallback_limit": 0,
-                "min_limit": 0,
-                "max_limit": 0,
+                "fallback_limit": None,
+                "min_limit": None,
+                "max_limit": None,
             }
         )
     )

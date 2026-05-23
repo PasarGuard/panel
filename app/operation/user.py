@@ -107,6 +107,7 @@ from app.operation.permissions import (
 )
 from app.settings import hwid_settings, subscription_settings
 from app.utils.helpers import fix_datetime_timezone
+from app.utils.hwid import resolve_effective_hwid_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
 from app.utils.system import readable_duration, readable_size
@@ -130,27 +131,6 @@ def _has_permission(admin: AdminDetails, resource: str, action: str) -> bool:
         return False
 
 
-def _resolve_effective_hwid_settings(
-    global_hwid: HWIDSettings, role_hwid: HWIDSettings | dict | None
-) -> HWIDSettings | None:
-    if isinstance(role_hwid, dict):
-        if not role_hwid:
-            role_hwid = None
-        else:
-            try:
-                role_hwid = HWIDSettings.model_validate(role_hwid)
-            except Exception:
-                role_hwid = None
-
-    if role_hwid is None:
-        return global_hwid
-
-    if not role_hwid.enabled:
-        return None
-
-    return role_hwid
-
-
 logger = get_logger("user-operation")
 
 _USER_AGENT_SPLIT_RE = re.compile(r"[;/\s\(\)]+")
@@ -164,9 +144,9 @@ class UserOperation(BaseOperation):
 
     @staticmethod
     def _format_validation_errors(error: ValidationError) -> str:
-        return "; ".join([
-            f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()
-        ])
+        return "; ".join(
+            [f"{'.'.join(str(loc_part) for loc_part in err['loc'])}: {err['msg']}" for err in error.errors()]
+        )
 
     @staticmethod
     async def generate_subscription_url(user: UserNotificationResponse):
@@ -538,13 +518,13 @@ class UserOperation(BaseOperation):
         self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails, *, skip_role_limits: bool = False
     ) -> UserResponse:
         global_hwid_conf = await hwid_settings()
-        effective_hwid_conf = _resolve_effective_hwid_settings(
+        effective_hwid_conf = resolve_effective_hwid_settings(
             global_hwid_conf,
             admin.role.hwid if admin.role is not None else None,
         )
 
         if new_user.hwid_limit is None:
-            new_user.hwid_limit = 0 if effective_hwid_conf is None else effective_hwid_conf.fallback_limit
+            new_user.hwid_limit = 0 if effective_hwid_conf is None else (effective_hwid_conf.fallback_limit or 0)
 
         if not skip_role_limits:
             await self._enforce_user_limits(
@@ -561,11 +541,11 @@ class UserOperation(BaseOperation):
             )
 
         if new_user.hwid_limit is not None and not admin.is_owner and effective_hwid_conf is not None:
-            if new_user.hwid_limit < effective_hwid_conf.min_limit:
+            if effective_hwid_conf.min_limit is not None and new_user.hwid_limit < effective_hwid_conf.min_limit:
                 await self.raise_error(
                     message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
                 )
-            if effective_hwid_conf.max_limit > 0 and (
+            if effective_hwid_conf.max_limit is not None and effective_hwid_conf.max_limit > 0 and (
                 new_user.hwid_limit > effective_hwid_conf.max_limit or new_user.hwid_limit == 0
             ):
                 await self.raise_error(
@@ -658,16 +638,16 @@ class UserOperation(BaseOperation):
 
         if modified_user.hwid_limit is not None and not admin.is_owner:
             global_hwid_conf = await hwid_settings()
-            effective_hwid_conf = _resolve_effective_hwid_settings(
+            effective_hwid_conf = resolve_effective_hwid_settings(
                 global_hwid_conf,
                 admin.role.hwid if admin.role is not None else None,
             )
             if effective_hwid_conf is not None:
-                if modified_user.hwid_limit < effective_hwid_conf.min_limit:
+                if effective_hwid_conf.min_limit is not None and modified_user.hwid_limit < effective_hwid_conf.min_limit:
                     await self.raise_error(
                         message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
                     )
-                if effective_hwid_conf.max_limit > 0 and (
+                if effective_hwid_conf.max_limit is not None and effective_hwid_conf.max_limit > 0 and (
                     modified_user.hwid_limit > effective_hwid_conf.max_limit or modified_user.hwid_limit == 0
                 ):
                     await self.raise_error(

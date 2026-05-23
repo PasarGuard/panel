@@ -288,11 +288,11 @@ class Subscription(BaseModel):
 
 
 class HWIDSettings(BaseModel):
-    enabled: bool = Field(default=False)
+    enabled: bool = Field(default=True)
     forced: bool = Field(default=False)
-    fallback_limit: int = Field(default=0, ge=0)
-    min_limit: int = Field(default=0, ge=0)
-    max_limit: int = Field(default=0, ge=0)
+    fallback_limit: int | None = Field(default=None, ge=0)
+    min_limit: int | None = Field(default=None, ge=0)
+    max_limit: int | None = Field(default=None, ge=0)
 
 
 class General(BaseModel):

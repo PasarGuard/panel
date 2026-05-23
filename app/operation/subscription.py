@@ -15,6 +15,7 @@ from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
+from app.utils.hwid import resolve_effective_hwid_settings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
@@ -281,32 +282,16 @@ class SubscriptionOperation(BaseOperation):
         db: AsyncSession,
         user_id: int,
         user_hwid_limit: int | None,
-        role_hwid_settings: HWIDSettings | dict | None,
+        role_hwid_settings: HWIDSettings | None,
         x_hwid: str | None,
         x_device_os: str | None,
         x_ver_os: str | None,
         x_device_model: str | None,
     ):
         global_hwid_conf: HWIDSettings = await hwid_settings()
-        effective_hwid_conf = global_hwid_conf
+        effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
 
-        if isinstance(role_hwid_settings, dict):
-            if not role_hwid_settings:
-                role_hwid_settings = None
-            else:
-                try:
-                    role_hwid_settings = HWIDSettings.model_validate(role_hwid_settings)
-                except Exception:
-                    role_hwid_settings = None
-
-        # Role override applies only when role hwid exists and enabled is True.
-        if role_hwid_settings is not None:
-            if role_hwid_settings.enabled:
-                effective_hwid_conf = role_hwid_settings
-            else:
-                return
-
-        if not effective_hwid_conf.enabled:
+        if effective_hwid_conf is None or not effective_hwid_conf.enabled:
             return
 
         if not x_hwid:
@@ -320,7 +305,7 @@ class SubscriptionOperation(BaseOperation):
             return
 
         # It's a new HWID, check limit
-        limit = user_hwid_limit if user_hwid_limit else effective_hwid_conf.fallback_limit
+        limit = user_hwid_limit if user_hwid_limit is not None else effective_hwid_conf.fallback_limit
         if limit == 0:
             pass  # unlimited
         else:
