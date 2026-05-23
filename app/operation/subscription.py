@@ -320,7 +320,7 @@ class SubscriptionOperation(BaseOperation):
             return
 
         # It's a new HWID, check limit
-        limit = user_hwid_limit if user_hwid_limit is not None else effective_hwid_conf.fallback_limit
+        limit = user_hwid_limit if user_hwid_limit else effective_hwid_conf.fallback_limit
         if limit == 0:
             pass  # unlimited
         else:
