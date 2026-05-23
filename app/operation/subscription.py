@@ -15,6 +15,7 @@ from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
+from app.utils.hwid import resolve_effective_hwid_settings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
@@ -281,17 +282,20 @@ class SubscriptionOperation(BaseOperation):
         db: AsyncSession,
         user_id: int,
         user_hwid_limit: int | None,
+        role_hwid_settings: HWIDSettings | None,
         x_hwid: str | None,
         x_device_os: str | None,
         x_ver_os: str | None,
         x_device_model: str | None,
     ):
-        hwid_conf: HWIDSettings = await hwid_settings()
-        if not hwid_conf.enabled:
+        global_hwid_conf: HWIDSettings = await hwid_settings()
+        effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
+
+        if effective_hwid_conf is None or not effective_hwid_conf.enabled:
             return
 
         if not x_hwid:
-            if hwid_conf.forced:
+            if effective_hwid_conf.forced:
                 await self.raise_error(message="HWID header required", code=403)
             return
 
@@ -301,7 +305,7 @@ class SubscriptionOperation(BaseOperation):
             return
 
         # It's a new HWID, check limit
-        limit = user_hwid_limit if user_hwid_limit is not None else hwid_conf.fallback_limit
+        limit = user_hwid_limit if user_hwid_limit is not None else effective_hwid_conf.fallback_limit
         if limit == 0:
             pass  # unlimited
         else:
@@ -360,7 +364,14 @@ class SubscriptionOperation(BaseOperation):
             )
         else:
             await self.validate_and_register_hwid(
-                db, db_user.id, db_user.hwid_limit, x_hwid, x_device_os, x_ver_os, x_device_model
+                db,
+                db_user.id,
+                db_user.hwid_limit,
+                db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None,
+                x_hwid,
+                x_device_os,
+                x_ver_os,
+                x_device_model,
             )
             matched_rule = self.detect_client_rule(user_agent, sub_settings.rules)
             client_type = matched_rule.target if matched_rule else None
@@ -443,7 +454,14 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
 
         await self.validate_and_register_hwid(
-            db, db_user.id, db_user.hwid_limit, x_hwid, x_device_os, x_ver_os, x_device_model
+            db,
+            db_user.id,
+            db_user.hwid_limit,
+            db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None,
+            x_hwid,
+            x_device_os,
+            x_ver_os,
+            x_device_model,
         )
 
         response_headers = self.create_response_headers(

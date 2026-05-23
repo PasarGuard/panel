@@ -52,6 +52,7 @@ async def create_role(db: AsyncSession, data: AdminRoleCreate) -> AdminRole:
         limits=data.limits.model_dump(),
         features=data.features.model_dump(),
         access=data.access.model_dump(),
+        hwid=data.hwid.model_dump(),
         disabled_when_limited=data.disabled_when_limited,
         disable_users_when_limited=data.disable_users_when_limited,
     )
@@ -74,6 +75,8 @@ async def modify_role(db: AsyncSession, role: AdminRole, data: AdminRoleModify) 
         role.features = data.features.model_dump()
     if data.access is not None:
         role.access = data.access.model_dump()
+    if data.hwid is not None:
+        role.hwid = data.hwid.model_dump()
     if data.disabled_when_limited is not None:
         role.disabled_when_limited = data.disabled_when_limited
     if data.disable_users_when_limited is not None:

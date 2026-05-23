@@ -7,9 +7,8 @@ from sqlalchemy import select
 
 from app.db.models import Admin
 from app.models.admin import hash_password as _hash_password
-from tests.api import client, TestSession
+from tests.api import TestSession, client
 from tests.api.helpers import auth_headers, create_admin, delete_admin, unique_name
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,6 +29,13 @@ def _role_payload(name: str | None = None) -> dict:
         },
         "features": {"can_use_reset_strategy": True, "can_use_next_plan": True},
         "access": {"require_template": False, "allowed_template_ids": None, "allowed_group_ids": None},
+        "hwid": {
+            "enabled": False,
+            "forced": False,
+            "fallback_limit": 0,
+            "min_limit": 0,
+            "max_limit": 0,
+        },
     }
 
 
@@ -193,7 +199,49 @@ def test_create_role(access_token):
     data = response.json()
     assert data["name"] == name
     assert data["is_owner"] is False
+    assert data["hwid"] == {
+        "enabled": False,
+        "forced": False,
+        "fallback_limit": 0,
+        "min_limit": 0,
+        "max_limit": 0,
+    }
     _delete_role(access_token, data["id"])
+
+
+def test_create_and_modify_role_hwid_policy(access_token):
+    """Owner can set and update per-role HWID policy."""
+    payload = _role_payload()
+    payload["hwid"] = {"enabled": False, "forced": True}
+
+    response = client.post("/api/admin-role", headers=auth_headers(access_token), json=payload)
+    assert response.status_code == status.HTTP_201_CREATED
+    role = response.json()
+
+    try:
+        assert role["hwid"] == {
+            "enabled": False,
+            "forced": True,
+            "fallback_limit": None,
+            "min_limit": None,
+            "max_limit": None,
+        }
+
+        update_response = client.put(
+            f"/api/admin-role/{role['id']}",
+            headers=auth_headers(access_token),
+            json={"hwid": {"enabled": True, "forced": False}},
+        )
+        assert update_response.status_code == status.HTTP_200_OK
+        assert update_response.json()["hwid"] == {
+            "enabled": True,
+            "forced": False,
+            "fallback_limit": None,
+            "min_limit": None,
+            "max_limit": None,
+        }
+    finally:
+        _delete_role(access_token, role["id"])
 
 
 def test_create_role_duplicate_name_returns_409(access_token):

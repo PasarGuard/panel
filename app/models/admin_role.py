@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.models.settings import HWIDSettings
 from app.models.validators import ListValidator
 
 
@@ -139,6 +140,7 @@ class AdminRoleBase(BaseModel):
     limits: RoleLimits = Field(default_factory=RoleLimits)
     features: RoleFeatures = Field(default_factory=RoleFeatures)
     access: RoleAccess = Field(default_factory=RoleAccess)
+    hwid: HWIDSettings = Field(default_factory=HWIDSettings)
     disabled_when_limited: bool = False
     disable_users_when_limited: bool = True
 
@@ -155,6 +157,7 @@ class AdminRoleModify(BaseModel):
     limits: RoleLimits | None = None
     features: RoleFeatures | None = None
     access: RoleAccess | None = None
+    hwid: HWIDSettings | None = None
     disabled_when_limited: bool | None = None
     disable_users_when_limited: bool | None = None
 
