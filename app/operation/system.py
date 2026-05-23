@@ -10,7 +10,7 @@ from app.db.crud.user import count_online_users, get_users_count_by_status
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.system import InboundSummary, SystemStats
-from app.operation.permissions import enforce_permission, PermissionDenied
+from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 from app.utils.system import cpu_usage, disk_usage, get_uptime, memory_usage
 
 from . import BaseOperation
@@ -41,12 +41,14 @@ class SystemOperation(BaseOperation):
                 except PermissionDenied:
                     can_read_admins = False
             if admin.is_owner or can_read_admins:
-                admin_param = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
+                db_admin = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
+                if db_admin is not None:
+                    admin_param = AdminDetails.model_validate(db_admin)
             else:
                 admin_param = admin
         elif not admin.is_owner:
-            # Non-owner without an explicit target only sees their own stats
-            admin_param = admin
+            if not is_scope_all(admin, "users", "read"):
+                admin_param = admin
 
         system_task = None
         if not admin_param:
