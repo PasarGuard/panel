@@ -12,9 +12,9 @@ from app.models.admin import (
     AdminListQuery,
     AdminModify,
     AdminSimpleListQuery,
-    AdminStatus,
     AdminsResponse,
     AdminsSimpleResponse,
+    AdminStatus,
     AdminUsageQuery,
     BulkAdminsActionResponse,
     BulkAdminSelection,
@@ -95,19 +95,19 @@ async def create_admin(
 
 
 @router.put(
-    "/{username}",
+    "/{id}",
     response_model=AdminDetails,
     responses={403: responses._403, 404: responses._404, 409: responses._409},
 )
 async def modify_admin(
-    username: str,
+    id: int,
     modified_admin: AdminModify,
     db: AsyncSession = Depends(get_db),
     current_admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     """Modify an existing admin's details."""
-    return await admin_operator.modify_admin(
-        db, username=username, modified_admin=modified_admin, current_admin=current_admin
+    return await admin_operator.modify_admin_by_id(
+        db, admin_id=id, modified_admin=modified_admin, current_admin=current_admin
     )
 
 
@@ -143,14 +143,14 @@ async def modify_admin_by_id(
     )
 
 
-@router.delete("/{username}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_admin(
-    username: str,
+    id: int,
     db: AsyncSession = Depends(get_db),
     current_admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     """Remove an admin from the database."""
-    await admin_operator.remove_admin(db, username=username, current_admin=current_admin)
+    await admin_operator.remove_admin_by_id(db, admin_id=id, current_admin=current_admin)
     return {}
 
 
@@ -206,18 +206,18 @@ async def get_admins_simple(
 
 
 @router.get(
-    "/{username}/usage",
+    "/{id}/usage",
     response_model=UserUsageStatsList,
     responses={403: responses._403, 404: responses._404},
 )
 async def get_admin_usage(
-    username: str,
+    id: int,
     query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
 ):
     """Get admin usage aggregated from user traffic."""
-    return await admin_operator.get_admin_usage(db, username=username, admin=admin, query=query)
+    return await admin_operator.get_admin_usage_by_id(db, admin_id=id, admin=admin, query=query)
 
 
 @router.get(
@@ -248,14 +248,14 @@ async def get_admin_usage_by_id(
     return await admin_operator.get_admin_usage_by_id(db, admin_id=admin_id, admin=admin, query=query)
 
 
-@router.post("/{username}/users/disable", responses={404: responses._404})
+@router.post("/{id}/users/disable", responses={404: responses._404})
 async def disable_all_active_users(
-    username: str,
+    id: int,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     """Disable all active users under a specific admin."""
-    await admin_operator.disable_all_active_users(db, username=username, admin=admin)
+    await admin_operator.disable_all_active_users_by_id(db, admin_id=id, admin=admin)
     return {}
 
 
@@ -279,14 +279,14 @@ async def disable_all_active_users_by_id(
     return {}
 
 
-@router.post("/{username}/users/activate", responses={404: responses._404})
+@router.post("/{id}/users/activate", responses={404: responses._404})
 async def activate_all_disabled_users(
-    username: str,
+    id: int,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     """Activate all disabled users under a specific admin."""
-    await admin_operator.activate_all_disabled_users(db, username=username, admin=admin)
+    await admin_operator.activate_all_disabled_users_by_id(db, admin_id=id, admin=admin)
     return {}
 
 
@@ -310,14 +310,14 @@ async def activate_all_disabled_users_by_id(
     return {}
 
 
-@router.delete("/{username}/users", responses={403: responses._403, 404: responses._404})
+@router.delete("/{id}/users", responses={403: responses._403, 404: responses._404})
 async def remove_all_users(
-    username: str,
+    id: int,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     """Remove all users under a specific admin."""
-    deleted = await admin_operator.remove_all_users(db, username=username, admin=admin)
+    deleted = await admin_operator.remove_all_users_by_id(db, admin_id=id, admin=admin)
     return {"detail": f"operation has been successfuly done {deleted} users deleted"}
 
 
@@ -341,14 +341,14 @@ async def remove_all_users_by_id(
     return {"detail": f"operation has been successfuly done {deleted} users deleted"}
 
 
-@router.post("/{username}/reset", response_model=AdminDetails, responses={404: responses._404})
+@router.post("/{id}/reset", response_model=AdminDetails, responses={404: responses._404})
 async def reset_admin_usage(
-    username: str,
+    id: int,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("admins", "reset_usage")),
 ):
     """Resets usage of admin."""
-    return await admin_operator.reset_admin_usage(db, username=username, admin=admin)
+    return await admin_operator.reset_admin_usage_by_id(db, admin_id=id, admin=admin)
 
 
 @router.post("/by-username/{username}/reset", response_model=AdminDetails, responses={404: responses._404})
