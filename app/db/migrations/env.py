@@ -42,15 +42,13 @@ def _compare_type(context, inspected_column, metadata_column, inspected_type, me
     BIGINT depending on how the table was originally created, which can produce
     false-positive autogenerate diffs.
     """
-    if context.dialect.name != "sqlite":
-        return None
-
-    sqlite_bigint_equivalent = (
-        (isinstance(inspected_type, BigInteger) and isinstance(metadata_type, SqliteCompatibleBigInteger))
-        or (isinstance(inspected_type, SqliteCompatibleBigInteger) and isinstance(metadata_type, BigInteger))
-    )
-    if sqlite_bigint_equivalent:
-        return False
+    if context.dialect.name == "sqlite":
+        sqlite_bigint_equivalent = (
+            (isinstance(inspected_type, BigInteger) and isinstance(metadata_type, SqliteCompatibleBigInteger))
+            or (isinstance(inspected_type, SqliteCompatibleBigInteger) and isinstance(metadata_type, BigInteger))
+        )
+        if sqlite_bigint_equivalent:
+            return False
 
     # PostgreSQL reflection can report JSON with explicit astext_type while
     # metadata often renders as bare JSON(), which is not a schema change.
