@@ -51,7 +51,17 @@ def create_admin(
 
 
 def delete_admin(access_token: str, username: str) -> None:
-    response = client.delete(f"/api/admin/{username}", headers=auth_headers(access_token))
+    admin_lookup = client.get(
+        "/api/admins",
+        headers=auth_headers(access_token),
+        params={"username": username},
+    )
+    assert admin_lookup.status_code == status.HTTP_200_OK
+    admins = admin_lookup.json()["admins"]
+    admin = next((item for item in admins if item["username"] == username), None)
+    assert admin is not None
+
+    response = client.delete(f"/api/admin/{admin['id']}", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
@@ -212,7 +222,17 @@ def create_user(
 
 
 def delete_user(access_token: str, username: str) -> None:
-    response = client.delete(f"/api/user/{username}", headers=auth_headers(access_token))
+    user_lookup = client.get(
+        "/api/users",
+        headers=auth_headers(access_token),
+        params={"username": username},
+    )
+    assert user_lookup.status_code == status.HTTP_200_OK
+    users = user_lookup.json()["users"]
+    user = next((item for item in users if item["username"] == username), None)
+    assert user is not None
+
+    response = client.delete(f"/api/user/{user['id']}", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
 

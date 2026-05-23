@@ -6,8 +6,7 @@ from uuid import uuid4
 from fastapi import status
 from sqlalchemy import func, select, update
 
-from app.db.crud.node import create_node as db_create_node
-from app.db.crud.node import remove_node as db_remove_node
+from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import (
     Admin,
     AdminUsageLogs,
@@ -82,8 +81,19 @@ def get_user_admin_id(username: str) -> int | None:
 
 
 def delete_admin_if_present(access_token: str, username: str) -> None:
-    response = client.delete(f"/api/admin/{username}", headers=auth_headers(access_token))
-    assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
+    lookup = client.get(
+        "/api/admins",
+        headers=auth_headers(access_token),
+        params={"username": username},
+    )
+    assert lookup.status_code == status.HTTP_200_OK
+    admins = lookup.json()["admins"]
+    admin = next((item for item in admins if item["username"] == username), None)
+    if admin is None:
+        return
+
+    response = client.delete(f"/api/admin/{admin['id']}", headers=auth_headers(access_token))
+    assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN)
 
 
 def create_owner_admin_row() -> dict:
@@ -190,22 +200,20 @@ def seed_node_usage_rows(node_id: int, user_id: int) -> None:
     async def _seed():
         async with TestSession() as session:
             now = datetime.now(timezone.utc)
-            session.add_all(
-                [
-                    NodeUserUsage(user_id=user_id, node_id=node_id, created_at=now, used_traffic=1),
-                    NodeUsage(node_id=node_id, created_at=now + timedelta(minutes=1), uplink=2, downlink=3),
-                    NodeUsageResetLogs(node_id=node_id, uplink=4, downlink=5),
-                    NodeStat(
-                        node_id=node_id,
-                        mem_total=4096,
-                        mem_used=1024,
-                        cpu_cores=4,
-                        cpu_usage=50,
-                        incoming_bandwidth_speed=100,
-                        outgoing_bandwidth_speed=200,
-                    ),
-                ]
-            )
+            session.add_all([
+                NodeUserUsage(user_id=user_id, node_id=node_id, created_at=now, used_traffic=1),
+                NodeUsage(node_id=node_id, created_at=now + timedelta(minutes=1), uplink=2, downlink=3),
+                NodeUsageResetLogs(node_id=node_id, uplink=4, downlink=5),
+                NodeStat(
+                    node_id=node_id,
+                    mem_total=4096,
+                    mem_used=1024,
+                    cpu_cores=4,
+                    cpu_usage=50,
+                    incoming_bandwidth_speed=100,
+                    outgoing_bandwidth_speed=200,
+                ),
+            ])
             await session.commit()
 
     asyncio.run(_seed())
@@ -320,7 +328,7 @@ def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
     user = create_user(access_token, payload={"username": unique_name("bulk_admin_user")})
     try:
         owner_response = client.put(
-            f"/api/user/{user['username']}/set_owner",
+            f"/api/user/{user['id']}/set_owner",
             headers=auth_headers(access_token),
             params={"admin_username": admin["username"]},
         )
@@ -517,7 +525,7 @@ def test_bulk_delete_groups_removes_all_associations(access_token):
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
 
-        user_response = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+        user_response = client.get(f"/api/user/{user['id']}", headers=auth_headers(access_token))
         assert user_response.status_code == status.HTTP_200_OK
         assert user_response.json()["group_ids"] == []
         assert get_group_association_counts(group["id"]) == {"users": 0, "templates": 0, "inbounds": 0}

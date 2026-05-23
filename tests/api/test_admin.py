@@ -259,7 +259,7 @@ def test_admin_create_duplicate_telegram_id_conflict(access_token):
     admin_b_password = strong_password("TestAdminDup")
     try:
         response_a = client.put(
-            url=f"/api/admin/{admin_a['username']}",
+            url=f"/api/admin/{admin_a['id']}",
             json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -300,7 +300,7 @@ def test_update_admin(access_token):
     admin = create_admin(access_token)  # role_id=3 (operator)
     password = strong_password("TestAdminupdate")
     response = client.put(
-        url=f"/api/admin/{admin['username']}",
+        url=f"/api/admin/{admin['id']}",
         json={
             "password": password,
             "status": "disabled",
@@ -313,7 +313,7 @@ def test_update_admin(access_token):
 
     # Verify role_id change is applied
     role_change_response = client.put(
-        url=f"/api/admin/{admin['username']}",
+        url=f"/api/admin/{admin['id']}",
         json={"role_id": 2},  # promote to administrator
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -338,7 +338,7 @@ def test_admin_limited_status_not_assignable(access_token):
     admin = create_admin(access_token)
     try:
         update_response = client.put(
-            url=f"/api/admin/{admin['username']}",
+            url=f"/api/admin/{admin['id']}",
             json={"status": "limited"},
             headers=auth_headers(access_token),
         )
@@ -347,16 +347,16 @@ def test_admin_limited_status_not_assignable(access_token):
         delete_admin(access_token, admin["username"])
 
 
-def test_admin_routes_by_id_and_by_username(access_token):
+def test_admin_routes_by_id_and_default_id(access_token):
     admin = create_admin(access_token)
     try:
-        by_username_update = client.put(
-            url=f"/api/admin/by-username/{admin['username']}",
-            json={"note": "by-username note"},
+        default_id_update = client.put(
+            url=f"/api/admin/{admin['id']}",
+            json={"note": "default-id note"},
             headers=auth_headers(access_token),
         )
-        assert by_username_update.status_code == status.HTTP_200_OK
-        assert by_username_update.json()["note"] == "by-username note"
+        assert default_id_update.status_code == status.HTTP_200_OK
+        assert default_id_update.json()["note"] == "default-id note"
 
         by_id_update = client.put(
             url=f"/api/admin/by-id/{admin['id']}",
@@ -373,11 +373,11 @@ def test_admin_routes_by_id_and_by_username(access_token):
         )
         assert by_id_usage.status_code == status.HTTP_200_OK
 
-        by_username_reset = client.post(
-            f"/api/admin/by-username/{admin['username']}/reset",
+        default_id_reset = client.post(
+            f"/api/admin/{admin['id']}/reset",
             headers=auth_headers(access_token),
         )
-        assert by_username_reset.status_code == status.HTTP_200_OK
+        assert default_id_reset.status_code == status.HTTP_200_OK
     finally:
         delete_admin(access_token, admin["username"])
 
@@ -389,7 +389,7 @@ def test_update_admin_note(access_token):
     note = "updated admin note"
 
     response = client.put(
-        url=f"/api/admin/{admin['username']}",
+        url=f"/api/admin/{admin['id']}",
         json={"note": note},
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -407,14 +407,14 @@ def test_update_admin_duplicate_telegram_id_conflict(access_token):
     admin_b = create_admin(access_token)
     try:
         first_update = client.put(
-            url=f"/api/admin/{admin_a['username']}",
+            url=f"/api/admin/{admin_a['id']}",
             json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert first_update.status_code == status.HTTP_200_OK
 
         second_update = client.put(
-            url=f"/api/admin/{admin_b['username']}",
+            url=f"/api/admin/{admin_b['id']}",
             json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -430,7 +430,7 @@ def test_promote_admin_to_owner_forbidden_via_api(access_token):
     admin = create_admin(access_token)
     try:
         response = client.put(
-            url=f"/api/admin/{admin['username']}",
+            url=f"/api/admin/{admin['id']}",
             json={
                 "status": "active",
                 "role_id": 1,
@@ -469,7 +469,7 @@ def test_administrator_can_modify_self(access_token):
         administrator_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{administrator_admin['username']}",
+            url=f"/api/admin/{administrator_admin['id']}",
             json={
                 "status": "active",
                 "note": "self-updated",
@@ -509,7 +509,7 @@ def test_administrator_cannot_disable_self(access_token):
         administrator_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{administrator_admin['username']}",
+            url=f"/api/admin/{administrator_admin['id']}",
             json={
                 "status": "disabled",
             },
@@ -541,7 +541,7 @@ def test_administrator_cannot_modify_other_administrator(access_token):
         admin_a_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{admin_b['username']}",
+            url=f"/api/admin/{admin_b['id']}",
             json={
                 "status": "active",
                 "note": "should-fail",
@@ -699,7 +699,7 @@ def test_disable_admin(access_token):
     admin = create_admin(access_token)
     password = admin["password"]
     disable_response = client.put(
-        url=f"/api/admin/{admin['username']}",
+        url=f"/api/admin/{admin['id']}",
         json={"password": password, "status": "disabled"},
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -738,7 +738,7 @@ def test_admin_delete_all_users_endpoint(access_token):
         created_users.append(user_name)
 
         ownership_response = client.put(
-            f"/api/user/{user_name}/set_owner",
+            f"/api/user/{user_response.json()['id']}/set_owner",
             headers={"Authorization": f"Bearer {access_token}"},
             params={"admin_username": admin_username},
         )
@@ -746,7 +746,7 @@ def test_admin_delete_all_users_endpoint(access_token):
         assert ownership_response.json()["admin"]["username"] == admin_username
 
     response = client.delete(
-        url=f"/api/admin/{admin_username}/users",
+        url=f"/api/admin/{admin['id']}/users",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -768,7 +768,7 @@ def test_admin_delete(access_token):
 
     admin = create_admin(access_token)
     response = client.delete(
-        url=f"/api/admin/{admin['username']}",
+        url=f"/api/admin/{admin['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -780,7 +780,7 @@ def test_reset_admin_usage_keeps_lifetime_traffic(access_token):
         set_admin_used_traffic(admin["username"], 12345)
 
         reset_response = client.post(
-            url=f"/api/admin/{admin['username']}/reset",
+            url=f"/api/admin/{admin['id']}/reset",
             headers={"Authorization": f"Bearer {access_token}"},
         )
 
@@ -827,7 +827,7 @@ async def test_admin_usage_returns_stats_for_admin(access_token):
             await session.commit()
 
         response = client.get(
-            f"/api/admin/{admin['username']}/usage",
+            f"/api/admin/{admin['id']}/usage",
             headers=auth_headers(admin_token),
             params={"period": "hour"},
         )
@@ -858,7 +858,7 @@ async def test_admin_usage_forbidden_for_other_admin(access_token):
     admin_a_token = login_response.json()["access_token"]
 
     response = client.get(
-        f"/api/admin/{admin_b['username']}/usage",
+        f"/api/admin/{admin_b['id']}/usage",
         headers=auth_headers(admin_a_token),
         params={"period": "hour"},
     )
@@ -895,12 +895,10 @@ async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(access_tok
     admin_a = Admin(username=admin_username("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id, role_id=3)
     admin_b = Admin(username=admin_username("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id, role_id=3)
     async with TestSession() as session:
-        session.add_all(
-            [
-                admin_a,
-                admin_b,
-            ]
-        )
+        session.add_all([
+            admin_a,
+            admin_b,
+        ])
         await session.commit()
 
         async def fake_telegram_settings():
@@ -1283,7 +1281,7 @@ def test_admin_data_limit_set_and_returned(access_token):
     admin = create_admin(access_token)
     try:
         response = client.put(
-            f"/api/admin/{admin['username']}",
+            f"/api/admin/{admin['id']}",
             json={"data_limit": 1073741824},  # 1 GiB
             headers=auth_headers(access_token),
         )
@@ -1301,13 +1299,13 @@ def test_admin_data_limit_zero_means_unlimited(access_token):
     try:
         # Set a limit first
         client.put(
-            f"/api/admin/{admin['username']}",
+            f"/api/admin/{admin['id']}",
             json={"data_limit": 1073741824},
             headers=auth_headers(access_token),
         )
         # Clear it with 0
         response = client.put(
-            f"/api/admin/{admin['username']}",
+            f"/api/admin/{admin['id']}",
             json={"data_limit": 0},
             headers=auth_headers(access_token),
         )
@@ -1336,14 +1334,14 @@ def test_admin_status_becomes_limited_when_traffic_exceeds_limit(access_token):
     try:
         # Set data_limit=100 bytes, then simulate traffic=100 bytes
         client.put(
-            f"/api/admin/{admin['username']}",
+            f"/api/admin/{admin['id']}",
             json={"data_limit": 100},
             headers=auth_headers(access_token),
         )
         _set_admin_traffic(admin["username"], used_traffic=100)
         # Trigger status recompute by calling update_admin with any field
         response = client.put(
-            f"/api/admin/{admin['username']}",
+            f"/api/admin/{admin['id']}",
             json={"data_limit": 100},  # same value, triggers recompute in CRUD
             headers=auth_headers(access_token),
         )
@@ -1358,13 +1356,13 @@ def test_admin_status_returns_to_active_after_limit_raised(access_token):
     admin = create_admin(access_token)
     try:
         # Set limit=100, traffic=100 → limited
-        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        client.put(f"/api/admin/{admin['id']}", json={"data_limit": 100}, headers=auth_headers(access_token))
         _set_admin_traffic(admin["username"], used_traffic=100)
-        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        client.put(f"/api/admin/{admin['id']}", json={"data_limit": 100}, headers=auth_headers(access_token))
 
         # Raise limit → active
         response = client.put(
-            f"/api/admin/{admin['username']}",
+            f"/api/admin/{admin['id']}",
             json={"data_limit": 1073741824},
             headers=auth_headers(access_token),
         )
@@ -1379,12 +1377,12 @@ def test_admin_status_returns_to_active_after_reset_usage(access_token):
     admin = create_admin(access_token)
     try:
         # Set limit=100, traffic=100 → limited
-        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        client.put(f"/api/admin/{admin['id']}", json={"data_limit": 100}, headers=auth_headers(access_token))
         _set_admin_traffic(admin["username"], used_traffic=100)
-        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        client.put(f"/api/admin/{admin['id']}", json={"data_limit": 100}, headers=auth_headers(access_token))
 
         # Reset usage → active
-        response = client.post(f"/api/admin/{admin['username']}/reset", headers=auth_headers(access_token))
+        response = client.post(f"/api/admin/{admin['id']}/reset", headers=auth_headers(access_token))
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == "active"
         assert response.json()["used_traffic"] == 0
@@ -1397,7 +1395,7 @@ def test_limited_admin_write_blocked_by_default(access_token):
     admin = create_admin(access_token)
     try:
         # Set limit and exceed it
-        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        client.put(f"/api/admin/{admin['id']}", json={"data_limit": 100}, headers=auth_headers(access_token))
         _set_admin_traffic(admin["username"], used_traffic=100)
         _set_admin_status(admin["username"], "limited")
 
@@ -1424,7 +1422,7 @@ def test_limited_admin_read_allowed_when_disabled_when_limited_false(access_toke
     """A limited admin can still read when disabled_when_limited=False (default)."""
     admin = create_admin(access_token)
     try:
-        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        client.put(f"/api/admin/{admin['id']}", json={"data_limit": 100}, headers=auth_headers(access_token))
         _set_admin_traffic(admin["username"], used_traffic=100)
         _set_admin_status(admin["username"], "limited")
 
@@ -1468,7 +1466,7 @@ def test_limited_admin_all_blocked_when_disabled_when_limited_true(access_token)
 
     admin = create_admin(access_token, role_id=role["id"])
     try:
-        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        client.put(f"/api/admin/{admin['id']}", json={"data_limit": 100}, headers=auth_headers(access_token))
         _set_admin_traffic(admin["username"], used_traffic=100)
         _set_admin_status(admin["username"], "limited")
 
