@@ -6,8 +6,7 @@ from sqlalchemy import select
 
 from app.db.models import User
 from app.utils.crypto import generate_wireguard_keypair
-from tests.api import TestSession
-from tests.api import client
+from tests.api import TestSession, client
 from tests.api.helpers import (
     create_admin,
     create_core,
@@ -156,12 +155,12 @@ def test_update_users_expire(access_token):
         create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("user_expire2")}),
     ]
     client.put(
-        f"/api/user/{users[0]['username']}",
+        f"/api/user/{users[0]['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": "2025-01-01T00:00:00+00:00"},
     )
     client.put(
-        f"/api/user/{users[1]['username']}",
+        f"/api/user/{users[1]['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": "2026-01-01T00:00:00+00:00"},
     )
