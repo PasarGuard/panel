@@ -243,12 +243,12 @@ def test_update_users_expire(access_token):
         create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("user_expire2")}),
     ]
     client.put(
-        f"/api/user/{users[0]['username']}",
+        f"/api/user/{users[0]['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": "2025-01-01T00:00:00+00:00"},
     )
     client.put(
-        f"/api/user/{users[1]['username']}",
+        f"/api/user/{users[1]['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": "2026-01-01T00:00:00+00:00"},
     )
@@ -353,13 +353,13 @@ def test_bulk_expire_with_range(access_token):
 
         # Verify user1 was updated
         resp1 = client.get(f"/api/user/{user1['id']}", headers={"Authorization": f"Bearer {access_token}"})
-        new_expire1 = dt.fromisoformat(resp1.json()["expire"].replace("Z", "+00:00"))
+        new_expire1 = dt.fromisoformat(resp1.json()["expire"])
         # Should be approximately expire1 + 1 hour
         assert (new_expire1 - expire1).total_seconds() == 3600
 
         # Verify user2 was NOT updated
         resp2 = client.get(f"/api/user/{user2['id']}", headers={"Authorization": f"Bearer {access_token}"})
-        new_expire2 = dt.fromisoformat(resp2.json()["expire"].replace("Z", "+00:00"))
+        new_expire2 = dt.fromisoformat(resp2.json()["expire"])
         # Should be exactly expire2 (or very close)
         assert abs((new_expire2 - expire2).total_seconds()) < 1
 
