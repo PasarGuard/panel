@@ -50,18 +50,18 @@ export const DecimalInput = React.forwardRef<HTMLInputElement, DecimalInputProps
       if (value === null || value === undefined) return ''
 
       const displayValue = toDisplayValue(value)
-      if (displayValue === undefined || !Number.isFinite(displayValue) || displayValue <= 0) return ''
+      if (displayValue === undefined || !Number.isFinite(displayValue) || displayValue < 0) return ''
+      if (displayValue === 0) return keepZeroOnBlur ? formatDisplayValue(0) : ''
 
       return formatDisplayValue(displayValue)
-    }, [formatDisplayValue, toDisplayValue, value])
+    }, [formatDisplayValue, keepZeroOnBlur, toDisplayValue, value])
 
     React.useEffect(() => {
       if (isEditing) return
-      if (keepZeroOnBlur && rawInput === '0' && externalDisplayValue === '') return
       if (rawInput !== '' && rawInput !== externalDisplayValue) {
         setRawInput('')
       }
-    }, [externalDisplayValue, isEditing, keepZeroOnBlur, rawInput])
+    }, [externalDisplayValue, isEditing, rawInput])
 
     const getStoredValue = React.useCallback(
       (displayValue: number) => {
