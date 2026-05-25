@@ -789,12 +789,13 @@ class CoreConfig(Base, IdMixin, CreatedAtUTCMixin):
     fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
 
 
-class ClientTemplate(Base, IdMixin):
+class ClientTemplate(Base):
     __tablename__ = "client_templates"
     __table_args__ = (
         UniqueConstraint("template_type", "name"),
         Index("ix_client_templates_template_type", "template_type"),
     )
+    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     template_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
