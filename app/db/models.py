@@ -69,11 +69,14 @@ class AdminStatus(str, Enum):
     limited = "limited"
 
 
-class Admin(Base):
+class CreatedAtUTCMixin:
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+
+
+class Admin(Base, CreatedAtUTCMixin):
     __tablename__ = "admins"
 
     id: Mapped[int] = id_column()
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     username: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
     users: Mapped[List["User"]] = relationship(back_populates="admin", init=False, default_factory=list)
@@ -181,11 +184,10 @@ class DataLimitResetStrategy(str, Enum):
     year = "year"
 
 
-class User(Base):
+class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
 
     id: Mapped[int] = id_column()
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
         back_populates="user",
@@ -368,19 +370,18 @@ class User(Base):
         return case((cls.expire.isnot(None), func.floor(DaysDiff())), else_=0)
 
 
-class UserSubscriptionUpdate(Base):
+class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __tablename__ = "user_subscription_updates"
 
     id: Mapped[int] = id_column()
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
     ip: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, default=None)
     hwid: Mapped[Optional[str]] = mapped_column(String(256), nullable=True, default=None)
 
 
-class UserHWID(Base):
+class UserHWID(Base, CreatedAtUTCMixin):
     __tablename__ = "user_hwids"
     __table_args__ = (
         UniqueConstraint("user_id", "hwid"),
@@ -397,7 +398,6 @@ class UserHWID(Base):
     device_os: Mapped[Optional[str]] = mapped_column(String(256), default=None)
     os_version: Mapped[Optional[str]] = mapped_column(String(128), default=None)
     device_model: Mapped[Optional[str]] = mapped_column(String(256), default=None)
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     last_used_at: Mapped[dt] = mapped_column(
         DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False
     )
@@ -608,11 +608,10 @@ class NodeStatus(str, Enum):
     limited = "limited"
 
 
-class Node(Base):
+class Node(Base, CreatedAtUTCMixin):
     __tablename__ = "nodes"
 
     id: Mapped[int] = id_column()
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(unique=False, nullable=False)
@@ -747,7 +746,7 @@ class NodeUsage(Base):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
-class NodeUsageResetLogs(Base):
+class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
     __tablename__ = "node_usage_reset_logs"
     __table_args__ = (
         # Index for node-specific queries sorted by time
@@ -755,18 +754,16 @@ class NodeUsageResetLogs(Base):
     )
 
     id: Mapped[int] = id_column()
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     node_id: Mapped[int] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped["Node"] = relationship(back_populates="usage_logs", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, nullable=False)
     downlink: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
-class NotificationReminder(Base):
+class NotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "notification_reminders"
 
     id: Mapped[int] = id_column()
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
@@ -774,12 +771,11 @@ class NotificationReminder(Base):
     expires_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
 
-class AdminNotificationReminder(Base):
+class AdminNotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_notification_reminders"
     __table_args__ = (Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),)
 
     id: Mapped[int] = id_column()
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
     admin: Mapped["Admin"] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
@@ -820,11 +816,10 @@ class CoreType(str, Enum):
     singbox = "singbox"
 
 
-class CoreConfig(Base):
+class CoreConfig(Base, CreatedAtUTCMixin):
     __tablename__ = "core_configs"
 
     id: Mapped[int] = id_column()
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
     type: Mapped[CoreType] = mapped_column(SQLEnum(CoreType), default=CoreType.xray, server_default=CoreType.xray)
@@ -847,11 +842,10 @@ class ClientTemplate(Base):
     is_system: Mapped[bool] = mapped_column(default=False, server_default="0")
 
 
-class NodeStat(Base):
+class NodeStat(Base, CreatedAtUTCMixin):
     __tablename__ = "node_stats"
 
     id: Mapped[int] = id_column()
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     node_id: Mapped[int] = fk_id_column("nodes.id")
     node: Mapped["Node"] = relationship(back_populates="stats", init=False)
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
@@ -876,7 +870,7 @@ class Settings(Base):
     general: Mapped[dict] = mapped_column(JSON())
 
 
-class AdminRole(Base):
+class AdminRole(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_roles"
 
     id: Mapped[int] = id_column()
@@ -889,7 +883,6 @@ class AdminRole(Base):
     hwid: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
     disable_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
     admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
 
     @hybrid_property
