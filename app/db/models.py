@@ -34,10 +34,6 @@ from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, Sqli
 PostgresJSONB = JSON().with_variant(JSONB(none_as_null=True), "postgresql")
 
 
-def id_column():
-    return mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
-
-
 def fk_id_column(target: str, **column_kwargs: Any):
     fk_kwargs = {key: column_kwargs.pop(key) for key in ("ondelete", "onupdate") if key in column_kwargs}
     return mapped_column(SqliteCompatibleBigInteger, ForeignKey(target, **fk_kwargs), **column_kwargs)
@@ -69,14 +65,16 @@ class AdminStatus(str, Enum):
     limited = "limited"
 
 
+class IdMixin:
+    id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
+
+
 class CreatedAtUTCMixin:
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
 
 
-class Admin(Base, CreatedAtUTCMixin):
+class Admin(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "admins"
-
-    id: Mapped[int] = id_column()
     username: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
     users: Mapped[List["User"]] = relationship(back_populates="admin", init=False, default_factory=list)
@@ -153,10 +151,8 @@ class Admin(Base, CreatedAtUTCMixin):
         return len(self.users)
 
 
-class AdminUsageLogs(Base):
+class AdminUsageLogs(Base, IdMixin):
     __tablename__ = "admin_usage_logs"
-
-    id: Mapped[int] = id_column()
     admin_id: Mapped[int] = fk_id_column("admins.id")
     admin: Mapped["Admin"] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -184,10 +180,8 @@ class DataLimitResetStrategy(str, Enum):
     year = "year"
 
 
-class User(Base, CreatedAtUTCMixin):
+class User(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "users"
-
-    id: Mapped[int] = id_column()
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
         back_populates="user",
@@ -370,10 +364,8 @@ class User(Base, CreatedAtUTCMixin):
         return case((cls.expire.isnot(None), func.floor(DaysDiff())), else_=0)
 
 
-class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
+class UserSubscriptionUpdate(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "user_subscription_updates"
-
-    id: Mapped[int] = id_column()
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
@@ -381,7 +373,7 @@ class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     hwid: Mapped[Optional[str]] = mapped_column(String(256), nullable=True, default=None)
 
 
-class UserHWID(Base, CreatedAtUTCMixin):
+class UserHWID(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "user_hwids"
     __table_args__ = (
         UniqueConstraint("user_id", "hwid"),
@@ -390,8 +382,6 @@ class UserHWID(Base, CreatedAtUTCMixin):
         Index("ix_user_hwids_created_at", "created_at"),
         Index("ix_user_hwids_last_used_at", "last_used_at"),
     )
-
-    id: Mapped[int] = id_column()
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="hwids", init=False)
     hwid: Mapped[str] = mapped_column(String(256), nullable=False)
@@ -411,15 +401,13 @@ template_group_association = Table(
 )
 
 
-class NextPlan(Base):
+class NextPlan(Base, IdMixin):
     __tablename__ = "next_plans"
     __table_args__ = (
         # user_id will already have an index from the FK
         # Add if you frequently query by template
         Index("ix_next_plans_user_template_id", "user_template_id"),
     )
-
-    id: Mapped[int] = id_column()
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user_template_id: Mapped[Optional[int]] = fk_id_column("user_templates.id", ondelete="SET NULL")
     user: Mapped["User"] = relationship(back_populates="next_plan", init=False)
@@ -434,10 +422,8 @@ class UserStatusCreate(str, Enum):
     on_hold = "on_hold"
 
 
-class UserTemplate(Base):
+class UserTemplate(Base, IdMixin):
     __tablename__ = "user_templates"
-
-    id: Mapped[int] = id_column()
     name: Mapped[str] = mapped_column(String(64), unique=True)
     username_prefix: Mapped[Optional[str]] = mapped_column(String(20))
     username_suffix: Mapped[Optional[str]] = mapped_column(String(20))
@@ -464,24 +450,20 @@ class UserTemplate(Base):
         return [group.id for group in self.groups]
 
 
-class UserUsageResetLogs(Base):
+class UserUsageResetLogs(Base, IdMixin):
     __tablename__ = "user_usage_logs"
     __table_args__ = (
         # Index for user-specific queries sorted by time
         Index("ix_user_usage_logs_user_id_reset_at", "user_id", "reset_at"),
     )
-
-    id: Mapped[int] = id_column()
     user_id: Mapped[Optional[int]] = fk_id_column("users.id", ondelete="CASCADE", nullable=True)
     user: Mapped["User"] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
 
 
-class ProxyInbound(Base):
+class ProxyInbound(Base, IdMixin):
     __tablename__ = "inbounds"
-
-    id: Mapped[int] = id_column()
     tag: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     hosts: Mapped[List["ProxyHost"]] = relationship(back_populates="inbound", init=False)
     groups: Mapped[List["Group"]] = relationship(
@@ -528,10 +510,8 @@ ProxyHostFingerprint = Enum(
 )
 
 
-class ProxyHost(Base):
+class ProxyHost(Base, IdMixin):
     __tablename__ = "hosts"
-
-    id: Mapped[int] = id_column()
     remark: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[Optional[int]] = mapped_column(nullable=True)
     path: Mapped[Optional[str]] = mapped_column(String(256), unique=False, nullable=True)
@@ -580,10 +560,8 @@ class ProxyHost(Base):
     subscription_templates: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
 
 
-class System(Base):
+class System(Base, IdMixin):
     __tablename__ = "system"
-
-    id: Mapped[int] = id_column()
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
@@ -608,10 +586,8 @@ class NodeStatus(str, Enum):
     limited = "limited"
 
 
-class Node(Base, CreatedAtUTCMixin):
+class Node(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "nodes"
-
-    id: Mapped[int] = id_column()
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(unique=False, nullable=False)
@@ -706,7 +682,7 @@ class Node(Base, CreatedAtUTCMixin):
         return cls.downlink + cls.uplink
 
 
-class NodeUserUsage(Base):
+class NodeUserUsage(Base, IdMixin):
     __tablename__ = "node_user_usages"
     __table_args__ = (
         UniqueConstraint("created_at", "user_id", "node_id"),
@@ -719,8 +695,6 @@ class NodeUserUsage(Base):
         ),  # Node-specific queries with time range
         Index("ix_node_user_usages_created_at", "created_at"),  # Time-based cleanup/aggregation
     )
-
-    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="node_usages", init=False)
@@ -729,7 +703,7 @@ class NodeUserUsage(Base):
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
-class NodeUsage(Base):
+class NodeUsage(Base, IdMixin):
     __tablename__ = "node_usages"
     __table_args__ = (
         UniqueConstraint("created_at", "node_id"),
@@ -737,8 +711,6 @@ class NodeUsage(Base):
         Index("ix_node_usages_created_at", "created_at"),
         # The unique constraint already creates an index on (created_at, node_id)
     )
-
-    id: Mapped[int] = id_column()
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
     node_id: Mapped[Optional[int]] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped["Node"] = relationship(back_populates="usages", init=False)
@@ -746,24 +718,20 @@ class NodeUsage(Base):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
-class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
+class NodeUsageResetLogs(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "node_usage_reset_logs"
     __table_args__ = (
         # Index for node-specific queries sorted by time
         Index("ix_node_usage_reset_logs_node_id_created_at", "node_id", "created_at"),
     )
-
-    id: Mapped[int] = id_column()
     node_id: Mapped[int] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped["Node"] = relationship(back_populates="usage_logs", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, nullable=False)
     downlink: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
-class NotificationReminder(Base, CreatedAtUTCMixin):
+class NotificationReminder(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "notification_reminders"
-
-    id: Mapped[int] = id_column()
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
@@ -771,21 +739,17 @@ class NotificationReminder(Base, CreatedAtUTCMixin):
     expires_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
 
-class AdminNotificationReminder(Base, CreatedAtUTCMixin):
+class AdminNotificationReminder(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "admin_notification_reminders"
     __table_args__ = (Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),)
-
-    id: Mapped[int] = id_column()
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
     admin: Mapped["Admin"] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
     threshold: Mapped[Optional[int]] = mapped_column(default=None)
 
 
-class Group(Base):
+class Group(Base, IdMixin):
     __tablename__ = "groups"
-
-    id: Mapped[int] = id_column()
     name: Mapped[str] = mapped_column(String(64))
     users: Mapped[List["User"]] = relationship(secondary=users_groups_association, back_populates="groups", init=False)
     inbounds: Mapped[List["ProxyInbound"]] = relationship(
@@ -816,10 +780,8 @@ class CoreType(str, Enum):
     singbox = "singbox"
 
 
-class CoreConfig(Base, CreatedAtUTCMixin):
+class CoreConfig(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "core_configs"
-
-    id: Mapped[int] = id_column()
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
     type: Mapped[CoreType] = mapped_column(SQLEnum(CoreType), default=CoreType.xray, server_default=CoreType.xray)
@@ -827,14 +789,12 @@ class CoreConfig(Base, CreatedAtUTCMixin):
     fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
 
 
-class ClientTemplate(Base):
+class ClientTemplate(Base, IdMixin):
     __tablename__ = "client_templates"
     __table_args__ = (
         UniqueConstraint("template_type", "name"),
         Index("ix_client_templates_template_type", "template_type"),
     )
-
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     template_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -842,10 +802,8 @@ class ClientTemplate(Base):
     is_system: Mapped[bool] = mapped_column(default=False, server_default="0")
 
 
-class NodeStat(Base, CreatedAtUTCMixin):
+class NodeStat(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "node_stats"
-
-    id: Mapped[int] = id_column()
     node_id: Mapped[int] = fk_id_column("nodes.id")
     node: Mapped["Node"] = relationship(back_populates="stats", init=False)
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
@@ -856,10 +814,8 @@ class NodeStat(Base, CreatedAtUTCMixin):
     outgoing_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
 
 
-class Settings(Base):
+class Settings(Base, IdMixin):
     __tablename__ = "settings"
-
-    id: Mapped[int] = id_column()
     telegram: Mapped[dict] = mapped_column(JSON())
     discord: Mapped[dict] = mapped_column(JSON())
     webhook: Mapped[dict] = mapped_column(JSON())
@@ -870,10 +826,8 @@ class Settings(Base):
     general: Mapped[dict] = mapped_column(JSON())
 
 
-class AdminRole(Base, CreatedAtUTCMixin):
+class AdminRole(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "admin_roles"
-
-    id: Mapped[int] = id_column()
     name: Mapped[str] = mapped_column(String(64), unique=True)
     is_owner: Mapped[bool] = mapped_column(default=False, server_default="0")
     permissions: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
