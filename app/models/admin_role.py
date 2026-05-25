@@ -81,6 +81,13 @@ class HwidsPermissions(_ResourcePermissions):
     delete: RoleActionValue | None = None
 
 
+class APIKeysPermissions(_ResourcePermissions):
+    create: RoleActionValue | None = None
+    read: RoleActionValue | None = None
+    read_simple: RoleActionValue | None = None
+    delete: RoleActionValue | None = None
+
+
 class RoleLimits(BaseModel):
     max_users: int | None = None
     data_limit_min: int | None = None
@@ -126,6 +133,7 @@ class RolePermissions(BaseModel):
     system: SystemPermissions | None = None
     hwids: HwidsPermissions | None = None
     admin_roles: CRUDPermissions | None = None
+    api_keys: APIKeysPermissions | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -84,6 +84,9 @@ class Admin(Base, IdMixin, CreatedAtUTCMixin):
     notification_reminders: Mapped[List["AdminNotificationReminder"]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
+    api_keys: Mapped[List["APIKey"]] = relationship(
+        back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
+    )
 
     password_reset_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
@@ -838,6 +841,7 @@ class AdminRole(Base, IdMixin, CreatedAtUTCMixin):
     disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
     disable_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
     admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
+    api_keys: Mapped[List["APIKey"]] = relationship(back_populates="role", init=False, lazy="noload")
 
     @hybrid_property
     def is_builtin(self) -> bool:
@@ -847,6 +851,26 @@ class AdminRole(Base, IdMixin, CreatedAtUTCMixin):
     @is_builtin.expression
     def is_builtin(cls):
         return cls.id <= 3
+
+
+class APIKey(Base, IdMixin, CreatedAtUTCMixin):
+    __tablename__ = "api_keys"
+    __table_args__ = (
+        UniqueConstraint("key_hash"),
+        UniqueConstraint("admin_id", "name"),
+        Index("ix_api_keys_admin_id", "admin_id"),
+        Index("ix_api_keys_created_at", "created_at"),
+        Index("ix_api_keys_expire_date", "expire_date"),
+    )
+
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    admin: Mapped["Admin"] = relationship(back_populates="api_keys", init=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
+    key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    role_id: Mapped[int] = fk_id_column("admin_roles.id")
+    role: Mapped["AdminRole"] = relationship(back_populates="api_keys", init=False, lazy="selectin")
+    expire_date: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class TempKey(Base):

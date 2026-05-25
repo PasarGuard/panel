@@ -1,7 +1,8 @@
-from datetime import timezone as tz
+from datetime import datetime as dt, timezone as tz
+from uuid import UUID
 
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import func, select
 
@@ -12,6 +13,7 @@ from app.db.crud.admin import (
     get_admin_by_id as get_admin_by_id_crud,
     get_admin_by_telegram_id,
 )
+from app.db.crud.api_key import get_api_key_by_hash, hash_api_key
 from app.db.models import Admin, AdminUsageLogs, User
 from app.models.admin import AdminDetails, AdminRoleData, AdminStatus, AdminValidationResult, verify_password
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
@@ -21,7 +23,7 @@ from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
 from config import auth_settings, runtime_settings
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token", auto_error=False)
 
 # Owner-level role data given to env admins — full permissions, bypasses all checks
 _ENV_ADMIN_ROLE = AdminRoleData(
@@ -71,6 +73,74 @@ def _is_token_valid_for_admin(db_admin: Admin, payload: dict) -> bool:
     if not payload.get("created_at"):
         return False
     return db_admin.password_reset_at.astimezone(tz.utc) <= payload.get("created_at")
+
+
+def _extract_api_key(request: Request) -> str | None:
+    auth = request.headers.get("Authorization")
+    x_api_key = request.headers.get("X-Api-Key")
+
+    if x_api_key:
+        return x_api_key.strip()
+
+    if not auth:
+        return None
+
+    scheme, _, credentials = auth.partition(" ")
+    if not scheme or not credentials:
+        return None
+
+    scheme = scheme.lower().strip()
+    credentials = credentials.strip()
+    if scheme == "apikey":
+        return credentials
+    return None
+
+
+async def _build_admin_metrics(db: AsyncSession, admin_id: int) -> tuple[int, int]:
+    total_users = (await db.execute(select(func.count(User.id)).where(User.admin_id == admin_id))).scalar() or 0
+    reseted_usage = (
+        await db.execute(
+            select(func.coalesce(func.sum(AdminUsageLogs.used_traffic_at_reset), 0)).where(
+                AdminUsageLogs.admin_id == admin_id
+            )
+        )
+    ).scalar() or 0
+    return int(total_users), int(reseted_usage)
+
+
+async def get_admin_from_api_key(db: AsyncSession, raw_key: str, *, with_metrics: bool = False) -> AdminDetails | None:
+    if not raw_key:
+        return None
+
+    try:
+        parsed_key = UUID(raw_key)
+    except ValueError:
+        return None
+    if parsed_key.version != 4:
+        return None
+
+    db_key = await get_api_key_by_hash(db, hash_api_key(str(parsed_key)))
+    if db_key is None:
+        return None
+
+    db_admin = db_key.admin
+    if db_admin is None:
+        return None
+
+    if db_key.expire_date is not None:
+        expire_at = db_key.expire_date if db_key.expire_date.tzinfo else db_key.expire_date.replace(tzinfo=tz.utc)
+        if expire_at.astimezone(tz.utc) <= dt.now(tz.utc):
+            return None
+
+    if with_metrics:
+        total_users, reseted_usage = await _build_admin_metrics(db, db_admin.id)
+        admin = _build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
+    else:
+        admin = _build_admin_details(db_admin)
+
+    if db_key.role is not None:
+        admin.role = AdminRoleData.model_validate(db_key.role)
+    return admin
 
 
 async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
@@ -134,36 +204,56 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
     return None
 
 
-async def get_current(db: AsyncSession = Depends(get_db), token: str = Depends(oauth2_scheme)):
-    admin: AdminDetails | None = await get_admin(db, token)
+async def get_current(request: Request, db: AsyncSession = Depends(get_db), token: str | None = Depends(oauth2_scheme)):
+    admin: AdminDetails | None = None
+
+    if token:
+        admin = await get_admin(db, token)
+    else:
+        api_key = _extract_api_key(request)
+        if api_key:
+            admin = await get_admin_from_api_key(db, api_key)
+
     if not admin:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": "Bearer, ApiKey"},
         )
     if admin.status == AdminStatus.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="your account has been disabled",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": "Bearer, ApiKey"},
         )
     return admin
 
 
-async def get_current_with_metrics(db: AsyncSession = Depends(get_db), token: str = Depends(oauth2_scheme)):
-    admin: AdminDetails | None = await get_admin_with_metrics(db, token)
+async def get_current_with_metrics(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    token: str | None = Depends(oauth2_scheme),
+):
+    admin: AdminDetails | None = None
+
+    if token:
+        admin = await get_admin_with_metrics(db, token)
+    else:
+        api_key = _extract_api_key(request)
+        if api_key:
+            admin = await get_admin_from_api_key(db, api_key, with_metrics=True)
+
     if not admin:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": "Bearer, ApiKey"},
         )
     if admin.status == AdminStatus.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="your account has been disabled",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": "Bearer, ApiKey"},
         )
     return admin
 
