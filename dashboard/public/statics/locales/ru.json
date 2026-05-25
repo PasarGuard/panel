@@ -1254,7 +1254,7 @@
   "userDialog.editUserTitle": "Редактировать пользователя",
   "userDialog.endDate": "Дата окончания",
   "userDialog.expiryDate": "Дата истечения срока",
-  "userDialog.timeOutDate": "Удерживать до",
+  "userDialog.timeOutDate": "Отложить запуск до",
   "userDialog.generatedByDefault": "по умолчанию",
   "userDialog.hours": "Часы",
   "userDialog.method": "Метод",
