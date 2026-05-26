@@ -645,6 +645,24 @@ function getRandomInt(max: number): number {
   return array[0] % max
 }
 
+const RANDOM_INBOUND_PORT_MIN = 10000
+const RANDOM_INBOUND_PORT_MAX = 65535
+
+function randomInboundPort(profile: Profile | null): number {
+  const usedPorts = new Set<number>()
+  for (const inbound of profile?.inbounds ?? []) {
+    if (!('port' in inbound) || typeof inbound.port !== 'number') continue
+    usedPorts.add(inbound.port)
+  }
+
+  const range = RANDOM_INBOUND_PORT_MAX - RANDOM_INBOUND_PORT_MIN + 1
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const port = RANDOM_INBOUND_PORT_MIN + getRandomInt(range)
+    if (!usedPorts.has(port)) return port
+  }
+  return RANDOM_INBOUND_PORT_MIN + getRandomInt(range)
+}
+
 function generatePassword(length: number = 24): string {
   const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const numbers = '0123456789'
@@ -1123,6 +1141,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       protocol: 'vless',
       transport: 'tcp',
       security: 'none',
+      port: randomInboundPort(profile),
       clientDefaults: 'empty',
     })
     setDraftInbound(created)
