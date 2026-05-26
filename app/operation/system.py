@@ -7,13 +7,24 @@ from app.db import AsyncSession
 from app.db.crud.admin import get_admin
 from app.db.crud.general import get_system_usage
 from app.db.crud.user import count_online_users, get_users_count_by_status
-from app.db.models import UserStatus
-from app.models.admin import AdminDetails
+from app.db.models import Admin, UserStatus
+from app.models.admin import AdminDetails, AdminRoleData
 from app.models.system import InboundSummary, SystemStats
 from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 from app.utils.system import cpu_usage, disk_usage, get_uptime, memory_usage
 
 from . import BaseOperation
+
+
+def _system_admin_details(db_admin: Admin) -> AdminDetails:
+    return AdminDetails(
+        id=db_admin.id,
+        username=db_admin.username,
+        used_traffic=int(db_admin.used_traffic or 0),
+        data_limit=db_admin.data_limit,
+        status=db_admin.status,
+        role=AdminRoleData.model_validate(db_admin.role) if db_admin.role is not None else None,
+    )
 
 
 class SystemOperation(BaseOperation):
@@ -43,7 +54,7 @@ class SystemOperation(BaseOperation):
             if admin.is_owner or can_read_admins:
                 db_admin = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
                 if db_admin is not None:
-                    admin_param = AdminDetails.model_validate(db_admin)
+                    admin_param = _system_admin_details(db_admin)
             else:
                 admin_param = admin
         elif not admin.is_owner:
