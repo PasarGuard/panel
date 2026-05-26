@@ -36,6 +36,7 @@ import {
   adminRoleFormFromResponse,
   adminRoleFormSchema,
   isProtectedRole,
+  isReadOnlyRole,
 } from '@/features/admin-roles/forms/admin-role-form'
 import AdminRoleCard from '@/features/admin-roles/components/admin-role-card'
 import { useAdminRolesListColumns } from '@/features/admin-roles/components/use-admin-roles-list-columns'
@@ -66,7 +67,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
 
   const handleEdit = (role: AdminRoleResponse) => {
     setEditingRole(role)
-    setIsReadOnly(isProtectedRole(role))
+    setIsReadOnly(isReadOnlyRole(role))
     form.reset(adminRoleFormFromResponse(role))
     onOpenChange(true)
   }

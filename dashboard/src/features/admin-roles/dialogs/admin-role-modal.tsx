@@ -3,7 +3,7 @@ import { FieldErrors, UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronsUpDown, Eye, FolderTree, KeyRound, Minus, Pencil, Search, Shield, Sliders, Sparkles, X } from 'lucide-react'
+import { Check, ChevronsUpDown, Cpu, Eye, FolderTree, KeyRound, Minus, Pencil, Search, Shield, Sliders, Sparkles, X } from 'lucide-react'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
@@ -57,6 +57,7 @@ interface AdminRoleModalProps {
 
 const SECTION_PERMISSIONS = 'permissions'
 const SECTION_LIMITS = 'limits'
+const SECTION_HWID = 'hwid'
 const SECTION_FEATURES = 'features'
 const SECTION_ACCESS = 'access'
 
@@ -113,6 +114,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
   const onInvalidSubmit = (errors: FieldErrors<AdminRoleFormValuesInput>) => {
     const firstPath = firstErrorPath(errors)
     if (firstPath?.startsWith('limits.')) setOpenSection(SECTION_LIMITS)
+    else if (firstPath?.startsWith('hwid.')) setOpenSection(SECTION_HWID)
     else if (firstPath?.startsWith('features.')) setOpenSection(SECTION_FEATURES)
     else if (firstPath?.startsWith('access.')) setOpenSection(SECTION_ACCESS)
     else if (firstPath?.startsWith('permissions.')) setOpenSection(SECTION_PERMISSIONS)
@@ -152,30 +154,31 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                 {t('adminRoles.readOnlyHint', { defaultValue: 'This is a built-in role. You can review its configuration but cannot modify it.' })}
               </div>
             )}
-            <fieldset disabled={readOnly} className="space-y-4 disabled:opacity-100">
             <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('name', { defaultValue: 'Name' })}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="operator-custom" autoComplete="off" isError={!!form.formState.errors.name} {...field} value={field.value ?? ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <fieldset disabled={readOnly} className="disabled:opacity-100">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('name', { defaultValue: 'Name' })}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="operator-custom" autoComplete="off" isError={!!form.formState.errors.name} {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </fieldset>
 
               <Accordion
                 type="single"
                 collapsible
                 value={openSection}
                 onValueChange={handleAccordionChange}
-                className="!mt-0 mb-2 flex w-full flex-col gap-y-4"
+                className="mt-0! mb-2 flex w-full flex-col gap-y-4"
               >
-                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value={SECTION_PERMISSIONS}>
+                <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value={SECTION_PERMISSIONS}>
                   <AccordionTrigger>
                     <div className="flex items-center gap-2">
                       <KeyRound className="h-4 w-4" />
@@ -184,11 +187,13 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
-                    <PermissionsSection form={form} />
+                    <fieldset disabled={readOnly} className={cn('disabled:opacity-100', readOnly && 'pointer-events-none')}>
+                      <PermissionsSection form={form} />
+                    </fieldset>
                   </AccordionContent>
                 </AccordionItem>
 
-                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value={SECTION_LIMITS}>
+                <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value={SECTION_LIMITS}>
                   <AccordionTrigger>
                     <div className="flex items-center gap-2">
                       <Sliders className="h-4 w-4" />
@@ -196,11 +201,27 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
-                    <LimitsSection form={form} />
+                    <fieldset disabled={readOnly} className={cn('disabled:opacity-100', readOnly && 'pointer-events-none')}>
+                      <LimitsSection form={form} />
+                    </fieldset>
                   </AccordionContent>
                 </AccordionItem>
 
-                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value={SECTION_FEATURES}>
+                <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value={SECTION_HWID}>
+                  <AccordionTrigger>
+                    <div className="flex items-center gap-2">
+                      <Cpu className="h-4 w-4" />
+                      <span>{t('adminRoles.hwidPolicy', { defaultValue: 'HWID policy' })}</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-1 pt-1">
+                    <fieldset disabled={readOnly} className={cn('disabled:opacity-100', readOnly && 'pointer-events-none')}>
+                      <HwidPolicySection form={form} />
+                    </fieldset>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value={SECTION_FEATURES}>
                   <AccordionTrigger>
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4" />
@@ -208,11 +229,13 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
-                    <FeaturesSection form={form} />
+                    <fieldset disabled={readOnly} className={cn('disabled:opacity-100', readOnly && 'pointer-events-none')}>
+                      <FeaturesSection form={form} />
+                    </fieldset>
                   </AccordionContent>
                 </AccordionItem>
 
-                <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value={SECTION_ACCESS}>
+                <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value={SECTION_ACCESS}>
                   <AccordionTrigger>
                     <div className="flex items-center gap-2">
                       <FolderTree className="h-4 w-4" />
@@ -220,12 +243,13 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
-                    <AccessSection form={form} groupsOptions={groupsOptions} templatesOptions={templatesOptions} isLoading={groupsQuery.isLoading || templatesQuery.isLoading} />
+                    <fieldset disabled={readOnly} className={cn('disabled:opacity-100', readOnly && 'pointer-events-none')}>
+                      <AccessSection form={form} groupsOptions={groupsOptions} templatesOptions={templatesOptions} isLoading={groupsQuery.isLoading || templatesQuery.isLoading} />
+                    </fieldset>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
             </div>
-            </fieldset>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -441,7 +465,72 @@ function LimitsSection({ form }: { form: AdminRoleForm }) {
   )
 }
 
-function NumberLimitField({ form, name, labelKey }: { form: AdminRoleForm; name: any; labelKey: string }) {
+function HwidPolicySection({ form }: { form: AdminRoleForm }) {
+  const { t } = useTranslation()
+  const enabled = useWatch({ control: form.control, name: 'hwid.enabled' })
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        {t('adminRoles.hwidPolicyHint', { defaultValue: 'When enabled, empty limits inherit the global HWID settings. Turn it off to disable HWID checks for admins with this role.' })}
+      </p>
+
+      <FormField
+        control={form.control}
+        name="hwid.enabled"
+        render={({ field }) => (
+          <FormItem
+            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
+            onClick={() => field.onChange(!field.value)}
+          >
+            <div className="space-y-0.5">
+              <FormLabel className="text-base">{t('settings.hwid.enabled.title', { defaultValue: 'Enable HWID checks' })}</FormLabel>
+              <p className="text-xs text-muted-foreground">
+                {t('adminRoles.hwidEnabledDescription', { defaultValue: 'Apply HWID registration and limits to users created or modified by this role.' })}
+              </p>
+            </div>
+            <FormControl>
+              <div onClick={e => e.stopPropagation()}>
+                <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+              </div>
+            </FormControl>
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="hwid.forced"
+        render={({ field }) => (
+          <FormItem
+            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
+            onClick={() => enabled && field.onChange(!field.value)}
+          >
+            <div className="space-y-0.5">
+              <FormLabel className="text-base">{t('settings.hwid.forced.title', { defaultValue: 'Require HWID header' })}</FormLabel>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.hwid.forced.description', { defaultValue: 'Reject subscription requests that do not send X-HWID.' })}
+              </p>
+            </div>
+            <FormControl>
+              <div onClick={e => e.stopPropagation()}>
+                <Switch checked={!!field.value} onCheckedChange={field.onChange} disabled={!enabled} />
+              </div>
+            </FormControl>
+          </FormItem>
+        )}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <NumberLimitField form={form} name="hwid.fallback_limit" labelKey="settings.hwid.fallbackLimit.title" disabled={!enabled} />
+        <NumberLimitField form={form} name="hwid.min_limit" labelKey="settings.hwid.minLimit.title" disabled={!enabled} />
+        <NumberLimitField form={form} name="hwid.max_limit" labelKey="settings.hwid.maxLimit.title" disabled={!enabled} />
+      </div>
+    </div>
+  )
+}
+
+function NumberLimitField({ form, name, labelKey, disabled = false }: { form: AdminRoleForm; name: any; labelKey: string; disabled?: boolean }) {
   const { t } = useTranslation()
   return (
     <FormField
@@ -452,11 +541,12 @@ function NumberLimitField({ form, name, labelKey }: { form: AdminRoleForm; name:
           <FormLabel className="text-xs">{t(labelKey)}</FormLabel>
           <FormControl>
             <DecimalInput
-              placeholder={t('adminRoles.unlimited', { defaultValue: 'Unlimited' })}
+              placeholder={t('adminRoles.inherit', { defaultValue: 'Inherit' })}
               value={typeof field.value === 'number' ? field.value : null}
               emptyValue={null as any}
               zeroValue={0}
               onValueChange={value => field.onChange(value ?? null)}
+              disabled={disabled}
             />
           </FormControl>
           <FormMessage />

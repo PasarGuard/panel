@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { queryClient } from '@/utils/query-client'
 import { AdminRoleResponse, getGetRolesQueryKey, getGetRolesSimpleQueryKey, useDeleteRole } from '@/service/api'
 
-import { isProtectedRole } from '@/features/admin-roles/forms/admin-role-form'
+import { isProtectedRole, isReadOnlyRole } from '@/features/admin-roles/forms/admin-role-form'
 
 interface AdminRoleActionsMenuProps {
   role: AdminRoleResponse
@@ -26,6 +26,7 @@ export default function AdminRoleActionsMenu({ role, onEdit, className }: AdminR
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const deleteRole = useDeleteRole()
   const protectedRole = isProtectedRole(role)
+  const readOnlyRole = isReadOnlyRole(role)
 
   const handleDeleteClick = (event: Event) => {
     event.stopPropagation()
@@ -66,13 +67,13 @@ export default function AdminRoleActionsMenu({ role, onEdit, className }: AdminR
                 onEdit(role)
               }}
             >
-              {protectedRole ? (
+              {readOnlyRole ? (
                 <Eye className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
               ) : (
                 <Pencil className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
               )}
               <span className="min-w-0 truncate">
-                {protectedRole ? t('view', { defaultValue: 'View' }) : t('edit', { defaultValue: 'Edit' })}
+                {readOnlyRole ? t('view', { defaultValue: 'View' }) : t('edit', { defaultValue: 'Edit' })}
               </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

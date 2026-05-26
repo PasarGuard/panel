@@ -2286,11 +2286,11 @@ export interface HWIDSettings {
   enabled?: boolean
   forced?: boolean
   /** @minimum 0 */
-  fallback_limit?: number
+  fallback_limit?: number | null
   /** @minimum 0 */
-  min_limit?: number
+  min_limit?: number | null
   /** @minimum 0 */
-  max_limit?: number
+  max_limit?: number | null
 }
 
 export interface HTTPValidationError {
@@ -3153,6 +3153,7 @@ export interface AdminRoleResponse {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
+  hwid?: HWIDSettings
   disabled_when_limited?: boolean
   disable_users_when_limited?: boolean
   id: number
@@ -3173,6 +3174,8 @@ export type AdminRoleModifyLimits = RoleLimits | null
 
 export type AdminRoleModifyPermissions = RolePermissions | null
 
+export type AdminRoleModifyHwid = HWIDSettings | null
+
 export type AdminRoleModifyName = string | null
 
 export type AdminRoleModifyDisableUsersWhenLimited = boolean | null
@@ -3185,6 +3188,7 @@ export interface AdminRoleModify {
   limits?: AdminRoleModifyLimits
   features?: AdminRoleModifyFeatures
   access?: AdminRoleModifyAccess
+  hwid?: AdminRoleModifyHwid
   disabled_when_limited?: AdminRoleModifyDisabledWhenLimited
   disable_users_when_limited?: AdminRoleModifyDisableUsersWhenLimited
 }
@@ -3202,6 +3206,7 @@ export interface AdminRoleData {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
+  hwid?: HWIDSettings
   disabled_when_limited?: boolean
   disable_users_when_limited?: boolean
 }
@@ -3213,6 +3218,7 @@ export interface AdminRoleCreate {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
+  hwid?: HWIDSettings
   disabled_when_limited?: boolean
   disable_users_when_limited?: boolean
 }
