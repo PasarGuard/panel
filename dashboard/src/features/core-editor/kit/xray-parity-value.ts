@@ -194,6 +194,10 @@ function normParityFieldKey(field: XrayGeneratedFormField): string {
     .toLowerCase()
 }
 
+function isVlessReverseField(field: XrayGeneratedFormField): boolean {
+  return normParityFieldKey(field) === 'reverse' && field.type.replace(/^\*+/, '') === 'VLessReverseConfig'
+}
+
 /** Keep only supported curve names; order is not preserved (caller may re-order). */
 export function filterTlsCurvePreferenceStrings(values: readonly string[]): string[] {
   const allowed = new Set<string>(TLS_CURVE_PREFERENCE_OPTIONS as readonly string[])
@@ -210,6 +214,11 @@ export function filterTlsCurvePreferenceStrings(values: readonly string[]): stri
 }
 
 export function outboundSettingToString(value: unknown, field: XrayGeneratedFormField): string {
+  if (isVlessReverseField(field) && value && typeof value === 'object' && !Array.isArray(value)) {
+    const tag = (value as Record<string, unknown>).tag
+    if (typeof tag === 'string') return tag
+  }
+
   const mode = inferParityFieldMode(field)
   if (value === undefined || value === null) return ''
   if (mode === 'json') {
@@ -226,6 +235,20 @@ export function outboundSettingToString(value: unknown, field: XrayGeneratedForm
 }
 
 export function parseOutboundSettingValue(field: XrayGeneratedFormField, raw: string): unknown {
+  if (isVlessReverseField(field)) {
+    const t = raw.trim()
+    if (!t) return undefined
+    try {
+      const parsed = JSON.parse(t) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return deepPruneEmptyJsonObjects(parsed) as unknown
+      }
+    } catch {
+      // Treat plain text as the reverse outbound tag.
+    }
+    return { tag: t }
+  }
+
   const mode = inferParityFieldMode(field)
   const t = raw.trim()
   if (mode === 'json') {

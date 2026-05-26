@@ -221,6 +221,20 @@ function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function vlessReverseTagFromSettings(settings: Record<string, unknown>): string {
+  const reverse = settings.reverse
+  if (typeof reverse === 'string') return reverse.trim()
+  if (!reverse || typeof reverse !== 'object' || Array.isArray(reverse)) return ''
+  const tag = (reverse as Record<string, unknown>).tag
+  return typeof tag === 'string' ? tag.trim() : ''
+}
+
+function hasVlessReverseSettings(settings: Record<string, unknown>): boolean {
+  const reverse = settings.reverse
+  if (typeof reverse === 'string') return reverse.trim().length > 0
+  return !!reverse && typeof reverse === 'object' && !Array.isArray(reverse)
+}
+
 function uniqueOutboundTags(outbounds: Outbound[] | undefined): string[] {
   return [...new Set((outbounds ?? []).map(outbound => String(outbound.tag ?? '').trim()).filter(Boolean))]
 }
@@ -336,6 +350,19 @@ function collectOutboundRequiredIssues(ob: Outbound, t: (key: string, opts?: Rec
   const p = ob.protocol
   if (PROXY_ENDPOINT_PROTOCOLS.has(p)) {
     const s = flattenOutboundSettings(ob)
+
+    if (p === 'vless' && hasVlessReverseSettings(s)) {
+      if (!vlessReverseTagFromSettings(s)) {
+        issues.push({
+          field: 'reverse',
+          message: t('coreEditor.outbound.validation.reverseTagRequired', {
+            defaultValue: 'Reverse outbound tag is required.',
+          }),
+        })
+      }
+      return issues
+    }
+
     const address = String(s.address ?? '').trim()
     const portRaw = s.port
     const portNum = typeof portRaw === 'number' ? portRaw : Number(portRaw)
@@ -1238,6 +1265,23 @@ function OutboundProxyEndpointSection({ ob, patchOutbound, t }: OutboundProxyEnd
     if (!vlessVisionFlowIncompatibleWithStreamSecurity(streamSecForFlow, flowStr)) return
     patchOutboundWithSettingsMerge(ob, patchOutbound, s => ({ ...s, flow: '' }))
   }, [p, ob, flowStr, streamSecForFlow, patchOutbound])
+
+  if (p === 'vless' && hasVlessReverseSettings(flat)) {
+    const reverseTag = vlessReverseTagFromSettings(flat)
+    return (
+      <div className="rounded-md border p-4">
+        <p className="text-sm font-medium">{t('coreEditor.outbound.reverseSection', { defaultValue: 'Reverse proxy' })}</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {t('coreEditor.outbound.reverseHint', {
+            defaultValue: reverseTag
+              ? `Traffic routed to this outbound is forwarded through reverse tag "${reverseTag}".`
+              : 'Set a reverse tag below. VLESS reverse mode does not use address, port, UUID, or encryption fields.',
+          })}
+        </p>
+      </div>
+    )
+  }
+
   const address = String(flat.address ?? '')
   const portStr = flat.port != null && flat.port !== '' ? String(flat.port) : ''
   const id = String(flat.id ?? '')
