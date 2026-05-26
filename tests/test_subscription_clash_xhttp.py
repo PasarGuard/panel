@@ -1,4 +1,5 @@
 from app.core.xray import XRayConfig
+from app.models.host import XHttpSettings, XMuxSettings
 from app.models.subscription import SubscriptionInboundData, TLSConfig, XHTTPTransportConfig
 from app.subscription.clash import ClashConfiguration, ClashMetaConfiguration
 
@@ -248,6 +249,35 @@ def test_xray_parser_reads_xhttp_extra_advanced_fields():
     assert inbound["uplink_chunk_size"] == "3072"
     assert inbound["xmux"] == {"maxConcurrency": "16-32", "hKeepAlivePeriod": 0}
     assert inbound["download_settings"] == {"address": "download.example.com"}
+
+
+def test_xhttp_models_accept_integer_numeric_range_fields_as_strings():
+    transport = XHTTPTransportConfig(
+        sc_max_each_post_bytes=4096,
+        sc_min_posts_interval_ms=30,
+        x_padding_bytes=128,
+        uplink_chunk_size=2048,
+    )
+
+    assert transport.sc_max_each_post_bytes == "4096"
+    assert transport.sc_min_posts_interval_ms == "30"
+    assert transport.x_padding_bytes == "128"
+    assert transport.uplink_chunk_size == "2048"
+
+    host_settings = XHttpSettings(
+        sc_max_each_post_bytes=4096,
+        sc_min_posts_interval_ms=30,
+        x_padding_bytes=128,
+        uplink_chunk_size=2048,
+        xmux=XMuxSettings(max_concurrency=4, max_connections=8),
+    )
+
+    assert host_settings.sc_max_each_post_bytes == "4096"
+    assert host_settings.sc_min_posts_interval_ms == "30"
+    assert host_settings.x_padding_bytes == "128"
+    assert host_settings.uplink_chunk_size == "2048"
+    assert host_settings.xmux.max_concurrency == "4"
+    assert host_settings.xmux.max_connections == "8"
 
 
 def test_xray_parser_does_not_mix_top_level_advanced_fields_when_extra_exists():

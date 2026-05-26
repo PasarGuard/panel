@@ -98,13 +98,13 @@ class XHTTPTransportConfig(BaseTransportConfig):
 
     mode: str = Field("auto")
     no_grpc_header: bool | None = Field(None)
-    sc_max_each_post_bytes: str | int | None = Field(
+    sc_max_each_post_bytes: str | None = Field(
         None, serialization_alias="scMaxEachPostBytes", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
-    sc_min_posts_interval_ms: str | int | None = Field(
+    sc_min_posts_interval_ms: str | None = Field(
         None, serialization_alias="scMinPostsIntervalMs", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
-    x_padding_bytes: str | int | None = Field(
+    x_padding_bytes: str | None = Field(
         None, serialization_alias="xPaddingBytes", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
     x_padding_obfs_mode: bool | None = Field(None, serialization_alias="xPaddingObfsMode")
@@ -119,7 +119,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
     seq_key: str | None = Field(None, serialization_alias="seqKey")
     uplink_data_placement: str | None = Field(None, serialization_alias="uplinkDataPlacement")
     uplink_data_key: str | None = Field(None, serialization_alias="uplinkDataKey")
-    uplink_chunk_size: str | int | None = Field(
+    uplink_chunk_size: str | None = Field(
         None, serialization_alias="uplinkChunkSize", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
     xmux: dict[str, Any] | None = Field(None)
