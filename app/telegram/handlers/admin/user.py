@@ -511,8 +511,10 @@ async def activate_next_plan(
 @router.callback_query(
     HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.modify_with_template == F.action)
 )
-async def modify_with_template(event: CallbackQuery, db: AsyncSession, callback_data: UserPanel.Callback):
-    templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
+async def modify_with_template(
+    event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: UserPanel.Callback
+):
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery(), admin)
     if not templates:
         return await event.answer(Texts.there_is_no_template)
 
@@ -542,8 +544,8 @@ async def modify_with_template_done(
     HasPermission("users", "create"),
     AdminPanel.Callback.filter(AdminPanelAction.create_user_from_template == F.action),
 )
-async def create_user_from_template(event: CallbackQuery, db: AsyncSession):
-    templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
+async def create_user_from_template(event: CallbackQuery, db: AsyncSession, admin: AdminDetails):
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery(), admin)
     if not templates:
         return await event.answer(Texts.there_is_no_template)
     await event.message.edit_text(Texts.choose_a_template, reply_markup=ChooseTemplate(templates).as_markup())

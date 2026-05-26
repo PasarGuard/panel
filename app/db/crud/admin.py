@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import and_, case, delete, func, insert, not_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.crud.general import (
     _build_trunc_expression,
@@ -31,12 +32,19 @@ from app.utils.logger import get_logger
 logger = get_logger("admin-crud")
 
 
-async def load_admin_attrs(admin: Admin, load_users: bool = True, load_usage_logs: bool = True):
+async def load_admin_attrs(
+    admin: Admin,
+    load_users: bool = True,
+    load_usage_logs: bool = True,
+    load_role: bool = True,
+):
     try:
         if load_users:
             await admin.awaitable_attrs.users
         if load_usage_logs:
             await admin.awaitable_attrs.usage_logs
+        if load_role:
+            await admin.awaitable_attrs.role
     except AttributeError:
         pass
 
@@ -452,12 +460,16 @@ async def get_usage_percentage_reached_admins(
         .exists()
     )
 
-    stmt = select(Admin).where(
-        Admin.status == AdminStatus.active,
-        Admin.data_limit.isnot(None),
-        Admin.data_limit > 0,
-        (Admin.used_traffic * 100) >= (Admin.data_limit * percentage),
-        not_(existing_reminder_subq),
+    stmt = (
+        select(Admin)
+        .options(selectinload(Admin.role))
+        .where(
+            Admin.status == AdminStatus.active,
+            Admin.data_limit.isnot(None),
+            Admin.data_limit > 0,
+            (Admin.used_traffic * 100) >= (Admin.data_limit * percentage),
+            not_(existing_reminder_subq),
+        )
     )
 
     if admin_ids is not None:
@@ -491,7 +503,7 @@ async def delete_admin_notification_reminders(
 
 async def get_active_to_limited_admins(db: AsyncSession) -> list[Admin]:
     """Return ALL active admins that have exceeded their data_limit (for status flip)."""
-    stmt = select(Admin).where(
+    stmt = select(Admin).options(selectinload(Admin.role)).where(
         Admin.status == AdminStatus.active,
         Admin.data_limit.isnot(None),
         Admin.data_limit > 0,

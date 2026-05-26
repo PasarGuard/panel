@@ -69,8 +69,8 @@ async def bulk_actions(event: CallbackQuery, admin: AdminDetails):
 @router.callback_query(
     HasPermission("users", "create"), BulkActionPanel.Callback.filter(BulkAction.create_from_template == F.action)
 )
-async def bulk_create_from_template(event: CallbackQuery, db: AsyncSession, state: FSMContext):
-    templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
+async def bulk_create_from_template(event: CallbackQuery, db: AsyncSession, state: FSMContext, admin: AdminDetails):
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery(), admin)
     if not templates:
         return await event.answer(Texts.there_is_no_template)
 
