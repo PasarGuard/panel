@@ -104,7 +104,9 @@ class XHTTPTransportConfig(BaseTransportConfig):
     sc_min_posts_interval_ms: str | int | None = Field(
         None, serialization_alias="scMinPostsIntervalMs", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
-    x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes")
+    x_padding_bytes: str | int | None = Field(
+        None, serialization_alias="xPaddingBytes", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
+    )
     x_padding_obfs_mode: bool | None = Field(None, serialization_alias="xPaddingObfsMode")
     x_padding_key: str | None = Field(None, serialization_alias="xPaddingKey")
     x_padding_header: str | None = Field(None, serialization_alias="xPaddingHeader")
@@ -128,6 +130,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
     @field_validator(
         "sc_max_each_post_bytes",
         "sc_min_posts_interval_ms",
+        "x_padding_bytes",
         "uplink_chunk_size",
         mode="before",
     )

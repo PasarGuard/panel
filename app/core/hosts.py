@@ -194,9 +194,19 @@ async def _prepare_subscription_inbound_data(
             path=path,
             host=host_list,
             mode=mode,
-            no_grpc_header=xs.no_grpc_header if xs else None,
-            sc_max_each_post_bytes=xs.sc_max_each_post_bytes if xs else None,
-            sc_min_posts_interval_ms=xs.sc_min_posts_interval_ms if xs else None,
+            no_grpc_header=xs.no_grpc_header
+            if xs and xs.no_grpc_header is not None
+            else inbound_config.get("no_grpc_header"),
+            sc_max_each_post_bytes=(
+                xs.sc_max_each_post_bytes
+                if xs and xs.sc_max_each_post_bytes is not None
+                else inbound_config.get("sc_max_each_post_bytes")
+            ),
+            sc_min_posts_interval_ms=(
+                xs.sc_min_posts_interval_ms
+                if xs and xs.sc_min_posts_interval_ms is not None
+                else inbound_config.get("sc_min_posts_interval_ms")
+            ),
             x_padding_bytes=xs.x_padding_bytes
             if xs and xs.x_padding_bytes is not None
             else inbound_config.get("x_padding_bytes"),
@@ -251,9 +261,9 @@ async def _prepare_subscription_inbound_data(
                 if xs and xs.uplink_chunk_size is not None
                 else inbound_config.get("uplink_chunk_size")
             ),
-            xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else None,
-            download_settings=down_settings if xs and down_settings else None,
-            http_headers=host.http_headers,
+            xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else inbound_config.get("xmux"),
+            download_settings=down_settings if xs and down_settings else inbound_config.get("download_settings"),
+            http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
             random_user_agent=host.random_user_agent,
         )
     elif network in ("grpc", "gun"):

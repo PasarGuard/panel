@@ -370,14 +370,17 @@ async def process_inbounds_and_tags(
 
         download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
         if download_settings:
-            processed_download_settings = await _prepare_download_settings(
-                download_settings,
-                format_variables,
-                user.inbounds,
-                proxy_settings,
-                client_templates,
-                conf,
-            )
+            if isinstance(download_settings, SubscriptionInboundData):
+                processed_download_settings = await _prepare_download_settings(
+                    download_settings,
+                    format_variables,
+                    user.inbounds,
+                    proxy_settings,
+                    client_templates,
+                    conf,
+                )
+            else:
+                processed_download_settings = download_settings
             if hasattr(inbound_copy.transport_config, "download_settings"):
                 inbound_copy.transport_config.download_settings = processed_download_settings
 
