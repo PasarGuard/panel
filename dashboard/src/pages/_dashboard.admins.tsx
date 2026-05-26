@@ -137,6 +137,8 @@ export default function AdminsPage() {
 
   const getRoleIdForAdmin = (admin: AdminDetails) => {
     const roleName = admin.role?.name
+    if (admin.role?.is_owner || roleName === 'owner') return 1
+    if (admin.role?.id != null) return admin.role.id
     const roleId = rolesQuery.data?.roles.find(role => role.name === roleName)?.id
     if (roleId != null) return roleId
     if (roleName === 'administrator') return 2

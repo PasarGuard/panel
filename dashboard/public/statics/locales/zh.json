@@ -661,6 +661,8 @@
     "createFailed": "创建管理员「{{name}}」失败",
     "editSuccess": "管理员「{{name}}」更新成功",
     "editFailed": "更新管理员「{{name}}」失败",
+    "passwordChangedTitle": "密码已更改",
+    "passwordChangedLogout": "请使用新密码重新登录。",
     "deleteSuccess": "管理员{{name}}删除成功",
     "deleteFailed": "删除管理员{{name}}失败",
     "bulkDeleteSuccess": "已成功删除 {{count}} 个管理员。",

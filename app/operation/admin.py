@@ -94,22 +94,31 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, db_admin: Admin, modified_admin: AdminModify, current_admin: AdminDetails
     ) -> AdminDetails:
         """Modify an existing admin's details."""
-        # Owner can only be modified by themselves — not by other admins via normal routes
-        if db_admin.role_id == 1 and (current_admin.id is None or db_admin.id != current_admin.id):
+        # Owner can only be modified by themselves via normal routes.
+        is_owner_target = self._is_owner_admin(db_admin)
+        is_self = current_admin.id is not None and db_admin.id == current_admin.id
+
+        if is_owner_target and not is_self:
             await self.raise_error(message="Owner cannot be modified via this endpoint. Use the setup flow.", code=403)
 
-        if modified_admin.role_id == 1:
+        if modified_admin.role_id == 1 and not (is_owner_target and is_self and db_admin.role_id == 1):
             await self.raise_error(
                 message="Owner role cannot be assigned via this endpoint. Use the setup flow.", code=403
             )
 
-        if not current_admin.is_owner and db_admin.id == current_admin.id:
+        if is_owner_target and modified_admin.role_id is not None and modified_admin.role_id != db_admin.role_id:
+            await self.raise_error(message="Owner role cannot be changed via this endpoint. Use the setup flow.", code=403)
+
+        if not current_admin.is_owner and is_self and modified_admin.role_id is not None and modified_admin.role_id != db_admin.role_id:
+            await self.raise_error(message="You're not allowed to change your own role.", code=403)
+
+        if not current_admin.is_owner and is_self:
             if modified_admin.status is not None and modified_admin.status == AdminStatus.disabled:
                 await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
         # Non-owner admins cannot modify other admins with equal or higher role level (role_id <= 2)
         # Only the owner can modify administrators (role_id=2)
-        if not current_admin.is_owner and db_admin.id != current_admin.id and db_admin.role_id <= 2:
+        if not current_admin.is_owner and not is_self and db_admin.role_id <= 2:
             await self.raise_error(message="You're not allowed to modify an administrator account.", code=403)
 
         if modified_admin.telegram_id is not None:

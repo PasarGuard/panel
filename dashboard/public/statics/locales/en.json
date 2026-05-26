@@ -661,6 +661,8 @@
     "createFailed": "Failed to create admin «{{name}}»",
     "editSuccess": "Admin «{{name}}» has been modified successfully",
     "editFailed": "Failed to modify admin «{{name}}»",
+    "passwordChangedTitle": "Password changed",
+    "passwordChangedLogout": "Please sign in again with your new password.",
     "deleteSuccess": "Admin {{name}} removed successfully",
     "deleteFailed": "Failed to remove admin {{name}}",
     "bulkDeleteSuccess": "{{count}} admins deleted successfully.",

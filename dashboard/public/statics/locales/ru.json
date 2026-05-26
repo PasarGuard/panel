@@ -647,6 +647,8 @@
     "createFailed": "Не удалось создать администратора «{{name}}»",
     "editSuccess": "Администратор «{{name}}» успешно обновлен",
     "editFailed": "Не удалось обновить администратора «{{name}}»",
+    "passwordChangedTitle": "Пароль изменен",
+    "passwordChangedLogout": "Войдите снова с новым паролем.",
     "deleteSuccess": "Администратор {{name}} успешно удалён",
     "deleteFailed": "Не удалось удалить администратора {{name}}",
     "bulkDeleteSuccess": "{{count}} администраторов успешно удалено.",

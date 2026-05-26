@@ -526,6 +526,8 @@
     "createFailed": "ایجاد مدیر «{{name}}» ناموفق بود",
     "editSuccess": "مدیر «{{name}}» با موفقیت به‌روزرسانی شد",
     "editFailed": "به‌روزرسانی مدیر «{{name}}» ناموفق بود",
+    "passwordChangedTitle": "گذرواژه تغییر کرد",
+    "passwordChangedLogout": "لطفاً دوباره با گذرواژه جدید وارد شوید.",
     "deleteSuccess": "مدیر {{name}} با موفقیت حذف شد",
     "deleteFailed": "حذف مدیر {{name}} ناموفق بود",
     "bulkDeleteSuccess": "{{count}} مدیر با موفقیت حذف شد.",

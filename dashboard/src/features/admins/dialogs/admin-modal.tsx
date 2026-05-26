@@ -12,16 +12,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { VariablesPopover } from '@/components/ui/variables-popover'
+import { useAdmin } from '@/hooks/use-admin'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
 import type { RoleLimits } from '@/service/api'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
+import { removeAuthToken } from '@/utils/authStorage'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bell, IdCard, Pencil, Sliders, UserCog } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 const BUILTIN_ADMIN_ROLES = [
@@ -69,8 +72,10 @@ interface AdminModalProps {
 
 export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId, editingAdmin, form }: AdminModalProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const handleError = useDynamicErrorHandler()
   const queryClient = useQueryClient()
+  const { admin: currentAdmin } = useAdmin()
   const addAdminMutation = useCreateAdmin()
   const modifyAdminMutation = useModifyAdminById()
   const rolesQuery = useGetRolesSimple()
@@ -133,6 +138,9 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
 
   const onSubmit = async (values: AdminFormValuesInput) => {
     try {
+      const passwordChanged = typeof values.password === 'string' && values.password.length > 0
+      const isEditingCurrentAdmin =
+        editingAdmin && currentAdmin != null && ((currentAdmin.id != null && editingAdminId === currentAdmin.id) || values.username === currentAdmin.username)
       const dataLimitChanged = !!form.formState.dirtyFields.data_limit
       const dataLimitHasValue = values.data_limit !== null && values.data_limit !== undefined && values.data_limit !== ''
       const dataLimitPayload = editingAdmin
@@ -164,6 +172,18 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
           data: editData,
         })
         upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
+        if (passwordChanged && isEditingCurrentAdmin) {
+          toast.success(t('admins.passwordChangedTitle', { defaultValue: 'Password changed' }), {
+            description: t('admins.passwordChangedLogout', { defaultValue: 'Please sign in again with your new password.' }),
+          })
+          onOpenChange(false)
+          form.reset()
+          await queryClient.cancelQueries()
+          removeAuthToken()
+          queryClient.clear()
+          navigate('/login', { replace: true })
+          return
+        }
         toast.success(
           t('admins.editSuccess', {
             name: values.username,
