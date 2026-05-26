@@ -2311,7 +2311,7 @@
       "transportSection": "Транспорт",
       "securitySection": "Безопасность",
       "vlessFlowDefault": "По умолчанию (нет)",
-      "vlessFlowVisionRequiresTls": "Потоки Vision требуют входящей безопасности TLS или REALITY (не «none»).",
+      "vlessFlowVisionRequiresTls": "Для XTLS Vision требуется TCP с TLS/REALITY, xHTTP с TLS или VLESS Encryption.",
       "transportAdvanced": {
         "title": "Параметры транспорта"
       },

@@ -2336,7 +2336,7 @@
       "transportSection": "حمل",
       "securitySection": "امنیت",
       "vlessFlowDefault": "پیش‌فرض (بدون)",
-      "vlessFlowVisionRequiresTls": "جریان‌های Vision به امنیت ورودی TLS یا REALITY نیاز دارند (نه «none»).",
+      "vlessFlowVisionRequiresTls": "XTLS Vision به TCP با TLS/REALITY، xHTTP با TLS، یا VLESS Encryption نیاز دارد.",
       "transportAdvanced": {
         "title": "جزئیات حمل"
       },

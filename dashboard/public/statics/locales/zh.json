@@ -2382,7 +2382,7 @@
       "transportSection": "传输",
       "securitySection": "安全",
       "vlessFlowDefault": "默认（无）",
-      "vlessFlowVisionRequiresTls": "Vision 流需要入站安全为 TLS 或 REALITY（不能为 none）。",
+      "vlessFlowVisionRequiresTls": "XTLS Vision 需要 TCP + TLS/REALITY、xHTTP + TLS，或启用 VLESS Encryption。",
       "transportAdvanced": {
         "title": "传输详情"
       },

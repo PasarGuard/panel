@@ -2423,7 +2423,7 @@
       "transportSection": "Transport",
       "securitySection": "Security",
       "vlessFlowDefault": "Default (none)",
-      "vlessFlowVisionRequiresTls": "Vision flows require inbound security TLS or REALITY (not “none”).",
+      "vlessFlowVisionRequiresTls": "XTLS Vision requires TCP with TLS/REALITY, xHTTP with TLS, or VLESS Encryption.",
       "transportAdvanced": {
         "title": "Transport details"
       },

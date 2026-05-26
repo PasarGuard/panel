@@ -251,9 +251,11 @@ function effectiveSecurityTypeForVlessInboundFlow(inbound: Inbound | undefined, 
 
 function effectiveTransportTypeForVlessInboundFlow(inbound: Inbound | undefined): string {
   if (!inbound || !('transport' in inbound) || !inbound.transport) return 'tcp'
-  return String((inbound.transport as { type?: unknown }).type ?? 'tcp')
-    .trim()
-    .toLowerCase() || 'tcp'
+  return (
+    String((inbound.transport as { type?: unknown }).type ?? 'tcp')
+      .trim()
+      .toLowerCase() || 'tcp'
+  )
 }
 
 function vlessInboundEncryptionEnabled(raw: unknown): boolean {
@@ -264,9 +266,15 @@ function vlessInboundEncryptionEnabled(raw: unknown): boolean {
 
 function vlessInboundFlowAllowed(input: { securityType: string | undefined; transportType: string | undefined; encryption: unknown }): boolean {
   if (vlessInboundEncryptionEnabled(input.encryption)) return true
-  const security = String(input.securityType ?? 'none').trim().toLowerCase()
-  const transport = String(input.transportType ?? 'tcp').trim().toLowerCase() || 'tcp'
-  return transport === 'tcp' && (security === 'tls' || security === 'reality')
+  const security = String(input.securityType ?? 'none')
+    .trim()
+    .toLowerCase()
+  const transport =
+    String(input.transportType ?? 'tcp')
+      .trim()
+      .toLowerCase() || 'tcp'
+  if (transport === 'tcp') return security === 'tls' || security === 'reality'
+  return transport === 'xhttp' && security === 'tls'
 }
 
 function vlessInboundFlowIncompatible(input: { securityType: string | undefined; transportType: string | undefined; encryption: unknown; flow: string | undefined }): boolean {
@@ -3382,7 +3390,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           {!vlessInboundFlowsOk ? (
                             <p className="text-muted-foreground text-xs">
                               {t('coreEditor.inbound.vlessFlowVisionRequiresTls', {
-                                defaultValue: 'XTLS Vision requires TCP with TLS/REALITY, or VLESS Encryption.',
+                                defaultValue: 'XTLS Vision requires TCP with TLS/REALITY, xHTTP with TLS, or VLESS Encryption.',
                               })}
                             </p>
                           ) : null}
@@ -4628,7 +4636,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           patchInbound({ address: nextAddresses.length > 0 ? nextAddresses : undefined } as Partial<Inbound>)
                         }}
                         placeholder={t('coreEditor.inbound.wireguard.addressHint', {
-                            defaultValue: 'Example: 10.0.0.1/32',
+                          defaultValue: 'Example: 10.0.0.1/32',
                         })}
                         addPlaceholder={t('coreEditor.inbound.wireguard.addressAddPlaceholder', {
                           defaultValue: 'Add address',
