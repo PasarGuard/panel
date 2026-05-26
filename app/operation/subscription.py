@@ -306,9 +306,7 @@ class SubscriptionOperation(BaseOperation):
 
         # It's a new HWID, check limit
         limit = user_hwid_limit if user_hwid_limit is not None else effective_hwid_conf.fallback_limit
-        if limit == 0:
-            pass  # unlimited
-        else:
+        if limit is not None and limit > 0:
             current_count = await get_user_hwid_count(db, user_id)
             if current_count >= limit:
                 await self.raise_error(message="Device limit reached", code=403)
