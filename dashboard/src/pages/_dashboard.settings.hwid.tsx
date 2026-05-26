@@ -101,7 +101,7 @@ export default function HwidSettings() {
   if (error) {
     return (
       <div className="flex min-h-[400px] items-center justify-center p-4 sm:py-6 lg:py-8">
-        <p className="text-sm text-destructive">{t('settings.hwid.loadError', { defaultValue: 'Failed to load HWID settings' })}</p>
+        <p className="text-destructive text-sm">{t('settings.hwid.loadError', { defaultValue: 'Failed to load HWID settings' })}</p>
       </div>
     )
   }
@@ -112,10 +112,8 @@ export default function HwidSettings() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 p-4 sm:py-6 lg:py-8">
           <section className="space-y-4">
             <div className="space-y-1.5">
-              <h3 className="text-base font-semibold sm:text-lg">
-                {t('settings.hwid.policy.title', { defaultValue: 'Device registration policy' })}
-              </h3>
-              <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              <h3 className="text-base font-semibold sm:text-lg">{t('settings.hwid.policy.title', { defaultValue: 'Device registration policy' })}</h3>
+              <p className="text-muted-foreground max-w-3xl text-xs leading-relaxed sm:text-sm">
                 {t('settings.hwid.policy.description', { defaultValue: 'Control subscription access by registered hardware IDs.' })}
               </p>
             </div>
@@ -125,7 +123,7 @@ export default function HwidSettings() {
                 control={form.control}
                 name="enabled"
                 render={({ field }) => (
-                  <FormItem className="flex-row items-center justify-between gap-4 rounded-md border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                  <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between gap-4 space-y-0 rounded-md border p-3 transition-colors sm:p-4">
                     <div className="min-w-0 flex-1 space-y-1">
                       <FormLabel className="cursor-pointer text-sm font-medium">{t('settings.hwid.enabled.title', { defaultValue: 'Enable HWID checks' })}</FormLabel>
                       <FormDescription className="text-xs leading-relaxed sm:text-sm">
@@ -143,7 +141,7 @@ export default function HwidSettings() {
                 control={form.control}
                 name="forced"
                 render={({ field }) => (
-                  <FormItem className="flex-row items-center justify-between gap-4 rounded-md border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                  <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between gap-4 space-y-0 rounded-md border p-3 transition-colors sm:p-4">
                     <div className="min-w-0 flex-1 space-y-1">
                       <FormLabel className="cursor-pointer text-sm font-medium">{t('settings.hwid.forced.title', { defaultValue: 'Require HWID header' })}</FormLabel>
                       <FormDescription className="text-xs leading-relaxed sm:text-sm">
@@ -162,7 +160,7 @@ export default function HwidSettings() {
           <section className="space-y-4">
             <div className="space-y-1.5">
               <h3 className="text-base font-semibold sm:text-lg">{t('settings.hwid.limits.title', { defaultValue: 'Device limits' })}</h3>
-              <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              <p className="text-muted-foreground max-w-3xl text-xs leading-relaxed sm:text-sm">
                 {t('settings.hwid.limits.description', { defaultValue: 'Set the default device count and optional bounds for per-user HWID limits.' })}
               </p>
             </div>
