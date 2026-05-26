@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import (
+    build_admin_details,
     create_admin,
     find_admins_by_telegram_id,
     get_admin_usages,
@@ -73,7 +74,7 @@ class AdminOperation(BaseOperation):
             await self.raise_error(message="Admin already exists", code=409, db=db)
 
         logger.info(f'New admin "{db_admin.username}" with id "{db_admin.id}" added by admin "{admin.username}"')
-        new_admin_details = AdminDetails.model_validate(db_admin)
+        new_admin_details = build_admin_details(db_admin, include_loaded_metrics=True)
         asyncio.create_task(notification.create_admin(new_admin_details, admin.username))
         return db_admin
 
@@ -137,7 +138,7 @@ class AdminOperation(BaseOperation):
 
         logger.info(f'Admin "{db_admin.username}" with id "{db_admin.id}" modified by admin "{current_admin.username}"')
 
-        modified_admin_details = AdminDetails.model_validate(db_admin)
+        modified_admin_details = build_admin_details(db_admin, include_loaded_metrics=True)
         asyncio.create_task(notification.modify_admin(modified_admin_details, current_admin.username))
         return modified_admin_details
 
@@ -299,7 +300,7 @@ class AdminOperation(BaseOperation):
             await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
-        reseted_admin_details = AdminDetails.model_validate(db_admin)
+        reseted_admin_details = build_admin_details(db_admin, include_loaded_metrics=True)
         asyncio.create_task(notification.admin_usage_reset(reseted_admin_details, admin.username))
         return reseted_admin_details
 
@@ -442,7 +443,7 @@ class AdminOperation(BaseOperation):
         await db.commit()
 
         for db_admin in admins_to_update:
-            modified_admin = AdminDetails.model_validate(db_admin)
+            modified_admin = build_admin_details(db_admin, include_loaded_metrics=True)
             asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
             logger.info(
                 f'Admin "{db_admin.username}" bulk {"disabled" if is_disabled else "enabled"} by admin "{current_admin.username}"'
@@ -457,7 +458,7 @@ class AdminOperation(BaseOperation):
         db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
         for db_admin in db_admins:
             db_admin = await reset_admin_usage(db, db_admin=db_admin)
-            reseted_admin = AdminDetails.model_validate(db_admin)
+            reseted_admin = build_admin_details(db_admin, include_loaded_metrics=True)
             asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
             logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
         return self._build_bulk_action_response(db_admins)

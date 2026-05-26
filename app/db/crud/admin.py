@@ -32,6 +32,44 @@ from app.utils.logger import get_logger
 logger = get_logger("admin-crud")
 
 
+def build_admin_details(
+    db_admin: Admin,
+    *,
+    total_users: int | None = None,
+    reseted_usage: int | None = None,
+    include_loaded_metrics: bool = False,
+) -> AdminDetails:
+    used_traffic = int(db_admin.used_traffic or 0)
+    if include_loaded_metrics:
+        if total_users is None:
+            total_users = db_admin.total_users
+        if reseted_usage is None:
+            reseted_usage = db_admin.reseted_usage
+
+    return AdminDetails(
+        id=db_admin.id,
+        username=db_admin.username,
+        total_users=int(total_users or 0),
+        used_traffic=used_traffic,
+        data_limit=db_admin.data_limit,
+        status=db_admin.status,
+        telegram_id=db_admin.telegram_id,
+        discord_webhook=db_admin.discord_webhook,
+        sub_domain=db_admin.sub_domain,
+        profile_title=db_admin.profile_title,
+        support_url=db_admin.support_url,
+        note=db_admin.note,
+        notification_enable=db_admin.notification_enable,
+        discord_id=db_admin.discord_id,
+        sub_template=db_admin.sub_template,
+        lifetime_used_traffic=None if reseted_usage is None else int(reseted_usage or 0) + used_traffic,
+        role=AdminRoleData.model_validate(db_admin.role) if db_admin.role is not None else None,
+        permission_overrides=RoleLimits.model_validate(db_admin.permission_overrides)
+        if db_admin.permission_overrides
+        else None,
+    )
+
+
 async def load_admin_attrs(
     admin: Admin,
     load_users: bool = True,
@@ -333,31 +371,7 @@ async def get_admins(
         rows = (await db.execute(stmt)).unique().all()
         admins = []
         for admin, total_users, reseted_usage in rows:
-            lifetime_used_traffic = int((reseted_usage or 0) + (admin.used_traffic or 0))
-            admins.append(
-                AdminDetails(
-                    id=admin.id,
-                    username=admin.username,
-                    total_users=int(total_users or 0),
-                    used_traffic=int(admin.used_traffic or 0),
-                    data_limit=admin.data_limit,
-                    status=admin.status,
-                    telegram_id=admin.telegram_id,
-                    discord_webhook=admin.discord_webhook,
-                    sub_domain=admin.sub_domain,
-                    profile_title=admin.profile_title,
-                    support_url=admin.support_url,
-                    note=admin.note,
-                    notification_enable=admin.notification_enable,
-                    discord_id=admin.discord_id,
-                    sub_template=admin.sub_template,
-                    lifetime_used_traffic=lifetime_used_traffic,
-                    role=AdminRoleData.model_validate(admin.role) if admin.role is not None else None,
-                    permission_overrides=RoleLimits.model_validate(admin.permission_overrides)
-                    if admin.permission_overrides
-                    else None,
-                )
-            )
+            admins.append(build_admin_details(admin, total_users=total_users, reseted_usage=reseted_usage))
     else:
         admins = list((await db.execute(stmt)).scalars().all())
         for admin in admins:

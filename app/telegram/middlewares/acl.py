@@ -4,9 +4,8 @@ from aiogram import BaseMiddleware
 from aiogram.types import Update
 
 from app.db import GetDB
-from app.db.crud.admin import get_admin_by_telegram_id
+from app.db.crud.admin import build_admin_details, get_admin_by_telegram_id
 from app.db.models import AdminStatus
-from app.models.admin import AdminDetails
 from app.settings import telegram_settings
 from app.models.settings import Telegram
 
@@ -26,7 +25,7 @@ class ACLMiddleware(BaseMiddleware):
                         return
                     data["admin"] = None
                 else:
-                    admin = AdminDetails.model_validate(admin)
+                    admin = build_admin_details(admin, include_loaded_metrics=True)
                     data["admin"] = admin
             else:
                 if settings.for_admins_only:

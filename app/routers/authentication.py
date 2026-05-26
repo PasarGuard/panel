@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app.db import AsyncSession, get_db
 from app.db.crud.admin import (
+    build_admin_details,
     find_admins_by_telegram_id,
     get_admin as get_admin_by_username,
     get_admin_by_id as get_admin_by_id_crud,
@@ -33,38 +34,6 @@ _ENV_ADMIN_ROLE = AdminRoleData(
 )
 
 
-def _build_admin_details(
-    db_admin: Admin,
-    *,
-    total_users: int = 0,
-    reseted_usage: int | None = None,
-) -> AdminDetails:
-    used_traffic = int(db_admin.used_traffic or 0)
-    role = AdminRoleData.model_validate(db_admin.role) if db_admin.role is not None else None
-    return AdminDetails(
-        id=db_admin.id,
-        username=db_admin.username,
-        total_users=int(total_users or 0),
-        used_traffic=used_traffic,
-        data_limit=db_admin.data_limit,
-        status=db_admin.status,
-        telegram_id=db_admin.telegram_id,
-        discord_webhook=db_admin.discord_webhook,
-        sub_domain=db_admin.sub_domain,
-        profile_title=db_admin.profile_title,
-        support_url=db_admin.support_url,
-        note=db_admin.note,
-        notification_enable=db_admin.notification_enable,
-        discord_id=db_admin.discord_id,
-        sub_template=db_admin.sub_template,
-        lifetime_used_traffic=None if reseted_usage is None else int(reseted_usage or 0) + used_traffic,
-        role=role,
-        permission_overrides=RoleLimits.model_validate(db_admin.permission_overrides)
-        if db_admin.permission_overrides
-        else None,
-    )
-
-
 def _is_token_valid_for_admin(db_admin: Admin, payload: dict) -> bool:
     if not db_admin.password_reset_at:
         return True
@@ -88,7 +57,7 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     if db_admin:
         if not _is_token_valid_for_admin(db_admin, payload):
             return None
-        return _build_admin_details(db_admin)
+        return build_admin_details(db_admin)
 
     # Env admin fallback — no DB record, but username is a known env admin
     if payload["username"] in auth_settings.sudoers:
@@ -125,7 +94,7 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
         db_admin, total_users, reseted_usage = admin_row
         if not _is_token_valid_for_admin(db_admin, payload):
             return None
-        return _build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
+        return build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
 
     # Env admin fallback — no DB record, but username is a known env admin
     if payload["username"] in auth_settings.sudoers:
