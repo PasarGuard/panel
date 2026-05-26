@@ -189,8 +189,7 @@ const ExpiryDateField = ({
             <p
               className={cn(
                 fieldName !== 'on_hold_timeout' && 'lg:w-48',
-                'text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs whitespace-nowrap lg:overflow-hidden lg:text-ellipsis',
-                dir === 'rtl' ? 'right-0' : 'left-0',
+                'text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs whitespace-nowrap lg:overflow-hidden lg:text-ellipsis left-0'
               )}
             >
               {(() => {
