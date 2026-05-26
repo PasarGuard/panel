@@ -235,6 +235,35 @@ function applyInboundSockoptToCompiledConfig(profile: Profile, config: Record<st
   return { ...config, inbounds }
 }
 
+const OBSERVATION_EXCLUDED_OUTBOUND_PROTOCOLS = new Set(['blackhole', 'dns', 'loopback'])
+
+function observableOutboundTags(profile: Profile): string[] {
+  return [
+    ...new Set(
+      (profile.outbounds ?? [])
+        .filter(outbound => !OBSERVATION_EXCLUDED_OUTBOUND_PROTOCOLS.has(String(outbound.protocol)))
+        .map(outbound => String(outbound.tag ?? '').trim())
+        .filter(Boolean),
+    ),
+  ]
+}
+
+function applyObservationSubjectSelectorsToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
+  const subjectSelector = observableOutboundTags(profile)
+  if (subjectSelector.length === 0) return config
+
+  let changed = false
+  const next = { ...config }
+  for (const key of ['observatory', 'burstObservatory'] as const) {
+    const source = next[key]
+    if (!isRecord(source)) continue
+    next[key] = { ...source, subjectSelector }
+    changed = true
+  }
+
+  return changed ? next : config
+}
+
 /**
  * Issues from {@link buildXrayConfig} in strict mode when the profile does not compile (schema / semantic / unsafe patches, …).
  */
@@ -268,11 +297,14 @@ export function importRawToProfile(raw: unknown): { profile: Profile; issues: Is
 export function profileToPersistedConfig(profile: Profile): Record<string, unknown> {
   const prepared = prepareProfileForKit(profile)
   const { config } = buildXrayConfig(prepared, { mode: 'permissive' })
-  const result = applyRealityInboundExtrasToCompiledConfig(
+  const result = applyObservationSubjectSelectorsToCompiledConfig(
     profile,
-    applyVlessInboundEncryptionToCompiledConfig(
-      prepared,
-      applyInboundSockoptToCompiledConfig(prepared, config as Record<string, unknown>),
+    applyRealityInboundExtrasToCompiledConfig(
+      profile,
+      applyVlessInboundEncryptionToCompiledConfig(
+        prepared,
+        applyInboundSockoptToCompiledConfig(prepared, config as Record<string, unknown>),
+      ),
     ),
   )
 

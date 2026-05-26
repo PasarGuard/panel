@@ -423,11 +423,20 @@ function collectOutboundRequiredIssues(ob: Outbound, t: (key: string, opts?: Rec
   return issues
 }
 
-function applyOutboundValidationIssuesToForm(issues: OutboundRequiredIssue[], form: ReturnType<typeof useForm<Record<string, string>>>, t: (key: string, opts?: Record<string, unknown>) => string) {
+function applyOutboundValidationIssuesToForm(
+  issues: OutboundRequiredIssue[],
+  form: ReturnType<typeof useForm<Record<string, string>>>,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  options?: { forceToast?: boolean },
+) {
   form.clearErrors(K_TAG)
   const tagIssue = issues.find(i => i.field === 'tag')
   if (tagIssue) {
     form.setError(K_TAG, { type: 'validate', message: tagIssue.message })
+  }
+  if (options?.forceToast) {
+    toast.error(t('coreEditor.outbound.validation.requiredFieldsTitle', { defaultValue: 'Required fields missing' }), { description: issues.map(i => i.message).join('\n') })
+    return
   }
   const rest = issues.filter(i => i.field !== 'tag')
   if (rest.length > 0) {
@@ -720,11 +729,13 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
     const issues = collectOutboundRequiredIssues(row, t)
     if (issues.length > 0) {
-      applyOutboundValidationIssuesToForm(issues, form, t)
+      applyOutboundValidationIssuesToForm(issues, form, t, { forceToast: outboundDialogTab === 'json' })
       return
     }
     if (isTagDuplicate(tagTrim)) {
-      setDuplicateTagError(tagTrim)
+      const message = profileDuplicateTagMessage(t, tagTrim)
+      if (outboundDialogTab === 'json') toast.error(message)
+      else setDuplicateTagError(tagTrim)
       return
     }
 
@@ -762,11 +773,13 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
     const issues = collectOutboundRequiredIssues(toValidate, t)
     if (issues.length > 0) {
-      applyOutboundValidationIssuesToForm(issues, form, t)
+      applyOutboundValidationIssuesToForm(issues, form, t, { forceToast: outboundDialogTab === 'json' })
       return
     }
     if (isTagDuplicate(tagTrim)) {
-      setDuplicateTagError(tagTrim)
+      const message = profileDuplicateTagMessage(t, tagTrim)
+      if (outboundDialogTab === 'json') toast.error(message)
+      else setDuplicateTagError(tagTrim)
       return
     }
 
