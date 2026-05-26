@@ -1755,6 +1755,11 @@ export interface OwnerDeleteRequest {
   key: string
 }
 
+export interface OwnerUpgradeRequest {
+  key: string
+  username: string
+}
+
 export interface OwnerCreateRequest {
   key: string
   username: string
@@ -5624,11 +5629,57 @@ export const useCreateOwner = <TData = Awaited<ReturnType<typeof createOwner>>, 
 }
 
 /**
+ * Upgrade an existing admin to owner using a one-time temp key.
+ * @summary Upgrade Owner
+ */
+export const upgradeOwner = (ownerUpgradeRequest: BodyType<OwnerUpgradeRequest>, signal?: AbortSignal) => {
+  return orvalFetcher<AdminDetails>({ url: `/api/setup/owner/upgrade`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: ownerUpgradeRequest, signal })
+}
+
+export const getUpgradeOwnerMutationOptions = <
+  TData = Awaited<ReturnType<typeof upgradeOwner>>,
+  TError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
+}) => {
+  const mutationKey = ['upgradeOwner']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof upgradeOwner>>, { data: BodyType<OwnerUpgradeRequest> }> = props => {
+    const { data } = props ?? {}
+
+    return upgradeOwner(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
+}
+
+export type UpgradeOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof upgradeOwner>>>
+export type UpgradeOwnerMutationBody = BodyType<OwnerUpgradeRequest>
+export type UpgradeOwnerMutationError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>
+
+/**
+ * @summary Upgrade Owner
+ */
+export const useUpgradeOwner = <TData = Awaited<ReturnType<typeof upgradeOwner>>, TError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext> => {
+  const mutationOptions = getUpgradeOwnerMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * Delete the owner admin using a one-time temp key.
  * @summary Delete Owner
  */
 export const deleteOwner = (ownerDeleteRequest: BodyType<OwnerDeleteRequest>) => {
-  return orvalFetcher<void>({ url: `/api/setup/owner`, method: 'DELETE', headers: { 'Content-Type': 'application/json' }, data: ownerDeleteRequest })
+  return orvalFetcher<void>({ url: `/api/setup/owner`, method: 'DELETE', params: { ...ownerDeleteRequest } })
 }
 
 export const getDeleteOwnerMutationOptions = <
