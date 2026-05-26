@@ -83,6 +83,41 @@ function patchRealityInboundXverFromRaw(profile: Profile, raw: unknown): Profile
   return { ...profile, inbounds }
 }
 
+function preserveInboundStreamSettingsFromRaw(profile: Profile, raw: unknown): Profile {
+  if (!isRecord(raw)) return profile
+  const rawInbounds = raw.inbounds
+  if (!Array.isArray(rawInbounds)) return profile
+
+  let changed = false
+  const inbounds = profile.inbounds.map((inbound, index) => {
+    if (inbound.protocol === 'unmanaged') return inbound
+    if ('transport' in inbound && 'security' in inbound) return inbound
+
+    const rawInbound = asRecord(rawInbounds[index])
+    const streamSettings = rawInbound?.streamSettings
+    if (!isJsonValue(streamSettings)) return inbound
+
+    const currentRaw = Array.isArray((inbound as { raw?: unknown }).raw) ? [...((inbound as { raw?: unknown }).raw as unknown[])] : []
+    const hasStreamPatch = currentRaw.some(entry => isRecord(entry) && entry.path === '/streamSettings')
+    if (hasStreamPatch) return inbound
+
+    changed = true
+    return {
+      ...inbound,
+      raw: [
+        ...currentRaw,
+        {
+          op: 'add',
+          path: '/streamSettings',
+          value: streamSettings,
+        },
+      ],
+    } as typeof inbound
+  })
+
+  return changed ? { ...profile, inbounds } : profile
+}
+
 function stripRealityInboundXverForKit(profile: Profile): Profile {
   const inbounds = profile.inbounds.map(inbound => {
     const security = asRecord((inbound as { security?: unknown }).security)
@@ -111,7 +146,12 @@ function applyVlessInboundEncryptionToCompiledConfig(profile: Profile, config: R
   return { ...config, inbounds }
 }
 
-function applyRealityInboundXverToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
+/**
+ * `xray-config-kit`'s `compileRealityServer` drops `xver`, `fingerprint`, `publicKey`, and `mldsa65Verify`.
+ * The importer reads these fields, so without re-applying them after compile, edits made in the panel
+ * (e.g. picking a uTLS fingerprint) are silently lost on the next round-trip.
+ */
+function applyRealityInboundExtrasToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(config.inbounds)) return config
 
   let changed = false
@@ -120,12 +160,22 @@ function applyRealityInboundXverToCompiledConfig(profile: Profile, config: Recor
     const profileInbound = profile.inbounds?.[index]
     const security = asRecord((profileInbound as { security?: unknown } | undefined)?.security)
     if (security?.type !== 'reality') return compiledInbound
+
     const xver = realityXverValue(security.xver)
-    if (xver === undefined) return compiledInbound
+    const fingerprint = typeof security.fingerprint === 'string' && security.fingerprint.trim() !== '' ? security.fingerprint : undefined
+    const publicKey = typeof security.publicKey === 'string' && security.publicKey.trim() !== '' ? security.publicKey : undefined
+    const mldsa65Verify = typeof security.mldsa65Verify === 'string' && security.mldsa65Verify.trim() !== '' ? security.mldsa65Verify : undefined
+
+    if (xver === undefined && fingerprint === undefined && publicKey === undefined && mldsa65Verify === undefined) {
+      return compiledInbound
+    }
 
     const streamSettings = isRecord(compiledInbound.streamSettings) ? { ...compiledInbound.streamSettings } : {}
     const realitySettings = isRecord(streamSettings.realitySettings) ? { ...streamSettings.realitySettings } : {}
-    realitySettings.xver = xver
+    if (xver !== undefined) realitySettings.xver = xver
+    if (fingerprint !== undefined) realitySettings.fingerprint = fingerprint
+    if (publicKey !== undefined) realitySettings.publicKey = publicKey
+    if (mldsa65Verify !== undefined) realitySettings.mldsa65Verify = mldsa65Verify
     streamSettings.realitySettings = realitySettings
     changed = true
     return { ...compiledInbound, streamSettings }
@@ -202,8 +252,11 @@ export type XrayPersistValidationResult =
 export function importRawToProfile(raw: unknown): { profile: Profile; issues: Issue[] } {
   const imported = importXrayConfig(raw)
   const profile = preserveUnmodeledTopLevelSections(
-    patchRealityInboundXverFromRaw(
-      patchVlessInboundEncryptionFromRaw(sanitizeProfileInbounds(normalizeProfile(imported.profile)), raw),
+    preserveInboundStreamSettingsFromRaw(
+      patchRealityInboundXverFromRaw(
+        patchVlessInboundEncryptionFromRaw(sanitizeProfileInbounds(normalizeProfile(imported.profile)), raw),
+        raw,
+      ),
       raw,
     ),
     raw,
@@ -215,7 +268,7 @@ export function importRawToProfile(raw: unknown): { profile: Profile; issues: Is
 export function profileToPersistedConfig(profile: Profile): Record<string, unknown> {
   const prepared = prepareProfileForKit(profile)
   const { config } = buildXrayConfig(prepared, { mode: 'permissive' })
-  const result = applyRealityInboundXverToCompiledConfig(
+  const result = applyRealityInboundExtrasToCompiledConfig(
     profile,
     applyVlessInboundEncryptionToCompiledConfig(
       prepared,

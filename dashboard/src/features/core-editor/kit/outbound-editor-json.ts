@@ -232,22 +232,13 @@ export function outboundEditorBodyFromOutbound(ob: Outbound): Record<string, unk
 
 export function normalizeSettingsFromEditor(protocol: string, settings: Record<string, unknown>): Record<string, unknown> {
   if (protocol === 'vless') {
-    if (Array.isArray(settings.vnext) && settings.vnext.length > 0) return { ...settings }
-    const { address, port, id, flow, encryption, level, email, ...rest } = settings
-    if (address != null && port != null && id != null) {
-      const user = compactSettingsUser({
-        id,
-        encryption,
-        flow: typeof flow === 'string' && flow === '' ? undefined : flow,
-        level,
-        email,
-      })
-      return {
-        ...rest,
-        vnext: [{ address, port, users: [user] }],
-      }
+    const next = { ...settings }
+    if (typeof next.flow === 'string' && next.flow === '') delete next.flow
+    if (Array.isArray(next.vnext) && next.vnext.length === 0) delete next.vnext
+    for (const key of ['address', 'port', 'id', 'encryption', 'level', 'email'] as const) {
+      if (next[key] === undefined || next[key] === null || next[key] === '') delete next[key]
     }
-    return { ...settings }
+    return next
   }
   if (protocol === 'vmess') {
     if (Array.isArray(settings.vnext) && settings.vnext.length > 0) return { ...settings }

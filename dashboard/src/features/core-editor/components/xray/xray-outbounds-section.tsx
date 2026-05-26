@@ -196,6 +196,23 @@ function replaceOutbound(profile: Profile, index: number, ob: Outbound): Profile
   })
 }
 
+function replaceOutboundForCommit(profile: Profile, index: number, ob: Outbound, original: Outbound | null): Profile {
+  let previousOutbounds: Outbound[] | undefined
+  if (original) {
+    previousOutbounds = [...(profile.outbounds ?? [])]
+    if (index >= 0 && index < previousOutbounds.length) previousOutbounds[index] = original
+  }
+  return updateOutboundsWithObservationSelectors(
+    profile,
+    outbounds => {
+      const list = [...outbounds]
+      list[index] = ob
+      return list
+    },
+    previousOutbounds,
+  )
+}
+
 function removeOutbound(profile: Profile, index: number): Profile {
   return updateOutboundsWithObservationSelectors(profile, outbounds => outbounds.filter((_: Outbound, i: number) => i !== index))
 }
@@ -208,14 +225,21 @@ function uniqueOutboundTags(outbounds: Outbound[] | undefined): string[] {
   return [...new Set((outbounds ?? []).map(outbound => String(outbound.tag ?? '').trim()).filter(Boolean))]
 }
 
+/** Outbound protocols that should never be auto-included as observation subjects (no useful probe target). */
+const OBSERVATION_EXCLUDED_PROTOCOLS = new Set(['blackhole', 'dns', 'loopback'])
+
+function uniqueObservableOutboundTags(outbounds: Outbound[] | undefined): string[] {
+  return uniqueOutboundTags((outbounds ?? []).filter(outbound => !OBSERVATION_EXCLUDED_PROTOCOLS.has(outbound.protocol as string)))
+}
+
 function readStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.map(item => String(item).trim()).filter(Boolean)
 }
 
 function syncObservationSubjectSelectors(profile: Profile, previousOutbounds: Outbound[] | undefined): Profile {
-  const nextTags = uniqueOutboundTags(profile.outbounds)
-  const previousTags = new Set(uniqueOutboundTags(previousOutbounds))
+  const nextTags = uniqueObservableOutboundTags(profile.outbounds)
+  const previousTags = new Set(uniqueObservableOutboundTags(previousOutbounds))
   const topLevel = profile.raw?.topLevel
   let nextTopLevel: Record<string, JsonValue> | undefined
 
@@ -241,9 +265,10 @@ function syncObservationSubjectSelectors(profile: Profile, previousOutbounds: Ou
   } as Profile
 }
 
-function updateOutboundsWithObservationSelectors(profile: Profile, mutator: (outbounds: Outbound[]) => Outbound[]): Profile {
-  const previousOutbounds = profile.outbounds ?? []
-  const nextProfile = { ...profile, outbounds: mutator(previousOutbounds) }
+function updateOutboundsWithObservationSelectors(profile: Profile, mutator: (outbounds: Outbound[]) => Outbound[], previousOutboundsOverride?: Outbound[]): Profile {
+  const currentOutbounds = profile.outbounds ?? []
+  const previousOutbounds = previousOutboundsOverride ?? currentOutbounds
+  const nextProfile = { ...profile, outbounds: mutator(currentOutbounds) }
   return syncObservationSubjectSelectors(nextProfile, previousOutbounds)
 }
 
@@ -672,8 +697,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   const commitAddOutbound = () => {
     if (!draftOutbound || draftOutbound.protocol === 'unmanaged') return
-    if (!assertNoPersistBlockingErrors()) return
-    const tagTrim = (form.getValues(K_TAG) ?? '').trim()
 
     let row: Outbound = draftOutbound
     if (outboundDialogTab === 'json') {
@@ -684,6 +707,11 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         return
       }
     }
+    if (!assertNoPersistBlockingErrors()) return
+
+    const tagTrim = outboundDialogTab === 'json'
+      ? String(row.tag ?? '').trim()
+      : (form.getValues(K_TAG) ?? '').trim()
     row = stripEmptyStreamSettingsFromRecord({
       ...row,
       tag: tagTrim,
@@ -710,7 +738,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   const commitEditOutbound = () => {
     if (dialogMode !== 'edit' || !ob) return
-    const tagTrim = (form.getValues(K_TAG) ?? '').trim()
 
     let toValidate: Outbound
     if (outboundDialogTab === 'json') {
@@ -721,11 +748,16 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         return
       }
     } else {
+      const formTagTrim = (form.getValues(K_TAG) ?? '').trim()
       toValidate = stripEmptyStreamSettingsFromRecord({
         ...ob,
-        tag: tagTrim,
+        tag: formTagTrim,
         settings: normalizeSettingsFromEditor(ob.protocol, flattenOutboundSettings(ob)),
       } as Record<string, unknown>) as Outbound
+    }
+    const tagTrim = String(toValidate.tag ?? '').trim()
+    if (tagTrim !== toValidate.tag) {
+      toValidate = { ...toValidate, tag: tagTrim } as Outbound
     }
 
     const issues = collectOutboundRequiredIssues(toValidate, t)
@@ -738,7 +770,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       return
     }
 
-    updateXrayProfile(p => replaceOutbound(p, selected, toValidate))
+    updateXrayProfile(p => replaceOutboundForCommit(p, selected, toValidate, editOriginalOutbound))
     finalizeDetailClose()
   }
 
