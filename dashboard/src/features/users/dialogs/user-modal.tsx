@@ -1656,14 +1656,17 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                             <FormItem className="relative w-full min-w-0">
                               <FormLabel>{t('userDialog.hwidLimit', { defaultValue: 'HWID Limit' })}</FormLabel>
                               <FormControl>
-                                <DecimalInput
-                                  placeholder={t('userDialog.hwidLimitPlaceholder', { defaultValue: 'Empty for default, 0 for unlimited' })}
-                                  value={field.value}
-                                  emptyValue={undefined}
-                                  zeroValue={0}
-                                  keepZeroOnBlur
-                                  normalizeDisplayValueOnBlur={Math.floor}
-                                  onValueChange={value => {
+                                <Input
+                                  placeholder={t('userDialog.hwidLimitPlaceholder', { defaultValue: 'Empty field = fallback, 0 = unlimited' })}
+                                  value={field.value ?? ''}
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  onBlur={field.onBlur}
+                                  onChange={event => {
+                                    const nextValue = event.target.value.trim()
+                                    if (!/^\d*$/.test(nextValue)) return
+
+                                    const value = nextValue === '' ? undefined : Number(nextValue)
                                     field.onChange(value)
                                     handleFieldChange('hwid_limit', value)
                                   }}
