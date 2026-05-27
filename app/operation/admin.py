@@ -21,7 +21,6 @@ from app.db.crud.admin import (
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
-from app.models.user import UserListQuery
 from app.db.models import Admin, AdminStatus, UserStatus
 from app.models.admin import (
     AdminCreate,
@@ -33,14 +32,15 @@ from app.models.admin import (
     AdminsResponse,
     AdminsSimpleResponse,
     AdminUsageQuery,
-    BulkAdminSelection,
     BulkAdminsActionResponse,
+    BulkAdminSelection,
     RemoveAdminsResponse,
 )
 from app.models.stats import Period, UserUsageStatsList
+from app.models.user import UserListQuery
 from app.node.sync import remove_user as sync_remove_user, remove_users as sync_remove_users, sync_users
 from app.operation import BaseOperation
-from app.operation.permissions import enforce_permission, PermissionDenied
+from app.operation.permissions import PermissionDenied, enforce_permission
 from app.operation.user import UserOperation
 from app.utils.logger import get_logger
 
@@ -128,7 +128,7 @@ class AdminOperation(BaseOperation):
         if not current_admin.is_owner and not is_self and db_admin.role_id <= 2:
             await self.raise_error(message="You're not allowed to modify an administrator account.", code=403)
 
-        if modified_admin.telegram_id is not None:
+        if modified_admin.telegram_id:
             existing_admins = await find_admins_by_telegram_id(
                 db, modified_admin.telegram_id, exclude_admin_id=db_admin.id, limit=1
             )
