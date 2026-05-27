@@ -1267,11 +1267,13 @@ def test_xray_subscription_uses_host_specific_template_override(access_token):
         access_token,
         name=unique_name("xray_host_override_template"),
         template_type="xray_subscription",
-        content=json.dumps({
-            "log": {"loglevel": "warning"},
-            "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
-            "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
-        }),
+        content=json.dumps(
+            {
+                "log": {"loglevel": "warning"},
+                "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+                "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
+            }
+        ),
     )
 
     host_response = client.post(
@@ -1337,11 +1339,13 @@ def test_xray_subscription_template_override_isolated_per_host(access_token):
         access_token,
         name=unique_name("xray_host_isolated_template"),
         template_type="xray_subscription",
-        content=json.dumps({
-            "log": {"loglevel": "warning"},
-            "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
-            "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
-        }),
+        content=json.dumps(
+            {
+                "log": {"loglevel": "warning"},
+                "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+                "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
+            }
+        ),
     )
 
     first_host_response = client.post(

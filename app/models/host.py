@@ -63,15 +63,9 @@ class NoiseSettings(BaseModel):
 
 
 class XMuxSettings(BaseModel):
-    max_concurrency: str | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConcurrency"
-    )
-    max_connections: str | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConnections"
-    )
-    c_max_reuse_times: str | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="cMaxReuseTimes"
-    )
+    max_concurrency: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConcurrency")
+    max_connections: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConnections")
+    c_max_reuse_times: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="cMaxReuseTimes")
     h_max_reusable_secs: str | None = Field(
         None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="hMaxReusableSecs"
     )

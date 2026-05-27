@@ -839,7 +839,7 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="Node not found", code=404)
 
         try:
-            stats = await node.get_user_online_stats(email=f"{db_user.id}.{db_user.username}")
+            stats = await node.get_user_online_stats(email=f"{db_user.id}")
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
 
@@ -880,7 +880,7 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="User not found", code=404)
 
         nodes = await node_manager.get_healthy_nodes()
-        email = f"{db_user.id}.{db_user.username}"
+        email = f"{db_user.id}"
 
         ip_list_tasks = {id: asyncio.create_task(self._get_node_user_ip_list_safe(id, email)) for id, _ in nodes}
 

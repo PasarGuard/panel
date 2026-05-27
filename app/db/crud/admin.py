@@ -517,11 +517,15 @@ async def delete_admin_notification_reminders(
 
 async def get_active_to_limited_admins(db: AsyncSession) -> list[Admin]:
     """Return ALL active admins that have exceeded their data_limit (for status flip)."""
-    stmt = select(Admin).options(selectinload(Admin.role)).where(
-        Admin.status == AdminStatus.active,
-        Admin.data_limit.isnot(None),
-        Admin.data_limit > 0,
-        Admin.used_traffic >= Admin.data_limit,
+    stmt = (
+        select(Admin)
+        .options(selectinload(Admin.role))
+        .where(
+            Admin.status == AdminStatus.active,
+            Admin.data_limit.isnot(None),
+            Admin.data_limit > 0,
+            Admin.used_traffic >= Admin.data_limit,
+        )
     )
     return list((await db.execute(stmt)).scalars().all())
 

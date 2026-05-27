@@ -107,9 +107,16 @@ class AdminOperation(BaseOperation):
             )
 
         if is_owner_target and modified_admin.role_id is not None and modified_admin.role_id != db_admin.role_id:
-            await self.raise_error(message="Owner role cannot be changed via this endpoint. Use the setup flow.", code=403)
+            await self.raise_error(
+                message="Owner role cannot be changed via this endpoint. Use the setup flow.", code=403
+            )
 
-        if not current_admin.is_owner and is_self and modified_admin.role_id is not None and modified_admin.role_id != db_admin.role_id:
+        if (
+            not current_admin.is_owner
+            and is_self
+            and modified_admin.role_id is not None
+            and modified_admin.role_id != db_admin.role_id
+        ):
             await self.raise_error(message="You're not allowed to change your own role.", code=403)
 
         if not current_admin.is_owner and is_self:
