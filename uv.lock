@@ -948,7 +948,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.50" },
     { name = "sse-starlette", specifier = ">=3.4.4" },
     { name = "textual", specifier = ">=8.2.6" },
-    { name = "typer", specifier = ">=0.25.1" },
+    { name = "typer", specifier = ">=0.26.1" },
     { name = "uvicorn", specifier = "==0.48.0" },
     { name = "uvloop", marker = "sys_platform != 'win32'", specifier = ">=0.22.1" },
 ]
@@ -1534,17 +1534,17 @@ wheels = [
 
 [[package]]
 name = "typer"
-version = "0.25.1"
+version = "0.26.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
-    { name = "click" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "rich" },
     { name = "shellingham" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/51/9aed62104cea109b820bbd6c14245af756112017d309da813ef107d42e7e/typer-0.25.1.tar.gz", hash = "sha256:9616eb8853a09ffeabab1698952f33c6f29ffdbceb4eaeecf571880e8d7664cc", size = 122276, upload-time = "2026-04-30T19:32:16.964Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/26/8e9a4f2c98caefcf4ac25788d48939516a9dd4265fcf9bdd578a2a1b55dd/typer-0.26.1.tar.gz", hash = "sha256:537d27ae686d82967f6383382a952cb32ba4768898541effccb69ca75bbd5d23", size = 198884, upload-time = "2026-05-26T17:49:07.912Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/f9/2b3ff4e56e5fa7debfaf9eb135d0da96f3e9a1d5b27222223c7296336e5f/typer-0.25.1-py3-none-any.whl", hash = "sha256:75caa44ed46a03fb2dab8808753ffacdbfea88495e74c85a28c5eefcf5f39c89", size = 58409, upload-time = "2026-04-30T19:32:18.271Z" },
+    { url = "https://files.pythonhosted.org/packages/be/27/8a22d4833fe8aa0836ce7fa59096ad50d7e93b83be6d5383f11f9a140d54/typer-0.26.1-py3-none-any.whl", hash = "sha256:933e4f0083521f3c57d6a5aedf3b073271b2f95a19761b171b494dd6fdb21ff6", size = 123097, upload-time = "2026-05-26T17:49:09.065Z" },
 ]
 
 [[package]]
