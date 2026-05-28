@@ -58,7 +58,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
   const deleteRole = useDeleteRole()
 
-  const { data: rolesData, isLoading, isFetching, refetch } = useGetRoles({ limit: 100, offset: 0 })
+  const { data: rolesData, isLoading, isFetching, refetch } = useGetRoles({ limit: 100, offset: 0, sort: 'created_at' })
 
   const form = useForm<AdminRoleFormValuesInput, unknown, AdminRoleFormValues>({
     resolver: zodResolver(adminRoleFormSchema),
@@ -88,11 +88,14 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
   const filteredRoles = useMemo(() => {
     const list = rolesData?.roles || []
     const query = searchQuery.toLowerCase().trim()
-    if (!query) return list
-    return list.filter(role => {
-      const localized = t(`adminRoles.names.${role.name}`, { defaultValue: role.name }).toLowerCase()
-      return role.name.toLowerCase().includes(query) || localized.includes(query)
-    })
+    const filtered = query
+      ? list.filter(role => {
+          const localized = t(`adminRoles.names.${role.name}`, { defaultValue: role.name }).toLowerCase()
+          return role.name.toLowerCase().includes(query) || localized.includes(query)
+        })
+      : list
+
+    return [...filtered].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
   }, [rolesData?.roles, searchQuery, t])
 
   const isCurrentlyLoading = isLoading || (isFetching && !rolesData)
