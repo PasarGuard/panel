@@ -14,6 +14,9 @@ interface UserTemplateActionsMenuProps {
   template: UserTemplateResponse
   onEdit: (template: UserTemplateResponse) => void
   onToggleStatus: (template: UserTemplateResponse) => void
+  canCreate?: boolean
+  canUpdate?: boolean
+  canDelete?: boolean
   className?: string
 }
 
@@ -41,7 +44,7 @@ const DeleteAlertDialog = ({ userTemplate, isOpen, onClose, onConfirm }: { userT
   )
 }
 
-export default function UserTemplateActionsMenu({ template, onEdit, onToggleStatus, className }: UserTemplateActionsMenuProps) {
+export default function UserTemplateActionsMenu({ template, onEdit, onToggleStatus, canCreate = true, canUpdate = true, canDelete = true, className }: UserTemplateActionsMenuProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const removeUserTemplateMutation = useRemoveUserTemplate()
@@ -50,10 +53,13 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
   const handleDeleteClick = (event: Event) => {
     event.preventDefault()
     event.stopPropagation()
+    if (!canDelete) return
     setDeleteDialogOpen(true)
   }
 
   const handleConfirmDelete = async () => {
+    if (!canDelete) return
+
     try {
       await removeUserTemplateMutation.mutateAsync({
         templateId: template.id,
@@ -77,6 +83,8 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
   }
 
   const handleDuplicate = async () => {
+    if (!canCreate) return
+
     try {
       const newTemplate: UserTemplateCreate = {
         ...template,
@@ -100,6 +108,8 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
     }
   }
 
+  if (!canCreate && !canUpdate && !canDelete) return null
+
   return (
     <div className={cn(className)} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
@@ -110,51 +120,59 @@ export default function UserTemplateActionsMenu({ template, onEdit, onToggleStat
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align={dir === 'rtl' ? 'end' : 'start'} className="template-dropdown-menu">
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              onEdit(template)
-            }}
-          >
-            <Pen className="h-4 w-4" />
-            <span>{t('edit')}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              onToggleStatus(template)
-            }}
-          >
-            {template.is_disabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
-            {template.is_disabled ? t('enable') : t('disable')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            dir={dir}
-            className="template-dropdown-menu flex items-center"
-            onSelect={e => {
-              e.stopPropagation()
-              handleDuplicate()
-            }}
-          >
-            <Copy className="h-4 w-4" />
-            <span>{t('duplicate')}</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            dir={dir}
-            className="template-dropdown-menu flex items-center !text-red-500"
-            onSelect={e => {
-              e.stopPropagation()
-              handleDeleteClick(e)
-            }}
-          >
-            <Trash2 className="h-4 w-4 text-red-500" />
-            <span>{t('delete')}</span>
-          </DropdownMenuItem>
+          {canUpdate && (
+            <>
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.stopPropagation()
+                  onEdit(template)
+                }}
+              >
+                <Pen className="h-4 w-4" />
+                <span>{t('edit')}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.stopPropagation()
+                  onToggleStatus(template)
+                }}
+              >
+                {template.is_disabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
+                {template.is_disabled ? t('enable') : t('disable')}
+              </DropdownMenuItem>
+            </>
+          )}
+          {canCreate && (
+            <DropdownMenuItem
+              dir={dir}
+              className="template-dropdown-menu flex items-center"
+              onSelect={e => {
+                e.stopPropagation()
+                handleDuplicate()
+              }}
+            >
+              <Copy className="h-4 w-4" />
+              <span>{t('duplicate')}</span>
+            </DropdownMenuItem>
+          )}
+          {(canUpdate || canCreate) && canDelete && <DropdownMenuSeparator />}
+          {canDelete && (
+            <DropdownMenuItem
+              dir={dir}
+              className="template-dropdown-menu flex items-center !text-red-500"
+              onSelect={e => {
+                e.stopPropagation()
+                handleDeleteClick(e)
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-red-500" />
+              <span>{t('delete')}</span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DeleteAlertDialog userTemplate={template} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />
+      {canDelete && <DeleteAlertDialog userTemplate={template} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />}
     </div>
   )
 }

@@ -11,6 +11,11 @@ interface UseNodeListColumnsProps {
   onEdit: (node: NodeResponse) => void
   onToggleStatus: (node: NodeResponse) => Promise<void>
   coresData?: CoresSimpleResponse
+  canUpdate?: boolean
+  canDelete?: boolean
+  canReconnect?: boolean
+  canUpdateCore?: boolean
+  canReadStats?: boolean
 }
 
 const getNodeStatusDotColor = (status: NodeStatus) => {
@@ -28,7 +33,7 @@ const getNodeStatusDotColor = (status: NodeStatus) => {
   }
 }
 
-export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNodeListColumnsProps) => {
+export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData, canUpdate = true, canDelete = true, canReconnect = true, canUpdateCore = true, canReadStats = true }: UseNodeListColumnsProps) => {
   const { t } = useTranslation()
 
   return useMemo<ListColumn<NodeResponse>[]>(
@@ -87,15 +92,32 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData }: UseNod
         cell: node => <NodeUsageDisplay node={node} />,
         hideOnMobile: true,
       },
-      {
-        id: 'actions',
-        header: '',
-        width: '64px',
-        align: 'end',
-        hideOnMobile: true,
-        cell: node => <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} isModalHost={false} />,
-      },
+      ...(canUpdate || canDelete || canReconnect || canUpdateCore || canReadStats
+        ? [
+          {
+            id: 'actions',
+            header: '',
+            width: '64px',
+            align: 'end' as const,
+            hideOnMobile: true,
+            cell: (node: NodeResponse) => (
+              <NodeActionsMenu
+                node={node}
+                onEdit={onEdit}
+                onToggleStatus={onToggleStatus}
+                coresData={coresData}
+                isModalHost={false}
+                canUpdate={canUpdate}
+                canDelete={canDelete}
+                canReconnect={canReconnect}
+                canUpdateCore={canUpdateCore}
+                canReadStats={canReadStats}
+              />
+            ),
+          },
+        ]
+        : []),
     ],
-    [t, onEdit, onToggleStatus, coresData],
+    [t, onEdit, onToggleStatus, coresData, canUpdate, canDelete, canReconnect, canUpdateCore, canReadStats],
   )
 }

@@ -34,11 +34,15 @@ export const hasScopeAll = (admin: AdminDetails | null | undefined, resource: st
 }
 
 /**
- * A management page should only be shown when the admin can both view AND
- * mutate the resource. Plain `read` on a resource is often only used by forms
- * and selectors (e.g. picking groups while creating a user) and does not
- * justify exposing the dedicated page in the sidebar / as a navigable route.
+ * Full dashboard pages are exposed by the resource `read` permission only.
+ * Simple read permissions are reserved for selector/dropdown endpoints and do
+ * not grant page access.
  */
+export const canReadResourcePage = (admin: AdminDetails | null | undefined, resource: string) => {
+  if (isOwner(admin)) return true
+  return hasPermission(admin, resource, 'read')
+}
+
 export const canManageResource = (
   admin: AdminDetails | null | undefined,
   resource: string,
@@ -55,6 +59,15 @@ export const firstAllowedRoute = (admin: AdminDetails | null | undefined) => {
   if (!admin) return '/login'
   if (hasPermission(admin, 'system', 'read')) return '/'
   if (hasPermission(admin, 'users', 'read')) return '/users'
+  if (hasPermission(admin, 'nodes', 'stats')) return '/statistics'
+  if (canReadResourcePage(admin, 'hosts')) return '/hosts'
+  if (canReadResourcePage(admin, 'groups')) return '/groups'
+  if (canReadResourcePage(admin, 'admins')) return '/admins'
+  if (canReadResourcePage(admin, 'nodes')) return '/nodes'
+  if (canReadResourcePage(admin, 'cores')) return '/nodes/cores'
+  if (hasPermission(admin, 'nodes', 'logs')) return '/nodes/logs'
+  if (canReadResourcePage(admin, 'templates')) return '/templates/user'
+  if (canReadResourcePage(admin, 'client_templates')) return '/templates/client'
   return '/settings/theme'
 }
 
@@ -64,21 +77,26 @@ export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname:
   if (pathname.startsWith('/theme') || pathname.startsWith('/settings/theme')) return true
   if (pathname.startsWith('/users')) return hasPermission(admin, 'users', 'read')
   if (pathname.startsWith('/statistics')) return hasPermission(admin, 'nodes', 'stats')
-  if (pathname.startsWith('/hosts')) return canManageResource(admin, 'hosts', ['create', 'update'])
-  if (pathname.startsWith('/groups')) return canManageResource(admin, 'groups')
-  if (pathname.startsWith('/templates/client')) return canManageResource(admin, 'client_templates')
-  if (pathname.startsWith('/templates')) return canManageResource(admin, 'templates')
+  if (pathname.startsWith('/hosts')) return canReadResourcePage(admin, 'hosts')
+  if (pathname.startsWith('/groups')) return canReadResourcePage(admin, 'groups')
+  if (pathname === '/templates') return canReadResourcePage(admin, 'templates') || canReadResourcePage(admin, 'client_templates')
+  if (pathname.startsWith('/templates/client')) return canReadResourcePage(admin, 'client_templates')
+  if (pathname.startsWith('/templates/user')) return canReadResourcePage(admin, 'templates')
+  if (pathname.startsWith('/templates')) return false
   if (pathname.startsWith('/admin-roles')) return isOwner(admin)
-  if (pathname.startsWith('/admins')) return canManageResource(admin, 'admins')
-  if (pathname.startsWith('/nodes/cores')) return canManageResource(admin, 'cores')
+  if (pathname.startsWith('/admins')) return canReadResourcePage(admin, 'admins')
+  if (pathname === '/nodes/cores') return canReadResourcePage(admin, 'cores')
+  if (pathname === '/nodes/cores/new') return hasPermission(admin, 'cores', 'create')
+  if (pathname.startsWith('/nodes/cores/')) return hasPermission(admin, 'cores', 'update')
   if (pathname.startsWith('/nodes/logs')) return hasPermission(admin, 'nodes', 'logs')
-  if (pathname.startsWith('/nodes')) return canManageResource(admin, 'nodes', ['create', 'update', 'delete', 'reconnect', 'update_core'])
+  if (pathname === '/nodes') return canReadResourcePage(admin, 'nodes')
+  if (pathname.startsWith('/nodes')) return canReadResourcePage(admin, 'nodes')
   if (pathname.startsWith('/settings/general')) return hasPermission(admin, 'settings', 'read_general') && hasPermission(admin, 'settings', 'update')
   if (pathname.startsWith('/settings')) {
     if (pathname === '/settings') return true
     return hasPermission(admin, 'settings', 'read') && hasPermission(admin, 'settings', 'update')
   }
-  if (pathname.startsWith('/bulk/create') || pathname === '/bulk') return hasPermission(admin, 'users', 'create')
+  if (pathname.startsWith('/bulk/create') || pathname === '/bulk') return hasPermission(admin, 'users', 'create') && canReadResourcePage(admin, 'templates')
   if (pathname.startsWith('/bulk/groups')) return hasScopeAll(admin, 'users', 'update') && hasPermission(admin, 'groups', 'read')
   if (pathname.startsWith('/bulk/expire') || pathname.startsWith('/bulk/data') || pathname.startsWith('/bulk/proxy') || pathname.startsWith('/bulk/wireguard')) return hasScopeAll(admin, 'users', 'update')
   return true

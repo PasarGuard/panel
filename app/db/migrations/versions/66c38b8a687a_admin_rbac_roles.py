@@ -46,11 +46,11 @@ ADMINISTRATOR_PERMISSIONS = {
     "admin_roles": {"read": True, "read_simple": True},
 }
 OPERATOR_PERMISSIONS = {
-    "users": {"create": True, "read": {"scope": 1}, "read_simple": {"scope": 1}, "update": {"scope": 1}, "delete": {"scope": 1}, "reset_usage": {"scope": 1}, "revoke_sub": {"scope": 1}, "activate_next_plan": {"scope": 1}},
-    "groups": {"read": True, "read_simple": True},
-    "templates": {"read": True, "read_simple": True},
+    "users": {"create": True, "read": {"scope": 1}, "read_simple": {"scope": 1}, "update": {"scope": 1}, "delete": {"scope": 1}, "reset_usage": {"scope": 1}, "revoke_sub": {"scope": 1}, "set_owner": None, "activate_next_plan": {"scope": 1}},
+    "groups": {"create": None, "read": False, "read_simple": True, "update": None, "delete": None},
+    "templates": {"create": None, "read": True, "read_simple": True, "update": None, "delete": None},
     "system": {"read": True},
-    "settings": {"read_general": True},
+    "settings": {"read": None, "read_general": True, "update": None},
     "hwids": {"read": True, "delete": True},
 }
 DEFAULT_LIMITS = {"max_users": None, "data_limit_min": None, "data_limit_max": None, "expire_min": None, "expire_max": None, "min_hwid_per_user": None, "max_hwid_per_user": None}

@@ -815,6 +815,8 @@ const UsersTable = memo(() => {
   }
 
   const handleEdit = (user: UserResponse) => {
+    if (!canUpdateUsers) return
+
     if (clearSelectedUserTimeoutRef.current) {
       clearTimeout(clearSelectedUserTimeoutRef.current)
       clearSelectedUserTimeoutRef.current = null
@@ -1047,11 +1049,13 @@ const UsersTable = memo(() => {
         handleSort={handleSort}
         onClearAdvanceSearch={handleClearAdvanceSearch}
       />
-      <BulkActionsBar
-        selectedCount={selectedCount}
-        onClear={clearSelection}
-        actions={bulkActions}
-      />
+      {canBulkMutateUsers && (
+        <BulkActionsBar
+          selectedCount={selectedCount}
+          onClear={clearSelection}
+          actions={bulkActions}
+        />
+      )}
       {isEmpty && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
@@ -1073,7 +1077,7 @@ const UsersTable = memo(() => {
         </Card>
       )}
       {isCurrentlyLoading && !isSearchEmpty && (
-        <DataTable columns={columns} data={[]} isLoading={true} isFetching={false} onEdit={handleEdit} onSelectionChange={setSelectedUserIds} resetSelectionKey={resetSelectionKey} />
+        <DataTable columns={columns} data={[]} isLoading={true} isFetching={false} onEdit={canUpdateUsers ? handleEdit : undefined} onSelectionChange={setSelectedUserIds} resetSelectionKey={resetSelectionKey} />
       )}
       {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
         <DataTable
@@ -1081,7 +1085,7 @@ const UsersTable = memo(() => {
           data={usersList}
           isLoading={false}
           isFetching={isPageLoading}
-          onEdit={handleEdit}
+          onEdit={canUpdateUsers ? handleEdit : undefined}
           onSelectionChange={setSelectedUserIds}
           resetSelectionKey={resetSelectionKey}
         />
@@ -1095,7 +1099,7 @@ const UsersTable = memo(() => {
         onPageChange={handlePageChange}
         onItemsPerPageChange={handleItemsPerPageChange}
       />
-      {selectedUser && (
+      {canUpdateUsers && selectedUser && (
         <UserModal
           isDialogOpen={isEditModalOpen}
           onOpenChange={handleEditModalClose}
@@ -1166,26 +1170,30 @@ const UsersTable = memo(() => {
         onConfirm={handleBulkEnableUsers}
         isPending={enableUsersMutation.isPending}
       />
-      <SetOwnerModal
-        open={isBulkSetOwnerModalOpen}
-        onClose={() => setIsBulkSetOwnerModalOpen(false)}
-        userIds={selectedUserIds}
-        selectedCount={selectedCount}
-        onSuccess={() => {
-          invalidateUsers()
-          clearSelection()
-        }}
-      />
-      <ApplyTemplateModal
-        open={isBulkApplyTemplateModalOpen}
-        onClose={() => setIsBulkApplyTemplateModalOpen(false)}
-        userIds={selectedUserIds}
-        selectedCount={selectedCount}
-        onSuccess={() => {
-          invalidateUsers()
-          clearSelection()
-        }}
-      />
+      {canUpdateAllUsers && (
+        <SetOwnerModal
+          open={isBulkSetOwnerModalOpen}
+          onClose={() => setIsBulkSetOwnerModalOpen(false)}
+          userIds={selectedUserIds}
+          selectedCount={selectedCount}
+          onSuccess={() => {
+            invalidateUsers()
+            clearSelection()
+          }}
+        />
+      )}
+      {canUpdateUsers && (
+        <ApplyTemplateModal
+          open={isBulkApplyTemplateModalOpen}
+          onClose={() => setIsBulkApplyTemplateModalOpen(false)}
+          userIds={selectedUserIds}
+          selectedCount={selectedCount}
+          onSuccess={() => {
+            invalidateUsers()
+            clearSelection()
+          }}
+        />
+      )}
       <ActionButtonsModalHost />
     </div>
   )

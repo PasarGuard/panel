@@ -3,6 +3,8 @@ import { type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
 import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
@@ -10,6 +12,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 export default function HostsPage() {
+  const { admin } = useAdmin()
+  const canCreateHosts = hasPermission(admin, 'hosts', 'create')
+  const canUpdateHosts = hasPermission(admin, 'hosts', 'update')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<BaseHost | null>(null)
   const { data, refetch, isFetching } = useQuery({
@@ -27,6 +32,7 @@ export default function HostsPage() {
   }
 
   const handleCreateClick = () => {
+    if (!canCreateHosts) return
     setEditingHost(null)
     setIsDialogOpen(true)
   }
@@ -37,6 +43,15 @@ export default function HostsPage() {
 
   const handleSubmit = async (formData: HostFormValues) => {
     try {
+      if (editingHost?.id && !canUpdateHosts) {
+        toast.error(t('permissionDenied', { defaultValue: 'Permission denied' }))
+        return { status: 403 }
+      }
+      if (!editingHost?.id && !canCreateHosts) {
+        toast.error(t('permissionDenied', { defaultValue: 'Permission denied' }))
+        return { status: 403 }
+      }
+
       // Check if all protocols are set to none
       const allProtocolsNone =
         formData.mux_settings &&
@@ -221,7 +236,7 @@ export default function HostsPage() {
   return (
     <div className="flex w-full flex-col items-start gap-2 pb-8">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader title="hosts" description="manageHosts" buttonIcon={Plus} buttonText="hostsDialog.addHost" onButtonClick={handleCreateClick} />
+        <PageHeader title="hosts" description="manageHosts" buttonIcon={canCreateHosts ? Plus : undefined} buttonText={canCreateHosts ? 'hostsDialog.addHost' : undefined} onButtonClick={canCreateHosts ? handleCreateClick : undefined} />
         <Separator />
       </div>
 
@@ -236,6 +251,8 @@ export default function HostsPage() {
           setEditingHost={setEditingHost}
           onRefresh={refetch}
           isRefreshing={isFetching}
+          canCreate={canCreateHosts}
+          canUpdate={canUpdateHosts}
         />
       </div>
     </div>

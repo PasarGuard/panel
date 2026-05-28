@@ -16,9 +16,12 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
 
 interface UseClientTemplatesListColumnsProps {
   onEdit: (template: ClientTemplateResponse) => void
+  canCreate?: boolean
+  canUpdate?: boolean
+  canDelete?: boolean
 }
 
-export const useClientTemplatesListColumns = ({ onEdit }: UseClientTemplatesListColumnsProps) => {
+export const useClientTemplatesListColumns = ({ onEdit, canCreate = true, canUpdate = true, canDelete = true }: UseClientTemplatesListColumnsProps) => {
   const { t } = useTranslation()
   const compactBadgeClassName = 'h-5 shrink-0 px-1.5 text-[10px] leading-none'
 
@@ -30,10 +33,10 @@ export const useClientTemplatesListColumns = ({ onEdit }: UseClientTemplatesList
         width: '2.5fr',
         cell: template => (
           <div
-            className="flex min-w-0 cursor-pointer items-center gap-2"
+            className={`flex min-w-0 items-center gap-2 ${canUpdate ? 'cursor-pointer' : ''}`}
             onClick={event => {
               event.stopPropagation()
-              onEdit(template)
+              if (canUpdate) onEdit(template)
             }}
           >
             <span className="truncate font-medium">{template.name}</span>
@@ -52,15 +55,19 @@ export const useClientTemplatesListColumns = ({ onEdit }: UseClientTemplatesList
         ),
         hideOnMobile: true,
       },
-      {
-        id: 'actions',
-        header: '',
-        width: '24px',
-        align: 'end',
-        hideOnMobile: false,
-        cell: template => <ClientTemplateActionsMenu template={template} onEdit={onEdit} />,
-      },
+      ...(canCreate || canUpdate || canDelete
+        ? [
+          {
+            id: 'actions',
+            header: '',
+            width: '24px',
+            align: 'end' as const,
+            hideOnMobile: false,
+            cell: (template: ClientTemplateResponse) => <ClientTemplateActionsMenu template={template} onEdit={onEdit} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />,
+          },
+        ]
+        : []),
     ],
-    [compactBadgeClassName, t, onEdit],
+    [compactBadgeClassName, t, onEdit, canCreate, canUpdate, canDelete],
   )
 }

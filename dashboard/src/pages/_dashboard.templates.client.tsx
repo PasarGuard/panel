@@ -22,8 +22,14 @@ import { BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 export default function ClientTemplates() {
+  const { admin } = useAdmin()
+  const canCreateTemplates = hasPermission(admin, 'client_templates', 'create')
+  const canUpdateTemplates = hasPermission(admin, 'client_templates', 'update')
+  const canDeleteTemplates = hasPermission(admin, 'client_templates', 'delete')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<ClientTemplateResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -41,15 +47,18 @@ export default function ClientTemplates() {
 
   useEffect(() => {
     const handleOpenDialog = () => {
+      if (!canCreateTemplates) return
       setEditingTemplate(null)
       form.reset(clientTemplateFormDefaultValues as ClientTemplateFormValues)
       setIsDialogOpen(true)
     }
     window.addEventListener('openClientTemplateDialog', handleOpenDialog)
     return () => window.removeEventListener('openClientTemplateDialog', handleOpenDialog)
-  }, [form])
+  }, [canCreateTemplates, form])
 
   const handleEdit = (template: ClientTemplateResponse) => {
+    if (!canUpdateTemplates) return
+
     setEditingTemplate(template)
     form.reset({
       name: template.name,
@@ -67,13 +76,18 @@ export default function ClientTemplates() {
     return templates.filter((t: ClientTemplateResponse) => t.name?.toLowerCase().includes(query) || t.template_type?.toLowerCase().includes(query))
   }, [data, searchQuery])
 
-  const listColumns = useClientTemplatesListColumns({ onEdit: handleEdit })
+  const listColumns = useClientTemplatesListColumns({
+    onEdit: handleEdit,
+    canCreate: canCreateTemplates,
+    canUpdate: canUpdateTemplates,
+    canDelete: canDeleteTemplates,
+  })
   const clearSelection = () => {
     setSelectedTemplateIds([])
   }
 
   const handleBulkDelete = async () => {
-    if (!selectedTemplateIds.length) return
+    if (!canDeleteTemplates || !selectedTemplateIds.length) return
 
     try {
       const response = await bulkDeleteClientTemplatesMutation.mutateAsync({
@@ -134,7 +148,7 @@ export default function ClientTemplates() {
             <ViewToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
-        <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />
+        {canDeleteTemplates && <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />}
 
         {(isCurrentlyLoading || filteredTemplates.length > 0) &&
           (viewMode === 'grid' ? (
@@ -146,13 +160,13 @@ export default function ClientTemplates() {
               className="gap-4"
               gridClassName="transform-gpu animate-slide-up"
               gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-              enableSelection
-              injectSelectionProps
+              enableSelection={canDeleteTemplates}
+              injectSelectionProps={canDeleteTemplates}
               selectedRowIds={selectedTemplateIds}
               onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
               isRowSelectable={template => !template.is_system}
               showEmptyState={false}
-              renderItem={template => <ClientTemplate onEdit={handleEdit} template={template} />}
+              renderItem={template => <ClientTemplate onEdit={handleEdit} template={template} canCreate={canCreateTemplates} canUpdate={canUpdateTemplates} canDelete={canDeleteTemplates} />}
               renderSkeleton={i => (
                 <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
                   <div className="flex items-start justify-between gap-2 sm:gap-3">
@@ -177,8 +191,8 @@ export default function ClientTemplates() {
               isLoading={isCurrentlyLoading}
               loadingRows={6}
               className="gap-3"
-              onRowClick={handleEdit}
-              enableSelection
+              onRowClick={canUpdateTemplates ? handleEdit : undefined}
+              enableSelection={canDeleteTemplates}
               selectedRowIds={selectedTemplateIds}
               onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
               isRowSelectable={template => !template.is_system}
@@ -211,32 +225,38 @@ export default function ClientTemplates() {
         )}
       </div>
 
-      <ClientTemplateModal
-        isDialogOpen={isDialogOpen}
-        onOpenChange={open => {
-          if (!open) {
-            setEditingTemplate(null)
-            form.reset(clientTemplateFormDefaultValues as ClientTemplateFormValues)
-          }
-          setIsDialogOpen(open)
-        }}
-        form={form}
-        editingTemplate={!!editingTemplate}
-        editingTemplateId={editingTemplate?.id}
-      />
-      <BulkActionAlertDialog
-        open={bulkAction === 'delete'}
-        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
-        title={t('clientTemplates.bulkDeleteTitle', { defaultValue: 'Delete Selected Client Templates' })}
-        description={t('clientTemplates.bulkDeletePrompt', {
-          count: selectedTemplateIds.length,
-          defaultValue: 'Are you sure you want to delete {{count}} selected client templates? This action cannot be undone.',
-        })}
-        actionLabel={t('delete')}
-        onConfirm={handleBulkDelete}
-        isPending={bulkDeleteClientTemplatesMutation.isPending}
-        destructive
-      />
+      {(canCreateTemplates || canUpdateTemplates) && (
+        <ClientTemplateModal
+          isDialogOpen={isDialogOpen}
+          onOpenChange={open => {
+            if (open && editingTemplate && !canUpdateTemplates) return
+            if (open && !editingTemplate && !canCreateTemplates) return
+            if (!open) {
+              setEditingTemplate(null)
+              form.reset(clientTemplateFormDefaultValues as ClientTemplateFormValues)
+            }
+            setIsDialogOpen(open)
+          }}
+          form={form}
+          editingTemplate={!!editingTemplate}
+          editingTemplateId={editingTemplate?.id}
+        />
+      )}
+      {canDeleteTemplates && (
+        <BulkActionAlertDialog
+          open={bulkAction === 'delete'}
+          onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+          title={t('clientTemplates.bulkDeleteTitle', { defaultValue: 'Delete Selected Client Templates' })}
+          description={t('clientTemplates.bulkDeletePrompt', {
+            count: selectedTemplateIds.length,
+            defaultValue: 'Are you sure you want to delete {{count}} selected client templates? This action cannot be undone.',
+          })}
+          actionLabel={t('delete')}
+          onConfirm={handleBulkDelete}
+          isPending={bulkDeleteClientTemplatesMutation.isPending}
+          destructive
+        />
+      )}
     </div>
   )
 }

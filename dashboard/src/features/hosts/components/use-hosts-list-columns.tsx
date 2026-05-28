@@ -10,9 +10,11 @@ interface UseHostsListColumnsProps {
   onEdit: (host: BaseHost) => void
   onDuplicate: (host: BaseHost) => Promise<void>
   onDataChanged: () => void
+  canUpdate?: boolean
+  canCreate?: boolean
 }
 
-export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseHostsListColumnsProps) => {
+export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged, canUpdate = true, canCreate = true }: UseHostsListColumnsProps) => {
   const { t } = useTranslation()
 
   return useMemo<ListColumn<BaseHost>[]>(
@@ -46,15 +48,19 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged }: UseH
         cell: host => <span className="truncate text-xs text-muted-foreground">{host.inbound_tag ?? ''}</span>,
         hideOnMobile: true,
       },
-      {
-        id: 'actions',
-        header: '',
-        width: '64px',
-        align: 'end',
-        hideOnMobile: true,
-        cell: host => <HostActionsMenu host={host} onEdit={onEdit} onDuplicate={onDuplicate} onDataChanged={onDataChanged} />,
-      },
+      ...(canUpdate || canCreate
+        ? [
+          {
+            id: 'actions',
+            header: '',
+            width: '64px',
+            align: 'end' as const,
+            hideOnMobile: true,
+            cell: (host: BaseHost) => <HostActionsMenu host={host} onEdit={onEdit} onDuplicate={onDuplicate} onDataChanged={onDataChanged} canUpdate={canUpdate} canCreate={canCreate} />,
+          },
+        ]
+        : []),
     ],
-    [t, onEdit, onDuplicate, onDataChanged],
+    [t, onEdit, onDuplicate, onDataChanged, canUpdate, canCreate],
   )
 }

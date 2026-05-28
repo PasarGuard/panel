@@ -43,7 +43,7 @@ import { parseDateInput } from '@/utils/dateTimeParsing'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
-import { hasScopeAll } from '@/utils/rbac'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Fingerprint, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Group, Users, Pencil, UserRoundPlus } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -305,15 +305,23 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const { t, i18n } = useTranslation()
   const { admin } = useAdmin()
   const canViewAllUserIps = hasScopeAll(admin, 'users', 'read')
+  const canUseResetStrategy = admin?.role?.features?.can_use_reset_strategy !== false
+  const canUseNextPlan = admin?.role?.features?.can_use_next_plan !== false
+  const requireTemplateForCreate = !editingUser && admin?.role?.access?.require_template === true
+  const canUseUserTemplates = hasPermission(admin, 'templates', 'read_simple')
+  const showTemplateTab = canUseUserTemplates || requireTemplateForCreate
   const dir = useDirDetection()
   const handleError = useDynamicErrorHandler()
   const [loading, setLoading] = useState(false)
   const status = form.watch('status')
   const [activeTab, setActiveTab] = useState<'groups' | 'templates'>('groups')
-  const tabs = [
-    { id: 'groups', label: 'groups', icon: Group },
-    { id: 'templates', label: 'templates.title', icon: Layers },
-  ]
+  const tabs = React.useMemo(
+    () => [
+      ...(requireTemplateForCreate ? [] : [{ id: 'groups' as const, label: 'groups', icon: Group }]),
+      ...(showTemplateTab ? [{ id: 'templates' as const, label: 'templates.title', icon: Layers }] : []),
+    ],
+    [requireTemplateForCreate, showTemplateTab],
+  )
   const [nextPlanEnabled, setNextPlanEnabled] = useState(false)
   const [nextPlanManuallyDisabled, setNextPlanManuallyDisabled] = useState(false)
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
@@ -411,7 +419,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         }
         setTouchedFields({})
         setIsFormValid(false)
-        setActiveTab('groups')
+        setActiveTab(requireTemplateForCreate ? 'templates' : 'groups')
         setSelectedTemplateId(null)
         setNextPlanEnabled(false)
         setNextPlanManuallyDisabled(false)
@@ -419,7 +427,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       }
       onOpenChange(open)
     },
-    [form, onOpenChange, editingUser, nextPlanEnabled],
+    [form, onOpenChange, editingUser, nextPlanEnabled, requireTemplateForCreate],
   )
 
   const handleFieldChange = React.useCallback(
@@ -467,11 +475,36 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         gcTime: 0,
         refetchOnMount: true,
         refetchOnReconnect: false,
-        enabled: isDialogOpen,
+        enabled: isDialogOpen && canUseUserTemplates,
       },
     },
   )
   const templateOptions = templatesData?.templates || []
+
+  useEffect(() => {
+    if (!isDialogOpen) return
+
+    if (requireTemplateForCreate && activeTab !== 'templates') {
+      setActiveTab('templates')
+      return
+    }
+
+    if (!tabs.some(tab => tab.id === activeTab)) {
+      setActiveTab(tabs[0]?.id ?? 'groups')
+    }
+  }, [activeTab, isDialogOpen, requireTemplateForCreate, tabs])
+
+  useEffect(() => {
+    if (canUseResetStrategy) return
+    form.setValue('data_limit_reset_strategy', 'no_reset', { shouldDirty: false, shouldValidate: false })
+  }, [canUseResetStrategy, form])
+
+  useEffect(() => {
+    if (canUseNextPlan) return
+    if (nextPlanEnabled) setNextPlanEnabled(false)
+    form.setValue('next_plan', undefined, { shouldDirty: false, shouldValidate: false })
+    setNextPlanManuallyDisabled(false)
+  }, [canUseNextPlan, form, nextPlanEnabled])
 
   // Prefetch lightweight groups while modal is open so the Groups tab can render immediately.
   useGetGroupsSimple(
@@ -613,6 +646,11 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }, [status, form])
 
   useEffect(() => {
+    if (!canUseNextPlan) {
+      form.setValue('next_plan', undefined, { shouldValidate: false, shouldDirty: false })
+      return
+    }
+
     if (!nextPlanEnabled) {
       const currentNextPlan = form.getValues('next_plan')
       if (currentNextPlan !== null && currentNextPlan !== undefined) {
@@ -644,10 +682,10 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       }
       setNextPlanManuallyDisabled(false)
     }
-  }, [nextPlanEnabled, form, handleFieldChange])
+  }, [canUseNextPlan, nextPlanEnabled, form, handleFieldChange])
 
   useEffect(() => {
-    if (!isDialogOpen || !editingUser) return
+    if (!isDialogOpen || !editingUser || !canUseNextPlan) return
 
     // Check both form values and editingUserData prop for next_plan
     const nextPlanFromForm = form.getValues('next_plan')
@@ -673,7 +711,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       setNextPlanEnabled(true)
       setNextPlanManuallyDisabled(false)
     }
-  }, [isDialogOpen, editingUser, hasNextPlanData, nextPlanManuallyDisabled, form, nextPlanUserTemplateId, nextPlanExpire, nextPlanDataLimit, nextPlanAddRemainingTraffic, editingUserData])
+  }, [isDialogOpen, editingUser, canUseNextPlan, hasNextPlanData, nextPlanManuallyDisabled, form, nextPlanUserTemplateId, nextPlanExpire, nextPlanDataLimit, nextPlanAddRemainingTraffic, editingUserData])
 
   // Helper to clear group selection
   const clearGroups = () => form.setValue('group_ids', [])
@@ -683,6 +721,15 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   // Update validateAllFields function
   const validateAllFields = (currentValues: any, touchedFields: any, isSubmit: boolean = false) => {
     try {
+      if (requireTemplateForCreate && !selectedTemplateId) {
+        form.clearErrors()
+        form.setError('user_template_id' as any, {
+          type: 'manual',
+          message: t('validation.required', { field: t('userDialog.selectTemplate', { defaultValue: 'Select Template' }) }),
+        })
+        return false
+      }
+
       // Special case for template mode
       if (selectedTemplateId) {
         // In template mode, only validate username
@@ -895,6 +942,12 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
           return
         }
 
+        if (requireTemplateForCreate) {
+          toast.error(t('validation.required', { field: t('userDialog.selectTemplate', { defaultValue: 'Select Template' }) }))
+          setActiveTab('templates')
+          return
+        }
+
         // Regular create/edit flow
         if (!validateAllFields(values, touchedFields, true)) {
           // Show toast for validation errors
@@ -984,13 +1037,15 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
           ...preparedValues,
           data_limit: gbToBytes(normalizedDataLimitGb as any),
           hwid_limit: preparedValues.hwid_limit == null ? null : Number.isFinite(Number(preparedValues.hwid_limit)) ? Math.round(Number(preparedValues.hwid_limit)) : null,
-          data_limit_reset_strategy: hasDataLimit ? preparedValues.data_limit_reset_strategy : 'no_reset',
+          data_limit_reset_strategy: canUseResetStrategy && hasDataLimit ? preparedValues.data_limit_reset_strategy : 'no_reset',
           expire: preparedValues.expire,
           ...(hasProxySettings ? { proxy_settings: cleanedProxySettings } : {}),
         }
 
         // Handle next_plan based on switch state
-        if (nextPlanEnabled) {
+        if (!canUseNextPlan) {
+          delete sendValues.next_plan
+        } else if (nextPlanEnabled) {
           // Switch is ON - always send next_plan with defaults or existing data
           const nextPlan = values.next_plan || form.getValues('next_plan') || {}
 
@@ -1069,7 +1124,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         setLoading(false)
       }
     },
-    [editingUser, editingUserId, form, handleTemplateMutation, onOpenChange, selectedTemplateId, status, t, touchedFields],
+    [canUseNextPlan, canUseResetStrategy, editingUser, editingUserId, form, handleTemplateMutation, onOpenChange, requireTemplateForCreate, selectedTemplateId, status, t, touchedFields],
   )
 
   // Helper for cryptographically secure random integer
@@ -1518,7 +1573,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                       {(() => {
                         const dataLimitValue = form.watch('data_limit')
                         const showResetStrategy =
-                          !selectedTemplateId && dataLimitValue !== undefined && dataLimitValue !== null && Number(dataLimitValue) > 0
+                          canUseResetStrategy && !selectedTemplateId && dataLimitValue !== undefined && dataLimitValue !== null && Number(dataLimitValue) > 0
                         return (
                           <div className={cn('flex w-full flex-col gap-4 lg:flex-row lg:items-start')}>
                             {!selectedTemplateId && (
@@ -2068,7 +2123,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                     </Accordion>
                   )}
                   {/* Next Plan Section (toggleable) */}
-                  {activeTab === 'groups' && editingUser && (
+                  {activeTab === 'groups' && editingUser && canUseNextPlan && (
                     <div className="border-border rounded-(--radius) border p-4">
                       <div className="flex items-center justify-between">
                         <div
@@ -2242,7 +2297,13 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                     </div>
                     <div className="py-2">
                       {activeTab === 'templates' &&
-                        (templatesLoading ? (
+                        (!canUseUserTemplates ? (
+                          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                            {t('userDialog.templatePermissionRequired', {
+                              defaultValue: 'Template selection requires user template selector access for this role.',
+                            })}
+                          </div>
+                        ) : templatesLoading ? (
                           <div>{t('Loading...', { defaultValue: 'Loading...' })}</div>
                         ) : (
                           <div className="space-y-4 pt-4">

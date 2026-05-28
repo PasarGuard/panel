@@ -24,6 +24,7 @@ export default function AdminsPage() {
   const queryClient = useQueryClient()
   const { admin: currentAdmin } = useAdmin()
   const canCreateAdmins = hasPermission(currentAdmin, 'admins', 'create')
+  const canUpdateAdmins = hasPermission(currentAdmin, 'admins', 'update')
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminDetails> | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number; limited: number } | null>(null)
@@ -34,7 +35,7 @@ export default function AdminsPage() {
 
   const removeAdminMutation = useRemoveAdminById()
   const modifyAdminMutation = useModifyAdminById()
-  const rolesQuery = useGetRolesSimple()
+  const rolesQuery = useGetRolesSimple(undefined, { query: { enabled: canUpdateAdmins } })
   const modifyDisableAllAdminUsers = useDisableAllActiveUsersById()
   const modifyActivateAllAdminUsers = useActivateAllDisabledUsersById()
   const resetUsageMutation = useResetAdminUsageById()
@@ -146,6 +147,8 @@ export default function AdminsPage() {
   }
 
   const handleEdit = (admin: AdminDetails) => {
+    if (!canUpdateAdmins) return
+
     const roleId = getRoleIdForAdmin(admin)
     setEditingAdmin(admin)
     form.reset({
@@ -245,19 +248,23 @@ export default function AdminsPage() {
           <AdminsTable onEdit={handleEdit} onDelete={handleDelete} onToggleStatus={handleToggleStatus} onResetUsage={resetUsage} onTotalAdminsChange={setAdminCounts} />
         </div>
 
-        <AdminModal
-          isDialogOpen={isDialogOpen}
-          onOpenChange={open => {
-            if (!open) {
-              setEditingAdmin(null)
-              form.reset(adminFormDefaultValues)
-            }
-            setIsDialogOpen(open)
-          }}
-          form={form}
-          editingAdmin={!!editingAdmin}
-          editingAdminId={editingAdmin?.id}
-        />
+        {(canCreateAdmins || canUpdateAdmins) && (
+          <AdminModal
+            isDialogOpen={isDialogOpen}
+            onOpenChange={open => {
+              if (open && editingAdmin && !canUpdateAdmins) return
+              if (open && !editingAdmin && !canCreateAdmins) return
+              if (!open) {
+                setEditingAdmin(null)
+                form.reset(adminFormDefaultValues)
+              }
+              setIsDialogOpen(open)
+            }}
+            form={form}
+            editingAdmin={!!editingAdmin}
+            editingAdminId={editingAdmin?.id}
+          />
+        )}
       </div>
     </div>
   )

@@ -24,6 +24,8 @@ import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { useBulkDisableGroups, useBulkEnableGroups } from '@/service/api'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 interface GroupsListProps {
   isDialogOpen: boolean
@@ -48,6 +50,11 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([])
   const [bulkAction, setBulkAction] = useState<BulkGroupActionType | null>(null)
   const { t } = useTranslation()
+  const { admin } = useAdmin()
+  const canCreateGroups = hasPermission(admin, 'groups', 'create')
+  const canUpdateGroups = hasPermission(admin, 'groups', 'update')
+  const canDeleteGroups = hasPermission(admin, 'groups', 'delete')
+  const canUseBulkSelection = canUpdateGroups || canDeleteGroups
   const modifyGroupMutation = useModifyGroup()
   const bulkDeleteGroupsMutation = useBulkDeleteGroups()
   const bulkDisableGroupsMutation = useBulkDisableGroups()
@@ -61,6 +68,8 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   })
 
   const handleEdit = (group: GroupResponse) => {
+    if (!canUpdateGroups) return
+
     setEditingGroup(group)
     form.reset({
       name: group.name,
@@ -71,6 +80,8 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   }
 
   const handleToggleStatus = async (group: GroupResponse) => {
+    if (!canUpdateGroups) return
+
     try {
       await modifyGroupMutation.mutateAsync({
         groupId: group.id,
@@ -117,7 +128,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   }
 
   const handleBulkDelete = async () => {
-    if (!selectedGroupIds.length) return
+    if (!canDeleteGroups || !selectedGroupIds.length) return
 
     try {
       const response = await bulkDeleteGroupsMutation.mutateAsync({
@@ -147,7 +158,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedDisableEligibleIds.length) return
+    if (!canUpdateGroups || !selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableGroupsMutation.mutateAsync({
@@ -172,7 +183,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedEnableEligibleIds.length) return
+    if (!canUpdateGroups || !selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableGroupsMutation.mutateAsync({
@@ -199,6 +210,8 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   const listColumns = useGroupsListColumns({
     onEdit: handleEdit,
     onToggleStatus: handleToggleStatus,
+    canUpdate: canUpdateGroups,
+    canDelete: canDeleteGroups,
   })
   const selectedCount = selectedGroupIds.length
   const selectedGroups = (groupsData?.groups || []).filter(group => selectedGroupIds.includes(group.id))
@@ -208,6 +221,8 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
   const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
+        ...(canDeleteGroups
+          ? [
         {
           key: 'delete',
           label: t('delete'),
@@ -215,8 +230,10 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           onClick: () => setBulkAction('delete'),
           direct: true,
           destructive: true,
-        },
-        ...(disableEligibleCount > 0
+        } as BulkActionItem,
+          ]
+          : []),
+        ...(canUpdateGroups && disableEligibleCount > 0
           ? [
             {
               key: 'disable',
@@ -226,7 +243,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
             } as BulkActionItem,
           ]
           : []),
-        ...(enableEligibleCount > 0
+        ...(canUpdateGroups && enableEligibleCount > 0
           ? [
             {
               key: 'enable',
@@ -305,7 +322,7 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
           <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
       </div>
-      <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
+      {canUseBulkSelection && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
       {isEmpty && !isCurrentlyLoading && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
@@ -334,12 +351,12 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
             isLoading={isCurrentlyLoading}
             loadingRows={6}
             className="gap-4"
-            enableSelection
-            injectSelectionProps
+            enableSelection={canUseBulkSelection}
+            injectSelectionProps={canUseBulkSelection}
             selectedRowIds={selectedGroupIds}
             onSelectionChange={ids => setSelectedGroupIds(ids.map(id => Number(id)))}
             showEmptyState={false}
-            renderItem={group => <Group group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />}
+            renderItem={group => <Group group={group} onEdit={handleEdit} onToggleStatus={handleToggleStatus} canUpdate={canUpdateGroups} canDelete={canDeleteGroups} />}
             renderSkeleton={i => (
               <Card key={i} className="px-4 py-5">
                 <div className="flex items-center gap-2 sm:gap-3">
@@ -361,27 +378,29 @@ export default function GroupsList({ isDialogOpen, onOpenChange }: GroupsListPro
             isLoading={isCurrentlyLoading}
             loadingRows={6}
             className="gap-3"
-            onRowClick={handleEdit}
-            enableSelection
+            onRowClick={canUpdateGroups ? handleEdit : undefined}
+            enableSelection={canUseBulkSelection}
             selectedRowIds={selectedGroupIds}
             onSelectionChange={ids => setSelectedGroupIds(ids.map(id => Number(id)))}
             showEmptyState={false}
           />
         ))}
 
-      <GroupModal
-        isDialogOpen={isDialogOpen}
-        onOpenChange={(open: boolean) => {
-          if (!open) {
-            setEditingGroup(null)
-            form.reset(groupFormDefaultValues)
-          }
-          onOpenChange(open)
-        }}
-        form={form}
-        editingGroup={!!editingGroup}
-        editingGroupId={editingGroup?.id}
-      />
+      {(canCreateGroups || canUpdateGroups) && (
+        <GroupModal
+          isDialogOpen={isDialogOpen}
+          onOpenChange={(open: boolean) => {
+            if (!open) {
+              setEditingGroup(null)
+              form.reset(groupFormDefaultValues)
+            }
+            onOpenChange(open)
+          }}
+          form={form}
+          editingGroup={!!editingGroup}
+          editingGroupId={editingGroup?.id}
+        />
+      )}
       {activeBulkActionConfig && (
         <BulkActionAlertDialog
           open={!!bulkAction}

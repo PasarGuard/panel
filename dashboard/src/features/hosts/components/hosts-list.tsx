@@ -33,6 +33,8 @@ export interface HostsListProps {
   setEditingHost: (host: BaseHost | null) => void
   onRefresh?: () => Promise<unknown>
   isRefreshing?: boolean
+  canCreate?: boolean
+  canUpdate?: boolean
 }
 
 type BulkHostActionType = 'delete' | 'disable' | 'enable'
@@ -52,7 +54,7 @@ const toOptionalNumber = (value: unknown) => {
   return Number.isFinite(numericValue) ? numericValue : undefined
 }
 
-export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost, onRefresh, isRefreshing: isRefreshingProp }: HostsListProps) {
+export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost, onRefresh, isRefreshing: isRefreshingProp, canCreate = true, canUpdate = true }: HostsListProps) {
   const [hosts, setHosts] = useState<BaseHost[] | undefined>(data)
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
   const [filters, setFilters] = useState<HostListFilters>({})
@@ -163,6 +165,8 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const handleEdit = (host: BaseHost) => {
+    if (!canUpdate) return
+
     const formData: HostFormValues = {
       remark: host.remark || '',
       address: Array.isArray(host.address) ? host.address : host.address ? [host.address] : [],
@@ -343,7 +347,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const handleDuplicate = async (host: BaseHost) => {
-    if (!host) return
+    if (!canCreate || !host) return
 
     try {
       // Create duplicate with slightly modified name and same priority
@@ -412,6 +416,9 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
 
   const handleSubmit = async (data: HostFormValues) => {
     try {
+      if (editingHost?.id && !canUpdate) return
+      if (!editingHost?.id && !canCreate) return
+
       const response = await onSubmit(data)
       if (response.status === 200) {
         if (editingHost?.id) {
@@ -431,7 +438,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const handleBulkDelete = async () => {
-    if (!selectedHostIds.length) return
+    if (!canUpdate || !selectedHostIds.length) return
 
     try {
       const response = await bulkDeleteHostsMutation.mutateAsync({
@@ -461,7 +468,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedDisableEligibleIds.length) return
+    if (!canUpdate || !selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableHostsMutation.mutateAsync({
@@ -486,7 +493,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedEnableEligibleIds.length) return
+    if (!canUpdate || !selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableHostsMutation.mutateAsync({
@@ -518,6 +525,8 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   )
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!canUpdate) return
+
     const { active, over } = event
 
     const hasSearchQuery = Boolean(filters.search?.trim())
@@ -789,13 +798,15 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     onEdit: handleEdit,
     onDuplicate: handleDuplicate,
     onDataChanged: refreshHostsData,
+    canUpdate,
+    canCreate,
   })
 
   const hasActiveAdvanceFilters = Boolean(
     (filters.status && filters.status.length > 0) || (filters.inbound_tags && filters.inbound_tags.length > 0) || filters.security || typeof filters.is_disabled === 'boolean',
   )
   const hasSearch = Boolean(filters.search?.trim())
-  const isSortingDisabled = isUpdatingPriorities || hasSearch || hasActiveAdvanceFilters
+  const isSortingDisabled = !canUpdate || isUpdatingPriorities || hasSearch || hasActiveAdvanceFilters
   const isCurrentlyLoading = hosts === undefined || (isRefreshing && sortedHosts.length === 0)
   const isEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && !hasSearch && !hasActiveAdvanceFilters && sortedHosts.length === 0
   const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && (hasSearch || hasActiveAdvanceFilters)
@@ -806,7 +817,8 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   const enableEligibleCount = selectedEnableEligibleIds.length
   const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
-    ? [
+    ? canUpdate
+      ? [
         {
           key: 'delete',
           label: t('delete'),
@@ -836,6 +848,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           ]
           : []),
       ]
+      : []
     : []
   const bulkActionConfigs: Record<BulkHostActionType, BulkActionDialogConfig> = {
     delete: {
@@ -886,7 +899,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           onViewModeChange={setViewMode}
         />
       </div>
-      <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
+      {canUpdate && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
       {(isCurrentlyLoading || filteredHosts.length > 0) && viewMode === 'grid' && (
         <DndContext sensors={isSortingDisabled ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={sortableHosts} strategy={rectSortingStrategy}>
@@ -896,14 +909,14 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               isLoading={isCurrentlyLoading}
               loadingRows={6}
               className="max-w-screen-[2000px] min-h-screen gap-4 overflow-hidden"
-              enableSelection
-              injectSelectionProps
+              enableSelection={canUpdate}
+              injectSelectionProps={canUpdate}
               selectedRowIds={selectedHostIds}
               onSelectionChange={ids => setSelectedHostIds(ids.map(id => Number(id)))}
               isRowSelectable={host => typeof host.id === 'number'}
               showEmptyState={false}
               renderItem={host => (
-                <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} />
+                <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} canUpdate={canUpdate} canCreate={canCreate} />
               )}
               renderSkeleton={index => (
                 <Card key={index} className="group relative h-full p-4">
@@ -941,13 +954,13 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               isLoading={isCurrentlyLoading}
               loadingRows={6}
               className="max-w-screen-[2000px] min-h-screen gap-3 overflow-hidden"
-              enableSelection
+              enableSelection={canUpdate}
               selectedRowIds={selectedHostIds}
               onSelectionChange={ids => setSelectedHostIds(ids.map(id => Number(id)))}
               isRowSelectable={host => typeof host.id === 'number'}
               showEmptyState={false}
-              onRowClick={handleEdit}
-              enableSorting
+              onRowClick={canUpdate ? handleEdit : undefined}
+              enableSorting={canUpdate}
               sortingDisabled={isSortingDisabled}
             />
           </SortableContext>
@@ -983,23 +996,27 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         isLoadingInbounds={isLoadingInbounds}
       />
 
-      <HostModal
-        isDialogOpen={isDialogOpen}
-        onSubmit={handleSubmit}
-        onOpenChange={open => {
-          if (!open) {
-            setEditingHost(null)
-            form.reset(hostFormDefaultValues)
-          } else if (!editingHost) {
-            form.reset(hostFormDefaultValues)
-          }
-          onAddHost(open)
-        }}
-        form={form}
-        editingHost={!!editingHost}
-        inboundDetails={inbounds}
-        isLoadingInbounds={isLoadingInbounds}
-      />
+      {(canCreate || canUpdate) && (
+        <HostModal
+          isDialogOpen={isDialogOpen}
+          onSubmit={handleSubmit}
+          onOpenChange={open => {
+            if (open && editingHost && !canUpdate) return
+            if (open && !editingHost && !canCreate) return
+            if (!open) {
+              setEditingHost(null)
+              form.reset(hostFormDefaultValues)
+            } else if (!editingHost) {
+              form.reset(hostFormDefaultValues)
+            }
+            onAddHost(open)
+          }}
+          form={form}
+          editingHost={!!editingHost}
+          inboundDetails={inbounds}
+          isLoadingInbounds={isLoadingInbounds}
+        />
+      )}
       {activeBulkActionConfig && (
         <BulkActionAlertDialog
           open={!!bulkAction}

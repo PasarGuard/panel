@@ -1,6 +1,8 @@
 import PageHeader from '@/components/layout/page-header'
 import PageTransition from '@/components/layout/page-transition'
+import { useAdmin } from '@/hooks/use-admin'
 import { getDocsUrl } from '@/utils/docs-url'
+import { hasPermission } from '@/utils/rbac'
 import { Cpu, LucideIcon, Share2, Plus, Logs } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +25,18 @@ const Settings = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const { admin } = useAdmin()
+  const canReadNodes = hasPermission(admin, 'nodes', 'read')
+  const canCreateNodes = hasPermission(admin, 'nodes', 'create')
+  const canReadCores = hasPermission(admin, 'cores', 'read')
+  const canCreateCores = hasPermission(admin, 'cores', 'create')
+  const canReadNodeLogs = hasPermission(admin, 'nodes', 'logs')
+  const visibleTabs = tabs.filter(tab => {
+    if (tab.url === '/nodes') return canReadNodes
+    if (tab.url === '/nodes/cores') return canReadCores
+    if (tab.url === '/nodes/logs') return canReadNodeLogs
+    return false
+  })
   const [activeTab, setActiveTab] = useState<string>(tabs[0].id)
   const isCoreEditorPage = /^\/nodes\/cores\/[^/]+$/.test(location.pathname)
 
@@ -37,16 +51,26 @@ const Settings = () => {
     }
   }, [location.pathname])
 
+  useEffect(() => {
+    if (isCoreEditorPage || visibleTabs.length === 0) return
+    const currentTab = visibleTabs.find(tab => location.pathname === tab.url)
+    if (!currentTab) {
+      navigate(visibleTabs[0].url, { replace: true })
+    }
+  }, [isCoreEditorPage, location.pathname, navigate, visibleTabs])
+
   const getPageHeaderProps = () => {
     if (location.pathname.startsWith('/nodes/cores')) {
       return {
         title: 'settings.cores.title',
         description: 'settings.cores.description',
-        buttonIcon: Plus,
-        buttonText: 'settings.cores.addCore',
-        onButtonClick: () => {
-          navigate('/nodes/cores/new')
-        },
+        buttonIcon: canCreateCores ? Plus : undefined,
+        buttonText: canCreateCores ? 'settings.cores.addCore' : undefined,
+        onButtonClick: canCreateCores
+          ? () => {
+            navigate('/nodes/cores/new')
+          }
+          : undefined,
       }
     }
     if (location.pathname === '/nodes/logs') {
@@ -61,13 +85,14 @@ const Settings = () => {
     return {
       title: 'nodes.title',
       description: 'manageNodes',
-      buttonIcon: Plus,
-      buttonText: 'nodes.addNode',
-      onButtonClick: () => {
-        // This will be handled by the child component through context or props
-        const event = new CustomEvent('openNodeDialog')
-        window.dispatchEvent(event)
-      },
+      buttonIcon: canCreateNodes ? Plus : undefined,
+      buttonText: canCreateNodes ? 'nodes.addNode' : undefined,
+      onButtonClick: canCreateNodes
+        ? () => {
+          const event = new CustomEvent('openNodeDialog')
+          window.dispatchEvent(event)
+        }
+        : undefined,
     }
   }
 
@@ -81,7 +106,7 @@ const Settings = () => {
       <div className="flex w-full min-h-0 flex-1 flex-col">
         {!isCoreEditorPage && (
           <div className="flex border-b px-4">
-            {tabs.map(tab => (
+            {visibleTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => navigate(tab.url)}

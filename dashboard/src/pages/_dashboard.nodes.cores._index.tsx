@@ -7,8 +7,14 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import { LoaderButton } from '@/components/ui/loader-button'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 export default function CoresIndexPage() {
+  const { admin } = useAdmin()
+  const canCreateCores = hasPermission(admin, 'cores', 'create')
+  const canUpdateCores = hasPermission(admin, 'cores', 'update')
+  const canDeleteCores = hasPermission(admin, 'cores', 'delete')
   const { data: coresData } = useGetAllCores({})
   const queryClient = useQueryClient()
   const deleteCoreConfig = useDeleteCoreConfig()
@@ -20,6 +26,8 @@ export default function CoresIndexPage() {
 
   const handleDuplicateCore = useCallback(
     (coreId: string | number) => {
+      if (!canCreateCores) return
+
       const numericCoreId = Number(coreId)
       const coreToDuplicate = coresData?.cores?.find(core => core.id === numericCoreId)
 
@@ -67,17 +75,18 @@ export default function CoresIndexPage() {
         )
       }
     },
-    [coresData?.cores, createCoreMutation, queryClient, t],
+    [canCreateCores, coresData?.cores, createCoreMutation, queryClient, t],
   )
 
   const handleDeleteCore = useCallback((coreName: string, coreId: number) => {
+    if (!canDeleteCores) return
     setCoreToDelete(coreName)
     setCoreIdToDelete(coreId)
     setDeleteDialogOpen(true)
-  }, [])
+  }, [canDeleteCores])
 
   const confirmDeleteCore = useCallback(() => {
-    if (!coreToDelete || coreIdToDelete === null) return
+    if (!canDeleteCores || !coreToDelete || coreIdToDelete === null) return
 
     deleteCoreConfig.mutate(
       {
@@ -118,7 +127,7 @@ export default function CoresIndexPage() {
         },
       },
     )
-  }, [coreToDelete, coreIdToDelete, deleteCoreConfig, queryClient, t])
+  }, [canDeleteCores, coreToDelete, coreIdToDelete, deleteCoreConfig, queryClient, t])
 
   const handleDeleteDialogClose = useCallback(() => {
     setDeleteDialogOpen(false)
@@ -130,7 +139,7 @@ export default function CoresIndexPage() {
 
   return (
     <div className="flex flex-col px-4">
-      <Cores cores={cores} onDuplicateCore={handleDuplicateCore} onDeleteCore={handleDeleteCore} />
+      <Cores cores={cores} onDuplicateCore={canCreateCores ? handleDuplicateCore : undefined} onDeleteCore={canDeleteCores ? handleDeleteCore : undefined} canCreate={canCreateCores} canUpdate={canUpdateCores} canDelete={canDeleteCores} />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogClose}>
         <AlertDialogContent>

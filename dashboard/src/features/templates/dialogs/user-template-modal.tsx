@@ -9,6 +9,7 @@ import { LoaderButton } from '@/components/ui/loader-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import {
@@ -115,7 +116,9 @@ const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) 
 
 export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, editingUserTemplate, editingUserTemplateId }: UserTemplatesModalprops) {
   const dir = useDirDetection()
+  const { admin } = useAdmin()
   const { t } = useTranslation()
+  const canUseResetStrategy = admin?.role?.features?.can_use_reset_strategy !== false
   const addUserTemplateMutation = useCreateUserTemplate()
   const handleError = useDynamicErrorHandler()
   const modifyUserTemplateMutation = useModifyUserTemplate()
@@ -144,6 +147,11 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       setExpireDurationUnit('days')
     }
   }, [isDialogOpen])
+
+  useEffect(() => {
+    if (canUseResetStrategy) return
+    form.setValue('data_limit_reset_strategy', DataLimitResetStrategy.no_reset, { shouldDirty: false, shouldValidate: false })
+  }, [canUseResetStrategy, form])
 
   const status = form.watch('status')
 
@@ -187,7 +195,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         group_ids: values.groups, // map groups to group_ids
         status,
         on_hold_timeout: status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
-        data_limit_reset_strategy: hasDataLimit ? values.data_limit_reset_strategy : undefined,
+        data_limit_reset_strategy: canUseResetStrategy && hasDataLimit ? values.data_limit_reset_strategy : DataLimitResetStrategy.no_reset,
         reset_usages: values.reset_usages,
         extra_settings:
           values.method
@@ -321,7 +329,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                     const datalimit = form.watch('data_limit')
                     const normalizedDataLimitGb = Number(datalimit ?? 0)
                     const hasDataLimit = Number.isFinite(normalizedDataLimitGb) && normalizedDataLimitGb > 0
-                    if (!hasDataLimit) {
+                    if (!canUseResetStrategy || !hasDataLimit) {
                       return <></>
                     }
                     return (

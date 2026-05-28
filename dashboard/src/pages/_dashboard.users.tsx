@@ -5,16 +5,21 @@ import UsersTable from '@/features/users/components/users-table'
 import UsersStatistics from '@/features/users/components/users-statistics'
 import { Plus } from 'lucide-react'
 import UserModal from '@/features/users/dialogs/user-modal'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 const Users = () => {
+  const { admin } = useAdmin()
+  const canCreateUsers = hasPermission(admin, 'users', 'create')
   const [isUserModalOpen, setUserModalOpen] = useState(false)
   const userForm = useForm<UseFormValues | UseEditFormValues>({
     defaultValues: getDefaultUserForm,
   })
 
   const handleCreateUser = () => {
+    if (!canCreateUsers) return
     userForm.reset()
     setUserModalOpen(true)
   }
@@ -22,7 +27,7 @@ const Users = () => {
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader title="users" description="manageAccounts" buttonIcon={Plus} buttonText="createUser" onButtonClick={handleCreateUser} />
+        <PageHeader title="users" description="manageAccounts" buttonIcon={canCreateUsers ? Plus : undefined} buttonText={canCreateUsers ? 'createUser' : undefined} onButtonClick={canCreateUsers ? handleCreateUser : undefined} />
         <Separator />
       </div>
 
@@ -36,7 +41,7 @@ const Users = () => {
         </div>
       </div>
 
-      <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} />
+      {canCreateUsers && <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} />}
     </div>
   )
 }

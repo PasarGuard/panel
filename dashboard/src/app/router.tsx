@@ -53,6 +53,17 @@ function SettingsIndex() {
   return <Navigate to={defaultPath} replace />
 }
 
+function TemplatesIndex() {
+  const { admin } = useAdmin()
+  const defaultPath = hasPermission(admin, 'templates', 'read')
+    ? '/templates/user'
+    : hasPermission(admin, 'client_templates', 'read')
+      ? '/templates/client'
+      : '/settings/theme'
+
+  return <Navigate to={defaultPath} replace />
+}
+
 const fetchAdminLoader = async (): Promise<any> => {
   try {
     const response = await getCurrentAdmin()
@@ -181,7 +192,7 @@ export const router = createHashRouter([
         children: [
           {
             index: true,
-            element: <Navigate to="/templates/user" replace />,
+            element: <TemplatesIndex />,
           },
           {
             path: '/templates/user',
