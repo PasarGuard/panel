@@ -7,7 +7,7 @@ export function filterXrayInboundDraftIssuesForEditor(issues: Issue[]): Issue[] 
 }
 
 export function filterCoreKitIssuesHidingInboundClients(issues: CoreKitValidationIssue[]): CoreKitValidationIssue[] {
-  return issues.filter(i => !isHiddenInboundClientsCoreKitIssue(i))
+  return issues.filter(i => !isHiddenInboundClientsCoreKitIssue(i) && !isStaleHysteriaUdpmasksCoreKitIssue(i))
 }
 
 function isHiddenInboundClientsXrayIssue(issue: Issue): boolean {
@@ -20,4 +20,8 @@ function isHiddenInboundClientsCoreKitIssue(issue: CoreKitValidationIssue): bool
   const msg = (issue.message ?? '').toLowerCase()
   if (msg.includes('enabled clients') || msg.includes('no enabled client')) return true
   return false
+}
+
+function isStaleHysteriaUdpmasksCoreKitIssue(issue: CoreKitValidationIssue): boolean {
+  return issue.code === 'XCK_XRAY_STRICT_UNKNOWN_FIELD' && issue.path.endsWith('/streamSettings/hysteriaSettings/udpmasks')
 }

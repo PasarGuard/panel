@@ -235,6 +235,58 @@ function applyInboundSockoptToCompiledConfig(profile: Profile, config: Record<st
   return { ...config, inbounds }
 }
 
+function normalizeHysteriaSettingsForCore(config: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(config.inbounds)) return config
+
+  let changed = false
+  const inbounds = config.inbounds.map(compiledInbound => {
+    if (!isRecord(compiledInbound)) return compiledInbound
+    const streamSettings = isRecord(compiledInbound.streamSettings) ? { ...compiledInbound.streamSettings } : null
+    if (!streamSettings || streamSettings.network !== 'hysteria') return compiledInbound
+
+    let inboundChanged = false
+    const hysteriaSettings = isRecord(streamSettings.hysteriaSettings) ? { ...streamSettings.hysteriaSettings } : {}
+    if (Object.prototype.hasOwnProperty.call(hysteriaSettings, 'ignoreClientBandwidth')) {
+      delete hysteriaSettings.ignoreClientBandwidth
+      inboundChanged = true
+    }
+    if (Array.isArray(streamSettings.udpmasks)) {
+      hysteriaSettings.udpmasks = streamSettings.udpmasks
+      delete streamSettings.udpmasks
+      inboundChanged = true
+    }
+
+    if (!inboundChanged) return compiledInbound
+    streamSettings.hysteriaSettings = hysteriaSettings
+    changed = true
+    return { ...compiledInbound, streamSettings }
+  })
+
+  return changed ? { ...config, inbounds } : config
+}
+
+function applyHysteriaTransportUdpmasksToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(config.inbounds)) return config
+
+  let changed = false
+  const inbounds = config.inbounds.map((compiledInbound, index) => {
+    if (!isRecord(compiledInbound)) return compiledInbound
+    const profileInbound = profile.inbounds?.[index]
+    const transport = asRecord((profileInbound as { transport?: unknown } | undefined)?.transport)
+    const udpmasks = transport?.type === 'hysteria' && Array.isArray(transport.udpmasks) ? transport.udpmasks : undefined
+    if (!udpmasks || udpmasks.length === 0) return compiledInbound
+
+    const streamSettings = isRecord(compiledInbound.streamSettings) ? { ...compiledInbound.streamSettings } : {}
+    const hysteriaSettings = isRecord(streamSettings.hysteriaSettings) ? { ...streamSettings.hysteriaSettings } : {}
+    hysteriaSettings.udpmasks = udpmasks
+    streamSettings.hysteriaSettings = hysteriaSettings
+    changed = true
+    return { ...compiledInbound, streamSettings }
+  })
+
+  return changed ? { ...config, inbounds } : config
+}
+
 const OBSERVATION_EXCLUDED_OUTBOUND_PROTOCOLS = new Set(['blackhole', 'dns', 'loopback'])
 
 function observableOutboundTags(profile: Profile): string[] {
@@ -299,11 +351,16 @@ export function profileToPersistedConfig(profile: Profile): Record<string, unkno
   const { config } = buildXrayConfig(prepared, { mode: 'permissive' })
   const result = applyObservationSubjectSelectorsToCompiledConfig(
     profile,
-    applyRealityInboundExtrasToCompiledConfig(
-      profile,
-      applyVlessInboundEncryptionToCompiledConfig(
+    normalizeHysteriaSettingsForCore(
+      applyHysteriaTransportUdpmasksToCompiledConfig(
         prepared,
-        applyInboundSockoptToCompiledConfig(prepared, config as Record<string, unknown>),
+        applyRealityInboundExtrasToCompiledConfig(
+          profile,
+          applyVlessInboundEncryptionToCompiledConfig(
+            prepared,
+            applyInboundSockoptToCompiledConfig(prepared, config as Record<string, unknown>),
+          ),
+        ),
       ),
     ),
   )

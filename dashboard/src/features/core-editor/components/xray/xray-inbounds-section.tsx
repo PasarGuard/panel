@@ -362,6 +362,34 @@ function kitArgsPreservingListenPort(inbound: Inbound): { tag: string; listen?: 
   return args
 }
 
+function hysteriaSalamanderPasswordForForm(inbound: Inbound): string {
+  if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return ''
+  const udpmasks = (inbound.transport as unknown as { udpmasks?: unknown }).udpmasks
+  if (!Array.isArray(udpmasks)) return ''
+  const salamander = udpmasks.find(mask => {
+    if (!mask || typeof mask !== 'object' || Array.isArray(mask)) return false
+    return (mask as { type?: unknown }).type === 'salamander'
+  })
+  if (!salamander || typeof salamander !== 'object' || Array.isArray(salamander)) return ''
+  const settings = (salamander as { settings?: unknown }).settings
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return ''
+  const password = (settings as { password?: unknown }).password
+  return typeof password === 'string' ? password : ''
+}
+
+function hysteriaUdpmasksWithSalamanderPassword(current: unknown, password: string | undefined): Array<{ type: string; settings?: Record<string, unknown> }> | undefined {
+  const existing = Array.isArray(current)
+    ? current.filter((mask): mask is Record<string, unknown> => Boolean(mask) && typeof mask === 'object' && !Array.isArray(mask))
+    : []
+  const withoutSalamander = existing.filter(mask => mask.type !== 'salamander')
+  const normalized = password?.trim() ?? ''
+  if (normalized === '') return withoutSalamander.length > 0 ? withoutSalamander.map(mask => ({ ...mask } as { type: string; settings?: Record<string, unknown> })) : undefined
+  return [
+    ...withoutSalamander.map(mask => ({ ...mask } as { type: string; settings?: Record<string, unknown> })),
+    { type: 'salamander', settings: { password: normalized } },
+  ]
+}
+
 /** xray-config-kit factory defaults tunnel/dokodemo `network` to tcp; editor default is tcp,udp. */
 function applyTunnelEditorCreationDefaults(ib: Inbound): Inbound {
   if (ib.protocol !== 'tunnel' && ib.protocol !== 'dokodemo-door') return ib
@@ -916,6 +944,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       tunMtu: '',
       wgSecretKey: '',
       wgMtu: '',
+      hysteriaObfsEnabled: 'false',
+      hysteriaObfsPassword: '',
     },
     // `onSubmit`: REALITY rules use `superRefine` on the whole form — with `onTouched`, focusing
     // e.g. Security runs the resolver once and surfaces every REALITY field error at once. With
@@ -1019,6 +1049,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           : '',
       hysteriaMasqueradeStatusCode:
         row.protocol === 'hysteria' && row.transport.type === 'hysteria' && typeof row.transport.masquerade?.statusCode === 'number' ? String(row.transport.masquerade.statusCode) : '',
+      hysteriaObfsEnabled: hysteriaSalamanderPasswordForForm(row) ? 'true' : 'false',
+      hysteriaObfsPassword: hysteriaSalamanderPasswordForForm(row),
       sniffingEnabled: sniffing?.enabled ? 'true' : 'false',
       sniffingDestOverride: JSON.stringify(parseSniffingDestOverride(sniffing?.destOverride)),
       sniffingMetadataOnly: sniffing?.metadataOnly ? 'true' : 'false',
@@ -1838,11 +1870,11 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
 
   const patchHysteriaServerSettings = useCallback(
-    (patch: { auth?: string; udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined }) => {
+    (patch: { auth?: string; udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; obfsPassword?: string | undefined }) => {
       if (!inbound || inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return
       // Peer auth belongs on hysteria transport (hysteriaSettings); keep settings.clients empty in exported Xray JSON.
       const nextClients = inbound.clients.filter(client => client.protocol !== 'hysteria')
-      const nextTransport = { ...inbound.transport }
+      const nextTransport = { ...inbound.transport } as Record<string, unknown>
       if ('auth' in patch) {
         const auth = (patch.auth ?? '').trim()
         if (auth === '') delete nextTransport.auth
@@ -1864,6 +1896,11 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           if (Object.keys(mergedMasquerade).length === 0) delete nextTransport.masquerade
           else nextTransport.masquerade = mergedMasquerade as NonNullable<typeof nextTransport.masquerade>
         }
+      }
+      if ('obfsPassword' in patch) {
+        const udpmasks = hysteriaUdpmasksWithSalamanderPassword(nextTransport.udpmasks, patch.obfsPassword)
+        if (udpmasks === undefined) delete nextTransport.udpmasks
+        else nextTransport.udpmasks = udpmasks
       }
       patchInbound({
         clients: nextClients,
@@ -2883,6 +2920,60 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={form.control}
+                      name="hysteriaObfsEnabled"
+                      render={({ field }) => (
+                        <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
+                          <FormLabel className="cursor-pointer text-sm font-medium">
+                            {t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation' })}
+                          </FormLabel>
+                          <FormControl>
+                            <Switch
+                              checked={field.value === 'true'}
+                              onCheckedChange={checked => {
+                                field.onChange(checked ? 'true' : 'false')
+                                if (!checked) {
+                                  form.setValue('hysteriaObfsPassword', '')
+                                  patchHysteriaServerSettings({ obfsPassword: undefined })
+                                } else {
+                                  const current = form.getValues('hysteriaObfsPassword') || generatePassword()
+                                  form.setValue('hysteriaObfsPassword', current)
+                                  patchHysteriaServerSettings({ obfsPassword: current })
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch('hysteriaObfsEnabled') === 'true' && (
+                      <FormField
+                        control={form.control}
+                        name="hysteriaObfsPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                              {t('coreEditor.inbound.hysteria.obfsPassword', { defaultValue: 'Obfs password' })}
+                            </FormLabel>
+                            <FormControl>
+                              <PasswordInput
+                                dir="ltr"
+                                autoComplete="new-password"
+                                className="h-10"
+                                value={field.value ?? ''}
+                                onChange={e => {
+                                  const v = e.target.value
+                                  field.onChange(v)
+                                  patchHysteriaServerSettings({ obfsPassword: v })
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                     <FormField
                       control={form.control}
                       name="hysteriaMasqueradeType"
