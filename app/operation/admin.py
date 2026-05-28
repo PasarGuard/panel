@@ -123,11 +123,6 @@ class AdminOperation(BaseOperation):
             if modified_admin.status is not None and modified_admin.status == AdminStatus.disabled:
                 await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
-        # Non-owner admins cannot modify other admins with equal or higher role level (role_id <= 2)
-        # Only the owner can modify administrators (role_id=2)
-        if not current_admin.is_owner and not is_self and db_admin.role_id <= 2:
-            await self.raise_error(message="You're not allowed to modify an administrator account.", code=403)
-
         if modified_admin.telegram_id:
             existing_admins = await find_admins_by_telegram_id(
                 db, modified_admin.telegram_id, exclude_admin_id=db_admin.id, limit=1
