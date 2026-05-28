@@ -22,7 +22,7 @@
   "monitorUsers": "Monitor Users",
   "alltime": "All time",
   "today": "Today",
-  "coreUsername": "Core Username",
+  "copyUserId": "Copy ID",
   "nodes": {
     "title": "Nodes",
     "description": "Manage your nodes",

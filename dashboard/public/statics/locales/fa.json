@@ -26,7 +26,7 @@
   "monitorUsers": "مدیریت کاربران",
   "alltime": "همه زمان",
   "today": "امروز",
-  "coreUsername": "نام کاربری هسته",
+  "copyUserId": "کپی شناسه",
   "settings": {
     "title": "تنظیمات",
     "notifications": {

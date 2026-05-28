@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/features/users/forms/user-form'
 import { useActiveNextPlanById, useGetCurrentAdmin, useRemoveUserById, useResetUserDataUsageById, useRevokeUserSubscriptionById, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Cat, Check, Copy, Cpu, EllipsisVertical, Fingerprint, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
+import { Cat, Check, Copy, EllipsisVertical, Fingerprint, GlobeLock, Hash, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
 import { Code } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -438,9 +438,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     setSetOwnerModalOpen(true)
   }
 
-  const handleCopyCoreUsername = async () => {
+  const handleCopyUserId = async () => {
     try {
-      await navigator.clipboard.writeText(`${user.id}.${user.username}`)
+      await navigator.clipboard.writeText(String(user.id))
       toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
     } catch (error) {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
@@ -719,9 +719,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               )}
 
               {canReadAllUsers && (
-                <DropdownMenuItem onSelect={handleCopyCoreUsername}>
-                  <Cpu className="mr-2 h-4 w-4" />
-                  <span>{t('coreUsername')}</span>
+                <DropdownMenuItem onSelect={handleCopyUserId}>
+                  <Hash className="mr-2 h-4 w-4" />
+                  <span>{t('copyUserId')}</span>
                 </DropdownMenuItem>
               )}
 

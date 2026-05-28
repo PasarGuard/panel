@@ -19,7 +19,7 @@
   "monitorUsers": "监控用户",
   "alltime": "全部时间",
   "today": "今天",
-  "coreUsername": "核心用户名",
+  "copyUserId": "复制 ID",
   "create": "创建",
   "nodes": {
     "title": "节点",

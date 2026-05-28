@@ -48,7 +48,7 @@
   "monitorUsers": "Мониторинг пользователей",
   "alltime": "Все время",
   "today": "Сегодня",
-  "coreUsername": "Основное имя пользователя",
+  "copyUserId": "Копировать ID",
   "create": "Создать",
   "nodes": {
     "title": "Узлы",
